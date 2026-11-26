@@ -41,7 +41,10 @@ interface WorkspacePanelsProps {
 
 /** User-opened surfaces; starting one is an explicit, ordinary chat turn. */
 export function WorkspacePanels(
-  props: WorkspacePanelsProps & { filesButtonSlot?: HTMLElement | null },
+  props: WorkspacePanelsProps & {
+    filesButtonSlot?: HTMLElement | null;
+    filesBeforeFirstMessage?: boolean;
+  },
 ) {
   const t = useTranslations("chat.workspace");
   const chat = useTranslations("chat");
@@ -162,6 +165,7 @@ export function WorkspacePanels(
         revision={props.revision}
         attachments={props.attachments}
         buttonSlot={props.filesButtonSlot ?? filesSlot}
+        beforeFirstMessage={props.filesBeforeFirstMessage}
         open={surface === "files"}
         onOpenChange={(shown) => (shown ? open("files") : close())}
         responsive

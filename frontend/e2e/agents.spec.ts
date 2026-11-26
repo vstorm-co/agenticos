@@ -461,7 +461,9 @@ test.describe("Agents", () => {
   // shell-capable sandbox, so binding it here leaves the shared draft agent
   // unpublishable for every spec after this one. Its picker takes a sign-in as
   // well, under its own label, which `capability-settings` covers.
-  const NEEDS_MORE_THAN_A_SECRET = new Set(["coding_agent"]);
+  // External ACP also requires a native registration and exact Pi provider/model
+  // configuration. A generic key picker cannot prepare that runtime contract.
+  const NEEDS_MORE_THAN_A_SECRET = new Set(["coding_agent", "external_acp"]);
 
   test("a capability that needs a secret says so until it has one, and keeps the one it is given", async ({
     page,
@@ -730,11 +732,20 @@ for (const theme of ["light", "dark"] as const) {
     const cards = page.locator('[data-slot="resource-card"]');
     await expect(cards).toHaveCount(2);
     await expect(page.getByRole("button", { name: /Needs attention/ })).toBeVisible();
-    const left = await cards.nth(0).locator(":scope > .border-t").boundingBox();
-    const right = await cards.nth(1).locator(":scope > .border-t").boundingBox();
-    expect(left).not.toBeNull();
-    expect(right).not.toBeNull();
-    expect(left?.y).toBeCloseTo(right?.y ?? -1, 0);
-    expect(left?.height).toBeCloseTo(right?.height ?? -1, 0);
+    await expect
+      .poll(async () =>
+        cards.evaluateAll((elements) => {
+          const frames = elements.map((element) =>
+            element.querySelector(":scope > .border-t")?.getBoundingClientRect(),
+          );
+          const [left, right] = frames;
+          if (!left || !right) return null;
+          return {
+            top: Math.abs(left.y - right.y),
+            height: Math.abs(left.height - right.height),
+          };
+        }),
+      )
+      .toEqual({ top: 0, height: 0 });
   });
 }

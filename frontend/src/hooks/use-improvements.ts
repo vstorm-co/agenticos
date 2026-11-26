@@ -223,6 +223,11 @@ export function useImprovement(subject: ImprovementSubject, runId: string) {
       apiClient.put<Improvement>(`${base}/selection`, { hunk_ids: hunkIds }),
     onSuccess: refresh,
   });
+  const chooseVariant = useMutation({
+    mutationFn: (variantId: string) =>
+      apiClient.put<Improvement>(`${base}/search/choice`, { variant_id: variantId }),
+    onSuccess: refresh,
+  });
   const editChange = useMutation({
     mutationFn: ({ hunkId, text }: { hunkId: string; text: string | null }) =>
       apiClient.put<Hunk>(`${base}/changes/${hunkId}`, { edited_text: text }),
@@ -247,6 +252,7 @@ export function useImprovement(subject: ImprovementSubject, runId: string) {
   });
   return {
     selectChanges,
+    chooseVariant,
     editChange,
     deferTopic,
     estimateContinuation,

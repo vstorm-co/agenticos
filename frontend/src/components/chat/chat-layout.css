@@ -67,9 +67,29 @@
   min-width: 0;
 }
 .chat-layout [data-chat-model] {
-  max-width: 210px;
-  font-size: 12px;
-  border-radius: 10px;
+  max-inline-size: 17rem;
+  font-size: 0.8125rem;
+  border-radius: 0.625rem;
+}
+.chat-model-caption {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.125rem;
+  text-align: start;
+  line-height: 1.2;
+}
+.chat-model-name,
+.chat-model-identity {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-model-name {
+  font-weight: 500;
+}
+.chat-model-identity {
+  color: var(--color-muted-foreground);
+  font-size: 0.6875rem;
 }
 .chat-layout [data-chat-usage] > div > span {
   display: none;

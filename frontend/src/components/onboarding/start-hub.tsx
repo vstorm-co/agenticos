@@ -17,12 +17,14 @@ import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
 import { StartAdministration } from "./start-administration";
 import { StartTasks } from "./start-tasks";
+import { useStartVariant } from "./start-experience";
 import { StartMember } from "./start-member";
 import { StartSkeleton } from "./start-skeleton";
 import { StartFinish } from "./start-finish";
 
 export function StartHub() {
   const { activeOrg } = useOrganizations();
+  const variant = useStartVariant();
   const appAdmin = useAuthStore((state) => state.user?.is_app_admin === true);
   const permissions = usePermissions();
   const organizations = useOrganizationList();
@@ -45,7 +47,7 @@ export function StartHub() {
       />
     );
   if (activeOrg && !activeOrg.is_personal && !permissions.isLoaded && !permissions.error)
-    return <StartSkeleton view="welcome" steps={4} />;
+    return <StartSkeleton view="welcome" steps={variant ? 7 : 5} />;
   if (organizations.error)
     return (
       <ErrorState
@@ -63,7 +65,8 @@ export function StartHub() {
         </Link>
       </section>
     );
-  if (state.isLoading || state.waitingForScope) return <StartSkeleton view="welcome" steps={4} />;
+  if (state.isLoading || state.waitingForScope)
+    return <StartSkeleton view="welcome" steps={variant ? 7 : 5} />;
   if (state.error || !state.data)
     return (
       <section className="mx-auto max-w-2xl space-y-4 p-6">
@@ -78,7 +81,7 @@ export function StartHub() {
       </section>
     );
   const data = state.data;
-  if (!data.has_activity && !data.has_result && !data.completed)
+  if (variant || (!data.has_activity && !data.has_result && !data.completed))
     return <StartMember key={data.organization_id} data={data} />;
   return (
     <div className={styles.shell}>

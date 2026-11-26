@@ -1,3 +1,5 @@
+import { startVariant } from "./variants";
+
 /** A browser-local navigation hint; it never holds drafts, authority or completion. */
 const STEPS = new Set([
   ...[
@@ -5,12 +7,17 @@ const STEPS = new Set([
     "identity",
     "profile",
     "context",
+    "subscriptions",
+    "models",
+    "tools",
     "team",
     "deployment",
     "organization",
     "task",
   ].map((step) => `admin.${step}`),
-  ...["welcome", "profile", "context", "task"].map((step) => `member.${step}`),
+  ...["welcome", "profile", "context", "subscriptions", "models", "tools", "task"].map(
+    (step) => `member.${step}`,
+  ),
 ]);
 const QUESTIONS: Record<string, readonly string[]> = {
   "admin.deployment": ["access", "destination", "announcement", "extras"],
@@ -31,9 +38,11 @@ export function safeStartLocation(href: string | undefined, organizationId: stri
   const keys = [...url.searchParams.keys()];
   if (
     new Set(keys).size !== keys.length ||
-    keys.some((key) => !["start-step", "workspace", "question"].includes(key))
+    keys.some((key) => !["start-step", "workspace", "question", "variant"].includes(key))
   )
     return null;
+  const variant = url.searchParams.get("variant");
+  if (variant !== null && startVariant(variant) === null) return null;
   const question = url.searchParams.get("question");
   if (question !== null && !QUESTIONS[step]?.includes(question)) return null;
   return `/onboarding?${url.searchParams.toString()}`;

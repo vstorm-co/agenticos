@@ -45,6 +45,18 @@ async def test_current_member_can_read_save_and_prepare_their_own_start(
     assert (
         await client.patch("/api/v1/me/onboarding", json={"goal": "meeting"})
     ).status_code == 200
+    response = await client.patch("/api/v1/me/onboarding", json={"current_step": "member.models"})
+    assert response.status_code == 200
+    assert service.update.await_args.args[0] == ctx
+    assert service.update.await_args.args[1].current_step == "member.models"
+    assert (
+        await client.patch("/api/v1/me/onboarding", json={"current_step": "not-a-step"})
+    ).status_code == 422
+    assert (
+        await client.patch(
+            "/api/v1/me/onboarding", json={"current_step": "member.tools", "user_id": str(uuid4())}
+        )
+    ).status_code == 422
     response = await client.patch("/api/v1/me/onboarding", json={"completed": True})
     assert response.status_code == 200
     assert service.update.await_args.args[1].completed is True

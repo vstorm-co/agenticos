@@ -1,8 +1,18 @@
 import { render, screen, within } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { SESSION } from "@/test-utils/improvement";
-import type { ImprovementIteration, VerdictCriterion } from "@/types/improvement";
-import { CriteriaNote, CriteriaTable, criteriaOf } from "./criteria";
+import type { ImprovementIteration, VerdictCriterion, VerdictFamily } from "@/types/improvement";
+import {
+  criterionName,
+  CriteriaNote,
+  CriteriaTable,
+  criteriaOf,
+  criterionRows,
+  familiesOf,
+  familyRows,
+  movedCriteria,
+  rowsOf,
+} from "./criteria";
 
 const PRICE_BREAK: VerdictCriterion = {
   scorer: "judge",
@@ -113,7 +123,9 @@ it("reads no criteria from an attempt measured before they were kept", () => {
 it("tables every criterion with its passes before and after and what the reruns confirmed", () => {
   const both = { ...LENGTH, name: "tone", fixed: 2, broken: 1 };
   render(
-    <CriteriaTable criteria={[PRICE_BREAK, LENGTH, both, failing("validity", "Quote rules")]} />,
+    <CriteriaTable
+      criteria={criterionRows([PRICE_BREAK, LENGTH, both, failing("validity", "Quote rules")])}
+    />,
   );
 
   const rows = screen.getAllByRole("row").slice(1);
@@ -159,7 +171,7 @@ it("displays scorer identity for duplicate names in tables and result sentences"
   ];
   render(
     <>
-      <CriteriaTable criteria={criteria} />
+      <CriteriaTable criteria={criterionRows(criteria)} />
       <CriteriaNote round={attempt("criteria_better", criteria)} agent="Clerk" />
     </>,
   );
@@ -168,4 +180,119 @@ it("displays scorer identity for duplicate names in tables and result sentences"
   const sentence = document.querySelector("p");
   expect(sentence).toHaveTextContent("Validity [judge]");
   expect(sentence).toHaveTextContent("Validity [check]");
+});
+
+const family = (overrides: Partial<VerdictFamily>): VerdictFamily => ({
+  family: "price break",
+  criteria: 22,
+  cases: 28,
+  before: 3,
+  after: 28,
+  fixed: 25,
+  broken: 0,
+  settled: true,
+  better: true,
+  worse: false,
+  ...overrides,
+});
+const VAT = family({
+  family: "total including VAT",
+  criteria: 24,
+  cases: 24,
+  before: 14,
+  after: 7,
+  fixed: 0,
+  broken: 7,
+  better: false,
+  worse: true,
+  skill: "fernhill-quote-format",
+});
+const withFamilies = (
+  verdict: ImprovementIteration["verdict"],
+  families: VerdictFamily[],
+): ImprovementIteration => ({
+  ...attempt(verdict, [PRICE_BREAK]),
+  verdict_detail: { fixed: 0, broken: 0, criteria: [PRICE_BREAK], families },
+});
+
+it("reads an attempt by its families, question by question, when it kept them", () => {
+  const round = withFamilies("criteria_better", [family({}), VAT]);
+
+  expect(rowsOf(round).map((row) => [row.name, row.graded, row.before, row.after])).toEqual([
+    ["price break", 28, 3, 28],
+    ["total including VAT", 24, 14, 7],
+  ]);
+  expect(familiesOf(undefined)).toEqual([]);
+  expect(rowsOf(attempt("criteria_better", [PRICE_BREAK]))[0]!.name).toBe("price break");
+});
+
+it("puts a family a skill gets wrong on the skill, not on the agent", () => {
+  const round = withFamilies("criteria_better", [family({}), VAT]);
+
+  const moved = movedCriteria(round);
+  render(<CriteriaNote round={round} agent="Reorder Assistant" />);
+
+  expect(moved.worse).toEqual([]);
+  expect(moved.skillWorse.map((row) => row.name)).toEqual(["total including VAT"]);
+  expect(
+    screen.getByText(
+      "Attempt 1 made Reorder Assistant better on 1 criterion: price break 3/28 → 28/28. " +
+        "Reorder Assistant now follows the skill more closely and fails more often on 1 " +
+        "criterion the skill gets wrong: total including VAT 14/24 → 7/24. Fix the skill " +
+        "rather than the agent.",
+    ),
+  ).toBeInTheDocument();
+});
+
+it("says what an attempt that broke questions still made better", () => {
+  render(<CriteriaNote round={withFamilies("regression", [family({})])} agent="Quote Builder" />);
+
+  expect(
+    screen.getByText(
+      "Beside the questions it broke, attempt 1 made Quote Builder better on 1 criterion: " +
+        "price break 3/28 → 28/28. Keep the part that helped by trying again with a note.",
+    ),
+  ).toBeInTheDocument();
+});
+
+it("counts an unsettled family's confirmed flips and a settled one's every flip", () => {
+  const base = {
+    criteria: ["a"],
+    cases: 6,
+    baseline_passed: 4,
+    candidate_passed: 1,
+    fixed: 1,
+    broken: 4,
+    fixed_confirmed: 0,
+    broken_confirmed: 2,
+    p_value: 0.375,
+    better: false,
+    worse: true,
+  };
+
+  const [unsettled, settled] = familyRows([
+    { ...base, family: "vat", settled: false },
+    { ...base, family: "terms", settled: true },
+  ]);
+
+  expect([unsettled!.fixed, unsettled!.broken]).toEqual([0, 2]);
+  expect([settled!.fixed, settled!.broken]).toEqual([1, 4]);
+});
+
+it("marks a criterion name cut at the stored length, keeping its last word only when whole", () => {
+  // Cut at 80 on a space and trimmed: 79 characters, the last word whole.
+  const onSpace = "States that brochures take 7 working days of standard production plus 1 working";
+  expect(onSpace.length).toBe(79);
+  expect(criterionName(onSpace)).toBe(`${onSpace}…`);
+  // Cut at 80 inside a word: the last word may be partial, so it ends at the one before.
+  const midWord = `${onSpace} d`;
+  expect(midWord.length).toBe(81);
+  expect(criterionName(midWord.slice(0, 80))).toBe(
+    "States that brochures take 7 working days of standard production plus 1 working…",
+  );
+  expect(criterionName("x".repeat(80))).toBe(`${"x".repeat(80)}…`);
+  expect(
+    criterionName(`${"A sentence written whole ".repeat(3)}and long enough to fill it.`),
+  ).toMatch(/fill it\.$/);
+  expect(criterionName("total including VAT")).toBe("total including VAT");
 });

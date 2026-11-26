@@ -1,6 +1,17 @@
 "use client";
 
-import { Box, KeyRound, Plug, TrainFront, type LucideIcon } from "lucide-react";
+import {
+  Atom,
+  Box,
+  CircleUserRound,
+  KeyRound,
+  Network,
+  Plug,
+  Route,
+  TrainFront,
+  Workflow,
+  type LucideIcon,
+} from "lucide-react";
 
 import { CustomMark, useCustomIcons } from "@/components/icons/custom-icons";
 import { GlyphIcon } from "@/components/icons/glyph";
@@ -24,11 +35,26 @@ const SERVICE_MARKS: Readonly<Record<string, LucideIcon>> = {
   e2b: Box,
   // No icon set carries LiteLLM; its own mark is the bullet-train emoji.
   litellm: TrainFront,
-  // The two custom endpoints are not a brand: they are the organization's own
-  // server, reached at an address somebody types. A plug says that, where a
-  // monogram would spell out the first letter of an id nobody reads.
+  // Each person's own accounts, of several vendors: a person, not a brand.
+  subscription_accounts: CircleUserRound,
+  cliproxyapi: Network,
+  // Decision APIs and gateways without a bundled brand use their function.
+  typesafe: Workflow,
+  "system-one": Workflow,
+  stav: Route,
+  synthetic: Atom,
+  // Custom endpoints identify a server rather than a model maker.
   openai_compatible: Plug,
   anthropic_compatible: Plug,
+};
+
+/** The model maker whose mark identifies a plan or account. */
+const VENDOR_OF: Readonly<Record<string, string>> = {
+  alibaba_coding_plan: "alibaba",
+  github_copilot: "github",
+  kimi_code: "moonshotai",
+  ollama_cloud: "ollama",
+  openai_chatgpt: "openai",
 };
 
 /** Every provider id with a mark - what the monochrome pin in the test iterates. */
@@ -76,7 +102,11 @@ interface ProviderIconProps {
  */
 export function ProviderIcon({ provider, brand, className }: ProviderIconProps) {
   const custom = useCustomIcons();
-  const glyph = (brand && BRAND_GLYPHS[brand as BrandName]) || PROVIDER_GLYPHS[provider];
+  const vendor = VENDOR_OF[provider];
+  const glyph =
+    (brand && BRAND_GLYPHS[brand as BrandName]) ||
+    PROVIDER_GLYPHS[provider] ||
+    (vendor !== undefined && (PROVIDER_GLYPHS[vendor] ?? BRAND_GLYPHS[vendor as BrandName]));
   const size = cn("h-5 w-5 shrink-0", className);
 
   if (glyph) return <GlyphIcon glyph={glyph} aria-hidden className={size} />;

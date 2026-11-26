@@ -9,7 +9,15 @@ const state = vi.hoisted(() => ({
   error: null as Error | null,
   enabled: vi.fn(),
 }));
+const organizations = vi.hoisted(() => ({
+  isSuccess: true,
+  data: [] as import("@/types").Organization[],
+}));
 vi.mock("next/navigation", () => ({ useSearchParams: () => state.params }));
+vi.mock("@/hooks/use-organizations", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/use-organizations")>()),
+  useOrganizationList: () => organizations,
+}));
 vi.mock("@/hooks/use-suggestions", () => ({
   useSuggestions: (enabled: boolean) => {
     state.enabled(enabled);

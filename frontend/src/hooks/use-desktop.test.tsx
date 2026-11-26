@@ -13,6 +13,8 @@ import {
   useDeviceLink,
   useLocalAgents,
   useLocalCodingOptions,
+  useExternalAgentOptions,
+  useExternalAgents,
   useLocalFolders,
   useLocalServices,
   useLocalSkills,
@@ -39,6 +41,10 @@ const shell = vi.hoisted(() => ({
   getLocalSkills: vi.fn(),
   getLocalAgents: vi.fn(),
   getLocalCodingOptions: vi.fn(),
+  getExternalAgentOptions: vi.fn(),
+  getExternalAgents: vi.fn(),
+  saveExternalAgent: vi.fn(),
+  removeExternalAgent: vi.fn(),
   signInLocalAgent: vi.fn(),
   signOutLocalAgent: vi.fn(),
   getLocalServices: vi.fn(),
@@ -67,6 +73,10 @@ vi.mock("@/lib/desktop/commands", async (original) => ({
   getLocalSkills: shell.getLocalSkills,
   getLocalAgents: shell.getLocalAgents,
   getLocalCodingOptions: shell.getLocalCodingOptions,
+  getExternalAgentOptions: shell.getExternalAgentOptions,
+  getExternalAgents: shell.getExternalAgents,
+  saveExternalAgent: shell.saveExternalAgent,
+  removeExternalAgent: shell.removeExternalAgent,
   signInLocalAgent: shell.signInLocalAgent,
   signOutLocalAgent: shell.signOutLocalAgent,
   getLocalServices: shell.getLocalServices,
@@ -440,6 +450,23 @@ describe("useLocalAgents", () => {
   });
 });
 
+describe("useExternalAgentOptions", () => {
+  it("reads one registration's account models only on Desktop and never retries on its own", async () => {
+    renderHook(() => useExternalAgentOptions(null), { wrapper });
+    expect(shell.getExternalAgentOptions).not.toHaveBeenCalled();
+    shell.getExternalAgentOptions.mockRejectedValue(new Error("not signed in"));
+    const { result } = renderHook(() => useExternalAgentOptions("agy"), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(shell.getExternalAgentOptions).toHaveBeenCalledTimes(1);
+    expect(shell.getExternalAgentOptions).toHaveBeenCalledWith("agy");
+    const query = client.getQueryCache().find({ queryKey: qk.desktop.externalOptions("agy") });
+    expect(query?.options).toMatchObject({ refetchOnWindowFocus: false, retry: false });
+    delete window.__AGENTICOS_SHELL__;
+    renderHook(() => useExternalAgentOptions("agy-other"), { wrapper });
+    expect(shell.getExternalAgentOptions).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("useLocalCodingOptions", () => {
   it("does not start native probes without a selected harness or outside the desktop", () => {
     renderHook(() => useLocalCodingOptions(null), { wrapper });
@@ -478,4 +505,27 @@ describe("useLocalCodingOptions", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(shell.getLocalCodingOptions).toHaveBeenCalledTimes(1);
   });
+});
+
+it("invalidates cached runtime models when a registration is replaced or removed", async () => {
+  shell.getExternalAgents.mockResolvedValue([]);
+  shell.saveExternalAgent.mockResolvedValue([]);
+  shell.removeExternalAgent.mockResolvedValue([]);
+  const { result } = renderHook(() => useExternalAgents(), { wrapper });
+  await waitFor(() => expect(result.current.state.isSuccess).toBe(true));
+  const key = qk.desktop.externalOptions("agy");
+  client.setQueryData(key, { models: [{ value: "old-account-model" }] });
+  await act(() =>
+    result.current.save.mutateAsync({
+      id: "agy",
+      name: "Antigravity",
+      provider: "antigravity",
+      program: "/bin/agy",
+      args: ["acp"],
+    }),
+  );
+  expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+  client.setQueryData(key, { models: [] });
+  await act(() => result.current.remove.mutateAsync("agy"));
+  expect(client.getQueryState(key)?.isInvalidated).toBe(true);
 });

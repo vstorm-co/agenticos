@@ -22,6 +22,7 @@ import {
   type CheckDraft,
   type CheckType,
 } from "./case-form";
+import { KeysValue } from "./keys-value";
 import { LengthValue } from "./length-value";
 
 /** Placeholders that are what is typed - a pattern, a schema, a number - rather than copy. */
@@ -61,6 +62,9 @@ function CheckValue({
   const { as } = CHECK_KINDS[check.type];
   if (as === "length") {
     return <LengthValue check={check} number={number} disabled={disabled} onChange={onChange} />;
+  }
+  if (as === "keys") {
+    return <KeysValue check={check} number={number} disabled={disabled} onChange={onChange} />;
   }
   const label = t("checkValue", { number });
   const placeholder = TYPED[check.type] ?? t(`checkPlaceholder.${check.type}`);

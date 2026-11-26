@@ -277,6 +277,7 @@ class TestToolDeclarations:
         )
 
     CONFIGS: dict[str, dict[str, Any]] = {
+        "external_acp": {"agent_id": "test-agent"},
         "phone_calls": {"endpoint_id": "00000000-0000-4000-8000-000000000001"},
         # The only capability whose *tools* are configuration rather than a fixed
         # list: a binding names which lookups it allows, so the widest
@@ -664,6 +665,8 @@ class TestReadOnlyDeclarations:
             # Types a vaulted sign-in into the open page.
             ("browser_use", "browser_fill_credential"),
             ("coding_agent", "run_coding_agent"),
+            ("external_acp", "run_acp_agent"),
+            ("external_acp", "inspect_acp_agent"),
             ("monitor", "start_monitor"),
             ("monitor", "list_monitors"),
             ("monitor", "stop_monitor"),
@@ -1304,6 +1307,7 @@ def test_exactly_the_capabilities_a_call_cannot_run_live_say_so():
             "background_tools",
             "background_tasks",
             "coding_agent",
+            "external_acp",
             "harness",
             "video_generation",
             "monitor",

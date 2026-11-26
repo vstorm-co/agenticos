@@ -1,5 +1,5 @@
 ---
-source_sha: "3b887e9777b8"
+source_sha: "481ac5e647a5"
 ---
 
 # Einen Agent dorthin bringen, wo die Menschen schon sind { #putting-an-agent-where-people-already-are }
@@ -1279,7 +1279,8 @@ Eingehende `references` müssen eine Liste von Zeichenketten ohne CR oder LF sei
    verbirgt Slack das Nachrichtenfeld des Bots, und eine Direktnachricht ist
    unmöglich.
 8. Veröffentlichen Sie den Agent und binden Sie ihn dann: Builder → der Agent →
-   **Availability** → der Bot.
+   **Availability** → der Bot, oder **Channels** → die Zeile des Bots →
+   **Bind agent**.
 9. Laden Sie den Bot in einen Channel ein — `/invite @your-bot` — und erwähnen Sie
    ihn.
 
@@ -1475,12 +1476,12 @@ Zugriff, den er hatte.
     und bis #1351 schrieb er das in das Container-Log und sonst nirgendwohin.
 
     Der Rest ist weiterhin still, und das ist die Reihenfolge, in der man es
-    prüft: kein Agent an den Bot gebunden (die Zeile sagt es), ein fehlender
-    Scope oder ein fehlendes Event-Abonnement, dann eine falsche `BOT_ID` in der
-    Request URL. Das Letzte kann sich nicht selbst melden: die Events-Route
-    antwortet für eine Bot-ID, die sie nicht finden kann, mit **200 und tut
-    nichts**, mit Absicht, denn ein Prober soll nur erfahren, dass der Endpunkt
-    existiert - was die URL bereits gesagt hat.
+    prüft: kein Agent an den Bot gebunden oder seine Bindung pausiert (die Zeile
+    sagt, welches), ein fehlender Scope oder ein fehlendes Event-Abonnement,
+    dann eine falsche `BOT_ID` in der Request URL. Das Letzte kann sich nicht
+    selbst melden: die Events-Route antwortet für eine Bot-ID, die sie nicht
+    finden kann, mit **200 und tut nichts**, mit Absicht, denn ein Prober soll
+    nur erfahren, dass der Endpunkt existiert - was die URL bereits gesagt hat.
 
 Funktioniert in Channels und in DMs. Eine Nachricht von einem verknüpften Konto
 läuft als diese Person — nie als der Bot; eine von einem Konto, das niemand
@@ -1552,6 +1553,12 @@ er tut, neben `/new`, `/link` und `/help` —, zeigt *schreibt…*, während er
 arbeitet, und nennt den Schritt, an dem er ist, sendet Antworten als Telegram-HTML,
 umgewandelt aus dem Markdown des Agents, damit Codeblöcke und Links erhalten
 bleiben, und antwortet im Thema einer Forengruppe in diesem Thema.
+
+Eine gestreamte Antwort wird genauso formatiert, sobald sie fertig ist.
+Listenpunkte beginnen mit `•`, und eine Aufgabenliste zeigt ☐ und ☒. Eine Antwort,
+die länger ist als die 4096 Zeichen von Telegram, kommt als mehrere Nachrichten
+an, und ein Codeblock, der zwischen zwei davon geteilt wird, wird geschlossen und
+wieder geöffnet.
 
 ## Mattermost { #mattermost }
 
@@ -2159,6 +2166,16 @@ idempotentes Senden können ein Duplikat anzeigen, wenn die Nachricht ankam, abe
 ihre Bestätigung verloren ging. Ausgeschöpfte Versuche stehen unter
 **Admin → Background jobs** (`deliver-channel-handback`).
 
+### Routine-Antworten in einem privaten Chat { #routine-answers-in-a-private-chat }
+
+Öffnet eine Routine, die in einem privaten Chat auf Telegram, Slack, Mattermost, Teams, Discord oder Matrix angelegt wurde, für jeden Lauf einen neuen Chat (`chat_mode=per_run`), postet der Bot die Antwort jedes Laufs auch in den Chat, in dem sie angelegt wurde, damit die Person sie dort liest, wo sie danach gefragt hat. Der ganze Lauf bleibt in seinem eigenen Chat in der Konsole.
+
+Für die Antwort einer Routine im privaten Chat gibt es einen dauerhaft erfassten Sendeversuch. Stoppt der Worker oder bestätigt die Plattform die Annahme nicht, gilt die Zustellung als nicht verfügbar; sie wird nicht automatisch wiederholt. Die vollständige Antwort bleibt in der Konsole. So werden doppelte Nachrichten nach einem ungewissen Versand vermieden.
+
+Vor dem Posten prüft die Plattform erneut das verknüpfte Konto der erstellenden Person, ihre Mitgliedschaft, den gebundenen Agenten und die Unterhaltung. Solange der Beitrag wartet, zeigt die Routine **Letzte Antwort wird an den Chat gesendet**. Nimmt der Chat die Antwort an, lautet der Status `delivered`. Kann der Chat sie nicht aufnehmen, zeigt die Routine **Letzte Antwort im Chat nicht verfügbar** und die besitzende Person erhält eine Benachrichtigung. Die Antwort bleibt im Laufprotokoll.
+
+Eine Routine mit einem gemeinsamen Verlauf (`chat_mode=shared`) postet nichts in den Chat. Gruppenchats, SMS, iMessage und E-Mail lassen die Antwort in der Konsole. Nach `/new` gehört die alte Unterhaltung nicht mehr zum Chat, spätere Antworten bleiben daher in der Konsole. Leiten Sie die Benachrichtigungen der Routine nicht zusätzlich in denselben Chat: Die Antwort käme doppelt an.
+
 ### Nächste Schritte als Schaltflächen { #next-steps-as-buttons }
 
 Auf die Antwort eines Agents mit [Nächsten Schritten](reference/capabilities.md#follow-ups),
@@ -2257,6 +2274,14 @@ Oberfläche, damit Unterschiede zwischen Konsole und Mattermost sichtbar bleiben
     Telegram-Bot und zwei Mattermost-Servern gleichzeitig antworten, und jede
     dieser Bindungen trägt ihre eigenen Instruktionen, ihre eigenen
     Channel-Abfragen und ihren eigenen Workspace-Scope.
+
+    Binden oder lösen Sie einen Agent im Tab **Availability** des Agents oder in
+    der Zeile des Bots unter **Channels**. Channels bietet nur Agents an, die Sie
+    veröffentlichen dürfen (`agents:publish` auf diesem Agent), und bindet in der
+    Standardumgebung des Agents; Umgebung, Pause, Abfragen und Instruktionen
+    bleiben im Tab Availability. Eine Zeile zeigt einen Agent, den Sie nicht
+    veröffentlichen dürfen, ohne die Aktion zum Lösen und führt eine pausierte
+    Bindung als pausiert auf.
 
     Das hat das Routing mehrerer Agents hinter einem Bot mit `@slug` ersetzt. Es
     funktionierte und las sich schlecht: jemand in einem Channel musste ein Handle
@@ -3238,7 +3263,9 @@ Neue Bindungen aktivieren alle von der Plattform unterstützten Tools. Bestehend
 nicht angeboten: Telegram gibt einem Bot kein Verzeichnis von Chats zum Durchsuchen
 und keine Möglichkeit, Nachrichten zu lesen, die ihm nicht geschickt wurden, und
 `getChatAdministrators` ist alles, was es auflisten darf — also ist eine
-Telegram-Mitgliederliste eine Liste von Administratoren und sagt das auch.
+Telegram-Mitgliederliste eine Liste von Administratoren und sagt das auch. Ein privater
+Chat hat gar keine Mitgliederliste: `{channel_members}` lautet dort `(unavailable)`, und das
+Mitglieder-Tool nennt den Grund, ohne Telegram aufzurufen.
 
 Drei Dinge, die es vor dem Gewähren zu wissen lohnt:
 

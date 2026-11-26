@@ -36,6 +36,7 @@ const env = vi.hoisted(() => ({
     queuedMessages: [] as QueuedMessage[],
     cancelQueued: vi.fn(),
     retryQueued: vi.fn(),
+    runQueuedAsTask: vi.fn<(id: string) => Promise<string | null>>(),
     clearQueued: vi.fn(),
     isProcessing: false,
     sendMessage: vi.fn(),
@@ -186,6 +187,7 @@ beforeEach(() => {
   env.chat.pendingQuestions = null;
   env.chat.pendingComputerAccess = null;
   env.chat.queuedMessages = [];
+  env.chat.runQueuedAsTask.mockReset().mockResolvedValue(null);
   env.listeners.clear();
   env.dictation.engine = "server";
   env.dictation.state = { phase: "idle", transcript: null, reason: null };
@@ -503,6 +505,59 @@ it("keeps the person's queued text visible while offline", () => {
   render(<QuickAsk />);
   expect(screen.getByRole("region", { name: "Quick Ask conversation" })).toBeVisible();
   expect(screen.getByText("Keep this question until connected")).toBeVisible();
+});
+
+describe("QuickAsk queued task navigation", () => {
+  beforeEach(() => {
+    env.chat.queuedMessages = [
+      {
+        id: "queued-task",
+        clientQueueId: "123e4567-e89b-42d3-a456-426614174000",
+        acceptedQueueId: "123e4567-e89b-42d3-a456-426614174001",
+        receiptConversationId: "c",
+        receiptState: "pending",
+        content: "Prepare the briefing as a task",
+        agentId: "a-1",
+        submission: {
+          agentId: "a-1",
+          pageContext: null,
+          local: { payload: null, fileRoot: null, projectId: null },
+        },
+      },
+    ];
+  });
+
+  it("opens the task conversation and hides Quick Ask only after confirmation", async () => {
+    let resolveTask!: (conversationId: string | null) => void;
+    env.chat.runQueuedAsTask.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveTask = resolve;
+      }),
+    );
+    render(<QuickAsk initialConversationId="c" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Run as task" }));
+    expect(env.chat.runQueuedAsTask).toHaveBeenCalledWith("queued-task");
+    expect(env.commands.openInConsole).not.toHaveBeenCalled();
+    expect(env.commands.hideQuickAsk).not.toHaveBeenCalled();
+    expect(screen.getByText("Prepare the briefing as a task")).toBeVisible();
+
+    await act(async () => resolveTask("task-conversation-1"));
+
+    expect(env.commands.openInConsole).toHaveBeenCalledWith("/chat?id=task-conversation-1");
+    expect(env.commands.hideQuickAsk).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the queued message visible when task transfer is not confirmed", async () => {
+    render(<QuickAsk initialConversationId="c" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Run as task" }));
+
+    expect(env.chat.runQueuedAsTask).toHaveBeenCalledWith("queued-task");
+    expect(env.commands.openInConsole).not.toHaveBeenCalled();
+    expect(env.commands.hideQuickAsk).not.toHaveBeenCalled();
+    expect(screen.getByText("Prepare the briefing as a task")).toBeVisible();
+  });
 });
 
 it("does not enable approval while the connection is unavailable", () => {

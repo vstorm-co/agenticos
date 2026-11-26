@@ -407,7 +407,7 @@ test("a shared skill improves on main, pins the agent a change breaks and catche
     expect(record(session.check).verdict).toBe("blocked");
     expect(session.outcomes).toEqual(expect.arrayContaining(["apply_and_pin", "fork_for_helped"]));
     await page.goto(`/skills/${skillId}/improve/${id(session)}`);
-    await expect(page.getByRole("heading", { name: "How each agent did" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Impact on agents" })).toBeVisible();
     await expect(
       page.getByRole("listitem").filter({ hasText: String(online.agent.name) }),
     ).toContainText("Better");

@@ -16,6 +16,7 @@ from collections.abc import Awaitable, Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal
+from uuid import UUID
 
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import ModelRequest, UserPromptPart
@@ -45,11 +46,20 @@ class ChannelTurnStopped(Exception):
 
 
 @dataclass
+class SteerConsumption:
+    """Shared receipt marker; it forbids release after any inbox takes the item."""
+
+    consumed: bool = False
+
+
+@dataclass
 class Steer:
     """One message, and whether a model request has carried it yet."""
 
     text: str
     applied: bool = False
+    accepted_queue_id: UUID | None = None
+    consumption: SteerConsumption = field(default_factory=SteerConsumption)
 
 
 @dataclass
@@ -60,7 +70,8 @@ class SteeringInbox:
     show it in place in the turn.
     """
 
-    on_applied: Callable[[str], Awaitable[None]] | None = None
+    on_applied: Callable[[Steer, str], Awaitable[None]] | None = None
+    on_receipt_applied: Callable[[UUID, str], Awaitable[None]] | None = None
     poll: Callable[[AgentDeps], Awaitable[list[str]]] | None = None
     screen: Callable[[str], GuardrailResult] | None = None
     """The agent's input guardrail, set by the runner: a steer reaches the model
@@ -79,11 +90,15 @@ class SteeringInbox:
         unaddressed corrections stay with the parent rather than changing the
         wrong task. The parent records the correction once when it continues.
         """
-        child = SteeringInbox(screen=self.screen)
-        for text in self.unapplied():
-            target, words = _session_correction(text)
+        child = SteeringInbox(screen=self.screen, on_receipt_applied=self.on_receipt_applied)
+        for steer in self.unapplied_steers():
+            target, words = _session_correction(steer.text)
             if target == session or (target is None and not self._listeners):
-                child.add(words)
+                child.add(
+                    words,
+                    accepted_queue_id=steer.accepted_queue_id,
+                    consumption=steer.consumption,
+                )
         listener = (session, child)
         self._listeners.append(listener)
         try:
@@ -91,21 +106,66 @@ class SteeringInbox:
         finally:
             self._listeners = [entry for entry in self._listeners if entry is not listener]
 
-    def add(self, text: str) -> Steer:
-        steer = Steer(text=text)
+    def add(
+        self,
+        text: str,
+        *,
+        accepted_queue_id: UUID | None = None,
+        consumption: SteerConsumption | None = None,
+    ) -> Steer:
+        if accepted_queue_id is not None:
+            existing = self.receipt(accepted_queue_id)
+            if existing is not None:
+                return existing
+        steer = Steer(
+            text=text,
+            accepted_queue_id=accepted_queue_id,
+            consumption=SteerConsumption() if consumption is None else consumption,
+        )
         self._steers.append(steer)
         target, words = _session_correction(text)
         for session, listener in self._listeners:
             if target == session or (target is None and len(self._listeners) == 1):
-                listener.add(words)
+                listener.add(
+                    words,
+                    accepted_queue_id=accepted_queue_id,
+                    consumption=steer.consumption,
+                )
         return steer
+
+    def receipt(self, accepted_queue_id: UUID) -> Steer | None:
+        """Find one receipt without using message text as an identity key."""
+        return next(
+            (steer for steer in self._steers if steer.accepted_queue_id == accepted_queue_id),
+            None,
+        )
+
+    @property
+    def has_active_listeners(self) -> bool:
+        """Whether a child inbox may still consume a copy of one of these steers."""
+        return bool(self._listeners)
 
     def take(self) -> list[Steer]:
         """Everything not yet handed to the model, marked as handed now."""
         waiting = [steer for steer in self._steers if not steer.applied]
         for steer in waiting:
             steer.applied = True
+            steer.consumption.consumed = True
         return waiting
+
+    async def take_screened(self) -> list[tuple[Steer, str]]:
+        """Screen and durably fence every receipt before a consumer uses its text."""
+        steers = self.take()
+        screened = [screen_steer(self, steer.text) for steer in steers]
+        if self.on_receipt_applied is not None:
+            for steer, text in zip(steers, screened, strict=True):
+                if steer.accepted_queue_id is not None:
+                    await self.on_receipt_applied(steer.accepted_queue_id, text)
+        return list(zip(steers, screened, strict=True))
+
+    def unapplied_steers(self) -> list[Steer]:
+        """This inbox's own cursor, independent from any child inbox cursor."""
+        return [steer for steer in self._steers if not steer.applied]
 
     def unapplied(self) -> list[str]:
         """What arrived too late for any request - to be sent as a message of its own."""
@@ -146,12 +206,13 @@ class Steering(AbstractCapability["AgentDeps"]):
         if inbox.poll is not None:
             for text in await inbox.poll(ctx.deps):
                 inbox.add(text)
-        steers = inbox.take()
-        if not steers:
+        screened = await inbox.take_screened()
+        if not screened:
             return request_context
         # Screened once, and the screened words are what the transcript keeps
         # too: a redacted secret must not come back in the next turn's history.
-        said = [screen_steer(inbox, steer.text) for steer in steers]
+        steers = [steer for steer, _text in screened]
+        said = [text for _steer, text in screened]
         added = UserPromptPart(content="\n\n".join([STEER_PREFIX, *said]))
         # The persistent history and this request's own list are separate lists
         # (usually holding the same message), so each takes the words explicitly:
@@ -160,8 +221,8 @@ class Steering(AbstractCapability["AgentDeps"]):
         if ctx.messages and isinstance(kept := ctx.messages[-1], ModelRequest):
             ctx.messages[-1] = replace(kept, parts=[*kept.parts, added])
         if inbox.on_applied is not None:
-            for text in said:
-                await inbox.on_applied(text)
+            for steer, text in zip(steers, said, strict=True):
+                await inbox.on_applied(steer, text)
         tail = replace(last, parts=[*last.parts, added])
         return replace(request_context, messages=[*messages[:-1], tail])
 

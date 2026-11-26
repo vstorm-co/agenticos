@@ -260,6 +260,41 @@ class TestTheFinalEditNeverLosesTheAnswer:
         send_reply.assert_awaited_once()
         assert send_reply.await_args.args[2] == "the whole answer"
 
+    async def test_telegram_saying_the_message_is_not_modified_does_not_repost(self, monkeypatch):
+        """The streamed text already equals the answer, so Telegram refuses the
+        identical edit with a 400. The answer is on screen; posting it again doubles it."""
+        import contextlib
+
+        from aiogram.exceptions import TelegramBadRequest
+
+        from app.services.channels.telegram import TelegramAdapter
+
+        bot = MagicMock()
+        bot.edit_message_text = AsyncMock(
+            side_effect=TelegramBadRequest(
+                MagicMock(), "Bad Request: message is not modified: specified new message content"
+            )
+        )
+
+        @contextlib.asynccontextmanager
+        async def fake_bot(token: str, **_: Any):
+            yield bot
+
+        monkeypatch.setattr(TelegramAdapter, "_bot", staticmethod(fake_bot))
+        router, send_reply = self._router()
+        incoming = MagicMock(platform="telegram", platform_chat_id="42")
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=TelegramAdapter()),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            await router._deliver(
+                MagicMock(api_base_url=None), incoming, "the whole answer", self._answered(), "5"
+            )
+
+        bot.edit_message_text.assert_awaited_once()
+        send_reply.assert_not_awaited()
+
     async def test_a_successful_edit_with_no_extra_posts_nothing_further(self):
         router, send_reply = self._router()
         adapter = MagicMock(update_reply=AsyncMock())
@@ -274,6 +309,72 @@ class TestTheFinalEditNeverLosesTheAnswer:
             )
 
         send_reply.assert_not_awaited()
+
+    async def test_an_answer_partly_delivered_by_the_final_edit_is_not_posted_again(self):
+        from app.services.channels.exceptions import PartlyDelivered
+
+        router, send_reply = self._router()
+        partly = PartlyDelivered(
+            message="x", details={"platform": "telegram", "delivered": 2, "pieces": 3}
+        )
+        adapter = MagicMock(update_reply=AsyncMock(side_effect=partly))
+        incoming = MagicMock(platform="telegram", platform_chat_id="42")
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            await router._deliver(
+                MagicMock(api_base_url=None), incoming, "long answer", self._answered(), "h1"
+            )
+            await router._post_failure(MagicMock(api_base_url=None), incoming, "h1", "Sorry")
+
+        send_reply.assert_not_awaited()
+
+    async def test_the_thumbs_go_under_the_message_that_ends_a_split_answer(self):
+        router, _ = self._router()
+        adapter = MagicMock(update_reply=AsyncMock(return_value="h9"), offer_feedback=AsyncMock())
+        incoming = MagicMock(platform="telegram", platform_chat_id="42")
+        answered = self._answered()
+        answered.run_id = "run-1"
+        answered.status = "completed"
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            await router._deliver(
+                MagicMock(api_base_url=None, rate_answers=True),
+                incoming,
+                "long answer",
+                answered,
+                "h1",
+            )
+
+        assert adapter.offer_feedback.await_args.args[2] == "h9"
+
+    async def test_only_the_final_edit_is_marked_final(self):
+        """The final edit carries the whole answer and may be formatted; an edit
+        mid-stream holds half-written Markdown and must not be."""
+        router, _ = self._router()
+        adapter = MagicMock(
+            begin_reply=AsyncMock(return_value="h1"), update_reply=AsyncMock(), typing=AsyncMock()
+        )
+        bot = MagicMock(api_base_url=None)
+        incoming = MagicMock(platform="telegram", platform_chat_id="42")
+
+        with (
+            patch("app.services.channels.router.get_adapter", return_value=adapter),
+            patch("app.services.channels.router.unseal_bot_token", return_value="tok"),
+        ):
+            live, handle = await router._open_reply(bot, incoming)
+            assert live is not None and handle is not None
+            await live.add("**half")
+            await router._deliver(bot, incoming, "**whole**", self._answered(), handle)
+            await router._post_failure(bot, incoming, handle, "Sorry, that failed.")
+
+        finals = [call.args[1].final for call in adapter.update_reply.await_args_list]
+        assert finals == [False, True, True]
 
 
 class TestTheMentionPlaceholderOpensOnlyIfSomethingIsSaid:

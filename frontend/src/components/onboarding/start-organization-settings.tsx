@@ -62,17 +62,11 @@ export function StartOrganizationSettings({
     <StartQuestion
       stage="organization"
       index={can(Perm.budgetsManage) ? 1 : 0}
-      total={can(Perm.budgetsManage) ? 2 : 1}
       title={t("workspaceReadyTitle")}
       message={t("workspaceReadyGuide")}
       onBack={can(Perm.budgetsManage) ? () => setBudgetDone(false) : onBack}
       onContinue={onContinue}
     >
-      <div className={styles.preview}>
-        <strong>{t("readyForPeople")}</strong>
-        <p>{t("readyForPeopleBody", { workspace: org.name })}</p>
-      </div>
-      <p className={`${styles.hint} my-6`}>{t("advancedOptional")}</p>
       <div className={styles.stack}>
         {(can(Perm.approvalsDecide) || can(Perm.orgSettings)) && (
           <NativeDisclosure className={styles.details}>

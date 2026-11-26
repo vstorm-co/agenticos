@@ -1,5 +1,7 @@
 """The parts of an eval run decided without running anything: refusals, outcomes, fingerprints."""
 
+import hashlib
+import json
 import uuid
 from types import SimpleNamespace
 
@@ -280,6 +282,22 @@ def test_a_side_names_each_skill_it_was_served_once_by_its_stored_version() -> N
         (other, 2, "Returns"),
     ]
     assert _served_skill_versions(None, {}, {}) == []
+
+
+def test_a_default_check_without_a_family_keeps_its_scoring_fingerprint() -> None:
+    plain = _scoring(checks={"defaults": [{"type": "contains", "value": "x"}]})
+    named = _scoring(checks={"defaults": [{"type": "contains", "value": "x", "family": "x"}]})
+    content = plain.model_dump(mode="json")
+    content["checks"]["defaults"][0].pop("family")
+    content["judge"]["instructions"] = None
+    for criterion in content["judge"]["criteria"]:
+        criterion.pop("tags")
+    before_families = hashlib.sha256(
+        json.dumps(content, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+    assert scoring_hash(plain) == before_families
+    assert scoring_hash(named) != scoring_hash(plain)
 
 
 def test_inherited_and_frozen_judge_instructions_share_a_scoring_fingerprint() -> None:

@@ -207,3 +207,15 @@ async def test_a_skill_session_step_announces_its_skill_once_committed(change: s
     ):
         await improvement_tasks.advance_skill_improvement(job)
     assert events == (["begin", "commit"] if change == "none" else ["begin", "commit", "published"])
+
+
+async def test_a_search_unit_runs_in_its_own_worker() -> None:
+    from app.worker.jobs import SearchImprovement
+
+    job = SearchImprovement(run_id=uuid4(), organization_id=uuid4())
+    with patch("app.services.improvement_search.SearchWorker") as worker:
+        worker.return_value.run = AsyncMock()
+        await improvement_tasks.search_improvement(job)
+
+    worker.assert_called_once_with(job.run_id, job.organization_id)
+    worker.return_value.run.assert_awaited_once()

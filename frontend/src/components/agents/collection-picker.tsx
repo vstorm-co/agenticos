@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useId } from "react";
 import { AlertTriangle, Check, Database, Layers, Loader2, Plus } from "lucide-react";
 
 import {
@@ -12,8 +13,11 @@ import {
   useListControls,
 } from "@/components/ui";
 import { GroupsChip } from "@/components/sharing/audience-chip";
+import { LoadingState } from "@/components/states";
+import { agentBinding } from "@/lib/agent-collections";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { useOrgStore } from "@/stores/org-store";
 import type { KnowledgeBase } from "@/types/knowledge-base";
 import { useTranslations } from "next-intl";
 
@@ -23,6 +27,13 @@ interface CollectionPickerProps {
   selectedIds: string[];
   onToggle: (collectionId: string) => void;
   disabled?: boolean;
+  /**
+   * Offer only what an agent in the current organization can bind
+   * (`agentBinding`); publish refuses anything else. One already in
+   * `selectedIds` stays listed, marked, so it can be removed. A workflow step
+   * reads every collection the caller may read and leaves this off.
+   */
+  agentBindableOnly?: boolean;
 }
 
 /**
@@ -51,16 +62,30 @@ export function CollectionPicker({
   selectedIds,
   onToggle,
   disabled,
+  agentBindableOnly = false,
 }: CollectionPickerProps) {
   const t = useTranslations("agents");
+  const descriptionId = useId();
+  // The organization every request is made as (`X-Organization-Id`), which
+  // `ActiveOrgGuard` settles on every dashboard page.
+  const organizationId = useOrgStore((state) => state.activeOrgId);
   const chosen = new Set(selectedIds);
   const known = new Set(collections.map((collection) => collection.id));
+  const refusal = (collection: KnowledgeBase) => {
+    if (!agentBindableOnly || organizationId === null) return null;
+    const binding = agentBinding(collection, organizationId);
+    return binding === "bindable" ? null : binding;
+  };
+  const unbindable = (collection: KnowledgeBase) => refusal(collection) !== null;
+  const offered = collections.filter(
+    (collection) => !unbindable(collection) || chosen.has(collection.id),
+  );
   // Named rather than dropped, for the same reason the skill gallery names them:
   // an id that quietly disappears from the form is still in the spec, and
   // publish is where it surfaces.
   const orphaned = selectedIds.filter((id) => !known.has(id));
 
-  const ordered = useChosenFirst(collections, selectedIds);
+  const ordered = useChosenFirst(offered, selectedIds);
   const list = useListControls({
     items: ordered,
     pageSize: PICKER_PAGE_SIZE,
@@ -69,7 +94,13 @@ export function CollectionPicker({
       (collection.description ?? "").toLowerCase().includes(query),
   });
 
-  if (collections.length === 0) {
+  // Until the organization is known nothing can be told apart, and a list that
+  // drops rows a moment later invites a click on one publish would refuse.
+  if (agentBindableOnly && organizationId === null) {
+    return <LoadingState variant="skeleton-list" rows={3} />;
+  }
+
+  if (offered.length === 0) {
     return (
       <div className="border-border rounded-lg border border-dashed p-6 text-center">
         <Database className="text-muted-foreground mx-auto h-6 w-6" />
@@ -87,7 +118,7 @@ export function CollectionPicker({
 
   return (
     <div className="space-y-3">
-      {collections.length > 8 && (
+      {offered.length > 8 && (
         <SearchInput
           value={list.query}
           onChange={list.setQuery}
@@ -98,6 +129,7 @@ export function CollectionPicker({
       <ul className="divide-border divide-y">
         {list.visible.map((collection) => {
           const isOn = chosen.has(collection.id);
+          const refused = refusal(collection);
           const pending = collection.document_count - collection.indexed_count;
           return (
             <li key={collection.id}>
@@ -106,6 +138,7 @@ export function CollectionPicker({
                 role="checkbox"
                 aria-checked={isOn}
                 aria-label={collection.name}
+                aria-describedby={refused ? `${descriptionId}-${collection.id}` : undefined}
                 disabled={disabled}
                 onClick={() => onToggle(collection.id)}
                 className={cn(
@@ -126,8 +159,24 @@ export function CollectionPicker({
                   <span className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-medium">{collection.name}</span>
                     {collection.is_default && <Badge variant="outline">{t("default")}</Badge>}
+                    {refused && (
+                      <Badge variant="outline">
+                        {refused === "app" ? t("appWide") : t("otherOrganization")}
+                      </Badge>
+                    )}
                     <GroupsChip groups={collection.shared_groups} />
                   </span>
+
+                  {refused && (
+                    <span
+                      id={`${descriptionId}-${collection.id}`}
+                      className="text-warning-ink mt-1 block text-sm"
+                    >
+                      {refused === "app"
+                        ? t("appWideNotForAgents")
+                        : t("otherOrganizationNotForAgents")}
+                    </span>
+                  )}
 
                   {collection.description && (
                     <span className="text-muted-foreground mt-1 block text-sm">

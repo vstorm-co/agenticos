@@ -29,6 +29,7 @@ from app.repositories import (
     suggestion_repo,
 )
 from app.schemas.outcome import InboxItem, InboxItems, OutcomeAction, OutcomeSource
+from app.schemas.routine_notifications import RoutineFindingPublish, RoutineFindingReceipt
 
 _OBSERVED_AT = TypeAdapter(AwareDatetime)
 
@@ -91,6 +92,13 @@ def _caller(ctx: AuthContext) -> UUID:
 
 
 class OutcomeService:
+    async def publish_finding(
+        self, ctx: AuthContext, item: RoutineFindingPublish
+    ) -> RoutineFindingReceipt:
+        from app.services.routine_delivery import RoutineFindingService
+
+        return await RoutineFindingService(self.db).publish_for_run(ctx, item)
+
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 

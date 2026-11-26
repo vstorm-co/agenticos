@@ -19,6 +19,14 @@ pytestmark = [
 ]
 
 
+def _process_exited(pid: int) -> bool:
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().split()[2] == "Z"
+    except FileNotFoundError, ProcessLookupError:
+        # Reaping may remove the proc entry while it is being opened or read.
+        return True
+
+
 @pytest.mark.parametrize("cancel", [False, True])
 async def test_office_descendants_and_profiles_do_not_survive_the_parse(
     tmp_path: Path,
@@ -62,12 +70,11 @@ async def test_office_descendants_and_profiles_do_not_survive_the_parse(
             await task
         assert not workspace.exists()
         for pid in (data["pid"], data["child"]):
-            state = Path(f"/proc/{pid}/stat")
             for _ in range(50):
-                if not state.exists() or state.read_text().split()[2] == "Z":
+                if _process_exited(pid):
                     break
                 await asyncio.sleep(0.02)
-            assert not state.exists() or state.read_text().split()[2] == "Z"
+            assert _process_exited(pid)
     finally:
         if not task.done():
             task.cancel()

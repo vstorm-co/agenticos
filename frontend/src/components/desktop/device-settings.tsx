@@ -2,6 +2,7 @@
 
 import { RoutinePermissions } from "./routine-permissions";
 
+import { ExternalAgentSettings } from "@/components/desktop/external-agent-settings";
 import { LocalAgentSettings } from "./local-agent-settings";
 import { LocalServiceSettings } from "./local-service-settings";
 
@@ -66,6 +67,7 @@ export function DeviceSettings() {
           <RoutinePermissions />
 
           <LocalAgentSettings />
+          <ExternalAgentSettings />
           <LocalServiceSettings />
         </>
       )}

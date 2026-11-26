@@ -25,11 +25,13 @@ import { AcceptedChanges, TriedChanges } from "./tried-changes";
 import { NotBetterWarning } from "./attempt-choice";
 import { CriteriaNote, GAINS } from "./criteria";
 import { AcceptSummary, GuardNote, KnowledgeDocuments } from "./outcome";
-import { ResultStep } from "./result-decision";
+import { ResultEvidence } from "./result-evidence";
+import { ResultAttempts, ResultStep } from "./result-decision";
 import { type ReadOnlyReason } from "./read-only";
 import { SessionDecision } from "./session-decision";
+import { VariantSearch } from "./variant-search";
 import { ImprovementShell, WorkingNote } from "./improvement-shell";
-import { hasCandidate, isActive, isClosed, stopOf } from "@/lib/improvement-steps";
+import { currentAttempt, hasCandidate, isActive, isClosed, stopOf } from "@/lib/improvement-steps";
 
 export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessionId: string }) {
   const t = useTranslations("improvement");
@@ -49,7 +51,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
   // one, needs edit access too, and without it the session is only read.
   if (!can(Perm.runsView) || (!agent.can_edit && sessionId === "new"))
     return (
-      <div className="mx-auto w-full max-w-screen-2xl min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
+      <div className="w-full min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
         <PageHeader
           title={t("title", { name: agent.name })}
           breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
@@ -62,9 +64,14 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
     );
   if (sessionId === "new") return <ImprovementStartRedirect agentId={agentId} />;
   return (
-    <div className="mx-auto w-full max-w-screen-2xl min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
+    <div className="w-full min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-12">
       <PageHeader
         title={t("title", { name: agent.name })}
+        actions={
+          <Button variant="outline" asChild>
+            <Link href={`/agents/${agentId}`}>{t("openAgent")}</Link>
+          </Button>
+        }
         breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
       />
       <Session
@@ -118,6 +125,7 @@ function Session({
       : "viewOnly";
   const active = isActive(session);
   const chosen = session.iterations.find((r) => r.id === session.best_iteration_id);
+  const resultRunId = (chosen ?? session.iterations.at(-1))?.eval_run_ids.at(-1);
   const gain = chosen !== undefined && GAINS.includes(chosen.verdict);
   // Without a measured gain nothing is pressed on the person: no standing check, no publish first.
   const automatic = automaticChoice ?? gain;
@@ -140,6 +148,7 @@ function Session({
       session={session}
       readOnly={readOnly}
       closeHref={`/agents/${agentId}`}
+      attempts={<ResultAttempts session={session} knowledgeCheck={knowledgeCheck} openFirst />}
       wordingOpen={wordingOpen}
       footer={
         selectionDirty &&
@@ -165,7 +174,12 @@ function Session({
               </>
             ))}
           {step === "changes" && (
-            <section className="grid gap-6 md:grid-cols-[2fr_1fr]" data-tour="improvement-changes">
+            <section
+              className={
+                isClosed(session) ? "min-w-0 space-y-4" : "grid gap-6 md:grid-cols-[2fr_1fr]"
+              }
+              data-tour="improvement-changes"
+            >
               {stopOf(session) === "changes" ? (
                 <section className="min-w-0 space-y-4">
                   <AttemptHistory session={session} />
@@ -175,6 +189,7 @@ function Session({
                   {session.iteration > 1 && (
                     <p className="text-muted-foreground text-sm">{t("freshAttempt")}</p>
                   )}
+                  <VariantSearch session={session} choosable={!readOnly} />
                   <AttemptChanges
                     session={session}
                     editable={!readOnly}
@@ -199,14 +214,19 @@ function Session({
                 <section className="min-w-0 space-y-4">
                   <AttemptHistory session={session} />
                   {views.changes.content === "working" ? (
-                    <WorkingNote>
-                      {session.iteration > 1
-                        ? t("writingAgain", {
-                            number: session.iteration,
-                            max: session.max_iterations,
-                          })
-                        : t("changesWorking")}
-                    </WorkingNote>
+                    <>
+                      <WorkingNote>
+                        {session.stage === "searching"
+                          ? t("searchWorking")
+                          : session.iteration > 1
+                            ? t("writingAgain", {
+                                number: session.iteration,
+                                max: session.max_iterations,
+                              })
+                            : t("changesWorking")}
+                      </WorkingNote>
+                      <VariantSearch session={session} choosable={false} />
+                    </>
                   ) : (
                     <>
                       <h2 className="font-medium">
@@ -224,6 +244,7 @@ function Session({
               ) : (
                 <Card className="space-y-3 p-6 text-sm">
                   <p>{t("noChangesFound")}</p>
+                  <VariantSearch session={session} choosable={false} />
                   <ul className="list-disc space-y-1 pl-5">
                     {session.iterations.map((round) => (
                       <li key={round.id}>
@@ -239,17 +260,44 @@ function Session({
                   </ul>
                 </Card>
               )}
-              <KnowledgeDocuments session={session} />
+              <KnowledgeDocuments session={session} hideEmpty={isClosed(session)} />
             </section>
           )}
-          {step === "check" && (
-            <CheckProgress session={session} onShowResult={() => goTo("result")} />
+          {step === "check" &&
+            (isClosed(session) ? (
+              <section className="space-y-4" data-tour="improvement-check">
+                <TestQuestions session={session} reviewInitiallyOpen />
+                {resultRunId && (
+                  <Link
+                    className="inline-block text-sm underline underline-offset-4"
+                    href={`/agents/${agentId}/evals/${resultRunId}`}
+                    data-tour="improvement-open-check"
+                  >
+                    {t("openCheck")}
+                  </Link>
+                )}
+              </section>
+            ) : (
+              <CheckProgress session={session} onShowResult={() => goTo("result")} />
+            ))}
+          {step === "result" && !currentAttempt(session)?.batch_id && (
+            <VariantSearch session={session} choosable={false} />
           )}
           {step === "result" && (
             <ResultStep
               session={session}
               agent={agentName}
               candidate={hasCandidate(session)}
+              changes={
+                isClosed(session) && chosen?.batch_id ? (
+                  <AcceptedChanges session={session} round={chosen} report />
+                ) : undefined
+              }
+              evidence={
+                isClosed(session) && resultRunId ? (
+                  <ResultEvidence agentId={agentId} runId={resultRunId} />
+                ) : undefined
+              }
               canAccept={!selectionDirty && !missingBatch}
               knowledgeCheck={knowledgeCheck}
               onAccept={() => goTo("accept")}

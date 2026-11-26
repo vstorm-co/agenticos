@@ -12,7 +12,7 @@ from uuid import uuid4
 import pytest
 from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelRequest, SystemPromptPart
 
-from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
+from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.conversation import ToolCall
 from app.repositories import conversation_repo, conversation_share_repo
@@ -24,6 +24,7 @@ from app.schemas.conversation import (
 )
 from app.services.conversation import ConversationService
 from app.services.message_history import REFUSED_TURN
+from app.services.room_participant import RoomParticipantService
 from tests.history_fixtures import CHECKPOINT_PROVENANCE as _PROVENANCE
 from tests.history_fixtures import stored_checkpoint as _checkpoint
 
@@ -55,12 +56,46 @@ def private_history_has_no_edit_share(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def room_request_scope_repo(monkeypatch):
+    mocked = AsyncMock(return_value=None)
+    monkeypatch.setattr(conversation_repo, "room_thread_for_request", mocked)
+    return mocked
+
+
+@pytest.fixture(autouse=True)
+def no_saved_thread_context(monkeypatch):
+    monkeypatch.setattr(
+        conversation_repo, "has_external_thread_context", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(
+        conversation_repo, "message_has_protected_thread_context", AsyncMock(return_value=False)
+    )
+
+
+@pytest.fixture(autouse=True)
+def no_external_thread_context_edges(monkeypatch):
+    monkeypatch.setattr(
+        "app.repositories.room_thread_context_access.external_context_edges",
+        AsyncMock(return_value=[]),
+    )
+
+
+@pytest.fixture(autouse=True)
 def room_participant_conversations(monkeypatch):
     mocked = AsyncMock(return_value=set())
     monkeypatch.setattr(
         "app.services.conversation.room_participant_repo.user_conversation_ids", mocked
     )
     return mocked
+
+
+@pytest.fixture(autouse=True)
+def no_pending_accepted_queue_receipts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Existing conversation tests model chats with no durable accepted queue."""
+    monkeypatch.setattr(
+        "app.services.conversation.queued_message_receipt_repo.pending_for_conversation",
+        AsyncMock(return_value=[]),
+    )
 
 
 class MockConversation:
@@ -92,6 +127,7 @@ class MockConversation:
         self.summary_messages: list[dict[str, Any]] | None = None
         self.summary_ordinal: int | None = None
         self.guardrail_revision = 0
+        self.transcript_revision = 0
         self.overhead_tokens: int | None = None
         self.reminder_state: dict[str, Any] | None = None
         self.plan_items: list[dict[str, Any]] | None = None
@@ -850,6 +886,7 @@ class TestParticipationDoesNotCarryTheWrite:
             mock_repo.get_conversation_by_id = AsyncMock(return_value=conversation)
             mock_repo.favourite_ids = AsyncMock(return_value=set())
             mock_repo.delete_conversation = AsyncMock()
+            mock_repo.has_external_thread_context = AsyncMock(return_value=False)
             mock_share_repo.get_share = AsyncMock(return_value=None)
             mock_membership.confirms_participation = AsyncMock(return_value=True)
 
@@ -1306,6 +1343,38 @@ class TestConversationServiceUpdate:
         assert update.await_args.kwargs["update_data"]["project_id"] == project_id
 
     @pytest.mark.anyio
+    async def test_update_refuses_project_conversion_with_a_pending_private_receipt(
+        self, service: ConversationService, monkeypatch: pytest.MonkeyPatch
+    ):
+        conversation = MockConversation()
+        project_id = uuid4()
+        ctx = AuthContext(user_id=uuid4(), organization_id=TEST_ORG_ID, role="member")
+        monkeypatch.setattr(
+            "app.services.conversation.queued_message_receipt_repo.pending_for_conversation",
+            AsyncMock(return_value=[MagicMock()]),
+        )
+        with (
+            patch.object(service, "get_conversation", AsyncMock(return_value=conversation)),
+            patch(
+                "app.services.project.ProjectService.check_can_start", new_callable=AsyncMock
+            ) as check,
+            patch.object(
+                conversation_repo, "update_conversation", new_callable=AsyncMock
+            ) as update,
+            pytest.raises(ConflictError, match="Resolve accepted queued messages"),
+        ):
+            await service.update_conversation(
+                conversation.id,
+                ConversationUpdate(project_id=project_id),
+                organization_id=TEST_ORG_ID,
+                user_id=ctx.user_id,
+                ctx=ctx,
+            )
+
+        check.assert_not_awaited()
+        update.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_update_moves_conversation_out_of_a_project(self, service: ConversationService):
         conversation = MockConversation()
         data = ConversationUpdate(project_id=None)
@@ -1426,6 +1495,26 @@ class TestConversationServiceArchive:
             )
 
     @pytest.mark.anyio
+    async def test_archive_refuses_while_an_accepted_receipt_is_pending(
+        self, service: ConversationService, monkeypatch: pytest.MonkeyPatch
+    ):
+        conversation = MockConversation()
+        monkeypatch.setattr(
+            "app.services.conversation.queued_message_receipt_repo.pending_for_conversation",
+            AsyncMock(return_value=[MagicMock()]),
+        )
+        with (
+            patch.object(service, "get_conversation", AsyncMock(return_value=conversation)),
+            patch.object(
+                conversation_repo, "archive_conversation", new_callable=AsyncMock
+            ) as archive,
+            pytest.raises(ConflictError, match="Resolve accepted queued messages"),
+        ):
+            await service.archive_conversation(conversation.id, organization_id=TEST_ORG_ID)
+
+        archive.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_archive_nonexistent_conversation_raises(self, service: ConversationService):
         """archive_conversation raises NotFoundError when conversation not found."""
         with patch("app.services.conversation.conversation_repo") as mock_repo:
@@ -1453,6 +1542,24 @@ class TestConversationServiceArchive:
                 await service.archive_conversation(
                     conv_id, user_id=other_id, organization_id=TEST_ORG_ID
                 )
+
+
+class TestAcceptedQueueScopeChanges:
+    """Private accepted receipts stay reachable until their disposition is settled."""
+
+    @pytest.mark.anyio
+    async def test_room_conversion_refuses_while_a_receipt_is_pending(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        conversation = MockConversation(user_id=uuid4())
+        service = RoomParticipantService(AsyncMock())
+        monkeypatch.setattr(
+            "app.services.room_participant.queued_message_receipt_repo.pending_for_conversation",
+            AsyncMock(return_value=[MagicMock()]),
+        )
+
+        with pytest.raises(ConflictError, match="Resolve accepted queued messages"):
+            await service._ensure_room_locked(conversation)
 
 
 class TestConversationServiceDelete:
@@ -1493,6 +1600,7 @@ class TestConversationServiceDelete:
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=mock_conv)
             mock_repo.delete_conversation = AsyncMock(return_value=None)
+            mock_repo.has_external_thread_context = AsyncMock(return_value=False)
 
             result = await service.delete_conversation(conv_id, organization_id=TEST_ORG_ID)
 
@@ -1530,6 +1638,7 @@ class TestConversationServiceDelete:
         ):
             mock_repo.get_conversation_by_id = AsyncMock(return_value=MockConversation(id=conv_id))
             mock_repo.delete_conversation = AsyncMock(return_value=None)
+            mock_repo.has_external_thread_context = AsyncMock(return_value=False)
 
             await service.delete_conversation(conv_id, organization_id=TEST_ORG_ID)
 
@@ -2065,6 +2174,8 @@ class TestConversationServiceDeleteMessage:
         msg_id = uuid4()
 
         with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_message_by_id = AsyncMock(return_value=MockMessage(id=msg_id))
+            mock_repo.message_has_protected_thread_context = AsyncMock(return_value=False)
             mock_repo.delete_message = AsyncMock(return_value=True)
 
             result = await service.delete_message(msg_id)
@@ -2076,6 +2187,8 @@ class TestConversationServiceDeleteMessage:
     async def test_delete_message_not_found_raises(self, service: ConversationService):
         """delete_message raises NotFoundError when message not found."""
         with patch("app.services.conversation.conversation_repo") as mock_repo:
+            mock_repo.get_message_by_id = AsyncMock(return_value=None)
+            mock_repo.message_has_protected_thread_context = AsyncMock(return_value=False)
             mock_repo.delete_message = AsyncMock(return_value=False)
 
             with pytest.raises(NotFoundError):
@@ -2914,6 +3027,7 @@ class TestTheThreadAModelIsGivenBack:
     ):
         conversation = MockConversation()
         conversation.guardrail_revision = 7
+        conversation.transcript_revision = 3
         conversation.summary_messages = ModelMessagesTypeAdapter.dump_python(
             [ModelRequest(parts=[SystemPromptPart(content="Summary includes a later question.")])],
             mode="json",
@@ -2944,7 +3058,7 @@ class TestTheThreadAModelIsGivenBack:
             "First question",
             "First answer",
         ]
-        assert history.revision == 7
+        assert history.revision == 10
         window.assert_awaited_once_with(
             service.db, conversation.id, request_message_id=prompt_id, limit=25
         )

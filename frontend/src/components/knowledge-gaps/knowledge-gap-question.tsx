@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { ThumbsDown } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useInImproveWizard } from "./wizard-mode";
@@ -25,29 +26,37 @@ export function KnowledgeGapQuestionItem({ question }: { question: KnowledgeGapQ
       : question.top_similarity.toLocaleString(locale, { maximumFractionDigits: 2 });
 
   return (
-    <li className="border-border space-y-1.5 rounded-lg border px-3 py-2.5 text-sm">
+    <li className="space-y-1.5 py-4 text-sm">
+      {question.test_question && (
+        <p className="text-muted-foreground text-xs font-medium">{t("testQuestion")}</p>
+      )}
       <p className="text-foreground">{question.question ?? t("noConversation")}</p>
-      <p className="text-muted-foreground">
-        {question.signal === "answer"
-          ? t("signalAnswer")
-          : question.signal === "rating"
-            ? t("signalRating")
-            : t("searchedFor", { query: question.query })}
-      </p>
-      <p className="text-muted-foreground flex flex-wrap gap-x-3 text-xs">
-        {similarity !== null ? (
-          <span>{t("closestMatch", { count: question.result_count, similarity })}</span>
-        ) : (
-          question.signal === "retrieval" && <span>{t("noResults")}</span>
-        )}
-        {question.agent && <span>{question.agent.name}</span>}
-        <span>{timeAgo(question.asked_at, tTime, locale)}</span>
-        {!wizard && (
-          <Link href={`${ROUTES.RUNS}?run=${question.run_id}`} className="underline">
-            {t("openRun")}
-          </Link>
-        )}
-      </p>
+      <NativeDisclosure>
+        <summary className="text-muted-foreground cursor-pointer text-xs">
+          {t("workspace.searchDetails")}
+        </summary>
+        <p className="text-muted-foreground mt-2">
+          {question.signal === "answer"
+            ? t("signalAnswer")
+            : question.signal === "rating"
+              ? t("signalRating")
+              : t("searchedFor", { query: question.query })}
+        </p>
+        <p className="text-muted-foreground flex flex-wrap gap-x-3 text-xs">
+          {similarity !== null ? (
+            <span>{t("closestMatch", { count: question.result_count, similarity })}</span>
+          ) : (
+            question.signal === "retrieval" && <span>{t("noResults")}</span>
+          )}
+          {question.agent && <span>{question.agent.name}</span>}
+          <span>{timeAgo(question.asked_at, tTime, locale)}</span>
+          {!wizard && (
+            <Link href={`${ROUTES.RUNS}?run=${question.run_id}`} className="underline">
+              {t("openRun")}
+            </Link>
+          )}
+        </p>
+      </NativeDisclosure>
       {question.down_rating_comment && (
         <p className="text-muted-foreground flex items-start gap-1.5 text-xs">
           <ThumbsDown className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />

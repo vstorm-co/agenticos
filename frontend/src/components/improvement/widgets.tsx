@@ -33,7 +33,41 @@ export interface Tile {
  * A row of figures a step leads with, stacked on the narrowest phones: the dashboard's
  * `FigureCard`, with a label that wraps, and a link to where a figure is listed in full.
  */
-export function Tiles({ tiles, label }: { tiles: Tile[]; label?: string }) {
+export function Tiles({
+  tiles,
+  label,
+  compact = false,
+}: {
+  tiles: Tile[];
+  label?: string;
+  compact?: boolean;
+}) {
+  if (compact)
+    return (
+      <dl
+        role="group"
+        aria-label={label}
+        className="grid grid-cols-2 gap-x-6 gap-y-4 sm:flex sm:flex-wrap sm:gap-8"
+      >
+        {tiles.map((tile) => (
+          <div key={tile.label} className="min-w-0 space-y-1">
+            <dt className="text-muted-foreground text-xs">{tile.label}</dt>
+            <dd className="text-xl font-medium tabular-nums">
+              {tile.href ? (
+                <a className="underline underline-offset-4" href={tile.href}>
+                  {tile.value}
+                </a>
+              ) : (
+                tile.value
+              )}
+            </dd>
+            {tile.caption && (
+              <dd className="text-muted-foreground max-w-64 text-xs">{tile.caption}</dd>
+            )}
+          </div>
+        ))}
+      </dl>
+    );
   return (
     <div
       role="group"
@@ -332,7 +366,11 @@ export function Details({
   className,
   onToggle,
   tour,
+  initiallyOpen,
+  row = false,
 }: {
+  row?: boolean;
+  initiallyOpen?: boolean;
   summary: ReactNode;
   children: ReactNode;
   className?: string;
@@ -341,20 +379,26 @@ export function Details({
 }) {
   return (
     <NativeDisclosure
-      className={cn("group rounded-xl border", className)}
+      className={cn("group", !row && "rounded-xl border", className)}
       data-tour={tour}
+      open={initiallyOpen}
       onToggle={onToggle && ((event) => onToggle(event.currentTarget.open))}
     >
       {/* The browser's own marker sits on a line of its own above a block summary,
           so the arrow is drawn here, in the same row as what it opens. */}
-      <summary className="hover:bg-muted/50 flex cursor-pointer list-none items-start gap-2 rounded-xl px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+      <summary
+        className={cn(
+          "hover:bg-muted/50 flex cursor-pointer list-none items-start gap-2 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden",
+          row ? "rounded-lg px-2" : "rounded-xl px-4",
+        )}
+      >
         <ChevronRight
           aria-hidden
           className="text-muted-foreground mt-0.5 size-4 shrink-0 transition-transform group-open:rotate-90"
         />
         <span className="min-w-0 flex-1">{summary}</span>
       </summary>
-      <div className="space-y-4 px-4 pb-4">{children}</div>
+      <div className={cn("space-y-4 pb-4", row ? "px-2" : "px-4")}>{children}</div>
     </NativeDisclosure>
   );
 }

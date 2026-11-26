@@ -57,6 +57,7 @@ import type { DatasetScoring } from "@/types/scoring";
 import { DatasetChip } from "./dataset-chip";
 import { CaseCallsEditor } from "./case-calls-editor";
 import { CaseChecksEditor } from "./case-checks-editor";
+import { KeyDraftPanel } from "./key-draft-panel";
 import { CaseGradedBy } from "./case-graded-by";
 import { CaseTwinNotice } from "./case-twin-notice";
 import {
@@ -65,6 +66,7 @@ import {
   contentOf,
   draftOf,
   expectsSomething,
+  withKeys,
   type CaseDraft,
   type CaseField,
 } from "./case-form";
@@ -91,6 +93,8 @@ interface CaseEditorDialogProps {
   scoring?: DatasetScoring;
   /** Tool names the dataset's cases already expect. */
   knownTools?: string[];
+  /** A stored case its editor may list the keys of, from its saved reference answer. */
+  keyDraft?: { datasetId: string; caseId: string };
   /**
    * For a new case: `find` reads the case already asking its question, if one
    * does, and `open` shows that case in place of the new one.
@@ -238,6 +242,7 @@ export function CaseEditorDialog({
   nextVersion,
   scoring,
   knownTools,
+  keyDraft,
   twins,
   startFrom,
   localCopy,
@@ -587,6 +592,15 @@ export function CaseEditorDialog({
                             if (slot === "checks") {
                               return (
                                 <ListField key={slot} field={slot} error={errors.checks}>
+                                  {keyDraft && (
+                                    <KeyDraftPanel
+                                      datasetId={keyDraft.datasetId}
+                                      caseId={keyDraft.caseId}
+                                      savedReference={viewing?.reference_answer ?? null}
+                                      editedReference={draft.reference_answer}
+                                      onUse={(keys) => edit("checks", withKeys(draft.checks, keys))}
+                                    />
+                                  )}
                                   <CaseChecksEditor
                                     checks={draft.checks}
                                     onChange={(checks) => edit("checks", checks)}

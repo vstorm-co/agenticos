@@ -1,5 +1,5 @@
 ---
-source_sha: "32a6c0a170f0"
+source_sha: "76ac5bb3504a"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -136,21 +136,33 @@ caso cuando un juez puntúa el dataset .
 
 La estimación incluye la calificación con modelo siempre que el dataset la requiera, al precio del modelo elegido en Grading. Ningún interruptor organizacional desactiva ese calificador.
 
-Un agent sin historial en un modelo se estima como un caso típico -
-`EVAL_FALLBACK_INPUT_TOKENS` de entrada, `EVAL_FALLBACK_OUTPUT_TOKENS` de
+Un agent sin historial en un modelo se estima como peticiones típicas - cada una
+con `EVAL_FALLBACK_INPUT_TOKENS` de entrada y `EVAL_FALLBACK_OUTPUT_TOKENS` de
 salida - al precio propio del modelo, o en `EVAL_FALLBACK_CASE_COST_USD` para un
 modelo sin precio conocido, y la estimación dice que es una suposición aproximada
-(`basis: "fallback"`). Un juez sin historial se calcula igual, en el modelo que
-nombra su spec publicado; la estimación avisa si es el modelo probado, y la
-página de un run si lo fue. El coste del baseline forma parte del total, salvo
+(`basis: "fallback"`). Una respuesta es una petición, o
+`1 + EVAL_FALLBACK_TOOL_ROUNDS` cuando el agent tiene una herramienta: cada
+llamada a una herramienta se responde en otra petición.
+
+Un juez sin historial se calcula como una petición que también lee la respuesta
+que califica, en el modelo que nombra su spec publicado; la estimación avisa si
+es el modelo probado, y la página de un run si lo fue. El coste del baseline forma parte del total, salvo
 que se reutilice un baseline reciente que coincida; en ese caso sus primeras
 respuestas no cuestan nada y la estimación nombra el run del que provienen.
 
 ### El budget que deja { #the-budget-it-leaves }
 
 Una evaluación usa los presupuestos mensuales existentes del agente y de la
-organización. La estimación muestra lo que quedaría tras el gasto total previsto
-como `agent_after_usd` y `org_after_usd`. El inicio devuelve `402` si la primera
+organización. `total_usd` son las primeras respuestas y su calificación, y
+`expected_usd` lo que el run probablemente cuesta: eso, más la mitad de
+`rerun_ceiling_usd` para un run comparado con un baseline, porque un run así
+suele volver a preguntar cerca de la mitad de los casos que puede. Un run de
+estabilidad vuelve a preguntar cada caso, y un run sin nada con qué comparar,
+ninguno. El diálogo de inicio muestra `expected_usd` con lo máximo que el run
+puede costar debajo, y la página de un run lo que gastó frente a ambos.
+
+La estimación muestra lo que quedaría en los presupuestos tras el gasto total
+previsto como `agent_after_usd` y `org_after_usd`. El inicio devuelve `402` si la primera
 pasada más `rerun_ceiling_usd` supera cualquiera de los presupuestos. El límite
 incluye todos los intentos de confirmación, el juez y las repeticiones del
 baseline, también cuando se reutiliza. El coste real puede variar. Cada petición
@@ -280,6 +292,8 @@ que los casos anteriores.
 
 ## Resultados { #results }
 
+El resultado presenta primero la conclusión y las respuestas para revisar. La comparación indica cuántas respuestas aprobaron antes y después. Abre una pregunta para leer la respuesta y su evaluación. **Cómo se realizó la prueba** conserva criterios, costes y detalles de ejecución; abrirlos no oculta las respuestas. El filtro y la pregunta elegida permanecen en la URL.
+
 Cada intento conserva la respuesta, las llamadas que hizo - cada una marcada
 como ejecutada, bloqueada, reproducida o divergente -, el veredicto y el motivo
 de cada evaluador, su coste, sus tokens y su latencia. La respuesta y las
@@ -290,7 +304,7 @@ Cada brazo del run se resume en dos ejes, y por etiqueta:
 
 | Eje | Mide |
 |---|---|
-| Calidad | Tasa de aprobados entre los casos decididos, cada uno según cómo salió la mayoría de sus intentos; a su lado, la tasa de las primeras respuestas; cuántos quedaron sin decidir, y por qué |
+| Calidad | Tasa de aprobados entre los casos decididos, cada uno según cómo salió la mayoría de sus intentos; a su lado, la tasa de las primeras respuestas; cuántos quedaron sin decidir, y por qué; **Criteria passed** (`partial_credit`), la proporción media de los criterios de cada caso que cumplió su primera respuesta - seis de siete cuentan 6/7 donde la tasa de aprobados cuenta el caso como suspendido - con `criteria_passed` y `criteria_graded` |
 | Eficiencia | Coste por caso aprobado, tokens por caso y latencia en p50 y p95 |
 
 Cada intento sale de una de cuatro maneras (`state` en el intento):
@@ -410,9 +424,24 @@ del agent.
 Un brazo de baseline completado sustituye a ejecutar uno nuevo solo cuando
 coinciden su versión, la versión del dataset, el modelo, la puntuación y el
 juez, se ejecutó en el mismo entorno con los mismos `from_recordings` y
-`live_reads`, y terminó dentro de `EVAL_BASELINE_CACHE_HOURS`. El run dice qué run
+`live_reads`, y terminó dentro de `EVAL_BASELINE_CACHE_HOURS`. Ningún archivo de
+contexto que el agente vincula puede haber cambiado desde aquel run: un archivo de
+contexto se lee en vivo en cada respuesta. El run dice qué run
 reutilizó. Solo se reutilizan sus primeras respuestas: a un caso que cambia se
 le vuelve a preguntar en este run.
+
+Un baseline que es el borrador del agent - aquello con lo que una sesión de
+Improve mide cada intento - se empareja por la huella exacta del borrador, y solo
+cuando el run anterior dejó fuera exactamente los mismos casos. Ese run puede ser
+la comprobación anterior de la sesión o un run de una versión publicada cuyo spec
+el borrador sigue siendo, así que una sesión iniciada desde un borrador sin editar
+reutiliza el eval propio de esa versión.
+
+Una sesión deja fuera su propia evidencia en cada comprobación, así que mientras
+el borrador no cambia, el baseline responde como mucho una vez por sesión. Un
+run que preguntó más casos nunca se recorta, porque las respuestas de un brazo
+reutilizado se leen enteras. Un baseline reutilizado no cuesta nada en la
+estimación. Un baseline publicado con casos dejados fuera nunca se reutiliza.
 
 ### Un cambio se confirma antes de contar { #a-flip-is-confirmed-before-it-counts }
 
@@ -434,22 +463,41 @@ repite, y solo las repeticiones del candidato confirman la deriva.
 Un caso aprueba solo cuando cumple cada criterio con el que se califica - cada
 check, criterio del juez, llamada a herramienta esperada y calificación frente a
 la respuesta de referencia -, así que un cambio que arregla uno de varios
-criterios fallidos de un caso no cambia ningún caso. Un caso en el que cambió
-cualquier criterio calificado en ambos lados también se repite, y `criteria` de
-la comparación indica, por criterio, en cuántos casos lo calificaron ambos
-lados, cuántos aprobó cada lado con su primera respuesta, y los arreglos y
-roturas confirmados igual que los de un caso: cada repetición en ambos lados
-los repite.
+criterios fallidos de un caso no cambia ningún caso. `criteria` de la
+comparación indica, por criterio, en cuántos casos lo calificaron ambos lados,
+cuántos aprobó cada lado con su primera respuesta, y los arreglos y roturas que
+repitió cada repetición en ambos lados. Indica como máximo 200: por encima de
+esa cifra, primero cada criterio que se movió y después los que fallan con más
+frecuencia.
 
-La comparación indica como máximo 200 criterios: por encima de esa cifra,
-primero cada criterio que se movió y después los que fallan con más frecuencia.
+Los criterios también se cuentan por **familia**: los checks y criterios del
+juez que prueban una misma cosa en todo el dataset, nombrada por el
+[`family`](datasets.md#checks) de un check. Un criterio cuyo check no nombra
+ninguna es una familia propia. Una familia aprueba en un caso cuando allí
+aprueba cada uno de sus criterios, y `families` de la comparación indica, por
+familia, los casos que calificaron ambos lados, cuántos aprobó cada lado y los
+casos en los que cambió. Indica como mucho 200 familias: pasado ese número, primero
+cada familia peor o mejor, luego cualquier otra que se movió y después las que más
+a menudo fallan.
+
+Una familia está **decidida** cuando sus propios casos
+cambiados bastan para que una prueba exacta de McNemar diga en qué dirección se
+movió; entonces cuenta cada cambio. Una familia que se movió en dos casos o más
+sin estar decidida repite esos casos, y solo cuentan los cambios que repitió
+cada repetición. Una familia que se movió en un solo caso no decide nada ni
+manda ningún caso a volver a preguntarse. Además de los casos cuyo resultado
+cambió, estos son los únicos casos que se repiten.
+
+Un run que aparta preguntas para una sesión de Improve se juzga solo por ellas,
+así que solo se repiten sus casos apartados, y sus familias se deciden en ellos.
+Sus casos de entrenamiento nunca se vuelven a preguntar: el siguiente intento lee
+sus primeras respuestas, y nada lee una repetición de ellos. Su límite de
+repeticiones cuenta solo los casos apartados.
 
 El veredicto de abajo sigue siendo sobre casos enteros; una
 [sesión de Improve](authoring.md#the-improve-wizard) y una
-[comprobación de skill](skills.md#the-rule) leen los criterios cuando ningún caso
-cambió. Volver a preguntar esos casos cuesta más que una comprobación que solo
-repite los casos cambiados, y se queda dentro de su precio máximo, que ya supone
-que cada caso se vuelve a preguntar.
+[comprobación de skill](skills.md#the-rule) leen las familias cuando ningún caso
+cambió.
 
 Un run comparado con un baseline necesita al menos una repetición; un run sin
 baseline puede omitirlas. Un run comparado con un run anterior al que nunca
@@ -681,8 +729,9 @@ Slack todavía no es un canal de notificaciones.
 | `EVAL_BASELINE_CACHE_HOURS` | `24` | Qué antigüedad puede tener un baseline coincidente para reutilizarse |
 | `EVAL_SIGNIFICANCE` | `0.05` | El nivel por debajo del cual los cambios confirmados son un veredicto |
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | Un cambio relativo de coste, tokens o latencia que cuenta como ninguno |
-| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Los tokens de entrada con los que se calcula el precio de un caso en un modelo sin historial |
-| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Los tokens de salida con los que se calcula el precio de un caso en un modelo sin historial |
+| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Los tokens de entrada con los que se calcula el precio de una petición en un modelo sin historial |
+| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Los tokens de salida con los que se calcula el precio de una petición en un modelo sin historial |
+| `EVAL_FALLBACK_TOOL_ROUNDS` | `2` | Cuántas peticiones más allá de una necesita la respuesta de un agent con herramientas en un modelo sin historial |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | La estimación por caso en un modelo sin historial ni precio conocido |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Cuántos runs recientes promedia la estimación |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Cuánto puede estar parado un run en marcha, con su worker callado, antes de que el barrido lo dé por fallido |

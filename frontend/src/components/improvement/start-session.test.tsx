@@ -57,6 +57,18 @@ vi.mock("@/hooks/use-improvements", () => ({
     start: { mutateAsync: state.start, isPending: false },
   }),
 }));
+vi.mock("@/hooks/use-model-providers", () => ({
+  useModelProviders: () => ({ profiles: [], profilesStatus: "success" }),
+}));
+vi.mock("@/components/agents/model-profile-picker", () => ({
+  ModelProfilePicker: ({
+    onChange,
+    emptyLabel,
+  }: {
+    onChange: (id: string | null) => void;
+    emptyLabel: string;
+  }) => <button onClick={() => onChange("grader")}>{emptyLabel}</button>,
+}));
 vi.mock("./write-questions", () => ({
   WriteQuestions: ({ onReady }: { onReady: (id: string) => void }) => (
     <button onClick={() => onReady("written")}>Write test questions for me</button>
@@ -440,4 +452,87 @@ it("does not show evidence for an unresolved test-set selection", async () => {
   state.testSetLoading = false;
   view.rerender(<StartSession agentId="a1" onClose={vi.fn()} />);
   expect(await screen.findByText("Signals for own")).toBeInTheDocument();
+});
+
+it("searches many variants with their own budget and grading model, priced before it starts", async () => {
+  state.estimate.mockImplementation(async (body: { mode?: string }) =>
+    body.mode === "search"
+      ? { ...QUOTE, total_usd: "0.41", search_usd: "0.24", eval_usd: "0.05", train_questions: 12 }
+      : { ...QUOTE, train_questions: 12 },
+  );
+  const user = userEvent.setup();
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+  await screen.findByText(/Up to \$0\.12/);
+
+  await user.click(screen.getByRole("radio", { name: /Search variants/ }));
+  expect(
+    await screen.findByText(
+      "Includes the search budget ($0.24) and the check of the variant it finds ($0.05).",
+    ),
+  ).toBeInTheDocument();
+  expect(state.estimate).toHaveBeenLastCalledWith({
+    dataset_id: "own",
+    max_iterations: 3,
+    mode: "search",
+    search: { budget_usd: "0.24", grading_model_profile_id: null },
+  });
+  await user.click(screen.getByRole("button", { name: "The dataset's judge model" }));
+  await waitFor(() =>
+    expect(state.estimate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        search: { budget_usd: "0.24", grading_model_profile_id: "grader" },
+      }),
+    ),
+  );
+  await screen.findByText(/Includes the search budget/);
+  await user.click(screen.getByRole("button", { name: "Start improving" }));
+
+  // The limit leaves room for a search on each later attempt, not just the first.
+  expect(state.start).toHaveBeenCalledWith(
+    expect.objectContaining({
+      mode: "search",
+      search: { budget_usd: "0.24", grading_model_profile_id: "grader" },
+      budget_usd: "1.01",
+    }),
+  );
+});
+
+it("offers search only once the first quote has priced the dataset", async () => {
+  let price: (quote: unknown) => void = () => {};
+  state.estimate.mockReturnValueOnce(new Promise((resolve) => (price = resolve)));
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+
+  expect(await screen.findByRole("radio", { name: /Search variants/ })).toBeDisabled();
+  expect(screen.getByText(/once the estimate has counted/)).toBeInTheDocument();
+  price({ ...QUOTE, train_questions: 12 });
+
+  await waitFor(() => expect(screen.getByRole("radio", { name: /Search variants/ })).toBeEnabled());
+});
+
+it("offers no search on a dataset with fewer than ten training questions", async () => {
+  state.estimate.mockResolvedValue({ ...QUOTE, train_questions: 9 });
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+
+  expect(await screen.findByText(/this dataset has 9/)).toBeInTheDocument();
+  expect(screen.getByRole("radio", { name: /Search variants/ })).toBeDisabled();
+  expect(screen.getByRole("radio", { name: /Step by step/ })).toBeChecked();
+});
+
+it("prices nothing and starts nothing while the search budget is empty", async () => {
+  state.estimate.mockResolvedValue({ ...QUOTE, train_questions: 12 });
+  const user = userEvent.setup();
+  render(<StartSession agentId="a1" onClose={vi.fn()} />);
+  await screen.findByText(/Up to \$0\.12/);
+  await user.click(screen.getByRole("radio", { name: /Search variants/ }));
+  await screen.findByLabelText("Search budget (USD)");
+  const calls = state.estimate.mock.calls.length;
+
+  await user.clear(screen.getByLabelText("Search budget (USD)"));
+
+  expect(state.estimate).toHaveBeenCalledTimes(calls);
+  expect(screen.getByRole("button", { name: "Start improving" })).toBeDisabled();
+  await user.type(screen.getByLabelText("Search budget (USD)"), "1");
+  await user.click(screen.getByRole("radio", { name: /Step by step/ }));
+  await user.click(screen.getByRole("radio", { name: /Search variants/ }));
+  expect(screen.getByLabelText("Search budget (USD)")).toHaveValue("1");
 });

@@ -5,6 +5,7 @@ import contextlib
 import hashlib
 import hmac
 import logging
+import re
 import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import Any
@@ -19,6 +20,7 @@ from aiogram.enums import ParseMode
 from aiogram.exceptions import (
     TelegramBadRequest,
     TelegramConflictError,
+    TelegramRetryAfter,
     TelegramUnauthorizedError,
 )
 from aiogram.methods import GetUpdates, TelegramMethod
@@ -55,8 +57,14 @@ from app.services.channels.base import (
     split_thread,
     supervise_stream,
 )
-from app.services.channels.exceptions import ChannelNotConfigured
-from app.services.channels.telegram_format import to_telegram_html
+from app.services.channels.exceptions import ChannelNotConfigured, PartlyDelivered
+from app.services.channels.telegram_format import (
+    TELEGRAM_CAPTION_LIMIT,
+    TELEGRAM_TEXT_LIMIT,
+    fits,
+    telegram_pieces,
+    to_telegram_html,
+)
 from app.services.channels.telegram_press import parse_press
 
 logger = logging.getLogger(__name__)
@@ -174,6 +182,69 @@ def _where(platform_chat_id: str) -> dict[str, Any]:
     return where
 
 
+def _is_private_chat(channel_id: str) -> bool:
+    """Whether a channel id names a private chat.
+
+    Telegram numbers private chats with positive ids and groups, supergroups and
+    channels with negative ones; an `@username` is not numeric. Any topic suffix
+    is dropped first.
+    """
+    return re.fullmatch(r"[1-9][0-9]*", split_thread(channel_id)[0]) is not None
+
+
+_RATE_LIMIT_WAIT = 30
+"""The longest a reply waits on a Telegram rate limit before giving up on a piece."""
+
+
+def _partly_delivered(delivered: int, total: int, cause: Exception) -> PartlyDelivered:
+    """The error for a reply that stopped after `delivered` of its `total` messages."""
+    logger.warning(
+        "telegram_reply_partly_delivered",
+        extra={"delivered": delivered, "pieces": total},
+        exc_info=cause,
+    )
+    return PartlyDelivered(
+        details={"platform": "telegram", "delivered": delivered, "pieces": total}
+    )
+
+
+async def _send_captioned(
+    send: Callable[[str | None, str | None], Awaitable[object]], caption: str | None
+) -> None:
+    """Send a file with its caption as HTML, or as plain text where Telegram refuses the HTML."""
+    if not caption:
+        await send(None, None)
+        return
+    try:
+        await send(to_telegram_html(caption), ParseMode.HTML)
+    except TelegramBadRequest:
+        await send(caption, None)
+
+
+async def _send_piece(bot: Bot, piece: str, where: dict[str, Any], reply: int | None) -> str:
+    """One piece, as HTML or plain text, waiting once if Telegram rate-limits it."""
+    try:
+        return await _send_formatted(bot, piece, where, reply)
+    except TelegramRetryAfter as exc:
+        await asyncio.sleep(min(exc.retry_after, _RATE_LIMIT_WAIT))
+        return await _send_formatted(bot, piece, where, reply)
+
+
+async def _send_formatted(bot: Bot, piece: str, where: dict[str, Any], reply: int | None) -> str:
+    try:
+        sent = await bot.send_message(
+            text=to_telegram_html(piece),
+            parse_mode=ParseMode.HTML,
+            reply_to_message_id=reply,
+            **where,
+        )
+    except TelegramBadRequest:
+        sent = await bot.send_message(
+            text=piece, parse_mode=None, reply_to_message_id=reply, **where
+        )
+    return str(sent.message_id)
+
+
 class TelegramAdapter(ChannelAdapter):
     """Concrete Telegram adapter using aiogram v3."""
 
@@ -252,18 +323,44 @@ class TelegramAdapter(ChannelAdapter):
             )
         return str(sent.message_id)
 
-    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> None:
+    async def update_reply(self, bot_token: str, msg: OutgoingMessage, handle: str) -> str | None:
         """Rewrite a message already in the chat.
 
-        No parse mode: half-written Markdown is the normal state of a message
-        being streamed, and Telegram rejects an unclosed `**` with a 400. The
-        final send formats it, once the text is whole.
+        Mid-stream edits carry no parse mode: half-written Markdown is the normal
+        state of a message being streamed, and Telegram rejects an unclosed `**`
+        with a 400. They show the first 4096 characters, all one message holds.
+        The final edit (`msg.final`) holds the whole answer, so it is sent as
+        HTML the way `send_message` sends it, and as plain text if Telegram
+        refuses the HTML. An answer too long for one message keeps its first
+        piece here and sends the rest as new messages, and the id of the last
+        one is returned, since that message now ends the answer; `None` when the
+        edited message does. A continuation that fails raises `PartlyDelivered`,
+        because the edited piece is already in the chat. An edit to text the
+        message already holds counts as done: Telegram refuses it with a 400,
+        and treating that as a failure would post the answer a second time.
         """
+        chat_id = _where(msg.platform_chat_id)["chat_id"]
         async with self._bot(bot_token) as bot:
-            await bot.edit_message_text(
-                chat_id=_where(msg.platform_chat_id)["chat_id"],
-                message_id=int(handle),
-                text=msg.text,
+
+            async def edit(text: str, parse_mode: str | None) -> None:
+                try:
+                    await bot.edit_message_text(
+                        chat_id=chat_id, message_id=int(handle), text=text, parse_mode=parse_mode
+                    )
+                except TelegramBadRequest as exc:
+                    if "message is not modified" not in exc.message.casefold():
+                        raise
+
+            if not msg.final:
+                await edit(msg.text[:TELEGRAM_TEXT_LIMIT], None)
+                return None
+            first, *rest = telegram_pieces(msg.text) or [msg.text]
+            try:
+                await edit(to_telegram_html(first), ParseMode.HTML)
+            except TelegramBadRequest:
+                await edit(first, None)
+            return await self._send_pieces(
+                bot, rest, _where(msg.platform_chat_id), None, delivered=1
             )
 
     async def send_message(self, bot_token: str, msg: OutgoingMessage) -> None:
@@ -271,62 +368,99 @@ class TelegramAdapter(ChannelAdapter):
 
         As HTML converted from the agent's Markdown (#2068) - Telegram's own
         Markdown rejects half of what a model writes - and as plain text if even
-        that is refused, so the answer always arrives.
+        that is refused, so the answer always arrives. An answer over Telegram's
+        4096 characters is sent as several messages, and only the first replies
+        to the question.
         """
         reply_to = int(msg.reply_to_message_id) if msg.reply_to_message_id else None
         where = _where(msg.platform_chat_id)
         async with self._bot(bot_token) as bot:
-            if msg.image_png is not None:
-                from aiogram.types import BufferedInputFile
-
-                await bot.send_photo(
-                    photo=BufferedInputFile(msg.image_png, filename=msg.image_filename),
-                    caption=msg.text,
-                    reply_to_message_id=reply_to,
-                    **where,
-                )
+            if msg.image_png is not None or msg.attachments:
+                await self._send_files(bot, msg, reply_to)
                 return
-            if msg.attachments:
-                await self._send_documents(bot, msg, reply_to)
-                return
-            try:
-                await bot.send_message(
-                    text=to_telegram_html(msg.text),
-                    parse_mode=ParseMode.HTML,
-                    reply_to_message_id=reply_to,
-                    **where,
-                )
-            except TelegramBadRequest:
-                await bot.send_message(
-                    text=msg.text, parse_mode=None, reply_to_message_id=reply_to, **where
-                )
+            # Empty text is still sent, so Telegram refuses it rather than nothing arriving.
+            await self._send_pieces(bot, telegram_pieces(msg.text) or [msg.text], where, reply_to)
 
     @staticmethod
-    async def _send_documents(bot: Bot, msg: OutgoingMessage, reply_to: int | None) -> None:
-        """Post the files, with the text as the first one's caption.
+    async def _send_pieces(
+        bot: Bot,
+        pieces: list[str],
+        where: dict[str, Any],
+        reply_to: int | None,
+        *,
+        delivered: int = 0,
+    ) -> str | None:
+        """Send each piece in order and return the last one's message id.
 
-        The caption rides on the first document rather than being sent as its own
+        Each goes as HTML, or as plain text where Telegram refuses the HTML. Only
+        the first replies to `reply_to`: the rest continue it. A piece Telegram
+        rate-limits is sent again after the wait it names, up to
+        `_RATE_LIMIT_WAIT` seconds. `delivered` counts pieces already in the
+        chat; once any piece is, a failure raises `PartlyDelivered` instead,
+        because sending the reply again would post those pieces twice.
+        """
+        last: str | None = None
+        for index, piece in enumerate(pieces):
+            reply = reply_to if index == 0 else None
+            try:
+                last = await _send_piece(bot, piece, where, reply)
+            except Exception as exc:
+                if delivered + index == 0:
+                    raise
+                raise _partly_delivered(delivered + index, delivered + len(pieces), exc) from exc
+        return last
+
+    @staticmethod
+    async def _send_files(bot: Bot, msg: OutgoingMessage, reply_to: int | None) -> None:
+        """Post the chart or the files, with the text as the first one's caption.
+
+        The caption rides on the first file rather than being sent as its own
         message, so the answer and the file it is about arrive together. Telegram
-        caps a caption at 1024 characters, so a longer answer is sent as a message
-        first and the files follow - truncating an agent's answer to fit a caption
-        would lose the part somebody asked for.
+        caps a caption at 1024 characters after parsing, so a longer answer is
+        sent as messages first and the files follow - truncating an agent's answer
+        to fit a caption would lose the part somebody asked for. A caption goes as
+        HTML, or as plain text where Telegram refuses the HTML. A file that fails
+        once the text or an earlier file is in the chat raises `PartlyDelivered`.
         """
         from aiogram.types import BufferedInputFile
 
-        caption: str | None = msg.text if len(msg.text) <= 1024 else None
         where = _where(msg.platform_chat_id)
-        if caption is None:
-            await bot.send_message(
-                text=msg.text, parse_mode=None, reply_to_message_id=reply_to, **where
+        sends: list[Callable[[str | None, str | None], Awaitable[object]]] = []
+        if msg.image_png is not None:
+            photo = BufferedInputFile(msg.image_png, filename=msg.image_filename)
+            sends.append(
+                lambda caption, mode: bot.send_photo(
+                    photo=photo,
+                    caption=caption,
+                    parse_mode=mode,
+                    reply_to_message_id=reply_to,
+                    **where,
+                )
             )
+        for attachment in msg.attachments:
+            document = BufferedInputFile(attachment.content, filename=attachment.filename)
+            sends.append(
+                lambda caption, mode, document=document: bot.send_document(
+                    document=document,
+                    caption=caption,
+                    parse_mode=mode,
+                    reply_to_message_id=reply_to,
+                    **where,
+                )
+            )
+        caption: str | None = msg.text if fits(msg.text, TELEGRAM_CAPTION_LIMIT) else None
+        pieces = [] if caption is not None else telegram_pieces(msg.text)
+        await TelegramAdapter._send_pieces(bot, pieces, where, reply_to)
 
-        for index, attachment in enumerate(msg.attachments):
-            await bot.send_document(
-                document=BufferedInputFile(attachment.content, filename=attachment.filename),
-                caption=caption if index == 0 else None,
-                reply_to_message_id=reply_to,
-                **where,
-            )
+        total = len(pieces) + len(sends)
+        for index, send in enumerate(sends):
+            try:
+                await _send_captioned(send, caption if index == 0 else None)
+            except Exception as exc:
+                # Once the text or a file is in the chat, a retry would post it again.
+                if len(pieces) + index == 0:
+                    raise
+                raise _partly_delivered(len(pieces) + index, total, exc) from exc
 
     #
     # Two of the four, and that is the whole of what Telegram gives a bot.
@@ -367,7 +501,14 @@ class TelegramAdapter(ChannelAdapter):
         `admin` in its role: a list that quietly stopped at the administrators
         while reading as "everybody here" would have the model tell somebody
         their colleague is not in the chat.
+
+        A private chat has no administrators to list, so it is refused as
+        unsupported without a call to Telegram.
         """
+        if _is_private_chat(channel_id):
+            raise ChannelDirectoryUnsupported(
+                "Telegram has no member list for a private chat: it is this person and the bot."
+            )
         async with self._bot(bot_token) as bot:
             administrators = await bot.get_chat_administrators(chat_id=channel_id)
 
@@ -702,18 +843,30 @@ class TelegramAdapter(ChannelAdapter):
             return buffer.read()
 
     async def send_prompt(self, bot_token: str, prompt: PromptMessage) -> None:
-        """An approval or a question with an inline keyboard, a button per row."""
+        """An approval or a question with an inline keyboard, a button per row.
+
+        Its text is Markdown like an answer's, so it goes as HTML, or as plain
+        text where Telegram refuses the HTML.
+        """
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text=choice.label, callback_data=choice.value)]
+                for choice in prompt.choices
+            ]
+        )
+        where = _where(prompt.platform_chat_id)
         async with self._bot(bot_token) as bot:
-            await bot.send_message(
-                text=prompt.text,
-                **_where(prompt.platform_chat_id),
-                reply_markup=InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [InlineKeyboardButton(text=choice.label, callback_data=choice.value)]
-                        for choice in prompt.choices
-                    ]
-                ),
-            )
+            try:
+                await bot.send_message(
+                    text=to_telegram_html(prompt.text),
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=keyboard,
+                    **where,
+                )
+            except TelegramBadRequest:
+                await bot.send_message(
+                    text=prompt.text, parse_mode=None, reply_markup=keyboard, **where
+                )
 
     async def offer_feedback(
         self, bot_token: str, msg: OutgoingMessage, handle: str, run_id: str, *, bot_id: str

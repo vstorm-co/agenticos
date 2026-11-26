@@ -132,7 +132,11 @@ async def test_verdict_ignores_training_results_but_preserves_them_for_the_next_
         (result.verdict, result.fixed_confirmed, result.candidate_summary.pass_rate)
         for result in comparisons
     ] == [("better", 5, 1.0), ("better", 5, 1.0)]
-    assert [result.fixed_confirmed for result in raw] == [7, 5]
+    # Only held-out cases are asked again; the training flips stay as first answers.
+    assert [(result.fixed_confirmed, result.fixed_unconfirmed) for result in raw] == [
+        (5, 2),
+        (5, 0),
+    ]
     assert all(result.compared == 5 for result in comparisons)
 
 

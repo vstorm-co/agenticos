@@ -1,5 +1,6 @@
 import { isSafeReturnPath } from "@/lib/safe-return-path";
 import { ROUTES } from "@/lib/constants";
+import { invitationFlowFrom } from "@/lib/invitation-links";
 
 /**
  * Where a fresh session lands: the deep link the visitor was headed to when
@@ -17,6 +18,14 @@ import { ROUTES } from "@/lib/constants";
  */
 export function postSignInDestination(returnTo?: string | null): string {
   return isSafeReturnPath(returnTo, window.location.origin) ? returnTo : ROUTES.CHAT;
+}
+
+/** New accounts start setup; only an already staged invitation's public flow survives. */
+export function postRegistrationDestination(returnTo?: string | null): string {
+  const query = new URLSearchParams({ welcome: "1", entry: "account" });
+  const flow = invitationFlowFrom(returnTo);
+  if (flow) query.set("flow", flow);
+  return `${ROUTES.ONBOARDING}?${query}`;
 }
 
 /**

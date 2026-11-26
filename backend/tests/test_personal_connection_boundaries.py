@@ -19,17 +19,6 @@ from tests.test_personal_model_connections import _ctx, _db, _profile, _secret
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
-async def test_an_api_key_profile_view_does_not_query_native_subscription_state() -> None:
-    ctx = _ctx()
-    profile = _profile(ctx, _secret(ctx))
-    with patch.object(ModelProfileService, "_native_connected", new=AsyncMock()) as native:
-        view = await ModelProfileService(_db()).profile_view(ctx, profile)
-
-    assert view.id == profile.id
-    assert view.provider == "openai"
-    native.assert_not_awaited()
-
-
 @pytest.mark.parametrize("provider,kind", [("openai", "openai_codex"), ("google", "api_key")])
 async def test_legacy_personal_key_metadata_cannot_be_lent_to_a_model(
     provider: str, kind: str

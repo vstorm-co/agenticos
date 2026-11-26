@@ -1,6 +1,7 @@
 """Variables in an agent's instructions (#2065)."""
 
 import uuid
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -31,6 +32,25 @@ def _spec(instructions: str, **overrides: object) -> AgentSpec:
 
 
 class TestRendering:
+    @pytest.mark.parametrize(
+        ("locale", "expected"),
+        [
+            ("en", "English"),
+            ("pl", "Polish"),
+            ("de", "German"),
+            ("tr", "Turkish"),
+            (None, "English"),
+            ("unknown {{user_email}}", "English"),
+        ],
+    )
+    def test_language_uses_the_account_preference_or_the_explicit_default(
+        self, locale: str | None, expected: str
+    ) -> None:
+        assert (
+            render(_spec("{{language}}"), replace(FACTS, user_locale=locale)).instructions
+            == expected
+        )
+
     def test_system_and_custom_variables_are_filled_for_the_run(self) -> None:
         spec = _spec(
             "Hi {{ user_name }} ({{user_email}}) of {{organization_name}}, on {{channel}}. "
@@ -164,6 +184,7 @@ async def test_the_builder_is_offered_every_system_variable() -> None:
     names = [item["name"] for item in answer.json()["items"]]
     assert answer.status_code == 200
     assert names == [variable.name for variable in prompt_variables.SYSTEM_VARIABLES]
+    assert "language" in names
 
 
 class TestTheRunnersFacts:
@@ -207,6 +228,9 @@ class TestTheRunnersFacts:
         assert rendering.for_the_run(template).instructions == (
             "ada@example.com ada@example.com the AgenticOS console Finance, Sales\n\n"
             "# The person you are talking to\n\n"
+            "- Their preferred language is English: answer in English unless they explicitly "
+            "request another language. Use this preference for short or ambiguous greetings; "
+            "do not search memory or call tools to guess their language.\n"
             "- Their time zone is Europe/Warsaw; read and state times in it."
         )
         # A delegate reads the same variables and is not told it talks to the person.
@@ -252,7 +276,9 @@ class TestTheRunnersFacts:
         spec = rendering.for_the_run(_spec("Help."))
         assert spec.instructions == (
             "Help.\n\n# The person you are talking to\n\n"
-            "- Their console is in Polish: answer in Polish unless they write in another language.\n"
+            "- Their preferred language is Polish: answer in Polish unless they explicitly "
+            "request another language. Use this preference for short or ambiguous greetings; "
+            "do not search memory or call tools to guess their language.\n"
             "- Their time zone is America/New_York; read and state times in it.\n"
             "- Their role: Head of sales.\n"
             "- What they work on: Nordic deals\n"
@@ -283,8 +309,78 @@ class TestTheRunnersFacts:
                 person_time_zone=None,
             )
 
-        spec = rendering.for_the_run(_spec("{{user_name}}|{{user_email}}|{{groups}}"))
-        assert spec.instructions == "a visitor||"
+        spec = rendering.for_the_run(_spec("{{user_name}}|{{user_email}}|{{groups}}|{{language}}"))
+        assert spec.instructions == "a visitor|||English"
+        lookup.assert_not_awaited()
+
+    async def test_each_run_and_its_delegates_read_the_subjects_current_saved_language(
+        self,
+    ) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from app.db.models.agent_run import RunSurface
+        from app.services.agent_runner import AgentRunnerService
+
+        person = MagicMock(
+            full_name="Ada",
+            email="ada@example.com",
+            locale="pl",
+            time_zone=None,
+            job_title=None,
+            about=None,
+            working_hours=None,
+        )
+        ctx = AuthContext(user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role="member")
+        with (
+            patch(
+                "app.services.agent_runner.user_repo.get_by_id", new=AsyncMock(return_value=person)
+            ),
+            patch(
+                "app.services.agent_runner.group_repo.names_for_member",
+                new=AsyncMock(return_value=[]),
+            ),
+        ):
+            runner = AgentRunnerService(MagicMock())
+            first = await runner._variable_renderer(
+                ctx,
+                organization_name=None,
+                surface=RunSurface.WEB,
+                user_name=None,
+                person_time_zone=None,
+            )
+            person.locale = "de"
+            second = await runner._variable_renderer(
+                ctx,
+                organization_name=None,
+                surface=RunSurface.WEB,
+                user_name=None,
+                person_time_zone=None,
+            )
+        template = _spec("{{language}}")
+        assert first.variables(template).instructions == "Polish"
+        assert second.variables(template).instructions == "German"
+        assert "preferred language is German" in second.for_the_run(_spec("Help.")).instructions
+
+    async def test_an_unattended_run_with_no_person_uses_english_without_looking_up_a_publisher(
+        self,
+    ) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from app.db.models.agent_run import RunSurface
+        from app.services.agent_runner import AgentRunnerService
+
+        ctx = AuthContext(user_id=None, organization_id=uuid.uuid4(), role="member")
+        lookup = AsyncMock()
+        with patch("app.services.agent_runner.user_repo.get_by_id", new=lookup):
+            rendering = await AgentRunnerService(MagicMock())._variable_renderer(
+                ctx,
+                organization_name=None,
+                surface=RunSurface.SCHEDULE,
+                user_name=None,
+                person_time_zone=None,
+            )
+        assert rendering.variables(_spec("{{language}}")).instructions == "English"
+        assert rendering.for_the_run(_spec("Help.")).instructions == "Help."
         lookup.assert_not_awaited()
 
 
@@ -295,3 +391,76 @@ def test_the_browser_s_zone_is_taken_only_when_it_is_one() -> None:
     assert requested_time_zone({"time_zone": "Nowhere/Land"}) is None
     assert requested_time_zone({"time_zone": 3}) is None
     assert requested_time_zone({}) is None
+
+
+class TestChannelMembersInAPrivateTelegramChat:
+    """A private chat has no administrators to ask for, and that is not an error."""
+
+    @staticmethod
+    def _directory(monkeypatch: pytest.MonkeyPatch, *, private_chat: bool):
+        import contextlib
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+
+        from aiogram.exceptions import TelegramBadRequest
+
+        from app.services.channels.directory import BoundChannelDirectory
+        from app.services.channels.telegram import TelegramAdapter
+
+        bot = MagicMock()
+        if private_chat:
+            bot.get_chat_administrators = AsyncMock(
+                side_effect=TelegramBadRequest(
+                    MagicMock(), "Bad Request: there are no administrators in the private chat"
+                )
+            )
+        else:
+            admin = SimpleNamespace(
+                user=SimpleNamespace(id=7, username="ada", full_name="Ada Lovelace", is_bot=False)
+            )
+            bot.get_chat_administrators = AsyncMock(return_value=[admin])
+
+        @contextlib.asynccontextmanager
+        async def fake_bot(token: str, **_: object):
+            yield bot
+
+        monkeypatch.setattr(TelegramAdapter, "_bot", staticmethod(fake_bot))
+        directory = BoundChannelDirectory(
+            adapter=TelegramAdapter(),
+            bot_token="t",
+            channel_id="42" if private_chat else "-1001234567890",
+            private_chat=private_chat,
+        )
+        return directory, bot
+
+    @pytest.mark.parametrize("variable", ["channel_members", "member_list"])
+    async def test_the_administrators_are_not_asked_for_and_nothing_is_an_error(
+        self, variable: str, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import logging
+
+        from app.services.channels import prompt_variables as channel_variables
+
+        directory, bot = self._directory(monkeypatch, private_chat=True)
+
+        with caplog.at_level(logging.DEBUG):
+            await channel_variables.resolve("Who: {" + variable + "}", directory)
+
+        bot.get_chat_administrators.assert_not_awaited()
+        assert [r for r in caplog.records if r.levelno >= logging.ERROR] == []
+        assert any(
+            r.levelno == logging.INFO and "channel_variable_unsupported" in r.getMessage()
+            for r in caplog.records
+        )
+
+    async def test_a_group_still_gets_its_administrators(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services.channels import prompt_variables as channel_variables
+
+        directory, bot = self._directory(monkeypatch, private_chat=False)
+
+        filled = await channel_variables.resolve("Who: {channel_members}", directory)
+
+        bot.get_chat_administrators.assert_awaited_once_with(chat_id="-1001234567890")
+        assert "Ada Lovelace" in filled

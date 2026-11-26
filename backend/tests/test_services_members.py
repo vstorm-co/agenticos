@@ -35,7 +35,8 @@ class TestMemberService:
         return db
 
     @pytest.fixture
-    def service(self, mock_db):
+    def service(self, mock_db, monkeypatch):
+        monkeypatch.setattr("app.services.member.user_repo.get_by_ids", AsyncMock(return_value=[]))
         return MemberService(mock_db)
 
     @pytest.mark.anyio
@@ -298,7 +299,7 @@ class TestMemberService:
                 new=AsyncMock(return_value=MagicMock(email="a@example.com", avatar_color=7)),
             ),
         ):
-            member, _, _, _, avatar_color = await service.change_role(
+            member, _, _, _, avatar_color, _ = await service.change_role(
                 uuid.uuid4(), uuid.uuid4(), "admin", requester_id=uuid.uuid4()
             )
 
@@ -464,7 +465,7 @@ class TestAccessChangeAudit:
 
     @staticmethod
     def _ended():
-        """Every repository call `end_membership` makes, stubbed."""
+        """Every collaborator `end_membership` calls, stubbed."""
         return (
             patch("app.services.member.group_repo.delete_memberships_in_org", new=AsyncMock()),
             patch("app.services.member.oauth_repo.revoke_grants_for_member", new=AsyncMock()),
@@ -498,6 +499,7 @@ class TestAccessChangeAudit:
                 "app.services.member.agent_embed_repo.pause_for_owner",
                 new=AsyncMock(return_value=0),
             ),
+            patch("app.services.subscription_accounts.queue_wipe", new=AsyncMock()),
             patch(
                 "app.services.member.NetworkConnectionService.revoke_member",
                 new=AsyncMock(return_value=0),

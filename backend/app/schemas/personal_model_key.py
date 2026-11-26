@@ -1,5 +1,7 @@
 """Only connection metadata leaves the personal model vault."""
 
+from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import Field, SecretStr
@@ -39,3 +41,32 @@ class AgentModelConnectionRead(BaseSchema):
     provider: str | None = None
     endpoint: str | None = None
     model: str | None = None
+
+
+class CopilotSignInStart(BaseSchema):
+    expected_destination: PersonalModelDestination
+
+
+class CopilotSignInChallenge(BaseSchema):
+    handle: str
+    user_code: str
+    verification_uri: Literal["https://github.com/login/device"]
+    expires_at: datetime
+    poll_after_seconds: int
+
+
+class CopilotSignInPoll(BaseSchema):
+    handle: str = Field(min_length=32, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+
+
+class CopilotSignInResult(BaseSchema):
+    status: Literal["pending", "connected"]
+    poll_after_seconds: int = 0
+
+
+class PersonalModelGenerationRead(BaseSchema):
+    organization_id: UUID
+    provider: str
+    endpoint: str
+    created_at: datetime
+    updated_at: datetime | None

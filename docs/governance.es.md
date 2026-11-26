@@ -1,5 +1,5 @@
 ---
-source_sha: "bcb89fe0725e"
+source_sha: "d472b40cd0cb"
 ---
 
 # Governance { #governance }
@@ -74,21 +74,22 @@ comportamiento anterior antes de aplicarla.
 
 ## Entrega de rutinas { #routine-delivery }
 
-Una rutina creada en un chat privado mediante el MCP de la plataforma responde en
-ese chat, salvo que elijas otro destino. Su tarjeta muestra el estado actual, la
-próxima activación y los controles existentes para editar, pausar y eliminar.
-El registro de ejecuciones sigue disponible en Routines.
+Las rutinas nuevas guardan por defecto todas las ejecuciones en un historial compartido de solo lectura. Su creador puede bifurcar una respuesta a un chat privado para continuar. Como alternativa, cada ejecución puede tener su propio chat privado editable. La tarjeta conserva las acciones de editar, pausar y eliminar. Routines muestra todas las ejecuciones con enlaces a sus chats y detalles.
 
-Antes de guardar una respuesta terminada, la plataforma vuelve a comprobar la membresía activa de la persona creadora y su permiso actual para escribir en el chat elegido. Un destino eliminado o inaccesible deja la respuesta en el registro de ejecución y muestra **Última respuesta no disponible en el chat** en la rutina. Un fallo de base de datos durante la entrega del mensaje queda aislado para no deshacer la ejecución terminada ni volver a ejecutar el agente.
+Las ejecuciones admitidas antes de la actualización de modos de chat conservan su contrato de entrega anterior. Solo estas ejecuciones antiguas copian una respuesta terminada al destino previamente elegido, tras comprobar de nuevo la membresía activa y el permiso actual de escritura. Si falta el destino, la respuesta permanece en el registro. Un fallo de entrega no deshace la ejecución terminada ni vuelve a ejecutar el agente.
 
 El aviso de finalización enlaza el chat solo tras una entrega correcta.
 
 `last_delivery_status` distingue entrega, solo registro, ausencia de respuesta y ejecución incompleta; los registros históricos siguen sin estado conocido hasta otra ejecución. La migración `0265_trigger_delivery_status.py` añade este estado sin inferir éxitos anteriores.
 
+Para una rutina creada en un chat privado de una aplicación de chat que abre un chat nuevo para cada ejecución (`chat_mode=per_run`), el estado es `pending` hasta que el bot publica la respuesta, y después `delivered` o `unavailable` con un aviso al propietario. La migración `0363_trigger_delivery_pending.py` añade `pending`; su reversión lee `pending` como `delivered`. Consulte [Respuestas de rutinas en un chat privado](channels.md#routine-answers-in-a-private-chat).
+
 Define `ends_at` con un desplazamiento UTC para el trabajo con duración limitada y
 `monthly_budget_usd` para un límite mensual más estricto. La herramienta MCP de
 actualización permite quitar ambos ajustes. Una clave API ordinaria no puede
 autorizar a una rutina a usar las cuentas personales de quien la emitió. Tampoco conceden esa autoridad los runs en segundo plano, las suplantaciones ni los turnos grupales o públicos reanudados.
+
+Cuando otra persona publica, revierte o promueve una versión, **Act as creator** se desactiva en las rutinas a las que llega esa versión: las de un entorno al que pasa, incluido uno protegido que pasa cuando sus comprobaciones se superan, y las que no indican entorno cuando mueve el predeterminado. Esa rutina espera la revisión de su propietario. Una rutina fijada a una versión, o en un entorno al que la versión no llega, sigue ejecutando lo que su creador aprobó.
 
 Los barridos de cada minuto procesan los vencimientos independientemente de la siguiente activación, incluso para rutinas y seguimientos pausados. Desactivan el trabajo activo, resuelven sus bloqueos pendientes y cancelan las notificaciones aún no enviadas sin llamar a un modelo. Tras reiniciarse, el worker recupera los vencimientos; la limpieza puede esperar a un worker o a otro lote, mientras las comprobaciones previas a herramientas y entregas rechazan de inmediato el trabajo vencido.
 
@@ -108,9 +109,17 @@ El formulario de la rutina permite definir o quitar su fecha de fin. La fecha us
 
 Una rutina vuelve a comprobar su creador, membresía activa, rol y permisos de ejecución antes de cada herramienta, también en delegaciones y después de una aprobación. Pausar, borrar, caducar, retirar el consentimiento personal o cambiar esa autoridad impide las siguientes llamadas. La comprobación no revierte efectos ya enviados a servicios externos. La migración `0260_routine_run_origin` conserva el origen tras borrar la rutina; los horarios antiguos aparcados cuyo origen ya se perdió se rechazan en lugar de usar la autoridad de quien aprueba.
 
-El servidor MCP integrado de AgenticOS requiere **Actuar como creador**, también cuando lo vincula un delegado publicado. Sin una identidad de persona, la revisión de fuentes y la creación de la rutina rechazan esta configuración con una explicación concreta. Active la opción o quite la vinculación de plataforma del agente y sus delegados. La plataforma nunca adopta automáticamente la identidad del creador.
+El servidor MCP integrado de AgenticOS requiere **Ejecutar como yo**, también cuando lo vincula un delegado publicado. Sin una identidad de persona, la revisión de fuentes y la creación de la rutina rechazan esta configuración con una explicación concreta. Active la opción o quite la vinculación de plataforma del agente y sus delegados. La plataforma nunca adopta automáticamente la identidad del creador.
 
 El historial de la rutina también muestra intentos bloqueados o fallidos anteriores a un run del agente. Cada uno incluye la hora, la etapa y una indicación para solucionarlo. No generan cargos de modelo ni contienen prompts, errores del proveedor o credenciales. Los registros permanecen hasta eliminar la rutina o la organización; un fallo en la entrega de notificaciones no los elimina. El job fire-trigger guarda un resultado separado bloqueado o fallido. Completar el job de la cola no significa que el agente se haya ejecutado correctamente.
+
+La lista de rutinas indica además, antes de la siguiente activación, si se ejecutaría. Cada rutina consulta las mismas comprobaciones que hace un disparo, evaluadas como su creador y sin efectos secundarios: la membresía activa del creador y su permiso para ejecutar el agent, una versión ejecutable, la revisión de fuentes, la fecha de fin, el budget mensual, un run anterior en espera de aprobación o de respuesta, y las acciones sin consentimiento permanente.
+
+Una rutina que no iniciaría un run aparece con borde rojo; una con acciones que necesitarían aprobación si se usan, en ámbar; una rutina en pausa aparece atenuada y sigue indicando qué encontraría al reanudarla. Cada línea nombra el motivo y ofrece a su creador el control para resolverlo. Mientras la comprobación está pendiente o no hay un resultado disponible, un mensaje neutral lo indica sin dar a entender que la rutina está lista. Una comprobación fallida se puede reintentar; Ejecutar ahora sigue realizando sus propias comprobaciones de admisión.
+
+La tarjeta Routines del panel coloca primero una rutina que no se ejecutaría y nombra el motivo en su estado. `POST /triggers/readiness` devuelve los mismos motivos como códigos acotados para hasta 100 rutinas a la vez, omite las que quien llama no puede ver y no nombra fuentes, cuentas ni credenciales. Las comprobaciones que solo un proveedor puede responder durante el run no se predicen; sus rechazos quedan en el historial descrito arriba.
+
+Solo puede haber una comprobación de preparación activa por persona dentro de una organización. Una segunda pestaña espera o reintenta en vez de iniciar comprobaciones exhaustivas en paralelo. Los cambios en los recursos de origen actualizan la preparación visible. Un run principal que espera a una persona se encuentra en el historial de la rutina incluso si el worker se detuvo antes de vincularlo como último run. Durante una caída de Redis, este límite de concurrencia se aplica por proceso de API.
 
 ## Budgets { #budgets }
 
@@ -847,7 +856,11 @@ permitidas coincidentes; no concede nada hasta guardar el review actual. Las acc
 nuevas y cuentas modificadas no se seleccionan automáticamente. Siguen vigentes las
 aprobaciones obligatorias, la revocación y los controles de review obsoleto.
 
-Las rutinas que siguen al agente usan sus reglas de aprobación sin un requisito adicional para toda la rutina. Las restringidas preguntan además antes de acciones de capacidades, cambios de archivos locales y delegaciones, y de llamadas MCP externas no marcadas como solo lectura. Los requisitos explícitos del agente o la conexión y las aprobaciones obligatorias siguen vigentes en ambos modos. El modo de código permanece desactivado en rutinas para impedir que scripts agrupados eludan controles por herramienta.
+Las rutinas nuevas actúan por defecto como su creador, con sus permisos actuales. Un formulario reúne nombre, instrucciones, agente, horario y aprobaciones; las fuentes y los límites son opciones avanzadas. Identidad y aprobación son independientes.
+
+**Ejecutar herramientas permitidas automáticamente** aplica las reglas del agente (`agent`). **Preguntar antes de actuar** añade una aprobación de rutina para los efectos (`manual`) y revoca atómicamente los consentimientos permanentes anteriores. **Elegir permisos por herramienta** permite autorizar una vez acciones elegibles para esta rutina (`per_tool`). Funciona con ambos modos de fuentes.
+
+Las rutinas existentes sin modo de acciones conservan su política anterior. Los requisitos explícitos del agente o la conexión y las aprobaciones obligatorias de plataforma o dispositivo siguen vigentes. El modo de código permanece desactivado para las rutinas.
 
 Las escrituras en Virtual Tables de AgenticOS se ejecutan dentro de sus permisos vigentes de tabla y operación sin una excepción de rutina. Una política explícita de aprobación del agente sigue aplicándose a estas escrituras internas.
 
@@ -855,11 +868,11 @@ El creador abre **Consentimiento para acciones** en su rutina y elige acciones d
 
 Una excepción MCP identifica la cuenta concreta, el hash de la dirección, la generación de autorización y el nombre original de la acción. Enviar correo no autoriza borrar ni escribir en otra cuenta. Las cuentas personales solo aparecen si la rutina actúa como su creador. El selector usa la lista de herramientas guardada; comprueba la conexión o pide ayuda a su administrador cuando no esté disponible. Revocar todo el consentimiento no requiere una lista operativa.
 
-La revisión muestra las capabilities del agente, AgenticOS y cada otra cuenta MCP como secciones separadas, cada una con sus grupos. Solo aparecen las acciones que el agente ya ejecuta sin preguntar: una ante la que pregunta no admite consentimiento aquí, así que no se muestra. **Usar la configuración del agente** selecciona exactamente esas acciones y reemplaza la selección actual; nada se guarda hasta elegir **Guardar consentimiento**.
+La revisión muestra por separado las capabilities, AgenticOS y cada cuenta MCP. Las herramientas que requieren aprobación se muestran bloqueadas con una explicación. La selección colectiva solo incluye acciones elegibles. Guardar activa aprobaciones por herramienta; un efecto no seleccionado pregunta al usarse. La herencia de fuentes no oculta ni omite estas decisiones.
 
 El panel **Fuentes revisadas** de arriba lista las fuentes de la rutina por tipo - capabilities, skills, bases de conocimiento, tablas, cuentas -, cada tipo plegado a un recuento y cada fuente con su nombre. Una fuente que ya no existe aparece como no disponible; su identificador se ve al pasar el cursor.
 
-Cuando una rutina actúa como su creador, las herramientas propias del servidor de AgenticOS aparecen en los grupos que muestra el Builder: tablas, tareas, workflows, agentes y el resto. Solo aparecen las que cambian algo, porque las lecturas nunca preguntan; la búsqueda de herramientas tampoco pregunta. Una herramienta ante la que el agente pregunta no aparece. Eso cubre cada cambio que su vinculación no marca como **Run freely** y las herramientas que siempre preguntan. Así, una rutina mantiene las aprobaciones del agente o las endurece, y nunca libera ninguna.
+Cuando una rutina actúa como su creador, las acciones de AgenticOS se agrupan como en Builder: tablas, tareas, workflows, agentes y otras. Las acciones con aprobación obligatoria aparecen bloqueadas. Las lecturas y la búsqueda de herramientas no reciben una aprobación adicional de rutina; sigue vigente cualquier aprobación explícita del agente. La rutina conserva o endurece las aprobaciones, nunca elimina una obligatoria.
 
 Una excepción de la plataforma nombra solo la herramienta: las ejecuciones de la rutina llegan a la plataforma solo como su creador, la única persona que puede revisarla.
 
@@ -1503,6 +1516,19 @@ compactación también puede acortar el prompt que la caché guardaba.
 La tarjeta no aparece mientras todas las cachés aguantaron.
 
 ## Aprobaciones { #approvals }
+
+En el chat web, en Actividad → Aprobaciones o en la bandeja de entrada, elige
+**Rechazar con comentarios** para explicar el motivo o sugerir una alternativa.
+La acción propuesta no se ejecuta y el comentario se guarda con el rechazo.
+En un lote del chat se rechazan todas las llamadas de la lista, pero cada comentario
+solo se asocia con su llamada. Si no necesitas comentar, elige **Rechazar**.
+
+Si se rechaza una llamada normal a una herramienta del agente, este recibe el
+comentario al reanudar la ejecución. Si la acción revisada requiere aprobación,
+el agente vuelve a pedirla. En el paso **Pedir aprobación** de un workflow, la rama
+**Rechazado** puede leer el comentario como `note`, por ejemplo para revisar una
+propuesta. El rechazo no reintenta el paso automáticamente. Un paso de herramienta
+MCP rechazado sigue fallando sin invocar la herramienta.
 
 Una herramienta con aprobación aparca el run y espera a una persona. El Builder ofrece
 **Preguntar siempre** y **No preguntar nunca** para una capability; las herramientas
@@ -2536,6 +2562,8 @@ La lista muestra la pausa automática y el número de fallos. Se conservan como 
 
 Las rutinas nuevas admiten automáticamente la configuración inicialmente disponible del agente publicado dentro de los permisos vigentes del creador. Las eliminaciones seguras de fuentes y los cambios exclusivamente de modelo o presentación del agente principal no requieren revisión. Las fuentes, cuentas o herramientas nuevas, los cambios de instrucciones o variables y los cambios de capacidades, skills efectivos, contexto o comportamiento delegado requieren la revisión de acceso del propietario antes de otra ejecución. Publicar el agente compartido no amplía por sí solo la autoridad permanente de una persona. Las cuentas MCP opcionales ausentes no bloquean otras tareas; siguen vigentes las entradas obligatorias de eventos, identidad, permisos, presupuestos y aprobaciones obligatorias.
 
+Una capability desactivada y lo que solo ella alcanza - los skills con **Skills** desactivada, los archivos de contexto con **Context** desactivada, las colecciones con **Knowledge** desactivada, los delegados y agentes remotos con **Subagents** desactivada - no son fuentes: ningún run los alcanza, así que la revisión no los muestra, uno eliminado no bloquea la rutina y editar uno de esos skills o archivos de contexto no requiere un nuevo consentimiento. Activar la capability es una fuente nueva y se revisa.
+
 Cambiar la versión fijada de un delegado requiere revisión, incluso si su publicación solo modifica el modelo.
 
 El propietario puede elegir `restricted`, que fija la configuración revisada, cuentas MCP concretas, generaciones de autorización y nombres de herramientas conocidos. La revisión incluye delegados fijados, conocimiento, skills, contexto, capacidades y registros A2A remotos. Las fuentes nuevas o cambios en la autorización de una cuenta requieren otra revisión. Las políticas existentes sin modo permanecen restringidas; actualizar no las amplía automáticamente.
@@ -2555,15 +2583,21 @@ supervisión de solo lectura. Un trigger determina _cuándo_ se ejecuta la rutin
 la plantilla de supervisión limita _qué_ puede hacer. Use una rutina por
 responsabilidad, sin duplicar una observación y una tarea programada para el mismo buzón.
 
-Elija **Después de cada ejecución completada** (`result_mode: report`, el valor
-predeterminado existente) para informes, o **Solo cuando algo necesita atención**
-(`result_mode: inbox`) para comprobaciones silenciosas. El agente devuelve elementos
-relevantes con identificadores estables de elemento y revisión, contexto y el
-borrador completo solicitado. Un resultado vacío no crea conversaciones ni avisos
-de finalización. Cada elemento tiene una conversación privada y un caso en Inbox.
-Las revisiones repetidas se deduplican de forma persistente, incluso tras resolver
-el caso. Una revisión nueva actualiza la misma conversación y reabre el caso;
-un elemento silenciado permanece silenciado.
+Los hallazgos llegan a Inbox únicamente mediante la herramienta MCP de AgenticOS `publish_inbox_finding`. Cada rutina y monitor la recibe automáticamente, incluso sin vinculación de plataforma. La credencial implícita no tiene permisos generales de plataforma: está vinculada a una ejecución activa y publica solo para el propietario de la rutina. No puede elegir otro destinatario, leer el Inbox privado ni administrar la organización. Cada publicación comprueba membresía, consentimiento de fuentes, pausa y vencimiento. Los monitores deben leer correctamente su fuente antes de publicar; los errores de lectura pendientes lo impiden. La urgencia respeta la configuración del propietario.
+
+El agente aporta identificadores estables de elemento y revisión, contexto y el borrador completo solicitado. Una revisión sin cambios permanece silenciosa; una nueva actualiza la misma conversación de trabajo y reabre el caso, mientras los elementos silenciados siguen así. Cada ejecución publica hasta ocho hallazgos. La respuesta final permanece en el registro o chat elegido explícitamente y nunca se analiza para crear tarjetas. El campo antiguo `result_mode` sigue siendo legible, pero ya no selecciona entrega estructurada automática. Sin cambios no se publica nada, salvo que un monitor deba informar de cada comprobación.
+
+Los hallazgos se guardan en la llamada MCP. Un fallo posterior no elimina lo publicado; el intento fallido permanece visible y los reintentos deduplican las revisiones.
+
+Las rutinas nuevas usan por defecto **un historial compartido de solo lectura** (`chat_mode=shared`). Elige **un chat privado nuevo por ejecución** (`chat_mode=per_run`) para conservar cada transcripción completa con sus herramientas en un chat editable propio. Los mensajes posteriores no editan la rutina ni pasan a ser la transcripción de la siguiente ejecución; la memoria configurada sigue aplicándose. El chat aparece en la barra lateral.
+
+Elige **historial compartido** (`chat_mode=shared`) para añadir las ejecuciones a una conversación de sistema de solo lectura. Su creador la ve con `runs:view` y acceso actual al agente; los registros de proyectos siguen sujetos al acceso al proyecto. El creador puede bifurcar una respuesta a un chat privado. Las nuevas ejecuciones no reutilizan automáticamente los mensajes anteriores; la memoria y las lecturas explícitas de fuentes aportan continuidad.
+
+La migración `0351_routine_chat_modes.py` convierte la entrega al chat principal o específico en chats por ejecución; el registro exclusivo y el antiguo modo Inbox pasan al historial compartido. Conserva conversaciones, horarios, pausas, presupuestos y consentimientos de fuentes/herramientas. Los registros existentes pasan a solo lectura; las ejecuciones admitidas sin modo guardado mantienen su entrega anterior. Actualiza API y workers juntos. Los campos antiguos siguen legibles para compatibilidad y downgrade.
+
+Los hallazgos de Inbox conservan sus propias conversaciones de trabajo por elemento de origen estable. No se crea una tarjeta para cada ejecución.
+
+La ejecución desatendida no tiene un canal `ask_user` activo. Si falta información esencial, las instrucciones indican publicar la pregunta y el trabajo bloqueado como hallazgo en Inbox, en vez de suponer una respuesta. Esto no crea por sí solo un formulario de preguntas pausado y reanudable.
 
 Abra la conversación desde Inbox para editar el borrador o solicitar el siguiente
 paso. Leer o editar no envía nada ni completa el caso. Siguen vigentes los permisos

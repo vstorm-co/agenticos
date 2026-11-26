@@ -5,7 +5,6 @@ import { BookText, FileText, MessageSquare } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useInImproveWizard } from "./wizard-mode";
 
-import { CopyButton } from "@/components/chat/copy-button";
 import { Badge } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { timeAgo } from "@/lib/utils";
@@ -17,21 +16,15 @@ const SOURCE_ICON: Record<KnowledgeGapSource["kind"], typeof FileText> = {
   context: BookText,
 };
 
-function asMarkdown(title: string, content: string): string {
-  return `# ${title}\n\n${content}\n`;
-}
-
 /**
- * What a draft rests on and where it came from: its verified sources, when and by
- * which run it was written, and copying it.
+ * Verified sources and the run that wrote the draft. Creation time belongs to its header.
  */
 export function KnowledgeGapDraftMeta({ draft }: { draft: KnowledgeGapDraft }) {
   const wizard = useInImproveWizard();
   const t = useTranslations("knowledgeGaps");
-  const tTime = useTranslations("time");
-  const locale = useLocale();
-  const markdown = asMarkdown(draft.title, draft.content);
 
+  if (draft.sources.length === 0 && draft.unverified === 0 && (wizard || draft.run_id === null))
+    return null;
   return (
     <div className="space-y-2">
       {draft.sources.length > 0 && (
@@ -53,14 +46,24 @@ export function KnowledgeGapDraftMeta({ draft }: { draft: KnowledgeGapDraft }) {
         <p className="text-xs">{t("draftUnverified", { count: draft.unverified })}</p>
       )}
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span>{timeAgo(draft.drafted_at, tTime, locale)}</span>
         {draft.run_id && !wizard && (
           <Link href={`${ROUTES.RUNS}?run=${draft.run_id}`} className="underline">
             {t("openDraftRun")}
           </Link>
         )}
-        <CopyButton text={markdown} className="opacity-100" />
       </div>
     </div>
+  );
+}
+
+/** Label the draft's own timestamp rather than leaving a bare age beneath its actions. */
+export function KnowledgeGapDraftTime({ draft }: { draft: KnowledgeGapDraft }) {
+  const t = useTranslations("knowledgeGaps");
+  const tTime = useTranslations("time");
+  const locale = useLocale();
+  return (
+    <time dateTime={draft.drafted_at} className="text-muted-foreground block text-xs">
+      {t("draftCreated", { time: timeAgo(draft.drafted_at, tTime, locale) })}
+    </time>
   );
 }

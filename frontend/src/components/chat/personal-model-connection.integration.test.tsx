@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
+import { CopilotModelConnection } from "./copilot-model-connection";
 import { PersonalModelConnection } from "./personal-model-connection";
 import { PersonalModelKeys } from "@/components/settings/personal-model-keys";
 import { useAuthStore } from "@/stores";
@@ -20,6 +21,8 @@ vi.mock("@/lib/personal-model-keys-api", () => ({
   listPersonalModelKeys: vi.fn(),
   savePersonalModelKey: vi.fn(),
   deletePersonalModelKey: vi.fn(),
+  startCopilotSignIn: vi.fn(),
+  pollCopilotSignIn: vi.fn(),
 }));
 const connection: AgentModelConnection = {
   personal: true,
@@ -171,6 +174,167 @@ it("does not read another destination before a signed-in tenant or selected agen
   mount(<PersonalModelConnection agentId={null} />);
   expect(api.agentModelConnection).not.toHaveBeenCalled();
   expect(screen.queryByRole("form")).not.toBeInTheDocument();
+});
+
+const copilotChallenge = {
+  handle: "owner-bound-sign-in-handle-which-is-not-a-token",
+  user_code: "OWN-CODE",
+  verification_uri: "https://github.com/login/device" as const,
+  expires_at: "2026-11-18T12:15:00Z",
+  poll_after_seconds: 5,
+};
+
+it("connects Copilot with a private device flow and refetches the connection", async () => {
+  const copilot = { ...connection, provider: "github_copilot", endpoint: null };
+  vi.mocked(api.agentModelConnection).mockResolvedValue(copilot);
+  vi.mocked(api.startCopilotSignIn).mockResolvedValue(copilotChallenge);
+  vi.mocked(api.pollCopilotSignIn).mockResolvedValue({
+    status: "connected",
+    poll_after_seconds: 0,
+  });
+  mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Sign in with GitHub" }));
+  expect(await screen.findByText("OWN-CODE")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open GitHub device authorization" })).toHaveAttribute(
+    "href",
+    "https://github.com/login/device",
+  );
+  expect(api.startCopilotSignIn).toHaveBeenCalledWith("agent", {
+    profile_id: "profile",
+    provider: "github_copilot",
+    endpoint: null,
+    model: "shared-model",
+  });
+  vi.mocked(api.agentModelConnection).mockResolvedValue({ ...copilot, connected: true });
+  await userEvent.click(screen.getByRole("button", { name: "Check authorization" }));
+  await waitFor(() => expect(screen.queryByText("OWN-CODE")).not.toBeInTheDocument());
+  expect(api.pollCopilotSignIn).toHaveBeenCalledWith("agent", copilotChallenge.handle);
+  expect(api.savePersonalModelKey).not.toHaveBeenCalled();
+});
+
+it("keeps a pending Copilot grant out of connected state and can restart it", async () => {
+  vi.mocked(api.agentModelConnection).mockResolvedValue({
+    ...connection,
+    provider: "github_copilot",
+    endpoint: null,
+  });
+  vi.mocked(api.startCopilotSignIn).mockResolvedValue(copilotChallenge);
+  vi.mocked(api.pollCopilotSignIn).mockResolvedValue({ status: "pending", poll_after_seconds: 12 });
+  mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Sign in with GitHub" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Check authorization" }));
+  expect(await screen.findByRole("status")).toHaveTextContent("Wait 12 seconds");
+  await userEvent.click(screen.getByRole("button", { name: "Start a new sign-in" }));
+  await waitFor(() => expect(api.startCopilotSignIn).toHaveBeenCalledTimes(2));
+});
+
+it("reports missing Copilot application setup without an API-key fallback", async () => {
+  vi.mocked(api.agentModelConnection).mockResolvedValue({
+    ...connection,
+    provider: "github_copilot",
+    endpoint: null,
+  });
+  vi.mocked(api.startCopilotSignIn).mockRejectedValue(new Error("Configure the OAuth application"));
+  mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Sign in with GitHub" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Configure the OAuth application");
+  expect(api.savePersonalModelKey).not.toHaveBeenCalled();
+});
+
+it("never displays a late Copilot device code after switching tenants", async () => {
+  vi.mocked(api.agentModelConnection).mockResolvedValue({
+    ...connection,
+    provider: "github_copilot",
+    endpoint: null,
+  });
+  let settle: (value: typeof copilotChallenge) => void = () => undefined;
+  vi.mocked(api.startCopilotSignIn).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+  );
+  const { rerender } = mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Sign in with GitHub" }));
+  tenant.id = "other-org";
+  tenant.valid = false;
+  rerender(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <PersonalModelConnection agentId="agent" />
+    </QueryClientProvider>,
+  );
+  await act(async () => settle(copilotChallenge));
+  expect(screen.queryByText("OWN-CODE")).not.toBeInTheDocument();
+});
+
+it("offers explicit Copilot reconnect and can recover from a denied authorization", async () => {
+  vi.mocked(api.agentModelConnection).mockResolvedValue({
+    ...connection,
+    provider: "github_copilot",
+    endpoint: null,
+    connected: true,
+  });
+  vi.mocked(api.startCopilotSignIn).mockResolvedValue(copilotChallenge);
+  vi.mocked(api.pollCopilotSignIn).mockRejectedValue(new Error("Authorization was denied"));
+  mount(<PersonalModelConnection agentId="agent" manage />);
+  await userEvent.click(await screen.findByRole("button", { name: "Reconnect with GitHub" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Check authorization" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Authorization was denied");
+  await userEvent.click(screen.getByRole("button", { name: "Start a new sign-in" }));
+  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+});
+
+it("ignores a late Copilot authorization result after the person signs out", async () => {
+  vi.mocked(api.agentModelConnection).mockResolvedValue({
+    ...connection,
+    provider: "github_copilot",
+    endpoint: null,
+  });
+  vi.mocked(api.startCopilotSignIn).mockResolvedValue(copilotChallenge);
+  let settle: (value: api.CopilotSignInResult) => void = () => undefined;
+  vi.mocked(api.pollCopilotSignIn).mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
+  );
+  mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Sign in with GitHub" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Check authorization" }));
+  await act(async () => {
+    useAuthStore.setState({ user: null });
+  });
+  await act(async () => settle({ status: "connected", poll_after_seconds: 0 }));
+  expect(screen.queryByText("OWN-CODE")).not.toBeInTheDocument();
+});
+
+it.each(["tenant", "user"])(
+  "requires an active %s before showing a Copilot authorization code",
+  (missing) => {
+    if (missing === "tenant") tenant.id = null;
+    else useAuthStore.setState({ user: null });
+    mount(
+      <CopilotModelConnection
+        agentId="agent"
+        destination={{
+          profile_id: "profile",
+          provider: "github_copilot",
+          endpoint: null,
+          model: "plan-model",
+        }}
+        connected={false}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Sign in with GitHub" })).not.toBeInTheDocument();
+  },
+);
+
+it("shows the provider identity when an approved model uses its default gateway", async () => {
+  vi.mocked(api.agentModelConnection).mockResolvedValue({ ...connection, endpoint: null });
+  mount();
+  expect(await screen.findByText(/openai/)).toBeInTheDocument();
 });
 
 it("allows retrying a failed connection status read", async () => {

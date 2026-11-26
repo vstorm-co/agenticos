@@ -9,7 +9,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import Auth, SuggestionSvc
+from app.api.deps import Auth, OutcomeSvc, SuggestionSvc
+from app.api.public_api import ASSISTANT
+from app.schemas.routine_notifications import RoutineFindingPublish, RoutineFindingReceipt
 from app.schemas.suggestion import PersonalStarters, SuggestionList, SuggestionRead
 
 router = APIRouter()
@@ -52,3 +54,11 @@ async def dismiss_suggestion(suggestion_id: UUID, service: SuggestionSvc, ctx: A
 async def restore_suggestion(suggestion_id: UUID, service: SuggestionSvc, ctx: Auth) -> Any:
     """Bring back a dismissed suggestion, to answer again."""
     return await service.restore(ctx, suggestion_id)
+
+
+@router.post("/findings", response_model=RoutineFindingReceipt, dependencies=[ASSISTANT])
+async def publish_routine_finding(
+    data: RoutineFindingPublish, service: OutcomeSvc, ctx: Auth
+) -> Any:
+    """Publish a finding for the owner of the caller's live routine run."""
+    return await service.publish_finding(ctx, data)

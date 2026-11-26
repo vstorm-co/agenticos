@@ -36,13 +36,7 @@ from app.main import app
 from app.schemas.watch import WatchCreate, WatchRead, WatchUpdate
 from app.schemas.watch_sources import WatchSources
 from app.services import mcp_catalog, watch_presets
-from app.services.proactive._watch import (
-    Found,
-    WatchLook,
-    WatchReading,
-    _key,
-    _web_link,
-)
+from app.services.proactive._watch import WatchLook
 from app.services.proactive.facade import ProactiveService
 from app.services.watch_sources import approve_sources
 from app.services.watches import MAX_WATCHES, WatchService, stopped_by, watch_read
@@ -487,7 +481,6 @@ class TestOneLook:
     def _patches(
         watch,
         *,
-        reading=None,
         source_reads=1,
         organization=None,
         connection=None,
@@ -505,10 +498,8 @@ class TestOneLook:
             assert isinstance(receipt, WatchReadReceipt)
             receipt.completed_calls = source_reads
             receipt.check = (check or AsyncMock()) if retain_check else None
-            output = kwargs["structured"]
-            assert isinstance(output, list)
-            output.append((reading or WatchReading()).model_dump(mode="json"))
-            return "", AgentRun(
+            assert "structured" not in kwargs and "output_schema" not in kwargs
+            return "Brak nowych istotnych zmian.", AgentRun(
                 id=uuid.uuid4(),
                 status=status.value,
                 agent_id=AGENT,
@@ -522,6 +513,7 @@ class TestOneLook:
         return (
             patch(f"{LOOK}.watch_repo.get_by_id", new=AsyncMock(return_value=watch)),
             patch(f"{LOOK}.watch_repo.mark_attempt", new=AsyncMock()),
+            patch(f"{LOOK}.outcome_repo.count_run_findings", new=AsyncMock(return_value=0)),
             patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock(return_value=True)),
             patch(f"{LOOK}.watch_repo.claim_report_activation", new=AsyncMock(return_value=True)),
             patch(
@@ -565,25 +557,6 @@ class TestOneLook:
             patch(f"{LOOK}.AgentRunnerService", return_value=MagicMock(execute=run)),
         ), run
 
-    @pytest.mark.parametrize(
-        ("url", "kept"),
-        [
-            ("https://github.com/o/r/pull/1", True),
-            ("http://intranet.example/x", True),
-            ("javascript:alert(1)", False),
-            ("https:///no-host", False),
-            (None, False),
-        ],
-    )
-    def test_links_only_open_web_addresses(self, url, kept):
-        assert (_web_link(url) is not None) is kept
-
-    def test_same_item_and_watch_keep_their_key(self):
-        one, other = uuid.uuid4(), uuid.uuid4()
-        assert _key(one, "PR 12") == _key(one, " PR 12 ")
-        assert _key(one, "PR 12") != _key(other, "PR 12")
-        assert len(_key(one, "PR 12")) <= 64
-
     @pytest.mark.security
     async def test_selected_agent_executes_with_version_and_person_budget(self):
         watch = _watch(pinned_version_id=uuid.uuid4(), exclusions=["dependabot"])
@@ -601,71 +574,6 @@ class TestOneLook:
         assert '"not_wanted": ["dependabot"]' in prompt
         assert '"already_reported": ["Old"]' in prompt
         mark_ran.assert_awaited_once()
-
-    async def test_new_findings_are_recorded_once_and_only_requested_urgency_notifies(self):
-        watch = _watch(urgent=True)
-        reading = WatchReading(
-            findings=[
-                Found(
-                    key="1",
-                    title="Review #1",
-                    url="https://github.com/o/r/pull/1",
-                    urgent=True,
-                    chat_prompt="Prepare a review of pull request #1 and its failing checks.",
-                ),
-                Found(key="2", title="Review #2", url="javascript:void(0)"),
-                Found(key="3", title="Seen before", urgent=True),
-            ]
-        )
-        patches, _ = self._patches(watch, reading=reading)
-        propose = AsyncMock(
-            side_effect=[MagicMock(id=uuid.uuid4(), title="Review #1"), MagicMock(), None]
-        )
-        finding = AsyncMock()
-        with ExitStack() as stack:
-            for each in patches:
-                stack.enter_context(each)
-            stack.enter_context(patch(f"{LOOK}.suggestion_repo.propose", new=propose))
-            stack.enter_context(
-                patch(
-                    f"{LOOK}.NotificationService",
-                    return_value=MagicMock(finding=finding, watch_blocked=AsyncMock()),
-                )
-            )
-            assert await WatchLook(MagicMock()).look(watch.id) == 2
-        first, second, _ = (call.kwargs for call in propose.await_args_list)
-        assert first["urgent"] is True and second["urgent"] is False
-        assert first["payload"]["url"].startswith("https://") and second["payload"]["url"] is None
-        assert (
-            first["payload"]["chat_prompt"]
-            == "Prepare a review of pull request #1 and its failing checks."
-        )
-        assert "chat_prompt" not in second["payload"]
-        finding.assert_awaited_once()
-
-    async def test_a_nonurgent_watch_keeps_urgent_findings_in_the_inbox(self):
-        patches, _ = self._patches(
-            _watch(urgent=False),
-            reading=WatchReading(findings=[Found(key="1", title="Invoice", urgent=True)]),
-        )
-        finding = AsyncMock()
-        with ExitStack() as stack:
-            for each in patches:
-                stack.enter_context(each)
-            stack.enter_context(
-                patch(
-                    f"{LOOK}.suggestion_repo.propose",
-                    new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-                )
-            )
-            stack.enter_context(
-                patch(
-                    f"{LOOK}.NotificationService",
-                    return_value=MagicMock(finding=finding, watch_blocked=AsyncMock()),
-                )
-            )
-            assert await WatchLook(MagicMock()).look(uuid.uuid4()) == 1
-        finding.assert_not_awaited()
 
     @pytest.mark.parametrize(
         ("status", "source_reads", "expected"),
@@ -751,27 +659,16 @@ class TestOneLook:
         assert notice.await_args.kwargs["routine_kind"] == "watch"
         assert notice.await_args.kwargs["spent"] == Decimal("1")
 
-    async def test_revocation_after_reading_prevents_recording_findings(self):
-        patches, _ = self._patches(
-            _watch(),
-            reading=WatchReading(findings=[Found(key="1", title="Private")]),
-            check=AsyncMock(side_effect=AuthorizationError(message="Stopped")),
-        )
-        with ExitStack() as stack:
-            for each in patches:
-                stack.enter_context(each)
-            propose = stack.enter_context(patch(f"{LOOK}.suggestion_repo.propose", new=AsyncMock()))
-            assert await WatchLook(MagicMock()).look(uuid.uuid4()) == 0
-        propose.assert_not_awaited()
-
     async def test_a_failed_result_write_does_not_become_a_successful_check(self):
-        patches, _ = self._patches(_watch())
+        patches, _ = self._patches(_watch(report_mode="every_check"))
         with ExitStack() as stack:
             for each in patches:
                 stack.enter_context(each)
             stack.enter_context(
                 patch.object(
-                    WatchLook, "_record", new=AsyncMock(side_effect=RuntimeError("write failed"))
+                    WatchLook,
+                    "_deliver_summary",
+                    new=AsyncMock(side_effect=RuntimeError("write failed")),
                 )
             )
             mark_ran = stack.enter_context(patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock()))
@@ -917,53 +814,6 @@ class TestTheRoutes:
             },
         )
         assert response.status_code == 422
-
-
-@pytest.mark.parametrize("allowed", ["allowed", "refused", "wrong-owner", "deleted"])
-async def test_new_findings_return_to_the_current_authorized_source_conversation(allowed: str):
-    conversation_id = uuid.uuid4()
-    watch = _watch(source_conversation_id=conversation_id)
-    reading = WatchReading(findings=[Found(key="1", title="Needs review", detail="Waiting on you")])
-    patches, _ = TestOneLook._patches(watch, reading=reading)
-    delivery = AsyncMock()
-    lookup = AsyncMock(
-        return_value=MagicMock(id=conversation_id, user_id=USER, organization_id=ORG)
-    )
-    if allowed == "wrong-owner":
-        lookup.return_value.user_id = uuid.uuid4()
-    if allowed == "refused":
-        lookup.side_effect = AuthorizationError(message="Project access was revoked")
-    attempt = AsyncMock()
-    with ExitStack() as stack:
-        for each in patches:
-            stack.enter_context(each)
-        stack.enter_context(
-            patch(
-                f"{LOOK}.suggestion_repo.propose",
-                new=AsyncMock(return_value=MagicMock(id=uuid.uuid4())),
-            )
-        )
-        stack.enter_context(
-            patch(f"{LOOK}.ConversationService", return_value=MagicMock(get_conversation=lookup))
-        )
-        if allowed == "deleted":
-            stack.enter_context(
-                patch(
-                    f"{LOOK}.conversation_repo.get_conversation_by_id",
-                    new=AsyncMock(return_value=None),
-                )
-            )
-        stack.enter_context(patch(f"{LOOK}.conversation_repo.create_message", new=delivery))
-        stack.enter_context(patch(f"{LOOK}.watch_repo.mark_attempt", new=attempt))
-        assert await WatchLook(MagicMock()).look(watch.id) == 1
-    if allowed == "allowed":
-        assert delivery.await_args.kwargs["conversation_id"] == conversation_id
-        assert delivery.await_args.kwargs["agent_id"] == AGENT
-        assert "Needs review" in delivery.await_args.kwargs["content"]
-        attempt.assert_not_awaited()
-    else:
-        delivery.assert_not_awaited()
-        assert attempt.await_args.kwargs["status"] == WatchAttemptStatus.DELIVERY_UNAVAILABLE
 
 
 async def test_legacy_watches_and_expired_watches_do_not_queue_model_work():
@@ -1125,24 +975,6 @@ async def test_an_expired_watch_stops_before_executing_its_selected_agent():
     assert update.await_args.kwargs["changes"] == {"is_active": False}
 
 
-async def test_revocation_between_source_read_and_first_result_blocks_result_delivery():
-    watch = _watch()
-    check = AsyncMock(side_effect=[None, AuthorizationError(message="Paused")])
-    patches, _ = TestOneLook._patches(
-        watch, reading=WatchReading(findings=[Found(key="1", title="Review")]), check=check
-    )
-    with ExitStack() as stack:
-        for each in patches:
-            stack.enter_context(each)
-        propose = stack.enter_context(patch(f"{LOOK}.suggestion_repo.propose", new=AsyncMock()))
-        attempt = stack.enter_context(patch(f"{LOOK}.watch_repo.mark_attempt", new=AsyncMock()))
-        success = stack.enter_context(patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock()))
-        assert await WatchLook(MagicMock()).look(watch.id) == 0
-    propose.assert_not_awaited()
-    success.assert_not_awaited()
-    assert attempt.await_args.kwargs["status"] == WatchAttemptStatus.ACCESS_REVOKED
-
-
 async def test_a_watch_without_its_live_authority_check_fails_loudly():
     watch = _watch()
     patches, _ = TestOneLook._patches(watch, retain_check=False)
@@ -1250,7 +1082,7 @@ async def test_lost_agent_access_rolls_back_a_requested_report_instead_of_claimi
 async def test_an_unavailable_draft_chat_is_a_delivery_problem_not_a_failed_source_check():
     from app.core.exceptions import ConflictError
 
-    watch = _watch()
+    watch = _watch(report_mode="every_check")
     patches, _ = TestOneLook._patches(watch)
     with ExitStack() as stack:
         for each in patches:
@@ -1258,7 +1090,7 @@ async def test_an_unavailable_draft_chat_is_a_delivery_problem_not_a_failed_sour
         stack.enter_context(
             patch.object(
                 WatchLook,
-                "_record",
+                "_deliver_summary",
                 new=AsyncMock(side_effect=ConflictError(message="Working chat unavailable")),
             )
         )
@@ -1267,36 +1099,80 @@ async def test_an_unavailable_draft_chat_is_a_delivery_problem_not_a_failed_sour
     assert attempted.await_args.kwargs["status"] == WatchAttemptStatus.DELIVERY_UNAVAILABLE
 
 
-@pytest.mark.parametrize("published", [False, True])
-@pytest.mark.parametrize("current", [False, True])
-async def test_watch_drafts_have_one_owned_working_chat_and_stale_attempts_do_not_resolve_new_incidents(
-    published, current
-):
-    watch = _watch(urgent=True)
-    patches, _ = TestOneLook._patches(
-        watch,
-        reading=WatchReading(
-            findings=[
-                Found(
-                    key="mail-1",
-                    title="Draft reply",
-                    content="A proposed reply",
-                    revision="v2",
-                    urgent=True,
-                )
-            ]
-        ),
-    )
-    draft = uuid.uuid4() if published else None
-    publish = AsyncMock(return_value=draft)
+async def test_a_watch_removed_during_delivery_does_not_resolve_its_incidents():
+    watch = _watch(report_mode="changes_only")
+    patches, _ = TestOneLook._patches(watch)
     with ExitStack() as stack:
         for each in patches:
             stack.enter_context(each)
-        stack.enter_context(patch(f"{LOOK}.RoutineFindingService.publish", new=publish))
-        stack.enter_context(
-            patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock(return_value=current))
+        stack.enter_context(patch(f"{LOOK}.watch_repo.mark_ran", new=AsyncMock(return_value=False)))
+        resolve = stack.enter_context(
+            patch(f"{LOOK}.OutcomeService.resolve_routine_failure", new=AsyncMock())
         )
-        assert await WatchLook(MagicMock()).look(watch.id) == int(published)
-    assert publish.await_args.kwargs["origin_kind"] == "watch"
-    assert publish.await_args.kwargs["item"].content == "A proposed reply"
-    assert publish.await_args.kwargs["notify"] is True
+        assert await WatchLook(MagicMock()).look(watch.id) == 0
+    resolve.assert_not_awaited()
+
+
+@pytest.mark.parametrize("refusal", [AuthorizationError, NotFoundError])
+async def test_a_watch_reports_delivery_unavailable_when_its_chat_access_was_revoked(refusal):
+    watch = _watch(report_mode="every_check", source_conversation_id=uuid.uuid4())
+    patches, _ = TestOneLook._patches(watch)
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(
+            patch(
+                f"{LOOK}.ConversationService",
+                return_value=MagicMock(
+                    get_conversation=AsyncMock(side_effect=refusal(message="Chat access lost"))
+                ),
+            )
+        )
+        post = stack.enter_context(
+            patch(f"{LOOK}.conversation_repo.create_message", new=AsyncMock())
+        )
+        attempted = stack.enter_context(patch.object(WatchLook, "_mark_attempt", new=AsyncMock()))
+        assert await WatchLook(MagicMock()).look(watch.id) == 0
+    post.assert_not_awaited()
+    assert attempted.await_args.kwargs["status"] == WatchAttemptStatus.DELIVERY_UNAVAILABLE
+
+
+async def test_a_watch_without_a_chat_can_send_its_requested_completion_notice():
+    watch = _watch(report_mode="every_check", source_conversation_id=None)
+    patches, _ = TestOneLook._patches(watch)
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(
+            patch(f"{LOOK}.agent_repo.get", new=AsyncMock(return_value=MagicMock(id=AGENT)))
+        )
+        notify = stack.enter_context(
+            patch(f"{LOOK}.NotificationService.routine_finished", new=AsyncMock())
+        )
+        assert await WatchLook(MagicMock()).look(watch.id) == 0
+    assert notify.await_args.kwargs["source_conversation_id"] is None
+
+
+async def test_a_changes_only_watch_delivers_its_finding_summary_without_a_completion_notice():
+    watch = _watch(report_mode="changes", source_conversation_id=uuid.uuid4())
+    patches, _ = TestOneLook._patches(watch)
+    with ExitStack() as stack:
+        for each in patches:
+            stack.enter_context(each)
+        stack.enter_context(
+            patch(f"{LOOK}.outcome_repo.count_run_findings", new=AsyncMock(return_value=1))
+        )
+        stack.enter_context(
+            patch(
+                f"{LOOK}.ConversationService", return_value=MagicMock(get_conversation=AsyncMock())
+            )
+        )
+        post = stack.enter_context(
+            patch(f"{LOOK}.conversation_repo.create_message", new=AsyncMock())
+        )
+        notice = stack.enter_context(
+            patch(f"{LOOK}.NotificationService.routine_finished", new=AsyncMock())
+        )
+        assert await WatchLook(MagicMock()).look(watch.id) == 1
+    assert post.await_args.kwargs["conversation_id"] == watch.source_conversation_id
+    notice.assert_not_awaited()

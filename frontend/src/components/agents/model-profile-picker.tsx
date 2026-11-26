@@ -3,8 +3,7 @@
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import { useId, useLayoutEffect, useRef, useState } from "react";
-import { Check, ChevronRight, KeyRound, Trash2 } from "lucide-react";
-import Link from "next/link";
+import { Check, ChevronRight, KeyRound, RefreshCw, Trash2 } from "lucide-react";
 
 import { AddModel } from "@/components/agents/add-model";
 import { CONTROL_FOCUS, MENU_ROW } from "@/components/ui/control-styles";
@@ -23,11 +22,12 @@ import { useChanged } from "@/hooks/use-changed";
 import type { ProfilesStatus } from "@/hooks/use-model-providers";
 import { hasKey, runsAgents } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
-import { ROUTES } from "@/lib/constants";
 import type { ModelProfile } from "@/types/providers";
 import { useTranslations } from "next-intl";
 
 interface ModelProfilePickerProps {
+  /** Edit saved defaults for background roles that have no agent spec overrides. */
+  generationSettings?: boolean;
   profiles: ModelProfile[];
   /** A single selector for setup dialogs; model management keeps its full editor. */
   compact?: boolean;
@@ -123,6 +123,7 @@ export function ModelProfilePicker({
   value,
   onChange,
   onCreationPendingChange,
+  generationSettings = false,
   compact = false,
   purpose = "chat",
   requireOrganizationKey = true,
@@ -134,8 +135,24 @@ export function ModelProfilePicker({
   const t = useTranslations("agents");
   const tc = useTranslations("common");
   const tPersonal = useTranslations("personalModels");
-  const tSubscription = useTranslations("claudeSubscription");
-  const { deleteProfile, refetchProfiles } = useModelProviders();
+  const picker = useTranslations("chat.modelPicker");
+  const { deleteProfile, refetchProfiles, isFetching } = useModelProviders();
+  const refresh = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      disabled={disabled || isFetching}
+      onClick={() => void refetchProfiles()}
+    >
+      <RefreshCw
+        size={14}
+        aria-hidden
+        className={cn(isFetching && "animate-spin motion-reduce:animate-none")}
+      />
+      {picker("refreshCatalog")}
+    </Button>
+  );
   const [selectionVersion, setSelectionVersion] = useState(0);
   const currentSelection = useRef(0);
   if (useChanged(value)) setSelectionVersion((version) => version + 1);
@@ -220,9 +237,7 @@ export function ModelProfilePicker({
       {/* The badge that decides whether the agent can run at all. In a list of a
           dozen saved models the chosen one's badge is a badge among twelve. */}
       {requireOrganizationKey && !hasKey(selected) && (
-        <Badge variant="destructive">
-          {selected.provider === "claude-subscription" ? tSubscription("disconnected") : t("noKey")}
-        </Badge>
+        <Badge variant="destructive">{t("noKey")}</Badge>
       )}
       {purpose === "chat" && !runsAgents(selected) && (
         <Badge variant="destructive">{t("notAChatModel")}</Badge>
@@ -240,16 +255,7 @@ export function ModelProfilePicker({
       )}
       {requireOrganizationKey && runsAgents(selected) && !hasKey(selected) && (
         <p role="alert" className="text-destructive basis-full text-xs">
-          {selected.provider === "claude-subscription" ? (
-            <>
-              {tSubscription("reconnectModels")}{" "}
-              <Link href={ROUTES.SETTINGS_AI_CONNECTIONS} className="underline underline-offset-4">
-                {tSubscription("manageConnection")}
-              </Link>
-            </>
-          ) : (
-            t("modelHasNoKeyHint")
-          )}
+          {t("modelHasNoKeyHint")}
         </p>
       )}
     </div>
@@ -265,6 +271,8 @@ export function ModelProfilePicker({
       cta={{ label: tc("retry"), onClick: () => void refetchProfiles() }}
     />
   );
+
+  const cachedFailure = profilesStatus === "failed" && offered.length > 0 ? failed : null;
 
   // A panel that only chooses between what exists is the list, and the line
   // saying which of them is in use.
@@ -286,13 +294,18 @@ export function ModelProfilePicker({
           <p className="text-muted-foreground mx-auto mt-1 max-w-sm text-xs">
             {t("noModelAskAdmin")}
           </p>
+          {refresh}
         </div>
       );
     }
     if (compact) {
       return (
         <div className="space-y-2">
-          <p className="text-sm font-medium">{t("model2")}</p>
+          {cachedFailure}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">{t("model2")}</p>
+            {refresh}
+          </div>
           <Select
             value={value ?? "default"}
             disabled={disabled || profilesStatus !== "loaded"}
@@ -326,6 +339,8 @@ export function ModelProfilePicker({
     return (
       <div className="space-y-3">
         {current}
+        {cachedFailure}
+        <div className="flex justify-end">{refresh}</div>
         {list}
       </div>
     );
@@ -334,6 +349,7 @@ export function ModelProfilePicker({
   return (
     <div className="space-y-3">
       {current}
+      {cachedFailure}
 
       {/* Provider, model and key, always - and starting on the model in use, so the
           panel says what that is in the same two fields that change it rather than
@@ -356,6 +372,7 @@ export function ModelProfilePicker({
         key={`${selected?.id ?? "none"}:${selectionVersion}`}
         selected={selected}
         collapseConnection
+        generationSettings={generationSettings}
         purpose={purpose}
         disabled={disabled}
         onCreationPendingChange={onCreationPendingChange}
@@ -376,6 +393,9 @@ export function ModelProfilePicker({
           the panel here and it already works, so a wait would stand in for a
           disclosure that may well have nothing to disclose. */}
       {offered.length === 0 && profilesStatus === "failed" && failed}
+      {offered.length === 0 && profilesStatus === "loaded" && (
+        <div className="flex justify-end">{refresh}</div>
+      )}
 
       {offered.length > 0 && (
         <NativeDisclosure className="group">
@@ -386,6 +406,7 @@ export function ModelProfilePicker({
             })}
           </summary>
           <div className="mt-2 space-y-2">
+            <div className="flex justify-end">{refresh}</div>
             {list}
             <p className="text-muted-foreground text-xs">{t("namedSoOrganizationCan")}</p>
           </div>
@@ -425,7 +446,6 @@ function ProfileRow({
   const t = useTranslations("agents");
   const tc = useTranslations("common");
   const tPersonal = useTranslations("personalModels");
-  const tSubscription = useTranslations("claudeSubscription");
   return (
     // The radio and the delete are siblings, not nested: a button inside a
     // button is invalid, and the browser resolves it by dropping one of them.
@@ -451,11 +471,7 @@ function ProfileRow({
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-1.5">
             <span className="truncate text-sm font-medium">{title}</span>
-            {noKey && (
-              <Badge variant="destructive">
-                {provider === "claude-subscription" ? tSubscription("disconnected") : t("noKey2")}
-              </Badge>
-            )}
+            {noKey && <Badge variant="destructive">{t("noKey2")}</Badge>}
             {notChat && <Badge variant="destructive">{t("notAChatModel")}</Badge>}
             {personal && <Badge variant="secondary">{tPersonal("personal")}</Badge>}
           </span>

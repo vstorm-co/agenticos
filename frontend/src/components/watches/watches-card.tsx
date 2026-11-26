@@ -1,7 +1,6 @@
 "use client";
 
 import { RoutineAutoPause } from "@/components/triggers/failure-policy-field";
-import { RoutineActionTooltip } from "@/components/triggers/routine-action-tooltip";
 import { useState } from "react";
 import Link from "next/link";
 import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
@@ -12,7 +11,15 @@ import { toast } from "sonner";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/states";
-import { Badge, Button, ListCard, ListCardEmpty, Switch, TooltipProvider } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  ListCard,
+  ListCardEmpty,
+  Switch,
+  ActionTooltip,
+  TooltipProvider,
+} from "@/components/ui";
 import { useAgents, useMcpConnections, useOrganizations } from "@/hooks";
 import { useWatches } from "@/hooks/use-watches";
 import { getErrorMessage } from "@/lib/api-error";
@@ -271,14 +278,14 @@ export function WatchRow({
       )}
       <TooltipProvider>
         <div className="flex items-center gap-1">
-          <RoutineActionTooltip label={tTriggers(watch.is_active ? "pause" : "resume")}>
+          <ActionTooltip label={tTriggers(watch.is_active ? "pause" : "resume")}>
             <Switch
               checked={watch.is_active}
               onCheckedChange={onToggle}
               aria-label={t("activeLabel", { title: watch.title })}
             />
-          </RoutineActionTooltip>
-          <RoutineActionTooltip label={t("editLabel", { title: watch.title })}>
+          </ActionTooltip>
+          <ActionTooltip label={t("editLabel", { title: watch.title })}>
             <Button
               variant="ghost"
               size="icon"
@@ -287,8 +294,8 @@ export function WatchRow({
             >
               <Pencil className="h-4 w-4" />
             </Button>
-          </RoutineActionTooltip>
-          <RoutineActionTooltip label={t("removeLabel", { title: watch.title })}>
+          </ActionTooltip>
+          <ActionTooltip label={t("removeLabel", { title: watch.title })}>
             <Button
               variant="ghost"
               size="icon"
@@ -297,7 +304,7 @@ export function WatchRow({
             >
               <Trash2 className="h-4 w-4" />
             </Button>
-          </RoutineActionTooltip>
+          </ActionTooltip>
         </div>
       </TooltipProvider>
     </li>

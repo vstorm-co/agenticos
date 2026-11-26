@@ -150,3 +150,31 @@ async def test_recovered_requested_file_is_loaded_in_the_jobs_organization(monke
     load.assert_awaited_once_with(job.organization_id, "receipt.csv")
     file = deliver.await_args.kwargs["said"].outbound[0]
     assert (file.filename, file.content, file.mime_type) == ("report.csv", b"a,b", "text/csv")
+
+
+async def test_a_notice_that_arrived_in_part_is_not_retried() -> None:
+    """A retry would post the pieces already in the chat a second time."""
+    from app.services.channels.exceptions import PartlyDelivered
+
+    partly = PartlyDelivered(
+        message="x", details={"platform": "telegram", "delivered": 1, "pieces": 2}
+    )
+    with (
+        patch("app.worker.tasks.channel_tasks.ensure_channel_adapters"),
+        patch("app.worker.tasks.channel_tasks.send_notice", new=AsyncMock(side_effect=partly)),
+    ):
+        await deliver_handback(_job(notice=True))
+
+
+async def test_a_resumed_answer_that_arrived_in_part_is_not_retried() -> None:
+    """A retry would post the pieces already in the chat a second time."""
+    from app.services.channels.exceptions import PartlyDelivered
+
+    partly = PartlyDelivered(
+        message="x", details={"platform": "telegram", "delivered": 1, "pieces": 2}
+    )
+    with (
+        patch("app.worker.tasks.channel_tasks.ensure_channel_adapters"),
+        patch("app.worker.tasks.channel_tasks.deliver_in_chat", new=AsyncMock(side_effect=partly)),
+    ):
+        assert await deliver_handback(_job(notice=False)) is False

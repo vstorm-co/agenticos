@@ -32,8 +32,15 @@ describe("the model combobox", () => {
     // typed. Six hundred known models looked exactly like none.
     mount();
 
-    await userEvent.click(screen.getByRole("combobox"));
+    const trigger = screen.getByRole("combobox");
+    await userEvent.click(trigger);
 
+    // The trigger opens the dialog; cmdk owns the search/listbox ids.
+    // A custom id on Command.List is overwritten by cmdk and breaks this link.
+    expect(trigger.getAttribute("aria-controls")).toBe(screen.getByRole("dialog").id);
+    expect(screen.getByPlaceholderText("Search models…").getAttribute("aria-controls")).toBe(
+      screen.getByRole("listbox").id,
+    );
     expect(screen.getByText("Claude Opus 5")).toBeInTheDocument();
     expect(screen.getByText("GPT-5.6 Sol")).toBeInTheDocument();
     expect(screen.queryByText("anthropic/claude-opus-5")).not.toBeInTheDocument();
@@ -135,4 +142,36 @@ describe("the model combobox", () => {
 
     expect(onChange).toHaveBeenCalledWith("anthropic/claude-opus-5");
   });
+});
+
+it("does not offer unsupported custom IDs when only listed account models are allowed", async () => {
+  const { onChange } = mount({ allowCustom: false });
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.type(screen.getByPlaceholderText("Search models…"), "unknown-model");
+  expect(screen.getByText("No matching models.")).toBeInTheDocument();
+  expect(screen.queryByText("not in the list")).not.toBeInTheDocument();
+  expect(onChange).not.toHaveBeenCalled();
+});
+
+it("refreshes the catalog without selecting its active option or closing the search", async () => {
+  const refresh = vi.fn();
+  const { onChange } = mount({ onRefresh: refresh });
+  await userEvent.click(screen.getByRole("combobox"));
+  await userEvent.type(screen.getByPlaceholderText("Search models…"), "Opus");
+  const button = screen.getByRole("button", { name: "Refresh models" });
+  button.focus();
+  await userEvent.keyboard("{Enter}");
+  expect(refresh).toHaveBeenCalledOnce();
+  expect(onChange).not.toHaveBeenCalled();
+  expect(screen.getByPlaceholderText("Search models…")).toHaveValue("Opus");
+});
+
+it("blocks repeat catalog refresh while a read is pending", async () => {
+  const refresh = vi.fn();
+  mount({ onRefresh: refresh, loading: true });
+  await userEvent.click(screen.getByRole("combobox"));
+  const button = screen.getByRole("button", { name: "Refresh models" });
+  expect(button).toBeDisabled();
+  await userEvent.click(button);
+  expect(refresh).not.toHaveBeenCalled();
 });

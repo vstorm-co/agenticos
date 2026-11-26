@@ -1488,7 +1488,12 @@ async def test_proactive_heartbeat_and_cancelled_usage_survive_the_job_rollback(
         return "unreachable"
 
     request = SimpleNamespace(
-        build=lambda: TestModel(), label="Test", model="test", provider="test", secret_id=None
+        build=TestModel,
+        label="Test",
+        model="test",
+        provider="test",
+        secret_id=None,
+        params={},
     )
     with (
         patch.object(ProactiveThinker, "allowance", AsyncMock(return_value=uuid.uuid4())),
@@ -1588,6 +1593,7 @@ async def test_a_failed_proactive_run_is_not_an_unknown_use_of_its_agents_skills
 
     request = SimpleNamespace(
         build=lambda: FunctionModel(broken),
+        params={},
         label="Test",
         model="test",
         provider="test",

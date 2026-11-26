@@ -577,6 +577,26 @@ it("writes a length check: what it counts, its bounds and where", async () => {
   ]);
 });
 
+it("writes a keys check: a label and a value per fact", async () => {
+  panel(JUDGED);
+  await userEvent.click(screen.getByRole("combobox", { name: "Check 1: type" }));
+  await userEvent.click(screen.getByRole("option", { name: "Keys covered" }));
+  await userEvent.click(screen.getByRole("button", { name: "Add key" }));
+  await userEvent.click(saveAll());
+  expect(await screen.findByText("Say what each check checks, or remove it.")).toBeInTheDocument();
+  expect(state.save).not.toHaveBeenCalled();
+  await userEvent.type(screen.getByRole("textbox", { name: "Key 1 of check 1" }), "Company");
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Value of key 1 of check 1" }),
+    "Fernhill Ltd",
+  );
+  await userEvent.click(saveAll());
+  await waitFor(() => expect(state.save).toHaveBeenCalled());
+  expect(saved().checks.defaults).toEqual([
+    { type: "keys", keys: [{ key: "Company", value: "Fernhill Ltd" }] },
+  ]);
+});
+
 it("edits named criteria, required status and numeric grading thresholds", async () => {
   panel(JUDGED);
   const name = screen.getByRole("textbox", { name: "Criterion name" });

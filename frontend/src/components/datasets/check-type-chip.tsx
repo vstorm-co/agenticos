@@ -3,6 +3,7 @@ import {
   Braces,
   Coins,
   Equal,
+  KeyRound,
   ListChecks,
   Regex,
   Ruler,
@@ -25,6 +26,7 @@ const CHECKS: Record<CheckType, { tone: DatasetTone; icon: LucideIcon }> = {
   max_latency_ms: { tone: "yellow", icon: Timer },
   length: { tone: "blue", icon: Ruler },
   judge: { tone: "purple", icon: Scale },
+  keys: { tone: "green", icon: KeyRound },
 };
 
 export function CheckTypeChip({ type }: { type: string }) {

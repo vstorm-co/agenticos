@@ -22,7 +22,7 @@ async def test_routine_instruction_review_bounds_delegate_graphs(monkeypatch, ch
         SubagentRef(agent_id=uuid4(), agent_version_id=uuid4())
         for _ in range(65 if change == "too_many" else 1)
     ]
-    spec = AgentSpec(name="Root", subagents=refs)
+    spec = AgentSpec(name="Root", subagents=refs, capabilities=[{"id": "subagents"}])
 
     async def version(_db, identifier, **kwargs):
         ref = next(ref for ref in refs if ref.agent_version_id == identifier)
@@ -30,9 +30,11 @@ async def test_routine_instruction_review_bounds_delegate_graphs(monkeypatch, ch
             return None
         return SimpleNamespace(
             agent_id=uuid4() if change == "wrong_agent" else ref.agent_id,
-            spec=AgentSpec(name="Child", subagents=refs if change == "cycle" else []).model_dump(
-                mode="json"
-            ),
+            spec=AgentSpec(
+                name="Child",
+                subagents=refs if change == "cycle" else [],
+                capabilities=[{"id": "subagents"}],
+            ).model_dump(mode="json"),
         )
 
     read = AsyncMock(side_effect=version)

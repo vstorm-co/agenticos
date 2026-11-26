@@ -477,6 +477,41 @@ async def test_personal_resolution_records_its_connection_identity_without_secre
     assert resolved.credential.base_url == held.base_url
 
 
+async def test_reviewed_personal_destination_never_carries_a_credential() -> None:
+    service, held = PersonalModelKeyService(AsyncMock()), profile()
+    with patch.object(service, "_profile", AsyncMock(return_value=held)):
+        destination = await service.destination(context(), uuid4())
+    assert destination.model_dump() == {
+        "profile_id": held.id,
+        "provider": held.provider,
+        "endpoint": held.base_url,
+        "model": held.model,
+    }
+    with (
+        patch.object(service, "_profile", AsyncMock(return_value=None)),
+        pytest.raises(BadRequestError, match="organization"),
+    ):
+        await service.destination(context(), uuid4())
+
+
+@pytest.mark.security
+async def test_missing_personal_key_cannot_advance_another_connection_generation() -> None:
+    service = PersonalModelKeyService(AsyncMock())
+    with (
+        patch("app.services.personal_model_key.key_repo.get_by_id", AsyncMock(return_value=None)),
+        patch("app.services.personal_model_key.key_repo.bump_generation", AsyncMock()) as bump,
+    ):
+        with pytest.raises(NotFoundError):
+            await service.delete(context(), uuid4())
+        bump.assert_not_called()
+
+
+async def test_personal_copilot_rejects_a_stored_custom_endpoint() -> None:
+    held = profile()
+    held.provider = "github_copilot"
+    assert personal_profile_problem(held) == "Copilot requires the fixed GitHub.com gateway"
+
+
 def test_personal_keys_still_refuse_reviewers() -> None:
     from app.agents.spec import RunReviewerSpec
 

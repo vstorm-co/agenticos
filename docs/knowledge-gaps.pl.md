@@ -1,5 +1,5 @@
 ---
-source_sha: "c428b004a390"
+source_sha: "95f4a9123a2e"
 title: "Luki w wiedzy"
 description: "Luki w wiedzy pokazują pytania, dla których agent nie znalazł w bazie wiedzy nic trafnego albo odpowiedział, że nie wie, pogrupowane w tematy, żeby było widać, jakiego dokumentu brakuje."
 ---
@@ -79,8 +79,8 @@ przeszukał bazę wiedzy, albo działał na wersji agenta z nią powiązanej, oc
 czy nie: odpowiedzi, w której agent nie wiedział, często nikt nie ocenia. Run, którego wyszukiwanie już było
 chybione, też jest czytany, żeby słuszna odmowa usunęła jego chybienie z luk; w
 przeciwnym razie nadal liczy się raz, jako to chybienie. Runy przez HTTP API nie zachowują
-odpowiedzi, a runy ewaluacji, których pytania są odtwarzane albo generowane, nie
-są nigdy czytane. Testy wersji roboczej w Builderze, runy delegowane i runy, których
+odpowiedzi, a runów ewaluacji, których pytania są odtwarzane albo generowane, nie
+czyta żadne sprawdzenie. Testy wersji roboczej w Builderze, runy delegowane i runy, których
 autor nie ma już konta, też nie.
 
 Sprawdzenie dotyczy jednej bazy wiedzy: to, co znajdzie, jest luką tylko tej
@@ -108,14 +108,23 @@ wieku, i przypisuje każdą do grupy według jej werdyktów: brakująca wiedza, 
 bazie wiedzy brakowało treści, nic do poprawienia, gdy agent słusznie odmówił,
 a w pozostałych przypadkach błąd agenta.
 
-Odpowiedzi z brakującą wiedzą wypadają z tego, co czyta asystent tworzenia, a
-ich braki od razu są grupowane w tematy, zanim sesja zatrzyma się na **Zrozumieniu**,
-żeby człowiek mógł je obejrzeć. Sesja nie pisze szkicu żadnego z nich:
-wymienia tematy, których brakuje w bazie wiedzy, a człowiek pisze szkice tych,
-których potrzebuje, jak [niżej](#drafting-the-missing-content). Nic nie powstaje
-jako szkic, dopóki nie poprosi o to człowiek, w sesji ani poza nią. Runy
-ewaluacji nie są nigdy czytane, więc żaden przypadek zachowany do sprawdzenia
-też nie.
+Sesja, która uczy się z ewaluacji, sortuje też nieudane odpowiedzi na swoje
+pytania treningowe: pytanie przypadku i odpowiedź zapisaną przez ewaluację. Ich
+werdykty są przechowywane według runa, który odpowiedział, bo odpowiedź z
+ewaluacji nie ma wiadomości. Taka, w której agent nie wiedział, staje się
+pytaniem w tematach bazy wiedzy jak odpowiedź z rozmowy, więc fakt, którego nie
+ma w żadnym dokumencie, trafia na listę do dodania przez człowieka, a nie do
+instrukcji, która nie może go dostarczyć. Przypadek zachowany do sprawdzenia nie
+jest nigdy czytany.
+
+Odpowiedzi z rozmów z brakującą wiedzą wypadają z tego, co czyta asystent
+tworzenia. Odpowiedź treningowa w nim zostaje: jest oceniana według kilku
+kryteriów, a brak wiedzy może tłumaczyć tylko część z nich. Braki od razu są
+grupowane w tematy, zanim sesja zatrzyma się na **Zrozumieniu**, żeby człowiek
+mógł je obejrzeć. Sesja nie pisze szkicu żadnego z nich: wymienia tematy, których
+brakuje w bazie wiedzy, a człowiek pisze szkice tych, których potrzebuje, jak
+[niżej](#drafting-the-missing-content). Nic nie powstaje jako szkic, dopóki nie
+poprosi o to człowiek, w sesji ani poza nią.
 
 ## Tematy { #topics }
 
@@ -126,6 +135,11 @@ temacie tej bazy albo zakłada nowy. Jedno przejście tworzy embeddingi dla
 najwyżej 500 chybionych wyszukiwań na bazę wiedzy; reszta czeka na następne.
 Baza wiedzy bez nowych chybionych wyszukiwań nie kosztuje żadnego wywołania
 embeddingów.
+
+Pytanie odczytane z odpowiedzi jest grupowane według tego, co klasyfikator nazwał
+brakującym, w kilku słowach - "Lead times by product" - więc pytania różnych osób
+o jedną rzecz trafiają do jednego tematu, a temat nosi nazwę tej rzeczy, a nie
+swojego pierwszego pytania.
 
 Chybienie trafia do najbliższego tematu tylko wtedy, gdy jest do niego co
 najmniej tak podobne jak `KNOWLEDGE_GAP_TOPIC_SIMILARITY`; inaczej zakłada nowy.
@@ -159,12 +173,17 @@ czyta tę bazę wiedzy. Nie ma osobnego filtra według działu: dział widzi luk
 baz wiedzy, które mu udostępniono.
 
 Temat pokazuje, ile razy go zadano i przez ile osób, kiedy ostatnio, którzy
-agenci go zadali, i do trzech jego pytań. Osoby pytające przez kanał są liczone
+agenci go zadali, i do trzech jego pytań. Pytania testowe, na które odpowiedziała
+ewaluacja, są liczone osobno: nikt ich nie zadał. Osoby pytające przez kanał są liczone
 według konta czatu; wszyscy, którzy pytali anonimowo, przez widżet albo w runie
 bez osoby za nim, liczą się jako jedna. Otwórz go, żeby zobaczyć najnowsze pytania: o co zapytała
 osoba, czego szukał agent, jak blisko był najbliższy fragment i komentarz
-każdego, kto ocenił odpowiedź łapką w dół. Pytanie odczytane z odpowiedzi mówi,
-czy agent nie wiedział, czy czytelnik napisał, że brakowało informacji.
+każdego, kto ocenił odpowiedź łapką w dół.
+
+Pytanie odczytane z odpowiedzi mówi,
+czy agent nie wiedział, czy czytelnik napisał, że brakowało informacji; odczytane
+z odpowiedzi z ewaluacji to pytanie przypadku z datasetu, oznaczone jako pytanie
+testowe.
 
 ## Co zrobić z luką { #acting-on-a-gap }
 
@@ -176,7 +195,7 @@ jego wierszu i w samym temacie.
 |---|---|
 | **Dodaj do** *bazy wiedzy* | Dodaje tytuł i treść do bazy wiedzy tematu jako dokument Markdown, tą samą ścieżką co wgranie pliku, i oznacza temat jako **uzupełniony** tym dokumentem. Jest odrzucane, dopóki jakaś informacja czeka na uzupełnienie albo dopóki coś może identyfikować osobę, a nie zostało to potwierdzone (zobacz [Dane osobowe](#personal-data)) |
 | **Zapisz** | Zachowuje tytuł i treść przy temacie, nigdzie ich nie dodając |
-| **Dodaj do datasetu** | Zamienia najnowsze pytania tematu (do 200) na przypadki wybranego datasetu, który możesz zmieniać, jako jedną nową wersję. Każdy przypadek to pytanie osoby, a odpowiedź agenta jest kontrprzykładem. Pytanie zadane przez HTTP API nie ma zapisanej odpowiedzi i jest pomijane |
+| **Dodaj do datasetu** | Zamienia najnowsze pytania tematu (do 200) na przypadki wybranego datasetu, który możesz zmieniać, jako jedną nową wersję. Każdy przypadek to pytanie osoby, a odpowiedź agenta jest kontrprzykładem. Pytanie zadane przez HTTP API nie ma zapisanej odpowiedzi i jest pomijane. Ukryte, gdy wszystkie pytania tematu pochodzą z ewaluacji. |
 | **Odrzuć** | Oznacza temat jako niewymagający treści. Odrzucony temat zatrzymuje należące do niego pytania, więc nie wraca jako nowy temat. **Otwórz ponownie** to odwraca |
 
 Uzupełniony temat mówi, który dokument go uzupełnia, zatrzymuje należące do
@@ -194,6 +213,8 @@ Przypadki, które nie przechodziły z powodu brakującej wiedzy, powinny teraz
 przejść.
 
 ## Szkic brakującej treści { #drafting-the-missing-content }
+
+Na szerokim ekranie edytor tematu pokazuje szkic dokumentu obok źródeł. Na telefonie przełączaj **Proponowany dokument** i **Dlaczego jest potrzebny** bez utraty zmian. **Zapisz** zachowuje szkic; **Dodaj do bazy wiedzy** dodaje treść do wskazanej bazy. Ponowne generowanie jest zablokowane przy niezapisanych zmianach, a zamknięcie okna wymaga potwierdzenia ich odrzucenia. Podczas generowania nowego szkicu edytor jest zablokowany.
 
 **Napisz szkic** (Draft) w otwartym temacie prosi model o napisanie
 fragmentu albo wpisu FAQ, którego brakuje w bazie wiedzy. Przycisk pokazuje
@@ -223,9 +244,7 @@ wyczerpał albo model stał się niedostępny, mówi o tym, z przyciskiem
 **Spróbuj ponownie** (Try again). Szkic napisany z pytań jednej osoby też to
 mówi: sprawdź go, wiedząc, że opiera się na tym, o co pytała jedna osoba.
 
-Szkic wypełnia edytor tematu, z odnośnikiem do swojego runa. Możesz go
-skopiować jako Markdown, a do bazy wiedzy trafia dopiero wtedy, gdy ktoś go
-doda. Agent nie zna faktów twojej firmy: tam, gdzie odpowiedź wymaga
+Szkic wypełnia edytor tematu, z odnośnikiem do swojego runa. Czas utworzenia jest przy nagłówku szkicu. Do bazy wiedzy trafia dopiero wtedy, gdy ktoś go doda. Agent nie zna faktów twojej firmy: tam, gdzie odpowiedź wymaga
 liczby, daty albo reguły, wpisuje `{{what to fill in}}`, a edytor wymienia każde
 takie miejsce, dopóki nie zostanie zastąpione.
 
@@ -312,7 +331,9 @@ co. Dokument zostaje, gdy zostanie usunięty temat, osoba, która go dodała, al
 osoba, której pytanie go ukształtowało: ktoś sprawdził i potwierdził jego treść.
 
 Pytanie odczytane z odpowiedzi jest przechowywane tak samo jak wyszukiwanie:
-zawiera pytanie osoby i znika razem ze swoim runem i rozmową. Sprawdzanie
+zawiera pytanie osoby i znika razem ze swoim runem i rozmową. Odczytane z
+odpowiedzi z ewaluacji zawiera pytanie przypadku i znika razem ze swoim
+werdyktem, gdy kopie przypadku w wynikach ewaluacji zostają wymazane. Sprawdzanie
 odpowiedzi wysyła pytania, odpowiedzi i komentarze do ocen łapką w dół do
 dostawcy modelu klasyfikatora.
 
@@ -336,3 +357,5 @@ nie samej oceny.
 Imiona i nazwiska nie są usuwane z tego, co czyta autor szkiców luk, ani oznaczane w
 treści do dodania: nic tutaj nie rozpoznaje imion i nazwisk. Sprawdź pod tym
 kątem szkic, zanim go dodasz.
+
+Zapisany szkic otwiera się jako dokument do przeczytania. Wybierz **Edytuj dokument**, aby zmienić tytuł lub treść, a potem **Czytaj dokument**, aby obejrzeć zmiany bez ich utraty. Szczegóły wyszukiwania są dostępne pod wyjaśnieniem przy każdym pytaniu.

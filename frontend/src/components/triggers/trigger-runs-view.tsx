@@ -21,6 +21,7 @@ import { useTriggerActivation, useTriggerAttempts } from "@/hooks/use-triggers";
 import { useStopParkedRun } from "@/hooks/use-stop-parked-run";
 import { ROUTES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/stores";
 import type { AgentRun } from "@/types/runs";
 import type { Trigger, TriggerAttemptList } from "@/types/triggers";
 
@@ -39,10 +40,8 @@ const PAGE = 50;
  * detail, with the model's requests, the tools and the cost, is where somebody
  * asking "why did this fail" is actually headed.
  *
- * Read through `GET /runs?conversation_id=`: every fire of one trigger appends to
- * a single run-log conversation, so that conversation *is* the trigger's identity
- * in the run history. Which is also what gives each row a status, a duration and
- * a cost the transcript could not - and a link to `/runs?run=<id>`.
+ * Read through `GET /runs?trigger_id=` so independent execution chats and
+ * shared history both show the complete routine history.
  *
  * `activationId` identifies the requested "Run now" fire, or is null. A fire is
  * dispatched after the request commits, so for a second there is no row for it:
@@ -177,11 +176,9 @@ function RunHistory({
 }) {
   const t = useTranslations("triggers");
   const [page, setPage] = useState(0);
-  const conversationId = trigger.conversation_id;
 
   const { runs, total, isLoading, error } = useRuns(undefined, {
-    enabled: conversationId !== null,
-    conversationId: conversationId ?? undefined,
+    triggerId: trigger.id,
     skip: page * PAGE,
     // Poll until a new history identity records the dispatched fire.
     ...(polling ? { refetchIntervalMs: POLL_WHILE_WAITING_MS } : {}),
@@ -192,10 +189,10 @@ function RunHistory({
     if (recorded) onSettled(activationId);
   }, [onSettled, activationId, recorded]);
 
-  if (conversationId !== null && isLoading) {
+  if (isLoading) {
     return <LoadingState variant="skeleton-table" columns={1} rows={4} className="m-5" />;
   }
-  if (conversationId !== null && error !== null) {
+  if (error !== null) {
     return <ErrorState title={t("runsCouldNotBeRead")} className="m-5" />;
   }
 
@@ -218,7 +215,7 @@ function RunHistory({
           </li>
         )}
         {runs.map((run) => (
-          <FireRow key={run.id} run={run} />
+          <FireRow key={run.id} run={run} trigger={trigger} />
         ))}
       </ul>
       <div className="border-border border-t px-5 py-3">
@@ -243,7 +240,12 @@ const STOPPED = new Set<AgentRun["status"]>([
 ]);
 
 /** One fire: when it ran, how it went, what it cost, and a way into it. */
-function FireRow({ run }: { run: AgentRun }) {
+function FireRow({ run, trigger }: { run: AgentRun; trigger: Trigger }) {
+  const me = useAuthStore((state) => state.user?.id ?? null);
+  const canOpenChat =
+    Boolean(trigger.project_id) ||
+    run.conversation_id === trigger.conversation_id ||
+    (me !== null && run.user_id === me);
   const t = useTranslations("triggers");
   const { canStop, stop } = useStopParkedRun(
     run.id,
@@ -291,6 +293,11 @@ function FireRow({ run }: { run: AgentRun }) {
       )}
       {/* Into the run itself, which is where "why did this fail" is answered -
           the requests, the tools and what each turn cost. */}
+      {run.conversation_id && canOpenChat && (
+        <Button variant="outline" size="sm" asChild>
+          <Link href={`${ROUTES.CHAT}?id=${run.conversation_id}`}>{t("openExecutionChat")}</Link>
+        </Button>
+      )}
       <Button variant="ghost" size="sm" asChild>
         <Link href={`${ROUTES.RUNS}?run=${run.id}`}>
           {t("openRun")}

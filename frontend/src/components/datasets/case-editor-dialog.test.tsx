@@ -24,6 +24,22 @@ vi.mock("@/hooks/use-agents", () => ({
   }),
 }));
 
+const keyDraft = {
+  draft: {
+    id: "k1",
+    case_id: "c1",
+    status: "ready" as const,
+    keys: [{ key: "Window", value: "30 days" }],
+    error: null,
+    created_at: "2026-11-20T00:00:00Z",
+    finished_at: null,
+  },
+  start: vi.fn(),
+  starting: false,
+  dismiss: vi.fn(),
+};
+vi.mock("@/hooks/use-case-key-draft", () => ({ useCaseKeyDraft: () => keyDraft }));
+
 const STORED = {
   input: "How long is the return window?",
   history: [
@@ -885,4 +901,34 @@ it("shows a missing case in the details sheet even without a retry callback", ()
     />,
   );
   expect(screen.getByRole("alert")).toHaveTextContent("Case no longer exists");
+});
+
+describe("keys drafted from the reference answer", () => {
+  it("fills the case's keys check from the draft, for the person to save", async () => {
+    const onSave = vi.fn().mockResolvedValue({});
+    render(
+      <CaseEditorDialog
+        open
+        onOpenChange={vi.fn()}
+        initial={draftOf(STORED)}
+        viewing={STORED}
+        onSave={onSave}
+        keyDraft={{ datasetId: "d1", caseId: "c1" }}
+        title="Case"
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    await openSection("Additional checks");
+
+    await userEvent.click(screen.getByRole("button", { name: "Use these keys" }));
+    expect(screen.getByLabelText("Value of key 1 of check 2")).toHaveValue("30 days");
+    expect(keyDraft.dismiss).toHaveBeenCalled();
+
+    await userEvent.click(save());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]?.[0].checks).toEqual([
+      { type: "contains", value: "30 days" },
+      { type: "keys", keys: [{ key: "Window", value: "30 days" }] },
+    ]);
+  });
 });

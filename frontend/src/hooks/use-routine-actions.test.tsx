@@ -54,3 +54,28 @@ it("does not fetch an action catalog until restricted mode needs it", async () =
   await waitFor(() => expect(api.get).toHaveBeenCalledOnce());
   expect(api.get).toHaveBeenCalledWith("agent", "routine");
 });
+
+it("reads the review again on every opening, past the console's cache", async () => {
+  const review = (token: string): RoutineActionOptions => ({
+    can_waive: true,
+    waive_blocked_reason: null,
+    review_token: token,
+    items: [],
+  });
+  api.get.mockReset();
+  api.get.mockResolvedValueOnce(review("before")).mockResolvedValue(review("after"));
+  // The console's own default: five minutes before a cached answer is stale.
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 5 * 60 * 1000 } },
+  });
+  function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+  const first = renderHook(() => useRoutineActions("agent", "routine"), { wrapper: Wrapper });
+  await waitFor(() => expect(first.result.current.data?.review_token).toBe("before"));
+  first.unmount();
+
+  const again = renderHook(() => useRoutineActions("agent", "routine"), { wrapper: Wrapper });
+  await waitFor(() => expect(again.result.current.data?.review_token).toBe("after"));
+  expect(api.get).toHaveBeenCalledTimes(2);
+});

@@ -1,0 +1,22 @@
+.panel {
+  --scope-offset: 12px;
+}
+
+.panel[data-direction="back"] {
+  --scope-offset: -12px;
+}
+
+:global(:root:not([data-motion="reduce"])) .panel[data-state="active"] {
+  animation: scope-enter 220ms var(--ease-out);
+}
+
+@keyframes scope-enter {
+  from {
+    opacity: 0;
+    transform: translateX(var(--scope-offset));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

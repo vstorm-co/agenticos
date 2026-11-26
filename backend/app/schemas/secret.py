@@ -111,24 +111,55 @@ class OpenAICodexSignIn(BaseSchema):
     )
 
 
-class OpenAICodexSecretCreate(BaseSchema):
+class OpenAICodexDeviceSignIn(BaseSchema):
+    """A ChatGPT device code: no address to paste back."""
+
+    state: str = Field(description="Send back as `device_state` once the code is approved")
+    user_code: str = Field(description="The code to enter on `verification_url`")
+    verification_url: str
+    interval_seconds: int = Field(description="Poll no more often than this")
+
+
+class OpenAICodexDevicePoll(BaseSchema):
+    """Whether ChatGPT approved the device code yet."""
+
+    authorized: bool
+
+
+class _OneCodexProof(BaseSchema):
+    """Exactly one way to prove the sign-in finished: a pasted address or a device code."""
+
+    callback_url: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=_MAX_CALLBACK_URL,
+        description="The whole address the sign-in ended on, with its `code` and `state`",
+    )
+    device_state: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description="The `state` of an approved device sign-in",
+    )
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> Self:
+        if (self.callback_url is None) == (self.device_state is None):
+            raise ValueError("Send either callback_url or device_state")
+        return self
+
+
+class OpenAICodexSecretCreate(_OneCodexProof):
     """Finish a ChatGPT sign-in and store it as a new secret."""
 
     name: str = Field(min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=1000)
     visibility: VisibilityLiteral = Field(default="private")
     usage_scope: Literal["organization", "personal"] = Field(default="organization")
-    callback_url: str = Field(
-        min_length=1,
-        max_length=_MAX_CALLBACK_URL,
-        description="The whole address the sign-in ended on, with its `code` and `state`",
-    )
 
 
-class OpenAICodexSecretReconnect(BaseSchema):
+class OpenAICodexSecretReconnect(_OneCodexProof):
     """Finish a ChatGPT sign-in and put it in place of an existing one."""
-
-    callback_url: str = Field(min_length=1, max_length=_MAX_CALLBACK_URL)
 
 
 class SecretPurposeRead(BaseSchema):
@@ -264,3 +295,29 @@ class SecretKindList(BaseSchema):
 
     items: list[SecretKindInfo]
     total: int
+
+
+class ChatGPTPlanSignIn(BaseSchema):
+    """Open official consent, then paste its 127.0.0.1:1455 loopback callback."""
+
+    authorization_url: str
+
+
+class ChatGPTPlanCreate(BaseSchema):
+    """Store an owner-bound official application grant after consent."""
+
+    name: str = Field(min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=1000)
+    visibility: Literal["private"] = "private"
+    callback_url: str = Field(min_length=1, max_length=_MAX_CALLBACK_URL)
+
+
+class ChatGPTPlanReconnect(BaseSchema):
+    callback_url: str = Field(min_length=1, max_length=_MAX_CALLBACK_URL)
+
+
+class ChatGPTPlanComplete(BaseSchema):
+    """A stored grant may retain registration without consent to spend plan tokens."""
+
+    connection: SecretRead
+    plan_usage_granted: bool

@@ -9,7 +9,7 @@ from uuid import UUID
 from pydantic import AfterValidator, EmailStr, Field, field_validator
 
 from app.core.permissions import OrgRoleName
-from app.db.models.organization import MembershipSourceLiteral, ProactiveTiming
+from app.db.models.organization import MembershipSourceLiteral, OnboardingStep, ProactiveTiming
 from app.db.models.watch import MIN_WATCH_MINUTES
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
@@ -283,6 +283,9 @@ class OrganizationList(BaseSchema):
 
 
 class OrganizationMemberRead(BaseSchema):
+    onboarding_completed_at: datetime | None = None
+    onboarding_current_step: OnboardingStep | None = None
+    onboarding_updated_at: datetime | None = None
     last_action_at: datetime | None = None
     """Latest non-impersonated audited action in this organization; not a visit timestamp."""
     id: _ID

@@ -197,7 +197,18 @@ async def candidate(
         ]
         text = (
             extraction.transcript_for_extraction(
-                [(turn.role, turn.text) for turn in eligible][-60:]
+                [
+                    extraction.ExtractionTurn(
+                        turn.role,
+                        turn.text,
+                        f"receipt:{turn.id.removeprefix('answer:')}"
+                        if turn.id.startswith("answer:")
+                        else f"message:{turn.id}",
+                        turn.occurred_at,
+                        "authenticated_answer" if turn.id.startswith("answer:") else "message",
+                    )
+                    for turn in eligible[-60:]
+                ]
             )
             if variant == "after"
             else old_transcript(packet.model_copy(update={"messages": eligible}))
@@ -212,6 +223,7 @@ async def candidate(
             stage="memory",
             instructions=extraction._INSTRUCTIONS,
             material={
+                "as_of": packet.as_of.isoformat(),
                 "conversation": text,
                 "existing_memory": packet.memory,
                 "question_context": normalized.tool_receipts if variant == "after" else [],

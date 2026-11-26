@@ -14,7 +14,59 @@ export type ImprovementStatus =
   | "published"
   | "rejected";
 export type ImprovementStage =
-  "analyzing" | "classifying" | "drafting" | "proposing" | "filtering" | "evaluating" | "judging";
+  | "analyzing"
+  | "classifying"
+  | "drafting"
+  | "searching"
+  | "proposing"
+  | "filtering"
+  | "evaluating"
+  | "judging";
+/** How a session's attempts reach their candidate: one proposal, or a search of many. */
+export type ImprovementMode = "steps" | "search";
+/** How a search attempt tries variants of the agent's instructions. */
+export interface SearchOptions {
+  budget_usd: string;
+  /** Grades variants on training questions; null grades on the dataset's judge model. */
+  grading_model_profile_id?: string | null;
+  max_variants?: number;
+  per_generation?: number;
+  minibatch?: number;
+  patience?: number;
+}
+/** One variant a search tried; its score is on training questions, not a verdict. */
+export interface SearchVariant {
+  id: string;
+  generation: number;
+  parent_id: string | null;
+  status: "pending" | "scored" | "failed";
+  train_score: number | null;
+  cases_scored: number;
+  cases_passed: number;
+  cost_usd: string;
+  rationale: string;
+  instructions: string;
+}
+export type SearchEnd =
+  "budget" | "max_variants" | "patience" | "proposal" | "questions" | "no_variant";
+/** Where an attempt's search is, what it spent and the best variants it found. */
+export interface VariantSearch {
+  budget_usd: string;
+  cost_usd: string;
+  grading_model_profile_id: string | null;
+  max_variants: number;
+  per_generation: number;
+  patience: number;
+  questions: number;
+  generation: number;
+  tried: number;
+  pending: number;
+  seed_score: number | null;
+  best_score: number | null;
+  stop_reason: SearchEnd | null;
+  chosen_variant_id: string | null;
+  top: SearchVariant[];
+}
 /** Why a waiting session's next step cannot be taken; the session's questions are fixed. */
 export interface NextStepBlocked {
   reason: "missing_holdout";
@@ -45,6 +97,8 @@ export interface ImprovementTarget {
   improver_agent_id?: string;
   window_days?: number;
   max_iterations?: number;
+  mode?: ImprovementMode;
+  search?: SearchOptions | null;
 }
 export interface ImprovementEstimate {
   proposal_usd: string;
@@ -57,6 +111,10 @@ export interface ImprovementEstimate {
   /** How many questions the first attempt is measured on, as its analysis will count them. */
   held_out?: number | null;
   evidence_runs: number;
+  /** A search's own budget, counted in the total with the check of the variant it finds. */
+  search_usd?: string;
+  /** How many training questions the first attempt learns from; a search needs ten. */
+  train_questions?: number | null;
   /** About how long the session takes if every round runs. */
   estimated_minutes: number;
   affordable: boolean;
@@ -83,9 +141,34 @@ export interface VerdictCriterion {
   skill?: string | null;
   skill_id?: string | null;
 }
+/**
+ * One family of criteria on an attempt's held-out questions, counted case by case: it
+ * passes in a question when every criterion of it does.
+ */
+export interface VerdictFamily {
+  family: string;
+  /** How many criteria are counted in it. */
+  criteria: number;
+  cases: number;
+  before: number;
+  after: number;
+  /** Questions that hold fixed: every flipped one when settled, else the confirmed ones. */
+  fixed: number;
+  broken: number;
+  /** Its own flipped questions were enough to tell its direction without asking again. */
+  settled: boolean;
+  better: boolean;
+  worse: boolean;
+  /** The skill the session's improver put this family down to. */
+  skill?: string | null;
+  skill_id?: string | null;
+}
 export type ImprovementVerdict =
   "better" | "criteria_better" | "no_change" | "criteria_worse" | "regression" | "inconclusive";
-export type VerdictDetail = Record<string, string | number | null | VerdictCriterion[]>;
+export type VerdictDetail = Record<
+  string,
+  string | number | null | VerdictCriterion[] | VerdictFamily[]
+>;
 export interface ImprovementIteration {
   id: string;
   number: number;
@@ -107,6 +190,8 @@ export interface ImprovementIteration {
   cost_usd: string;
   started_at: string;
   ended_at: string | null;
+  /** A search attempt's progress and the variants it found. */
+  variant_search?: VariantSearch | null;
 }
 export interface Improvement {
   published_version_id?: string | null;
@@ -119,6 +204,8 @@ export interface Improvement {
   agent_id: string;
   /** Set on a skill's session, which improves the skill rather than `agent_id`. */
   skill_id?: string | null;
+  /** A skill's session: what accepting it did to the skill. */
+  outcome?: string | null;
   created_by_user_id: string | null;
   improver_agent_id: string | null;
   status: ImprovementStatus;
@@ -133,8 +220,9 @@ export interface Improvement {
   budget_usd: string;
   spent_usd: string;
   best_iteration_id: string | null;
-  /** What Next step starts at a stop: writing changes, or testing them. */
-  next_step?: "propose" | "check" | null;
+  mode?: ImprovementMode;
+  /** What Next step starts at a stop: writing changes, searching for them, or testing them. */
+  next_step?: "propose" | "search" | "check" | null;
   next_step_blocked?: NextStepBlocked | null;
   try_again_blocked?: TryAgainBlocked | null;
   stop_reason: string | null;

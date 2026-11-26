@@ -78,6 +78,7 @@ def test_retrieval_embeddings_and_repeats_are_visible_and_can_exhaust_the_budget
         judge_usd=Decimal(0),
         total_usd=Decimal("0.02"),
         rerun_ceiling_usd=Decimal("0.01"),
+        expected_usd=Decimal("0.025"),
         agent_remaining_usd=Decimal("0.04"),
         org_remaining_usd=Decimal("0.04"),
         agent_after_usd=Decimal("0.01"),
@@ -100,6 +101,8 @@ def test_retrieval_embeddings_and_repeats_are_visible_and_can_exhaust_the_budget
     )
     with_cost = EvalRunService._knowledge_cost(estimate, record)
     assert (with_cost.total_usd, with_cost.rerun_ceiling_usd) == (Decimal("0.03"), Decimal("0.03"))
+    # The embeddings are spent, and their repeats in the share reruns usually ask.
+    assert with_cost.expected_usd == Decimal("0.025") + Decimal("0.01") + Decimal("0.01")
     assert with_cost.agent_after_usd == with_cost.org_after_usd == Decimal("-0.02")
     assert not with_cost.affordable
     unlimited = estimate.model_copy(update={"agent_after_usd": None, "org_after_usd": None})
@@ -136,6 +139,7 @@ def test_replacement_prices_freeze_each_model_and_its_judge_share(cached):
         judge_usd=Decimal("0.8"),
         total_usd=Decimal("8.8"),
         rerun_ceiling_usd=Decimal(1),
+        expected_usd=Decimal("9.3"),
         agent_remaining_usd=None,
         org_remaining_usd=None,
         agent_after_usd=None,

@@ -108,6 +108,7 @@ async def get_conversations_shared_with_user(
     skip: int = 0,
     limit: int = 50,
     include_archived: bool = True,
+    excluded_conversation_ids: Collection[UUID] = frozenset(),
 ) -> list[Conversation]:
     """Get conversations shared with a specific user, within their own tenants.
 
@@ -122,6 +123,7 @@ async def get_conversations_shared_with_user(
         .where(
             *_shared_with_member(user_id, include_archived=include_archived),
             *_in_organization(organization_id),
+            Conversation.id.not_in(excluded_conversation_ids),
         )
         .order_by(
             favourited_by(user_id).desc(),
@@ -155,6 +157,7 @@ async def count_conversations_shared_with_user(
     *,
     organization_id: UUID | None = None,
     include_archived: bool = True,
+    excluded_conversation_ids: Collection[UUID] = frozenset(),
 ) -> int:
     """Count conversations shared with a specific user, within their own tenants."""
     result = await db.scalar(
@@ -164,6 +167,7 @@ async def count_conversations_shared_with_user(
         .where(
             *_shared_with_member(user_id, include_archived=include_archived),
             *_in_organization(organization_id),
+            Conversation.id.not_in(excluded_conversation_ids),
         )
     )
     return result or 0

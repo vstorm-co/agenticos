@@ -34,7 +34,8 @@ export function KnowledgeGapActions({ topic }: { topic: KnowledgeGapTopic }) {
   const setStatus = useSetKnowledgeGapStatus();
   const [addingToDataset, setAddingToDataset] = useState(false);
   const wizard = useInImproveWizard();
-  const mayAddCases = can(Perm.datasetsView) && !wizard;
+  const mayAddCases =
+    can(Perm.datasetsView) && !wizard && (topic.test_question_count ?? 0) < topic.question_count;
   if (!topic.can_edit && !mayAddCases) return null;
 
   const dismissed = topic.status !== "open";

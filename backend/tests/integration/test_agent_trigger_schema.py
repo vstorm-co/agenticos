@@ -806,7 +806,7 @@ class TestWithdrawingRunAsCreator:
         await db.flush()
 
         withdrawn = await agent_trigger_repo.withdraw_creator_consent(
-            db, agent_id=agent.id, kept_for=member.id
+            db, agent_id=agent.id, kept_for=member.id, environment_ids=[], include_unscoped=True
         )
 
         await db.refresh(owners)
@@ -815,6 +815,64 @@ class TestWithdrawingRunAsCreator:
         await db.refresh(members)
         assert withdrawn == 1
         assert (owners.runs_as_creator, members.runs_as_creator) == (False, True)
+
+    async def test_only_triggers_in_the_reached_environments_lose_it(self, db):
+        """A trigger whose environment the new version does not reach goes on
+        running what its creator agreed to, so it keeps "run as me" (#3290)."""
+        from app.repositories import agent_environment_repo
+
+        org = await _org(db)
+        agent = await _agent(db, org)
+        member = await _member(db, org)
+        environments = {
+            name: await agent_environment_repo.create(
+                db,
+                organization_id=org.id,
+                agent_id=agent.id,
+                name=name,
+                version_id=agent.current_version_id,
+                is_default=name == "production",
+                tracks_latest=name == "dev",
+                created_by_user_id=member.id,
+            )
+            for name in ("production", "dev")
+        }
+
+        def routine(environment_id: uuid.UUID | None) -> AgentTrigger:
+            return _trigger(
+                org,
+                agent,
+                runs_as_creator=True,
+                created_by_user_id=member.id,
+                environment_id=environment_id,
+            )
+
+        on_dev = routine(environments["dev"].id)
+        on_production = routine(environments["production"].id)
+        unscoped = routine(None)
+        db.add_all([on_dev, on_production, unscoped])
+        await db.flush()
+
+        async def withdraw(*names: str, include_unscoped: bool) -> int:
+            return await agent_trigger_repo.withdraw_creator_consent(
+                db,
+                agent_id=agent.id,
+                kept_for=None,
+                environment_ids=[environments[name].id for name in names],
+                include_unscoped=include_unscoped,
+            )
+
+        assert await withdraw("dev", include_unscoped=False) == 1
+        for trigger in (on_dev, on_production, unscoped):
+            await db.refresh(trigger)
+        assert (on_dev.runs_as_creator, on_production.runs_as_creator) == (False, True)
+        assert unscoped.runs_as_creator is True
+
+        # The default reached: a trigger naming no environment runs it, so it goes too.
+        assert await withdraw("production", include_unscoped=True) == 2
+        for trigger in (on_production, unscoped):
+            await db.refresh(trigger)
+        assert (on_production.runs_as_creator, unscoped.runs_as_creator) == (False, False)
 
 
 async def test_a_filtered_event_snapshot_replaces_the_previous_one_without_a_run(

@@ -78,7 +78,7 @@ from app.schemas.skill_improvement import (
 from app.schemas.skill_version import SkillForkRead, VersionNumberRef, VersionRef
 from app.services import authoring_hunks
 from app.services.authoring import AuthoringService
-from app.services.authoring_evidence import EvidencePack, PackedRun
+from app.services.authoring_evidence import EvidencePack, EvidenceService, PackedRun
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.personal_data import PersonalDataService
@@ -128,8 +128,9 @@ def fixed_evidence(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     """Fix what a line's evidence holds and what reading it costs; returns the knobs."""
     state: dict[str, Any] = {"runs": [_packed()], "affordable": True, "price": _PRICE}
 
-    async def pack(self, ctx, line, window_days):
+    async def pack(self, ctx, line, window_days, *, handed_from=None):
         state["versions_read"] = line
+        state.setdefault("handed_from", []).append(handed_from)
         return EvidencePack(runs=list(state["runs"]), unknown_runs=2)
 
     async def priced(self, ctx, pack, *, improver_agent_id=None):
@@ -1821,12 +1822,67 @@ class TestHandedOver:
 
         assert asked == [(handed, skill.id), (handed, skill.id)]
         assert (quote.line.fork_id, read.fork_id, read.line_name) == (fork.id, fork.id, "returns")
+        assert evidence["handed_from"][:2] == [handed, handed]
         assert run.seed == {
             "agent_id": str(seed.agent_id),
+            "improvement_run_id": str(handed),
             "run_ids": [str(seed.run_ids[0])],
             "problems": ["The window is wrong"],
             "quotes": ["Refunds take 14 days."],
         }
+
+    async def test_failed_training_answers_the_agents_session_read_are_evidence_enough(
+        self, db, monkeypatch
+    ):
+        """Nothing in chat was rated down, yet the agent's session found the skill's
+        problems in its failed test questions: those are what the skill learns from."""
+        ctx = await _owner(db)
+        skill = await _skill_on_main(db, ctx)
+        handed = uuid.uuid4()
+        failed = replace(
+            _packed(),
+            conversation_id=None,
+            status="train_eval_failure",
+            rating=0,
+            comments=[],
+            evidence_kind="train_eval",
+        )
+        read_from: list[uuid.UUID] = []
+
+        async def for_skill(self, ctx, skill_id, **_):
+            return EvidencePack()
+
+        async def for_skill_handoff(self, ctx, skill_id, improvement_run_id):
+            read_from.append(improvement_run_id)
+            return [failed]
+
+        async def skill_seed(self, ctx, run_id, skill_id):
+            return SkillSeed(
+                agent_id=uuid.uuid4(), fork_id=None, run_ids=[], problems=["No VAT"], quotes=[]
+            )
+
+        async def priced(self, ctx, pack, *, improver_agent_id=None):
+            return AuthoringEstimate(
+                runs=len(pack.runs),
+                rated_down=0,
+                calls=1,
+                estimate_usd=_PRICE,
+                affordable=True,
+                reason=None if pack.runs else "no_evidence",
+            )
+
+        monkeypatch.setattr(AuthoringService, "estimate_pack", priced)
+        monkeypatch.setattr(EvidenceService, "for_skill", for_skill)
+        monkeypatch.setattr(EvidenceService, "for_skill_handoff", for_skill_handoff)
+        monkeypatch.setattr(ImprovementPipelineService, "skill_seed", skill_seed)
+        service = SkillImprovementService(db)
+
+        handed_over = await service.estimate(ctx, skill.id, SkillImprovementTarget(from_run=handed))
+        alone = await service.estimate(ctx, skill.id, SkillImprovementTarget())
+
+        assert (handed_over.evidence_runs, handed_over.reason) == (1, None)
+        assert (alone.evidence_runs, alone.reason) == (0, "no_evidence")
+        assert read_from == [handed]
 
     async def test_a_hand_off_the_agents_session_refuses_is_refused(
         self, db, evidence, monkeypatch

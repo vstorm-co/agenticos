@@ -25,18 +25,27 @@ HEADING = {
     "pl": "Znaleziska z twoich obserwacji ({count}):",
     "de": "Neu aus Ihren Beobachtungen ({count}):",
     "tr": "Watch'larınızdan {count} yeni bulgu:",
+    "fr": "{count} nouveautés de vos veilles :",
+    "nl": "Nieuwe bevindingen van je bewakingen ({count}):",
+    "pt": "{count} novas descobertas dos seus monitoramentos:",
 }
 MORE = {
     "en": "…and {count} more.",
     "pl": "…i jeszcze {count}.",
     "de": "…und {count} weitere.",
     "tr": "…ve {count} bulgu daha.",
+    "fr": "…et {count} de plus.",
+    "nl": "…en nog {count}.",
+    "pt": "…e mais {count}.",
 }
 OPEN = {
     "en": "All of it in your inbox: {url}",
     "pl": "Wszystko w twoim inboksie: {url}",
     "de": "Alles in Ihrem Posteingang: {url}",
     "tr": "Tümünü Inbox'ınızda görün: {url}",
+    "fr": "Tout est dans votre boîte de réception : {url}",
+    "nl": "Alles staat in je inbox: {url}",
+    "pt": "Tudo na sua inbox: {url}",
 }
 
 

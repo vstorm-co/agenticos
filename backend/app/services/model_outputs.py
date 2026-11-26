@@ -32,7 +32,6 @@ for one.
 from dataclasses import dataclass
 from functools import cache
 
-from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_MODELS, CLAUDE_SUBSCRIPTION_PROVIDER
 from app.services import (
     image_models,
     realtime_models,
@@ -125,11 +124,11 @@ def model_outputs(provider: str, model: str, *, base_url: str | None = None) -> 
     """
     if base_url:
         return _UNKNOWN
-    if provider == CLAUDE_SUBSCRIPTION_PROVIDER and model in CLAUDE_SUBSCRIPTION_MODELS:
-        return ModelOutputs(modalities=("text",), chat=True)
     # These transports share the vendor's model ids; pricing's other aliases
     # (for example Bedrock) do not imply an identical model namespace.
-    provider = {"openai_codex": "openai", "google_cloud": "google"}.get(provider, provider)
+    provider = {"openai_codex": "openai", "openai_chatgpt": "openai", "google_cloud": "google"}.get(
+        provider, provider
+    )
     known = _from_catalogs()
     found = known.get((provider, model))
     if found is None and provider == "openrouter" and "/" in model:

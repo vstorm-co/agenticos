@@ -533,7 +533,7 @@ async def _kb_row(
         name=collection_name,
         collection_name=collection_name,
         scope=scope.value,
-        organization_id=tenant.organization.id,
+        organization_id=None if scope is KBScope.APP else tenant.organization.id,
         owner_user_id=owner_user_id,
         is_default=is_default,
         visibility=visibility,
@@ -2192,7 +2192,6 @@ class TestWhatACollectionReportsItHolds:
         app_kb = await _kb_row(
             db, tenant=tenant, collection_name="app_and_tenant", scope=KBScope.APP
         )
-        app_kb.organization_id = None
         # The tenant's own batch, still processing.
         busy = await _rag_document(
             db, collection_name="app_and_tenant", filename="tenant.txt", tenant=tenant

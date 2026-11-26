@@ -31,11 +31,13 @@ export async function decideWorkflowApproval(
   approved: boolean,
   final?: string,
   choice?: string,
+  note?: string,
 ): Promise<WorkflowApprovalRead> {
   return apiClient.post<WorkflowApprovalRead>(`${ROOT}/${id}`, {
     approved,
     ...(final === undefined ? {} : { final }),
     ...(choice === undefined ? {} : { choice }),
+    ...(note === undefined ? {} : { note }),
   });
 }
 

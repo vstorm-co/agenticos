@@ -171,6 +171,9 @@ export type VoiceSettingsUpdate = Pick<
   >;
 
 export interface OrganizationMember {
+  onboarding_completed_at?: string | null;
+  onboarding_current_step?: string | null;
+  onboarding_updated_at?: string | null;
   id: string;
   organization_id: string;
   user_id: string;

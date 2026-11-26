@@ -42,6 +42,23 @@ async def test_only_the_holder_gives_back_a_lease(redis: RedisClient) -> None:
         await redis.delete(key)
 
 
+async def test_pending_operation_cannot_be_overwritten_or_revived_after_consumption(
+    redis: RedisClient,
+) -> None:
+    key = f"test:pending-cas:{uuid4()}"
+    try:
+        assert not await redis.replace_if_equal(key, "old", "new", ttl=30)
+        await redis.set(key, "old", ttl=30)
+        assert not await redis.replace_if_equal(key, "another", "new", ttl=30)
+        assert await redis.get(key) == "old"
+        assert await redis.replace_if_equal(key, "old", "new", ttl=30)
+        assert await redis.get(key) == "new"
+        assert await redis.delete_if_equal(key, "new")
+        assert not await redis.replace_if_equal(key, "new", "revived", ttl=30)
+    finally:
+        await redis.delete(key)
+
+
 async def test_renewal_never_extends_a_successors_lease(redis: RedisClient) -> None:
     key = f"test:lease:renew:{uuid4().hex}"
     try:

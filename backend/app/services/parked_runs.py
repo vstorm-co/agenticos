@@ -129,7 +129,7 @@ class ParkedRunService:
     ) -> DecidedApproval:
         """Approve or reject a parked call; on a chat run, continue it there when it was the last.
 
-        Errors are `ApprovalService.decide`'s, unchanged. A decision on a run
+        Decision conflicts also identify a server-owned chat continuation. A decision on a run
         that is not a chat's is exactly that call, with the flag false.
         """
         run = await self._claimed_chat_run(ctx, approval_id)
@@ -147,15 +147,38 @@ class ParkedRunService:
         await channel_prompt_repo.settle_open(
             self.db, run_id=run.id, approval_id=approval_id, by="decided"
         )
-        decided = await self.approvals.decide(
-            ctx,
-            approval_id,
-            approved=approved,
-            note=note,
-            remember_scope=remember_scope,
-        )
+        try:
+            decided = await self.approvals.decide(
+                ctx,
+                approval_id,
+                approved=approved,
+                note=note,
+                remember_scope=remember_scope,
+            )
+        except BadRequestError as error:
+            if error.details and "status" in error.details:
+                state = run.paused_state
+                queued = state.get("chat_continuation_approval_id") if state else None
+                calls = state.get("tool_call_ids", {}) if state else {}
+                error.details["continues_in_chat"] = (
+                    isinstance(queued, str)
+                    and isinstance(calls, dict)
+                    and queued in calls
+                    and chat_destination(run) is not None
+                )
+            raise
         destination = chat_destination(run)
         if flag and destination is not None and not await self._anything_pending(run):
+            # Ownership belongs to the queued continuation, not a later caller's identity.
+            assert run.paused_state is not None
+            await agent_run_repo.keep_paused_state(
+                self.db,
+                run=run,
+                paused_state={
+                    **run.paused_state,
+                    "chat_continuation_approval_id": str(approval_id),
+                },
+            )
             spawn_after_commit(
                 self.db,
                 continue_in_chat(

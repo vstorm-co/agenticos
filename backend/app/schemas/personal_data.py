@@ -7,10 +7,21 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
-from app.schemas.personal_model_key import PersonalModelKeyRead
+from app.schemas.personal_model_key import PersonalModelGenerationRead, PersonalModelKeyRead
 from app.schemas.routine_actions import RoutineConsent
 from app.schemas.routine_sources import RoutineSourcePolicy
 from app.schemas.telephony import PhoneContactConfig
+
+
+class ChatGPTRegistrationRead(BaseModel):
+    """Owner's public registration metadata, without security intent or grants."""
+
+    model_config = ConfigDict(from_attributes=True)
+    organization_id: UUID
+    host_id: UUID
+    client_id: str | None
+    created_at: datetime
+    updated_at: datetime | None
 
 
 class RoutineAnswerExport(BaseModel):
@@ -301,8 +312,16 @@ class PersonalDataExport(BaseModel):
     notification_routes: list[dict[str, Any]] = Field(
         default_factory=list, description="Their explicit private notification destinations."
     )
+    chatgpt_registrations: list[ChatGPTRegistrationRead] = Field(
+        default_factory=list,
+        description="Official ChatGPT application registration metadata; no grants or security generation.",
+    )
     personal_model_keys: list[PersonalModelKeyRead] = Field(
         default_factory=list, description="Personal LLM connection metadata; never API keys."
+    )
+    personal_model_generations: list[PersonalModelGenerationRead] = Field(
+        default_factory=list,
+        description="Connection security metadata retained after disconnection; no grant or authorization generation.",
     )
     coding_accounts: list[dict[str, Any]] = Field(
         default_factory=list,

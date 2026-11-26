@@ -176,7 +176,11 @@ class _World:
                 reference_answer=f"Refunding {MARKER}",
                 counter_example=f"Ignore {MARKER}",
                 note=f"Wrong, says {MARKER}",
-                checks=[{"type": "contains", "value": "refund"}],
+                # Keys are drawn from the reference answer, so they go with it.
+                checks=[
+                    {"type": "contains", "value": "refund"},
+                    {"type": "keys", "keys": [{"key": "Customer", "value": MARKER}]},
+                ],
             ),
             source_conversation_id=self.their_conversation.id,
             source_run_id=self.their_run.id,

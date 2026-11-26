@@ -1,5 +1,5 @@
 ---
-source_sha: "0ffe0c35d627"
+source_sha: "d97b73806574"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -707,6 +707,13 @@ eine erfolgreiche Suche. Eine Collection, die nicht mehr existiert oder die der
 Principal des Runs nicht mehr lesen darf, lässt den Schritt mit
 `COLLECTION_NOT_ACCESSIBLE` fehlschlagen. Der Schritt durchsucht nie weniger
 Collections, als der Graph nennt.
+
+Collections mit demselben Collection-Namen werden gemeinsam durchsucht, jede in
+ihrer eigenen Wissensbasis. Eine Collection, die ihren Namen mit einer anderen
+eines anderen Geltungsbereichs teilt - einer deploymentweiten und einer der
+Organisation -, geht so nicht: Das Veröffentlichen lehnt den Schritt ab, und ein
+Run lässt ihn mit `COLLECTIONS_SHARE_STORAGE` fehlschlagen. Durchsuche sie in
+getrennten Schritten.
 
 ::: app.workflows.nodes.knowledge_search._handler.KnowledgeSearchConfig
 

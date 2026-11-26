@@ -65,7 +65,11 @@ def _skill_message(message: str, skill_id: str) -> str:
         (f"No capability found with id {skill_id!r}", f"No skill found with id {skill_id!r}"),
     ):
         if message.startswith(before):
-            return after + message[len(before) :].replace("`load_capability`", "`read_skill`")
+            suffix = message[len(before) :]
+            available = ". Available capability ids:"
+            if suffix.startswith(available):
+                return after + ". Available skill ids:" + suffix[len(available) :]
+            return after + suffix.replace("`load_capability`", "`read_skill`")
     return message
 
 
@@ -174,10 +178,10 @@ class SkillLoader(DeferredCapabilityLoader[DepsT]):
             raise
 
     def get_instructions(self) -> Callable[[RunContext[DepsT]], Awaitable[str]]:
-        return self._catalog
+        return self._catalog_instructions
 
-    async def _catalog(self, ctx: RunContext[DepsT]) -> str:
-        native = await _render_deferred_capability_catalog(ctx)
+    async def _catalog_instructions(self, ctx: RunContext[DepsT]) -> str:
+        native = await _render_deferred_capability_catalog(ctx, await self.catalog(ctx))
         prefix, _, entries = native.partition("\n")
         search = (
             " Read the skill before searching for its tools."

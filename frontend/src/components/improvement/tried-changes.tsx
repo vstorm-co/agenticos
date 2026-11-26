@@ -7,7 +7,8 @@ import { useAttemptChanges, useImprovementEvidence } from "@/hooks/use-improveme
 import { subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Improvement, ImprovementIteration } from "@/types/improvement";
-import { MeasuredChange } from "./measured-change";
+import { MeasuredChange, measuredHunk } from "./measured-change";
+import { MarkdownContent } from "@/components/chat/markdown-content";
 import { StateBadge } from "./widgets";
 
 /**
@@ -23,8 +24,8 @@ export function TriedChanges({ session }: { session: Improvement }) {
       {tried.map((round, index) => {
         const heldBack = round.number > session.max_iterations;
         return (
-          <NativeDisclosure key={round.id} open={index === 0} className="rounded-xl border p-4">
-            <summary className="cursor-pointer text-sm font-medium">
+          <NativeDisclosure key={round.id} open={index === 0} className="space-y-3">
+            <summary className="bg-card cursor-pointer rounded-xl border px-4 py-3 text-sm font-medium">
               {heldBack
                 ? t("heldBack")
                 : t("triedAttempt", {
@@ -81,9 +82,11 @@ function AttemptProposals({
 export function AcceptedChanges({
   session,
   round,
+  report = false,
 }: {
   session: Improvement;
   round: ImprovementIteration;
+  report?: boolean;
 }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
@@ -101,10 +104,40 @@ export function AcceptedChanges({
   );
   return (
     <section className="space-y-3">
-      <h3 className="text-sm font-medium">{t("acceptChanges", { count: tested.length })}</h3>
-      {tested.map((hunk) => (
-        <MeasuredChange key={hunk.id} hunk={hunk} sources={sources} />
-      ))}
+      {!report && (
+        <h3 className="text-sm font-medium">{t("acceptChanges", { count: tested.length })}</h3>
+      )}
+      {tested.map((hunk, index) =>
+        report ? (
+          <article key={hunk.id} className="space-y-3 border-b pb-5 last:border-0 last:pb-0">
+            {tested.length > 1 && (
+              <h3 className="text-sm font-medium">
+                {t("workspace.change", { number: index + 1 })}
+              </h3>
+            )}
+            <p className="text-sm leading-relaxed whitespace-pre-wrap">{hunk.rationale}</p>
+            {["instructions", "skill_body", "skill_description"].includes(hunk.kind) &&
+              hunk.new_text && (
+                <div className="bg-muted/40 rounded-lg p-4 text-sm leading-relaxed wrap-anywhere">
+                  <MarkdownContent content={measuredHunk(hunk).new_text} inertImages />
+                </div>
+              )}
+            <NativeDisclosure className="text-sm">
+              <summary className="text-muted-foreground cursor-pointer">
+                {t("workspace.exactChange")}
+              </summary>
+              <div className="mt-3">
+                <MeasuredChange hunk={hunk} sources={sources} />
+              </div>
+            </NativeDisclosure>
+          </article>
+        ) : (
+          <MeasuredChange key={hunk.id} hunk={hunk} sources={sources} />
+        ),
+      )}
+      {report && tested.length === 0 && (
+        <p className="text-muted-foreground text-sm">{t("attemptChanges.none")}</p>
+      )}
     </section>
   );
 }

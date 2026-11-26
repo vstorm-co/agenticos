@@ -6,6 +6,14 @@ import { ModelIcon } from "./model-icon";
 
 describe("model maker icons", () => {
   it.each([
+    ["claude-opus-4-6-thinking", "anthropic"],
+    ["claude-sonnet-4-6", "anthropic"],
+    ["gemini-3.8-flash-high", "google"],
+    ["gpt-oss-120b-medium", "openai"],
+    ["gpt-6-sol", "openai"],
+    ["qwen3", "alibaba"],
+    ["kimi-k2", "moonshotai"],
+    ["grok-4", "xai"],
     ["anthropic/claude-sonnet-5", "anthropic"],
     ["openai/gpt-6", "openai"],
     ["z-ai/glm-5", "zai"],

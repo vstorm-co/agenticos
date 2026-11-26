@@ -1,5 +1,5 @@
 ---
-source_sha: "4e97f249e052"
+source_sha: "ac4bfd591389"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -472,12 +472,14 @@ unterscheidet.
 
     1. **Discover** — den Server prüfen, seinen Authorization Server auflösen,
        RFC-8414-Metadaten holen.
-    2. **Register** — dynamische Client-Registrierung nach RFC 7591. Ein Server,
-       der keinen Registrierungs-Endpunkt veröffentlicht — HubSpots ist so einer —
+    2. **Register** — dynamische Client-Registrierung nach RFC 7591. AgenticOS
+       registriert einen öffentlichen PKCE-Client, wenn der Authorization Server
+       `none` angibt und `client_secret_post` nicht unterstützt. Ein Server ohne
+       Registrierungs-Endpunkt — etwa HubSpot —
        lehnt hier ab, und der einzige Weg weiter ist ein Client, den Sie beim
        Anbieter von Hand registriert haben: Der Verbindungsdialog nimmt dessen
-       Client-ID und Secret unter *Eigener Client* entgegen und zeigt die
-       Redirect-URL, die der Anbieter exakt so hinterlegt haben muss.
+       Client-ID und, falls erforderlich, das Secret unter *Eigener Client*
+       entgegen. Registrieren Sie die angezeigte Redirect-URL genau wie angezeigt.
     3. **Consent** — eine PKCE-Autorisierungs-URL mit `state` und einem
        Resource-Indicator nach RFC 8707; der Browser geht dorthin.
     4. **Exchange** — der Callback tauscht den Code gegen Tokens und leitet den
@@ -1385,7 +1387,7 @@ Verbindungsprüfungen aktualisieren erkannte Tools und den Status. Deshalb warte
 | `discard_agent_draft` | `agents:edit`, für Ihren eigenen, nie veröffentlichten Entwurf |
 | `run_agent` | `agents:run` |
 | `list_routines` | `agents:view` |
-| `create_routine`, `run_routine_now` | `agents:run` auf dem Agent |
+| `create_routine`, `run_routine_now` | `agents:run` auf dem Agent; im eigenen Lauf eines Agents darf `create_routine` `agent_id` weglassen und meint dann diesen Agent |
 | `update_routine`, `delete_routine` | wer die Routine angelegt hat, oder `agents:edit` auf ihrem Agent |
 | `list_runs`, `get_run`, `read_run_transcript`, `read_run_tool_call`, `read_conversation`, `read_conversation_tool_call`, `list_conversations`, `get_spend` | `runs:view` |
 | `create_conversation` | `agents:run` |
@@ -1519,6 +1521,12 @@ einzuschalten bindet ihn als `mcp_servers: [{account: platform, approval: writes
 Die Vorlage **AgenticOS** bindet ihn genau so, ebenso jeder von Grund auf
 angelegte Agent, sodass ein Agent die Plattform sofort nachschlagen kann - und eine
 Routine einrichtet oder die Sprache der Konsole umstellt, wenn man ihn darum bittet.
+
+Im eigenen Lauf eines Agents liefert `whoami` zusätzlich `run_agent_id`, den Agent, zu
+dem der Lauf gehört, und `create_routine` ohne `agent_id` plant genau diesen Agent.
+Ein API-Schlüssel oder ein MCP-Client hat keinen solchen Agent und nennt ihn
+ausdrücklich. Ein Delegat, der ihn weglässt, plant den Agent, für den seine
+Zugangsdaten ausgestellt wurden, also den, der den Lauf gestartet hat.
 
 ### Desktop, Mobile und lokale Umgebungen { #desktop-mobile-and-local-environments }
 

@@ -701,7 +701,7 @@ navigation. This setting does not create custom roles or edit their permissions.
 
 | Endpoint | Answers |
 | --- | --- |
-| `GET /me/permissions` | the caller's role, `is_app_admin`, every permission with its scope, and `hidden_navigation_items` for that role |
+| `GET /me/permissions` | the caller's role, `is_app_admin`, every permission with its scope, and `hidden_navigation_items` for that role and, for an agent's run credential, `run_agent_id` |
 | `GET /roles/catalog` | the whole catalog and what each role bundles |
 | `GET /roles/navigation` | the organization's `hidden_items` by role, `configurable_items`, and the caller's `editable_roles` |
 | `PATCH /roles/navigation/{role}` | replace one role's `hidden_items`; requires `roles:manage` and authority over that role |

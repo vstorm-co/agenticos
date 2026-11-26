@@ -4,6 +4,7 @@ import type { Organization } from "@/types";
 import { EntityAvatar } from "@/components/ui/entity-avatar";
 import { Building2, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useStartVariant } from "./start-experience";
 import { StartCompanions } from "./start-companions";
 import styles from "./administration.module.css";
 
@@ -15,7 +16,9 @@ export function StartWorkspacePreview({
   name: string;
   organization?: Organization;
 }) {
+  const variant = useStartVariant();
   const t = useTranslations("start.administration");
+  if (variant === "studio") return null;
   return (
     <aside className={styles.workspacePreview} aria-label={t("preview")}>
       <p className={styles.previewLabel}>{t("preview")}</p>

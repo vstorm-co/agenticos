@@ -380,6 +380,16 @@ export interface LocalTarget {
   coding_agent?: "claude_code" | "codex";
   coding_model?: string | null;
   coding_effort?: string | null;
+  conversation_runtime?: {
+    harness: "codex" | "claude_code" | "external";
+    session_epoch: string;
+    access: "read_only" | "edit";
+    model_id?: string | null;
+    /** The Desktop ACP registration an external runtime launches; builtin harnesses have none. */
+    registration_id?: string | null;
+    /** A vault Gemini key for an Antigravity key registration; empty uses Desktop's own key. */
+    secret_id?: string | null;
+  } | null;
   model_service?: string | null;
   mcp_services?: string[];
 }
@@ -619,6 +629,11 @@ export async function getLocalCodingOptions(id: LocalAgent["id"]): Promise<Local
   return parseLocalCodingOptions(await invokeShell("local_agent_options", { id }));
 }
 
+/** A registered ACP agent's models under its own sign-in, read without a model turn. */
+export async function getExternalAgentOptions(id: string): Promise<LocalCodingOptions> {
+  return parseLocalCodingOptions(await invokeShell("external_agent_options", { id }));
+}
+
 /** The agent opens browser OAuth; credentials stay with its native process. */
 export async function signInLocalAgent(id: LocalAgent["id"]): Promise<void> {
   await invokeShell("local_agent_sign_in", { id });
@@ -679,4 +694,174 @@ export async function setQuickAskPinned(pinned: boolean): Promise<void> {
 
 export async function setQuickAskPickerOpen(open: boolean): Promise<void> {
   await invokeShell("set_quick_ask_picker_open", { open });
+}
+
+/** An executable registered and confirmed by the owner of this Desktop connection. */
+export interface ExternalAgent {
+  provider:
+    | "custom"
+    | "antigravity"
+    | "antigravity_api_key"
+    | "cursor"
+    | "cursor_api_key"
+    | "cline"
+    | "cline_api_key"
+    | "qwen_subscription"
+    | "hermes"
+    | "muse"
+    | "muse_api_key"
+    | "pi"
+    | "pi_inception"
+    | "pi_deepseek"
+    | "pi_openrouter"
+    | "devin"
+    | "kimi"
+    | "grok"
+    | "grok_api_key"
+    | "mistral_vibe"
+    | "opencode"
+    | "opencode_go";
+  id: string;
+  name: string;
+  program: string;
+  args: string[];
+  revision: string;
+}
+export type ExternalAgentInput = Omit<ExternalAgent, "revision">;
+const isStrings = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every(isString);
+
+export function parseExternalAgents(value: unknown): ExternalAgent[] {
+  if (!Array.isArray(value)) throw new ShellError("malformed", "external agents");
+  return value.map((item: unknown) => {
+    const fields = record(item, "an external agent");
+    const provider = fields.provider ?? "custom";
+    if (
+      provider !== "custom" &&
+      provider !== "antigravity" &&
+      provider !== "antigravity_api_key" &&
+      provider !== "cursor" &&
+      provider !== "cursor_api_key" &&
+      provider !== "cline" &&
+      provider !== "cline_api_key" &&
+      provider !== "mistral_vibe" &&
+      provider !== "grok" &&
+      provider !== "grok_api_key" &&
+      provider !== "kimi" &&
+      provider !== "hermes" &&
+      provider !== "muse" &&
+      provider !== "muse_api_key" &&
+      provider !== "pi" &&
+      provider !== "pi_inception" &&
+      provider !== "pi_deepseek" &&
+      provider !== "pi_openrouter" &&
+      provider !== "devin" &&
+      provider !== "qwen_subscription" &&
+      provider !== "opencode" &&
+      provider !== "opencode_go"
+    )
+      throw new ShellError("malformed", "an ACP provider");
+    return {
+      provider,
+      id: field(fields, "id", isString),
+      name: field(fields, "name", isString),
+      program: field(fields, "program", isString),
+      args: field(fields, "args", isStrings),
+      revision: field(fields, "revision", isString),
+    };
+  });
+}
+export async function getExternalAgents(): Promise<ExternalAgent[]> {
+  return parseExternalAgents(await invokeShell("external_agents"));
+}
+export async function saveExternalAgent(
+  registration: ExternalAgentInput,
+): Promise<ExternalAgent[]> {
+  return parseExternalAgents(await invokeShell("external_save_agent", { registration }));
+}
+export async function removeExternalAgent(id: string): Promise<ExternalAgent[]> {
+  return parseExternalAgents(await invokeShell("external_remove_agent", { id }));
+}
+
+export type MuseCredentialState = "envKey" | "apiKey" | "accountLogin" | "loggedOut";
+export interface MuseAccountStatus {
+  state: MuseCredentialState;
+  credentialRequired: boolean;
+}
+export interface MuseAccountProgress {
+  requestId: string;
+  verificationUrl: string;
+  userCode: string;
+}
+
+export function parseMuseAccountStatus(value: unknown): MuseAccountStatus {
+  // i18n-exempt: internal schema diagnostic; the UI renders a translated failure
+  const fields = record(value, "Muse account status");
+  const state = fields.state;
+  if (state !== "envKey" && state !== "apiKey" && state !== "accountLogin" && state !== "loggedOut")
+    // i18n-exempt: internal schema diagnostic; the UI renders a translated failure
+    throw new ShellError("malformed", "Muse credential source");
+  return { state, credentialRequired: field(fields, "credentialRequired", isBoolean) };
+}
+
+export function parseMuseAccountProgress(value: unknown): MuseAccountProgress {
+  // i18n-exempt: internal schema diagnostic; the UI renders a translated failure
+  const fields = record(value, "Muse account progress");
+  const verificationUrl = field(fields, "verificationUrl", isString);
+  const userCode = field(fields, "userCode", isString);
+  const requestId = field(fields, "requestId", isString);
+  const url = new URL(verificationUrl);
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    verificationUrl.length > 2048 ||
+    !userCode.trim() ||
+    userCode.length > 128 ||
+    /\p{C}/u.test(userCode)
+  )
+    // i18n-exempt: internal schema diagnostic; the UI renders a translated failure
+    throw new ShellError("malformed", "Muse device sign-in");
+  return { requestId, verificationUrl: url.href, userCode };
+}
+
+export async function manageMuseAccount(
+  id: string,
+  requestId: string,
+  action: "status" | "sign_in" | "sign_out",
+): Promise<MuseAccountStatus> {
+  return parseMuseAccountStatus(
+    await invokeShell("external_muse_account", { id, requestId, action }),
+  );
+}
+
+export async function cancelMuseAccount(requestId: string): Promise<void> {
+  await invokeShell("external_cancel_muse_account", { requestId });
+}
+
+export type CliAccountAction = "status" | "sign_in" | "reconnect" | "sign_out";
+export interface CliAccountStatus {
+  state: "signed_in" | "signed_out" | "environment_key" | "unknown";
+  signOutAvailable: boolean;
+}
+export function parseCliAccountStatus(value: unknown): CliAccountStatus {
+  const fields = record(value, "a CLI account status");
+  const state = fields.state;
+  if (
+    state !== "signed_in" &&
+    state !== "signed_out" &&
+    state !== "environment_key" &&
+    state !== "unknown"
+  )
+    throw new ShellError("malformed", "a CLI credential state");
+  return { state, signOutAvailable: field(fields, "signOutAvailable", isBoolean) };
+}
+export async function manageCliAccount(
+  id: string,
+  requestId: string,
+  action: CliAccountAction,
+): Promise<CliAccountStatus> {
+  return parseCliAccountStatus(
+    await invokeShell("external_cli_account", { id, requestId, action }),
+  );
 }

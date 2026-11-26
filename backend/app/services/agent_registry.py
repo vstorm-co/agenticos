@@ -17,7 +17,7 @@ import logging
 import re
 from base64 import b64encode
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 from uuid import UUID
@@ -2538,7 +2538,6 @@ class AgentRegistryService:
                     personal=spec.model_credential_mode == "personal",
                 )
             )
-            problems.merge(await self._native_only_problems(ctx, spec, spec.model_profile_id))
         # And each reviewer's, refused here rather than when a run first reaches
         # its cadence and finds nothing to review with.
         for reviewer in spec.reviewers:
@@ -2654,38 +2653,6 @@ class AgentRegistryService:
         if pattern == "mcp_servers/{server}/allowed_tools":
             return await self._mcp_problems(ctx, spec.mcp_servers, taken=taken_tool_names(spec))
         return []
-
-    async def _native_only_problems(
-        self, ctx: AuthContext, spec: AgentSpec, profile_id: UUID
-    ) -> _SpecProblems:
-        """Bindings set to a provider-native tool on a model that supports none (#166).
-
-        A Claude subscription model runs application tools only. A binding with a
-        local tool behind the native one uses it there; one configured to the native
-        tool alone would fail on the first turn, so it is refused here, on the input.
-        """
-        problems = _SpecProblems()
-        profile = await credential_repo.get_profile(
-            self.db, profile_id, organization_id=ctx.organization_id
-        )
-        if profile is None or profile.provider != CLAUDE_SUBSCRIPTION_PROVIDER:
-            return problems
-        for binding in spec.capabilities:
-            try:
-                definition = get_capability(binding.id)
-                config = definition.validate_config(binding.config)
-            except BadRequestError:
-                continue  # `_binding_problems` reports an unknown id or a bad config.
-            if definition.native_only is None or not definition.native_only.is_met(config):
-                continue
-            field = definition.native_only.field
-            problems.refuse(
-                f"capabilities.{binding.id}.{field}",
-                f"Capability '{binding.id}': {field} "
-                f"'{getattr(config, field)}' needs a provider-native tool, and Claude "
-                "subscription models support none. Choose another option.",
-            )
-        return problems
 
     async def _binding_problems(
         self, ctx: AuthContext, binding: CapabilityBindingSpec, *, agent_id: UUID | None = None
@@ -2865,8 +2832,14 @@ class AgentRegistryService:
         if profile is None:
             return ["The selected model profile no longer exists"]
         if (
-            profile.usage_scope == "personal" or profile.provider == CLAUDE_SUBSCRIPTION_PROVIDER
-        ) and (
+            profile.provider == CLAUDE_SUBSCRIPTION_PROVIDER
+            and profile.personal_owner_user_id is None
+        ):
+            return [
+                "The native Claude subscription profile has no linked owner. "
+                "Choose a model profile linked to your account."
+            ]
+        if (profile.usage_scope == "personal") and (
             ctx.personal_user_id is None or profile.personal_owner_user_id != ctx.personal_user_id
         ):
             return ["Choose one of your own personal model connections"]
@@ -2901,15 +2874,23 @@ class AgentRegistryService:
         # In the chain's order. One that no longer exists is skipped at run
         # time, not refused here.
         for fallback in (fallbacks[pid] for pid in fallback_ids if pid in fallbacks):
-            personal_fallback_unavailable = (
-                fallback.usage_scope == "personal"
-                or fallback.provider == CLAUDE_SUBSCRIPTION_PROVIDER
-            ) and (
-                ctx.personal_user_id is None
-                or fallback.personal_owner_user_id != ctx.personal_user_id
+            unowned_native_claude_fallback = (
+                fallback.provider == CLAUDE_SUBSCRIPTION_PROVIDER
+                and fallback.personal_owner_user_id is None
+            )
+            personal_fallback_unavailable = unowned_native_claude_fallback or (
+                (fallback.usage_scope == "personal")
+                and (
+                    ctx.personal_user_id is None
+                    or fallback.personal_owner_user_id != ctx.personal_user_id
+                )
             )
             decision_fallback = is_decision_api(fallback.provider, fallback.api)
-            if personal_fallback_unavailable:
+            if unowned_native_claude_fallback:
+                problems.append(
+                    "Remove the native Claude subscription fallback that has no linked owner"
+                )
+            elif personal_fallback_unavailable:
                 problems.append("Remove the personal fallback that this signed-in user cannot use")
             if decision_fallback:
                 problems.append(
@@ -2999,15 +2980,19 @@ class AgentRegistryService:
         personal_out_of_reach = {
             profile.id
             for profile in profiles.values()
-            if (
-                profile.usage_scope == "personal"
-                or profile.provider == CLAUDE_SUBSCRIPTION_PROVIDER
-            )
+            if (profile.usage_scope == "personal")
             and (
                 ctx.personal_user_id is None
                 or profile.personal_owner_user_id != ctx.personal_user_id
             )
         }
+        unowned_native_claude = {
+            profile.id
+            for profile in profiles.values()
+            if profile.provider == CLAUDE_SUBSCRIPTION_PROVIDER
+            and profile.personal_owner_user_id is None
+        }
+        personal_out_of_reach.update(unowned_native_claude)
         if not out_of_reach and not personal_out_of_reach:
             return problems
         who = "you" if person is not None else "an API key"
@@ -3017,7 +3002,12 @@ class AgentRegistryService:
             profile = profiles.get(ref.profile_id)
             if profile is None:
                 continue
-            if profile.id in personal_out_of_reach:
+            if profile.id in unowned_native_claude:
+                problems.refuse(
+                    ref.field,
+                    f"{ref.says}This native Claude subscription model has no linked owner and cannot be used",
+                )
+            elif profile.id in personal_out_of_reach:
                 problems.refuse(
                     ref.field,
                     f"{ref.says}This personal model connection can only be chosen by its signed-in owner",
@@ -3031,7 +3021,12 @@ class AgentRegistryService:
                 )
             for fallback_id in chains[profile.id]:
                 fallback = profiles.get(fallback_id)
-                if fallback_id in personal_out_of_reach:
+                if fallback_id in unowned_native_claude:
+                    problems.refuse(
+                        ref.field,
+                        f"{ref.says}Remove the native Claude subscription fallback that has no linked owner",
+                    )
+                elif fallback_id in personal_out_of_reach:
                     problems.refuse(
                         ref.field,
                         f"{ref.says}Remove the personal fallback that this signed-in user cannot use",
@@ -4115,8 +4110,8 @@ class AgentRegistryService:
         )
         # `current_version_id` is the default environment's pointer, so the step
         # that moves environments is the step that moves it - see below.
-        await self._move_environments_that_follow(ctx, agent=agent, version=version)
-        await self.withdraw_creator_consent(ctx, agent)
+        headed = await self._move_environments_that_follow(ctx, agent=agent, version=version)
+        await self.withdraw_creator_consent(ctx, agent, environment_ids=headed)
         from app.services.eval_suite import EvalSuiteService
 
         await EvalSuiteService(self.db).version_published(ctx, agent=agent, version=version)
@@ -4161,7 +4156,9 @@ class AgentRegistryService:
             },
         )
 
-    async def withdraw_creator_consent(self, ctx: AuthContext, agent: Agent) -> None:
+    async def withdraw_creator_consent(
+        self, ctx: AuthContext, agent: Agent, *, environment_ids: Collection[UUID]
+    ) -> None:
         """Switch "run as me" off on the triggers somebody else made, as the code they run changes.
 
         A creator who let a trigger act as them agreed to what the agent did then.
@@ -4174,12 +4171,23 @@ class AgentRegistryService:
         `agent_trigger._acts_as_themselves` sets for granting the consent holds
         for keeping it.
 
-        An explicitly pinned routine keeps its immutable spec, so changing the
-        default or an environment does not withdraw its unchanged consent.
+        Only the triggers in `environment_ids` - the environments the new version
+        reaches - lose it (#3290). A trigger elsewhere goes on running the version
+        its creator agreed to, and withdrawing there stopped it for nothing:
+        the flag is part of its source scope, so the routine waited for its
+        owner's review. An explicitly pinned routine keeps its immutable spec, so
+        it keeps its consent too.
         """
+        if not environment_ids:
+            return
+        default = await agent_environment_repo.get_default_for_agent(self.db, agent_id=agent.id)
         in_person = ctx.acts_in_person and current_impersonator() is None
         withdrawn = await agent_trigger_repo.withdraw_creator_consent(
-            self.db, agent_id=agent.id, kept_for=ctx.user_id if in_person else None
+            self.db,
+            agent_id=agent.id,
+            kept_for=ctx.user_id if in_person else None,
+            environment_ids=list(environment_ids),
+            include_unscoped=default is not None and default.id in environment_ids,
         )
         if withdrawn:
             await record_audit(
@@ -4194,8 +4202,13 @@ class AgentRegistryService:
 
     async def _move_environments_that_follow(
         self, ctx: AuthContext, *, agent: Agent, version: AgentVersion
-    ) -> None:
+    ) -> set[UUID]:
         """Repoint the environments that asked to follow publishes, and no others.
+
+        Returns the environments `version` is headed for: the ones moved now, and
+        the guarded followers `PromotionGateService.follow` moves once their guards
+        pass. Withdrawing creator consent reads it, and does so now for both -
+        moving onto the version later withdraws none.
 
         **Publishing mints a version; putting it somewhere is a separate
         decision.** This used to repoint the default whatever it was, so
@@ -4231,6 +4244,7 @@ class AgentRegistryService:
                 tracks_latest=True,
                 created_by_user_id=ctx.user_id,
             )
+            headed = {default.id}
         elif agent.kind != AgentKind.AGENT.value:
             # A system agent runs on its default environment alone, so a publish
             # always moves it, pinned or not.
@@ -4239,6 +4253,7 @@ class AgentRegistryService:
                 environment=default,
                 update_data={"version_id": version.id, "tracks_latest": True},
             )
+            headed = {default.id}
         else:
             following = await agent_environment_repo.following_latest(
                 self.db, agent_id=agent.id, organization_id=ctx.organization_id
@@ -4250,6 +4265,7 @@ class AgentRegistryService:
                 [environment.id for environment in following],
                 organization_id=ctx.organization_id,
             )
+            headed = {environment.id for environment in following}
             for environment in following:
                 if environment.id in guarded:
                     continue
@@ -4261,6 +4277,7 @@ class AgentRegistryService:
         await agent_repo.update(
             self.db, agent=agent, update_data={"current_version_id": default.version_id}
         )
+        return headed
 
     async def rollback(
         self, ctx: AuthContext, agent_id: UUID, *, to_version_id: UUID
@@ -4304,13 +4321,13 @@ class AgentRegistryService:
         # version exists, and what serves it is a promotion. Putting the old
         # version back in front of people directly is one click on the history
         # row - promote - rather than two here.
-        await self._move_environments_that_follow(ctx, agent=agent, version=version)
+        headed = await self._move_environments_that_follow(ctx, agent=agent, version=version)
         from app.services.eval_suite import EvalSuiteService
 
         # A rollback is a publish: the suites a publish runs - a guarded
         # follower's guards among them - run on the version it minted.
         await EvalSuiteService(self.db).version_published(ctx, agent=agent, version=version)
-        await self.withdraw_creator_consent(ctx, agent)
+        await self.withdraw_creator_consent(ctx, agent, environment_ids=headed)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

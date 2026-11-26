@@ -75,8 +75,7 @@ beforeEach(() => {
 async function open() {
   render(<TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} />, { wrapper });
   const dialog = within(await screen.findByRole("dialog"));
-  // Past the configure step - the templates live with the message they prefill.
-  await userEvent.click(dialog.getByRole("button", { name: "Continue" }));
+  await userEvent.click(dialog.getByText("Advanced options"));
   return dialog;
 }
 
@@ -93,7 +92,6 @@ describe("New-schedule template picker", () => {
 
     await user.click(dialog.getByRole("button", { name: "Start from a template" }));
     await user.click(await screen.findByRole("button", { name: /Daily standup/ }));
-    await user.click(dialog.getByRole("button", { name: "Continue" }));
     // The schedule step's interval builder reads the template's cadence: one day.
     expect(dialog.getByLabelText<HTMLInputElement>("Run every").value).toBe("1");
 
@@ -101,6 +99,8 @@ describe("New-schedule template picker", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
       source_mode: "follow_agent",
+      action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Summarise what happened overnight.",
       name: "Daily standup",
@@ -127,11 +127,12 @@ describe("New-schedule template picker", () => {
     await user.click(await screen.findByRole("button", { name: /Daily standup/ }));
     await user.click(dialog.getByRole("button", { name: "Start from a template" }));
     await user.click(screen.getByRole("button", { name: /Weekly report/ }));
-    await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
       source_mode: "follow_agent",
+      action_mode: "agent",
+      chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Write this week's report.",
       name: "Weekly report",
@@ -160,8 +161,6 @@ describe("New-schedule template picker", () => {
     );
     const dialog = within(await screen.findByRole("dialog"));
 
-    await user.click(dialog.getByRole("button", { name: "Continue" }));
-    await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(
@@ -186,10 +185,9 @@ describe("New-schedule template picker", () => {
     const dialog = within(await screen.findByRole("dialog"));
 
     await user.type(dialog.getByLabelText("Name"), "Board update");
-    await user.click(dialog.getByRole("button", { name: "Continue" }));
+    await user.click(dialog.getByText("Advanced options"));
     await user.click(dialog.getByRole("button", { name: "Start from a template" }));
     await user.click(await screen.findByRole("button", { name: /Weekly report/ }));
-    await user.click(dialog.getByRole("button", { name: "Continue" }));
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(
@@ -205,17 +203,16 @@ describe("New-schedule template picker", () => {
     await user.click(dialog.getByRole("button", { name: "Start from a template" }));
     await user.click(await screen.findByRole("button", { name: /Daily standup/ }));
     // The task step can advance once a template fills the prompt.
-    expect(dialog.getByRole("button", { name: "Continue" })).toBeEnabled();
+    expect(dialog.getByRole("button", { name: "Create" })).toBeEnabled();
 
     await user.click(dialog.getByRole("button", { name: "Start from a template" }));
     await user.click(screen.getByRole("button", { name: /Start from scratch/ }));
     // Back to a blank message, so there is nothing to continue with yet.
-    expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
+    expect(dialog.getByRole("button", { name: "Create" })).toBeDisabled();
     expect(dialog.getByRole("button", { name: "Start from a template" })).toHaveTextContent(
       "Start from a template",
     );
     // The name the template wrote goes with it.
-    await user.click(dialog.getByRole("button", { name: "Back" }));
     expect(dialog.getByLabelText<HTMLInputElement>("Name").value).toBe("");
   });
 

@@ -24,7 +24,14 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useOrgStore } from "@/stores/org-store";
 
 /** Account-scoped offers, including people who have no organization yet. */
-export function ReceivedInvitations() {
+export function ReceivedInvitations({
+  presentation = "dialog",
+  onAccepted,
+}: {
+  presentation?: "dialog" | "inline";
+  /** Replaces navigation after the accepted organization becomes active. */
+  onAccepted?: (organizationId: string) => void;
+} = {}) {
   const t = useTranslations("invitations.received");
   const userId = useAuthStore((state) =>
     state.isAuthenticated && !state.isLoading ? state.user?.id : undefined,
@@ -34,6 +41,7 @@ export function ReceivedInvitations() {
   const visible =
     !!userId &&
     mailboxProved &&
+    (presentation === "inline" || pathname !== "/onboarding") &&
     !/^\/(login|register|auth|shared|invitations)(\/|$)/.test(pathname);
   const inbox = useReceivedInvitations(visible);
   const router = useRouter();
@@ -55,7 +63,8 @@ export function ReceivedInvitations() {
       if (!current.isAuthenticated || current.user?.id !== userId) return;
       setDismissedFor(userId);
       setOrg(result.organization_id);
-      router.push("/onboarding?welcome=1&entry=joined");
+      if (onAccepted) onAccepted(result.organization_id);
+      else router.push("/onboarding?welcome=1&entry=joined");
     } catch {
       if (useAuthStore.getState().user?.id !== userId) return;
       setFailed(true);
@@ -63,6 +72,77 @@ export function ReceivedInvitations() {
       void inbox.refetch();
     }
   };
+  const content = (
+    <>
+      <div className={presentation === "inline" ? "divide-y" : "my-5 grid gap-3"}>
+        {invitations.map((invite) => (
+          <div
+            key={invite.id}
+            className={
+              presentation === "inline"
+                ? "flex flex-wrap items-center gap-4 py-4"
+                : "border-border flex flex-wrap items-center gap-4 rounded-2xl border p-4"
+            }
+          >
+            <EntityAvatar
+              seed={invite.organization_id}
+              name={invite.organization_name}
+              imageSrc={`/api/invitations/received/${encodeURIComponent(invite.id)}/avatar`}
+              hasImage={invite.organization_has_avatar}
+              colorSlot={invite.organization_avatar_color}
+              className="size-11 shrink-0"
+              ariaHidden
+            />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium break-words">{invite.organization_name}</p>
+              <p className="text-muted-foreground text-sm">
+                {t("role", {
+                  role: t.has(`roles.${invite.role}`) ? t(`roles.${invite.role}`) : invite.role,
+                })}
+              </p>
+            </div>
+            <Button disabled={inbox.accept.isPending} onClick={() => void join(invite.id)}>
+              {t(
+                inbox.accept.isPending && inbox.accept.variables === invite.id ? "joining" : "join",
+              )}
+              <ArrowRight size={15} aria-hidden />
+            </Button>
+          </div>
+        ))}
+      </div>
+      {inbox.hasNextPage && (
+        <Button
+          variant="outline"
+          disabled={inbox.isFetchingNextPage}
+          onClick={() => void inbox.fetchNextPage()}
+        >
+          {t("more")}
+        </Button>
+      )}
+      {failed && (
+        <p role="alert" className="text-destructive-ink mb-4 text-sm">
+          {t("failed")}
+        </p>
+      )}
+      {presentation === "dialog" && (
+        <Button
+          variant="ghost"
+          disabled={inbox.accept.isPending}
+          onClick={() => setDismissedFor(userId)}
+        >
+          {t("later")}
+        </Button>
+      )}
+    </>
+  );
+  if (presentation === "inline")
+    return (
+      <section aria-label={t("title")} className="rounded-xl border p-5">
+        <h2 className="text-sm font-semibold">{t("title")}</h2>
+        <p className="text-muted-foreground mt-1 text-sm">{t("description")}</p>
+        {content}
+      </section>
+    );
   return (
     <>
       <Button
@@ -89,61 +169,7 @@ export function ReceivedInvitations() {
             <DialogTitle>{t("title")}</DialogTitle>
             <DialogDescription>{t("description")}</DialogDescription>
           </DialogHeader>
-          <div className="my-5 grid gap-3">
-            {invitations.map((invite) => (
-              <div
-                key={invite.id}
-                className="border-border flex flex-wrap items-center gap-4 rounded-2xl border p-4"
-              >
-                <EntityAvatar
-                  seed={invite.organization_id}
-                  name={invite.organization_name}
-                  imageSrc={`/api/invitations/received/${encodeURIComponent(invite.id)}/avatar`}
-                  hasImage={invite.organization_has_avatar}
-                  colorSlot={invite.organization_avatar_color}
-                  className="size-11 shrink-0"
-                  ariaHidden
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium break-words">{invite.organization_name}</p>
-                  <p className="text-muted-foreground text-sm">
-                    {t("role", {
-                      role: t.has(`roles.${invite.role}`) ? t(`roles.${invite.role}`) : invite.role,
-                    })}
-                  </p>
-                </div>
-                <Button disabled={inbox.accept.isPending} onClick={() => void join(invite.id)}>
-                  {t(
-                    inbox.accept.isPending && inbox.accept.variables === invite.id
-                      ? "joining"
-                      : "join",
-                  )}
-                  <ArrowRight size={15} aria-hidden />
-                </Button>
-              </div>
-            ))}
-          </div>
-          {inbox.hasNextPage && (
-            <Button
-              variant="outline"
-              disabled={inbox.isFetchingNextPage}
-              onClick={() => void inbox.fetchNextPage()}
-            >
-              {t("more")}
-            </Button>
-          )}
-          {failed && (
-            <p role="alert" className="text-destructive-ink mb-4 text-sm">
-              {t("failed")}
-            </p>
-          )}
-          <Button
-            variant="ghost"
-            disabled={inbox.accept.isPending}
-            onClick={() => setDismissedFor(userId)}
-          >
-            {t("later")}
-          </Button>
+          {content}
         </DialogContent>
       </Dialog>
     </>

@@ -1,5 +1,5 @@
 ---
-source_sha: "6afbc24a10fe"
+source_sha: "71182b8bda14"
 ---
 
 # Polecenia { #commands }
@@ -360,6 +360,19 @@ uv run agenticos cmd doctor --profile hipaa
 # call. Exits non-zero when it finds one, so a cron can gate on it.
 uv run agenticos cmd audit-skill-bindings
 
+# Ocenia ponownie, z zachowanych runów, agentów zakończonych checków skilla, których
+# wynik ustaliła starsza reguła: zapisany przed rodzinami kryteriów nie pokazuje rodzin,
+# a zapisany przed powodem "za mało pytań" mówi, że run nie ocenił każdej
+# odpowiedzi. Dolicza też oceny sędziego do próby sesji skilla, która policzyła
+# tylko odpowiedzi swojego checka. Żaden model nie jest pytany, a rozstrzygnięty
+# check zachowuje decyzję. Bez --check przechodzi wszystkie takie checki i próby;
+# powtórz --check, by wskazać kilka.
+# Korzysta z zapisanej wersji reguły, więc nowe niekompletne wyniki nie są
+# ponownie przeliczane przy każdym uruchomieniu. Przelicza koszty tylko zakończonych
+# prób; brak pierwotnego dostępu zgłasza jako pominięcie, a nie sukces.
+uv run agenticos cmd skill-checks-rejudge
+uv run agenticos cmd skill-checks-rejudge --check <check-id>
+
 # Recompute the app-admin audit trail's tamper-evidence hash chain and report any
 # break. Each entry links to the previous one's hash, so editing, reordering,
 # inserting or interior-deleting a row diverges every hash after it; a per-org
@@ -432,6 +445,24 @@ duplikatów obowiązują dokładnie tak samo jak przy kimś klikającym przycisk
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` opakowuje `bootstrap`
 migracjami, których ono potrzebuje. Uruchom najpierw `doctor`, kiedy coś działa
 lokalnie, a nie działa na świeżym środowisku — to szybsze niż czytanie logów.
+
+### Pomiar ponownie wysyłanych wyników narzędzi { #measuring-re-sent-tool-output }
+
+```bash
+# Jaka część wejścia modelu jednej organizacji to wyniki narzędzi wysłane ponownie, per agent.
+# Tylko rozmiary, liczby i szacunki - nigdy treść wyniku ani requestu.
+uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 2026-11-22
+
+# Te same liczby jako JSON, łącznie z runami ewaluacyjnymi i testowymi z Buildera.
+uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 2026-11-22 \
+  --include-eval --include-tests --json
+```
+
+Wynik narzędzia zostaje w historii runu, więc każdy kolejny request do modelu wysyła go ponownie. Raport mierzy każdy wynik w postaci, w jakiej dostał go model, czyli po `tool_output_limits`, i liczy go raz za każdy request po tym, który go wywołał, na podstawie manifestu runu. Dzieli liczby według agenta i tego, jak agent wiąże `tool_output_limits` i `compaction`. Prognozuje też oszczędność z zastąpienia wyników powyżej 10 000 znaków krótkim placeholderem po dwóch pełnych wysyłkach.
+
+Liczby są szacunkiem i raport to mówi. Tokeny to znaki podzielone przez cztery, a gdy jedno narzędzie działało w runie kilka razy, pozycje jego wyników są uśredniane. Run jest pominięty w szacunku, gdy nie ma manifestu, nie ma rozmowy, w której zapisałby wyniki narzędzi, albo czekał na zatwierdzenie lub odpowiedź na pytanie.
+
+Kolejny run w rozmowie może nieść wyniki wcześniejszych runów i raport pokazuje je osobno, jako górne oszacowanie. Delegat nigdy nie jest doliczany do rodzica, a praca platformy nie jest liczona agentowi, który ją uruchomił. Raport nie pokazuje, jak zastąpienie wyników zmieniłoby cache promptu, i oznacza agentów z dowolną compaction, bo ich liczba jest zawyżona.
 
 ### Uruchomienie wdrożenia { #getting-a-deployment-up }
 

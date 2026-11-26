@@ -79,6 +79,8 @@ export function SwipeToDecide({
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (disabled || event.pointerType !== "touch" || drag.current) return;
+    // Portaled sheets bubble through the row in React, but are not swipe surfaces.
+    if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
     x.stop();
     drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, axis: null };
   };

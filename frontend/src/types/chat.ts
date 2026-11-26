@@ -2,6 +2,7 @@ import type { AssistantPageContext } from "@/lib/assistant-page-context";
 import type { ChatPerson, RoomMessageMention, RoomThreadSummary } from "./conversation";
 import type { RoomMessageReactionSummary } from "./room-message-reaction";
 import type { Mentionable } from "./mention";
+import type { ApprovalMode } from "@/stores/chat-controls-store";
 
 export type MessageRole = "user" | "assistant" | "system";
 /** Rating values for message feedback. */
@@ -39,6 +40,29 @@ export interface ChatSubmissionContext {
 
 export interface QueuedMessage {
   id: string;
+  /** Stable client idempotency key for a server-accepted queued turn. */
+  clientQueueId?: string;
+  /** Conversation that owns its accepted receipt and cannot be sent from another chat. */
+  receiptConversationId?: string;
+  /** Controls frozen when the row entered the queue; receipts support defaults only. */
+  queueSettings?: { modelProfileId: string | null; approvalMode: ApprovalMode };
+  /** Owner-scoped server receipt; present before a queued row can drain or transfer. */
+  acceptedQueueId?: string;
+  receiptState?: "pending" | "steering" | "steered" | "sent" | "task" | "cancelled";
+  /** Cached receipt state stays blocked until the current conversation confirms it. */
+  receiptReconciliationPending?: boolean;
+  steeringRunId?: string;
+  accepting?: boolean;
+  /** True only after the initial acceptance request could have reached the server. */
+  receiptAcceptanceAttempted?: boolean;
+  /** Cancellation requested while initial acceptance is still unresolved. */
+  cancelRequested?: boolean;
+  transferring?: boolean;
+  receiptError?: string;
+  receiptErrorAction?: "accept" | "cancel" | "send" | "steer";
+  transferError?: string;
+  transferErrorAction?: "cancel" | "task";
+  receiptUnsupported?: boolean;
   /** A continuation keeps its requesting agent; undefined follows the current picker. */
   agentId?: string | null;
   content: string;
@@ -52,6 +76,10 @@ export interface QueuedMessage {
    */
   refused?: string;
   submission?: ChatSubmissionContext;
+  /** The reply target captured when the person queued this turn. */
+  replyTo?: MessageReply;
+  /** Stop holds follow-ups, including a sealed native outbox, until Resume queue. */
+  paused?: boolean;
 }
 
 /** The earlier message a turn answers, quoted above it. */
@@ -83,6 +111,8 @@ export interface ChatMessage {
   /** A saved bubble still addressed by its local id while deltas arrive. */
   persistedId?: string;
   id: string;
+  /** Stable position in a persisted conversation; absent on older servers and live turns. */
+  ordinal?: number | null;
   role: MessageRole;
   content: string;
   timestamp: Date;
@@ -327,6 +357,7 @@ export type WSEventType =
   | "message_saved"
   | "next_steps"
   | "user_prompt"
+  | "accepted_queue_run_exists"
   | "session_ready"
   | "model_setup_required"
   | "model_request_start"
@@ -342,9 +373,11 @@ export type WSEventType =
   | "error"
   | "tool_approval_required"
   | "ask_user"
+  | "runtime_question_closed"
   | "user_question_required"
   | "ask_user_answered"
   | "run_answer_result"
+  | "steer_claimed"
   | "steer_applied"
   | "steer_unapplied"
   | "connect_account"
@@ -606,6 +639,8 @@ export interface ReviewConfig {
 }
 
 export interface PendingApproval {
+  savedDecisions?: { request: ActionRequest; approved: boolean }[];
+  continuesInChat?: boolean;
   actionRequests: ActionRequest[];
   reviewConfigs: ReviewConfig[];
   /** The run to continue once every call has been decided. */
@@ -626,6 +661,7 @@ export type DecisionType = "approve" | "edit" | "reject";
 
 export interface Decision {
   remember_scope?: "conversation" | "agent";
+  note?: string;
   type: DecisionType;
   editedAction?: {
     id: string;
@@ -635,11 +671,19 @@ export interface Decision {
 }
 
 export interface AskUserChoice {
+  labelKey?: "runtimeApprovePlan" | "runtimeRejectPlan" | "runtimeYes" | "runtimeNo";
   label: string;
   description?: string | null;
 }
 
 export interface AskUserQuestion {
+  requestId?: string;
+  minSelections?: number;
+  maxSelections?: number;
+  multiline?: boolean;
+  initialValue?: string;
+  allowEmpty?: boolean;
+  maxAnswerLength?: number;
   question: string;
   /** A short label for the question, shown as a chip (#2064). */
   header?: string | null;
@@ -744,7 +788,7 @@ export interface SubagentStartFrame extends SubagentFrameBase {
    * Set when the worker is a coding harness, started by the `coding_agent`
    * capability rather than delegated to an agent, so the panel draws its mark.
    */
-  harness?: CodingHarness | null;
+  harness?: CodingHarness | "custom" | null;
 }
 
 /** The coding harnesses the `coding_agent` capability runs. */
@@ -897,8 +941,8 @@ export interface Delegation {
    * chat reads, and what its absence hides that action for. See `SpecialistDefinition`.
    */
   specialist: SpecialistDefinition | null;
-  /** A coding harness, when the worker is one rather than an agent. */
-  harness: CodingHarness | null;
+  /** Claude Code or Codex, when the worker is a coding harness rather than an agent. */
+  harness: CodingHarness | "custom" | null;
   text: string;
   thinking: string;
   steps: DelegationStep[];

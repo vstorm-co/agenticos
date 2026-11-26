@@ -23,7 +23,7 @@ from app.core.exceptions import AuthenticationError
 from app.core.oauth import groups_claim, sign_in_client
 from app.main import app
 from app.services.directory import DirectorySyncService
-from app.services.user import UserService
+from app.services.user import OAuthAccount, UserService
 
 pytestmark = pytest.mark.anyio
 
@@ -132,8 +132,8 @@ class TestTheCallback:
             AsyncMock(return_value={"userinfo": {**_CLAIMS, "groups": ["Finance"]}}),
         )
         user = SimpleNamespace(id=uuid4(), is_active=True)
-        created = AsyncMock(return_value=user)
-        monkeypatch.setattr(UserService, "get_or_create_oauth_user", created)
+        created = AsyncMock(return_value=OAuthAccount(user, False))
+        monkeypatch.setattr(UserService, "get_or_create_oauth_account", created)
         admits = AsyncMock(return_value=True)
         apply = AsyncMock()
         monkeypatch.setattr(DirectorySyncService, "admits", admits)
@@ -158,7 +158,7 @@ class TestTheCallback:
             AsyncMock(return_value={"userinfo": {**_CLAIMS, "_claim_names": {"groups": "src1"}}}),
         )
         created = AsyncMock()
-        monkeypatch.setattr(UserService, "get_or_create_oauth_user", created)
+        monkeypatch.setattr(UserService, "get_or_create_oauth_account", created)
         monkeypatch.setattr(sign_in_client("oidc"), "userinfo", AsyncMock(return_value={}))
 
         resp = await client.get(_CALLBACK)
@@ -178,8 +178,10 @@ class TestTheCallback:
         )
         monkeypatch.setattr(
             UserService,
-            "get_or_create_oauth_user",
-            AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=False)),
+            "get_or_create_oauth_account",
+            AsyncMock(
+                return_value=OAuthAccount(SimpleNamespace(id=uuid4(), is_active=False), False)
+            ),
         )
         monkeypatch.setattr(DirectorySyncService, "admits", AsyncMock(return_value=False))
         apply = AsyncMock()
@@ -199,8 +201,10 @@ class TestTheCallback:
             "authorize_access_token",
             AsyncMock(return_value={"userinfo": {**_CLAIMS, "groups": ["Finance"]}}),
         )
-        created = AsyncMock(return_value=SimpleNamespace(id=uuid4(), is_active=True))
-        monkeypatch.setattr(UserService, "get_or_create_oauth_user", created)
+        created = AsyncMock(
+            return_value=OAuthAccount(SimpleNamespace(id=uuid4(), is_active=True), False)
+        )
+        monkeypatch.setattr(UserService, "get_or_create_oauth_account", created)
         apply = AsyncMock()
         monkeypatch.setattr(DirectorySyncService, "apply", apply)
 

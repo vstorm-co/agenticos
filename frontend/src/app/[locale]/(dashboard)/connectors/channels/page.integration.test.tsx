@@ -65,7 +65,16 @@ function bot(overrides: Partial<ChannelBot> = {}): ChannelBot {
     speech_to_text_provider: null,
     speech_to_text_model: null,
     speech_to_text_secret_id: null,
-    agents: [{ id: "a1", name: "Support", slug: "support", has_avatar: false }],
+    agents: [
+      {
+        exposure_id: "e1",
+        is_active: true,
+        id: "a1",
+        name: "Support",
+        slug: "support",
+        has_avatar: false,
+      },
+    ],
     created_at: "2026-08-09T18:00:00Z",
     ...overrides,
   };
@@ -95,38 +104,44 @@ function serve(bots: ChannelBot[]) {
   // By URL: the dialogs now also fetch the speech-to-text catalog and the
   // vault, and a single resolved value would answer those with a list of bots.
   vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
-    path === "/secrets"
-      ? { items: SECRETS, total: SECRETS.length }
-      : path === "/secrets/kinds"
-        ? { items: [] }
-        : path.startsWith("/providers/speech-to-text-models")
-          ? {
-              items: [
-                {
-                  provider: "openai",
-                  name: "OpenAI",
-                  models: [
-                    { id: "whisper-1", name: "Whisper", description: "Widest language coverage." },
-                  ],
-                },
-              ],
-              total: 1,
-            }
-          : path.startsWith("/channels/bots/")
-            ? // The edit form reads its one bot for what "inherit" resolves to.
-              {
-                ...bots.find((candidate) => path.endsWith(`/${candidate.id}`)),
-                inherited_speech_to_text: {
-                  provider: "openai",
-                  model: "whisper-1",
-                  language: null,
-                  pair_source: "agent",
-                  language_source: null,
-                  agent_name: "Support",
-                  has_key: true,
-                },
+    path === "/agents"
+      ? { items: [], total: 0 }
+      : path === "/secrets"
+        ? { items: SECRETS, total: SECRETS.length }
+        : path === "/secrets/kinds"
+          ? { items: [] }
+          : path.startsWith("/providers/speech-to-text-models")
+            ? {
+                items: [
+                  {
+                    provider: "openai",
+                    name: "OpenAI",
+                    models: [
+                      {
+                        id: "whisper-1",
+                        name: "Whisper",
+                        description: "Widest language coverage.",
+                      },
+                    ],
+                  },
+                ],
+                total: 1,
               }
-            : { items: bots, total: bots.length },
+            : path.startsWith("/channels/bots/")
+              ? // The edit form reads its one bot for what "inherit" resolves to.
+                {
+                  ...bots.find((candidate) => path.endsWith(`/${candidate.id}`)),
+                  inherited_speech_to_text: {
+                    provider: "openai",
+                    model: "whisper-1",
+                    language: null,
+                    pair_source: "agent",
+                    language_source: null,
+                    agent_name: "Support",
+                    has_key: true,
+                  },
+                }
+              : { items: bots, total: bots.length },
   );
 }
 
@@ -175,6 +190,17 @@ describe("the channels page", () => {
     expect(await screen.findByText("Acme Support")).toBeVisible();
     expect(screen.getByText("Mattermost · https://mattermost.acme.com")).toBeVisible();
   });
+
+  it.each([["Edit Acme Support"], ["Pause Acme Support"], ["Remove Acme Support"]])(
+    "names the %s icon on hover",
+    async (name) => {
+      serve([bot()]);
+      await mount();
+
+      await userEvent.hover(await screen.findByRole("button", { name }));
+      expect(await screen.findByRole("tooltip")).toHaveTextContent(name);
+    },
+  );
 
   it("names the agents that answer there", async () => {
     serve([bot()]);

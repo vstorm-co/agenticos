@@ -436,7 +436,8 @@ describe("StartEvalDialog", () => {
     const onOpenChange = open();
 
     expect(screen.getByText("Graded by checks and Policy judge.")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Run for $0.30" }));
+    expect(screen.getByText("$0.60")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Run for $0.60" }));
 
     expect((hooks.start as Mutation).mutateAsync).toHaveBeenCalledWith(COMPARE);
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -454,7 +455,7 @@ describe("StartEvalDialog", () => {
   it("shows no price that was asked for other fields", () => {
     hooks.estimate = mutation({ data: ESTIMATE, variables: { ...COMPARE, reruns: 3 } });
     open();
-    expect(screen.queryByRole("button", { name: "Run for $0.30" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Run for $0.60" })).toBeNull();
   });
 
   it("refuses to run what the budget cannot hold, and says why the server refused", async () => {
@@ -465,7 +466,7 @@ describe("StartEvalDialog", () => {
     });
     const onOpenChange = open();
 
-    expect(screen.getByRole("button", { name: "Run for $0.30" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Run for $0.60" })).toBeDisabled();
     expect(screen.getByRole("alert")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -476,7 +477,7 @@ describe("StartEvalDialog", () => {
     hooks.start = mutation({ mutateAsync: vi.fn().mockRejectedValue(new Error("402")) });
     const onOpenChange = open();
 
-    await userEvent.click(screen.getByRole("button", { name: "Run for $0.30" }));
+    await userEvent.click(screen.getByRole("button", { name: "Run for $0.60" }));
 
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();

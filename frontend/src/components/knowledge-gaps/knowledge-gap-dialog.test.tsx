@@ -9,8 +9,17 @@ vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useKnowledgeGap: () => state.detail,
 }));
 vi.mock("./knowledge-gap-draft", () => ({
-  KnowledgeGapDraftPanel: ({ topic }: { topic: { id: string } }) => (
-    <p>{`draft for ${topic.id}`}</p>
+  KnowledgeGapDraftPanel: ({
+    topic,
+    onDirtyChange,
+  }: {
+    topic: { id: string };
+    onDirtyChange: (dirty: boolean) => void;
+  }) => (
+    <div>
+      <p>{`draft for ${topic.id}`}</p>
+      <button onClick={() => onDirtyChange(true)}>Edit draft</button>
+    </div>
   ),
 }));
 vi.mock("./knowledge-gap-actions", () => ({
@@ -74,6 +83,18 @@ describe("KnowledgeGapDialog", () => {
     expect(screen.getByText("How long can I take parental leave?")).toBeInTheDocument();
   });
 
+  it("counts test questions apart from the people who asked", () => {
+    answer({ topic: { ...TOPIC, question_count: 1, asker_count: 0, test_question_count: 1 } });
+    const { rerender } = render(<KnowledgeGapDialog topicId="t1" onClose={vi.fn()} />);
+    expect(screen.getByText("Came up in 1 test question in Handbook")).toBeInTheDocument();
+    expect(screen.queryByText(/by one person/)).toBeNull();
+    answer({ topic: { ...TOPIC, question_count: 3, asker_count: 1, test_question_count: 2 } });
+    rerender(<KnowledgeGapDialog topicId="t1" onClose={vi.fn()} />);
+    expect(
+      screen.getByText("Asked once by one person, and in 2 test questions, in Handbook"),
+    ).toBeInTheDocument();
+  });
+
   it("says the topic failed to load, and retries", async () => {
     const refetch = vi.fn();
     answer({ error: new Error("502"), refetch });
@@ -93,12 +114,47 @@ describe("KnowledgeGapDialog", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("links no run from a question inside the Improve wizard", () => {
+  it("links no run from a question inside the Improve wizard", async () => {
     answer({ topic: TOPIC });
     const view = render(<KnowledgeGapDialog topicId="t1" onClose={vi.fn()} />);
+    await userEvent.click(screen.getByRole("tab", { name: "Why this is needed (1)" }));
     expect(screen.getAllByRole("link", { name: "Open the run" }).length).toBeGreaterThan(0);
     view.unmount();
     render(<KnowledgeGapDialog topicId="t1" onClose={vi.fn()} wizard />);
     expect(screen.queryByRole("link", { name: "Open the run" })).toBeNull();
   });
+});
+
+it("preserves an edited draft across evidence tabs and asks before discarding it", async () => {
+  answer({ topic: TOPIC });
+  const close = vi.fn();
+  render(<KnowledgeGapDialog topicId="t1" onClose={close} />);
+  await userEvent.click(screen.getByRole("button", { name: "Edit draft" }));
+  await userEvent.click(screen.getByRole("tab", { name: "Why this is needed (1)" }));
+  expect(screen.getByRole("tab", { name: "Why this is needed (1)" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await userEvent.click(screen.getByRole("tab", { name: "Suggested document" }));
+  expect(screen.getByText("draft for t1")).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  expect(close).not.toHaveBeenCalled();
+  expect(screen.getByRole("heading", { name: "Discard unsaved changes?" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+  expect(close).not.toHaveBeenCalled();
+  await userEvent.keyboard("{Escape}");
+  await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+  expect(close).toHaveBeenCalledOnce();
+});
+
+it("does not warn about an unsaved draft after its document was added", async () => {
+  answer({ topic: TOPIC });
+  const close = vi.fn();
+  const view = render(<KnowledgeGapDialog topicId="t1" onClose={close} />);
+  await userEvent.click(screen.getByRole("button", { name: "Edit draft" }));
+  answer({ topic: { ...TOPIC, status: "covered" } });
+  view.rerender(<KnowledgeGapDialog topicId="t1" onClose={close} />);
+  await userEvent.keyboard("{Escape}");
+  expect(close).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("heading", { name: "Discard unsaved changes?" })).toBeNull();
 });

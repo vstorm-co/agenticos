@@ -338,9 +338,11 @@ class AgentEnvironmentService:
                 organization_id=ctx.organization_id,
                 connections=connections,
             )
-        if version is not None:
-            await AgentRegistryService(self.db).withdraw_creator_consent(ctx, agent)
         if version is not None and version.id != replaced_version_id:
+            # Only this environment's triggers now run another version (#3290).
+            await AgentRegistryService(self.db).withdraw_creator_consent(
+                ctx, agent, environment_ids={environment.id}
+            )
             from app.services.eval_suite import EvalSuiteService
 
             await EvalSuiteService(self.db).environment_promoted(

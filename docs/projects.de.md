@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "f150b8228dc8"
+source_sha: "5c51ab89ba74"
 ---
 
 # Projekte { #projects }
@@ -353,7 +353,7 @@ Antwort gehört zu diesem Thread, auch wenn der Run nach einer Frage oder
 Genehmigung fortgesetzt wird. Hauptraum und Threads teilen eine Warteschlange für
 Agent-Anfragen; ein wartender Run hält spätere Anfragen in der Warteschlange.
 
-Im Gesprächskontext eines Agenten haben die ursprüngliche Nachricht und die
+Ohne ausgewählten Kontextbereich haben die ursprüngliche Nachricht und die
 Antworten des Threads Vorrang. Freier Platz im Verlauf kann ältere Nachrichten
 des Hauptraums vor der ursprünglichen Nachricht aufnehmen. Antworten anderer
 Threads und spätere Nachrichten des Hauptraums sind ausgeschlossen.
@@ -387,6 +387,45 @@ lesbar, die weiterhin auf diesen Chat zugreifen dürfen. Thread-Antworten sind
 schreibgeschützt, sofern der Eigentümer den Chat nicht ausdrücklich in einen
 eigenständigen Raum umwandelt. Die frühere Projektmitgliedschaft allein gewährt
 keinen Zugriff mehr.
+
+### Ausgewählter Thread-Kontext { #selected-thread-context }
+
+Wähle **Kontext auswählen (Select context)**, um die erste und die letzte gespeicherte
+Nachricht für einen neuen Thread festzulegen. Vor dem Erstellen kannst du einzelne
+Nachrichten ausschließen. Die Auswahl umfasst 1–500 Nachrichten in Verlaufsreihenfolge;
+der neue Thread öffnet mit eigenem Titel und zeigt den ausgewählten Kontext getrennt
+von den Antworten. Das Erstellen löst keine Agent-Antwort aus.
+
+**In Thread verschieben (Move into thread)** verschiebt die ausgewählten Nachrichten
+aus der Haupt-Zeitleiste und hinterlässt einen Titel mit Anzahl, der zum Thread
+zurückführt. **Zurück in den Raum (Return to room)** stellt nur die verschobenen
+Nachrichten wieder her; Antworten bleiben im Thread. Identitäten, Autoren, Anhänge,
+Reaktionen und ursprüngliche Reihenfolge bleiben erhalten. Eine verschobene Auswahl
+kannst du direkt bearbeiten: Der alte Bereich kehrt zurück und der neue wird
+gemeinsam verschoben.
+
+Wähle einen anderen Quellraum, um dessen Nachrichten zu referenzieren, ohne sie zu
+verschieben. Die Quelle muss in derselben Organisation liegen und für alle aktuellen
+Leser des Zielraums lesbar sein. Private Quellen und Projektquellen erfordern
+zusätzlich kompatible Agent-Mitgliedschaft. Ein Zielraum mit öffentlichem Freigabelink
+kann keinen Kontext importieren. Der Zugriff wird beim Lesen des Kontexts und vor der
+Nutzung durch einen Agenten erneut geprüft.
+
+Leser müssen auf jede verknüpfte Quelle zugreifen können, um den Zielraum, seine
+Dateien oder seine Suchergebnisse zu öffnen. Das Teilen des Zielraums teilt nicht die
+Quelle. Öffentliche Links und Forks mit importiertem Kontext sind nicht verfügbar.
+Sobald der Kontext für eine Anfrage oder Antwort genutzt wurde, bleiben seine Quelle
+und seine Thread-Markierung bestehen, auch wenn Antworten gelöscht werden; du kannst
+die Auswahl innerhalb dieser Quelle weiterhin bearbeiten. Antworten erscheinen nach
+dem Speichern und einer erneuten Zugriffsprüfung, nicht als Stream von
+quellenabgeleitetem Text.
+
+Der Thread-Starter oder ein Raum-Manager kann den Kontext ändern, solange beide
+Räume inaktiv sind. Schließe zuvor wartende, laufende oder pausierte Arbeit ab.
+Archivierte Threads sind schreibgeschützt, und eine Auswahl, die einen anderen
+Thread enthält, kann nicht verschoben werden. Enthaltener Kontext erhöht weder die
+Antwort- noch die Ungelesen-Zähler. Ausschlüsse bleiben aus dem ausgewählten Verlauf
+des Agenten heraus, auch aus automatischen Zitaten.
 
 ## Ein Projekt löschen { #deleting-a-project }
 

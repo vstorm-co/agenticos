@@ -10,9 +10,20 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/dashboard/page-header";
-import { BackLink } from "@/components/layout/back-link";
 import { EmptyState, ErrorState, LoadingState } from "@/components/states";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui";
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+import { CriteriaTable, familyRows } from "@/components/improvement/criteria";
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui";
 import { useAgent } from "@/hooks/use-agents";
 import { useDataset } from "@/hooks/use-datasets";
 import { useSkill } from "@/hooks/use-skills";
@@ -55,8 +66,10 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const checked = candidates[0]?.skill_ids?.[0];
   const checkId = run?.proposal_check?.skill_check_id ?? null;
   const { skill: stageSkill } = useSkill(checkId !== null && checked ? checked : null);
+  const [tab, setTab] = useUrlState("view");
   const [arm, setArm] = useUrlState("arm");
   const [tag, setTag] = useUrlState("tag");
+  const [outcomeParam, setOutcome] = useUrlState("outcome");
   const [brokenParam, setBrokenParam] = useUrlState("broken");
   const [testingAgain, setTestingAgain] = useState(false);
   // `?case=` names one case to open - how Activity hands a case back to its run.
@@ -66,6 +79,7 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   const [only, setOnly] = useUrlState("case");
   const cases = useRef<HTMLDivElement>(null);
   const focus = arm ?? candidates[0]?.id ?? null;
+  const selectedTab = tab === "criteria" || tab === "performance" ? tab : "questions";
   const live = run !== undefined && isLive(run.status);
   const {
     comparison,
@@ -84,8 +98,9 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
   }, [live, refetchComparison]);
   const loaded = run !== undefined;
   useEffect(() => {
-    if (asked !== null && loaded) cases.current?.scrollIntoView?.({ block: "start" });
-  }, [asked, loaded]);
+    if (asked !== null && loaded && selectedTab === "questions")
+      cases.current?.scrollIntoView?.({ block: "start" });
+  }, [asked, loaded, selectedTab]);
   // Everything on the page - access, back link, testing again, publishing - is
   // read off the agent in the address, so a run of another agent moves there.
   const owner = run?.agent_id;
@@ -137,11 +152,6 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
 
   return (
     <div className="w-full min-w-0 space-y-4 pb-6">
-      <BackLink
-        href={`${ROUTES.AGENTS}/${agentId}?tab=evals`}
-        label={t("back")}
-        className="text-muted-foreground hover:text-foreground inline-flex min-h-8 items-center gap-2 text-sm"
-      />
       <PageHeader
         title={t("resultTitle")}
         breadcrumbs={[
@@ -175,8 +185,16 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
         onTestAgain={canTestAgain ? () => setTestingAgain(true) : undefined}
         stage={stage}
         onRetryComparison={!live && comparisonError ? () => void refetchComparison() : undefined}
+        onShowFailed={() => {
+          setOnly(null);
+          setBrokenParam(null);
+          setOutcome("failed");
+          setTab(null);
+        }}
         onShowBroken={() => {
           setOnly(null);
+          setTab(null);
+          setOutcome(null);
           setBrokenParam("1");
           cases.current?.scrollIntoView?.({ behavior: "smooth" });
         }}
@@ -214,68 +232,129 @@ export function EvalRunView({ agentId, runId }: { agentId: string; runId: string
           </Link>
         )
       )}
-      <div className="flex flex-wrap gap-2">
-        {candidates.length > 1 && (
-          <Select value={focus ?? ""} onValueChange={setArm}>
-            <SelectTrigger aria-label={t("compareArm")} className="w-64">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {candidates.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {t("sideModel", { name: sideName(item, t, check), model: item.model_label })}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        {tags.length > 0 && (
-          <FilterSelect
-            label={tCases("tagFilter")}
-            value={tag ?? ALL}
-            onChange={(value) => setTag(value === ALL ? null : value)}
-            options={[
-              { value: ALL, label: tCases("allTags") },
-              ...tags.map((value) => ({ value, label: `#${value}` })),
-            ]}
+      <Tabs
+        value={selectedTab}
+        activationMode="manual"
+        onValueChange={(value) => {
+          setOnly(null);
+          setBrokenParam(null);
+          setTab(value === "questions" ? null : value);
+        }}
+      >
+        <NativeDisclosure open={selectedTab !== "questions"} className="rounded-xl border p-4">
+          <summary className="cursor-pointer text-sm font-medium">{t("workspace.details")}</summary>
+          <TabsList aria-label={t("resultTitle")} className="mt-4">
+            <TabsTrigger value="questions">{t("resultTabs.questions")}</TabsTrigger>
+            <TabsTrigger value="criteria">{t("resultTabs.criteria")}</TabsTrigger>
+            <TabsTrigger value="performance">{t("resultTabs.performance")}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="performance" className="space-y-4 pt-3">
+            <ArmsTable
+              agentId={agentId}
+              arms={run.arms}
+              tag={tag}
+              live={live}
+              baseline={comparison?.baseline ?? null}
+              check={check}
+              baselineSummary={comparison?.baseline_summary ?? null}
+            />
+            {!live && comparison && (
+              <NativeDisclosure className="rounded-xl border p-4 text-sm">
+                <summary className="cursor-pointer font-medium">
+                  {t("resultTabs.methodology")}
+                </summary>
+                <ComparisonCard
+                  agentId={agentId}
+                  comparison={comparison}
+                  tag={tag}
+                  check={check}
+                  showCriteria={false}
+                />
+              </NativeDisclosure>
+            )}
+          </TabsContent>
+          <TabsContent value="criteria" className="pt-3">
+            <section className="bg-card rounded-xl border p-4 sm:p-5">
+              {(comparison?.families?.length ?? 0) > 0 ? (
+                <CriteriaTable criteria={familyRows(comparison?.families ?? [])} />
+              ) : (
+                <p role="status" className="text-muted-foreground text-sm">
+                  {t("resultNoCriteria")}
+                </p>
+              )}
+            </section>
+          </TabsContent>
+        </NativeDisclosure>
+        {testingAgain && (
+          <StartEvalDialog
+            agentId={agentId}
+            datasetId={run.dataset_id}
+            target={candidate?.source === "version" ? "version" : "compare"}
+            onOpenChange={setTestingAgain}
           />
         )}
-      </div>
-      <ArmsTable
-        agentId={agentId}
-        arms={run.arms}
-        tag={tag}
-        live={live}
-        baseline={comparison?.baseline ?? null}
-        check={check}
-        baselineSummary={comparison?.baseline_summary ?? null}
-      />
-      {!live && comparison && (
-        <ComparisonCard agentId={agentId} comparison={comparison} tag={tag} check={check} />
-      )}
-      {testingAgain && (
-        <StartEvalDialog
-          agentId={agentId}
-          datasetId={run.dataset_id}
-          target={candidate?.source === "version" ? "version" : "compare"}
-          onOpenChange={setTestingAgain}
-        />
-      )}
-      <div ref={cases}>
-        <CaseTable
-          run={named}
-          arm={focus}
-          comparison={live || !comparable ? undefined : comparison}
-          tag={tag}
-          caseIds={only !== null ? [only] : broken ? brokenIds.slice(0, CASE_IDS) : null}
-          brokenTotal={brokenIds.length}
-          opened={only}
-          onShowAll={() => {
-            setBrokenParam(null);
-            setOnly(null);
-          }}
-        />
-      </div>
+        <section className="space-y-3 pt-3" aria-label={t("workspace.answers")}>
+          <div className="space-y-1">
+            <h2 className="text-base font-medium">{t("workspace.answers")}</h2>
+            <p className="text-muted-foreground text-sm">{t("workspace.answersHint")}</p>
+          </div>
+          <div ref={cases}>
+            <CaseTable
+              run={named}
+              controls={
+                <div className="flex flex-wrap items-center gap-2">
+                  {candidates.length > 1 && (
+                    <Select value={focus ?? ""} onValueChange={setArm}>
+                      <SelectTrigger aria-label={t("compareArm")} className="w-64">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {candidates.map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {t("sideModel", {
+                              name: sideName(item, t, check),
+                              model: item.model_label,
+                            })}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {tags.length > 0 && (
+                    <FilterSelect
+                      label={tCases("tagFilter")}
+                      value={tag ?? ALL}
+                      onChange={(value) => setTag(value === ALL ? null : value)}
+                      options={[
+                        { value: ALL, label: tCases("allTags") },
+                        ...tags.map((value) => ({ value, label: `#${value}` })),
+                      ]}
+                    />
+                  )}
+                </div>
+              }
+              outcome={
+                outcomeParam === "passed" ||
+                outcomeParam === "failed" ||
+                outcomeParam === "undecided"
+                  ? outcomeParam
+                  : null
+              }
+              onOutcomeChange={setOutcome}
+              arm={focus}
+              comparison={live || !comparable ? undefined : comparison}
+              tag={tag}
+              caseIds={only !== null ? [only] : broken ? brokenIds.slice(0, CASE_IDS) : null}
+              brokenTotal={brokenIds.length}
+              opened={only}
+              onShowAll={() => {
+                setBrokenParam(null);
+                setOnly(null);
+              }}
+            />
+          </div>
+        </section>
+      </Tabs>
     </div>
   );
 }

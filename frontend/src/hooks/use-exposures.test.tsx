@@ -5,8 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toast } from "sonner";
 
-import { useExposures } from "./use-exposures";
+import { useBotBindings, useExposures } from "./use-exposures";
 import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-error";
+import { qk } from "@/lib/query-keys";
 import type { Exposure } from "@/types/exposures";
 
 vi.mock("@/lib/api-client", () => ({
@@ -251,4 +253,135 @@ it("saves only participation configuration and surfaces a refused update", async
     result.current.setObservation.mutateAsync({ exposureId: "e1", observation }),
   ).rejects.toThrow("Denied");
   expect(toast.error).toHaveBeenCalled();
+});
+
+describe("a binding made on the agent page", () => {
+  it("also refreshes the channels list and every agent's targets", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue(exposure());
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const spy = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useExposures("a1"), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await result.current.expose.mutateAsync("b2");
+
+    expect(spy).toHaveBeenCalledWith({ queryKey: qk.exposures.all() });
+    expect(spy).toHaveBeenCalledWith({ queryKey: qk.channelBots.list() });
+  });
+});
+
+describe("pausing and removing a binding on the agent page", () => {
+  async function spied() {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const spy = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useExposures("a1"), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    return { result, spy };
+  }
+
+  it("refreshes the channels list when a binding is paused", async () => {
+    vi.mocked(apiClient.patch).mockResolvedValue(exposure({ is_active: false }));
+    const { result, spy } = await spied();
+
+    await result.current.setActive.mutateAsync({ exposureId: "e1", isActive: false });
+
+    expect(spy).toHaveBeenCalledWith({ queryKey: qk.exposures.all() });
+    expect(spy).toHaveBeenCalledWith({ queryKey: qk.channelBots.list() });
+  });
+
+  it("refreshes the channels list when a binding is removed", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const { result, spy } = await spied();
+
+    await result.current.revoke.mutateAsync("e1");
+
+    expect(spy).toHaveBeenCalledWith({ queryKey: qk.exposures.all() });
+    expect(spy).toHaveBeenCalledWith({ queryKey: qk.channelBots.list() });
+  });
+});
+
+describe("useBotBindings", () => {
+  function setup() {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const spy = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useBotBindings(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    return { result, spy };
+  }
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("binds with only the bot, on the default environment, and refreshes both families", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue(exposure({ channel_bot_name: "Ops bot" }));
+    const { result, spy } = setup();
+
+    await result.current.bind.mutateAsync({ agentId: "a2", botId: "b2", agentSlug: "writer" });
+
+    expect(apiClient.post).toHaveBeenCalledWith("/agents/a2/exposures", { channel_bot_id: "b2" });
+    expect(toast.success).toHaveBeenCalledWith("@writer now answers on Ops bot");
+    expect(spy).toHaveBeenCalledWith({ queryKey: qk.exposures.all() });
+    expect(spy).toHaveBeenCalledWith({ queryKey: qk.channelBots.list() });
+  });
+
+  it("unbinds by the binding's id and refreshes both families", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const { result, spy } = setup();
+
+    await result.current.unbind.mutateAsync({
+      agentId: "a1",
+      exposureId: "e1",
+      agentSlug: "support",
+      botName: "Acme Support",
+    });
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/agents/a1/exposures/e1");
+    expect(toast.success).toHaveBeenCalledWith("@support no longer answers on Acme Support");
+    expect(spy).toHaveBeenCalledWith({ queryKey: qk.exposures.all() });
+    expect(spy).toHaveBeenCalledWith({ queryKey: qk.channelBots.list() });
+  });
+
+  it("toasts a refusal and re-reads the bots only after a conflict", async () => {
+    const { result, spy } = setup();
+
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(404, "Agent not found"));
+    await expect(
+      result.current.bind.mutateAsync({ agentId: "a2", botId: "b2", agentSlug: "writer" }),
+    ).rejects.toThrow("Agent not found");
+    expect(toast.error).toHaveBeenCalledWith("Agent not found");
+    expect(spy).not.toHaveBeenCalled();
+
+    vi.mocked(apiClient.post).mockRejectedValueOnce(new ApiError(409, "Bot already serves one"));
+    await expect(
+      result.current.bind.mutateAsync({ agentId: "a2", botId: "b2", agentSlug: "writer" }),
+    ).rejects.toThrow("Bot already serves one");
+    expect(spy).toHaveBeenCalledWith({ queryKey: qk.channelBots.list() });
+
+    vi.mocked(apiClient.delete).mockRejectedValueOnce(new ApiError(404, "Not found"));
+    await expect(
+      result.current.unbind.mutateAsync({
+        agentId: "a1",
+        exposureId: "e1",
+        agentSlug: "support",
+        botName: "Acme Support",
+      }),
+    ).rejects.toThrow("Not found");
+    expect(toast.error).toHaveBeenCalledWith("Not found");
+  });
 });

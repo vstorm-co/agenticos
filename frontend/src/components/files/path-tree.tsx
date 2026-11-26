@@ -194,6 +194,7 @@ function PathTreeRow<N extends PathTreeNode>({
         <button
           type="button"
           onClick={() => onToggle(node.path)}
+          title={node.path}
           style={indent}
           className="touch:min-h-11 flex min-h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg py-2 pr-2 text-left focus-visible:outline-offset-[-2px]"
         >

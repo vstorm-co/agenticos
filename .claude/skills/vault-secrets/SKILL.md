@@ -8,6 +8,15 @@ description: Store, read or rotate a credential — a provider API key, a channe
 **Read `docs/secrets.md`.** The module docstrings in `app/core/vault.py` and
 `app/core/secret_kinds.py` carry the reasoning.
 
+## Maintainer-approved native subscription exception
+
+CLIProxyAPI subscription credentials are the narrow exception approved on
+2026-11-23. Its native store, refresh journal and per-process keys remain on
+`subscription_accounts`; they are not Vault-encrypted. Do not synchronize them
+only at shutdown: a crash can lose rotated credentials or refresh receipts.
+All other provider and connector credentials still use Vault. See
+`docs/design/subscription-native-credentials.md` for the decision and limits.
+
 ## The rule
 
 Every provider key, channel bot token, MCP credential and third-party API key seals

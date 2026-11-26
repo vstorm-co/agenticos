@@ -96,6 +96,7 @@ from app.schemas.improvement import NextStepBlocked
 from app.schemas.notification import CriterionSources, MovedCriterion
 from app.services.access import member_context
 from app.services.approval_authority import may_decide_approval, starter_of
+from app.services.channels.base import platform_name
 from app.services.notification_center import NotificationCenterService, absolute_context_url
 from app.services.outcome import OutcomeService, routine_failure_cause
 from app.services.spend import month_start, organization_spend_since
@@ -106,15 +107,6 @@ logger = logging.getLogger(__name__)
 # the spend; a builder can create an agent but is not who gets called when the
 # organization's month runs out.
 _ESCALATION_ROLES = [OrgRoleName.OWNER.value, OrgRoleName.ADMIN.value]
-
-_CHAT_PLATFORM_NAMES: dict[str, str] = {
-    "slack": "Slack",
-    "telegram": "Telegram",
-    "mattermost": "Mattermost",
-    "teams": "Microsoft Teams",
-    "discord": "Discord",
-    "whatsapp": "WhatsApp",
-}
 
 # The console page a security event's `context_url` opens, by the audited
 # entry's `target_type` - the same resource an admin would go check. A type
@@ -629,7 +621,7 @@ class NotificationService:
         identity = await channel_identity_repo.get_by_id(self.db, run.channel_identity_id)
         if identity is None:
             return "", summary
-        platform = _CHAT_PLATFORM_NAMES.get(identity.platform, identity.platform.title())
+        platform = platform_name(identity.platform)
         name = agent_run_repo.chat_account_name(identity)
         asked = f"asked in {platform} by {name} (unverified)"
         bot_name = await self._chat_bot_name(run)

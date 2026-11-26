@@ -11,7 +11,7 @@ import pytest
 from pydantic import SecretStr, ValidationError
 
 from app.core.claude_subscription import ClaudeSubscriptionImage, ClaudeSubscriptionOwner
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
@@ -20,11 +20,7 @@ from app.core.exceptions import (
     ExternalServiceError,
 )
 from app.core.permissions import AuthContext, OrgRoleName, Perm
-from app.schemas.claude_subscription import (
-    ClaudeSubscriptionLoginCode,
-    ClaudeSubscriptionLoginControl,
-    ClaudeSubscriptionRead,
-)
+from app.schemas.claude_subscription import ClaudeSubscriptionRead
 from app.services.claude_subscription import (
     ClaudeSubscriptionRuntime,
     ClaudeSubscriptionService,
@@ -60,9 +56,6 @@ def _state(**overrides):
         "available": True,
         "connected": False,
         "state": "disconnected",
-        "login_id": None,
-        "authorization_url": None,
-        "expires_at": None,
         "error_code": None,
         **overrides,
     }
@@ -76,18 +69,39 @@ def configured(monkeypatch):
     )
 
 
-async def test_unconfigured_status_has_no_network_and_login_is_explicit(monkeypatch):
+def test_legacy_runtime_settings_validate_origin_and_service_key():
+    valid = Settings(
+        _env_file=None,
+        CLAUDE_SUBSCRIPTION_URL="https://native-runtime.example/",
+        CLAUDE_SUBSCRIPTION_SERVICE_KEY="x" * 32,
+    )
+    assert valid.CLAUDE_SUBSCRIPTION_URL == "https://native-runtime.example"
+    for url in [
+        "ftp://native-runtime.example",
+        "https://",
+        "https://user:password@native-runtime.example",
+        "https://native-runtime.example/v1",
+        "https://native-runtime.example?token=secret",
+        "https://native-runtime.example#fragment",
+    ]:
+        with pytest.raises(ValidationError):
+            Settings(_env_file=None, CLAUDE_SUBSCRIPTION_URL=url)
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, CLAUDE_SUBSCRIPTION_SERVICE_KEY="short")
+
+
+async def test_unconfigured_status_has_no_network_and_inference_requires_config(monkeypatch):
     monkeypatch.setattr(settings, "CLAUDE_SUBSCRIPTION_URL", None)
     transport = httpx.MockTransport(lambda request: pytest.fail("No runtime is configured"))
     runtime = ClaudeSubscriptionRuntime(transport=transport)
     owner = subscription_owner(_ctx())
     assert (await runtime.status(owner)).model_dump() == _state(available=False)
     with pytest.raises(ConfigurationError, match="not configured"):
-        await runtime.login(owner)
+        await runtime.infer(owner, model="sonnet", prompt="Hi", output_schema={})
 
 
 async def test_private_protocol_uses_authenticated_owner_and_never_returns_credentials(configured):
-    ctx, login_id, seen = _ctx(), uuid4(), []
+    ctx, seen = _ctx(), []
 
     def respond(request):
         seen.append(request)
@@ -107,27 +121,10 @@ async def test_private_protocol_uses_authenticated_owner_and_never_returns_crede
     service = ClaudeSubscriptionService(
         ClaudeSubscriptionRuntime(transport=httpx.MockTransport(respond))
     )
-    for state in [
-        await service.status(ctx),
-        await service.login(ctx),
-        await service.code(
-            ctx,
-            ClaudeSubscriptionLoginCode(login_id=login_id, code=SecretStr("fake-one-time-code")),
-        ),
-        await service.cancel(ctx, ClaudeSubscriptionLoginControl(login_id=login_id)),
-        await service.disconnect(ctx),
-    ]:
-        assert "access_token" not in state.model_dump_json()
-        assert "private@example.com" not in state.model_dump_json()
-    assert [request.url.path for request in seen] == [
-        "/v1/status",
-        "/v1/login",
-        "/v1/login/code",
-        "/v1/login/cancel",
-        "/v1/disconnect",
-    ]
-    assert json.loads(seen[2].content)["login_id"] == str(login_id)
-    assert json.loads(seen[2].content)["code"] == "fake-one-time-code"
+    state = await service.status(ctx)
+    assert "access_token" not in state.model_dump_json()
+    assert "private@example.com" not in state.model_dump_json()
+    assert [request.url.path for request in seen] == ["/v1/status"]
 
 
 @pytest.mark.parametrize(
@@ -148,21 +145,11 @@ async def test_private_protocol_uses_authenticated_owner_and_never_returns_crede
         {"routine_activation_id": uuid4()},
     ],
 )
-async def test_every_connection_action_refuses_delegated_origins_before_runtime(overrides):
+async def test_status_and_model_access_refuse_delegated_origins_before_runtime(overrides):
     runtime = AsyncMock(spec=ClaudeSubscriptionRuntime)
     service = ClaudeSubscriptionService(runtime)
-    ctx, login_id = replace(_ctx(), **overrides), uuid4()
-    actions = [
-        lambda: service.status(ctx),
-        lambda: service.login(ctx),
-        lambda: service.code(
-            ctx, ClaudeSubscriptionLoginCode(login_id=login_id, code=SecretStr("fake-code"))
-        ),
-        lambda: service.cancel(ctx, ClaudeSubscriptionLoginControl(login_id=login_id)),
-        lambda: service.disconnect(ctx),
-        lambda: service.require_connected(ctx),
-    ]
-    for action in actions:
+    ctx = replace(_ctx(), **overrides)
+    for action in [lambda: service.status(ctx), lambda: service.require_connected(ctx)]:
         with pytest.raises(AuthorizationError):
             await action()
     assert runtime.mock_calls == []
@@ -184,53 +171,12 @@ async def test_profiles_require_a_connected_own_subscription():
     )
 
 
-@pytest.mark.parametrize(
-    "url",
-    [
-        "http://claude.ai/oauth/authorize",
-        "https://claude.ai.evil.example/oauth/authorize",
-        "https://console.anthropic.com/oauth/authorize",
-        "https://claude.ai@evil.example/oauth/authorize",
-        "https://someone@claude.ai/oauth/authorize",
-        "https://claude.ai:444/oauth/authorize",
-        "https://claude.ai/other",
-        "https://claude.ai/oauth/authorize#fragment",
-        "https://claude.ai:invalid/oauth/authorize",
-        "https://claude.com/oauth/authorize",
-        "https://claude.ai/cai/oauth/authorize",
-        "https://claude.com.evil.example/cai/oauth/authorize",
-        "https://someone@claude.com/cai/oauth/authorize",
-        "https://claude.com:444/cai/oauth/authorize",
-        "https://claude.com/cai/oauth/authorize#fragment",
-    ],
-)
-async def test_only_the_provider_authorization_page_can_be_returned(url, configured):
-    runtime = ClaudeSubscriptionRuntime(
-        transport=httpx.MockTransport(
-            lambda request: httpx.Response(200, json=_state(authorization_url=url))
-        )
-    )
-    with pytest.raises(ExternalServiceError, match="invalid connection state"):
-        await runtime.login(subscription_owner(_ctx()))
-
-
-def test_native_authorization_url_and_secret_code_schema():
+def test_native_status_schema_discards_runtime_credentials():
     state = ClaudeSubscriptionRead.model_validate(
-        _state(
-            state="awaiting_code",
-            login_id=str(uuid4()),
-            authorization_url="https://claude.ai:443/oauth/authorize/?code_challenge=fake",
-            expires_at="2026-11-07T12:00:00Z",
-        )
+        _state(access_token="must-not-leave-runtime", account_email="private@example.com")
     )
-    assert state.authorization_url.startswith("https://claude.ai")
-    code = ClaudeSubscriptionLoginCode(login_id=uuid4(), code=SecretStr("one-time-code"))
-    assert "one-time-code" not in repr(code)
-    assert "one-time-code" not in code.model_dump_json()
-    assert "code_challenge" not in repr(state)
-    for value in ["", "two words", "line\nbreak", "code\t", "\x1b[31m", "non-ascii-é", "x" * 2049]:
-        with pytest.raises(ValidationError):
-            ClaudeSubscriptionLoginCode(login_id=uuid4(), code=SecretStr(value))
+    assert "access_token" not in state.model_dump_json()
+    assert "private@example.com" not in state.model_dump_json()
 
 
 @pytest.mark.parametrize(
@@ -275,7 +221,7 @@ async def test_redirect_does_not_send_the_service_key_to_another_host(configured
 
     runtime = ClaudeSubscriptionRuntime(transport=httpx.MockTransport(redirect))
     with pytest.raises(ExternalServiceError) as error:
-        await runtime.login(subscription_owner(_ctx()))
+        await runtime.status(subscription_owner(_ctx()))
     assert len(requests) == 1
     assert "private-cli-output" not in str(error.value)
 
@@ -359,20 +305,6 @@ async def test_inference_rejects_malformed_and_oversized_replies(configured, bod
         await runtime.infer(
             subscription_owner(_ctx()), model="haiku", prompt="Hi", output_schema={}
         )
-
-
-@pytest.mark.parametrize(
-    "url",
-    [
-        "https://claude.ai/oauth/authorize?state=fake",
-        "https://claude.com/cai/oauth/authorize?state=fake",
-        "https://claude.com:443/cai/oauth/authorize/",
-    ],
-)
-def test_native_current_and_legacy_authorization_pages(url):
-    from app.schemas.claude_subscription import ClaudeSubscriptionRead
-
-    assert ClaudeSubscriptionRead(available=True, authorization_url=url).authorization_url == url
 
 
 async def test_inference_preserves_inline_image_bytes_and_false_thinking(configured):

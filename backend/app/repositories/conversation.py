@@ -17,6 +17,7 @@ from sqlalchemy import (
     Select,
     Text,
     and_,
+    any_,
     case,
     cast,
     distinct,
@@ -37,6 +38,7 @@ from sqlalchemy.orm import aliased, defer, load_only, raiseload, selectinload
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.agents.ask_user import parked_question_texts
+from app.core.permissions import Scope
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
@@ -48,8 +50,11 @@ from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_favourite import ConversationFavourite
 from app.db.models.conversation_last_read import ConversationLastRead
 from app.db.models.conversation_share import ConversationShare
+from app.db.models.resource_grant import Visibility
 from app.db.models.room_submission import RoomSubmission
+from app.db.models.room_thread import RoomThread
 from app.db.models.user import User
+from app.repositories import room_thread as room_thread_repo
 from app.repositories._search import contains_ci
 from app.schemas.conversation import HistoryCheckpointFrontier
 
@@ -300,10 +305,140 @@ async def lock_for_deletion(
 
 
 async def get_guardrail_revision(db: AsyncSession, conversation_id: UUID) -> int | None:
-    """The current refusal revision, independent of the session's identity map."""
+    """The current refusal and topology fence, independent of the identity map."""
     return await db.scalar(
-        select(Conversation.guardrail_revision).where(Conversation.id == conversation_id)
+        select(Conversation.guardrail_revision + Conversation.transcript_revision).where(
+            Conversation.id == conversation_id
+        )
     )
+
+
+async def _invalidate_referenced_context_history(
+    db: AsyncSession, *, conversation_ids: Collection[UUID]
+) -> None:
+    """Fence destinations whose selected context contains a changed source."""
+    if not conversation_ids:
+        return
+    destinations = select(RoomThread.conversation_id).where(
+        RoomThread.context_source_conversation_id.in_(conversation_ids),
+        RoomThread.conversation_id.not_in(conversation_ids),
+    )
+    await db.execute(
+        sql_update(Conversation)
+        .where(Conversation.id.in_(destinations))
+        .values(
+            transcript_revision=Conversation.transcript_revision + 1,
+            summary_messages=None,
+            summary_ordinal=None,
+        )
+    )
+
+
+async def invalidate_thread_context_history(
+    db: AsyncSession, *, conversation_ids: Collection[UUID]
+) -> None:
+    """Invalidate summaries and already-built history after a topology change."""
+    if not conversation_ids:
+        return
+    await db.execute(
+        sql_update(Conversation)
+        .where(Conversation.id.in_(conversation_ids))
+        .values(
+            transcript_revision=Conversation.transcript_revision + 1,
+            summary_messages=None,
+            summary_ordinal=None,
+        )
+    )
+    await _invalidate_referenced_context_history(db, conversation_ids=conversation_ids)
+    await db.flush()
+
+
+async def has_external_thread_context(db: AsyncSession, conversation_id: UUID) -> bool:
+    """Whether deleting this source would orphan another conversation's range."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    RoomThread.context_source_conversation_id == conversation_id,
+                    RoomThread.conversation_id != conversation_id,
+                )
+            )
+        )
+    )
+
+
+async def has_imported_thread_context(
+    db: AsyncSession, conversation_id: UUID, *, through_ordinal: int | None = None
+) -> bool:
+    """Whether this transcript or prefix depends on another room's access rules."""
+    query = (
+        select(RoomThread.root_message_id)
+        .join(
+            Message,
+            and_(
+                Message.conversation_id == RoomThread.conversation_id,
+                Message.id == RoomThread.root_message_id,
+            ),
+        )
+        .where(
+            RoomThread.conversation_id == conversation_id,
+            RoomThread.context_source_conversation_id.is_not(None),
+            RoomThread.context_source_conversation_id != conversation_id,
+        )
+    )
+    if through_ordinal is not None:
+        query = query.where(Message.ordinal <= through_ordinal)
+    return bool(await db.scalar(select(query.exists())))
+
+
+async def message_has_protected_thread_context(db: AsyncSession, message_id: UUID) -> bool:
+    """Protect range boundaries and moved originals from destructive root cascades."""
+    return bool(
+        await db.scalar(
+            select(
+                exists().where(
+                    or_(
+                        RoomThread.context_start_message_id == message_id,
+                        RoomThread.context_end_message_id == message_id,
+                        and_(
+                            RoomThread.root_message_id == message_id,
+                            RoomThread.context_used.is_(True),
+                            RoomThread.context_source_conversation_id != RoomThread.conversation_id,
+                        ),
+                        and_(
+                            RoomThread.context_moved.is_(True),
+                            or_(
+                                RoomThread.root_message_id == message_id,
+                                literal(message_id) == any_(RoomThread.context_message_ids),
+                            ),
+                        ),
+                    )
+                )
+            )
+        )
+    )
+
+
+async def context_snapshot_exists(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    source_conversation_id: UUID,
+    message_ids: Collection[UUID],
+) -> bool:
+    """Check the entire persisted range still exists inside its original tenant."""
+    if not message_ids:
+        return False
+    count = await db.scalar(
+        select(func.count(Message.id))
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Conversation.organization_id == organization_id,
+            Message.conversation_id == source_conversation_id,
+            Message.id.in_(message_ids),
+        )
+    )
+    return count == len(message_ids)
 
 
 def _list_filters(
@@ -406,8 +541,44 @@ async def authors_of(db: AsyncSession, identity_ids: list[UUID]) -> dict[UUID, C
     return {identity.id: identity for identity in result.scalars().all()}
 
 
+class RoutineLogAccess(NamedTuple):
+    scope: Scope
+    shared_agent_ids: frozenset[UUID]
+
+
+def _own_routine_log(user_id: UUID, access: RoutineLogAccess) -> ColumnElement[bool]:
+    allowed: ColumnElement[bool] = Agent.id.in_(access.shared_agent_ids)
+    if access.scope is Scope.ALL:
+        allowed = literal(True)
+    elif access.scope is Scope.OWN:
+        allowed = or_(allowed, Agent.owner_user_id == user_id)
+    elif access.scope in (Scope.SHARED, Scope.TEAM):
+        visibility = [Visibility.ORG.value]
+        if access.scope is Scope.TEAM:
+            visibility.append(Visibility.TEAM.value)
+        allowed = or_(allowed, Agent.owner_user_id == user_id, Agent.visibility.in_(visibility))
+    return and_(
+        Conversation.user_id.is_(None),
+        Conversation.project_id.is_(None),
+        select(AgentTrigger.id)
+        .join(Agent, Agent.id == AgentTrigger.agent_id)
+        .where(
+            AgentTrigger.conversation_id == Conversation.id,
+            AgentTrigger.organization_id == Conversation.organization_id,
+            Agent.organization_id == Conversation.organization_id,
+            AgentTrigger.created_by_user_id == user_id,
+            allowed,
+        )
+        .correlate(Conversation)
+        .exists(),
+    )
+
+
 def _reachable_by(
-    user_id: UUID, participant_ids: Collection[UUID], project_ids: Collection[UUID]
+    user_id: UUID,
+    participant_ids: Collection[UUID],
+    project_ids: Collection[UUID],
+    routine_access: RoutineLogAccess | None = None,
 ) -> ColumnElement[bool]:
     """Whose conversation list a thread appears in.
 
@@ -435,6 +606,8 @@ def _reachable_by(
         ways_in.append(Conversation.id.in_(participant_ids))
     if project_ids:
         ways_in.append(Conversation.project_id.in_(project_ids))
+    if routine_access is not None:
+        ways_in.append(_own_routine_log(user_id, routine_access))
     return or_(*ways_in)
 
 
@@ -977,11 +1150,13 @@ async def get_conversations_by_user(
     favourites_first_for: UUID | None = None,
     participant_conversation_ids: Collection[UUID] = frozenset(),
     visible_project_ids: Collection[UUID] = frozenset(),
+    routine_access: RoutineLogAccess | None = None,
     hide_api: bool = False,
     hide_channels: bool = False,
     project_id: UUID | None = None,
     for_model: bool = False,
     project_scope: Literal["include", "only", "exclude"] = "include",
+    excluded_conversation_ids: Collection[UUID] = frozenset(),
 ) -> list[Conversation]:
     """Get one organization's conversations, optionally narrowed to one user.
 
@@ -1010,8 +1185,12 @@ async def get_conversations_by_user(
     )
     if user_id:
         query = query.where(
-            _reachable_by(user_id, participant_conversation_ids, visible_project_ids)
+            _reachable_by(
+                user_id, participant_conversation_ids, visible_project_ids, routine_access
+            )
         )
+    if excluded_conversation_ids:
+        query = query.where(Conversation.id.not_in(excluded_conversation_ids))
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,
@@ -1098,11 +1277,13 @@ async def count_conversations(
     archived_only: bool = False,
     participant_conversation_ids: Collection[UUID] = frozenset(),
     visible_project_ids: Collection[UUID] = frozenset(),
+    routine_access: RoutineLogAccess | None = None,
     hide_api: bool = False,
     hide_channels: bool = False,
     project_id: UUID | None = None,
     for_model: bool = False,
     project_scope: Literal["include", "only", "exclude"] = "include",
+    excluded_conversation_ids: Collection[UUID] = frozenset(),
 ) -> int:
     """Count one organization's conversations, optionally narrowed to one user.
 
@@ -1116,8 +1297,12 @@ async def count_conversations(
     )
     if user_id:
         query = query.where(
-            _reachable_by(user_id, participant_conversation_ids, visible_project_ids)
+            _reachable_by(
+                user_id, participant_conversation_ids, visible_project_ids, routine_access
+            )
         )
+    if excluded_conversation_ids:
+        query = query.where(Conversation.id.not_in(excluded_conversation_ids))
     for condition in _list_filters(
         search=search,
         agent_id=agent_id,
@@ -1587,13 +1772,14 @@ async def fork_conversation(
     source: Conversation,
     through: Message,
     copy_bytes: int,
+    owner_user_id: UUID | None = None,
     restored_summary: dict[str, JsonValue] | None = None,
     copy_summary: bool = True,
 ) -> Conversation:
     """A new conversation holding `source`'s messages up to and including `through`.
 
-    Owned by the source's owner, in its organization and project, with the same
-    title. Each message is copied with its tool calls, in the order it was
+    Owned by the source's owner unless the service supplies the authorized
+    routine creator, in the source organization and project, with the same title. Each message is copied with its tool calls, in the order it was
     written, and flushed one at a time: the ordinal comes from an identity, and
     one multi-row insert does not promise to hand it out in the order of the
     rows.
@@ -1616,7 +1802,7 @@ async def fork_conversation(
     reaches past the fork point covers turns the fork does not have, and is left behind.
     """
     fork = Conversation(
-        user_id=source.user_id,
+        user_id=owner_user_id if owner_user_id is not None else source.user_id,
         organization_id=source.organization_id,
         title=source.title,
         project_id=source.project_id,
@@ -2240,6 +2426,7 @@ async def thread_summaries(
         .where(
             Message.conversation_id == conversation_id,
             Message.thread_root_message_id.in_(root_ids),
+            ~room_thread_repo.is_context_message(Message),
         )
         .group_by(Message.thread_root_message_id)
     )
@@ -2255,13 +2442,29 @@ async def room_thread_for_run(
 ) -> UUID | None:
     """The persisted request owns the answer's scope, including resumed segments."""
     return await db.scalar(
-        select(Message.thread_root_message_id)
-        .join(RoomSubmission, RoomSubmission.message_id == Message.id)
-        .where(
+        select(RoomSubmission.thread_root_message_id).where(
             RoomSubmission.run_id == run_id,
             RoomSubmission.organization_id == organization_id,
             RoomSubmission.conversation_id == conversation_id,
-            Message.conversation_id == conversation_id,
+        )
+    )
+
+
+async def room_thread_for_request(
+    db: AsyncSession,
+    *,
+    conversation_id: UUID,
+    message_id: UUID,
+    request_id: UUID | None,
+) -> UUID | None:
+    """Read the request's accepted scope independently of later display moves."""
+    return await db.scalar(
+        select(RoomSubmission.thread_root_message_id).where(
+            RoomSubmission.conversation_id == conversation_id,
+            RoomSubmission.message_id == message_id,
+            RoomSubmission.id == request_id
+            if request_id is not None
+            else RoomSubmission.parent_submission_id.is_(None),
         )
     )
 
@@ -2305,8 +2508,28 @@ async def _thread_with_parent_context(
     root: Message,
     replies: list[Message],
     limit: int,
-) -> list[Message]:
-    remaining = limit - len(replies) - 1
+) -> list[Message] | None:
+    context = await db.scalar(
+        select(RoomThread)
+        .where(
+            RoomThread.conversation_id == conversation_id,
+            RoomThread.root_message_id == root.id,
+        )
+        .execution_options(populate_existing=True)
+    )
+    if context is not None and context.context_source_conversation_id is not None:
+        selected = await room_thread_repo.context_messages(
+            db,
+            organization_id=context.organization_id,
+            source_conversation_id=context.context_source_conversation_id,
+            message_ids=context.context_message_ids,
+        )
+        if {row.id for row in selected} != set(context.context_message_ids):
+            return None
+        # The selected snapshot is an explicit context budget, independent of
+        # the ordinary recent-reply window. Never silently trim its 500 rows.
+        return [*selected, root, *replies]
+    remaining = max(0, limit - len(replies) - 1)
     earlier = (
         await get_messages_by_conversation(
             db,
@@ -2377,7 +2600,7 @@ async def get_room_history_messages(
                 Message.ordinal,
                 RoomSubmission.ordinal,
                 RoomSubmission.organization_id,
-                Message.thread_root_message_id,
+                RoomSubmission.thread_root_message_id,
             )
             .join(RoomSubmission, RoomSubmission.message_id == Message.id)
             .where(
@@ -2393,18 +2616,13 @@ async def get_room_history_messages(
     if boundary is None:
         return None
     message_ordinal, submission_ordinal, organization_id, root_id = boundary
-    requested = aliased(Message)
-    preceding_runs = (
-        select(RoomSubmission.run_id)
-        .join(requested, requested.id == RoomSubmission.message_id)
-        .where(
-            RoomSubmission.organization_id == organization_id,
-            RoomSubmission.conversation_id == conversation_id,
-            RoomSubmission.ordinal < submission_ordinal,
-            RoomSubmission.run_id.is_not(None),
-            RoomSubmission.status.in_(("completed", "failed", "cancelled", "interrupted")),
-            requested.thread_root_message_id.is_not_distinct_from(root_id),
-        )
+    preceding_runs = select(RoomSubmission.run_id).where(
+        RoomSubmission.organization_id == organization_id,
+        RoomSubmission.conversation_id == conversation_id,
+        RoomSubmission.ordinal < submission_ordinal,
+        RoomSubmission.run_id.is_not(None),
+        RoomSubmission.status.in_(("completed", "failed", "cancelled", "interrupted")),
+        RoomSubmission.thread_root_message_id.is_not_distinct_from(root_id),
     )
     root = None
     if root_id is not None:
@@ -2418,6 +2636,7 @@ async def get_room_history_messages(
         .where(
             Message.conversation_id == conversation_id,
             Message.thread_root_message_id.is_not_distinct_from(root_id),
+            ~room_thread_repo.is_context_message(Message),
             or_(
                 Message.ordinal < message_ordinal,
                 and_(Message.role == "assistant", Message.run_id.in_(preceding_runs)),
@@ -2476,7 +2695,10 @@ async def get_messages_by_conversation(
     if top_level_only:
         query = query.where(Message.thread_root_message_id.is_(None))
     if thread_root_message_id is not None:
-        query = query.where(Message.thread_root_message_id == thread_root_message_id)
+        query = query.where(
+            Message.thread_root_message_id == thread_root_message_id,
+            ~room_thread_repo.is_context_message(Message),
+        )
     if for_model:
         query = query.where(Message.guardrail_refused.is_(False))
     if include_tool_calls or fresh:
@@ -2498,6 +2720,89 @@ async def get_messages_by_conversation(
     return list(reversed(items)) if latest else items
 
 
+async def moved_thread_stubs(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    conversation_id: UUID,
+    page_message_ids: Collection[UUID],
+    before: UUID | None,
+    latest: bool,
+) -> list[tuple[RoomThread, str]]:
+    """Place moved-range stubs in the same ordinal window as a transcript page.
+
+    Gaps between surviving main messages belong to the earlier page. The oldest
+    page also includes ranges before its first surviving row, so moving every
+    old message never leaves an unreachable stub.
+    """
+    cursor = None
+    if before is not None:
+        cursor = await db.scalar(
+            select(Message.ordinal).where(
+                Message.conversation_id == conversation_id,
+                Message.id == before,
+                Message.thread_root_message_id.is_(None),
+            )
+        )
+        if cursor is None:
+            return []
+    bounds = (
+        await db.execute(
+            select(func.min(Message.ordinal), func.max(Message.ordinal)).where(
+                Message.conversation_id == conversation_id,
+                Message.id.in_(page_message_ids),
+                Message.thread_root_message_id.is_(None),
+            )
+        )
+    ).one()
+    first, last = bounds
+    query = (
+        select(RoomThread, Message.content)
+        .join(
+            Message,
+            and_(
+                Message.id == RoomThread.root_message_id,
+                Message.conversation_id == RoomThread.conversation_id,
+            ),
+        )
+        .where(
+            RoomThread.organization_id == organization_id,
+            RoomThread.conversation_id == conversation_id,
+            RoomThread.context_source_conversation_id == conversation_id,
+            RoomThread.context_moved.is_(True),
+        )
+    )
+    if cursor is not None:
+        query = query.where(RoomThread.context_first_ordinal < cursor)
+    if first is not None and last is not None:
+        previous = await db.scalar(
+            select(func.max(Message.ordinal)).where(
+                Message.conversation_id == conversation_id,
+                Message.thread_root_message_id.is_(None),
+                Message.ordinal < first,
+            )
+        )
+        if latest:
+            if previous is not None:
+                query = query.where(RoomThread.context_first_ordinal >= first)
+        else:
+            if previous is not None:
+                query = query.where(RoomThread.context_first_ordinal > previous)
+            later = select(Message.id).where(
+                Message.conversation_id == conversation_id,
+                Message.thread_root_message_id.is_(None),
+                Message.ordinal > last,
+            )
+            if cursor is not None:
+                later = later.where(Message.ordinal < cursor)
+            if await db.scalar(select(later.exists())):
+                query = query.where(RoomThread.context_first_ordinal <= last)
+    elif not latest:
+        return []
+    rows = await db.execute(query.order_by(RoomThread.context_first_ordinal))
+    return [(row, title) for row, title in rows.all()]
+
+
 async def count_messages(
     db: AsyncSession,
     conversation_id: UUID,
@@ -2514,7 +2819,10 @@ async def count_messages(
     if top_level_only:
         query = query.where(Message.thread_root_message_id.is_(None))
     if thread_root_message_id is not None:
-        query = query.where(Message.thread_root_message_id == thread_root_message_id)
+        query = query.where(
+            Message.thread_root_message_id == thread_root_message_id,
+            ~room_thread_repo.is_context_message(Message),
+        )
     if for_model:
         query = query.where(Message.guardrail_refused.is_(False))
     result = await db.execute(query)
@@ -2890,7 +3198,7 @@ async def set_summary(
     """
     conditions = [
         Conversation.id == db_conversation.id,
-        Conversation.guardrail_revision == expected_revision,
+        Conversation.guardrail_revision + Conversation.transcript_revision == expected_revision,
         ~exists().where(RoomSubmission.conversation_id == Conversation.id),
     ]
     if expected_ordinal is not None:
@@ -3305,6 +3613,7 @@ async def _invalidate_refused_history(
             summary_ordinal=case((covered, None), else_=Conversation.summary_ordinal),
         )
     )
+    await _invalidate_referenced_context_history(db, conversation_ids={conversation_id})
 
 
 async def _mark_refused(db: AsyncSession, predicate: ColumnElement[bool]) -> None:
@@ -3384,6 +3693,7 @@ async def delete_message(db: AsyncSession, message_id: UUID) -> bool:
     """Delete a message."""
     message = await get_message_by_id(db, message_id)
     if message:
+        await invalidate_thread_context_history(db, conversation_ids={message.conversation_id})
         await db.delete(message)
         await db.flush()
         return True

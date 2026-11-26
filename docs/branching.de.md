@@ -1,5 +1,5 @@
 ---
-source_sha: "2738919b34a2"
+source_sha: "deffef3ca00a"
 ---
 
 # Branches und was sie schützt { #branches-and-what-protects-them }
@@ -383,6 +383,8 @@ kostet einen Klick statt eines Aufsatzes.
   `main`-Lauf einen anderen abbricht.
 
 ## Release-Cuts und gemeinsame Releases { #release-cuts-and-release-trains }
+
+Der Release-Rhythmus folgt der [Maintainer-Entscheidung in Diskussion #3208](https://github.com/vstorm-co/agenticos/discussions/3208#discussioncomment-19796269). Ein separates Release je gemergtem PR ist nicht erforderlich.
 
 Behalte separate PRs und bereite bei Änderungen in Unreleased **ein manuelles
 Release pro Tag** vor. Es gibt keinen geplanten Cut und keine automatische

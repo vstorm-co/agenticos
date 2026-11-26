@@ -3,7 +3,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { Button, Card } from "@/components/ui";
+import { Button, Card, ListCard } from "@/components/ui";
+import { isClosed } from "@/lib/improvement-steps";
 import { usd } from "@/components/evals/format";
 import type { Improvement } from "@/types/improvement";
 import { AttemptChoice } from "./attempt-choice";
@@ -28,7 +29,11 @@ export function ResultStep({
   knowledgeCheck,
   onAccept,
   onStarted,
+  evidence,
+  changes,
 }: {
+  evidence?: ReactNode;
+  changes?: ReactNode;
   session: Improvement;
   agent: string;
   candidate: boolean;
@@ -39,40 +44,48 @@ export function ResultStep({
   onStarted: () => void;
 }) {
   const t = useTranslations("improvement");
-  const locale = useLocale();
   const { topics } = useSessionTopics(session);
   const chosen = session.iterations.find((round) => round.id === session.best_iteration_id);
   const host = chosen ?? session.iterations.at(-1);
   return (
     <section className="space-y-4" data-tour="improvement-results">
-      <ResultDecision
-        session={session}
-        agent={agent}
-        candidate={candidate}
-        topics={topics.length}
-        canAccept={canAccept}
-        onAccept={onAccept}
-        onStarted={onStarted}
-      />
-      <ResultSummary session={session} round={chosen} />
-      {session.iterations.length > 0 && (
-        <section className="space-y-2">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-            <h3 className="text-sm font-medium">{t("attemptsTitle")}</h3>
-            <p className="text-muted-foreground text-xs">
-              {t("sessionTotal", { total: usd(session.spent_usd, locale) })}
-            </p>
-          </div>
-          {session.iterations.map((round) => (
-            <AttemptRow
-              key={round.id}
-              session={session}
-              round={round}
-              extra={round.id === host?.id ? knowledgeCheck : undefined}
-            />
-          ))}
-        </section>
+      <Card className="min-w-0 space-y-5 p-4 sm:p-5">
+        <ResultDecision
+          session={session}
+          agent={agent}
+          candidate={candidate}
+          topics={topics.length}
+          canAccept={canAccept}
+          onAccept={onAccept}
+          onStarted={onStarted}
+        />
+        <div className="border-t pt-4">
+          <ResultSummary session={session} round={chosen} />
+        </div>
+      </Card>
+      {(changes || evidence) && (
+        <div className="min-w-0 space-y-4">
+          {changes && (
+            <ListCard
+              role="region"
+              aria-label={t("workspace.changes")}
+              title={t("workspace.changes")}
+            >
+              {changes}
+            </ListCard>
+          )}
+          {evidence && (
+            <ListCard
+              role="region"
+              aria-label={t("workspace.evidence")}
+              title={t("workspace.evidence")}
+            >
+              {evidence}
+            </ListCard>
+          )}
+        </div>
       )}
+      {!isClosed(session) && <ResultAttempts session={session} knowledgeCheck={knowledgeCheck} />}
       {!host && draftCheckShown(session, topics) && (
         <Details summary={t("showDetails")}>{knowledgeCheck}</Details>
       )}
@@ -82,6 +95,45 @@ export function ResultStep({
         </div>
       )}
     </section>
+  );
+}
+
+export function ResultAttempts({
+  session,
+  knowledgeCheck,
+  openFirst = false,
+}: {
+  openFirst?: boolean;
+  session: Improvement;
+  knowledgeCheck: ReactNode;
+}) {
+  const t = useTranslations("improvement");
+  const locale = useLocale();
+  const host =
+    session.iterations.find((round) => round.id === session.best_iteration_id) ??
+    session.iterations.at(-1);
+  return (
+    <div className="space-y-4">
+      {session.iterations.length > 0 && (
+        <section className="space-y-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <h3 className="text-sm font-medium">{t("attemptsTitle")}</h3>
+            <p className="text-muted-foreground text-xs">
+              {t("sessionTotal", { total: usd(session.spent_usd, locale) })}
+            </p>
+          </div>
+          {session.iterations.map((round, index) => (
+            <AttemptRow
+              key={round.id}
+              session={session}
+              round={round}
+              initiallyOpen={openFirst && index === 0}
+              extra={round.id === host?.id ? knowledgeCheck : undefined}
+            />
+          ))}
+        </section>
+      )}
+    </div>
   );
 }
 
@@ -213,23 +265,33 @@ function ResultDecision({
     (round) => GAINS.includes(round.verdict) && round.number <= session.max_iterations,
   );
   const diagnosed = noisy && !better;
+  const closed = isClosed(session);
+  const Summary = closed ? "h2" : "p";
   const topicsButton = (variant: "default" | "outline") => (
     <Button asChild variant={variant}>
       <a href={`#${DOCUMENTS_ANCHOR}`}>{t("resultDecision.reviewTopics")}</a>
     </Button>
   );
   return (
-    <Card className="space-y-4 p-4 sm:p-6" data-tour="improvement-decision">
-      <h2 className="font-medium">{t("resultDecision.title")}</h2>
-      <p
+    <section className="min-w-0 space-y-3" data-tour="improvement-decision">
+      {!closed && <h2 className="text-lg font-medium">{t("resultDecision.title")}</h2>}
+      <Summary
         role={session.status === "failed" && session.stop_reason ? "alert" : undefined}
-        className="text-sm"
+        className={closed ? "text-base leading-relaxed font-medium" : "text-sm"}
       >
         {[
           ...(diagnosed && noise ? [noiseSentence(t, locale, noise, agent)] : []),
           ...headline(t, locale, session, agent, topics),
         ].join(" ")}
-      </p>
+      </Summary>
+      {session.status === "published" && session.published_version != null && (
+        <Link
+          className="inline-block text-sm underline underline-offset-4"
+          href={`/agents/${session.agent_id}?tab=history&from=${session.published_version}&to=${session.published_version}`}
+        >
+          {t("decision.openVersion", { version: session.published_version })}
+        </Link>
+      )}
       {noise && <TooFewShared noise={noise} />}
       {noisy && better && noise && (
         <p className="text-muted-foreground text-sm">
@@ -278,6 +340,6 @@ function ResultDecision({
         </div>
       )}
       {diagnosed && noise && <UnstableQuestions noise={noise} />}
-    </Card>
+    </section>
   );
 }

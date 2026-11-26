@@ -358,6 +358,15 @@ class TestTheApprovalReadsAsARequest:
     def test_a_server_that_names_itself_twice_is_named_once(self):
         assert call_action("notion_notion-search") == "search in Notion"
 
+    def test_the_platform_server_is_named_as_the_product_is(self):
+        assert call_action("agenticos_create_routine") == "create routine in AgenticOS"
+
+    def test_a_catalog_server_is_named_as_its_catalog_entry(self):
+        assert call_action("github_create_issue") == "create issue in GitHub"
+
+    def test_a_server_outside_the_catalog_keeps_its_capitalised_prefix(self):
+        assert call_action("acme_ping") == "ping in Acme"
+
     def test_a_name_with_nothing_after_its_prefix_is_kept(self):
         assert call_action("notion_notion") == "notion notion"
 

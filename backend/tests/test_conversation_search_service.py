@@ -56,6 +56,18 @@ def db(monkeypatch) -> MagicMock:
     monkeypatch.setattr(
         service.ConversationService, "visible_project_ids", AsyncMock(return_value=[PROJECT])
     )
+    monkeypatch.setattr(
+        service.room_participant_repo,
+        "user_conversation_ids",
+        AsyncMock(return_value={THREAD}),
+    )
+    monkeypatch.setattr(
+        service.member_repo, "get_active", AsyncMock(return_value=SimpleNamespace())
+    )
+    monkeypatch.setattr(
+        "app.repositories.room_thread_context_access.external_context_edges",
+        AsyncMock(return_value=[]),
+    )
     return session
 
 
@@ -74,6 +86,10 @@ class TestWhatMayBeReached:
         await service.search(query="x", organization_id=ORG, user_id=PERSON, limit=5)
 
         assert by.call_args.args == (PERSON, {THREAD}, [PROJECT])
+        assert by.call_args.kwargs == {
+            "private_room_ids": {THREAD},
+            "active_organization_member": True,
+        }
         assert search_repo.search.await_args.kwargs["readable"] is readable
 
     async def test_the_read_resolves_access_the_same_way_the_search_does(self, db, monkeypatch):

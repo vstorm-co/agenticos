@@ -7,7 +7,6 @@ import { useTranslations } from "next-intl";
 
 import { AddModel } from "@/components/agents/add-model";
 import { SectionCard } from "@/components/settings/settings-section";
-import { ClaudeSubscriptionConnection } from "@/components/settings/claude-subscription-connection";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { PersonalApiConnection } from "@/components/vault/personal-api-connection";
@@ -33,7 +32,6 @@ export function PersonalModelConnections() {
     >
       <div className="space-y-6" data-tour="personal-model-setup">
         <p className="text-muted-foreground text-sm">{t("personalUse")}</p>
-        <ClaudeSubscriptionConnection />
         {user && can(Perm.secretsView) && can(Perm.agentsView) ? (
           <PersonalModelConnectionsContent userId={user.id} />
         ) : (

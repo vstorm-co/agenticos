@@ -727,3 +727,55 @@ it("retains acknowledged tool results while coalescing a delayed opening segment
   expect(combined?.toolCalls).toEqual([completed]);
   expect(combined?.parts?.find((part) => part.type === "tool")?.toolCall).toEqual(completed);
 });
+
+describe("placeholders for messages moved into a thread", () => {
+  const stub = (root: string, first_ordinal: number) => ({
+    root_message_id: root,
+    source_conversation_id: "room-a",
+    first_ordinal,
+    last_ordinal: first_ordinal,
+    message_count: 1,
+    title: root,
+  });
+  /** The stubs and messages in the order a reader meets them. */
+  const order = (container: HTMLElement) =>
+    [...container.querySelectorAll("[data-context-stub-root], [data-testid^='message-']")].map(
+      (node) =>
+        node.getAttribute("data-context-stub-root") ?? node.getAttribute("data-testid") ?? "",
+    );
+
+  it("puts each placeholder where its range used to be, and later ranges at the end", () => {
+    const { container } = render(
+      <MessageList
+        messages={[message({ id: "m-1", ordinal: 1 }), message({ id: "m-2", ordinal: 6 })]}
+        movedThreadStubs={[stub("late", 9), stub("second", 4), stub("first", 2)]}
+        onOpenThread={vi.fn()}
+      />,
+    );
+
+    expect(order(container)).toEqual(["message-m-1", "first", "second", "message-m-2", "late"]);
+  });
+
+  it("appends every placeholder when the transcript carries no positions", () => {
+    const { container } = render(
+      <MessageList
+        messages={[message({ id: "m-1" })]}
+        movedThreadStubs={[stub("moved", 1)]}
+        onOpenThread={vi.fn()}
+      />,
+    );
+
+    expect(order(container)).toEqual(["message-m-1", "moved"]);
+  });
+
+  it("shows no placeholder on a surface that cannot open a thread", () => {
+    const { container } = render(
+      <MessageList
+        messages={[message({ id: "m-1", ordinal: 5 })]}
+        movedThreadStubs={[stub("before", 1), stub("after", 9)]}
+      />,
+    );
+
+    expect(order(container)).toEqual(["message-m-1"]);
+  });
+});

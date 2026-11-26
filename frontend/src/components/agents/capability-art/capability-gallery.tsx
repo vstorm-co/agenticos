@@ -1,5 +1,6 @@
 "use client";
 
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { glideOrJump } from "@/lib/motion";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -37,8 +38,10 @@ export function CapabilityGallery({
   onClose,
   onToggle,
   detail,
+  expandAdvanced = false,
 }: {
   shelves: CapabilityShelf[];
+  expandAdvanced?: boolean;
   enabled: ReadonlySet<string>;
   openedId: string | null;
   disabled?: boolean;
@@ -52,17 +55,33 @@ export function CapabilityGallery({
   const opened = shelves.flatMap((shelf) => shelf.entries).find((e) => e.id === openedId);
   return (
     <div className="space-y-6">
-      {shelves.map((shelf) => (
-        <Shelf
-          key={shelf.name}
-          shelf={shelf}
-          enabled={enabled}
-          openedId={openedId}
-          disabled={disabled}
-          onOpen={onOpen}
-          onToggle={onToggle}
-        />
-      ))}
+      {shelves.map((shelf) => {
+        const content = (
+          <Shelf
+            key={shelf.name}
+            shelf={shelf}
+            enabled={enabled}
+            openedId={openedId}
+            disabled={disabled}
+            onOpen={onOpen}
+            onToggle={onToggle}
+          />
+        );
+        return shelf.name === "advanced" ? (
+          <NativeDisclosure
+            key={shelf.name}
+            open={expandAdvanced || undefined}
+            className="space-y-3"
+          >
+            <summary className="text-muted-foreground cursor-pointer text-sm font-medium">
+              {shelf.label}
+            </summary>
+            {content}
+          </NativeDisclosure>
+        ) : (
+          content
+        );
+      })}
       {opened && (
         <Sheet open onOpenChange={onClose}>
           <SheetContent side="right" className="bg-background w-full overflow-y-auto sm:max-w-2xl">

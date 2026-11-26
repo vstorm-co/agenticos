@@ -397,3 +397,28 @@ async def test_code_mode_keeps_the_native_skill_loader_directly_available():
         ],
     )
     assert (await agent.run("Refund", deps=AgentDeps())).output == "done"
+
+
+async def test_the_first_skill_catalog_contains_the_native_deferred_entries():
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        assert "refunds:" in (info.instructions or "")
+        assert "Available skills:" in (info.instructions or "")
+        return ModelResponse(parts=[TextPart("ready")])
+
+    assert (
+        await Agent(FunctionModel(respond), capabilities=[SkillLoader(), _skill()]).run("Prepare")
+    ).output == "ready"
+
+
+def test_available_skill_ids_are_not_rewritten_as_tool_names():
+    skill_id = "missing"
+    names = repr("`load_capability`")
+    message = f"No capability found with id {skill_id!r}. Available capability ids: {names}."
+    assert (
+        _skill_message(message, skill_id)
+        == f"No skill found with id {skill_id!r}. Available skill ids: {names}."
+    )
+    assert (
+        _skill_message(f"No capability found with id {skill_id!r}.", skill_id)
+        == f"No skill found with id {skill_id!r}."
+    )

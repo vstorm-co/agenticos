@@ -36,7 +36,7 @@ class TestDocumentationSecret:
             secret=None, needs_secret=lambda config: True, validate_config=lambda blob: blob
         )
 
-        assert _documentation_secret(definition) is None
+        assert _documentation_secret(definition, None) is None
 
     def test_a_conditional_secret_the_default_config_does_not_need_gets_none(self):
         definition = SimpleNamespace(
@@ -45,7 +45,7 @@ class TestDocumentationSecret:
             validate_config=lambda blob: blob,
         )
 
-        assert _documentation_secret(definition) is None
+        assert _documentation_secret(definition, None) is None
 
     def test_a_non_api_key_secret_gets_no_stand_in(self):
         """Only `API_KEY` is faked - another kind is the wrong shape to stub,
@@ -56,7 +56,7 @@ class TestDocumentationSecret:
             validate_config=lambda blob: blob,
         )
 
-        assert _documentation_secret(definition) is None
+        assert _documentation_secret(definition, None) is None
 
     def test_an_unconditional_api_key_secret_gets_a_probe_value(self):
         definition = SimpleNamespace(
@@ -65,7 +65,7 @@ class TestDocumentationSecret:
             validate_config=lambda blob: blob,
         )
 
-        secret = _documentation_secret(definition)
+        secret = _documentation_secret(definition, None)
 
         assert secret is not None
         assert secret.api_key.get_secret_value() == "documentation-probe"

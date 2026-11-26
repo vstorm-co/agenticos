@@ -1164,7 +1164,7 @@ Inbound `references` must be a list of strings without CR or LF; retained entrie
    commands and messages from the messages tab*. Without it Slack hides the
    bot's message box and a direct message is impossible.
 8. Publish the agent, then bind it: Builder → the agent → **Availability** → the
-   bot.
+   bot, or **Channels** → the bot's row → **Bind agent**.
 9. Invite the bot to a channel — `/invite @your-bot` — and mention it.
 
 !!! tip "Or paste a manifest and skip steps 2, 4, 6 and 7"
@@ -1347,11 +1347,11 @@ that one in too, or the bot keeps the access it had.
     to the container log and nowhere else.
 
     The rest is still silent, and this is the order to check it in: no agent
-    bound to the bot (the row says so), a missing scope or event subscription,
-    then a wrong `BOT_ID` in the Request URL. That last one cannot report
-    itself: the events route answers **200 and does nothing** for a bot id it
-    cannot find, on purpose, because a prober should learn only that the
-    endpoint exists - which the URL already said.
+    bound to the bot, or its binding paused (the row says which), a missing
+    scope or event subscription, then a wrong `BOT_ID` in the Request URL. That
+    last one cannot report itself: the events route answers **200 and does
+    nothing** for a bot id it cannot find, on purpose, because a prober should
+    learn only that the endpoint exists - which the URL already said.
 
 Works in channels and in DMs. A message from a linked account runs as that
 person — never as the bot; one from an account nobody has linked runs under the
@@ -1416,6 +1416,11 @@ does, beside `/new`, `/link` and `/help` - shows *typing…* while it works and
 names the step it is on, sends answers as Telegram HTML converted from the
 agent's Markdown so code blocks and links survive, and answers a forum group's
 topic in that topic.
+
+A streamed answer is formatted the same way once it is
+finished. List items start with `•`, and a task list shows ☐ and ☒. An answer
+longer than Telegram's 4096 characters arrives as several messages, and a code
+block cut between two of them is closed and opened again.
 
 ## Mattermost
 
@@ -1957,6 +1962,16 @@ show a duplicate if a send succeeded but its acknowledgement was lost; this is
 at-least-once delivery, not a promise of exactly-once messages. Exhausted attempts
 are visible in **Admin → Background jobs** (`deliver-channel-handback`).
 
+### Routine answers in a private chat { #routine-answers-in-a-private-chat }
+
+A routine made in a private chat on Telegram, Slack, Mattermost, Teams, Discord or Matrix that opens a new chat for each run (`chat_mode=per_run`) also has the bot post each run's answer to the chat it was made in, so the person reads it where they asked for it. The whole run stays in its own console chat.
+
+The private-chat routine send has one durable attempt. If the worker stops or the platform does not confirm acceptance, it is marked unavailable rather than sent automatically again; the complete answer remains in the console. This favors avoiding duplicate messages over retrying an uncertain send.
+
+Before it posts, the platform checks again the creator's linked account, their membership, the bound agent and the conversation. While the post is waiting, the routine reads **Sending last answer to chat**. When the chat accepts the answer, the status is `delivered`. When the chat cannot take it, the routine reads **Last answer unavailable in chat** and its owner gets a notice. The answer stays in the run log.
+
+A routine with one shared history (`chat_mode=shared`) posts nothing to the chat. Group chats, SMS, iMessage and email keep the answer in the console. After `/new` the old conversation is no longer the chat's, so later answers stay in the console. Do not also route the routine's notifications to the same chat: the answer would arrive twice.
+
 ### Next steps as buttons { #next-steps-as-buttons }
 
 An answer from an agent with [Follow-ups](reference/capabilities.md#follow-ups)
@@ -2050,6 +2065,13 @@ surface, so a difference between the console and Mattermost remains visible.
     Telegram bot and two Mattermost servers at once, and each of those bindings
     carries its own instructions, its own channel lookups and its own workspace
     scope.
+
+    Bind or unbind from the agent's **Availability** tab, or from the bot's row
+    under **Channels**. Channels offers only agents you may publish
+    (`agents:publish` on that agent) and binds on the agent's default
+    environment; environment, pause, lookups and instructions stay on the
+    Availability tab. A row shows an agent you may not publish without the
+    unbind action, and lists a paused binding as paused.
 
     This replaced routing several agents behind one bot with `@slug`. It worked
     and it read badly: somebody in a channel had to type a handle to pick
@@ -2915,7 +2937,9 @@ admitted the message, the same way it appends that binding's prompt.
 New bindings enable every tool supported by their platform. Existing bindings keep their saved selection; turn off any tool the agent should not use. What a platform cannot answer is not offered:
 Telegram gives a bot no directory of chats to search and no way to read messages
 it was not sent, and `getChatAdministrators` is the whole of what it may list —
-so a Telegram member list is a list of administrators and says so.
+so a Telegram member list is a list of administrators and says so. A private chat
+has no member list at all: `{channel_members}` reads `(unavailable)` there and the
+member tool says why, without calling Telegram.
 
 Three things worth knowing before granting them:
 

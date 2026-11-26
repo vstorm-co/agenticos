@@ -17,14 +17,12 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
-    select,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, column_property, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin
-from app.db.models.conversation import Message
 
 
 class RoomSubmission(Base, TimestampMixin):
@@ -125,17 +123,10 @@ class RoomSubmission(Base, TimestampMixin):
     dispatch: Mapped[str] = mapped_column(
         String(16), nullable=False, default="explicit", server_default="explicit"
     )
-    # Read from the durable post in the same SQL query: the queue never guesses
-    # its scope from whichever transcript page a client happens to have loaded.
-    thread_root_message_id: Mapped[uuid.UUID | None] = column_property(
-        select(Message.thread_root_message_id)
-        .where(Message.id == message_id, Message.conversation_id == conversation_id)
-        .correlate_except(Message)
-        .scalar_subquery(),
-        # The accepted post's scope is immutable. Queue/status flushes must not
-        # expire this read expression and trigger sync IO during serialization.
-        expire_on_flush=False,
-    )
+    # The thread the person selected when this post was accepted. Message
+    # placement can later change when a range is moved, but a queued or resumed
+    # request must keep the scope it was admitted under.
+    thread_root_message_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     ordinal: Mapped[int] = mapped_column(BigInteger, Identity(), nullable=False)
     client_message_id: Mapped[str] = mapped_column(String(128), nullable=False)
     fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)

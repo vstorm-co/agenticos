@@ -40,6 +40,12 @@ class ConversationTask(Base, TimestampMixin):
             name="fk_conversation_task_topic",
         ),
         UniqueConstraint("source_run_id", "tool_call_id", name="uq_conversation_task_call"),
+        UniqueConstraint("queue_receipt_id", name="uq_conversation_task_queue_receipt"),
+        CheckConstraint(
+            "(source_run_id IS NOT NULL AND tool_call_id IS NOT NULL AND queue_receipt_id IS NULL) OR "
+            "(source_run_id IS NULL AND tool_call_id IS NULL AND queue_receipt_id IS NOT NULL)",
+            name="ck_conversation_task_provenance",
+        ),
         CheckConstraint(
             "status IN ('queued', 'running', 'awaiting_approval', 'awaiting_answer', 'completed', 'failed', 'cancelled', 'interrupted')",
             name="status",
@@ -78,8 +84,8 @@ class ConversationTask(Base, TimestampMixin):
     )
     source_conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     conversation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    source_run_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False
+    source_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=True
     )
     source_agent_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
@@ -97,7 +103,16 @@ class ConversationTask(Base, TimestampMixin):
         UUID(as_uuid=True), nullable=True
     )
     """The resolved chat choice; a removed profile refuses instead of falling back."""
-    tool_call_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    tool_call_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    queue_receipt_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(
+            "accepted_queued_messages.id",
+            ondelete="CASCADE",
+            name="fk_conversation_task_queue_receipt",
+        ),
+        nullable=True,
+    )
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     local_target: Mapped[dict[str, JsonValue] | None] = mapped_column(JSONB, nullable=True)

@@ -70,6 +70,7 @@ describe("pickedLocale", () => {
     expect(pickedLocale("")).toBeNull();
     expect(pickedLocale("fr")).toBeNull();
     expect(pickedLocale("pl")).toBeNull();
+    expect(pickedLocale("es")).toBeNull();
   });
 });
 

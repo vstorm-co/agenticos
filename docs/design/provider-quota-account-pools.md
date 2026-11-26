@@ -81,7 +81,6 @@ to try another identity.
 | `backend/app/services/coding_accounts.py` and `personal_coding.py` | Personal account consent, isolated task execution and current-authority checks. |
 | `backend/app/services/coding_account_lease.py` | A single renewable-credential lease; an occupied account returns an explicit busy result. |
 | `backend/app/agents/model_resolver.py` | Configured model fallback using `FallbackModel`. Preserve this behavior independently. |
-| `backend/app/schemas/claude_subscription.py` and `services/claude_subscription/_service.py` | Native Claude login state and owner-facing connection management, not quota telemetry. |
 | `backend/app/agents/capabilities/coding_agent/_harness.py` and `harness/_sessions.py` | Existing harness adapters. Do not equate an installed harness with verified subscription login or limit reporting. |
 | `frontend/src/components/settings/coding-accounts.tsx` and `personal-model-connections.tsx` | Current personal connection surfaces to extend. |
 

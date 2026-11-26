@@ -39,6 +39,7 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
 
   const labels = timelineOf(usage).map(bucketLabeller(usage, locale));
   const waiting = waitingOn(usage?.pending_approvals ?? 0, others);
+  const onlyWaitingKind = waiting.length === 1 ? waiting[0]?.[0] : undefined;
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
@@ -70,7 +71,7 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
           />
           <Figure
             tone="amber"
-            label={t("waiting")}
+            label={onlyWaitingKind ? t(`waitingLabel.${onlyWaitingKind}`) : t("waiting")}
             value={<AnimatedTally value={waiting.reduce((sum, [, count]) => sum + count, 0)} />}
             caption={waiting.length > 0 ? <WaitingParts waiting={waiting} /> : t("nothingWaiting")}
           />
@@ -104,7 +105,6 @@ function WaitingParts({ waiting }: { waiting: [WaitingKind, number][] }) {
   return parts.map((part, index) => {
     if (part.type !== "element") return part.value;
     const [kind] = waiting[item++]!;
-    if (kind === "suggestions") return part.value;
     return (
       <Link
         key={index}

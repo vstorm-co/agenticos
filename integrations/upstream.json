@@ -3,19 +3,19 @@
   "upstream": {
     "repository": "https://github.com/vstorm-co/agenticos",
     "branch": "main",
-    "release": "v1.90.1",
-    "commit": "87c8f272fd6769f0b5dc6b42a8eba5a0d7cd809c"
+    "release": "v1.93.0",
+    "commit": "bb09fedf19b10f897c6a55dbdcd76a212dc9a275"
   },
   "fork": {
     "repository": "https://github.com/t3grp/agenticos",
     "mirror_branch": "main",
     "integration_branch": "t3"
   },
-  "selected_on": "2026-11-22",
+  "selected_on": "2026-11-26",
   "timezone": "Asia/Singapore",
   "compatibility": {
     "status": "not_tested",
-    "reason": "v1.90.1 sync candidate; full current-source CI, migration rehearsal and downstream acceptance remain required.",
+    "reason": "v1.93.0 sync candidate; full current-source CI, migration rehearsal and downstream acceptance remain required.",
     "evidence": []
   }
 }

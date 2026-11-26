@@ -127,21 +127,32 @@ call per case when a judge scores the dataset .
 
 The estimate includes model-backed grading whenever the dataset requires it, priced on the model selected in Grading. No organization switch disables that scorer.
 
-An agent with no history on a model is estimated as a typical case -
-`EVAL_FALLBACK_INPUT_TOKENS` in, `EVAL_FALLBACK_OUTPUT_TOKENS` out - at the
+An agent with no history on a model is estimated as typical requests -
+`EVAL_FALLBACK_INPUT_TOKENS` in, `EVAL_FALLBACK_OUTPUT_TOKENS` out each - at the
 model's own price, or at `EVAL_FALLBACK_CASE_COST_USD` for a model nothing
-prices, and the estimate says it is a rough guess (`basis: "fallback"`). A judge
-with no history is priced the same way, on the model its published spec names;
-the estimate warns when that is the model being tested, and a run's page when
-it was. The baseline's cost is part of the total,
+prices, and the estimate says it is a rough guess (`basis: "fallback"`). An
+answer is one request, or `1 + EVAL_FALLBACK_TOOL_ROUNDS` when the agent has a
+tool: each tool call is answered in another request.
+
+A judge with no history is
+priced as one request that also reads the answer it grades, on the model its
+published spec names; the estimate warns when that is the model being tested,
+and a run's page when it was. The baseline's cost is part of the total,
 unless a recent matching baseline is reused, in which case its first answers
 cost nothing and the estimate names the run they come from.
 
 ### The budget it leaves { #the-budget-it-leaves }
 
-An eval spends from the agent's and organization's existing monthly budgets. The estimate
-reports their remaining amounts after the full exposure as `agent_after_usd` and
-`org_after_usd`. Starting refuses with `402` when the first pass plus
+An eval spends from the agent's and organization's existing monthly budgets.
+`total_usd` is the first answers and their grading, and `expected_usd` what the
+run most likely costs: that, and half of `rerun_ceiling_usd` for a run compared
+with a baseline, because a compared run usually asks about half of the cases it
+may ask again. A stability run asks every case again, and a run with nothing to
+compare with asks none. The start dialog shows `expected_usd`, with the most the
+run may cost beneath it, and a run's page what it spent against both.
+
+The estimate reports the budgets' remaining amounts after the full exposure as
+`agent_after_usd` and `org_after_usd`. Starting refuses with `402` when the first pass plus
 `rerun_ceiling_usd` exceeds either budget. The ceiling includes every case
 flipping, all confirming attempts, the judge and baseline reruns, including a
 reused baseline. Actual spending can differ from this estimate. Each model
@@ -267,6 +278,8 @@ them.
 
 ## Results { #results }
 
+The result leads with the outcome and the answers to review. A comparison shows the number of passing answers before and after. Open a question to read its response and grading. **How this was tested** keeps criterion-family results, cost and run mechanics on demand; opening those details keeps the answers visible. The outcome filter and selected question remain in the URL.
+
 Every attempt keeps the answer, the calls it made - each marked executed,
 blocked, replayed or divergent - every scorer's verdict and reason, its cost,
 its tokens and its latency. The answer and calls are copied onto the result,
@@ -276,7 +289,7 @@ Each arm of the run is summarised on two axes, and per tag:
 
 | Axis | Measures |
 |---|---|
-| Quality | Pass rate over the decided cases, each as most of its tries came out; the first answers' rate beside it; how many were left undecided, and why |
+| Quality | Pass rate over the decided cases, each as most of its tries came out; the first answers' rate beside it; how many were left undecided, and why; **Criteria passed** (`partial_credit`), the mean share of each case's criteria its first answer passed - six of seven counts 6/7 where the pass rate counts the case failed - with `criteria_passed` and `criteria_graded` |
 | Efficiency | Cost per passed case, tokens per case, and latency at p50 and p95 |
 
 Every attempt comes out one of four ways (`state` on the attempt):
@@ -390,8 +403,22 @@ provider's, not the agent's.
 A completed baseline arm stands in for running one only when its version,
 dataset version, model, scoring and judge all match, it ran in the same
 environment with the same `from_recordings` and `live_reads`, and it finished within
-`EVAL_BASELINE_CACHE_HOURS`. The run says which run it reused. Only its first
-answers are reused: a case that flips is asked of it again in this run.
+`EVAL_BASELINE_CACHE_HOURS`. No context file the agent binds may have changed
+since that run: a context file is read live at every answer. The run says which
+run it reused. Only its first answers are reused: a case that flips is asked of
+it again in this run.
+
+A baseline that is the agent's draft - what an Improve session measures each
+attempt against - is matched by the draft's exact fingerprint, and only when the
+earlier run left out exactly the same cases. That run may be the session's previous
+check, or a run of a published version whose spec the draft still is, so a session
+started from an unedited draft reuses that version's own eval.
+
+A session leaves out its own evidence in every check, so while the draft is
+unchanged the baseline answers at most once per session. A run that asked more
+cases is never cut down, because a reused arm's answers are read whole. A reused
+baseline costs nothing in the estimate. A published baseline with cases left out
+is never reused.
 
 ### A flip is confirmed before it counts { #a-flip-is-confirmed-before-it-counts }
 
@@ -412,22 +439,39 @@ confirm the drift.
 
 A case passes only when every criterion it is graded on passes - each check,
 judge criterion, expected tool call and reference grade - so a change that
-fixes one of a case's several failing criteria flips no case. A case where
-any criterion graded on both sides flipped is rerun as well, and the
+fixes one of a case's several failing criteria flips no case. The
 comparison's `criteria` lists, per criterion, how many cases both sides
-graded on it, how many each side passed on its first answer, and the
-fixes and breaks confirmed the same way as a case's: every rerun on both
-sides repeats them.
+graded on it, how many each side passed on its first answer, and the fixes
+and breaks every rerun on both sides repeated. It lists at most 200: past
+that, every criterion that moved comes first, then the ones failing most
+often.
 
-The comparison lists at most 200 criteria: past that, every criterion
-that moved comes first, then the ones failing most often.
+Criteria are also counted by **family**: the checks and judge criteria that
+test one thing across the dataset, named by a check's
+[`family`](datasets.md#checks). A criterion whose check names none is a family
+of its own. A family passes in a case when every criterion of it does there, and
+the comparison's `families` lists, per family, the cases both sides graded,
+how many each side passed, and the cases it flipped on. It lists at most 200
+families: past that, every family worse or better comes first, then any other
+that moved, then the ones failing most often.
+
+A family is **settled**
+when its own flipped cases are enough for an exact McNemar test to tell which
+way it moved; then every flip counts. A family that moved on two cases or more
+without being settled has those cases rerun, and only the flips every rerun
+repeated count. A family that moved on one case decides nothing and sends
+nothing to be asked again. Beside the cases whose outcome flipped, these are the
+only cases rerun.
+
+A run that keeps questions aside for an Improve session is judged on them
+alone, so only its held-out cases are rerun, and its families settle on those
+cases. Its training cases are never asked again: the next attempt reads their
+first answers, and nothing reads a rerun of them. Its rerun ceiling counts the
+held-out cases alone.
 
 The verdict below stays about whole cases; an
 [Improve session](authoring.md#the-improve-wizard) and a
-[skill check](skills.md#the-rule) read the criteria when no case flipped.
-Asking those cases again costs more than a check that reruns flipped cases
-alone, and stays within its price ceiling, which already assumes every case
-is asked again.
+[skill check](skills.md#the-rule) read the families when no case flipped.
 
 A run compared with a baseline needs at least one rerun; a run with
 none may skip them. A run compared with an earlier run it never asked again -
@@ -642,8 +686,9 @@ channel yet.
 | `EVAL_BASELINE_CACHE_HOURS` | `24` | How old a matching baseline may be and still be reused |
 | `EVAL_SIGNIFICANCE` | `0.05` | The level below which confirmed flips are a verdict |
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | A relative change in cost, tokens or latency counted as none |
-| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | The input tokens a case is priced at on a model with no history |
-| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | The output tokens a case is priced at on a model with no history |
+| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | The input tokens a request is priced at on a model with no history |
+| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | The output tokens a request is priced at on a model with no history |
+| `EVAL_FALLBACK_TOOL_ROUNDS` | `2` | The requests an answer from an agent with tools takes beyond one, on a model with no history |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | The estimate per case on a model with no history and no known price |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | How many recent runs the estimate averages |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | How long a running run may stand still, its worker silent, before the sweep fails it |

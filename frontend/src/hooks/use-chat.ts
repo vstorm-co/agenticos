@@ -24,6 +24,25 @@ import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
 import { turnFileSourceFromEvent } from "@/lib/turn-file-source";
 import { clientId } from "@/lib/ids";
+import {
+  acceptedQueuedMessagesApi,
+  listAcceptedQueuedMessages,
+  newQueueClientId,
+  type AcceptedQueuedMessageReceipt,
+} from "@/lib/accepted-queued-messages-api";
+import {
+  acceptedQueuePayload,
+  ensureQueueClientId,
+  queueFromReceipt,
+  queueMayDrain,
+  queueMaySteer,
+  queueReceiptPayloadUnsupportedReason,
+  queueTaskUnavailableReason,
+} from "@/lib/accepted-queued-message-queue";
+import {
+  cancelAcceptedQueueItem,
+  transferAcceptedQueueItem,
+} from "@/lib/accepted-queued-message-transfer";
 import { keepOutbox, keptOutbox } from "@/lib/offline/device-cache";
 import { nextStepEvent, withNextSteps, type NextStepEvent } from "@/lib/next-step-events";
 import { coalesceChatFrames } from "@/lib/chat-frame-batch";
@@ -41,6 +60,7 @@ import type {
   ChatCompactionStatus,
   ChatMessageFile,
   ChatPerson,
+  MessageReply,
   Compaction,
   ComputerAccessRequest,
   ConnectionRequest,
@@ -110,10 +130,51 @@ interface PendingCompactionRequest {
   scopeKey: string;
 }
 
+interface QueueReceiptScope {
+  generation: number;
+  conversationId: string | null;
+  selectionVersion: number;
+  accountId: string | null;
+  tenantId: string | null;
+  organizationId: string | null;
+  enabled: boolean;
+}
+
+interface OutboxLoad {
+  conversationId: string | null;
+  generation: number;
+  token: symbol;
+  complete: boolean;
+  removedReceiptKeys: Set<string>;
+}
+
+interface QueueReceiptReconciliation {
+  conversationId: string;
+  generation: number;
+  outboxToken: symbol;
+  complete: boolean;
+  removedReceiptKeys: Set<string>;
+}
+
+interface ThreadPersistenceScope {
+  conversationId: string;
+  threadRootMessageId: string | null;
+  selectionVersion: number;
+  accountId: string | null;
+  organizationId: string | null;
+}
+
+export interface SavedTurnScope extends ThreadPersistenceScope {
+  /** Re-read the current main-room transcript when no optimistic bubble was saved. */
+  refreshMainTranscript: boolean;
+}
+
 interface UseChatOptions {
   /** Read only at submission; queued turns retain their own detached snapshot. */
   pageContext?: () => AssistantPageContext | null;
   conversationId?: string | null;
+  /** Owner-scoped accepted receipts back queued turns in personal conversations. */
+  queueReceiptsEnabled?: boolean;
   requestedQuestionRunId?: string | null;
   onConversationCreated?: (conversationId: string) => void;
   /**
@@ -123,7 +184,7 @@ interface UseChatOptions {
    * the turns stored in it - so this is the first moment a listing fetched
    * before the answer can be told who gave it.
    */
-  onTurnSaved?: () => void;
+  onTurnSaved?: (scope?: SavedTurnScope) => void;
   /**
    * The socket came back after dropping mid-answer.
    *
@@ -153,6 +214,18 @@ function withoutThread(threads: ReadonlySet<string>, id: string | null): Readonl
   const next = new Set(threads);
   next.delete(id);
   return next;
+}
+
+/** Pause and queue order are local presentation state, not receipt changes. */
+function queueReceiptSnapshotUnchanged(current: QueuedMessage, snapshot: QueuedMessage): boolean {
+  const currentFields = current as unknown as Record<string, unknown>;
+  const snapshotFields = snapshot as unknown as Record<string, unknown>;
+  const fields = new Set([...Object.keys(currentFields), ...Object.keys(snapshotFields)]);
+  for (const field of fields) {
+    if (field === "paused" || field === "receiptReconciliationPending") continue;
+    if (!Object.is(currentFields[field], snapshotFields[field])) return false;
+  }
+  return true;
 }
 
 /** How often a person still writing says so, and how long a room shows it after. */
@@ -200,6 +273,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   const {
     conversationId,
+    queueReceiptsEnabled = false,
     requestedQuestionRunId,
     onConversationCreated,
     onTurnSaved,
@@ -281,6 +355,14 @@ export function useChat(options: UseChatOptions = {}) {
   // and keep action scopes separate from whichever turn starts next.
   const turnThreadRootRef = useRef<string | null>(null);
   const runThreadRootsRef = useRef(new Map<string, string | null>());
+  // A saved answer may arrive after its reader has switched rooms. Keep the
+  // selection identity captured when its scoped frame was followed, so
+  // message_saved can refresh only the room the reader is still authorized to
+  // view. Bounded and keyed by the run id when an early frame carries one.
+  const threadPersistenceScopesRef = useRef(new Map<string, ThreadPersistenceScope>());
+  // Some early status frames intentionally carry only conversation/thread
+  // scope. Hold that snapshot until the saved receipt supplies its run id.
+  const unkeyedThreadPersistenceScopeRef = useRef<ThreadPersistenceScope | null>(null);
   const [turnThreadScope, setTurnThreadScope] = useState<{
     conversationId: string | null;
     root: string | null;
@@ -336,6 +418,17 @@ export function useChat(options: UseChatOptions = {}) {
   // "pending" entries above the input. The ref is the source of truth for the
   // drainer effect; the parallel state triggers re-renders for the UI.
   const messageQueueRef = useRef<QueuedMessage[]>([]);
+  const queueOperationsRef = useRef(new Set<string>());
+  const queueAcceptanceOperationsRef = useRef(
+    new Map<string, { generation: number; token: symbol }>(),
+  );
+  const outboxLoadRef = useRef<OutboxLoad | null>(null);
+  const [loadedOutbox, setLoadedOutbox] = useState<OutboxLoad | null>(null);
+  const queueReceiptReconciliationRef = useRef<QueueReceiptReconciliation | null>(null);
+  const reconcileQueueReceiptRef = useRef<
+    ((id: string, action: "send" | "steer") => Promise<void>) | null
+  >(null);
+  const queueStopVersion = useRef(0);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const [sentTurnId, setSentTurnId] = useState<string | null>(null);
   // In the apps the queue is also the outbox: kept sealed on the device under the
@@ -344,6 +437,40 @@ export function useChat(options: UseChatOptions = {}) {
   // `keepOutbox` keeps nothing.
   const outboxForRef = useRef<string | null>(null);
   const setQueue = useCallback((next: QueuedMessage[]) => {
+    const reconciliation = queueReceiptReconciliationRef.current;
+    const outboxLoad = outboxLoadRef.current;
+    const scope = queueReceiptScopeRef.current;
+    const recovery =
+      outboxLoad &&
+      !outboxLoad.complete &&
+      outboxLoad.conversationId === scope.conversationId &&
+      outboxLoad.generation === scope.generation
+        ? outboxLoad
+        : reconciliation &&
+            !reconciliation.complete &&
+            reconciliation.conversationId === scope.conversationId &&
+            reconciliation.generation === scope.generation
+          ? reconciliation
+          : null;
+    if (recovery) {
+      const presentKeys = new Set<string>();
+      for (const item of next) {
+        presentKeys.add(`row:${item.id}`);
+        if (item.clientQueueId) presentKeys.add(`client:${item.clientQueueId}`);
+        if (item.acceptedQueueId) presentKeys.add(`receipt:${item.acceptedQueueId}`);
+      }
+      for (const item of messageQueueRef.current) {
+        if (!presentKeys.has(`row:${item.id}`)) {
+          recovery.removedReceiptKeys.add(`row:${item.id}`);
+        }
+        if (item.clientQueueId && !presentKeys.has(`client:${item.clientQueueId}`)) {
+          recovery.removedReceiptKeys.add(`client:${item.clientQueueId}`);
+        }
+        if (item.acceptedQueueId && !presentKeys.has(`receipt:${item.acceptedQueueId}`)) {
+          recovery.removedReceiptKeys.add(`receipt:${item.acceptedQueueId}`);
+        }
+      }
+    }
     messageQueueRef.current = next;
     setQueuedMessages([...next]);
     void keepOutbox(outboxForRef.current, next);
@@ -357,11 +484,24 @@ export function useChat(options: UseChatOptions = {}) {
   // which changes anything else the drainer watches.
   const [drainTick, setDrainTick] = useState(0);
   const queuedSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pauseQueued = useCallback(() => {
+    queueStopVersion.current += 1;
+    if (queuedSendTimer.current !== null) clearTimeout(queuedSendTimer.current);
+    queuedSendTimer.current = null;
+    setQueue(messageQueueRef.current.map((message) => ({ ...message, paused: true })));
+  }, [setQueue]);
+
+  const resumeQueued = useCallback(() => {
+    setQueue(messageQueueRef.current.map(({ paused: _paused, ...message }) => message));
+    setDrainTick((tick) => tick + 1);
+  }, [setQueue]);
+
   const sessionReadyRef = useRef(true);
   const [sessionReady, setSessionReady] = useState(true);
   // Corrections sent into the running turn, until `steer_applied` says the model
   // has them, and questions asked beside it with their answers (#2087).
   const [steers, setSteers] = useState<SteerDraft[]>([]);
+  const appliedQueueSteerIdsRef = useRef(new Set<string>());
   const modelProfileRef = useRef<string | null>(null);
   // Read at send time like the model profile, and for the same reason: the queue
   // drainer sends a turn up to a minute later, and the frame must carry whatever
@@ -373,6 +513,12 @@ export function useChat(options: UseChatOptions = {}) {
   // read from the store at that moment, because switching agents while an answer
   // is streaming must not re-credit that answer to the newly picked agent.
   const turnAgentIdRef = useRef<string | null>(null);
+  const liveSteerAgentId = isProcessing
+    ? (turnAgentIdRef.current ??
+      messages.filter((message) => message.role === "assistant" && message.isStreaming).at(-1)
+        ?.agentId ??
+      null)
+    : null;
   const pendingFileRootRef = useRef<{
     root: string;
     account: string | null;
@@ -453,6 +599,7 @@ export function useChat(options: UseChatOptions = {}) {
   const secretOfferedForRef = useRef<Set<string>>(new Set());
   const secretContextRef = useRef(0);
   const answeringSecretRef = useRef<{ kind: "fulfil" | "decline" } | null>(null);
+  const runtimeQuestionIdRef = useRef<string | null>(null);
   const liveQuestionBatchId = useRef<string | null>(null);
   const [liveQuestionTarget, setLiveQuestionTarget] = useState<{
     id: string;
@@ -700,6 +847,7 @@ export function useChat(options: UseChatOptions = {}) {
       questionOfferedForRef.current.add(runId);
       parkedQuestionRunRef.current = runId;
       liveQuestionRef.current = false;
+      runtimeQuestionIdRef.current = null;
       // Every call the run is waiting on, not the first: the backend answers a
       // call left out as declined, so offering one put words the person never
       // chose into the others.
@@ -849,7 +997,41 @@ export function useChat(options: UseChatOptions = {}) {
         const root = frame.thread_root_message_id ?? null;
         turnThreadRootRef.current = root;
         const runId = frame.run_id ?? frame.resumed_run_id;
-        if (runId) runThreadRootsRef.current.set(runId, root);
+        const beginsPersistenceScope =
+          wsEvent.type === "turn_attached" ||
+          wsEvent.type === "model_request_start" ||
+          wsEvent.type === "call_tools_start" ||
+          wsEvent.type === "background_task_turn" ||
+          wsEvent.type === "turn_prompt" ||
+          wsEvent.type === "user_prompt";
+        const selection = conversationApi.getState();
+        const persistenceScope: ThreadPersistenceScope | null =
+          typeof frameConversation === "string" &&
+          (selection.currentConversationId ?? activeConversationId) === frameConversation
+            ? {
+                conversationId: frameConversation,
+                threadRootMessageId: root,
+                selectionVersion: selection.selectionVersion,
+                accountId: useAuthStore.getState().user?.id ?? null,
+                organizationId: useOrgStore.getState().activeOrgId,
+              }
+            : null;
+        if (runId) {
+          runThreadRootsRef.current.set(runId, root);
+          if (
+            beginsPersistenceScope &&
+            persistenceScope !== null &&
+            !threadPersistenceScopesRef.current.has(runId)
+          ) {
+            threadPersistenceScopesRef.current.set(runId, persistenceScope);
+            if (threadPersistenceScopesRef.current.size > 50) {
+              const oldestRunId = threadPersistenceScopesRef.current.keys().next().value;
+              if (oldestRunId) threadPersistenceScopesRef.current.delete(oldestRunId);
+            }
+          }
+        } else if (beginsPersistenceScope && persistenceScope !== null) {
+          unkeyedThreadPersistenceScopeRef.current = persistenceScope;
+        }
         setTurnThreadScope((current) =>
           current?.conversationId === frameConversation && current.root === root
             ? current
@@ -912,6 +1094,32 @@ export function useChat(options: UseChatOptions = {}) {
               threadRootMessageId: turnThreadRootRef.current ?? undefined,
             }));
             currentUserMessageIdRef.current = null;
+          }
+          break;
+        }
+        case "accepted_queue_run_exists": {
+          const { accepted_queue_id, message_id } = wsEvent.data as {
+            accepted_queue_id: string;
+            conversation_id: string;
+            message_id: string;
+            run_id: string;
+            run_status: string;
+          };
+          setQueue(
+            messageQueueRef.current.filter((item) => item.acceptedQueueId !== accepted_queue_id),
+          );
+          if (currentUserMessageIdRef.current && message_id) {
+            const localId = currentUserMessageIdRef.current;
+            updateMessage(localId, (message) => ({
+              ...message,
+              id: message_id,
+              isTemporaryId: false,
+              renderKey: message.renderKey ?? localId,
+            }));
+            currentUserMessageIdRef.current = null;
+          }
+          if (unconfirmedRef.current?.message.acceptedQueueId === accepted_queue_id) {
+            unconfirmedRef.current = null;
           }
           break;
         }
@@ -1186,11 +1394,52 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "message_saved": {
-          const { message_id, run_id, run_status } = wsEvent.data as {
-            message_id: string;
-            run_id?: string;
-            run_status?: string;
-          };
+          const { message_id, run_id, run_status, conversation_id, thread_root_message_id } =
+            wsEvent.data as {
+              message_id: string;
+              run_id?: string;
+              run_status?: string;
+              conversation_id?: string;
+              thread_root_message_id?: string | null;
+            };
+          const unkeyedScope = unkeyedThreadPersistenceScopeRef.current;
+          const matchesPersistenceEvent = (scope: ThreadPersistenceScope) =>
+            (conversation_id === undefined || conversation_id === scope.conversationId) &&
+            (thread_root_message_id === undefined
+              ? turnThreadRootRef.current === scope.threadRootMessageId
+              : (thread_root_message_id ?? null) === scope.threadRootMessageId);
+          const savedThreadScope =
+            (run_id ? threadPersistenceScopesRef.current.get(run_id) : undefined) ??
+            (unkeyedScope !== null && matchesPersistenceEvent(unkeyedScope)
+              ? unkeyedScope
+              : undefined);
+          const selected = conversationApi.getState();
+          const selectedConversationId = selected.currentConversationId ?? activeConversationId;
+          const accountId = useAuthStore.getState().user?.id ?? null;
+          const organizationId = useOrgStore.getState().activeOrgId;
+          const savedScopeIsCurrent = Boolean(
+            savedThreadScope &&
+            matchesPersistenceEvent(savedThreadScope) &&
+            selectedConversationId === savedThreadScope.conversationId &&
+            selected.selectionVersion === savedThreadScope.selectionVersion &&
+            accountId === savedThreadScope.accountId &&
+            organizationId === savedThreadScope.organizationId &&
+            turnThreadRootRef.current === savedThreadScope.threadRootMessageId,
+          );
+          if (savedScopeIsCurrent && savedThreadScope) {
+            announceRoomChange({
+              conversationId: savedThreadScope.conversationId,
+              accountId: savedThreadScope.accountId ?? undefined,
+              organizationId: savedThreadScope.organizationId,
+            });
+          }
+          if (run_id && savedThreadScope) {
+            runThreadRootsRef.current.set(run_id, savedThreadScope.threadRootMessageId);
+          }
+          if (run_id) threadPersistenceScopesRef.current.delete(run_id);
+          if (unkeyedScope !== null && matchesPersistenceEvent(unkeyedScope)) {
+            unkeyedThreadPersistenceScopeRef.current = null;
+          }
           if (run_id && run_status && run_status !== "awaiting_approval") {
             setPendingApproval((current) => (current?.runId === run_id ? null : current));
           }
@@ -1208,7 +1457,12 @@ export function useChat(options: UseChatOptions = {}) {
             }
           }
           const target = currentMessageIdRef.current ?? stoppedMessageIdRef.current;
-          if (target) {
+          const messages = chatApi.getState().messages;
+          let optimisticBubbleFound = false;
+          const mayReconcileOptimisticBubble =
+            savedThreadScope === undefined || savedScopeIsCurrent;
+          if (mayReconcileOptimisticBubble && target && messages.some((msg) => msg.id === target)) {
+            optimisticBubbleFound = true;
             setParkedQuestion((question) =>
               question?.messageId === target ? { ...question, messageId: message_id } : question,
             );
@@ -1230,9 +1484,8 @@ export function useChat(options: UseChatOptions = {}) {
             // to nothing, so it appeared only after a reload fetched it from the row.
             if (currentMessageIdRef.current) setCurrentMessageId(message_id);
             if (stoppedMessageIdRef.current === target) stoppedMessageIdRef.current = message_id;
-          } else {
+          } else if (mayReconcileOptimisticBubble) {
             // This handles cases where currentMessageId was already cleared
-            const messages = chatApi.getState().messages;
             const lastTemp = [...messages]
               .reverse()
               .find(
@@ -1242,6 +1495,7 @@ export function useChat(options: UseChatOptions = {}) {
                   (msg.threadRootMessageId ?? null) === turnThreadRootRef.current,
               );
             if (lastTemp) {
+              optimisticBubbleFound = true;
               updateMessage(lastTemp.id, (msg) => ({
                 ...msg,
                 id: message_id,
@@ -1254,7 +1508,15 @@ export function useChat(options: UseChatOptions = {}) {
           }
           // Whichever branch renamed the bubble, the row exists now - and with
           // it the only record of which agent answered here.
-          onTurnSaved?.();
+          onTurnSaved?.(
+            savedScopeIsCurrent && savedThreadScope
+              ? {
+                  ...savedThreadScope,
+                  refreshMainTranscript:
+                    savedThreadScope.threadRootMessageId === null && !optimisticBubbleFound,
+                }
+              : undefined,
+          );
           break;
         }
 
@@ -1624,12 +1886,37 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "error": {
-          const { message, code } = wsEvent.data as { message: string; code?: string };
+          const { message, code, accepted_queue_id } = wsEvent.data as {
+            message: string;
+            code?: string;
+            accepted_queue_id?: string;
+          };
+          if (accepted_queue_id) {
+            const queued = messageQueueRef.current.find(
+              (item) => item.acceptedQueueId === accepted_queue_id,
+            );
+            if (queued) {
+              setQueue(
+                messageQueueRef.current.map((item) =>
+                  item.id === queued.id
+                    ? {
+                        ...item,
+                        transferring: false,
+                        receiptErrorAction: "steer",
+                        receiptError: t("queuedSteerUnconfirmed"),
+                      }
+                    : item,
+                ),
+              );
+              void reconcileQueueReceiptRef.current?.(queued.id, "steer");
+            }
+          }
           // This error may belong to a different followed turn. Only a terminal
           // marker for its own run can invalidate an already committed question.
           if (parkedQuestionRunRef.current === null) {
             setPendingQuestions(null);
             liveQuestionRef.current = false;
+            runtimeQuestionIdRef.current = null;
           }
           setPendingConnection(null);
           setPendingComputerAccess(null);
@@ -1641,12 +1928,25 @@ export function useChat(options: UseChatOptions = {}) {
           awaitingComputerRef.current = false;
           // A reply save failure means the prompt already ran, even if reconnecting
           // lost its acknowledgement. Offering Retry would execute it again.
-          const refused = code === "message_save_failed" ? null : unconfirmedRef.current;
+          const queuedRefusal = unconfirmedRef.current;
+          const refused =
+            code === "message_save_failed" && !queuedRefusal?.message.acceptedQueueId
+              ? null
+              : queuedRefusal;
           unconfirmedRef.current = null;
           if (refused) {
             chatApi.getState().removeMessage(refused.bubbleId);
             setQueue([
-              { ...refused.message, refused: message || t("unknownError") },
+              refused.message.acceptedQueueId
+                ? {
+                    ...refused.message,
+                    refused: undefined,
+                    accepting: false,
+                    transferring: false,
+                    receiptErrorAction: "send",
+                    receiptError: message || t("queuedSendUnconfirmed"),
+                  }
+                : { ...refused.message, refused: message || t("unknownError") },
               ...messageQueueRef.current,
             ]);
           }
@@ -1746,19 +2046,84 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "steer_claimed": {
+          const { accepted_queue_id, run_id } = wsEvent.data as {
+            accepted_queue_id?: string;
+            run_id?: string;
+          };
+          if (!accepted_queue_id) break;
+          const queued = messageQueueRef.current.find(
+            (item) => item.acceptedQueueId === accepted_queue_id,
+          );
+          // A terminal frame can overtake this transient acknowledgement. If its
+          // row is gone, never recreate it from a late claim.
+          if (!queued || queued.receiptState === "steered") break;
+          setQueue(
+            messageQueueRef.current.map((item) =>
+              item.acceptedQueueId === accepted_queue_id
+                ? {
+                    ...item,
+                    receiptState: "steering",
+                    steeringRunId: run_id ?? item.steeringRunId,
+                    transferring: false,
+                    receiptReconciliationPending: undefined,
+                    receiptError: undefined,
+                    receiptErrorAction: undefined,
+                  }
+                : item,
+            ),
+          );
+          queueOperationsRef.current.delete(`steer:${accepted_queue_id}`);
+          setSteers((waiting) =>
+            waiting.some((steer) => steer.id === accepted_queue_id)
+              ? waiting
+              : [...waiting, { id: accepted_queue_id, text: queued.content }],
+          );
+          break;
+        }
+
         case "steer_applied": {
           // The model has it: off the waiting list, and into the turn where it
           // landed - the text after it is the agent acting on it.
-          const { text } = wsEvent.data as { text: string };
-          setSteers((waiting) => {
-            const index = waiting.findIndex((steer) => steer.text === text);
-            return index < 0 ? waiting : [...waiting.slice(0, index), ...waiting.slice(index + 1)];
-          });
-          if (currentMessageIdRef.current) {
-            updateMessage(currentMessageIdRef.current, (msg) => ({
-              ...msg,
-              parts: [...(msg.parts ?? []), { id: clientId(), type: "steer", content: text }],
-            }));
+          const { accepted_queue_id, text, run_id } = wsEvent.data as {
+            accepted_queue_id?: string;
+            text?: string;
+            run_id?: string;
+          };
+          if (accepted_queue_id) {
+            const queued = messageQueueRef.current.find(
+              (item) => item.acceptedQueueId === accepted_queue_id,
+            );
+            if (queued?.steeringRunId && run_id && queued.steeringRunId !== run_id) break;
+            setQueue(
+              messageQueueRef.current.filter((item) => item.acceptedQueueId !== accepted_queue_id),
+            );
+            setSteers((waiting) => waiting.filter((steer) => steer.id !== accepted_queue_id));
+            queueOperationsRef.current.delete(`steer:${accepted_queue_id}`);
+          } else {
+            setSteers((waiting) => {
+              const index = waiting.findIndex((steer) => steer.text === text);
+              return index < 0
+                ? waiting
+                : [...waiting.slice(0, index), ...waiting.slice(index + 1)];
+            });
+          }
+          if (text && currentMessageIdRef.current) {
+            const partId = accepted_queue_id ? `accepted-steer:${accepted_queue_id}` : clientId();
+            const currentMessage = chatApi
+              .getState()
+              .messages.find((message) => message.id === currentMessageIdRef.current);
+            const alreadyApplied =
+              !!accepted_queue_id &&
+              (appliedQueueSteerIdsRef.current.has(accepted_queue_id) ||
+                currentMessage?.parts?.some((part) => part.id === partId));
+            if (!alreadyApplied) {
+              if (accepted_queue_id) appliedQueueSteerIdsRef.current.add(accepted_queue_id);
+              updateMessage(currentMessageIdRef.current, (msg) => ({
+                ...msg,
+                parts: [...(msg.parts ?? []), { id: partId, type: "steer", content: text }],
+              }));
+            }
           }
           break;
         }
@@ -1766,11 +2131,43 @@ export function useChat(options: UseChatOptions = {}) {
         case "steer_unapplied": {
           // Too late for the turn it was sent into: sent as the next message
           // instead, through the queue that already does exactly that.
-          const { texts } = wsEvent.data as { texts: string[] };
-          setSteers((waiting) => waiting.filter((steer) => !texts.includes(steer.text)));
+          const { accepted_queue_id, text, texts, run_id } = wsEvent.data as {
+            accepted_queue_id?: string;
+            text?: string;
+            texts?: string[];
+            run_id?: string;
+          };
+          if (accepted_queue_id) {
+            const queued = messageQueueRef.current.find(
+              (item) => item.acceptedQueueId === accepted_queue_id,
+            );
+            if (!queued) break;
+            if (queued.steeringRunId && run_id && queued.steeringRunId !== run_id) break;
+            setSteers((waiting) => waiting.filter((steer) => steer.id !== accepted_queue_id));
+            queueOperationsRef.current.delete(`steer:${accepted_queue_id}`);
+            setQueue(
+              messageQueueRef.current.map((item) =>
+                item.acceptedQueueId === accepted_queue_id
+                  ? {
+                      ...item,
+                      receiptState: "pending",
+                      steeringRunId: undefined,
+                      transferring: false,
+                      receiptReconciliationPending: undefined,
+                      receiptError: undefined,
+                      receiptErrorAction: undefined,
+                    }
+                  : item,
+              ),
+            );
+            setDrainTick((tick) => tick + 1);
+            break;
+          }
+          const unappliedTexts = texts ?? (text ? [text] : []);
+          setSteers((waiting) => waiting.filter((steer) => !unappliedTexts.includes(steer.text)));
           setQueue([
             ...messageQueueRef.current,
-            ...texts.map((text) => ({ id: clientId(), content: text })),
+            ...unappliedTexts.map((itemText) => ({ id: clientId(), content: itemText })),
           ]);
           break;
         }
@@ -1837,14 +2234,41 @@ export function useChat(options: UseChatOptions = {}) {
           break;
         }
 
+        case "runtime_question_closed": {
+          const data: unknown = wsEvent.data;
+          if (
+            !data ||
+            typeof data !== "object" ||
+            !("runtime_question_id" in data) ||
+            typeof data.runtime_question_id !== "string" ||
+            data.runtime_question_id !== runtimeQuestionIdRef.current
+          )
+            break;
+          runtimeQuestionIdRef.current = null;
+          liveQuestionRef.current = false;
+          liveQuestionSubmission.current = null;
+          setSubmittingQuestions(false);
+          setPendingQuestions(null);
+          break;
+        }
+
         case "ask_user": {
           liveQuestionRef.current = true;
           rememberActionScope("questions", currentMessageIdRef.current);
           liveQuestionBatchId.current = clientId();
           liveQuestionSubmission.current = null;
           setSubmittingQuestions(false);
-          const { questions } = wsEvent.data as { questions: WireQuestion[] };
-          setPendingQuestions(toAskUserQuestions(questions ?? []));
+          const { questions, runtime_question_id } = wsEvent.data as {
+            questions: WireQuestion[];
+            runtime_question_id?: unknown;
+          };
+          runtimeQuestionIdRef.current =
+            typeof runtime_question_id === "string" && runtime_question_id.length <= 128
+              ? runtime_question_id
+              : null;
+          setPendingQuestions(
+            toAskUserQuestions(questions ?? [], runtimeQuestionIdRef.current ?? undefined),
+          );
           const messageId = currentMessageIdRef.current;
           const message = chatApi.getState().messages.find((message) => message.id === messageId);
           setLiveQuestionTarget({
@@ -1935,6 +2359,7 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "complete": {
+          if ((wsEvent.data as { stopped?: boolean }).stopped) pauseQueued();
           if (
             continueAfterComputerRef.current &&
             !(wsEvent.data as { stopped?: boolean }).stopped &&
@@ -2063,6 +2488,7 @@ export function useChat(options: UseChatOptions = {}) {
       activeConversationId,
       refreshConversationCost,
       setQueue,
+      pauseQueued,
       t,
     ],
   );
@@ -2093,6 +2519,70 @@ export function useChat(options: UseChatOptions = {}) {
   // socket, so a conversation never continues under the wrong organization.
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const queueAccountId = useAuthStore((state) => state.user?.id);
+  const queueReceiptScopeRef = useRef<QueueReceiptScope>({
+    generation: 0,
+    conversationId: activeConversationId,
+    selectionVersion,
+    accountId: queueAccountId ?? null,
+    tenantId,
+    organizationId: activeOrgId,
+    enabled: queueReceiptsEnabled,
+  });
+  useLayoutEffect(() => {
+    const previous = queueReceiptScopeRef.current;
+    if (
+      previous.conversationId === activeConversationId &&
+      previous.selectionVersion === selectionVersion &&
+      previous.accountId === (queueAccountId ?? null) &&
+      previous.tenantId === tenantId &&
+      previous.organizationId === activeOrgId &&
+      previous.enabled === queueReceiptsEnabled
+    )
+      return;
+    queueReceiptScopeRef.current = {
+      generation: previous.generation + 1,
+      conversationId: activeConversationId,
+      selectionVersion,
+      accountId: queueAccountId ?? null,
+      tenantId,
+      organizationId: activeOrgId,
+      enabled: queueReceiptsEnabled,
+    };
+  }, [
+    activeConversationId,
+    selectionVersion,
+    queueAccountId,
+    tenantId,
+    activeOrgId,
+    queueReceiptsEnabled,
+  ]);
+  const captureQueueReceiptScope = useCallback(
+    (): QueueReceiptScope => ({ ...queueReceiptScopeRef.current }),
+    [],
+  );
+  const queueReceiptScopeIsCurrent = useCallback(
+    (scope: QueueReceiptScope): boolean => {
+      const current = queueReceiptScopeRef.current;
+      const conversation = conversationApi.getState();
+      const accountId = useAuthStore.getState().user?.id ?? null;
+      const organizationId = useOrgStore.getState().activeOrgId;
+      const selectedConversationId = conversation.currentConversationId || conversationId || null;
+      return (
+        current.generation === scope.generation &&
+        current.conversationId === scope.conversationId &&
+        current.selectionVersion === scope.selectionVersion &&
+        current.accountId === scope.accountId &&
+        current.tenantId === scope.tenantId &&
+        current.organizationId === scope.organizationId &&
+        current.enabled === scope.enabled &&
+        accountId === scope.accountId &&
+        organizationId === scope.organizationId &&
+        conversation.selectionVersion === scope.selectionVersion &&
+        selectedConversationId === scope.conversationId
+      );
+    },
+    [conversationApi, conversationId],
+  );
   const previousSecretContext = useRef({
     conversationId: activeConversationId,
     selectionVersion,
@@ -2264,6 +2754,262 @@ export function useChat(options: UseChatOptions = {}) {
     });
   }, [conversationApi, conversationId, tenantId]);
 
+  const applyQueueReceipt = useCallback(
+    (id: string, receipt: AcceptedQueuedMessageReceipt) => {
+      const current = messageQueueRef.current.find((item) => item.id === id);
+      if (!current) return;
+      if (receipt.state === "pending" || receipt.state === "steering") {
+        setQueue(
+          messageQueueRef.current.map((item) =>
+            item.id === id ? queueFromReceipt(receipt, current) : item,
+          ),
+        );
+        if (receipt.state === "pending") setDrainTick((tick) => tick + 1);
+      } else {
+        setQueue(messageQueueRef.current.filter((item) => item.id !== id));
+      }
+    },
+    [setQueue],
+  );
+
+  const acceptQueuedMessage = useCallback(
+    async (id: string) => {
+      const scope = captureQueueReceiptScope();
+      if (!scope.enabled || !scope.conversationId) return;
+      const queued = messageQueueRef.current.find((item) => item.id === id);
+      if (
+        !queued ||
+        (queued.receiptConversationId !== undefined &&
+          queued.receiptConversationId !== scope.conversationId) ||
+        queued.acceptedQueueId ||
+        queued.accepting ||
+        queued.transferring ||
+        queued.receiptErrorAction === "cancel"
+      )
+        return;
+
+      const agentId =
+        queued.agentId !== undefined
+          ? queued.agentId
+          : queued.submission
+            ? queued.submission.agentId
+            : (selectionApi.getState().selectedAgentId ?? turnAgentIdRef.current);
+      const prepared = ensureQueueClientId({ ...queued, agentId });
+      const payload = acceptedQueuePayload(prepared);
+      if (!payload) {
+        const reason = queueReceiptPayloadUnsupportedReason(prepared);
+        setQueue(
+          messageQueueRef.current.map((item) =>
+            item.id === id
+              ? {
+                  ...prepared,
+                  accepting: false,
+                  receiptUnsupported: reason !== "agent",
+                  receiptErrorAction: "accept",
+                  receiptError:
+                    reason === "context"
+                      ? t("queuedAcceptanceUnsupportedContext")
+                      : reason === "agent"
+                        ? t("queuedAcceptanceNeedsAgent")
+                        : reason === "settings"
+                          ? t("queuedAcceptanceUnsupportedSettings")
+                          : reason === "snapshot"
+                            ? t("queuedAcceptanceMissingSettings")
+                            : t("queuedAcceptanceUnconfirmed"),
+                }
+              : item,
+          ),
+        );
+        return;
+      }
+      const activeAcceptance = queueAcceptanceOperationsRef.current.get(payload.client_queue_id);
+      if (activeAcceptance?.generation === scope.generation) return;
+      const acceptanceToken = Symbol();
+      queueAcceptanceOperationsRef.current.set(payload.client_queue_id, {
+        generation: scope.generation,
+        token: acceptanceToken,
+      });
+      setQueue(
+        messageQueueRef.current.map((item) =>
+          item.id === id
+            ? {
+                ...prepared,
+                accepting: true,
+                receiptAcceptanceAttempted: true,
+                receiptError: undefined,
+                receiptErrorAction: undefined,
+                transferError: undefined,
+              }
+            : item,
+        ),
+      );
+
+      let receipt: AcceptedQueuedMessageReceipt | undefined;
+      let requestError: unknown;
+      try {
+        receipt = await acceptedQueuedMessagesApi.accept(scope.conversationId, payload);
+      } catch (error) {
+        requestError = error;
+        try {
+          receipt = (await listAcceptedQueuedMessages(scope.conversationId)).find(
+            (item) => item.client_queue_id === payload.client_queue_id,
+          );
+        } catch {
+          // Retry the same idempotency key below; a repeated accept returns its receipt.
+        }
+        if (!receipt) {
+          try {
+            receipt = await acceptedQueuedMessagesApi.accept(scope.conversationId, payload);
+          } catch {
+            // The row stays visible and blocked until a receipt can be read or retried.
+          }
+        }
+      } finally {
+        if (
+          queueAcceptanceOperationsRef.current.get(payload.client_queue_id)?.token ===
+          acceptanceToken
+        )
+          queueAcceptanceOperationsRef.current.delete(payload.client_queue_id);
+      }
+      if (!queueReceiptScopeIsCurrent(scope)) return;
+      const current = messageQueueRef.current.find((item) => item.id === id);
+      if (!current) return;
+      if (!receipt) {
+        setQueue(
+          messageQueueRef.current.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  accepting: false,
+                  receiptErrorAction: "accept",
+                  receiptError: getErrorMessage(
+                    requestError,
+                    tErrors,
+                    t("queuedAcceptanceUnconfirmed"),
+                  ),
+                }
+              : item,
+          ),
+        );
+        return;
+      }
+      if (current.cancelRequested && receipt.state === "pending") {
+        const lock = `cancel:${receipt.id}`;
+        queueOperationsRef.current.add(lock);
+        setQueue(
+          messageQueueRef.current.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  acceptedQueueId: receipt!.id,
+                  receiptState: "pending",
+                  accepting: false,
+                  transferring: true,
+                  transferErrorAction: "cancel",
+                }
+              : item,
+          ),
+        );
+        const outcome = await cancelAcceptedQueueItem(scope.conversationId, receipt.id);
+        queueOperationsRef.current.delete(lock);
+        if (!queueReceiptScopeIsCurrent(scope)) return;
+        if ("error" in outcome) {
+          setQueue(
+            messageQueueRef.current.map((item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    receiptState: outcome.kind === "unknown" ? item.receiptState : outcome.kind,
+                    transferring: false,
+                    cancelRequested: false,
+                    receiptReconciliationPending: undefined,
+                    receiptErrorAction: "cancel",
+                    receiptError: t("queuedCancelUnconfirmed"),
+                    transferError: getErrorMessage(
+                      outcome.error,
+                      tErrors,
+                      t("queuedCancelUnconfirmed"),
+                    ),
+                  }
+                : item,
+            ),
+          );
+          return;
+        }
+        setQueue(messageQueueRef.current.filter((item) => item.id !== id));
+        return;
+      }
+      applyQueueReceipt(id, receipt);
+    },
+    [
+      applyQueueReceipt,
+      captureQueueReceiptScope,
+      queueReceiptScopeIsCurrent,
+      selectionApi,
+      setQueue,
+      t,
+      tErrors,
+    ],
+  );
+
+  const reconcileQueueReceipt = useCallback(
+    async (id: string, action: "send" | "steer" = "steer") => {
+      const scope = captureQueueReceiptScope();
+      const queued = messageQueueRef.current.find((item) => item.id === id);
+      if (!scope.enabled || !scope.conversationId || !queued?.acceptedQueueId) return;
+      const lock = `reconcile:${queued.acceptedQueueId}`;
+      if (queueOperationsRef.current.has(lock)) return;
+      queueOperationsRef.current.add(lock);
+      setQueue(
+        messageQueueRef.current.map((item) =>
+          item.id === id ? { ...item, transferring: true } : item,
+        ),
+      );
+      try {
+        const receipt = await acceptedQueuedMessagesApi.get(
+          scope.conversationId,
+          queued.acceptedQueueId,
+        );
+        queueOperationsRef.current.delete(`steer:${queued.acceptedQueueId}`);
+        if (!queueReceiptScopeIsCurrent(scope)) return;
+        applyQueueReceipt(id, receipt);
+      } catch (error) {
+        queueOperationsRef.current.delete(`steer:${queued.acceptedQueueId}`);
+        if (!queueReceiptScopeIsCurrent(scope)) return;
+        setQueue(
+          messageQueueRef.current.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  accepting: false,
+                  transferring: false,
+                  receiptReconciliationPending: undefined,
+                  receiptErrorAction: action,
+                  receiptError: getErrorMessage(
+                    error,
+                    tErrors,
+                    action === "send" ? t("queuedSendUnconfirmed") : t("queuedSteerUnconfirmed"),
+                  ),
+                }
+              : item,
+          ),
+        );
+      } finally {
+        queueOperationsRef.current.delete(lock);
+      }
+    },
+    [applyQueueReceipt, captureQueueReceiptScope, queueReceiptScopeIsCurrent, setQueue, t, tErrors],
+  );
+
+  useLayoutEffect(() => {
+    reconcileQueueReceiptRef.current = reconcileQueueReceipt;
+    return () => {
+      if (reconcileQueueReceiptRef.current === reconcileQueueReceipt) {
+        reconcileQueueReceiptRef.current = null;
+      }
+    };
+  }, [reconcileQueueReceipt]);
+
   const doSend = useCallback(
     (
       content: string,
@@ -2272,6 +3018,8 @@ export function useChat(options: UseChatOptions = {}) {
       mentions?: Mentionable[],
       submission?: ChatSubmissionContext,
       agentOverride?: string | null,
+      replyOverride?: MessageReply | null,
+      acceptedQueueId?: string,
     ): string => {
       setCompactionStatus("idle");
       setCompactionProgress(null);
@@ -2320,8 +3068,8 @@ export function useChat(options: UseChatOptions = {}) {
       currentUserMessageIdRef.current = userMessageId;
       // Read at send time, as the agent is: a reply chosen while the turn was
       // queued is the one it answers. Spent by this turn either way.
-      const replyTo = chatApi.getState().replyTo;
-      chatApi.getState().setReplyTo(null);
+      const replyTo = replyOverride === undefined ? chatApi.getState().replyTo : replyOverride;
+      if (replyOverride === undefined) chatApi.getState().setReplyTo(null);
       const author = useAuthStore.getState().user;
       addMessage({
         id: userMessageId,
@@ -2357,6 +3105,7 @@ export function useChat(options: UseChatOptions = {}) {
       };
       if (submission?.pageContext) payload.page_context = submission.pageContext;
       if (fileIds?.length) payload.file_ids = fileIds;
+      if (acceptedQueueId) payload.accepted_queue_id = acceptedQueueId;
       if (replyTo) {
         payload.reply_to = replyTo.messageId;
         if (replyTo.selectedText) payload.reply_to_excerpt = replyTo.selectedText;
@@ -2372,17 +3121,19 @@ export function useChat(options: UseChatOptions = {}) {
       }
       // A model profile from the vault - the agent runs on it for this turn
       // instead of the model its spec names, and the run records which.
-      if (modelProfileRef.current) payload.model_profile_id = modelProfileRef.current;
+      if (modelProfileRef.current && !acceptedQueueId) {
+        payload.model_profile_id = modelProfileRef.current;
+      }
       // How much this session wants to be asked before a gated tool runs. Sent
       // only when it is not the default, so a client that never touched the
       // control sends nothing and the server follows the agent - and refused
       // rather than downgraded if this caller may not waive (#925).
-      if (approvalModeRef.current !== "follow_agent") {
+      if (approvalModeRef.current !== "follow_agent" && !acceptedQueueId) {
         payload.approval_mode = approvalModeRef.current;
       }
       if (localContext.payload) payload.local = localContext.payload;
       const test = testingRef.current;
-      if (test) {
+      if (test && !acceptedQueueId) {
         payload.test = true;
         if (test.draft) payload.draft = true;
         else if (test.environmentId) payload.environment_id = test.environmentId;
@@ -2433,6 +3184,7 @@ export function useChat(options: UseChatOptions = {}) {
       const submission = captured
         ? { ...captured, local: captured.local ?? readLocalContext() }
         : undefined;
+      const paused = messageQueueRef.current.some((message) => message.paused);
       // While the agent works a message waits for its answer, as in any chat;
       // "Send now" on the queued message is how it joins the running task
       // instead (#2087) - see `sendQueuedNow`.
@@ -2445,20 +3197,75 @@ export function useChat(options: UseChatOptions = {}) {
         answeringQuestionRef.current !== null ||
         parkedQuestionRunRef.current !== null ||
         compactionStatus === "running" ||
+        liveQuestionRef.current ||
+        liveQuestionSubmission.current !== null ||
+        stoppingRef.current !== null ||
         !sessionReadyRef.current ||
         !isConnected ||
         (messageQueueRef.current.length > 0 && interruptedForRef.current === null)
       ) {
         const id = clientId();
+        const replyTo = chatApi.getState().replyTo;
+        let queuedSubmission = submission;
+        let agentId = submission
+          ? submission.agentId
+          : (selectionApi.getState().selectedAgentId ?? turnAgentIdRef.current);
+        if (queueReceiptsEnabled) {
+          // Freeze the entire payload at the moment it enters the outbox. The
+          // agent is fixed even for a plain message; page and local grants are
+          // present only when they were part of this submission.
+          agentId = submission
+            ? submission.agentId
+            : (selectionApi.getState().selectedAgentId ?? turnAgentIdRef.current);
+          queuedSubmission = {
+            agentId,
+            pageContext: submission?.pageContext ?? null,
+            local: submission?.local ?? readLocalContext(),
+          };
+          chatApi.getState().setReplyTo(null);
+        }
         setQueue([
           ...messageQueueRef.current,
-          { id, content, fileIds, files, mentions, ...(submission ? { submission } : {}) },
+          {
+            id,
+            ...(queueReceiptsEnabled
+              ? {
+                  clientQueueId: newQueueClientId(),
+                  receiptConversationId: activeConversationId ?? undefined,
+                  agentId,
+                  queueSettings: {
+                    modelProfileId: modelProfileRef.current,
+                    approvalMode: approvalModeRef.current,
+                  },
+                }
+              : {}),
+            content,
+            fileIds,
+            files,
+            mentions,
+            ...(replyTo ? { replyTo } : {}),
+            ...(queuedSubmission ? { submission: queuedSubmission } : {}),
+            ...(paused ? { paused: true } : {}),
+          },
         ]);
+        if (queueReceiptsEnabled && activeConversationId) void acceptQueuedMessage(id);
         return;
       }
       setSentTurnId(doSend(content, fileIds, files, mentions, submission));
     },
-    [isConnected, doSend, setQueue, captureSubmission, readLocalContext, compactionStatus],
+    [
+      isConnected,
+      doSend,
+      setQueue,
+      captureSubmission,
+      readLocalContext,
+      compactionStatus,
+      queueReceiptsEnabled,
+      activeConversationId,
+      acceptQueuedMessage,
+      chatApi,
+      selectionApi,
+    ],
   );
 
   /** Send plain text into the active run; a closed socket leaves no pending steer behind. */
@@ -2483,23 +3290,69 @@ export function useChat(options: UseChatOptions = {}) {
   const sendQueuedNow = useCallback(
     (id: string) => {
       const queued = messageQueueRef.current.find((q) => q.id === id);
-      // Mentions travel with a message, never with a correction: the steer frame
-      // carries text alone, so one sent now would lose what it pointed at.
+      if (queueReceiptsEnabled) {
+        const liveAgentId =
+          turnAgentIdRef.current ??
+          chatApi
+            .getState()
+            .messages.findLast((message) => message.role === "assistant" && message.isStreaming)
+            ?.agentId ??
+          null;
+        const receiptId = queued?.acceptedQueueId;
+        if (!receiptId) return;
+        const lock = `steer:${receiptId}`;
+        if (
+          !queueMaySteer(queued, liveAgentId, true) ||
+          !isProcessing ||
+          !isConnected ||
+          queueOperationsRef.current.has(lock)
+        )
+          return;
+        const text = queued.content.trim();
+        if (!text) return;
+        queueOperationsRef.current.add(lock);
+        setQueue(
+          messageQueueRef.current.map((item) =>
+            item.id === id ? { ...item, transferring: true } : item,
+          ),
+        );
+        if (!sendMessage({ type: "steer", text, accepted_queue_id: receiptId })) {
+          queueOperationsRef.current.delete(lock);
+          setQueue(
+            messageQueueRef.current.map((item) =>
+              item.id === id ? { ...item, transferring: false } : item,
+            ),
+          );
+        }
+        return;
+      }
+      // Mentions and quoted replies travel with a message, never with a correction:
+      // the steer frame carries text alone, so it would lose what they point at.
       // A frozen page/agent submission must also remain a full turn.
       if (
         !queued ||
+        messageQueueRef.current.some((message) => message.paused) ||
         !isProcessing ||
         !isConnected ||
         queued.fileIds?.length ||
         queued.files?.length ||
         queued.mentions?.length ||
+        queued.replyTo !== undefined ||
         queued.submission !== undefined
       )
         return;
       if (!sendSteerMessage(queued.content)) return;
       setQueue(messageQueueRef.current.filter((q) => q.id !== id));
     },
-    [isProcessing, isConnected, sendSteerMessage, setQueue],
+    [
+      isProcessing,
+      isConnected,
+      sendSteerMessage,
+      setQueue,
+      queueReceiptsEnabled,
+      chatApi,
+      sendMessage,
+    ],
   );
 
   /** Move one queued message to another place in the queue, which is the order it is sent in. */
@@ -2508,6 +3361,13 @@ export function useChat(options: UseChatOptions = {}) {
       const queue = [...messageQueueRef.current];
       const from = queue.findIndex((q) => q.id === id);
       if (from < 0 || to < 0 || to >= queue.length || to === from) return;
+      if (
+        queue[from]?.accepting ||
+        queue[from]?.transferring ||
+        queue[to]?.accepting ||
+        queue[to]?.transferring
+      )
+        return;
       const [moved] = queue.splice(from, 1);
       queue.splice(to, 0, moved!);
       setQueue(queue);
@@ -2516,19 +3376,217 @@ export function useChat(options: UseChatOptions = {}) {
   );
 
   const cancelQueued = useCallback(
-    (id: string) => setQueue(messageQueueRef.current.filter((q) => q.id !== id)),
-    [setQueue],
+    async (id: string) => {
+      const queued = messageQueueRef.current.find((item) => item.id === id);
+      if (!queued) return;
+      const scope = captureQueueReceiptScope();
+      if (
+        queued.receiptConversationId !== undefined &&
+        queued.receiptConversationId !== scope.conversationId
+      )
+        return;
+      if (!queueReceiptsEnabled && !queued.acceptedQueueId) {
+        setQueue(messageQueueRef.current.filter((item) => item.id !== id));
+        return;
+      }
+      if (!queued.acceptedQueueId) {
+        if (queued.receiptAcceptanceAttempted) {
+          setQueue(
+            messageQueueRef.current.map((item) =>
+              item.id === id
+                ? {
+                    ...item,
+                    cancelRequested: true,
+                    receiptError: undefined,
+                    receiptErrorAction: undefined,
+                  }
+                : item,
+            ),
+          );
+          if (!queued.accepting) void acceptQueuedMessage(id);
+          return;
+        }
+        setQueue(messageQueueRef.current.filter((item) => item.id !== id));
+        return;
+      }
+      if (queued.transferring) return;
+      if (!scope.conversationId) return;
+      const lock = `cancel:${queued.acceptedQueueId}`;
+      if (queueOperationsRef.current.has(lock)) return;
+      queueOperationsRef.current.add(lock);
+      setQueue(
+        messageQueueRef.current.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                cancelRequested: true,
+                transferring: true,
+                receiptError: undefined,
+                receiptErrorAction: undefined,
+                transferError: undefined,
+                transferErrorAction: "cancel",
+              }
+            : item,
+        ),
+      );
+      const outcome = await cancelAcceptedQueueItem(scope.conversationId, queued.acceptedQueueId);
+      queueOperationsRef.current.delete(lock);
+      if (!queueReceiptScopeIsCurrent(scope)) return;
+      if ("error" in outcome) {
+        setQueue(
+          messageQueueRef.current.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  receiptState: outcome.kind === "unknown" ? item.receiptState : outcome.kind,
+                  transferring: false,
+                  cancelRequested: false,
+                  receiptReconciliationPending: undefined,
+                  transferError: getErrorMessage(
+                    outcome.error,
+                    tErrors,
+                    t("queuedCancelUnconfirmed"),
+                  ),
+                  transferErrorAction: "cancel",
+                  receiptErrorAction: outcome.kind === "unknown" ? "cancel" : undefined,
+                }
+              : item,
+          ),
+        );
+        return;
+      }
+      setQueue(messageQueueRef.current.filter((item) => item.id !== id));
+    },
+    [
+      queueReceiptsEnabled,
+      setQueue,
+      acceptQueuedMessage,
+      captureQueueReceiptScope,
+      queueReceiptScopeIsCurrent,
+      t,
+      tErrors,
+    ],
+  );
+
+  const runQueuedAsTask = useCallback(
+    async (id: string): Promise<string | null> => {
+      const queued = messageQueueRef.current.find((item) => item.id === id);
+      if (
+        !queueReceiptsEnabled ||
+        !queued?.acceptedQueueId ||
+        queued.receiptState !== "pending" ||
+        queued.receiptReconciliationPending ||
+        queued.transferring ||
+        queued.receiptError !== undefined ||
+        (queued.transferError !== undefined && queued.transferErrorAction !== "task") ||
+        queued.refused !== undefined
+      )
+        return null;
+      const unavailable = queueTaskUnavailableReason(queued);
+      if (unavailable) return null;
+      const scope = captureQueueReceiptScope();
+      if (!scope.conversationId) return null;
+      const lock = `task:${queued.acceptedQueueId}`;
+      if (queueOperationsRef.current.has(lock)) return null;
+      queueOperationsRef.current.add(lock);
+      setQueue(
+        messageQueueRef.current.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                transferring: true,
+                transferError: undefined,
+                transferErrorAction: "task",
+                receiptError: undefined,
+                receiptErrorAction: undefined,
+              }
+            : item,
+        ),
+      );
+      const outcome = await transferAcceptedQueueItem(scope.conversationId, queued.acceptedQueueId);
+      queueOperationsRef.current.delete(lock);
+      if (!queueReceiptScopeIsCurrent(scope)) return null;
+      if (outcome.kind === "task") {
+        setQueue(messageQueueRef.current.filter((item) => item.id !== id));
+        return outcome.task.conversation_id || null;
+      }
+      if ("error" in outcome) {
+        setQueue(
+          messageQueueRef.current.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  receiptState: outcome.kind === "unknown" ? item.receiptState : outcome.kind,
+                  transferring: false,
+                  receiptReconciliationPending: undefined,
+                  transferError: getErrorMessage(
+                    outcome.error,
+                    tErrors,
+                    t("queuedTransferUnconfirmed"),
+                  ),
+                  transferErrorAction: "task",
+                }
+              : item,
+          ),
+        );
+        return null;
+      }
+      setQueue(messageQueueRef.current.filter((item) => item.id !== id));
+      return null;
+    },
+    [
+      queueReceiptsEnabled,
+      setQueue,
+      captureQueueReceiptScope,
+      queueReceiptScopeIsCurrent,
+      t,
+      tErrors,
+    ],
   );
 
   /** Send a refused message again, in its place in the queue. */
   const retryQueued = useCallback(
     (id: string) => {
+      const queued = messageQueueRef.current.find((item) => item.id === id);
+      if (!queued) return;
+      if (queued.receiptErrorAction === "accept") {
+        setQueue(
+          messageQueueRef.current.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  accepting: false,
+                  receiptError: undefined,
+                  receiptErrorAction: undefined,
+                }
+              : item,
+          ),
+        );
+        void acceptQueuedMessage(id);
+        return;
+      }
+      if (queued.receiptErrorAction === "send" || queued.receiptErrorAction === "steer") {
+        void reconcileQueueReceipt(id, queued.receiptErrorAction);
+        return;
+      }
+      if (queued.receiptErrorAction === "cancel") {
+        void cancelQueued(id);
+        return;
+      }
+      if (queued.transferErrorAction === "cancel") {
+        void cancelQueued(id);
+        return;
+      }
+      if (queued.transferErrorAction === "task") {
+        void runQueuedAsTask(id);
+        return;
+      }
       setQueue(
         messageQueueRef.current.map((q) => (q.id === id ? { ...q, refused: undefined } : q)),
       );
       setDrainTick((tick) => tick + 1);
     },
-    [setQueue],
+    [setQueue, acceptQueuedMessage, reconcileQueueReceipt, cancelQueued, runQueuedAsTask],
   );
 
   /**
@@ -2547,27 +3605,122 @@ export function useChat(options: UseChatOptions = {}) {
   // from the device; a new chat that just got its id with its first message
   // takes what waits behind that message with it.
   useEffect(() => {
+    const scope = captureQueueReceiptScope();
     const previous = outboxForRef.current;
     outboxForRef.current = activeConversationId;
+    const load: OutboxLoad = {
+      conversationId: activeConversationId,
+      generation: scope.generation,
+      token: Symbol(),
+      complete: false,
+      removedReceiptKeys: new Set(),
+    };
+    outboxLoadRef.current = load;
+    const markOutboxLoaded = () => {
+      if (outboxLoadRef.current === load) {
+        load.complete = true;
+        setLoadedOutbox(load);
+      }
+    };
     if (previous === null && activeConversationId !== null && messageQueueRef.current.length) {
       void keepOutbox(null, []);
-      void keepOutbox(activeConversationId, messageQueueRef.current);
+      const moved = queueReceiptsEnabled
+        ? messageQueueRef.current.map((item) => ({
+            ...item,
+            receiptConversationId: item.receiptConversationId ?? activeConversationId,
+            ...(item.acceptedQueueId ? { receiptReconciliationPending: true } : {}),
+          }))
+        : messageQueueRef.current;
+      setQueue(moved);
+      void keepOutbox(activeConversationId, moved);
+      markOutboxLoaded();
       return;
     }
     let current = true;
-    void keptOutbox(activeConversationId).then((kept) => {
-      if (!current || kept.length === 0) return;
-      const onScreen = messageQueueRef.current.filter((q) => !kept.some((k) => k.id === q.id));
-      messageQueueRef.current = [...kept, ...onScreen];
-      setQueuedMessages([...messageQueueRef.current]);
-      // Nothing else the drainer watches moved: with a connection up and the
-      // agent idle, it is this that sends them.
-      setDrainTick((tick) => tick + 1);
-    });
+    const stoppedAt = queueStopVersion.current;
+    void keptOutbox(activeConversationId).then(
+      (kept) => {
+        if (!current || !queueReceiptScopeIsCurrent(scope)) return;
+        const merged = kept
+          .filter(
+            (item) =>
+              !load.removedReceiptKeys.has(`row:${item.id}`) &&
+              !load.removedReceiptKeys.has(`client:${item.clientQueueId}`) &&
+              !load.removedReceiptKeys.has(`receipt:${item.acceptedQueueId}`),
+          )
+          .map((item) =>
+            queueReceiptsEnabled && scope.conversationId
+              ? {
+                  ...item,
+                  receiptConversationId: item.receiptConversationId ?? scope.conversationId,
+                  ...(item.acceptedQueueId ? { receiptReconciliationPending: true } : {}),
+                }
+              : item,
+          );
+        for (const visible of messageQueueRef.current) {
+          const index = merged.findIndex(
+            (restored) =>
+              restored.id === visible.id ||
+              (!!restored.clientQueueId && restored.clientQueueId === visible.clientQueueId) ||
+              (!!restored.acceptedQueueId && restored.acceptedQueueId === visible.acceptedQueueId),
+          );
+          if (index < 0) merged.push(visible);
+          else merged[index] = { ...merged[index], ...visible };
+        }
+        const normalized = merged.map((item) => {
+          const hasLiveTransfer = item.acceptedQueueId
+            ? ["cancel", "task", "steer", "reconcile"].some((action) =>
+                queueOperationsRef.current.has(`${action}:${item.acceptedQueueId}`),
+              )
+            : false;
+          const restored =
+            item.acceptedQueueId && item.transferring && !hasLiveTransfer
+              ? { ...item, transferring: false, receiptReconciliationPending: true }
+              : item;
+          const activeAcceptance = restored.clientQueueId
+            ? queueAcceptanceOperationsRef.current.get(restored.clientQueueId)
+            : undefined;
+          if (
+            scope.enabled &&
+            restored.accepting &&
+            restored.receiptAcceptanceAttempted &&
+            !restored.acceptedQueueId &&
+            activeAcceptance?.generation !== scope.generation
+          )
+            return { ...restored, accepting: false };
+          return restored;
+        });
+        const restored =
+          stoppedAt === queueStopVersion.current
+            ? normalized
+            : normalized.map((message) => ({ ...message, paused: true }));
+        if (restored.length > 0) {
+          setQueue(restored);
+          // Nothing else the drainer watches moved: with a connection up and the
+          // agent idle, it is this that sends them.
+          setDrainTick((tick) => tick + 1);
+        }
+        markOutboxLoaded();
+      },
+      () => {
+        if (!current || !queueReceiptScopeIsCurrent(scope)) return;
+        markOutboxLoaded();
+      },
+    );
     return () => {
       current = false;
     };
-  }, [activeConversationId]);
+  }, [
+    activeConversationId,
+    selectionVersion,
+    queueAccountId,
+    tenantId,
+    activeOrgId,
+    queueReceiptsEnabled,
+    captureQueueReceiptScope,
+    queueReceiptScopeIsCurrent,
+    setQueue,
+  ]);
 
   // A queued message belongs to the organization it was typed in. It sits in
   // this hook's own state until the socket comes back, so neither dropping the
@@ -2623,6 +3776,7 @@ export function useChat(options: UseChatOptions = {}) {
     answeringQuestionRef.current = null;
     abandonRunAnswer();
     liveQuestionRef.current = false;
+    runtimeQuestionIdRef.current = null;
     // A delegation belongs to a run in one organization, and to one conversation
     // inside it - the effect below is the other half of that sentence. Left on
     // screen it would show the previous tenant's specialist names and prompts to
@@ -2653,6 +3807,25 @@ export function useChat(options: UseChatOptions = {}) {
     createdConversationIdRef.current = null;
     if (!justCreated) clearQueued();
   }, [activeConversationId, clearQueued]);
+
+  // The queue may have been restored from the sealed device outbox after this
+  // hook mounted. Give every unaccepted row one stable client id and ask the
+  // server to accept it before it can drain, steer, or transfer.
+  useEffect(() => {
+    if (!queueReceiptsEnabled || !activeConversationId) return;
+    for (const item of queuedMessages) {
+      if (
+        item.acceptedQueueId ||
+        item.accepting ||
+        item.receiptErrorAction !== undefined ||
+        item.refused !== undefined ||
+        (item.receiptConversationId !== undefined &&
+          item.receiptConversationId !== activeConversationId)
+      )
+        continue;
+      void acceptQueuedMessage(item.id);
+    }
+  }, [queueReceiptsEnabled, activeConversationId, queuedMessages, acceptQueuedMessage]);
 
   // The other half: a delegation, an approval and a question all belong to a run in
   // *this* conversation, and all three are drawn over whatever transcript is on
@@ -2711,6 +3884,7 @@ export function useChat(options: UseChatOptions = {}) {
     setDelegations([]);
     setBrowses([]);
     setSteers([]);
+    appliedQueueSteerIdsRef.current.clear();
     closeBrowserPanel();
     setPendingApproval(null);
     setPendingQuestions(null);
@@ -2746,6 +3920,7 @@ export function useChat(options: UseChatOptions = {}) {
     answeringQuestionRef.current = null;
     abandonRunAnswer();
     liveQuestionRef.current = false;
+    runtimeQuestionIdRef.current = null;
   }, [activeConversationId, closeBrowserPanel, sendMessage, abandonRunAnswer]);
 
   // The caller's permissions, for the restore effect below: rebuilding the
@@ -3021,10 +4196,11 @@ export function useChat(options: UseChatOptions = {}) {
 
   /** Record one decision on the `approvals` row it belongs to. */
   const decideApproval = useCallback(
-    (approvalId: string, approved: boolean, rememberScope?: Decision["remember_scope"]) =>
+    (approvalId: string, decision: Decision) =>
       apiClient.post<ToolApproval>(`/approvals/${approvalId}`, {
-        approved,
-        ...(rememberScope ? { remember_scope: rememberScope } : {}),
+        approved: decision.type === "approve",
+        ...(decision.remember_scope ? { remember_scope: decision.remember_scope } : {}),
+        ...(decision.type === "reject" && decision.note ? { note: decision.note } : {}),
       }),
     [],
   );
@@ -3449,7 +4625,7 @@ export function useChat(options: UseChatOptions = {}) {
       // rebuilding this callback, but it cannot be written during render - and
       // rebuilding it is harmless: it is only ever passed down as a prop.
       const parked = pendingApproval;
-      if (parked === null) return;
+      if (parked === null || decisions.length !== parked.actionRequests.length) return;
       // A click consumes the batch before React can render another handler.
       // HTTP continuations can park again without a WebSocket approval frame.
       const decisionToken = {};
@@ -3468,37 +4644,30 @@ export function useChat(options: UseChatOptions = {}) {
       // so the panel reported "3 approved" and nothing whatsoever happened.
       // Recording the decision on the row is also what keeps the queue, the
       // audit entry and the email honest about what was decided.
+      const savedDecisions = [...(parked.savedDecisions ?? [])];
+      let continuesInChat = parked.continuesInChat ?? false;
+      const recordDecision = (request: ActionRequest, approved: boolean) => {
+        savedDecisions.push({ request, approved });
+        decidedApprovalIdsRef.current.add(request.id);
+        // The parked turn has already ended, so the live message ref is null.
+        if (parked.messageId !== null) {
+          updateToolCallPart(parked.messageId, request.tool_call_id, {
+            status: approved ? "running" : "error",
+            result: approved ? undefined : "Refused",
+          });
+        }
+      };
       try {
         // A run asked in a chat is continued by the server, so every answer
         // here says so and the browser must not resume it as well.
-        let continuesInChat = false;
         for (const [index, request] of parked.actionRequests.entries()) {
-          const decision = decisions[index];
-          if (decision === undefined) continue;
-          const decided = await decideApproval(
-            request.id,
-            decision.type === "approve",
-            decision.remember_scope,
-          );
-          decidedApprovalIdsRef.current.add(request.id);
+          const decision = decisions[index]!;
+          const decided = await decideApproval(request.id, decision);
+          recordDecision(request, decision.type === "approve");
           if (decided?.continues_in_chat) continuesInChat = true;
-          // `parked.messageId`, never the live ref: the turn ended at `complete`
-          // the moment the run parked, so the ref is null by now and every one of
-          // these updates was being skipped - which is why the step stayed at
-          // "waiting for approval" after an approval that had actually worked.
-          if (parked.messageId !== null) {
-            updateToolCallPart(parked.messageId, request.tool_call_id, {
-              status: decision.type === "approve" ? "running" : "error",
-              result: decision.type === "approve" ? undefined : "Refused",
-            });
-          }
         }
-        if (
-          parked.actionRequests.every((request) => decidedApprovalIdsRef.current.has(request.id))
-        ) {
-          await clearApprovalNotice(queryClient, activeConversationId, parked.runId);
-          void queryClient.invalidateQueries({ queryKey: qk.runs.all() });
-        }
+        await clearApprovalNotice(queryClient, activeConversationId, parked.runId);
+        void queryClient.invalidateQueries({ queryKey: qk.runs.all() });
         if (continuesInChat) {
           // Approval queues the continuation; it does not complete the tool.
           // Persisted run updates replace these pending steps with their actual
@@ -3549,8 +4718,8 @@ export function useChat(options: UseChatOptions = {}) {
         const settled = new Map((resumed.settled ?? []).map((call) => [call.tool_call_id, call]));
         if (parked.messageId !== null) {
           const id = parked.messageId;
-          for (const [index, request] of parked.actionRequests.entries()) {
-            if (decisions[index]?.type === "approve") {
+          for (const { request, approved } of savedDecisions) {
+            if (approved) {
               updateToolCallPart(id, request.tool_call_id, {
                 status: "completed",
                 result: settled.get(request.tool_call_id)?.result,
@@ -3562,7 +4731,7 @@ export function useChat(options: UseChatOptions = {}) {
           showContinuation(
             resumed,
             parked.runId,
-            new Set(parked.actionRequests.map((request) => request.tool_call_id)),
+            new Set(savedDecisions.map(({ request }) => request.tool_call_id)),
           );
         }
       } catch (error) {
@@ -3579,11 +4748,28 @@ export function useChat(options: UseChatOptions = {}) {
           toast.error(getErrorMessage(error, tErrors));
           return;
         }
+        // A concurrent reviewer (or a POST whose reply was lost) may have saved
+        // a different choice. Show that outcome before letting anyone continue.
+        const details = error instanceof ApiError && error.status === 400 ? error.details : null;
+        const alreadyDecided = parked.actionRequests.find(
+          (request) => request.id === details?.approval_id,
+        );
+        if (alreadyDecided && (details?.status === "approved" || details?.status === "rejected")) {
+          recordDecision(alreadyDecided, details.status === "approved");
+          continuesInChat = details.continues_in_chat === true;
+        }
         // The decision failed to record, or the resume could not be built (a secret
         // deleted since the park): the run is still parked, so put the approval back
         // rather than swallowing it - a panel that vanished is a person believing
         // they unblocked it, and the retry can now succeed.
-        setPendingApproval(parked);
+        setPendingApproval({
+          ...parked,
+          actionRequests: parked.actionRequests.filter(
+            (request) => !decidedApprovalIdsRef.current.has(request.id),
+          ),
+          savedDecisions,
+          continuesInChat,
+        });
         toast.error(getErrorMessage(error, tErrors));
       } finally {
         if (decidingApprovalRef.current === decisionToken) {
@@ -3617,6 +4803,7 @@ export function useChat(options: UseChatOptions = {}) {
   const answerParkedQuestion = useCallback(
     async (parked: NonNullable<typeof parkedQuestion>, answers: AskUserAnswer[]) => {
       const ticket = {};
+      const questionBatch = liveQuestionBatchId.current;
       answeringQuestionRef.current = ticket;
       const conversation = activeConversationId;
       const tenant = queueBelongsTo.current;
@@ -3676,7 +4863,7 @@ export function useChat(options: UseChatOptions = {}) {
               // This marker arrives only after the runner admits the answers.
               // The correlated result follows the whole continuation, which may
               // run for minutes or ask another question in a different message.
-              setPendingQuestions(null);
+              if (liveQuestionBatchId.current === questionBatch) setPendingQuestions(null);
               setParkedQuestion(null);
               parkedQuestionRunRef.current = null;
               updateMessage(messageId(), (message) => ({
@@ -3705,10 +4892,14 @@ export function useChat(options: UseChatOptions = {}) {
         });
         if (!stillHere()) return;
         void queryClient.invalidateQueries({ queryKey: qk.conversations.waitingQuestions() });
-        setPendingQuestions(null);
+        // A continuation can ask again before the previous answer result arrives.
+        // That result owns the parked card, not the newer live question batch.
+        if (liveQuestionBatchId.current === questionBatch) {
+          setPendingQuestions(null);
+          setSubmittingQuestions(false);
+        }
         setParkedQuestion(null);
         parkedQuestionRunRef.current = null;
-        setSubmittingQuestions(false);
         updateMessage(messageId(), (message) => ({ ...message, runWaitingFor: undefined }));
         let settledOffset = 0;
         for (const call of parked.calls) {
@@ -3737,7 +4928,7 @@ export function useChat(options: UseChatOptions = {}) {
         if (error instanceof RunAnswerInterrupted) {
           // Acceptance is unknown. Reconnect restores only what the persisted
           // run is still waiting on; submitted answers are never resent.
-          setPendingQuestions(null);
+          if (liveQuestionBatchId.current === questionBatch) setPendingQuestions(null);
           setParkedQuestion(null);
           parkedQuestionRunRef.current = null;
           questionOfferedForRef.current.delete(parked.runId);
@@ -3749,9 +4940,17 @@ export function useChat(options: UseChatOptions = {}) {
         const terminalStatus = resumeFailureStatus(error);
         if (terminalRunIdsRef.current.has(parked.runId) || terminalStatus !== null) {
           terminalRunIdsRef.current.add(parked.runId);
-          setPendingQuestions(null);
-          liveQuestionRef.current = false;
-          setPendingConnection(null);
+          const currentRun = chatApi
+            .getState()
+            .messages.find((message) => message.id === currentMessageIdRef.current)?.runId;
+          if (liveQuestionBatchId.current === questionBatch || currentRun === parked.runId) {
+            setPendingQuestions(null);
+            liveQuestionRef.current = false;
+            runtimeQuestionIdRef.current = null;
+            setPendingConnection(null);
+          }
+          setParkedQuestion(null);
+          parkedQuestionRunRef.current = null;
           abandonOpenCalls(messageId());
           const streamedMessageId = stream.started ? currentMessageIdRef.current : null;
           if (streamedMessageId !== null) {
@@ -3769,20 +4968,32 @@ export function useChat(options: UseChatOptions = {}) {
         }
         // An acknowledged refusal before execution leaves the run parked, so
         // its question can be answered again after the server becomes ready.
-        setPendingQuestions(asked);
-        setParkedQuestion(parked);
-        parkedQuestionRunRef.current = parked.runId;
+        if (liveQuestionBatchId.current === questionBatch) {
+          setPendingQuestions(asked);
+          setParkedQuestion(parked);
+          parkedQuestionRunRef.current = parked.runId;
+        } else {
+          setParkedQuestion(null);
+          parkedQuestionRunRef.current = null;
+        }
         setStatus("awaiting_answer");
       } finally {
         if (answeringQuestionRef.current === ticket) {
-          setSubmittingQuestions(false);
           answeringQuestionRef.current = null;
-          const following = !stream.started && followingRef.current !== null;
-          processingRef.current = following;
-          setIsProcessing(following);
-          if (stream.started) {
-            setCurrentMessageId(null);
-            resumedRunIdRef.current = undefined;
+          const currentRun = chatApi
+            .getState()
+            .messages.find((message) => message.id === currentMessageIdRef.current)?.runId;
+          const terminalQuestion =
+            terminalRunIdsRef.current.has(parked.runId) && currentRun === parked.runId;
+          if (liveQuestionBatchId.current === questionBatch || terminalQuestion) {
+            setSubmittingQuestions(false);
+            const following = !stream.started && followingRef.current !== null;
+            processingRef.current = following;
+            setIsProcessing(following);
+            if (stream.started) {
+              setCurrentMessageId(null);
+              resumedRunIdRef.current = undefined;
+            }
           }
           setDrainTick((tick) => tick + 1);
         }
@@ -3810,7 +5021,7 @@ export function useChat(options: UseChatOptions = {}) {
   const sendAskUserResponses = useCallback(
     (answers: AskUserAnswer[]) => {
       if (stoppingRef.current !== null || !isConnected) return;
-      if (parkedQuestion !== null) {
+      if (parkedQuestion !== null && !liveQuestionRef.current) {
         if (answeringQuestionRef.current !== null) return;
         void answerParkedQuestion(parkedQuestion, answers);
         return;
@@ -3834,7 +5045,14 @@ export function useChat(options: UseChatOptions = {}) {
           .map((call) => call.id),
       };
       setSubmittingQuestions(true);
-      sendMessage({ type: "ask_user_response", request_id: requestId, answers });
+      sendMessage({
+        type: "ask_user_response",
+        request_id: requestId,
+        answers,
+        ...(runtimeQuestionIdRef.current
+          ? { runtime_question_id: runtimeQuestionIdRef.current }
+          : {}),
+      });
     },
     [parkedQuestion, answerParkedQuestion, isConnected, sendMessage, pendingQuestions, chatApi],
   );
@@ -4015,6 +5233,7 @@ export function useChat(options: UseChatOptions = {}) {
         abandonRunAnswer();
       }
       liveQuestionRef.current = false;
+      runtimeQuestionIdRef.current = null;
       processingRef.current = false;
       if (currentMessageIdRef.current) {
         updateMessage(currentMessageIdRef.current, (msg) => ({ ...msg, isStreaming: false }));
@@ -4045,6 +5264,7 @@ export function useChat(options: UseChatOptions = {}) {
 
   const stopGeneration = useCallback(() => {
     if (stoppingRef.current !== null) return;
+    pauseQueued();
     continueAfterComputerRef.current = null;
     computerRequestRef.current = null;
     const submittedAnswer = pendingRunAnswerRef.current;
@@ -4182,6 +5402,7 @@ export function useChat(options: UseChatOptions = {}) {
     updateMessage,
     tErrors,
     onTurnInterrupted,
+    pauseQueued,
   ]);
 
   const acknowledgeDetachedTurn = useCallback(() => {
@@ -4282,7 +5503,15 @@ export function useChat(options: UseChatOptions = {}) {
       setSessionReady(true);
     }
     const answerWasPending = pendingRunAnswerRef.current !== null;
-    if (dropped) abandonRunAnswer();
+    if (dropped) {
+      abandonRunAnswer();
+      // The lost socket cannot acknowledge its steer. Let receipt recovery
+      // confirm the outcome; HTTP cancel, task and recovery reads still own
+      // their locks until their responses settle.
+      for (const lock of queueOperationsRef.current) {
+        if (lock.startsWith("steer:")) queueOperationsRef.current.delete(lock);
+      }
+    }
     if (dropped && (isProcessing || !sessionReadyRef.current || answerWasPending)) {
       const thread = { id: activeConversationId };
       interruptedRef.current = thread;
@@ -4345,6 +5574,262 @@ export function useChat(options: UseChatOptions = {}) {
     loadedTranscript.selectionVersion === selectionVersion &&
     loadedTranscript.accountId === (queueAccountId ?? null) &&
     loadedTranscript.tenantId === tenantId;
+  const queueReceiptRecoveryReady = useCallback(() => {
+    if (!queueReceiptsEnabled || !activeConversationId) return true;
+    const load = outboxLoadRef.current;
+    if (
+      !transcriptHere ||
+      !load ||
+      loadedOutbox !== load ||
+      load.conversationId !== activeConversationId
+    )
+      return false;
+    const reconciliation = queueReceiptReconciliationRef.current;
+    return (
+      reconciliation?.conversationId === activeConversationId &&
+      reconciliation.generation === queueReceiptScopeRef.current.generation &&
+      reconciliation.outboxToken === load.token &&
+      reconciliation.complete
+    );
+  }, [activeConversationId, loadedOutbox, queueReceiptsEnabled, transcriptHere]);
+  useEffect(() => {
+    if (
+      !queueReceiptsEnabled ||
+      !activeConversationId ||
+      !transcriptHere ||
+      !loadedOutbox ||
+      loadedOutbox !== outboxLoadRef.current ||
+      loadedOutbox.conversationId !== activeConversationId
+    )
+      return;
+    const scope = captureQueueReceiptScope();
+    const reconciliation: QueueReceiptReconciliation = {
+      conversationId: scope.conversationId!,
+      generation: scope.generation,
+      outboxToken: loadedOutbox.token,
+      complete: false,
+      removedReceiptKeys: new Set(loadedOutbox.removedReceiptKeys),
+    };
+    queueReceiptReconciliationRef.current = reconciliation;
+    let current = true;
+    setQueue(
+      messageQueueRef.current.map((item) =>
+        item.acceptedQueueId && item.receiptConversationId === scope.conversationId
+          ? { ...item, receiptReconciliationPending: true }
+          : item,
+      ),
+    );
+    const reconcile = async () => {
+      const rowsAtListStart = [...messageQueueRef.current];
+      const snapshotsById = new Map(rowsAtListStart.map((item) => [item.id, item] as const));
+      const actionInFlight = (item: QueuedMessage) => {
+        const receiptId = item.acceptedQueueId;
+        const acceptance = item.clientQueueId
+          ? queueAcceptanceOperationsRef.current.get(item.clientQueueId)
+          : undefined;
+        return (
+          acceptance?.generation === scope.generation ||
+          (!!receiptId &&
+            ["cancel", "task", "steer", "reconcile"].some((action) =>
+              queueOperationsRef.current.has(`${action}:${receiptId}`),
+            ))
+        );
+      };
+      const locate = (targetRows: QueuedMessage[], receipt: AcceptedQueuedMessageReceipt) =>
+        targetRows.findIndex(
+          (item) =>
+            item.acceptedQueueId === receipt.id || item.clientQueueId === receipt.client_queue_id,
+        );
+      const mergeReceipt = (
+        targetRows: QueuedMessage[],
+        receipt: AcceptedQueuedMessageReceipt,
+        addMissing: boolean,
+      ) => {
+        const index = locate(targetRows, receipt);
+        if (receipt.state !== "pending" && receipt.state !== "steering") {
+          if (index >= 0) targetRows.splice(index, 1);
+          return;
+        }
+        if (index < 0 && !addMissing) return;
+        const existing = index >= 0 ? targetRows[index] : undefined;
+        const restored = queueFromReceipt(receipt, existing);
+        if (existing?.transferErrorAction) {
+          restored.transferError = t("queuedTransferUnconfirmed");
+          restored.transferErrorAction = existing.transferErrorAction;
+        }
+        if (index >= 0) targetRows[index] = restored;
+        else targetRows.push(restored);
+      };
+      try {
+        let receipts: AcceptedQueuedMessageReceipt[];
+        try {
+          receipts = await listAcceptedQueuedMessages(scope.conversationId!);
+        } catch {
+          if (!current || !queueReceiptScopeIsCurrent(scope)) return;
+          setQueue(
+            messageQueueRef.current.map((item) => {
+              const snapshot = snapshotsById.get(item.id);
+              if (
+                !snapshot ||
+                !item.acceptedQueueId ||
+                item.receiptConversationId !== scope.conversationId ||
+                !queueReceiptSnapshotUnchanged(item, snapshot) ||
+                actionInFlight(item)
+              )
+                return item;
+              return {
+                ...item,
+                receiptReconciliationPending: undefined,
+                accepting: false,
+                transferring: false,
+                receiptErrorAction: item.transferErrorAction ? undefined : "send",
+                receiptError: item.transferErrorAction
+                  ? undefined
+                  : t("queuedReceiptReconcileUnconfirmed"),
+                ...(item.transferErrorAction
+                  ? { transferError: t("queuedTransferUnconfirmed") }
+                  : {}),
+              };
+            }),
+          );
+          return;
+        }
+        if (!current || !queueReceiptScopeIsCurrent(scope)) return;
+
+        const rows = [...messageQueueRef.current];
+        for (const receipt of receipts) {
+          const index = locate(rows, receipt);
+          if (index >= 0) {
+            const existing = rows[index]!;
+            const snapshot = snapshotsById.get(existing.id);
+            // Ignore a stale list result for a row changed after this read began.
+            // Pause and reorder are local presentation changes, so preserve them.
+            if (
+              !snapshot ||
+              !queueReceiptSnapshotUnchanged(existing, snapshot) ||
+              actionInFlight(existing)
+            )
+              continue;
+          } else {
+            const wasPresentAtStart = rowsAtListStart.some(
+              (item) =>
+                item.acceptedQueueId === receipt.id ||
+                item.clientQueueId === receipt.client_queue_id,
+            );
+            const removedWhileLoading =
+              reconciliation.removedReceiptKeys.has(`receipt:${receipt.id}`) ||
+              reconciliation.removedReceiptKeys.has(`client:${receipt.client_queue_id}`);
+            // A row removed during this read stays removed. Unrelated server-only
+            // receipts remain eligible even if the person changed another row.
+            if (wasPresentAtStart || removedWhileLoading) continue;
+          }
+          mergeReceipt(rows, receipt, true);
+        }
+        setQueue(rows);
+
+        const unresolvedIds = new Set(receipts.map((receipt) => receipt.id));
+        const localReceipts = [...messageQueueRef.current].filter(
+          (item) => item.receiptConversationId === scope.conversationId,
+        );
+        for (const item of localReceipts) {
+          const acceptedQueueId = item.acceptedQueueId;
+          if (!acceptedQueueId || unresolvedIds.has(acceptedQueueId)) continue;
+          try {
+            const receipt = await acceptedQueuedMessagesApi.get(
+              scope.conversationId!,
+              acceptedQueueId,
+            );
+            if (!current || !queueReceiptScopeIsCurrent(scope)) return;
+            const latestRows = [...messageQueueRef.current];
+            const index = latestRows.findIndex(
+              (row) => row.id === item.id && row.acceptedQueueId === acceptedQueueId,
+            );
+            const latest = latestRows[index];
+            if (!latest || !queueReceiptSnapshotUnchanged(latest, item) || actionInFlight(latest))
+              continue;
+            mergeReceipt(latestRows, receipt, false);
+            setQueue(latestRows);
+          } catch {
+            if (!current || !queueReceiptScopeIsCurrent(scope)) return;
+            const latestRows = [...messageQueueRef.current];
+            const index = latestRows.findIndex(
+              (row) => row.id === item.id && row.acceptedQueueId === acceptedQueueId,
+            );
+            const latest = latestRows[index];
+            if (latest && queueReceiptSnapshotUnchanged(latest, item) && !actionInFlight(latest)) {
+              latestRows[index] = {
+                ...latest,
+                receiptReconciliationPending: undefined,
+                accepting: false,
+                transferring: false,
+                receiptErrorAction: latest.transferErrorAction ? undefined : "send",
+                receiptError: latest.transferErrorAction
+                  ? undefined
+                  : t("queuedReceiptReconcileUnconfirmed"),
+                ...(latest.transferErrorAction
+                  ? { transferError: t("queuedTransferUnconfirmed") }
+                  : {}),
+              };
+              setQueue(latestRows);
+            }
+          }
+        }
+      } finally {
+        if (
+          current &&
+          queueReceiptScopeIsCurrent(scope) &&
+          queueReceiptReconciliationRef.current === reconciliation
+        ) {
+          reconciliation.complete = true;
+          reconciliation.removedReceiptKeys.clear();
+          setDrainTick((tick) => tick + 1);
+        }
+      }
+    };
+    void reconcile();
+    return () => {
+      current = false;
+    };
+  }, [
+    queueReceiptsEnabled,
+    activeConversationId,
+    transcriptHere,
+    loadedOutbox,
+    isConnected,
+    selectionVersion,
+    queueAccountId,
+    tenantId,
+    activeOrgId,
+    captureQueueReceiptScope,
+    queueReceiptScopeIsCurrent,
+    setQueue,
+    t,
+  ]);
+  useEffect(() => {
+    if (!queueReceiptsEnabled || !activeConversationId || !queueReceiptRecoveryReady()) return;
+    const scope = captureQueueReceiptScope();
+    for (const item of queuedMessages) {
+      if (
+        !item.acceptedQueueId ||
+        item.receiptConversationId !== scope.conversationId ||
+        !item.cancelRequested ||
+        item.accepting ||
+        item.transferring ||
+        item.receiptReconciliationPending ||
+        queueOperationsRef.current.has(`cancel:${item.acceptedQueueId}`)
+      )
+        continue;
+      void cancelQueued(item.id);
+    }
+  }, [
+    queueReceiptsEnabled,
+    activeConversationId,
+    queuedMessages,
+    queueReceiptRecoveryReady,
+    drainTick,
+    captureQueueReceiptScope,
+    cancelQueued,
+  ]);
   useEffect(() => {
     if (!isConnected || processingRef.current) return;
     if (activeConversationId === null ? attachedRef.current === null : !transcriptHere) return;
@@ -4393,7 +5878,7 @@ export function useChat(options: UseChatOptions = {}) {
   // A refused message at the head holds the rest: the queue is the order they go
   // in, and the person decides whether it goes again or not at all.
   useEffect(() => {
-    if (interruptedFor !== null) return;
+    if (interruptedFor !== null || !queueReceiptRecoveryReady()) return;
     if (
       !isConnected ||
       isProcessing ||
@@ -4401,11 +5886,16 @@ export function useChat(options: UseChatOptions = {}) {
       !sessionReady ||
       decidingApprovalRef.current ||
       answeringQuestionRef.current !== null ||
-      parkedQuestionRunRef.current !== null
+      parkedQuestionRunRef.current !== null ||
+      liveQuestionRef.current ||
+      liveQuestionSubmission.current !== null ||
+      stoppingRef.current !== null ||
+      messageQueueRef.current.some((message) => message.paused)
     )
       return;
     const next = messageQueueRef.current[0];
-    if (!next || next.refused !== undefined) return;
+    if (!next || next.refused !== undefined || !queueMayDrain(next, queueReceiptsEnabled)) return;
+    const scope = captureQueueReceiptScope();
     const account = useAuthStore.getState().user?.id;
     const organization = useOrgStore.getState().activeOrgId;
     const conversation = conversationApi.getState().currentConversationId;
@@ -4415,12 +5905,19 @@ export function useChat(options: UseChatOptions = {}) {
         account !== useAuthStore.getState().user?.id ||
         organization !== useOrgStore.getState().activeOrgId ||
         conversation !== conversationApi.getState().currentConversationId ||
+        !queueReceiptScopeIsCurrent(scope) ||
+        !queueReceiptRecoveryReady() ||
         messageQueueRef.current[0] !== next ||
+        !queueMayDrain(messageQueueRef.current[0], queueReceiptsEnabled) ||
         processingRef.current ||
         decidingApprovalRef.current !== null ||
         answeringQuestionRef.current !== null ||
         parkedQuestionRunRef.current !== null ||
         compactionRequestRef.current !== null ||
+        liveQuestionRef.current ||
+        liveQuestionSubmission.current !== null ||
+        stoppingRef.current !== null ||
+        messageQueueRef.current.some((message) => message.paused) ||
         !sessionReadyRef.current
       )
         return;
@@ -4432,6 +5929,8 @@ export function useChat(options: UseChatOptions = {}) {
         next.mentions,
         next.submission,
         next.agentId,
+        next.replyTo ?? null,
+        next.acceptedQueueId,
       );
       unconfirmedRef.current = { message: next, bubbleId };
     }, 100);
@@ -4450,6 +5949,10 @@ export function useChat(options: UseChatOptions = {}) {
     queuedMessages,
     pendingQuestions,
     setQueue,
+    queueReceiptsEnabled,
+    captureQueueReceiptScope,
+    queueReceiptScopeIsCurrent,
+    queueReceiptRecoveryReady,
     drainTick,
     tenantId,
     queueAccountId,
@@ -4539,6 +6042,7 @@ export function useChat(options: UseChatOptions = {}) {
     notifyTyping,
     isConnected,
     isProcessing,
+    liveSteerAgentId,
     isStopping,
     canStopParked: cancellableParked !== null,
     compacting,
@@ -4584,7 +6088,9 @@ export function useChat(options: UseChatOptions = {}) {
     sentTurnId,
     cancelQueued,
     retryQueued,
+    resumeQueued,
     sendQueuedNow,
+    runQueuedAsTask,
     moveQueued,
     clearQueued,
     /** Corrections sent into the running turn that have not reached the model yet. */

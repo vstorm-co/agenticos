@@ -188,6 +188,7 @@ class RoomSubmissionService:
         return MessageRead(
             id=message.id,
             conversation_id=message.conversation_id,
+            ordinal=message.ordinal,
             role="user",
             content=message.content,
             client_message_id=message.client_message_id,
@@ -304,6 +305,7 @@ class RoomSubmissionService:
                 conversation_id=conversation_id,
                 requester_id=ctx.subject_id,
                 message_id=message.id,
+                thread_root_message_id=request.thread_root_message_id,
                 client_message_id=request.client_message_id,
                 fingerprint=digest,
                 dispatch=dispatch,
@@ -327,6 +329,7 @@ class RoomSubmissionService:
                     conversation_id=conversation_id,
                     requester_id=ctx.subject_id,
                     message_id=message.id,
+                    thread_root_message_id=request.thread_root_message_id,
                     client_message_id=request.client_message_id,
                     fingerprint=digest,
                     parent_submission_id=submission.id,
@@ -477,6 +480,12 @@ class RoomSubmissionService:
         )
         cloud_agent(current_spec)
         cloud_agent(pinned_spec)
+        from app.services.room_thread_context_access import RoomThreadContextAccessService
+
+        await RoomThreadContextAccessService(self.db).assert_responder_visible(
+            destination=conversation,
+            responder_agent_id=submission.agent_id,
+        )
         dispatch = submission.dispatch or "explicit"
         if conversation.room_visibility is not None or dispatch in {"mention", "automatic"}:
             from app.services.room_participant import RoomParticipantService
@@ -500,11 +509,18 @@ class RoomSubmissionService:
             or message.author_user_id != submission.requester_id
         ):
             raise NotFoundError(message="The original room message is unavailable")
-        if message.thread_root_message_id is not None:
+        if submission.thread_root_message_id is not None:
             from app.services.room_thread import RoomThreadService
+            from app.services.room_thread_context_read import RoomThreadContextReadService
 
             await RoomThreadService(self.db).assert_replyable(
-                submission.conversation_id, message.thread_root_message_id
+                submission.conversation_id, submission.thread_root_message_id
+            )
+            await RoomThreadContextReadService(self.db).assert_history(
+                destination=conversation,
+                root_message_id=submission.thread_root_message_id,
+                actor=ctx,
+                responder_agent_id=submission.agent_id,
             )
         mentions = [
             RoomParticipantRef.model_validate(value) for value in message.room_mentions or []
@@ -522,6 +538,7 @@ class RoomSubmissionService:
                 or parent.parent_submission_id is not None
                 or parent.conversation_id != submission.conversation_id
                 or parent.message_id != submission.message_id
+                or parent.thread_root_message_id != submission.thread_root_message_id
                 or parent.requester_id != submission.requester_id
                 or parent.client_message_id != submission.client_message_id
                 or parent.fingerprint != submission.fingerprint
@@ -539,7 +556,7 @@ class RoomSubmissionService:
             file_ids=[file.id for file in files],
             reply_to_message_id=message.reply_to_message_id,
             reply_to_excerpt=message.reply_to_excerpt,
-            thread_root_message_id=message.thread_root_message_id,
+            thread_root_message_id=submission.thread_root_message_id,
             agent_id=(
                 submission.agent_id
                 if dispatch == "explicit" and submission.intent != "ask_lead"
@@ -645,11 +662,18 @@ class RoomSubmissionService:
                 await self.room(ctx, conversation_id, for_write=True)
             except AuthorizationError, NotFoundError:
                 can_post = False
+        from app.services.room_thread_context_read import RoomThreadContextReadService
+
+        context, context_messages = await RoomThreadContextReadService(self.db).detail(
+            ctx, conversation_id, root_message_id
+        )
         return RoomThreadRead(
             root=root,
             items=[MessageRead.model_validate(item) for item in items[1:]],
             total=total - 1,
             can_post=can_post,
+            context=context,
+            context_messages=context_messages,
             state=summary.state if summary else "open",
             can_manage=summary.can_manage if summary else False,
             following=summary.following if summary else False,

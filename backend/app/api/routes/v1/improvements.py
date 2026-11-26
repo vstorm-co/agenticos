@@ -31,6 +31,7 @@ from app.schemas.improvement import (
     KnowledgeCheckConsent,
     KnowledgeCheckEstimate,
     KnowledgeCheckTarget,
+    SearchChoice,
     SelectionConsent,
     SelectionEstimate,
     TopicDeferral,
@@ -163,6 +164,15 @@ async def choose_improvement_changes(
     """Choose which of the attempt's changes its check measures, while the session waits at
     Changes; the next step prices and starts that check."""
     return await service.choose_changes(ctx, agent_id, run_id, data)
+
+
+@router.put("/{run_id}/search/choice", response_model=ImprovementRead, dependencies=[ASSISTANT])
+async def choose_improvement_variant(
+    agent_id: UUID, run_id: UUID, data: SearchChoice, service: ImprovementSvc, ctx: Auth
+) -> Any:
+    """Bring another of the search's best variants to Changes, in place of the one it chose,
+    while the session waits there and before the check."""
+    return await service.choose_variant(ctx, agent_id, run_id, data)
 
 
 @router.put("/{run_id}/topics/{topic_id}/later", response_model=ImprovementRead)

@@ -793,7 +793,7 @@ mod tests {
 
     #[test]
     fn the_compiled_in_stack_is_the_standalone_install_and_answers_on_loopback_only() {
-        assert!(COMPOSE.contains("ghcr.io/vstorm-co/agenticos-frontend"));
+        assert!(COMPOSE.contains("${AGENTICOS_IMAGE_PREFIX:-ghcr.io/vstorm-co/agenticos}-frontend:"));
         assert!(
             COMPOSE.contains("\"3000:3000\""),
             "the override replaces the console's port"

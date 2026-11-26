@@ -429,7 +429,7 @@ describe("PendingApproval - a fact somebody's run would share", () => {
   });
 });
 
-it("offers only Reject on a call that always asks when the reader cannot see what it quotes", async () => {
+it("offers rejection but not approval when the reader cannot see what the call quotes", async () => {
   const onDecide = vi.fn();
   inIntl(
     <PendingApproval
@@ -451,8 +451,36 @@ it("offers only Reject on a call that always asks when the reader cannot see wha
   expect(
     screen.getByText("Only somebody who can see the run can approve this. You can reject it."),
   ).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: /Reject/ }));
+  await userEvent.click(screen.getByRole("button", { name: "Reject" }));
   expect(onDecide).toHaveBeenCalledWith(false);
+});
+
+it("includes a tool rejection comment in the decision and its history", async () => {
+  const onDecide = vi.fn();
+  const note = "Remove the link";
+  const { unmount } = inIntl(
+    <PendingApproval
+      approval={approval()}
+      deciding={false}
+      onDecide={onDecide}
+      onOpenRun={vi.fn()}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Reject with feedback" }));
+  const field = screen.getByRole("textbox", { name: "Feedback" });
+  for (const clientX of [200, -200]) {
+    fireEvent.pointerDown(field, { pointerId: 1, pointerType: "touch", clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(field, { pointerId: 1, pointerType: "touch", clientX, clientY: 0 });
+    fireEvent.pointerUp(field, { pointerId: 1, pointerType: "touch" });
+  }
+  expect(onDecide).not.toHaveBeenCalled();
+  await userEvent.type(field, note);
+  await userEvent.click(screen.getByRole("button", { name: "Reject and send feedback" }));
+  expect(onDecide).toHaveBeenCalledWith(false, note);
+
+  unmount();
+  inIntl(<DecidedApproval approval={approval({ status: "rejected", note })} onOpenRun={vi.fn()} />);
+  expect(screen.getByText(note)).toBeVisible();
 });
 
 it("words a correction by the fact before and after it", () => {

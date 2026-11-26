@@ -4,6 +4,7 @@ The integration suite scores with every scorer on; these are the switches that
 leave one out.
 """
 
+import threading
 import uuid
 from unittest.mock import AsyncMock, MagicMock
 
@@ -65,6 +66,23 @@ async def test_a_case_with_no_expected_calls_has_no_trajectory_to_score() -> Non
     assert await ScoringService(AsyncMock()).evaluate(
         _ctx(), case, ANSWER, DatasetScoring()
     ) == Evaluation([])
+
+
+async def test_rule_based_checks_run_off_the_event_loop(monkeypatch) -> None:
+    threads: list[int] = []
+    real = scoring.run_checks
+
+    def recorded(*args, **kwargs):
+        threads.append(threading.get_ident())
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(scoring, "run_checks", recorded)
+    case = CaseView(**{**CASE.__dict__, "expected_tool_calls": []})
+
+    evaluation = await ScoringService(AsyncMock()).evaluate(_ctx(), case, ANSWER, DatasetScoring())
+
+    assert [result.name for result in evaluation.results] == ["contains 'days'"]
+    assert threads and threads[0] != threading.get_ident()
 
 
 def test_a_score_names_its_case_and_run() -> None:

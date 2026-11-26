@@ -17,6 +17,7 @@ from app.core.exceptions import (
     BadRequestError,
     NotFoundError,
 )
+from app.db.locks import LockScope, hold_subject
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.conversation_share import ConversationShare
 from app.repositories import (
@@ -143,6 +144,10 @@ class ConversationShareService:
             )
         if conv.user_id != shared_by:
             raise AuthorizationError(message="Only the conversation owner can share it")
+        await hold_subject(self.db, LockScope.CONVERSATION_TURN, conversation_id)
+        conv = await conversation_repo.get_conversation_by_id(self.db, conversation_id, fresh=True)
+        if conv is None or conv.user_id != shared_by:
+            raise NotFoundError(message="Conversation not found")
         # Who reads a project's chat is the project's to say. A share - a public
         # link above all - would outlive its starter's place in the project and
         # go on showing teammates' later turns to whoever holds it.
@@ -159,6 +164,11 @@ class ConversationShareService:
         share_token = None
 
         if generate_link:
+            if await conversation_repo.has_imported_thread_context(self.db, conversation_id):
+                raise BadRequestError(
+                    message="Linked room context requires signed-in access to its source rooms.",
+                    details={"reason": "linked_room_context"},
+                )
             share_token = secrets.token_urlsafe(32)
             share = await conversation_share_repo.create(
                 self.db,
@@ -347,6 +357,11 @@ class ConversationShareService:
         who can read it - so a list that answered `false` for every row was
         wrong on the surface where it matters most (#1254).
         """
+        from app.services.room_thread_context_access import RoomThreadContextAccessService
+
+        blocked = await RoomThreadContextAccessService(self.db).unreadable_destinations(
+            organization_id=organization_id, user_id=user_id
+        )
         items = await conversation_share_repo.get_conversations_shared_with_user(
             self.db,
             user_id,
@@ -354,9 +369,14 @@ class ConversationShareService:
             skip=skip,
             limit=limit,
             include_archived=include_archived,
+            excluded_conversation_ids=blocked,
         )
         total = await conversation_share_repo.count_conversations_shared_with_user(
-            self.db, user_id, organization_id=organization_id, include_archived=include_archived
+            self.db,
+            user_id,
+            organization_id=organization_id,
+            include_archived=include_archived,
+            excluded_conversation_ids=blocked,
         )
         starred = await conversation_repo.favourite_ids(
             self.db, user_id=user_id, conversation_ids=[item.id for item in items]
@@ -381,6 +401,8 @@ class ConversationShareService:
         # A link made before its chat was in a project, or before that was
         # refused, opens nothing: the project decides who reads it.
         if not conv or conv.project_id is not None:
+            raise NotFoundError(message="Conversation not found")
+        if await conversation_repo.has_imported_thread_context(self.db, conv.id):
             raise NotFoundError(message="Conversation not found")
         org = await organization_repo.get_by_id(self.db, conv.organization_id)
         if org is None:

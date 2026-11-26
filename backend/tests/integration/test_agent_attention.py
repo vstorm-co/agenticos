@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm, Scope
-from app.db.models.agent import Agent, AgentVersion
+from app.db.models.agent import Agent, AgentKind, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.conversation import Conversation, Message
 from app.db.models.message_rating import MessageRating
@@ -50,9 +50,12 @@ async def _org(db, owner: User) -> Organization:
     return organization
 
 
-async def _agent(db, organization: Organization, owner: User, name: str) -> Agent:
+async def _agent(
+    db, organization: Organization, owner: User, name: str, kind: AgentKind = AgentKind.AGENT
+) -> Agent:
     agent = Agent(
         organization_id=organization.id,
+        kind=kind.value,
         owner_user_id=owner.id,
         name=name,
         slug=f"{name.lower().replace(' ', '-')}-{uuid.uuid4().hex[:8]}",
@@ -220,6 +223,33 @@ async def test_it_is_refused_without_runs_view(db) -> None:
 
     with pytest.raises(AuthorizationError):
         await StatsService(db).attention(member)
+
+
+@pytest.mark.security
+async def test_only_agents_people_use_are_named_not_the_platforms_own(db) -> None:
+    """A system agent's page does not open, so the card would lead nowhere; nor
+    does another organization's agent reach this one's list."""
+    owner = await _user(db)
+    organization = await _org(db, owner)
+    desk = await _agent(db, organization, owner, "Refund desk")
+    await _run(db, desk, status="failed")
+    for kind in AgentKind:
+        if kind is AgentKind.AGENT:
+            continue
+        system = await _agent(db, organization, owner, f"Platform {kind.value}", kind)
+        await _run(db, system, status="failed")
+        await _rated(db, system, [owner], -1)
+    elsewhere = await _agent(db, await _org(db, owner), owner, "Elsewhere")
+    await _run(db, elsewhere, status="failed")
+    today = _NOW.date()
+
+    result = await StatsService(db).attention(
+        AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER),
+        from_date=today - timedelta(days=1),
+        to_date=today + timedelta(days=1),
+    )
+
+    assert [item.name for item in result.items] == ["Refund desk"]
 
 
 async def test_publishing_a_version_clears_what_the_version_before_it_did(db) -> None:

@@ -73,7 +73,8 @@ async def test_two_members_use_the_same_model_with_isolated_rotatable_keys(
     with patch.object(service, "_profile", AsyncMock(return_value=held)):
         await service.save(first, uuid4(), key_request(held, "first-private-key"))
         await service.save(second, uuid4(), key_request(held, "second-private-key"))
-        assert (await service.status(first, uuid4())).connected
+        status = await service.status(first, uuid4())
+        assert status.connected
         for ctx, value in [(first, "first-private-key"), (second, "second-private-key")]:
             resolved = await service.resolve(ctx, held)
             assert isinstance(resolved.credential.secret, ApiKeySecret)
@@ -90,8 +91,10 @@ async def test_two_members_use_the_same_model_with_isolated_rotatable_keys(
         assert replacement_connection.credential.routing["credential_updated_at"] is not None
         assert previous_connection.credential.routing != replacement_connection.credential.routing
 
-        assert len(await service.mine(first)) == 1
-        assert len(await service.mine(second)) == 1
+        first_keys = await service.mine(first)
+        assert len(first_keys) == 1
+        second_keys = await service.mine(second)
+        assert len(second_keys) == 1
         for ctx, value in [(first, "first-replacement"), (second, "second-private-key")]:
             resolved = await service.resolve(ctx, held)
             assert isinstance(resolved.credential.secret, ApiKeySecret)
@@ -103,7 +106,8 @@ async def test_two_members_use_the_same_model_with_isolated_rotatable_keys(
     await service.delete(first, own.id)
     with pytest.raises(AuthorizationError, match="own model API key"):
         await service.resolve(first, held)
-    assert len(await service.mine(second)) == 1
+    second_keys = await service.mine(second)
+    assert len(second_keys) == 1
 
 
 async def test_key_envelopes_and_metadata_never_cross_owner_or_tenant(db: AsyncSession) -> None:
@@ -129,20 +133,26 @@ async def test_key_envelopes_and_metadata_never_cross_owner_or_tenant(db: AsyncS
             unseal_secret(
                 row.sealed_secret, kind=SecretKind.API_KEY, scope=scope, key_version=row.key_version
             )
-    assert (
-        await key_repo.get(
-            db,
-            organization_id=uuid4(),
-            user_id=first.user_id,
-            provider=held.provider,
-            endpoint=held.base_url or "",
-        )
-        is None
+    removed = await key_repo.get(
+        db,
+        organization_id=uuid4(),
+        user_id=first.user_id,
+        provider=held.provider,
+        endpoint=held.base_url or "",
     )
+    assert removed is None
     metadata = (await service.mine(first))[0].model_dump_json()
     assert "sealed_secret" not in metadata and "vault-personal-private" not in metadata
     exported = await PersonalDataService(db).export(first.user_id, actor_user_id=first.user_id)
     assert len(exported.personal_model_keys) == 1
+    assert len(exported.personal_model_generations) == 1
+    assert set(exported.personal_model_generations[0].model_dump()) == {
+        "organization_id",
+        "provider",
+        "endpoint",
+        "created_at",
+        "updated_at",
+    }
     assert "vault-personal-private" not in exported.model_dump_json()
     assert "sealed_secret" not in exported.personal_model_keys[0].model_dump()
 
@@ -168,7 +178,8 @@ async def test_membership_is_required_by_the_database_and_removal_deletes_the_ke
         )
     )
     await db.flush()
-    assert await service.mine(first) == []
+    remaining_keys = await service.mine(first)
+    assert remaining_keys == []
     with pytest.raises(IntegrityError):
         async with db.begin_nested():
             await key_repo.save(
@@ -205,7 +216,40 @@ async def test_published_credential_mode_metadata_ignores_the_draft(db: AsyncSes
     )
     db.add(version)
     await db.flush()
-    assert await agent_repo.published_personal_model_keys(db, version_ids=[]) == set()
-    assert await agent_repo.published_personal_model_keys(db, version_ids=[version.id]) == {
-        version.id
-    }
+    no_versions = await agent_repo.published_personal_model_keys(db, version_ids=[])
+    assert no_versions == set()
+    personal_versions = await agent_repo.published_personal_model_keys(db, version_ids=[version.id])
+    assert personal_versions == {version.id}
+
+
+async def test_deleting_a_missing_or_foreign_personal_key_cannot_remove_another_members_key(
+    db: AsyncSession,
+) -> None:
+    first, second, held = await setup(db)
+    service = PersonalModelKeyService(db)
+    with patch.object(service, "_profile", AsyncMock(return_value=held)):
+        await service.save(first, uuid4(), key_request(held, "private-test-key"))
+        row = await key_repo.get(
+            db,
+            organization_id=first.organization_id,
+            user_id=first.user_id,
+            provider=held.provider,
+            endpoint=held.base_url or "",
+        )
+        assert row is not None
+        foreign_deleted = await key_repo.delete(
+            db,
+            organization_id=second.organization_id,
+            user_id=second.user_id,
+            key_id=row.id,
+        )
+        assert not foreign_deleted
+        missing_deleted = await key_repo.delete(
+            db,
+            organization_id=first.organization_id,
+            user_id=first.user_id,
+            key_id=uuid4(),
+        )
+        assert not missing_deleted
+        status = await service.status(first, uuid4())
+        assert status.connected

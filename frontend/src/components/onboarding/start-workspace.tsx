@@ -8,6 +8,7 @@ import { CreateOrgForm } from "@/components/teams/create-org-form";
 import { EntityAvatar } from "@/components/ui/entity-avatar";
 import type { Organization } from "@/types";
 import { StartActions, StartBack } from "./start-navigation";
+import { useStartVariant } from "./start-experience";
 import { StartWorkspacePreview } from "./start-workspace-preview";
 import styles from "./administration.module.css";
 
@@ -20,15 +21,16 @@ export function StartWorkspace({
   activeOrgId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const variant = useStartVariant();
   const t = useTranslations("start.administration");
   const [name, setName] = useState("");
   const [createNew, setCreateNew] = useState(organizations.length === 0);
   const organization = organizations.find((org) => org.id === activeOrgId) ?? organizations[0];
 
   return (
-    <div className={styles.workspaceStudio}>
+    <div className={styles.workspaceStudio} data-start-workspace>
       {createNew ? (
-        <section className={styles.createWorkspace}>
+        <section className={styles.createWorkspace} data-start-workspace-form>
           <Building2 size={24} aria-hidden className={styles.stageIcon} />
           <h3>{t("createCompany")}</h3>
           <p>{t("createCompanyHint")}</p>
@@ -54,10 +56,14 @@ export function StartWorkspace({
           />
         </section>
       ) : (
-        <section className={styles.createWorkspace}>
-          <Building2 size={24} aria-hidden className={styles.stageIcon} />
-          <h3>{t("existingCompany")}</h3>
-          <p>{t("existingCompanyHint")}</p>
+        <section className={styles.createWorkspace} data-start-workspace-form>
+          {variant !== "studio" && (
+            <>
+              <Building2 size={24} aria-hidden className={styles.stageIcon} />
+              <h3>{t("existingCompany")}</h3>
+              <p>{t("existingCompanyHint")}</p>
+            </>
+          )}
           <ul className={styles.workspaceList}>
             {organizations.map((org) => (
               <li key={org.id}>

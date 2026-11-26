@@ -43,6 +43,11 @@ describe("an English-only deployment", () => {
     expect(redirectedTo(middleware(request("/orgs", { locale: "fr" })))).toBeNull();
     expect(redirectedTo(middleware(request("/orgs", { locale: "" })))).toBeNull();
   });
+
+  it("is unaffected by a cookie naming a locale this deployment does not have", () => {
+    expect(redirectedTo(middleware(request("/orgs", { locale: "es" })))).toBeNull();
+    expect(redirectedTo(middleware(request("/orgs", { locale: "" })))).toBeNull();
+  });
 });
 
 describe("a path under a retired locale", () => {

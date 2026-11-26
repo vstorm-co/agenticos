@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec, OrgMcpServerRef
 from app.core.permissions import AuthContext, Perm
+from app.db.models.agent import Agent
 from app.db.models.resource_grant import Visibility
 from app.repositories import (
     context_repo,
@@ -95,9 +96,17 @@ class KnowledgeReachService:
         }
 
     async def for_agent(self, ctx: AuthContext, agent_id: UUID) -> AgentKnowledgeReach:
-        """The agent's own reach, and each source it binds that the caller may see."""
+        """The agent's own reach, and each source its draft binds that the caller may see."""
         agent = await AgentRegistryService(self.db).get(ctx, agent_id)
-        spec = AgentSpec.model_validate(agent.draft_spec)
+        return await self.for_spec(ctx, agent, AgentSpec.model_validate(agent.draft_spec))
+
+    async def for_spec(
+        self, ctx: AuthContext, agent: Agent, spec: AgentSpec
+    ) -> AgentKnowledgeReach:
+        """The agent's own reach, and each source `spec` binds that the caller may see.
+
+        `spec` is any of the agent's specs - a published version's, for what it runs.
+        """
         agent_reach = (await self._reaches(ctx, [agent], AGENT))[agent.id]
 
         org = ctx.organization_id

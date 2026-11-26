@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,7 +7,17 @@ import type { User } from "@/types/auth";
 import type { EvalRun } from "@/types/eval-runs";
 import { FLIP, SUMMARY, arm, attempt, comparison, evalCase, evalRun } from "@/test-utils/eval-runs";
 import { ApiError } from "@/lib/api-error";
+import type { ReactElement } from "react";
 import { EvalRunView } from "./eval-run-view";
+
+function renderDetailedResult(view: ReactElement) {
+  const result = render(view);
+  for (const label of ["Test details", "More actions"]) {
+    const summary = screen.queryByText(label, { selector: "summary" });
+    if (summary && !summary.closest("details")?.open) fireEvent.click(summary);
+  }
+  return result;
+}
 
 const toastError = vi.fn();
 const toastSuccess = vi.fn();
@@ -140,7 +150,7 @@ describe("EvalRunView", () => {
       ...state.run,
       run: evalRun({ suite: { id: "suite-1", name: "Nightly", trigger: "schedule" } }),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(screen.getByText("Started by the suite Nightly on its schedule.")).toBeInTheDocument();
   });
@@ -158,7 +168,7 @@ describe("EvalRunView", () => {
         },
       }),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(screen.getByText("Failed")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Nightly" })).toHaveAttribute(
@@ -168,7 +178,7 @@ describe("EvalRunView", () => {
   });
 
   it("leads with the verdict, then each side, how they compare and every case", async () => {
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(screen.getByText("refunds v3 · v7")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Evaluation result" })).toBeVisible();
@@ -184,11 +194,9 @@ describe("EvalRunView", () => {
     );
     expect(screen.getByText("4 cases · 4 answers")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /spent \$0.04 of an estimated \$0.05, plus up to \$0.02 for confirming reruns/,
-      ),
+      screen.getByText(/spent \$0.04 of an expected \$0.06, at most \$0.07/),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back to the agent's evals" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Agents" })).toHaveAttribute(
       "href",
       "/agents/agent-1?tab=evals",
     );
@@ -200,12 +208,17 @@ describe("EvalRunView", () => {
     expect(screen.queryByRole("link", { name: "Publish" })).toBeNull();
     expect(screen.queryByRole("link", { name: "See what changed" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Details" }));
+    await userEvent.click(
+      screen.getAllByText("How this was measured", { selector: "summary" }).at(-1)!,
+    );
     expect(screen.getByText("How the two compare")).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Undecided" })).toBeInTheDocument();
 
+    await userEvent.click(screen.getByRole("tab", { name: "Answers" }));
     const caseRow = screen.getByRole("button", { name: /How long do I have to return it/ });
-    expect(within(caseRow).getByRole("img", { name: "v7 · gpt-4.1: passed" })).toBeVisible();
-    expect(within(caseRow).getByText("Confirmed regression")).toBeInTheDocument();
+    expect(within(caseRow).getByRole("img", { name: "v7 · gpt-4.1: failed" })).toBeVisible();
+    expect(within(caseRow).getByText("Got worse")).toBeInTheDocument();
     await userEvent.click(caseRow);
     expect(screen.getByText("You have 30 days.")).toBeInTheDocument();
     await userEvent.click(caseRow);
@@ -215,7 +228,7 @@ describe("EvalRunView", () => {
   it("says a draft made things worse, what changed, and shows the cases that broke", async () => {
     worseDraft();
     loaded.agent = { can_run: true, can_edit: true, can_publish: true };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(
       screen.getByText(
@@ -253,7 +266,7 @@ describe("EvalRunView", () => {
       ...(state.comparison as object),
       cases: Array.from({ length: 101 }, (_, i) => ({ ...FLIP, case_id: `case-${i}` })),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     await userEvent.click(screen.getByRole("button", { name: /Show the 4 cases that broke/ }));
     const [, query] = state.casesArgs.at(-1) as [string, { caseIds: string[] }];
@@ -261,7 +274,7 @@ describe("EvalRunView", () => {
     expect(screen.getByText("Showing the first 100 of the 101 cases that broke.")).toBeVisible();
   });
 
-  it("puts Publish first only when nothing broke for sure", () => {
+  it("puts Publish first only when nothing broke for sure", async () => {
     worseDraft();
     state.comparison = {
       ...(state.comparison as object),
@@ -273,7 +286,8 @@ describe("EvalRunView", () => {
       ],
     };
     loaded.agent = { can_run: true, can_edit: true, can_publish: true };
-    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const { unmount } = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    await userEvent.click(screen.getByText("How this was measured", { selector: "summary" }));
     expect(
       screen.getByText(
         /Draft fixes 1 case that failed on v6, every time it was asked: “How long do I have to return it\?” \(2 of 2\)/,
@@ -288,7 +302,7 @@ describe("EvalRunView", () => {
       ...state.run,
       run: evalRun({ arms: [{ ...draft!, summary: { ...SUMMARY, incomplete: 1 } }, base!] }),
     };
-    const unfinished = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const unfinished = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-action");
     unfinished.unmount();
 
@@ -299,7 +313,7 @@ describe("EvalRunView", () => {
       regressions_confirmed: 3,
       cases: [FLIP],
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Mixed")).toBeInTheDocument();
     expect(screen.getByText(/Mixed: Draft breaks 3 cases and fixes 1 against v6/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Publish" }).className).not.toContain("bg-action");
@@ -313,7 +327,7 @@ describe("EvalRunView", () => {
         arms: [arm({ source: "explicit" })],
       }),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(
       screen.getByText(
         "2 cases were left out: taken from the conversations the checked change was derived from.",
@@ -330,7 +344,7 @@ describe("EvalRunView", () => {
       ...(state.run as object),
       run: evalRun({ arms: [arm({ source: "version", skill_ids: ["skill-1"] })] }),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByRole("link", { name: "Back to the skill change" })).toHaveAttribute(
       "href",
       "/skills",
@@ -343,7 +357,7 @@ describe("EvalRunView", () => {
       ...(state.run as object),
       run: evalRun({ arms: [arm({ source: "version", context_ids: ["ctx-1"] })] }),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByRole("link", { name: "Back to the context file change" })).toHaveAttribute(
       "href",
       "/context",
@@ -355,17 +369,18 @@ describe("EvalRunView", () => {
     state.refetchComparison = refetch;
     state.comparison = undefined;
     state.comparisonError = new Error("boom");
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(screen.getByRole("alert")).toHaveTextContent("The verdict could not be read.");
     await userEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(refetch).toHaveBeenCalled();
   });
 
-  it("says when the confirmed changes make it worse as a whole", () => {
+  it("says when the confirmed changes make it worse as a whole", async () => {
     worseDraft();
     state.comparison = { ...(state.comparison as object), overall: "worse" };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    await userEvent.click(screen.getByText("How this was measured", { selector: "summary" }));
     expect(screen.getByText("Breaks cases").className).toContain("destructive");
     expect(screen.getByText("Worse overall")).toBeInTheDocument();
     expect(
@@ -382,7 +397,7 @@ describe("EvalRunView", () => {
       fixed_confirmed: 10,
       overall: "better",
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Mixed").className).toContain("warning");
     // A qualifier beside the verdict, never a green one in its place.
     expect(screen.getByText("Better overall").className).not.toContain("success");
@@ -393,7 +408,7 @@ describe("EvalRunView", () => {
       ...state.run,
       run: evalRun({ routed_to_review: 3, routed_replacing: 1, judge_model_profile_id: "m1" }),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(
       screen.getByText(
         "This run sent 3 answers to review itself: the regressions it confirmed and the answers the judge failed to grade. That replaced 1 older answer of this agent still waiting on the same case.",
@@ -413,7 +428,7 @@ describe("EvalRunView", () => {
         ],
       }),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getAllByText(/v2 \+ 1 suggestion/).length).toBeGreaterThan(1);
     expect(
       screen.getByText(
@@ -422,7 +437,7 @@ describe("EvalRunView", () => {
     ).toBeVisible();
   });
 
-  it("names a skill's check by its agent, on the skill as it is and as proposed", () => {
+  it("names a skill's check by its agent, on the skill as it is and as proposed", async () => {
     loaded.agent = { can_run: true, can_edit: true, name: "Online returns desk" };
     state.run = {
       ...state.run,
@@ -439,7 +454,8 @@ describe("EvalRunView", () => {
         ],
       }),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    await userEvent.click(screen.getByRole("tab", { name: "Details" }));
     expect(screen.getAllByText(/Online returns desk · proposed skill/).length).toBeGreaterThan(0);
     expect(
       screen.getAllByText(/Online returns desk · current skill \(v4\)/).length,
@@ -447,7 +463,7 @@ describe("EvalRunView", () => {
     expect(screen.queryByText(/v3 \+ proposed skill/)).toBeNull();
   });
 
-  it("says a check's stage is one, names its sides by their text and judges it truthfully", () => {
+  it("says a check's stage is one, names its sides by their text and judges it truthfully", async () => {
     loaded.agent = { can_run: true, can_edit: true, name: "Store counter" };
     state.run = {
       ...state.run,
@@ -485,7 +501,8 @@ describe("EvalRunView", () => {
       invalid_reason_code: "too_few_held_out",
       baseline_summary: null,
     });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    await userEvent.click(screen.getByRole("tab", { name: "Details" }));
 
     expect(screen.getByText(/Stage of the check of returns-policy on Store counter/)).toBeVisible();
     expect(screen.getByRole("link", { name: "Open the check" })).toHaveAttribute(
@@ -502,12 +519,12 @@ describe("EvalRunView", () => {
     expect(screen.getByText(/1 case was left out: taken from the conversations/)).toBeVisible();
     expect(screen.getAllByText(/Proposed text/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Current v3/).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/of an estimated/)).toBeNull();
+    expect(screen.queryByText(/of an expected/)).toBeNull();
     expect(screen.queryByRole("link", { name: "Back to Build" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Back to the skill change" })).toBeNull();
   });
 
-  it("names a check stage's sides before the skill and the fork it reads are known", () => {
+  it("names a check stage's sides before the skill and the fork it reads are known", async () => {
     skills.readable = false;
     loaded.agent = { can_run: true, can_edit: true, name: "Store counter" };
     state.run = {
@@ -537,7 +554,8 @@ describe("EvalRunView", () => {
       invalid_reason_code: "too_few_held_out",
       baseline_summary: null,
     });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    await userEvent.click(screen.getByRole("tab", { name: "Details" }));
 
     expect(screen.getAllByText(/Current “Prints” v2/).length).toBeGreaterThan(0);
     expect(screen.getByText(/Stage of the check of a skill on Store counter/)).toBeVisible();
@@ -550,7 +568,7 @@ describe("EvalRunView", () => {
       invalid_reason_code: "too_few_held_out",
       baseline_summary: null,
     });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(screen.getByText(/cannot be compared yet: too few held-out/)).toBeVisible();
     expect(
@@ -567,7 +585,7 @@ describe("EvalRunView", () => {
         routing_error: { code: "REVIEW_CLOSED", message: "The review queue is closed." },
       }),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(
       screen.getByText(
         "This run couldn't send its answers to review itself, so send the failed ones by hand. Why: The review queue is closed.",
@@ -578,8 +596,8 @@ describe("EvalRunView", () => {
 
   it("draws no flip while the run answers, and names the side a case was not graded on", () => {
     state.run = { ...state.run, run: evalRun({ status: "running", first_done: 1 }) };
-    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
-    expect(screen.queryByText("Confirmed regression")).toBeNull();
+    const { unmount } = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.queryByText("Got worse")).toBeNull();
     unmount();
 
     const undecided = (id: string, side: "baseline" | "candidate") => ({
@@ -599,18 +617,18 @@ describe("EvalRunView", () => {
     state.comparison = comparison({
       cases: [undecided("case-1", "candidate"), undecided("case-2", "baseline")],
     });
-    const again = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const again = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Not graded on v7")).toBeInTheDocument();
     expect(screen.getByText("Not graded on Draft")).toBeInTheDocument();
     again.unmount();
 
     // With nothing to compare with, the only side there is.
     state.comparison = comparison({ baseline: null, cases: [undecided("case-2", "baseline")] });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Not graded on v7")).toBeInTheDocument();
   });
 
-  it("says no change held when nothing reproduced", () => {
+  it("says no change held when nothing reproduced", async () => {
     state.comparison = comparison({
       verdict: "no_difference",
       regressions_confirmed: 0,
@@ -618,7 +636,8 @@ describe("EvalRunView", () => {
       fixed_unconfirmed: 1,
       cases: [],
     });
-    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const { unmount } = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    await userEvent.click(screen.getByText("How this was measured", { selector: "summary" }));
     expect(screen.getByText("No reproducible change")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -635,11 +654,12 @@ describe("EvalRunView", () => {
       fixed_unconfirmed: 0,
       cases: [],
     });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    await userEvent.click(screen.getByText("How this was measured", { selector: "summary" }));
     expect(screen.getByText(/No change held: v7 does as well as Draft on refunds\./)).toBeVisible();
   });
 
-  it("suggests a steadier model when much changed and nothing held", () => {
+  it("suggests a steadier model when much changed and nothing held", async () => {
     const unsteady = /Run it again, or test on a steadier model/;
     state.comparison = comparison({
       verdict: "no_difference",
@@ -647,7 +667,8 @@ describe("EvalRunView", () => {
       fixed_unconfirmed: 2,
       cases: [],
     });
-    const many = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const many = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    await userEvent.click(screen.getByText("How this was measured", { selector: "summary" }));
     expect(screen.getByText(unsteady)).toBeVisible();
     many.unmount();
 
@@ -659,7 +680,8 @@ describe("EvalRunView", () => {
       baseline_summary: { ...SUMMARY, pass_rate: 0.7 },
       cases: [],
     });
-    const far = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const far = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    await userEvent.click(screen.getByText("How this was measured", { selector: "summary" }));
     expect(screen.getByText(unsteady)).toBeVisible();
     far.unmount();
 
@@ -671,19 +693,19 @@ describe("EvalRunView", () => {
       baseline_summary: null,
       cases: [],
     });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByText(unsteady)).toBeNull();
   });
 
   it("grades again the answers the judge left ungraded, for who may run the dataset", async () => {
     state.run = { ...state.run, run: evalRun({ ungraded_score_ids: ["s1", "s2"] }) };
-    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const { unmount } = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText(/2 answers were not graded/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Grade again" })).toBeNull();
     unmount();
 
     review.canRun = true;
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     await userEvent.click(screen.getByRole("button", { name: "Grade again" }));
     expect(review.rescore).toHaveBeenCalledWith(["s1", "s2"], expect.any(Object));
     const { onSuccess, onError } = review.rescore.mock.calls[0]![1] as {
@@ -698,7 +720,7 @@ describe("EvalRunView", () => {
 
   it("opens the case a link names, and every case after", async () => {
     navigation.params = new URLSearchParams("case=case-1");
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(state.casesArgs.at(-1)).toEqual([
       "run-1",
       expect.objectContaining({ caseIds: ["case-1"] }),
@@ -711,15 +733,18 @@ describe("EvalRunView", () => {
 
   it("shows no verdict for a run with no candidate to give one about", () => {
     state.run = { ...state.run, run: evalRun({ arms: [] }) };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByRole("heading", { name: "Evaluation result" })).toBeVisible();
     expect(screen.queryByRole("link", { name: "Back to Build" })).toBeNull();
   });
 
   it("names no rerun allowance when a run had none", () => {
-    state.run = { ...state.run, run: evalRun({ rerun_ceiling_usd: "0" }) };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
-    expect(screen.getByText(/of an estimated \$0.05$/)).toBeInTheDocument();
+    state.run = {
+      ...state.run,
+      run: evalRun({ rerun_ceiling_usd: "0", expected_usd: "0.050000" }),
+    };
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText(/of an expected \$0.05$/)).toBeInTheDocument();
   });
 
   it("sends what failed to review, for who may edit the dataset", async () => {
@@ -727,7 +752,7 @@ describe("EvalRunView", () => {
     review.mutate = vi.fn((_arm: unknown, options: { onSuccess: (sent: unknown) => void }) =>
       options.onSuccess({ queued: 1, replaced: 0, already: 0 }),
     );
-    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const { unmount } = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     await userEvent.click(screen.getByRole("button", { name: "Send the failed case to review" }));
 
@@ -738,7 +763,7 @@ describe("EvalRunView", () => {
     review.mutate = vi.fn((_arm: unknown, options: { onSuccess: (sent: unknown) => void }) =>
       options.onSuccess({ queued: 3, replaced: 2, already: 1 }),
     );
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     await userEvent.click(screen.getByRole("button", { name: "Send the failed case to review" }));
     expect(toastSuccess).toHaveBeenLastCalledWith(
       "3 cases sent to review, replacing 2 older ones that were waiting; 1 not sent: already waiting, decided or older than the one waiting.",
@@ -750,13 +775,13 @@ describe("EvalRunView", () => {
     review.mutate = vi.fn((_arm: unknown, options: { onError: (e: Error) => void }) =>
       options.onError(new Error("refused")),
     );
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     await userEvent.click(screen.getByRole("button", { name: /to review/ }));
     expect(toastError).toHaveBeenCalled();
   });
 
   it("offers no review to who may not edit the dataset, or when nothing failed", () => {
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("button", { name: /to review/ })).toBeNull();
     cleanup();
 
@@ -765,8 +790,8 @@ describe("EvalRunView", () => {
       ...state.run,
       run: evalRun({ arms: [arm({ unsent_failed: 0 })] }),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
-    expect(screen.queryByRole("button", { name: /to review|failed case/ })).toBeNull();
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.queryByRole("button", { name: /to review/ })).toBeNull();
   });
 
   it("offers to send what the run did not send itself", () => {
@@ -775,7 +800,7 @@ describe("EvalRunView", () => {
       ...state.run,
       run: evalRun({ routed_to_review: 1, arms: [arm({ unsent_failed: 2 })] }),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByRole("button", { name: "Send the other 2 failed cases" })).toBeVisible();
   });
 
@@ -809,7 +834,7 @@ describe("EvalRunView", () => {
       }),
     };
     loaded.agent = { can_run: true, can_edit: true, can_publish: true };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(
       screen.getByText(
         "2 cases of Draft were not graded: “$700 TV, can I return it?” and 1 more. Grade again before deciding.",
@@ -830,7 +855,7 @@ describe("EvalRunView", () => {
         attempts_total: 8,
       }),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(
       screen.getByText(
         "Every first answer is in. Confirming the cases that changed: 1 of 4 reruns in.",
@@ -841,7 +866,7 @@ describe("EvalRunView", () => {
   it("shows the cases that broke at least once when some did not break again", () => {
     worseDraft();
     state.comparison = { ...(state.comparison as object), regressions_unconfirmed: 1 };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(
       screen.getByRole("button", { name: "Show the 5 cases that broke at least once" }),
     ).toBeVisible();
@@ -853,7 +878,7 @@ describe("EvalRunView", () => {
       run: undefined,
       error: new ApiError(403, "Insufficient permissions"),
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("You can't open this eval run")).toBeVisible();
   });
 
@@ -873,7 +898,7 @@ describe("EvalRunView", () => {
       isLoading: false,
       error: null,
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Corrected by a person")).toBeInTheDocument();
   });
 
@@ -881,7 +906,7 @@ describe("EvalRunView", () => {
     worseDraft();
     state.run = { ...state.run, run: { ...(state.run.run as object), draft_changed: true } };
     loaded.agent = { can_run: true, can_edit: true, can_publish: true };
-    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const { unmount } = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     // Testing again starts a run of the draft, which this reader may not.
     expect(screen.getByText("The draft changed after this run.")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Test again" })).toBeNull();
@@ -889,12 +914,12 @@ describe("EvalRunView", () => {
 
     review.canRun = true;
     loaded.agent = undefined;
-    const again = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const again = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("button", { name: "Test again" })).toBeNull();
     again.unmount();
 
     loaded.agent = { can_run: true, can_edit: true };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("link", { name: "Publish" })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: "Test again" }));
     expect(testAgain.props.at(-1)).toEqual(
@@ -906,13 +931,13 @@ describe("EvalRunView", () => {
 
   it("offers no publish to who may not publish", () => {
     worseDraft();
-    const { unmount } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const { unmount } = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("link", { name: "Publish" })).toBeNull();
     unmount();
 
     // An editor of this agent who may not publish it - a Member on their own.
     loaded.agent = { can_run: true, can_edit: true, can_publish: false };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("link", { name: "Publish" })).toBeNull();
   });
 
@@ -925,7 +950,7 @@ describe("EvalRunView", () => {
       baseline_summary: null,
       cases: [],
     });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(
       screen.getByText(
@@ -942,7 +967,7 @@ describe("EvalRunView", () => {
       invalid_reason: "The two sides were graded by a different judge, model or rubric.",
       baseline_summary: null,
     });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText(/v7 and Draft cannot be compared/)).toBeVisible();
     expect(screen.getByText(/graded by a different judge, model or rubric/)).toBeVisible();
   });
@@ -969,12 +994,13 @@ describe("EvalRunView", () => {
     );
     // Whoever started it may stop it.
     useAuthStore.setState({ user: { id: "u1" } as User });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(screen.getByText(/1 of 4 first answers in/)).toBeInTheDocument();
     expect(screen.getByText("The comparison appears when both sides finish.")).toBeVisible();
     expect(screen.getByRole("heading", { name: "Evaluation result" })).toBeVisible();
     expect(screen.queryByText("How the two compare")).toBeNull();
+    await userEvent.click(screen.getByRole("tab", { name: "Details" }));
     expect(screen.getByRole("columnheader", { name: "Pending" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "v7 · gpt-4.1: pending" })).toBeInTheDocument();
     expect(screen.getByText("A case ran into a budget.")).toBeInTheDocument();
@@ -989,11 +1015,11 @@ describe("EvalRunView", () => {
     // Somebody else may not, unless they may edit this agent - whatever the role.
     useAuthStore.setState({ user: { id: "u2" } as User });
     loaded.agent = { can_run: true, can_edit: false };
-    const other = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const other = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
     other.unmount();
     loaded.agent = { can_run: true, can_edit: true };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByRole("button", { name: "Stop" })).toBeVisible();
   });
 
@@ -1003,7 +1029,7 @@ describe("EvalRunView", () => {
     state.refetchComparison = refetch;
     state.refetchCases = refetchCases;
     state.run = { ...state.run, run: evalRun({ status: "running" }) };
-    const { rerender } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const { rerender } = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     rerender(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(refetch).not.toHaveBeenCalled();
 
@@ -1020,7 +1046,7 @@ describe("EvalRunView", () => {
       run: evalRun({ arms: [arm(), arm({ id: "arm-2", model_label: "claude" })] }),
     };
     state.cases = { cases: [evalCase()], total: 60, isLoading: false, error: null };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(state.comparisonArgs.at(-1)).toEqual(["run-1", { arm: "arm-1", live: false }]);
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
     expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ skip: 25 })]);
@@ -1038,14 +1064,14 @@ describe("EvalRunView", () => {
   it("moves a run opened under another agent to the agent that ran it", () => {
     navigation.params = new URLSearchParams("case=case-1");
     state.run = { ...state.run, run: evalRun({ agent_id: "agent-2" }) };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(navigation.replace).toHaveBeenCalledWith("/agents/agent-2/evals/run-1?case=case-1");
     expect(screen.queryByRole("link", { name: /back/i })).toBeNull();
   });
 
   it("moves a run with nothing asked of it to its agent's address alone", () => {
     state.run = { ...state.run, run: evalRun({ agent_id: "agent-2" }) };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(navigation.replace).toHaveBeenCalledWith("/agents/agent-2/evals/run-1");
   });
 
@@ -1065,10 +1091,10 @@ describe("EvalRunView", () => {
       isLoading: false,
       error: null,
     };
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByRole("img", { name: "v7 · gpt-4.1: did not finish" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "v7 · gpt-4.1: undecided" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "v7 · gpt-4.1: failed" })).toBeInTheDocument();
+    expect(screen.getAllByRole("img", { name: "v7 · gpt-4.1: failed" })[0]).toBeInTheDocument();
   });
 
   it("never shows a pass rate without the cases left undecided, and calls it inconclusive", () => {
@@ -1088,7 +1114,7 @@ describe("EvalRunView", () => {
       regressions_confirmed: 0,
       cases: [],
     });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Inconclusive")).toBeInTheDocument();
     expect(screen.queryByText("No reproducible change")).toBeNull();
     expect(screen.getByText(/· 1 of 3 cases undecided$/)).toBeInTheDocument();
@@ -1103,7 +1129,7 @@ describe("EvalRunView", () => {
       run: evalRun({ arms: [arm({ summary: { ...SUMMARY, incomplete: 1 } })] }),
     };
     state.comparison = comparison({ verdict: "worse", regressions_confirmed: 1, cases: [FLIP] });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Breaks cases")).toBeInTheDocument();
     expect(screen.queryByText("Inconclusive")).toBeNull();
     expect(
@@ -1115,7 +1141,7 @@ describe("EvalRunView", () => {
 
   it("says which cases changed since the baseline, and when its flips could not be confirmed", () => {
     state.comparison = comparison({ changed: 2, baseline_rerun: false });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(
       screen.getByText("2 cases changed since the baseline answered, so they are not compared."),
     ).toBeInTheDocument();
@@ -1138,13 +1164,13 @@ describe("EvalRunView", () => {
       cases: [FLIP],
       invalid_reason: "The two sides were graded by a different judge, model or rubric.",
     });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Not comparable")).toBeInTheDocument();
     expect(screen.queryByText("Confirmed regressions")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Show the .* cases that broke/ }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("Confirmed regression")).not.toBeInTheDocument();
+    expect(screen.queryByText("Got worse")).not.toBeInTheDocument();
     expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ caseIds: null })]);
     expect(screen.queryByText("Inconclusive")).toBeNull();
   });
@@ -1153,7 +1179,7 @@ describe("EvalRunView", () => {
     const error = "The model provider rejected the credentials (HTTP 401).";
     state.run = { ...state.run, run: evalRun({ arms: [arm({ failed_alike: error })] }) };
     state.comparison = comparison({ baseline: null, baseline_summary: null });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("Could not run")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Evaluation result" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Setup needs attention" })).toBeVisible();
@@ -1176,7 +1202,7 @@ describe("EvalRunView", () => {
     state.comparison = comparison({
       cases: [{ ...FLIP, candidate_error: "The run did not finish (RuntimeError)." }],
     });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     const badge = screen.getByText("Broke: the agent failed");
     expect(badge).toHaveAttribute("title", "The run did not finish (RuntimeError).");
   });
@@ -1202,16 +1228,16 @@ describe("EvalRunView", () => {
         { ...FLIP, case_id: "case-2", flip: "unchanged" },
       ],
     });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
-    expect(screen.getByText("Fixed, unconfirmed")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "v7 · gpt-4.1: failed" })).toBeInTheDocument();
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("May have improved")).toBeInTheDocument();
+    expect(screen.getAllByRole("img", { name: "v7 · gpt-4.1: failed" })[0]).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "v7 · gpt-4.1: undecided" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /next/i }));
     expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ skip: 25 })]);
 
     await userEvent.click(screen.getByRole("combobox", { name: "Outcome" }));
-    await userEvent.click(screen.getByRole("option", { name: "Failed" }));
+    await userEvent.click(screen.getByRole("option", { name: "Needs review" }));
     expect(state.casesArgs.at(-1)).toEqual([
       "run-1",
       expect.objectContaining({ outcome: "failed", tag: null, skip: 0 }),
@@ -1223,7 +1249,7 @@ describe("EvalRunView", () => {
       expect.objectContaining({ outcome: "failed", tag: "refunds" }),
     ]);
     await userEvent.click(screen.getByRole("combobox", { name: "Outcome" }));
-    await userEvent.click(screen.getByRole("option", { name: "All outcomes" }));
+    await userEvent.click(screen.getByRole("option", { name: "All answers" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Tag" }));
     await userEvent.click(screen.getByRole("option", { name: "All tags" }));
     expect(state.casesArgs.at(-1)).toEqual([
@@ -1248,7 +1274,11 @@ describe("EvalRunView", () => {
       fixed_unconfirmed: 0,
       cases: [FLIP, { ...FLIP, case_id: "case-2", flip: "fixed", tags: ["shipping"] }],
     });
-    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    await userEvent.click(screen.getByRole("tab", { name: "Details" }));
+    await userEvent.click(
+      screen.getAllByText("How this was measured", { selector: "summary" }).at(-1)!,
+    );
     const count = (label: string) => screen.getByText(label).nextSibling?.textContent;
     expect(count("Confirmed fixes")).toBe("1");
 
@@ -1281,7 +1311,7 @@ describe("EvalRunView", () => {
       run: evalRun({ arms: [arm({ by_tag: {} })], attempts_done: 0, attempts_total: 0 }),
     };
     state.cases = { cases: [], total: 0, isLoading: true, error: null };
-    const { rerender } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const { rerender } = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.queryByRole("combobox", { name: "Tag" })).not.toBeInTheDocument();
     expect(screen.queryByText("How the two compare")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Evaluation result" })).toBeVisible();
@@ -1293,7 +1323,7 @@ describe("EvalRunView", () => {
 
   it("holds a placeholder while the run loads, and offers a retry when it cannot be read", async () => {
     state.run = { ...state.run, run: undefined, isLoading: true };
-    const { rerender } = render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const { rerender } = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByRole("status")).toBeInTheDocument();
 
     const refetch = vi.fn();
@@ -1309,7 +1339,7 @@ it("does not promise comparisons or reruns while a single version is answering",
     ...state.run,
     run: evalRun({ status: "running", paired: false, first_done: 2, first_total: 4 }),
   };
-  render(<EvalRunView agentId="agent-1" runId="run-1" />);
+  renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
   expect(screen.getByText("2 of 4 answers in.")).toBeVisible();
   expect(screen.queryByText(/The comparison appears/)).not.toBeInTheDocument();
   expect(screen.queryByText(/for confirming reruns/)).not.toBeInTheDocument();
@@ -1322,7 +1352,113 @@ it("retries a failed published version without switching to an invalid draft", a
     run: evalRun({ arms: [arm({ failed_alike: "Workspace setup failed" })], draft_changed: false }),
   };
   state.comparison = comparison({ baseline: null, baseline_summary: null });
-  render(<EvalRunView agentId="agent-1" runId="run-1" />);
+  renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
   await userEvent.click(screen.getByRole("button", { name: "Test again" }));
   expect(testAgain.props.at(-1)).toEqual(expect.objectContaining({ target: "version" }));
 });
+
+it("opens failed answers from the summary and preserves that filter across result tabs", async () => {
+  renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+  await userEvent.click(screen.getByRole("button", { name: /^Review answers/ }));
+  expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ outcome: "failed" })]);
+  await userEvent.click(screen.getByRole("tab", { name: "Details" }));
+  await userEvent.click(screen.getByRole("tab", { name: "Answers" }));
+  expect(state.casesArgs.at(-1)).toEqual(["run-1", expect.objectContaining({ outcome: "failed" })]);
+});
+
+it("separates criterion evidence from operational metrics and reports absent family results", async () => {
+  state.comparison = comparison({
+    families: [
+      {
+        family: "Returns",
+        criteria: ["Return window"],
+        cases: 12,
+        baseline_passed: 1,
+        candidate_passed: 12,
+        fixed: 11,
+        broken: 0,
+        fixed_confirmed: 11,
+        broken_confirmed: 0,
+        p_value: 0,
+        settled: true,
+        better: true,
+        worse: false,
+      },
+    ],
+  });
+  const view = renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+  await userEvent.click(screen.getByRole("tab", { name: "What was checked" }));
+  expect(screen.getByRole("row", { name: /Returns/ })).toHaveTextContent("12 of 12");
+  expect(screen.getByRole("combobox", { name: "Tag" })).toBeVisible();
+  expect(screen.getByRole("region", { name: "Review the answers" })).toBeVisible();
+  state.comparison = comparison({ families: [] });
+  view.rerender(<EvalRunView agentId="agent-1" runId="run-1" />);
+  expect(
+    screen.getByText("No criterion-family results are available for this run yet."),
+  ).toBeVisible();
+});
+
+it("leads with a plain result and keeps measurement and secondary actions optional", async () => {
+  render(<EvalRunView agentId="agent-1" runId="run-1" />);
+  expect(screen.getByRole("heading", { name: "Some answers got worse" })).toBeVisible();
+  expect(
+    screen.getByText("Test details", { selector: "summary" }).closest("details"),
+  ).not.toHaveAttribute("open");
+  expect(
+    screen.getByText("More actions", { selector: "summary" }).closest("details"),
+  ).not.toHaveAttribute("open");
+  await userEvent.click(screen.getByText("More actions", { selector: "summary" }));
+  expect(screen.getByRole("link", { name: "Back to Build" })).toBeVisible();
+});
+
+it.each([true, false])(
+  "offers checking rules for an ungraded test only with dataset edit access: %s",
+  (canEdit) => {
+    review.canEdit = canEdit;
+    state.run = {
+      ...state.run,
+      run: evalRun({ arms: [arm({ summary: { ...SUMMARY, failed: 0, ungraded: 2 } })] }),
+    };
+    state.comparison = comparison({ candidate_summary: { ...SUMMARY, failed: 0, ungraded: 2 } });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    const link = screen.queryByRole("link", { name: "Set up grading" });
+    if (canEdit) expect(link).toHaveAttribute("href", "/datasets/ds-1?tab=settings");
+    else expect(link).toBeNull();
+  },
+);
+
+it.each(["ready", "no_permission", "no_verdict", "invalid", "stale"] as const)(
+  "shows Review changes only for a current measured draft: %s",
+  (situation) => {
+    loaded.agent = { can_run: true, can_edit: true, can_publish: situation !== "no_permission" };
+    state.run = {
+      ...state.run,
+      run: evalRun({
+        draft_changed: situation === "stale",
+        arms: [
+          arm({
+            source: "draft",
+            version_number: null,
+            summary: { ...SUMMARY, failed: 0, ungraded: 0, incomplete: 0 },
+          }),
+        ],
+      }),
+    };
+    state.comparison =
+      situation === "no_verdict"
+        ? undefined
+        : comparison({
+            verdict: situation === "invalid" ? "invalid" : "better",
+            overall: "better",
+            regressions_confirmed: 0,
+            candidate_summary: { ...SUMMARY, failed: 0, ungraded: 0, incomplete: 0 },
+          });
+    render(<EvalRunView agentId="agent-1" runId="run-1" />);
+    if (situation === "ready")
+      expect(screen.getByRole("link", { name: "Review changes" })).toHaveAttribute(
+        "href",
+        "/agents/agent-1?tab=build",
+      );
+    else expect(screen.queryByRole("link", { name: "Review changes" })).toBeNull();
+  },
+);

@@ -42,22 +42,16 @@ from uuid import UUID
 
 from app.db.models.improvement import ImprovementVerdict
 from app.db.models.skill_check import AgentState, CheckOutcome, CheckVerdict
-from app.services.eval_comparison import CriterionMove
+from app.services.eval_comparison import (
+    MIN_FAMILY_CASES,
+    CriterionMove,
+    FamilyMove,
+    mcnemar_p,
+)
 from app.services.improvement_states import CheckResult, judge
 
 SAMPLE_SIZE = 4
 """How many of an agent's own questions a quick check asks at least."""
-
-EXPECTED_RERUN_SHARE = Decimal("0.4")
-"""The share of its re-ask ceiling a check expects to spend. The ceiling re-asks every
-question; a check re-asks only the ones that flipped, which on the Skills lab cost
-0.5 to 0.8 of the first answers again against a ceiling of twice them."""
-
-
-def expected_cost(first_answers: Decimal, rerun_ceiling: Decimal) -> Decimal:
-    """What one stage most likely costs: its first answers and the re-asks it expects."""
-    return first_answers + rerun_ceiling * EXPECTED_RERUN_SHARE
-
 
 _WORD = re.compile(r"[a-z0-9]+(?:'[a-z]+)?")
 
@@ -122,6 +116,36 @@ class StageComparison:
     candidate_pass_rate: float | None
     baseline_pass_rate: float | None
     criteria: tuple[CriterionMove, ...] = ()
+    families: tuple[FamilyMove, ...] = ()
+
+
+def _pooled_families(stages: Sequence[StageComparison], *, alpha: float) -> tuple[FamilyMove, ...]:
+    """Each family's counts over every stage that graded it, settled again as one measurement."""
+    by_family: dict[str, list[FamilyMove]] = {}
+    for stage in stages:
+        for move in stage.families:
+            by_family.setdefault(move.family, []).append(move)
+    pooled_moves = []
+    for family, moves in sorted(by_family.items()):
+        fixed = sum(move.fixed for move in moves)
+        broken = sum(move.broken for move in moves)
+        p = mcnemar_p(broken, fixed)
+        pooled_moves.append(
+            FamilyMove(
+                family=family,
+                criteria=tuple(sorted({name for move in moves for name in move.criteria})),
+                cases=sum(move.cases for move in moves),
+                baseline_passed=sum(move.baseline_passed for move in moves),
+                candidate_passed=sum(move.candidate_passed for move in moves),
+                fixed=fixed,
+                broken=broken,
+                fixed_confirmed=sum(move.fixed_confirmed for move in moves),
+                broken_confirmed=sum(move.broken_confirmed for move in moves),
+                p_value=p,
+                settled=fixed + broken >= MIN_FAMILY_CASES and p < alpha,
+            )
+        )
+    return tuple(pooled_moves)
 
 
 def _pooled_criteria(stages: Sequence[StageComparison]) -> tuple[CriterionMove, ...]:
@@ -146,7 +170,7 @@ def _pooled_criteria(stages: Sequence[StageComparison]) -> tuple[CriterionMove, 
     )
 
 
-def pooled(stages: Sequence[StageComparison], *, minimum: int) -> StageResult:
+def pooled(stages: Sequence[StageComparison], *, minimum: int, alpha: float) -> StageResult:
     """An agent's result from its stages' held-out questions taken as one measurement.
 
     The minimum a result needs is the agent's, not each stage's: four sampled questions
@@ -176,6 +200,7 @@ def pooled(stages: Sequence[StageComparison], *, minimum: int) -> StageResult:
             candidate_pass_rate=rate(lambda stage: stage.candidate_pass_rate),
             baseline_pass_rate=rate(lambda stage: stage.baseline_pass_rate),
             criteria=_pooled_criteria(stages),
+            families=_pooled_families(stages, alpha=alpha),
         ),
         fixed_unconfirmed=sum(stage.fixed_unconfirmed for stage in stages),
         regressions_unconfirmed=sum(stage.regressions_unconfirmed for stage in stages),
@@ -183,7 +208,7 @@ def pooled(stages: Sequence[StageComparison], *, minimum: int) -> StageResult:
     )
 
 
-def agent_state(stages: Sequence[StageComparison], *, minimum: int) -> AgentState:
+def agent_state(stages: Sequence[StageComparison], *, minimum: int, alpha: float) -> AgentState:
     """What an agent's stages say about it.
 
     A stage measured completely on its own that confirmed a regression makes the agent
@@ -201,7 +226,20 @@ def agent_state(stages: Sequence[StageComparison], *, minimum: int) -> AgentStat
         for stage in stages
     ):
         return AgentState.WORSE
-    return stage_state(pooled(stages, minimum=minimum))
+    return stage_state(pooled(stages, minimum=minimum, alpha=alpha))
+
+
+def too_few_questions(stages: Sequence[StageComparison], *, minimum: int) -> bool:
+    """Whether the stages measured everything they asked, and asked fewer held-out
+    questions than a result needs - the one thing that kept the agent unknown."""
+    return (
+        bool(stages)
+        and all(
+            stage.comparable and not stage.incomplete and not stage.ungraded and not stage.crashed
+            for stage in stages
+        )
+        and sum(stage.gradable_holdout for stage in stages) < minimum
+    )
 
 
 def verdict(states: Iterable[AgentState]) -> CheckVerdict:

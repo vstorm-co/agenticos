@@ -208,7 +208,7 @@ it("changes a budget by preset and slider but saves only on Continue", async () 
   expect(env.budget).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "$100" }));
   fireEvent.change(screen.getByRole("slider"), { target: { value: "350" } });
-  expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
+  expect(screen.getByRole("spinbutton", { name: "Monthly budget in US dollars" })).toHaveValue(350);
   expect(screen.getByRole("slider")).toHaveValue("350");
   expect(env.budget).not.toHaveBeenCalled();
   await proceed();
@@ -281,20 +281,34 @@ const openAnnouncement = () => {
   render(<StartDeployment org={org} onContinue={env.next} />);
 };
 
-it("prefills the welcome message and saves it only on Continue", async () => {
+it("keeps an absent announcement empty when continuing without an edit", async () => {
   openAnnouncement();
   const message = screen.getByRole("textbox", { name: "Team announcement" });
-  expect(message).toHaveValue(
+  expect(message).toHaveValue("");
+  expect(message).toHaveAttribute(
+    "placeholder",
     "Welcome! Start a conversation with AgenticOS, or ask your team for help.",
   );
   expect(screen.getByRole("region", { name: "Live preview" })).toHaveTextContent(
-    "Welcome! Start a conversation with AgenticOS, or ask your team for help.",
+    "No announcement will be displayed.",
+  );
+  expect(screen.getByRole("region", { name: "Live preview" })).not.toContainElement(message);
+  await proceed();
+  expect(env.save).not.toHaveBeenCalled();
+});
+
+it("previews a typed announcement and saves it only after continuing", async () => {
+  openAnnouncement();
+  await userEvent.type(
+    screen.getByRole("textbox", { name: "Team announcement" }),
+    "Welcome Northwind",
+  );
+  expect(screen.getByRole("region", { name: "Live preview" })).toHaveTextContent(
+    "Welcome Northwind",
   );
   expect(env.save).not.toHaveBeenCalled();
   await proceed();
-  expect(env.save).toHaveBeenCalledWith({
-    announcement: "Welcome! Start a conversation with AgenticOS, or ask your team for help.",
-  });
+  expect(env.save).toHaveBeenCalledWith({ announcement: "Welcome Northwind" });
 });
 
 it("preserves an existing announcement", async () => {
@@ -307,12 +321,13 @@ it("preserves an existing announcement", async () => {
   expect(env.save).not.toHaveBeenCalled();
 });
 
-it("allows clearing the suggested welcome message", async () => {
+it("allows clearing an existing welcome message", async () => {
+  env.settings.announcement = "Existing welcome";
   openAnnouncement();
   await userEvent.clear(screen.getByRole("textbox", { name: "Team announcement" }));
   expect(screen.getByRole("textbox", { name: "Team announcement" })).toHaveAttribute(
     "placeholder",
-    "No announcement will be displayed.",
+    "Welcome! Start a conversation with AgenticOS, or ask your team for help.",
   );
   await proceed();
   expect(env.save).toHaveBeenCalledWith({ announcement: null });
@@ -378,16 +393,17 @@ it("still leaves the step while its settings are loading", async () => {
   expect(back).toHaveBeenCalledTimes(2);
 });
 
-it("edits one announcement directly inside its preview and saves its tone on Continue", async () => {
+it("keeps a separate announcement preview in sync and saves its tone on Continue", async () => {
   openAnnouncement();
   const preview = screen.getByRole("region", { name: "Live preview" });
   const editor = screen.getByRole("textbox", { name: "Team announcement" });
-  expect(preview).toContainElement(editor);
+  expect(preview).not.toContainElement(editor);
   expect(screen.getAllByRole("textbox")).toHaveLength(1);
   await userEvent.clear(editor);
   await userEvent.type(editor, "Support hours: 9–17");
   await userEvent.click(screen.getByRole("button", { name: /^Notice$/ }));
-  expect(preview).toHaveAttribute("data-level", "warning");
+  expect(preview.querySelector("[data-level]")).toHaveAttribute("data-level", "warning");
+  expect(preview).toHaveTextContent("Support hours: 9–17");
   expect(editor).toHaveValue("Support hours: 9–17");
   expect(env.save).not.toHaveBeenCalled();
   await proceed();
@@ -422,4 +438,24 @@ it("does not offer the organization profile editor to a budget-only operator", a
     screen.queryByRole("link", { name: "All organization settings ↗" }),
   ).not.toBeInTheDocument();
   expect(screen.getByText("Organization assistants and automation")).toBeVisible();
+});
+
+it("accepts a precise monthly cap through its labelled input without writing on mount", async () => {
+  render(<StartBudget org={org} onContinue={env.next} />);
+  const field = screen.getByRole("spinbutton", { name: "Monthly budget in US dollars" });
+  expect(env.budget).not.toHaveBeenCalled();
+  fireEvent.change(field, { target: { value: "1250.12" } });
+  expect(field).toHaveValue(1250.12);
+  await proceed();
+  expect(env.budget).toHaveBeenCalledWith("company", 1250.12);
+});
+it("keeps an invalid budget editable with a linked error and no save", async () => {
+  render(<StartBudget org={org} onContinue={env.next} />);
+  const field = screen.getByRole("spinbutton", { name: "Monthly budget in US dollars" });
+  fireEvent.change(field, { target: { value: "-2" } });
+  await proceed();
+  expect(field).toHaveAttribute("aria-invalid", "true");
+  expect(field.getAttribute("aria-describedby")).toContain(screen.getByRole("alert").id);
+  expect(env.budget).not.toHaveBeenCalled();
+  expect(env.next).not.toHaveBeenCalled();
 });

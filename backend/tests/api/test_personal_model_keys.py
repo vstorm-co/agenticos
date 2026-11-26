@@ -156,3 +156,71 @@ async def test_impersonated_requests_cannot_manage_the_subjects_personal_model_k
     finally:
         app.dependency_overrides.clear()
         set_impersonator(previous)
+
+
+async def test_copilot_routes_keep_owner_bound_handles_out_of_urls_and_tokens_out_of_responses() -> (
+    None
+):
+    from datetime import UTC, datetime, timedelta
+
+    from app.clients.redis import RedisClient
+    from app.schemas.personal_model_key import CopilotSignInChallenge, CopilotSignInResult
+    from app.services.copilot_sign_in import CopilotSignInService
+
+    agent_id, profile_id = uuid4(), uuid4()
+    handle = "own-device-authorization-handle-long-enough"
+    challenge = CopilotSignInChallenge(
+        handle=handle,
+        user_code="OWN-CODE",
+        verification_uri="https://github.com/login/device",
+        expires_at=datetime.now(UTC) + timedelta(minutes=15),
+        poll_after_seconds=5,
+    )
+    app.dependency_overrides[deps.get_auth_context] = lambda: CTX
+    app.dependency_overrides[deps.get_db_session] = lambda: AsyncMock()
+    app.dependency_overrides[deps.get_redis] = lambda: RedisClient()
+    try:
+        with (
+            patch.object(CopilotSignInService, "start", AsyncMock(return_value=challenge)) as start,
+            patch.object(
+                CopilotSignInService,
+                "poll",
+                AsyncMock(return_value=CopilotSignInResult(status="connected")),
+            ) as poll,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    f"/api/v1/personal-model-keys/agents/{agent_id}/copilot/sign-in",
+                    json={
+                        "expected_destination": {
+                            "profile_id": str(profile_id),
+                            "provider": "github_copilot",
+                            "endpoint": None,
+                            "model": "plan-model",
+                        }
+                    },
+                )
+                assert response.status_code == 200
+                assert set(response.json()) == {
+                    "handle",
+                    "user_code",
+                    "verification_uri",
+                    "expires_at",
+                    "poll_after_seconds",
+                }
+                assert start.call_args.args[:2] == (CTX, agent_id)
+                response = await client.post(
+                    f"/api/v1/personal-model-keys/agents/{agent_id}/copilot/poll",
+                    json={"handle": handle},
+                )
+                assert response.json() == {"status": "connected", "poll_after_seconds": 0}
+                poll.assert_awaited_once_with(CTX, agent_id, handle)
+                response = await client.post(
+                    f"/api/v1/personal-model-keys/agents/{agent_id}/copilot/poll",
+                    json={"handle": "not a handle"},
+                )
+                assert response.status_code == 422
+    finally:
+        app.dependency_overrides.clear()

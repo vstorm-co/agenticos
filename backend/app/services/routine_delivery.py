@@ -8,13 +8,18 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError
+from app.core.exceptions import AuthorizationError, ConflictError
+from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, RunStatus
 from app.db.models.outcome import OutcomeStatus
 from app.db.models.suggestion import SuggestionKind, SuggestionStatus
 from app.repositories import conversation_repo, outcome_repo, suggestion_repo
 from app.repositories import routine_delivery as delivery_repo
-from app.schemas.routine_notifications import RoutineFinding
+from app.schemas.routine_notifications import (
+    RoutineFinding,
+    RoutineFindingPublish,
+    RoutineFindingReceipt,
+)
 from app.services.background_jobs import enqueue
 from app.services.change_feed import announce_conversation
 from app.services.notifications import NotificationService
@@ -81,6 +86,56 @@ class RoutineFindingService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
+    async def publish_for_run(
+        self, ctx: AuthContext, item: RoutineFindingPublish
+    ) -> RoutineFindingReceipt:
+        """Only a live run credential may report to its own routine's owner.
+
+        No recipient, organization, routine or run id is accepted from the model.
+        The current membership and admitted sources are checked again on each call.
+        """
+        from app.repositories import agent_run_repo
+        from app.services.routine_authority import RoutineAuthority
+
+        if not ctx.key_internal or ctx.source_run_id is None or ctx.user_id is None:
+            raise AuthorizationError(message="Publishing a finding needs a live routine run")
+        run = await agent_run_repo.get_run(
+            self.db, ctx.source_run_id, organization_id=ctx.organization_id, for_update=True
+        )
+        if (
+            run is None
+            or run.user_id != ctx.user_id
+            or run.status != RunStatus.RUNNING.value
+            or run.routine_origin_id is None
+            or run.parent_run_id is not None
+        ):
+            raise AuthorizationError(message="This credential cannot publish for this run")
+        authority = await RoutineAuthority.capture(self.db, ctx, agent_id=run.agent_id, run=run)
+        if authority is None:
+            raise AuthorizationError(message="Only a routine or monitor may publish a finding")
+        urgent = item.urgent
+        if authority.routine_kind == "watch":
+            from app.repositories import watch_repo
+
+            watch = await watch_repo.get_by_id(self.db, authority.routine_id, fresh=True)
+            if watch is None:
+                raise AuthorizationError(message="The monitor is no longer available")
+            urgent = urgent and watch.urgent
+        target = await self.publish(
+            run=run,
+            user_id=authority.user_id,
+            origin_id=authority.routine_id,
+            origin_kind=authority.routine_kind,
+            item=RoutineFinding.model_validate(item.model_dump(exclude={"urgent"})),
+            urgent=urgent,
+            notify=authority.routine_kind == "trigger" or urgent,
+            max_findings=8,
+        )
+        return RoutineFindingReceipt(
+            conversation_id=target,
+            status="published" if target is not None else "unchanged_or_muted",
+        )
+
     async def publish(
         self,
         *,
@@ -91,6 +146,7 @@ class RoutineFindingService:
         item: RoutineFinding,
         notify: bool = True,
         urgent: bool = False,
+        max_findings: int | None = None,
     ) -> UUID | None:
         """Return the working chat for a new revision, or None for unchanged/muted work.
 
@@ -130,6 +186,17 @@ class RoutineFindingService:
             self.db, finding_id=finding.id, revision=item.revision
         ):
             return None
+        if (
+            max_findings is not None
+            and outcome.source_run_id != run.id
+            and await outcome_repo.count_run_findings(
+                self.db, organization_id=run.organization_id, user_id=user_id, run_id=run.id
+            )
+            >= max_findings
+        ):
+            raise ConflictError(
+                message="This run has already published eight findings; group related work."
+            )
         conversation = None
         if outcome.source_conversation_id is not None:
             conversation = await conversation_repo.get_conversation_by_id(

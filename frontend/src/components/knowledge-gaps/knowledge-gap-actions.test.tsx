@@ -96,3 +96,18 @@ describe("KnowledgeGapActions", () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+it("offers no ineffective Add to dataset action for an eval-only topic", () => {
+  state.granted = [Perm.datasetsView];
+  const { container } = render(
+    <KnowledgeGapActions topic={{ ...TOPIC, test_question_count: 2 }} />,
+  );
+  expect(container).toBeEmptyDOMElement();
+});
+
+it("keeps Add to dataset for a topic containing conversation and eval questions", async () => {
+  state.granted = [Perm.datasetsView];
+  render(<KnowledgeGapActions topic={{ ...TOPIC, test_question_count: 1 }} />);
+  await openMenu();
+  expect(screen.getByRole("menuitem", { name: "Add to dataset" })).toBeInTheDocument();
+});

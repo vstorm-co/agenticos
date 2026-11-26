@@ -215,6 +215,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     optional: true,
   },
   {
+    id: "improvement-mode",
+    page: IMPROVEMENT_START,
+    target: "improvement-mode",
+    permission: Perm.runsView,
+    optional: true,
+  },
+  {
     id: "improvement-question-set",
     page: IMPROVEMENT_START,
     target: "improvement-question-set",
@@ -412,6 +419,12 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "chat-room-thread-panel",
     page: ROUTES.CHAT,
     target: "chat-room-thread-panel",
+    optional: true,
+  },
+  {
+    id: "chat-room-thread-context",
+    page: ROUTES.CHAT,
+    target: "chat-room-thread-context",
     optional: true,
   },
   {
@@ -1387,6 +1400,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     activate: "datasets-results-tab",
     permission: Perm.datasetsView,
   },
+  {
+    id: "dataset-key-coverage",
+    page: DATASET_DETAIL,
+    target: "datasets-coverage-tab",
+    activate: "datasets-results-tab",
+    permission: Perm.datasetsView,
+  },
 
   {
     id: "tables-catalog",
@@ -1669,6 +1689,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.channelsManage,
     optional: true,
   },
+  // Binding is on a bot's row, so it renders only once a bot exists.
+  {
+    id: "channels-binding",
+    page: ROUTES.CHANNELS,
+    target: "channels-binding",
+    permission: Perm.channelsManage,
+    optional: true,
+  },
   // A Discord bot's role mappings (#2569): only on a Discord row, and only for
   // somebody who may manage members, so optional - most organizations have none.
   {
@@ -1819,22 +1847,21 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "personal-model-connections",
   },
   {
-    id: "claude-subscription-connect",
-    page: ROUTES.SETTINGS_AI_CONNECTIONS,
-    target: "claude-subscription-connect",
-    permission: Perm.connectionsManage,
-  },
-  {
-    id: "chat-subscription-model",
-    page: ROUTES.CHAT,
-    target: "chat-subscription-model",
-    permission: Perm.connectionsManage,
-    optional: true,
-  },
-  {
     id: "personal-coding-accounts",
     page: SETTINGS_DETAIL,
     target: "personal-coding-accounts",
+    optional: true,
+  },
+  {
+    id: "start-subscriptions",
+    page: ROUTES.ONBOARDING,
+    target: "start-subscriptions",
+    optional: true,
+  },
+  {
+    id: "personal-subscription-accounts",
+    page: ROUTES.SETTINGS_SUBSCRIPTIONS,
+    target: "personal-subscription-accounts",
     optional: true,
   },
   {
@@ -1924,6 +1951,7 @@ export function pageKey(path: string): string {
   }
   if (path.startsWith(`${ROUTES.GROUPS}/`)) return GROUP_DETAIL;
   if (path === ROUTES.SETTINGS_AI_CONNECTIONS) return path;
+  if (path === ROUTES.SETTINGS_SUBSCRIPTIONS) return ROUTES.SETTINGS_SUBSCRIPTIONS;
   if (path.startsWith(`${ROUTES.SETTINGS}/`)) return SETTINGS_DETAIL;
   if (path.startsWith(`${ROUTES.DOCUMENTS}/`)) return WORKSPACE_DETAIL;
   if (path.startsWith(`${ROUTES.PROJECTS}/`)) return PROJECT_DETAIL;

@@ -76,12 +76,6 @@ describe("useDatasets", () => {
     expect(result.current.total).toBe(40);
   });
 
-  it("narrows to the datasets one judge grades", async () => {
-    renderHook(() => useDatasets({ judge: "j1", limit: 3 }), { wrapper });
-    await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
-    expect(apiClient.get).toHaveBeenCalledWith("/datasets?judge=j1&sort=name&skip=0&limit=3");
-  });
-
   it("narrows to the datasets with a case asking one run's question, by the run's id", async () => {
     renderHook(() => useDatasets({ asksRun: "run-1", limit: 2 }), { wrapper });
     await waitFor(() => expect(apiClient.get).toHaveBeenCalled());

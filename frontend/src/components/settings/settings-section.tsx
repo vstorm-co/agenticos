@@ -51,14 +51,14 @@ export function SectionCard({
           danger && "border-border border-b px-5 sm:px-6",
         )}
       >
-        <div className="flex min-w-0 flex-1 items-start gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           {Icon && (
             <span
               className={cn(
-                "grid size-9 shrink-0 place-items-center rounded-xl",
+                "grid shrink-0 place-items-center",
                 danger
-                  ? "bg-destructive/10 text-destructive-ink"
-                  : "bg-foreground/5 text-foreground/80",
+                  ? "bg-destructive/10 text-destructive-ink size-9 rounded-xl"
+                  : "text-muted-foreground size-5",
               )}
             >
               <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
@@ -66,7 +66,7 @@ export function SectionCard({
           )}
           <div className="min-w-0">
             <div className="flex items-center gap-1">
-              <h2 className="text-foreground text-sm font-semibold">{title}</h2>
+              <h2 className="console-section-title text-foreground">{title}</h2>
               {description && !danger && <ContextHelp>{description}</ContextHelp>}
             </div>
             {description && danger && (
@@ -145,7 +145,7 @@ export function SettingsSection({
           <div className="flex items-center gap-1">
             <h2
               className={cn(
-                "text-sm font-semibold",
+                "console-section-title",
                 danger ? "text-destructive" : "text-foreground",
               )}
             >

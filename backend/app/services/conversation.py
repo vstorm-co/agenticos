@@ -43,11 +43,12 @@ from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
     ConcurrentChangeError,
+    ConflictError,
     NotFoundError,
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
-from app.db.locks import LOCK_NOT_AVAILABLE, lock_wait_within
+from app.db.locks import LOCK_NOT_AVAILABLE, LockScope, hold_subject, lock_wait_within
 from app.db.models.agent_run import RunStatus
 from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.user import User
@@ -66,6 +67,9 @@ from app.repositories import (
 )
 from app.repositories import (
     conversation_message_pin as conversation_message_pin_repo,
+)
+from app.repositories import (
+    queued_message_receipt as queued_message_receipt_repo,
 )
 from app.repositories import (
     room_message_reaction as room_message_reaction_repo,
@@ -464,8 +468,27 @@ class ConversationService:
         through_ordinal = (
             await conversation_repo.last_ordinal(self.db, conversation_id) if snapshot else None
         )
-        revision = None if conversation is None else conversation.guardrail_revision
+        revision = (
+            None
+            if conversation is None
+            else conversation.guardrail_revision + conversation.transcript_revision
+        )
         if room_request_message_id is not None or thread_root_message_id is not None:
+            accepted_root = thread_root_message_id
+            selected_context = None
+            if room_request_message_id is not None:
+                accepted_root = await conversation_repo.room_thread_for_request(
+                    self.db,
+                    conversation_id=conversation_id,
+                    message_id=room_request_message_id,
+                    request_id=room_request_id,
+                )
+            if accepted_root is not None and conversation is not None:
+                from app.services.room_thread_context_read import RoomThreadContextReadService
+
+                selected_context = await RoomThreadContextReadService(self.db).assert_history(
+                    destination=conversation, root_message_id=accepted_root
+                )
             if room_request_message_id is not None:
                 rows = await conversation_repo.get_room_history_messages(
                     self.db,
@@ -487,7 +510,9 @@ class ConversationService:
                     message="Room message not found",
                     details={"message_id": room_request_message_id or thread_root_message_id},
                 )
-            spoken = await self._spoken(rows, conversation)
+            spoken = await self._spoken(
+                rows, conversation, restrict_quotes_to_rows=selected_context is not None
+            )
             history = build_message_history(_as_history(rows, exclude_message_id, spoken))
             return ModelHistory(
                 bounded_model_history(
@@ -744,7 +769,11 @@ class ConversationService:
         return (await self._spoken([message], conversation)).get(message.id, message.content)
 
     async def _spoken(
-        self, rows: Sequence[Message], conversation: Conversation | None
+        self,
+        rows: Sequence[Message],
+        conversation: Conversation | None,
+        *,
+        restrict_quotes_to_rows: bool = False,
     ) -> dict[UUID, str]:
         """How each person's turn reads to the model, where that is more than its text.
 
@@ -771,14 +800,15 @@ class ConversationService:
         if not turns:
             return {}
         quoted = {row.id: row for row in rows}
-        quoted |= await conversation_repo.messages_by_id(
-            self.db,
-            {
-                row.reply_to_message_id
-                for row in turns
-                if row.reply_to_message_id is not None and row.reply_to_message_id not in quoted
-            },
-        )
+        if not restrict_quotes_to_rows:
+            quoted |= await conversation_repo.messages_by_id(
+                self.db,
+                {
+                    row.reply_to_message_id
+                    for row in turns
+                    if row.reply_to_message_id is not None and row.reply_to_message_id not in quoted
+                },
+            )
         people = await conversation_repo.users_by_id(
             self.db,
             {
@@ -1089,6 +1119,10 @@ class ConversationService:
             await self._attach_favourites([conversation], user_id=user_id)
             await self._attach_fork_origins([conversation], user_id=user_id)
             await self._attach_share_permission(conversation, user_id=user_id)
+            if conversation.origin == "routine" and user_id is not None:
+                conversation.can_fork_routine_log = await self._owns_routine_log(
+                    conversation, user_id
+                )
         return conversation
 
     async def get_metadata(
@@ -1173,6 +1207,12 @@ class ConversationService:
                 )
             ) or (row.id in triggers and await self._may_read_trigger_log(row, ctx)):
                 visible.add(row.id)
+        if visible:
+            from app.services.room_thread_context_access import RoomThreadContextAccessService
+
+            visible -= await RoomThreadContextAccessService(self.db).unreadable_destinations(
+                organization_id=ctx.organization_id, user_id=ctx.user_id, actor=ctx
+            )
         return visible
 
     async def _attach_share_permission(
@@ -1196,6 +1236,20 @@ class ConversationService:
         conversation.share_permission = permission  # ty: ignore[missing-attribute]
 
     async def _may_read(
+        self, conversation: Conversation, user_id: UUID, *, ctx: AuthContext | None = None
+    ) -> bool:
+        """Read the room only while its linked source rooms remain readable."""
+        if not await self._may_read_direct(conversation, user_id, ctx=ctx):
+            return False
+        if conversation.project_id is None and conversation.room_visibility is None:
+            return True
+        from app.services.room_thread_context_access import RoomThreadContextAccessService
+
+        return await RoomThreadContextAccessService(self.db).can_read_sources(
+            destination=conversation, user_id=user_id, actor=ctx
+        )
+
+    async def _may_read_direct(
         self, conversation: Conversation, user_id: UUID, *, ctx: AuthContext | None = None
     ) -> bool:
         """Whether this reader may open this conversation.
@@ -1225,9 +1279,10 @@ class ConversationService:
         """
         if conversation.origin == "workflow":
             return False
-
         if getattr(conversation, "project_id", None) is not None:
             return await self._project_allows(conversation, user_id, ctx, Perm.PROJECTS_VIEW)
+        if conversation.origin == "routine":
+            return await self._may_read_trigger_log(conversation, ctx)
         owner = getattr(conversation, "user_id", None)
         if owner is not None and str(owner) == str(user_id):
             return True
@@ -1351,6 +1406,16 @@ class ConversationService:
             return False
         return await resolve_access(self.db, ctx, agent, Perm.AGENTS_VIEW, resource_type=AGENT)
 
+    async def _owns_routine_log(self, conversation: Conversation, user_id: UUID) -> bool:
+        if conversation.origin != "routine":
+            return False
+        trigger = await agent_trigger_repo.get_by_conversation_id(self.db, conversation.id)
+        return (
+            trigger is not None
+            and trigger.organization_id == conversation.organization_id
+            and trigger.created_by_user_id == user_id
+        )
+
     async def _may_write(
         self,
         conversation: Conversation,
@@ -1392,7 +1457,7 @@ class ConversationService:
         theirs to see. An ownerless automation log can instead be managed by
         someone who may edit the project.
         """
-        if conversation.origin == "workflow":
+        if conversation.origin in ("workflow", "routine"):
             return False
 
         owner = getattr(conversation, "user_id", None)
@@ -1536,11 +1601,20 @@ class ConversationService:
     ) -> tuple[list[Conversation], int]:
         """Every chat in a project, whoever started it, with the people around it.
 
-        Unscoped by reader: the caller has already decided they may see the
-        project, and a project's chats are its members'. Each row carries what
+        The caller has already authorized the project. Linked source access is
+        applied for the reader before pagination. Each row carries what
         the caller's own list does - agents, running, unread - plus whose it is,
         who has had it open and whose run is at work in it.
         """
+        from app.services.room_thread_context_access import RoomThreadContextAccessService
+
+        blocked = (
+            await RoomThreadContextAccessService(self.db).unreadable_destinations(
+                organization_id=organization_id, user_id=user_id
+            )
+            if user_id is not None
+            else set()
+        )
         items = await conversation_repo.get_conversations_by_user(
             self.db,
             user_id=None,
@@ -1548,9 +1622,14 @@ class ConversationService:
             skip=skip,
             limit=limit,
             project_id=project_id,
+            excluded_conversation_ids=blocked,
         )
         total = await conversation_repo.count_conversations(
-            self.db, user_id=None, organization_id=organization_id, project_id=project_id
+            self.db,
+            user_id=None,
+            organization_id=organization_id,
+            project_id=project_id,
+            excluded_conversation_ids=blocked,
         )
         await self.attach_agents(items)
         await self._attach_running(items)
@@ -1679,6 +1758,30 @@ class ConversationService:
             if user_id is not None and project_scope != "exclude"
             else []
         )
+        routine_access = None
+        if user_id is not None and reader is not None and not for_model:
+            ctx = reader
+            if (
+                ctx.user_id == user_id
+                and ctx.organization_id == organization_id
+                and ctx.has(Perm.RUNS_VIEW)
+            ):
+                grants = await visible_resource_ids(
+                    self.db, ctx, resource_type=AGENT, perm=Perm.AGENTS_VIEW
+                )
+                routine_access = conversation_repo.RoutineLogAccess(
+                    scope=ctx.scope_for(Perm.AGENTS_VIEW),
+                    shared_agent_ids=frozenset(grants or ()),
+                )
+        from app.services.room_thread_context_access import RoomThreadContextAccessService
+
+        blocked = (
+            await RoomThreadContextAccessService(self.db).unreadable_destinations(
+                organization_id=organization_id, user_id=user_id, actor=reader
+            )
+            if user_id is not None
+            else set()
+        )
         items = await conversation_repo.get_conversations_by_user(
             self.db,
             user_id=user_id,
@@ -1705,11 +1808,13 @@ class ConversationService:
             ),
             participant_conversation_ids=participant_ids,
             visible_project_ids=project_ids,
+            routine_access=routine_access,
             hide_api=hide_api,
             hide_channels=hide_channels,
             project_id=project_id,
             for_model=for_model,
             project_scope=project_scope,
+            excluded_conversation_ids=blocked,
         )
         total = await conversation_repo.count_conversations(
             self.db,
@@ -1721,11 +1826,13 @@ class ConversationService:
             archived_only=archived_only,
             participant_conversation_ids=participant_ids,
             visible_project_ids=project_ids,
+            routine_access=routine_access,
             hide_api=hide_api,
             hide_channels=hide_channels,
             project_id=project_id,
             for_model=for_model,
             project_scope=project_scope,
+            excluded_conversation_ids=blocked,
         )
         await self.attach_agents(items)
         await self._attach_favourites(items, user_id=user_id)
@@ -2053,7 +2160,8 @@ class ConversationService:
     ) -> Conversation:
         """A new chat for the owner, holding this one's history up to one of its answers (#2762).
 
-        Forking is the owner's own tool: a reader holding a share, view or edit,
+        The owner may fork their own chat, and a routine creator may fork its
+        shared read-only history. A reader holding only a share, view or edit,
         cannot fork, and is told the conversation does not exist, as every other
         refusal here does. The fork stays in the source's project, so an owner
         who may no longer start chats there is refused rather than handed the
@@ -2078,7 +2186,7 @@ class ConversationService:
             include_favourite=False,
             ctx=ctx,
         )
-        if source.user_id != user_id:
+        if source.user_id != user_id and not await self._owns_routine_log(source, user_id):
             raise NotFoundError(
                 message="Conversation not found",
                 details={"conversation_id": conversation_id},
@@ -2104,6 +2212,7 @@ class ConversationService:
         self, source: Conversation, answer: Message, *, user_id: UUID, ctx: AuthContext
     ) -> Conversation:
         """Authorize and copy the current locked prefix within one bounded transaction."""
+        await hold_subject(self.db, LockScope.CONVERSATION_TURN, source.id)
         counts = await conversation_repo.lock_fork_history(
             self.db,
             source=source,
@@ -2113,6 +2222,13 @@ class ConversationService:
         )
         if counts is None:
             raise NotFoundError(message="Message not found", details={"message_id": answer.id})
+        if await conversation_repo.has_imported_thread_context(
+            self.db, source.id, through_ordinal=answer.ordinal
+        ):
+            raise BadRequestError(
+                message="A fork cannot detach linked room context. Fork before that context starts.",
+                details={"reason": "linked_room_context"},
+            )
         if source.project_id is not None:
             # Imported here: the project service builds on this one.
             from app.services.project import ProjectService
@@ -2187,6 +2303,7 @@ class ConversationService:
             self.db,
             source=source,
             through=answer,
+            owner_user_id=user_id,
             restored_summary=summary,
             copy_bytes=copy_bytes,
             copy_summary=copy_summary,
@@ -2359,6 +2476,26 @@ class ConversationService:
             user_id=user_id,
             for_write=True,
         )
+        fields_set = getattr(data, "model_fields_set", set())
+        archive_requested = "is_archived" in fields_set and data.is_archived is True
+        project_conversion_requested = (
+            "project_id" in fields_set
+            and data.project_id is not None
+            and conversation.project_id is None
+            and conversation.room_visibility is None
+        )
+        if archive_requested or project_conversion_requested:
+            await hold_subject(self.db, LockScope.CONVERSATION_TURN, conversation.id)
+            conversation = await self.get_conversation(
+                conversation_id,
+                organization_id=organization_id,
+                user_id=user_id,
+                for_write=True,
+            )
+            if archive_requested:
+                await self._refuse_queue_scope_change(conversation, action="archive")
+            elif project_conversion_requested:
+                await self._refuse_queue_scope_change(conversation, action="move into a project")
         if "project_id" in getattr(data, "model_fields_set", set()) and data.project_id is not None:
             if ctx is None:
                 raise AuthorizationError(message="A project access context is required")
@@ -2383,7 +2520,29 @@ class ConversationService:
             user_id=user_id,
             for_write=True,
         )
+        await hold_subject(self.db, LockScope.CONVERSATION_TURN, conversation.id)
+        conversation = await self.get_conversation(
+            conversation_id,
+            organization_id=organization_id,
+            user_id=user_id,
+            for_write=True,
+        )
+        await self._refuse_queue_scope_change(conversation, action="archive")
         return await conversation_repo.archive_conversation(self.db, db_conversation=conversation)
+
+    async def _refuse_queue_scope_change(self, conversation: Conversation, *, action: str) -> None:
+        """Keep accepted private receipts reachable while a chat remains personal."""
+        if conversation.organization_id is None:
+            return
+        pending = await queued_message_receipt_repo.pending_for_conversation(
+            self.db,
+            organization_id=conversation.organization_id,
+            conversation_id=conversation.id,
+        )
+        if pending:
+            raise ConflictError(
+                message=f"Resolve accepted queued messages before you {action} this conversation"
+            )
 
     async def lock_for_deletion(
         self,
@@ -2453,6 +2612,12 @@ class ConversationService:
             include_favourite=False,
             ctx=ctx,
         )
+        await hold_subject(self.db, LockScope.CONVERSATION_TURN, conversation_id)
+        if await conversation_repo.has_external_thread_context(self.db, conversation_id):
+            raise ConflictError(
+                message="This conversation supplies context to another room. Replace that context first.",
+                details={"reason": "thread_context_in_use"},
+            )
         await personal_data_repo.unlink_dataset_cases_from_conversation(
             self.db, conversation_id, organization_id=organization_id
         )
@@ -2858,6 +3023,16 @@ class ConversationService:
         return message
 
     async def delete_message(self, message_id: UUID) -> bool:
+        message = await conversation_repo.get_message_by_id(self.db, message_id)
+        if message is not None:
+            # Range selection and placement hold this same lock. Recheck the
+            # reference after an in-flight selection commits, before deleting.
+            await hold_subject(self.db, LockScope.CONVERSATION_TURN, message.conversation_id)
+        if await conversation_repo.message_has_protected_thread_context(self.db, message_id):
+            raise ConflictError(
+                message="This message belongs to saved thread context. Return or edit that context first.",
+                details={"reason": "thread_context_in_use"},
+            )
         deleted = await conversation_repo.delete_message(self.db, message_id)
         if not deleted:
             raise NotFoundError(

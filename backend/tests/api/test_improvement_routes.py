@@ -43,6 +43,7 @@ _HASH = "a" * 64
         ("GET", f"{_ONE}/evidence", "evidence", None, False),
         ("GET", f"{_ONE}/skills", "skills", None, False),
         ("PUT", f"{_ONE}/selection", "choose_changes", {"hunk_ids": [str(_HUNK)]}, False),
+        ("PUT", f"{_ONE}/search/choice", "choose_variant", {"variant_id": str(_HUNK)}, False),
         ("PUT", f"{_ONE}/changes/{_HUNK}", "edit_change", {"edited_text": "Reworded"}, False),
         ("PUT", f"{_ONE}/topics/{_TOPIC}/later", "defer_topic", {"later": True}, False),
         ("GET", _ONE, "read", None, False),

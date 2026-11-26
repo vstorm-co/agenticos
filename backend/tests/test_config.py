@@ -314,3 +314,15 @@ class TestLoggingConfiguration:
         monkeypatch.setenv("LOG_LEVEL", "DEBIG")
         with pytest.raises(ValidationError, match="LOG_LEVEL"):
             Settings(_env_file=None)
+
+
+@pytest.mark.security
+def test_official_chatgpt_plan_usage_requires_a_persistent_installation_uuid() -> None:
+    from uuid import uuid4
+
+    assert not Settings().OPENAI_CHATGPT_PLAN_USAGE_ENABLED
+    with pytest.raises(ValidationError, match="OPENAI_CHATGPT_HOST_ID"):
+        Settings(OPENAI_CHATGPT_PLAN_USAGE_ENABLED=True, OPENAI_CHATGPT_HOST_ID=None)
+    host = uuid4()
+    configured = Settings(OPENAI_CHATGPT_PLAN_USAGE_ENABLED=True, OPENAI_CHATGPT_HOST_ID=host)
+    assert host == configured.OPENAI_CHATGPT_HOST_ID

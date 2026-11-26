@@ -26,6 +26,7 @@ from pydantic_ai.messages import ModelMessagesTypeAdapter, ToolCallPart
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import all_capabilities
+from app.agents.mcp import PLATFORM_MCP_PREFIX, tool_prefix
 from app.core.background import spawn_after_commit
 from app.core.exceptions import AppException, AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName
@@ -59,6 +60,7 @@ from app.services.channels.identity_scope import identity_scope
 from app.services.channels.live_reply import with_preview_links
 from app.services.channels.mentions import drawn_picture
 from app.services.channels.next_steps import offer_after_resume
+from app.services.mcp_catalog import CATALOG
 from app.services.transcript import RecordedToolCall
 
 logger = logging.getLogger(__name__)
@@ -135,8 +137,16 @@ def call_action(tool_name: str) -> str:
         service, _, action = tool_name.partition("_")
         words = [w for w in re.split(r"[-_]+", action) if w and w.lower() != service.lower()]
         if service and words:
-            return f"{' '.join(words)} in {service.capitalize()}"
+            return f"{' '.join(words)} in {_service_name(service)}"
     return tool_name.replace("_", " ")
+
+
+def _service_name(prefix: str) -> str:
+    """A server's name as people write it: the product's own, a catalog entry's, else the prefix."""
+    if prefix == PLATFORM_MCP_PREFIX:
+        return "AgenticOS"
+    named = next((entry.name for entry in CATALOG if tool_prefix(entry.key) == prefix), None)
+    return named or prefix.capitalize()
 
 
 def call_summary(args: dict[str, object]) -> str | None:

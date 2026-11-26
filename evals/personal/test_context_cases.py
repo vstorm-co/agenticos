@@ -13,7 +13,7 @@ from app.services.dataset_files import parse
 class ContextCasesTests(unittest.TestCase):
     def test_corpus_survives_the_production_import_export_contract(self) -> None:
         cases = load_context_cases()
-        self.assertEqual(len(cases), 47)
+        self.assertEqual(len(cases), 51)
         exported = "".join(case.model_dump_json() + "\n" for case in cases)
         self.assertEqual(parse(exported.encode(), "jsonl"), cases)
         self.assertNotIn("dev@vstorm.co", exported)
@@ -53,7 +53,8 @@ class ContextCasesTests(unittest.TestCase):
         receipt = answered.tool_receipts[0]
         self.assertEqual(receipt["answered_by_user_id"], answered.subject_id)
         self.assertEqual(
-            receipt["submitted_answers"], {"When": ["thu 18"], "Delivery": ["team channel"]}
+            receipt["submitted_answers"],
+            {"When": ["thu 18"], "Delivery": ["team channel"]},
         )
         removed = ContextPacket.model_validate_json(cases["deleted-routine-is-not-paused"].input)
         self.assertEqual(removed.current_state["routines"], [])
@@ -64,6 +65,31 @@ class ContextCasesTests(unittest.TestCase):
         )
         self.assertFalse(partial.current_state["routines_complete"])
         self.assertIsNotNone(partial.current_state["next_cursor"])
+
+    def test_missing_routine_fixture_keeps_the_human_request_and_native_answers(
+        self,
+    ) -> None:
+        case = next(
+            case
+            for case in load_context_cases()
+            if "case:missing-routine-after-assistant-creation-claim" in case.tags
+        )
+        current = ContextPacket.model_validate_json(case.input)
+        self.assertEqual(current.current_state["routines"], [])
+        self.assertTrue(current.current_state["routines_complete"])
+        self.assertEqual(current.current_state["deleted_resources"], [])
+        self.assertEqual(current.messages[0].speaker_id, current.subject_id)
+        self.assertEqual(current.messages[-1].role, "assistant")
+        self.assertEqual(current.messages[1].id, "answer:setup")
+        self.assertEqual(current.tool_receipts[0]["answered_by_user_id"], current.subject_id)
+        self.assertEqual(
+            current.tool_receipts[0]["submitted_answers"],
+            {
+                "When": ["mon 08"],
+                "Delivery": ["team channel"],
+                "Source": ["https://example.com/product/releases"],
+            },
+        )
 
     def test_duplicate_ids_and_ambiguous_partitions_are_rejected(self) -> None:
         case = load_context_cases()[0]

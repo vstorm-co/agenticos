@@ -87,6 +87,23 @@ describe("useModelProviders", () => {
     );
   });
 
+  it("silently creates chat selections while refreshing the shared profile list", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ label: "Personal Claude" });
+    const { result } = renderHook(() => useModelProviders({ silentCreate: true }), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    const before = vi.mocked(apiClient.get).mock.calls.length;
+    await act(async () => {
+      await result.current.createProfile.mutateAsync({
+        label: "Personal Claude",
+        provider: "subscription_accounts",
+        secret_id: null,
+        model: "claude",
+      });
+    });
+    expect(toastSuccess).not.toHaveBeenCalled();
+    expect(vi.mocked(apiClient.get).mock.calls.length).toBeGreaterThan(before);
+  });
+
   it("surfaces a refused removal instead of leaving the row in place silently", async () => {
     // The server refuses deleting a profile an agent still points at, and the
     // panel's only way to say so is the toast.
@@ -164,7 +181,6 @@ describe("useModelProviders", () => {
                 model: "acme/painter",
                 base_url: baseUrl,
                 secret_id: "s1",
-                params: {},
                 fallback_profile_ids: [],
                 chat_capable: true,
               },
@@ -225,7 +241,6 @@ describe("useModelProviders", () => {
                 provider: "openrouter",
                 model: "acme/chat",
                 secret_id: "s1",
-                params: {},
                 fallback_profile_ids: [],
               },
             ],
@@ -627,14 +642,20 @@ it("isolates Stav catalogs by the selected vault key", async () => {
   );
 });
 
-it.each(["stav", "otari"])(
-  "does not list a custom %s endpoint before a key is selected",
-  (provider) => {
-    vi.mocked(apiClient.get).mockClear();
-    renderHook(() => useProviderModels(provider, "https://gateway.example/api/v1"), { wrapper });
-    expect(apiClient.get).not.toHaveBeenCalled();
-  },
-);
+it.each([
+  "stav",
+  "otari",
+  "zai",
+  "kimi_code",
+  "alibaba_coding_plan",
+  "opencode_go",
+  "ollama_cloud",
+  "cliproxyapi",
+])("does not list a custom %s endpoint before a key is selected", (provider) => {
+  vi.mocked(apiClient.get).mockClear();
+  renderHook(() => useProviderModels(provider, "https://gateway.example/api/v1"), { wrapper });
+  expect(apiClient.get).not.toHaveBeenCalled();
+});
 
 it("does not send an Otari key anywhere before its destination is chosen", () => {
   vi.mocked(apiClient.get).mockClear();
@@ -655,3 +676,73 @@ it("keeps native decision suggestions separate from chat models in the query cac
   );
   expect(result.current.refused).toEqual([]);
 });
+
+it("lists official ChatGPT models only for an explicitly selected grant and separates accounts", async () => {
+  vi.mocked(apiClient.get).mockClear();
+  vi.mocked(apiClient.get).mockImplementation(async (url: string) => ({
+    items: [
+      {
+        id: url.includes("key-b") ? "account-b-model" : "account-a-model",
+        name: "Account model",
+        apis: ["responses"],
+        chat_capable: true,
+      },
+    ],
+    total: 1,
+    source: "live",
+  }));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const hook = renderHook(
+    ({ id }: { id: string | undefined }) => useProviderModels("openai_chatgpt", undefined, id),
+    {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+      initialProps: { id: undefined as string | undefined },
+    },
+  );
+  expect(apiClient.get).not.toHaveBeenCalled();
+  hook.rerender({ id: "key-a" });
+  await waitFor(() => expect(hook.result.current.models[0]?.id).toBe("account-a-model"));
+  hook.rerender({ id: "key-b" });
+  await waitFor(() => expect(hook.result.current.models[0]?.id).toBe("account-b-model"));
+  expect(apiClient.get).toHaveBeenLastCalledWith(
+    "/providers/openai_chatgpt/models?secret_id=key-b",
+  );
+});
+
+it("bypasses the backend catalog cache only on explicit refresh and exposes refresh failures", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({
+    items: [{ id: "vendor/chat", name: "Chat" }],
+    total: 1,
+    source: "live",
+  });
+  const { result } = renderHook(() => useProviderModels("openrouter"), { wrapper });
+  await waitFor(() => expect(result.current.models).toHaveLength(1));
+  expect(apiClient.get).toHaveBeenLastCalledWith("/providers/openrouter/models");
+  await act(async () => {
+    await result.current.refetch();
+  });
+  expect(apiClient.get).toHaveBeenLastCalledWith("/providers/openrouter/models?refresh=true");
+  vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("catalog offline"));
+  await act(async () => {
+    const refreshed = await result.current.refetch();
+    expect(refreshed.isError).toBe(true);
+  });
+  await waitFor(() => expect(result.current.error).toBeInstanceOf(Error));
+  expect(result.current.models).toHaveLength(1);
+});
+
+it.each([
+  ["", undefined, undefined],
+  ["openai_chatgpt", undefined, undefined],
+  ["openai_compatible", undefined, undefined],
+])(
+  "does not offer refresh for an incomplete provider connection %s",
+  (provider, endpoint, secret) => {
+    const { result } = renderHook(() => useProviderModels(provider ?? "", endpoint, secret), {
+      wrapper,
+    });
+    expect(result.current.canRefresh).toBe(false);
+  },
+);

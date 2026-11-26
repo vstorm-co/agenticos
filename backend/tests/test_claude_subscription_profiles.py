@@ -291,13 +291,32 @@ async def test_disconnected_native_model_can_be_renamed_without_changing_ownersh
 
 async def test_subscription_model_choices_do_not_lookup_keys_or_consume_inference():
     secrets = AsyncMock(spec=OrganizationSecretService)
-    result = await list_provider_models(CLAUDE_SUBSCRIPTION_PROVIDER, secrets, _ctx())
+    result = await list_provider_models(CLAUDE_SUBSCRIPTION_PROVIDER, secrets, _ctx(), MagicMock())
     assert [model.id for model in result.items] == ["sonnet", "opus", "haiku"]
     assert result.source == "curated"
     assert all(model.chat_capable and model.output_modalities == ["text"] for model in result.items)
     secrets.listing_key.assert_not_awaited()
     with pytest.raises(BadRequestError):
-        await list_provider_models(CLAUDE_SUBSCRIPTION_PROVIDER, secrets, _ctx(), secret_id=uuid4())
+        await list_provider_models(
+            CLAUDE_SUBSCRIPTION_PROVIDER, secrets, _ctx(), MagicMock(), secret_id=uuid4()
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("base_url", "https://gateway.example/v1"), ("api", "chat")],
+)
+async def test_subscription_model_choices_reject_endpoints_and_api_overrides(field, value):
+    secrets = AsyncMock(spec=OrganizationSecretService)
+    with pytest.raises(BadRequestError):
+        await list_provider_models(
+            CLAUDE_SUBSCRIPTION_PROVIDER,
+            secrets,
+            _ctx(),
+            MagicMock(),
+            **{field: value},
+        )
+    secrets.listing_key.assert_not_awaited()
 
 
 @pytest.mark.parametrize("change", ["owner", "model", "key", "endpoint"])
@@ -357,3 +376,65 @@ async def test_publish_accepts_only_the_native_models_direct_owner(authority):
     assert bool(profile_problems) is (authority != "owner")
     assert bool(sign_in_problems.messages) is (authority != "owner")
     assert secret_read.await_args.args[1] == []
+
+
+async def test_publish_refuses_native_claude_fallback_without_linked_owner():
+    owner = _ctx()
+    fallback = _profile(owner, personal_owner_user_id=None)
+    primary = _profile(owner, fallback_profile_ids=[str(fallback.id)])
+    registry = AgentRegistryService(MagicMock(spec=AsyncSession))
+    with (
+        patch(
+            "app.services.agent_registry.credential_repo.get_profile",
+            AsyncMock(return_value=primary),
+        ),
+        patch(
+            "app.services.agent_registry.credential_repo.get_profiles_by_ids",
+            AsyncMock(return_value={primary.id: primary, fallback.id: fallback}),
+        ),
+        patch(
+            "app.services.agent_registry.organization_secret_repo.get_many",
+            AsyncMock(return_value={}),
+        ),
+    ):
+        profile_problems = await registry.model_profile_problems(owner, primary.id)
+        sign_in_problems = await registry._sign_in_problems(
+            owner, AgentSpec(name="Contacts", model_profile_id=primary.id)
+        )
+
+    assert any("native Claude subscription fallback" in problem for problem in profile_problems)
+    assert any(
+        "native Claude subscription fallback" in problem for problem in sign_in_problems.messages
+    )
+
+
+async def test_publish_keeps_subscription_accounts_profiles_caller_bound_without_profile_owner():
+    owner = _ctx()
+    profile = _profile(
+        owner,
+        provider="subscription_accounts",
+        model="claude-sonnet",
+        personal_owner_user_id=None,
+    )
+    registry = AgentRegistryService(MagicMock(spec=AsyncSession))
+    with (
+        patch(
+            "app.services.agent_registry.credential_repo.get_profile",
+            AsyncMock(return_value=profile),
+        ),
+        patch(
+            "app.services.agent_registry.credential_repo.get_profiles_by_ids",
+            AsyncMock(return_value={profile.id: profile}),
+        ),
+        patch(
+            "app.services.agent_registry.organization_secret_repo.get_many",
+            AsyncMock(return_value={}),
+        ),
+    ):
+        profile_problems = await registry.model_profile_problems(owner, profile.id)
+        sign_in_problems = await registry._sign_in_problems(
+            owner, AgentSpec(name="Contacts", model_profile_id=profile.id)
+        )
+
+    assert profile_problems == []
+    assert sign_in_problems.messages == []

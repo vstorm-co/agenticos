@@ -97,7 +97,7 @@ describe("AgentCard", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("2 failed runs");
     expect(screen.getByRole("link", { name: "Open Support" })).toHaveAttribute(
       "href",
-      "/agents/a1?tab=evals",
+      "/agents/a1",
     );
   });
 
@@ -129,7 +129,7 @@ describe("AgentCard", () => {
     );
   });
 
-  it("opens an agent with attention on its Evals tab, where the attention is", () => {
+  it("opens an agent on Build while retaining its independent attention indicator", () => {
     render(
       <AgentCard
         agent={agent({ id: "a9", name: "Refund desk" })}
@@ -148,31 +148,14 @@ describe("AgentCard", () => {
     expect(screen.getByRole("button", { name: /^Needs attention:/ }).closest("a")).toBeNull();
     expect(screen.getByRole("link", { name: "Open Refund desk" })).toHaveAttribute(
       "href",
-      "/agents/a9?tab=evals",
+      "/agents/a9",
     );
     expect(screen.queryByRole("link", { name: /Improve/ })).toBeNull();
   });
 
-  it("opens an agent with nothing waiting, or a system agent, on its builder", () => {
-    const { unmount } = render(<AgentCard agent={agent({ id: "a8", name: "Quiet" })} canEdit />);
+  it("opens an agent with nothing waiting on its builder", () => {
+    render(<AgentCard agent={agent({ id: "a8", name: "Quiet" })} canEdit />);
     expect(screen.getByRole("link", { name: "Open Quiet" })).toHaveAttribute("href", "/agents/a8");
-    unmount();
-
-    render(
-      <AgentCard
-        agent={agent({ id: "a7", name: "Setup", kind: "judge" })}
-        canEdit
-        attention={{
-          agent_id: "a7",
-          name: "Setup",
-          rated_down: 1,
-          failed_runs: 0,
-          failing_suites: 0,
-          can_edit: true,
-        }}
-      />,
-    );
-    expect(screen.getByRole("link", { name: "Open Setup" })).toHaveAttribute("href", "/agents/a7");
   });
 
   it("only describes the attention to a reader who may not improve the agent", () => {

@@ -1,5 +1,5 @@
 ---
-source_sha: "c428b004a390"
+source_sha: "95f4a9123a2e"
 title: "Lagunas de conocimiento"
 description: "Las lagunas de conocimiento muestran las preguntas para las que un agent no encontró nada relevante en su base de conocimiento, o respondió sin saber, agrupadas por tema, para saber qué documento falta."
 ---
@@ -83,8 +83,8 @@ valora nadie. Un run cuya búsqueda ya falló también se lee, para que un recha
 justificado saque su fallo de las lagunas; si no, sigue contando una vez, como
 ese fallo.
 
-Los runs por la API HTTP no guardan respuesta, y los runs de eval, cuyas
-preguntas se reproducen o se generan, nunca se leen. Tampoco las pruebas de un borrador en el
+Los runs por la API HTTP no guardan respuesta, y ninguna revisión lee los runs
+de eval, cuyas preguntas se reproducen o se generan. Tampoco las pruebas de un borrador en el
 builder, los runs delegados ni los runs cuyo autor ya no tiene cuenta.
 
 Una revisión pertenece a una base de conocimiento: lo que encuentra es una
@@ -112,13 +112,23 @@ clasifica cada una según sus veredictos: falta conocimiento si a una base de
 conocimiento le faltaba contenido, nada que corregir si el agent se negó con
 razón, y fallo del agent en los demás casos.
 
-Las que les falta conocimiento salen de lo que lee el asistente de autoría, y
-sus fallos se agrupan en temas en el acto, antes de que la sesión se detenga en
+Una sesión que aprende de evals clasifica también las respuestas fallidas a sus
+preguntas de entrenamiento: la pregunta del caso y la respuesta que registró el
+eval. Sus veredictos se guardan por el run que respondió, porque una respuesta de
+eval no tiene mensaje. Una en la que el agent no lo sabía se convierte en una
+pregunta de los temas de la base de conocimiento como una respuesta de chat, así
+que un dato que ningún documento contiene se enumera para que una persona lo
+añada, en lugar de dejarlo a una instrucción que no puede aportarlo. Un caso
+reservado nunca se lee.
+
+Las respuestas de chat a las que les falta conocimiento salen de lo que lee el
+asistente de autoría. Una respuesta de entrenamiento se queda: se califica con
+varios criterios, y la falta de conocimiento puede explicar solo algunos. Los
+fallos se agrupan en temas en el acto, antes de que la sesión se detenga en
 **Understand** para que una persona los vea. La sesión no redacta ninguno: enumera
 los temas que faltan en la base de conocimiento, y una persona redacta los que
 quiera, como se explica [más abajo](#drafting-the-missing-content). Nada se
-redacta si una persona no lo pide, dentro o fuera de una sesión. Los runs de un
-eval nunca se leen, así que tampoco ningún caso reservado.
+redacta si una persona no lo pide, dentro o fuera de una sesión.
 
 ## Temas { #topics }
 
@@ -129,6 +139,11 @@ y coloca cada uno en el tema más cercano de esa base de conocimiento, o abre un
 nuevo. Una pasada procesa como mucho 500 fallos por base de conocimiento; el
 resto espera a la siguiente. Una base de conocimiento sin fallos nuevos no
 cuesta ninguna llamada de embeddings.
+
+Una pregunta leída de una respuesta se agrupa en cambio por lo que el
+clasificador nombró como ausente, en pocas palabras - "Lead times by product" -,
+así que las preguntas de distintas personas sobre un mismo asunto comparten tema,
+y el tema lleva el nombre del asunto en lugar de su primera pregunta.
 
 Un fallo entra en el tema más cercano solo si se le parece al menos tanto como
 `KNOWLEDGE_GAP_TOPIC_SIMILARITY`; si no, abre uno nuevo.
@@ -168,13 +183,17 @@ un departamento ve las lagunas de las bases de conocimiento compartidas con
 
 Un tema muestra cuántas veces se preguntó y cuántas personas lo preguntaron,
 cuándo fue la última vez, qué agents lo preguntaron y hasta tres de sus
-preguntas. Quienes preguntaron por un canal cuentan por su cuenta de chat;
+preguntas. Las preguntas de prueba que respondió un eval se cuentan aparte: nadie
+las hizo. Quienes preguntaron por un canal cuentan por su cuenta de chat;
 todos los que preguntaron de forma anónima, a través de un widget o sin una
 persona detrás del run, cuentan como una. Ábrelo para ver las preguntas más
 recientes: qué preguntó la persona, qué buscó el agent, lo cerca que estaba el
 fragmento más cercano y el comentario de quien valoró negativamente la
-respuesta. Una pregunta leída de una respuesta dice si el agent no lo sabía o si
-un lector escribió que faltaba información.
+respuesta.
+
+Una pregunta leída de una respuesta dice si el agent no lo sabía o si
+un lector escribió que faltaba información; una leída de la respuesta de un eval
+es la pregunta del caso del dataset, marcada como pregunta de prueba.
 
 ## Qué hacer con una laguna { #acting-on-a-gap }
 
@@ -186,7 +205,7 @@ menú **…** de un tema, en su fila y en el propio tema.
 |---|---|
 | **Añadir a** *base de conocimiento* | Añade el título y el contenido a la base de conocimiento del tema como documento Markdown, por el mismo camino que una subida, y marca el tema como **cubierto** por él. Se deniega mientras quede un dato por completar, o mientras algo pueda identificar a una persona y no lo hayas confirmado (consulta [Datos personales](#personal-data)) |
 | **Guardar** | Guarda el título y el contenido en el tema sin añadirlos a ningún sitio |
-| **Añadir al dataset** | Convierte las preguntas más recientes del tema (hasta 200) en casos de un dataset que puedes cambiar, como una versión nueva. Cada caso es la pregunta de la persona, con la respuesta del agent como contraejemplo. Una pregunta hecha a través de la HTTP API no guarda respuesta y se omite |
+| **Añadir al dataset** | Convierte las preguntas más recientes del tema (hasta 200) en casos de un dataset que puedes cambiar, como una versión nueva. Cada caso es la pregunta de la persona, con la respuesta del agent como contraejemplo. Una pregunta hecha a través de la HTTP API no guarda respuesta y se omite. Se oculta cuando todas las preguntas del tema proceden de evaluaciones. |
 | **Descartar** | Marca un tema como uno que no necesita contenido. Un tema descartado conserva las preguntas que le pertenecen, así que no vuelve como tema nuevo. **Reabrir** lo deshace |
 
 Un tema cubierto dice qué documento lo cubre, conserva las preguntas que le
@@ -203,6 +222,8 @@ eval sobre el dataset. Los casos que fallaban porque faltaba el conocimiento
 deberían pasar ahora.
 
 ## Redactar el contenido que falta { #drafting-the-missing-content }
+
+En una pantalla amplia, el editor muestra el borrador junto a sus pruebas. En el teléfono, cambia entre **Documento propuesto** y **Por qué hace falta** sin perder cambios. **Guardar** conserva el borrador; **Añadir a la base de conocimiento** añade el contenido al destino indicado. No se puede regenerar con cambios sin guardar, y al cerrar se pide confirmar su descarte. El editor permanece deshabilitado mientras se genera otro borrador.
 
 **Draft**, en un tema abierto, pide a un modelo que escriba el fragmento o la
 entrada de FAQ que le falta a la base de conocimiento. El botón muestra lo
@@ -233,8 +254,7 @@ presupuesto o el modelo dejó de estar disponible, lo indica, con **Try again**.
 Un borrador escrito a partir de las preguntas de una sola persona también lo
 indica: revísalo sabiendo que se basa en lo que preguntó una persona.
 
-El borrador rellena el editor del tema, con un enlace a su run. Puedes copiarlo
-como Markdown, y solo llega a la base de conocimiento cuando alguien lo añade. El redactor no conoce los datos de tu empresa: donde una
+El borrador rellena el editor del tema, con un enlace a su run. La fecha de creación aparece junto al encabezado del borrador. Solo llega a la base de conocimiento cuando alguien lo añade. El redactor no conoce los datos de tu empresa: donde una
 respuesta necesita una cifra, una fecha o una regla, escribe
 `{{what to fill in}}`, y el editor enumera cada uno hasta que se sustituye.
 
@@ -328,7 +348,9 @@ lo añadió o una persona cuya pregunta le dio forma: alguien revisó y confirm�
 que dice.
 
 Una pregunta leída de una respuesta se guarda igual que una búsqueda: contiene
-la pregunta de la persona y se va con su run y su conversación. Revisar
+la pregunta de la persona y se va con su run y su conversación. Una leída de una
+respuesta de eval contiene la pregunta del caso y se va, con su veredicto, cuando
+se borran las copias del caso en los resultados de eval. Revisar
 respuestas envía preguntas, respuestas y comentarios de valoraciones negativas
 al proveedor del modelo del clasificador.
 
@@ -352,3 +374,5 @@ valoración.
 Los nombres no se quitan de lo que lee el redactor ni se marcan en el contenido
 que se va a añadir: nada aquí reconoce un nombre. Revisa si un borrador los
 contiene antes de añadirlo.
+
+Un borrador guardado se abre como documento legible. Elige **Editar documento** para cambiar título o contenido y **Leer documento** para revisar sin perder cambios. Los detalles de búsqueda están en la explicación de cada pregunta.

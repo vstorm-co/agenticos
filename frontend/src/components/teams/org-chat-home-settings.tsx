@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { MessageSquare, BellRing } from "lucide-react";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useConsoleExperience } from "@/hooks/use-console-experience";
@@ -13,7 +14,7 @@ import type { ChatHomeOverrides, OnboardingReminderOverrides } from "@/lib/conso
 import { Perm } from "@/types/permissions";
 import type { Organization } from "@/types/organization";
 import { ErrorState } from "@/components/states";
-import { SectionCard } from "@/components/settings/settings-section";
+import { ServiceCard } from "@/components/settings/service-card";
 import { OnboardingReminderControls } from "@/components/settings/onboarding-reminder-controls";
 import { ChatHomeControls } from "@/components/settings/chat-home-controls";
 
@@ -54,7 +55,12 @@ function OrganizationChatHome({ org }: { org: OrganizationExperience }) {
   });
   return (
     <>
-      <SectionCard title={t("title")} description={t("organizationHint")}>
+      <ServiceCard
+        icon={MessageSquare}
+        action={null}
+        title={t("title")}
+        description={t("organizationHint")}
+      >
         {experience.error && (
           <ErrorState cta={{ label: t("retry"), onClick: () => void experience.refetch() }} />
         )}
@@ -65,15 +71,20 @@ function OrganizationChatHome({ org }: { org: OrganizationExperience }) {
           disabled={save.isPending || !data}
           onChange={(field, value) => save.mutate({ chat_home_defaults: { [field]: value } })}
         />
-      </SectionCard>
-      <SectionCard title={t("remindersTitle")} description={t("remindersOrganizationHint")}>
+      </ServiceCard>
+      <ServiceCard
+        icon={BellRing}
+        action={null}
+        title={t("remindersTitle")}
+        description={t("remindersOrganizationHint")}
+      >
         <OnboardingReminderControls
           value={org.onboarding_reminders}
           available={data?.reminders.availability}
           disabled={save.isPending || !data}
           onChange={(onboarding_reminders) => save.mutate({ onboarding_reminders })}
         />
-      </SectionCard>
+      </ServiceCard>
     </>
   );
 }

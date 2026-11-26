@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { CircleHelp, Coins, Gauge, Hash, Timer } from "lucide-react";
+import { CircleHelp, Coins, Gauge, Hash, ListChecks, Timer } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
@@ -48,9 +48,9 @@ function SideLabel({
 /** One side's numbers, a dash where it has none under the tag read. */
 function SummaryCell({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <td className="flex min-w-0 items-start justify-between gap-4 py-1.5 md:table-cell md:py-2 md:pr-3">
-      <span className="text-muted-foreground text-xs md:hidden">{label}</span>
-      <span className="min-w-0 text-right break-words md:text-left">{children}</span>
+    <td className="flex min-w-0 items-start justify-between gap-4 py-1.5 @3xl:table-cell @3xl:py-2 @3xl:pr-3">
+      <span className="text-muted-foreground text-xs @3xl:hidden">{label}</span>
+      <span className="min-w-0 text-right break-words @3xl:text-left">{children}</span>
     </td>
   );
 }
@@ -61,6 +61,9 @@ function SummaryCells({ summary, live }: { summary: ArmSummary | undefined; live
   return (
     <>
       <SummaryCell label={t("passRate")}>{percent(summary?.pass_rate ?? null, locale)}</SummaryCell>
+      <SummaryCell label={t("criteria")}>
+        {percent(summary?.partial_credit ?? null, locale)}
+      </SummaryCell>
       <SummaryCell label={live ? t("pending") : t("undecided")}>
         {summary === undefined ? "—" : summary.incomplete + summary.ungraded}
       </SummaryCell>
@@ -123,6 +126,11 @@ export function ArmsTable({
   const metrics = [
     { label: t("passRate"), value: percent(summary?.pass_rate ?? null, locale), icon: Gauge },
     {
+      label: t("criteria"),
+      value: percent(summary?.partial_credit ?? null, locale),
+      icon: ListChecks,
+    },
+    {
       label: live ? t("pending") : t("undecided"),
       value: summary ? summary.incomplete + summary.ungraded : "—",
       icon: CircleHelp,
@@ -184,25 +192,45 @@ export function ArmsTable({
       <CardHeader>
         <CardTitle>{tag === null ? t("title") : t("titleTag", { tag })}</CardTitle>
       </CardHeader>
-      <CardContent className="min-w-0 overflow-x-auto">
-        <table className="block w-full text-sm md:table">
-          <thead className="text-muted-foreground hidden text-left text-xs md:table-header-group">
+      <CardContent
+        className="@container min-w-0 overflow-x-auto"
+        role="region"
+        aria-label={t("title")}
+        tabIndex={0}
+      >
+        <table className="block w-full text-sm @3xl:table">
+          <thead className="text-muted-foreground hidden text-left text-xs @3xl:table-header-group">
             <tr>
-              <th className="py-1 pr-3 font-normal">{t("side")}</th>
-              <th className="py-1 pr-3 font-normal">{t("passRate")}</th>
-              <th className="py-1 pr-3 font-normal">{live ? t("pending") : t("undecided")}</th>
-              <th className="py-1 pr-3 font-normal">{t("costPerPass")}</th>
-              <th className="py-1 pr-3 font-normal">{t("tokens")}</th>
-              <th className="py-1 pr-3 font-normal">{t("latency")}</th>
+              <th scope="col" className="py-1 pr-3 font-normal">
+                {t("side")}
+              </th>
+              <th scope="col" className="py-1 pr-3 font-normal">
+                {t("passRate")}
+              </th>
+              <th scope="col" className="py-1 pr-3 font-normal" title={t("criteriaHint")}>
+                {t("criteria")}
+              </th>
+              <th scope="col" className="py-1 pr-3 font-normal">
+                {live ? t("pending") : t("undecided")}
+              </th>
+              <th scope="col" className="py-1 pr-3 font-normal">
+                {t("costPerPass")}
+              </th>
+              <th scope="col" className="py-1 pr-3 font-normal">
+                {t("tokens")}
+              </th>
+              <th scope="col" className="py-1 pr-3 font-normal">
+                {t("latency")}
+              </th>
             </tr>
           </thead>
-          <tbody className="block tabular-nums md:table-row-group">
+          <tbody className="block tabular-nums @3xl:table-row-group">
             {arms.map((arm) => (
               <tr
                 key={arm.id}
-                className="block border-b py-3 last:border-b-0 md:table-row md:border-t md:border-b-0 md:py-0"
+                className="block border-b py-3 last:border-b-0 @3xl:table-row @3xl:border-t @3xl:border-b-0 @3xl:py-0"
               >
-                <td className="block py-2 font-medium break-words md:table-cell md:pr-3 md:font-normal">
+                <td className="block py-2 font-medium break-words @3xl:table-cell @3xl:pr-3 @3xl:font-normal">
                   <SideLabel agentId={agentId} arm={arm} baseline={baseline} check={check} />
                 </td>
                 {/* An arm with no case under the tag has no entry for it. */}
@@ -219,8 +247,8 @@ export function ArmsTable({
               </tr>
             ))}
             {earlier !== null && (
-              <tr className="block border-b py-3 last:border-b-0 md:table-row md:border-t md:border-b-0 md:py-0">
-                <td className="block py-2 font-medium break-words md:table-cell md:pr-3 md:font-normal">
+              <tr className="block border-b py-3 last:border-b-0 @3xl:table-row @3xl:border-t @3xl:border-b-0 @3xl:py-0">
+                <td className="block py-2 font-medium break-words @3xl:table-cell @3xl:pr-3 @3xl:font-normal">
                   {tSide("sideModel", {
                     name: sideName(earlier, tSide),
                     model: earlier.model_label,

@@ -10,6 +10,7 @@ import { WatchRow } from "@/components/watches/watches-card";
 import { WatchDialog } from "@/components/watches/watch-dialog";
 import { useMcpConnections } from "@/hooks";
 import { useOrgTriggers } from "@/hooks/use-org-triggers";
+import { useRoutinesReadiness } from "@/hooks/use-routine-readiness";
 import { useWatches } from "@/hooks/use-watches";
 import { getErrorMessage } from "@/lib/api-error";
 import type { Watch } from "@/lib/watches-api";
@@ -44,6 +45,10 @@ export function RoutinesList({
         : [item.row.title, item.row.instructions, item.row.connection_name]
       ).some((value) => (value ?? "").toLowerCase().includes(query)),
   });
+  // One readiness read for the routines this page shows, not one per row.
+  const readiness = useRoutinesReadiness(
+    list.visible.flatMap((item) => (item.kind === "task" ? [item.row] : [])),
+  );
   const error = tasks.error ?? monitoring.error;
   const loading = tasks.isLoading || monitoring.isLoading;
   const act = async (work: () => Promise<unknown>, message: string) => {
@@ -108,7 +113,7 @@ export function RoutinesList({
                 {list.visible.map((item) =>
                   item.kind === "task" ? (
                     <li key={`task:${item.row.id}`} className="list-none">
-                      <TriggerRow trigger={item.row} showAgent />
+                      <TriggerRow trigger={item.row} showAgent blockers={readiness(item.row)} />
                     </li>
                   ) : (
                     <WatchRow

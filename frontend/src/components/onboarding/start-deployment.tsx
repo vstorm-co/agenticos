@@ -56,12 +56,7 @@ export function StartDeployment({
       </StartStepPending>
     );
   if (error || !settings) return <StartStepFailed onRetry={() => void refetch()} onBack={onBack} />;
-  const changes: DeploymentSettingsPatch = {
-    ...(question === "announcement" && !settings.announcement
-      ? { announcement: t("announcementPlaceholder") }
-      : {}),
-    ...edits,
-  };
+  const changes = edits;
   const draft = { ...settings, ...changes };
   const set = (patch: DeploymentSettingsPatch) => {
     setFailed(false);
@@ -92,7 +87,6 @@ export function StartDeployment({
     <StartQuestion
       stage="deployment"
       index={index}
-      total={QUESTIONS.length}
       title={t(`${question}Title`)}
       message={t(`${question}Guide`)}
       pending={save.isPending}

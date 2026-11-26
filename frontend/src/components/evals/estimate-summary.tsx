@@ -119,7 +119,7 @@ export function EstimateSummary({
       </ul>
       <p className="flex items-center justify-between gap-3 border-t pt-3 font-medium">
         <span>{t("total", { count: estimate.cases })}</span>
-        <span className="tabular-nums">{usd(estimate.total_usd, locale)}</span>
+        <span className="tabular-nums">{usd(estimate.expected_usd, locale)}</span>
       </p>
       {scoring && (
         <p className="text-muted-foreground text-xs">
@@ -127,7 +127,12 @@ export function EstimateSummary({
         </p>
       )}
       <p className="text-muted-foreground text-xs">
-        {t("reruns", { amount: usd(estimate.rerun_ceiling_usd, locale) })}
+        {t("reruns", {
+          amount: usd(
+            String(Number(estimate.total_usd) + Number(estimate.rerun_ceiling_usd)),
+            locale,
+          ),
+        })}
       </p>
       <dl className="space-y-1 text-xs">
         {[

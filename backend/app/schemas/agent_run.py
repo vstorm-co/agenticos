@@ -41,10 +41,13 @@ class VoiceChainRead(BaseSchema):
 class RunOriginRead(BaseSchema):
     """Which platform agent a run was, and where its work is read."""
 
-    kind: Literal["grader", "improve", "knowledge_gaps", "test_questions"] = Field(
+    kind: Literal[
+        "grader", "improve", "knowledge_gaps", "test_questions", "key_drafts", "key_coverage"
+    ] = Field(
         description=(
             "The judge grading eval cases, the assistant proposing changes, the "
-            "knowledge-gap classifier or drafter, or the case generator"
+            "knowledge-gap classifier or drafter, the case generator, the key extractor, "
+            "or the source coverage agent"
         )
     )
     agent_name: str = Field(description="The platform agent's own name")
@@ -56,7 +59,10 @@ class RunOriginRead(BaseSchema):
     knowledge_base_id: UUID | None = Field(
         default=None, description="The knowledge base whose gaps it read or drafted"
     )
-    dataset_id: UUID | None = Field(default=None, description="The dataset it wrote cases for")
+    dataset_id: UUID | None = Field(
+        default=None,
+        description="The dataset it wrote cases, drafted keys or judged key coverage for",
+    )
 
 
 class RunSkillUseRead(BaseSchema):

@@ -17,6 +17,7 @@ from app.repositories import conversation as conversation_repo
 from app.repositories import conversation_task as task_repo
 from app.schemas.local_target import LocalTarget
 from app.services import chat_room, live_turn
+from app.services.accepted_queued_message import AcceptedQueuedMessageService
 from app.services.agent_runner import AgentRunnerService
 from app.services.conversation import ConversationService
 from app.services.conversation_tasks import TERMINAL, ConversationTaskService
@@ -73,6 +74,8 @@ async def _perform(job: ConversationTaskJob, *, returning: bool) -> None:
             return
         if returning:
             if task.status not in TERMINAL or task.delivery != "pending":
+                return
+            if task.source_run_id is None:
                 return
             source = await run_repo.get_run(
                 db, task.source_run_id, organization_id=task.organization_id
@@ -132,6 +135,8 @@ async def _perform(job: ConversationTaskJob, *, returning: bool) -> None:
                     task.outcome = "Access was revoked before this task could run."
                 await task_repo.save(db, task)
                 return
+            saved_prompt_id = None
+            attachments = []
             if returning:
                 task.delivery = "running"
                 answer = (
@@ -182,8 +187,23 @@ async def _perform(job: ConversationTaskJob, *, returning: bool) -> None:
                     else None
                 )
             else:
+                if task.queue_receipt_id is not None:
+                    try:
+                        prompt, saved_prompt_id, attachments = await AcceptedQueuedMessageService(
+                            db
+                        ).task_input_for_worker(ctx, task)
+                    except AppException:
+                        task.status = "failed"
+                        task.delivery = "delivered"
+                        task.outcome = "Accepted task content is no longer available or authorized."
+                        await task_repo.save(db, task)
+                        await db.commit()
+                        return
+                else:
+                    prompt = task.prompt
                 task.status = "running"
-                prompt = task.prompt
+                if task.queue_receipt_id is not None:
+                    task.delivery = "running"
                 agent_id, version_id = task.agent_id, task.version_id
                 local = (
                     None
@@ -237,13 +257,15 @@ async def _perform(job: ConversationTaskJob, *, returning: bool) -> None:
                     ctx,
                     agent_id,
                     prompt,
-                    said="",
+                    said=prompt if task.queue_receipt_id is not None else "",
                     surface=RunSurface.WEB,
                     conversation_id=target_id,
                     thread_root_message_id=thread_root_message_id,
                     version_id=version_id,
                     local=local,
                     message_history=history,
+                    attachments=attachments,
+                    saved_prompt_id=saved_prompt_id,
                     acts_for_sender=not returning,
                     parks_questions=True,
                     on_run_open=opened,

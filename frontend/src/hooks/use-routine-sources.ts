@@ -14,6 +14,8 @@ export function useRoutineSources(agentId: string, triggerId: string) {
   const query = useQuery({
     queryKey: key,
     queryFn: () => routineSourcesApi.get(agentId, triggerId),
+    // Read again on every opening, like the action review: see `useRoutineActions`.
+    staleTime: 0,
   });
   const replace = useMutation({
     mutationFn: (consent: RoutineSourceConsent) =>

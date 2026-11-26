@@ -352,8 +352,15 @@ class ChannelBotUpdate(BaseSchema):
 
 
 class BotAgent(BaseSchema):
-    """An agent that answers on one bot, as the channels listing names it."""
+    """An agent bound to one bot, as the channels listing names it.
 
+    `exposure_id` is the binding's own id, which is what unbinding addresses;
+    `is_active` is that binding's pause state, so a paused binding is listed
+    and the bot is not mistaken for an answering one.
+    """
+
+    exposure_id: UUID
+    is_active: bool
     id: UUID
     name: str
     slug: str
@@ -476,7 +483,7 @@ class ChannelBotRead(BaseSchema):
     """
 
     agents: list[BotAgent] = []
-    """Who answers here, from the active bindings.
+    """The agents bound here, paused bindings included and marked `is_active`.
 
     A bot with none is registered and silent, which is the state somebody is
     trying to explain when they open this page - and the listing said nothing

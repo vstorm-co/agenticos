@@ -286,13 +286,15 @@ class DatasetCase(Base):
     )
     source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("conversations.id", ondelete="SET NULL"),
+        # A conversation delete also cascades to messages. Both source checks must
+        # wait for their SET NULL actions, regardless of PostgreSQL trigger order.
+        ForeignKey("conversations.id", ondelete="SET NULL", deferrable=True, initially="DEFERRED"),
         nullable=True,
         index=True,
     )
     source_message_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("messages.id", ondelete="SET NULL"),
+        ForeignKey("messages.id", ondelete="SET NULL", deferrable=True, initially="DEFERRED"),
         nullable=True,
         index=True,
     )

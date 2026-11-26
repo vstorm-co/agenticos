@@ -1,5 +1,5 @@
 ---
-source_sha: "32a6c0a170f0"
+source_sha: "76ac5bb3504a"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -144,21 +144,32 @@ przypadek, gdy dataset wymaga oceniania modelem.
 
 Szacunek uwzględnia ocenianie modelem zawsze, gdy wymaga go dataset, według modelu wybranego w Ocenianiu. Nie wyłącza go przełącznik organizacji.
 
-Agent bez historii na danym modelu jest szacowany jako typowy przypadek -
-`EVAL_FALLBACK_INPUT_TOKENS` na wejściu, `EVAL_FALLBACK_OUTPUT_TOKENS` na
+Agent bez historii na danym modelu jest szacowany jako typowe żądania - każde
+`EVAL_FALLBACK_INPUT_TOKENS` na wejściu i `EVAL_FALLBACK_OUTPUT_TOKENS` na
 wyjściu - według ceny samego modelu, albo na `EVAL_FALLBACK_CASE_COST_USD` dla
 modelu, którego ceny nic nie zna, a szacunek mówi, że to zgrubne zgadywanie
-(`basis: "fallback"`). Sędzia bez historii jest wyceniany tak samo, na modelu,
-który wskazuje jego opublikowany spec; szacunek ostrzega, gdy to model, który
-jest testowany, a strona runa - gdy nim był. Koszt baseline'u wchodzi do sumy,
+(`basis: "fallback"`). Odpowiedź to jedno żądanie albo
+`1 + EVAL_FALLBACK_TOOL_ROUNDS`, gdy agent ma narzędzie: każde wywołanie
+narzędzia dostaje odpowiedź w kolejnym żądaniu.
+
+Sędzia bez historii jest wyceniany jako jedno żądanie, które czyta też ocenianą
+odpowiedź, na modelu, który wskazuje jego opublikowany spec; szacunek ostrzega,
+gdy to model, który jest testowany, a strona runa - gdy nim był. Koszt baseline'u wchodzi do sumy,
 chyba że użyty zostanie niedawny pasujący baseline - wtedy jego pierwsze
 odpowiedzi nic nie kosztują, a szacunek wskazuje run, z którego pochodzą.
 
 ### Budżet, który zostaje { #the-budget-it-leaves }
 
 Ewaluacja korzysta z istniejących miesięcznych budżetów agenta i organizacji.
-Szacunek pokazuje kwoty pozostające po pełnym przewidywanym wydatku jako
-`agent_after_usd` i `org_after_usd`. Start zwraca `402`, gdy pierwszy przebieg
+`total_usd` to pierwsze odpowiedzi i ich ocena, a `expected_usd` - ile run
+najpewniej kosztuje: tyle, plus połowa `rerun_ceiling_usd` dla runa
+porównywanego z baseline'em, bo taki run zwykle zadaje ponownie około połowy
+przypadków, które może. Run stabilności zadaje ponownie każdy przypadek, a run
+bez punktu odniesienia żadnego. Okno startu pokazuje `expected_usd`, a pod nim
+najwyższy możliwy koszt, a strona runa - ile wydał wobec obu kwot.
+
+Szacunek pokazuje kwoty pozostające w budżetach po pełnym przewidywanym wydatku
+jako `agent_after_usd` i `org_after_usd`. Start zwraca `402`, gdy pierwszy przebieg
 wraz z `rerun_ceiling_usd` przekracza którykolwiek budżet. Limit powtórek obejmuje
 zmianę wyniku każdego przypadku, wszystkie próby potwierdzające, sędziego i
 powtórzenia baseline'u, także użytego ponownie. Rzeczywisty koszt może się różnić.
@@ -289,6 +300,8 @@ przypadki przed nimi.
 
 ## Wyniki { #results }
 
+Wynik pokazuje najpierw rezultat i odpowiedzi do sprawdzenia. Porównanie podaje liczbę poprawnych odpowiedzi przed i po. Otwórz pytanie, aby przeczytać odpowiedź i ocenę. **Jak przeprowadzono test** zawiera wyniki rodzin kryteriów, koszt i szczegóły wykonania; ich otwarcie nie ukrywa odpowiedzi. Filtr wyniku i wybrane pytanie pozostają w URL-u.
+
 Każda próba zachowuje odpowiedź, wykonane wywołania - każde oznaczone jako
 wykonane, zablokowane, odtworzone albo rozbieżne - werdykt i uzasadnienie
 każdego oceniającego, swój koszt, tokeny i latencję. Odpowiedź i wywołania są
@@ -299,7 +312,7 @@ Każde ramię runa jest podsumowane na dwóch osiach i per tag:
 
 | Oś | Mierzy |
 |---|---|
-| Jakość | Odsetek zaliczonych wśród rozstrzygniętych przypadków, każdy według tego, jak wypadła większość jego prób; obok odsetek pierwszych odpowiedzi; ile zostało nierozstrzygniętych i dlaczego |
+| Jakość | Odsetek zaliczonych wśród rozstrzygniętych przypadków, każdy według tego, jak wypadła większość jego prób; obok odsetek pierwszych odpowiedzi; ile zostało nierozstrzygniętych i dlaczego; **Spełnione kryteria** (`partial_credit`), średni udział kryteriów przypadku spełnionych przez jego pierwszą odpowiedź - sześć z siedmiu liczy się jako 6/7, gdy odsetek zaliczonych liczy przypadek jako niezaliczony - wraz z `criteria_passed` i `criteria_graded` |
 | Efektywność | Koszt na zaliczony przypadek, tokeny na przypadek i latencję w p50 i p95 |
 
 Każda próba kończy się na jeden z czterech sposobów (`state` w próbie):
@@ -417,9 +430,25 @@ może być winą providera, nie agenta.
 Zakończone ramię baseline'u zastępuje uruchomienie nowego tylko wtedy, gdy
 zgadzają się jego wersja, wersja datasetu, model, ocenianie i sędzia, działało
 w tym samym środowisku z tymi samymi `from_recordings` i `live_reads`, a
-skończyło się w ciągu `EVAL_BASELINE_CACHE_HOURS`. Run mówi, który run
+skończyło się w ciągu `EVAL_BASELINE_CACHE_HOURS`. Żaden plik kontekstowy, który
+agent wiąże, nie mógł się od tamtego runu zmienić: plik kontekstowy jest czytany
+na żywo przy każdej odpowiedzi. Run mówi, który run
 wykorzystał. Wykorzystywane są tylko jego pierwsze odpowiedzi: przypadek, który
 się odwraca, jest mu w tym runie zadawany ponownie.
+
+Baseline będący wersją roboczą agenta - tym, z czym sesja Improve porównuje
+każdą próbę - jest dopasowywany po dokładnym odcisku wersji roboczej i tylko
+wtedy, gdy wcześniejszy run pominął dokładnie te same przypadki. Tym runem może
+być poprzednie sprawdzenie sesji albo run opublikowanej wersji, której spec
+wersja robocza wciąż jest, więc sesja rozpoczęta od nieedytowanej wersji roboczej
+wykorzystuje własną ewaluację tej wersji.
+
+Sesja w każdym sprawdzeniu pomija własne dowody, więc dopóki wersja robocza się
+nie zmienia, baseline odpowiada najwyżej raz na sesję. Run, który zadał więcej
+przypadków, nigdy nie jest przycinany, bo odpowiedzi ponownie użytego ramienia
+są czytane w całości. Ponownie użyty baseline nic nie kosztuje w szacunku.
+Opublikowany baseline z pominiętymi przypadkami nigdy nie jest wykorzystywany
+ponownie.
 
 ### Odwrócenie jest potwierdzane, zanim się liczy { #a-flip-is-confirmed-before-it-counts }
 
@@ -441,22 +470,42 @@ więc nie jest powtarzany, a dryf potwierdzają same powtórki kandydata.
 Przypadek przechodzi dopiero wtedy, gdy spełnia każde kryterium, według którego
 jest oceniany - każdy check, kryterium sędziego, oczekiwane wywołanie narzędzia i
 ocenę względem odpowiedzi wzorcowej - więc zmiana, która naprawia jedno z kilku
-niespełnionych kryteriów przypadku, nie odwraca żadnego przypadku. Przypadek, w
-którym odwróciło się jakiekolwiek kryterium ocenione po obu stronach, też jest
-powtarzany, a `criteria` porównania podaje dla każdego kryterium, na ilu
-przypadkach obie strony je oceniły, ile z nich każda strona spełniła w pierwszej
-odpowiedzi oraz naprawy i zepsucia potwierdzone tak samo jak przy przypadku:
-każda powtórka po obu stronach je powtarza.
+niespełnionych kryteriów przypadku, nie odwraca żadnego przypadku. `criteria`
+porównania podaje dla każdego kryterium, na ilu przypadkach obie strony je
+oceniły, ile z nich każda strona spełniła w pierwszej odpowiedzi oraz naprawy i
+zepsucia, które powtórzyła każda powtórka po obu stronach. Podaje najwyżej 200
+kryteriów: powyżej tej liczby najpierw każde kryterium, które się zmieniło,
+potem te, które najczęściej nie są spełnione.
 
-Porównanie podaje najwyżej 200 kryteriów: powyżej tej liczby najpierw każde
-kryterium, które się zmieniło, potem te, które najczęściej nie są spełnione.
+Kryteria są też liczone według **rodziny**: checków i kryteriów sędziego, które
+sprawdzają jedną rzecz w całym datasecie, nazwanej przez
+[`family`](datasets.md#checks) checka. Kryterium, którego check nie nazywa
+żadnej, jest osobną rodziną. Rodzina przechodzi w przypadku, gdy spełnione jest
+tam każde jej kryterium, a `families` porównania podaje dla każdej rodziny
+przypadki, które oceniły obie strony, ile z nich każda strona spełniła, i
+przypadki, na których się odwróciła. Podaje najwyżej 200 rodzin: powyżej tej
+liczby najpierw każdą gorszą lub lepszą, potem każdą inną, która się ruszyła,
+a potem te, które najczęściej nie przechodzą.
+
+Rodzina jest **rozstrzygnięta**, gdy jej
+własne odwrócone przypadki wystarczą, by dokładny test McNemara wskazał, w którą
+stronę się przesunęła; wtedy liczy się każde odwrócenie. W rodzinie, która
+przesunęła się na dwóch przypadkach lub więcej, nie będąc rozstrzygniętą, te
+przypadki są powtarzane i liczą się tylko odwrócenia, które powtórzyła każda
+powtórka. Rodzina, która przesunęła się na jednym przypadku, niczego nie
+rozstrzyga i nie wysyła niczego do ponownego zadania. Poza przypadkami, których
+wynik się odwrócił, tylko te przypadki są powtarzane.
+
+Run, który odkłada pytania dla sesji Improve, jest oceniany tylko na nich, więc
+powtarzane są tylko jego odłożone przypadki, a rodziny rozstrzygają się na nich.
+Jego przypadki treningowe nigdy nie są zadawane ponownie: następna próba czyta
+ich pierwsze odpowiedzi, a powtórek nic nie czyta. Jego limit powtórek liczy
+tylko odłożone przypadki.
 
 Werdykt poniżej dotyczy nadal całych
 przypadków; [sesja Improve](authoring.md#the-improve-wizard) i
-[sprawdzenie skilla](skills.md#the-rule) czytają kryteria, gdy żaden przypadek się
-nie odwrócił. Ponowne zadanie tych przypadków kosztuje więcej niż sprawdzenie,
-które powtarza tylko odwrócone przypadki, i mieści się w jego górnej granicy
-ceny, która i tak zakłada ponowne zadanie każdego przypadku.
+[sprawdzenie skilla](skills.md#the-rule) czytają rodziny, gdy żaden przypadek się
+nie odwrócił.
 
 Run porównywany z baseline'em potrzebuje co najmniej jednej powtórki; run bez
 baseline'u może je pominąć. Run porównany z wcześniejszym runem, któremu nigdy
@@ -689,8 +738,9 @@ włączył. Slack nie jest jeszcze kanałem powiadomień.
 | `EVAL_BASELINE_CACHE_HOURS` | `24` | Jak stary może być pasujący baseline, żeby nadal go użyć |
 | `EVAL_SIGNIFICANCE` | `0.05` | Poziom, poniżej którego potwierdzone odwrócenia są werdyktem |
 | `EVAL_EFFICIENCY_TOLERANCE` | `0.05` | Względna zmiana kosztu, tokenów lub latencji liczona jako brak zmiany |
-| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Tokeny wejściowe, według których wyceniany jest przypadek na modelu bez historii |
-| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Tokeny wyjściowe, według których wyceniany jest przypadek na modelu bez historii |
+| `EVAL_FALLBACK_INPUT_TOKENS` | `2000` | Tokeny wejściowe, według których wyceniane jest żądanie na modelu bez historii |
+| `EVAL_FALLBACK_OUTPUT_TOKENS` | `400` | Tokeny wyjściowe, według których wyceniane jest żądanie na modelu bez historii |
+| `EVAL_FALLBACK_TOOL_ROUNDS` | `2` | Ile żądań ponad jedno zajmuje odpowiedź agenta z narzędziami na modelu bez historii |
 | `EVAL_FALLBACK_CASE_COST_USD` | `0.05` | Szacunek na przypadek na modelu bez historii i bez znanej ceny |
 | `EVAL_ESTIMATE_SAMPLE` | `50` | Ile ostatnich runów uśrednia szacunek |
 | `EVAL_ABANDONED_AFTER_MINUTES` | `10` | Jak długo działający run może stać przy milczącym workerze, zanim sweep zakończy go błędem |

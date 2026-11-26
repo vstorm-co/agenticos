@@ -25,12 +25,16 @@ from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models.agent import Agent
+from app.db.models.conversation import Conversation
 from app.db.session import get_db_context
 from app.repositories import agent as agent_repo
 from app.repositories import conversation_search as search_repo
+from app.repositories import member as member_repo
+from app.repositories import room_participant as room_participant_repo
 from app.repositories import user as user_repo
 from app.services.channels import membership as channel_membership
 from app.services.conversation import ConversationService
+from app.services.room_thread_context_access import RoomThreadContextAccessService
 
 MAX_TURNS_PER_READ = 60
 """How many turns one `read_conversation` call returns.
@@ -93,7 +97,23 @@ async def _readable(
         db, user_id=user_id, organization_id=organization_id
     )
     project_ids = await ConversationService(db).visible_project_ids(user_id, organization_id)
-    return search_repo.readable_by(user_id, participant_ids, project_ids)
+    private_room_ids = await room_participant_repo.user_conversation_ids(
+        db, organization_id=organization_id, user_id=user_id
+    )
+    active_membership = await member_repo.get_active(
+        db, organization_id=organization_id, user_id=user_id
+    )
+    readable = search_repo.readable_by(
+        user_id,
+        participant_ids,
+        project_ids,
+        private_room_ids=private_room_ids,
+        active_organization_member=active_membership is not None,
+    )
+    blocked = await RoomThreadContextAccessService(db).unreadable_destinations(
+        organization_id=organization_id, user_id=user_id
+    )
+    return readable & Conversation.id.not_in(blocked) if blocked else readable
 
 
 async def search(

@@ -115,6 +115,7 @@ class SecretKind(StrEnum):
     OPENAI_CODEX = "openai_codex"
     BROWSER_LOGIN = "browser_login"
     BROWSER_PROFILE = "browser_profile"
+    OPENAI_CHATGPT = "openai_chatgpt"
 
 
 BROWSER_SECRET_KINDS = frozenset({SecretKind.BROWSER_LOGIN, SecretKind.BROWSER_PROFILE})
@@ -588,6 +589,21 @@ class OpenAICodexSecret(_SecretBase):
         return self.account_id[-4:]
 
 
+class OpenAIChatGPTSecret(_SecretBase):
+    """An application-specific public Responses API grant; never a Codex token."""
+
+    kind: Literal[SecretKind.OPENAI_CHATGPT] = SecretKind.OPENAI_CHATGPT
+    client_id: str = Field(min_length=1, max_length=512)
+    access_token: CredentialStr
+    refresh_token: CredentialStr
+    id_token: SealedStr | None = None
+    scope: str = Field(max_length=4096)
+
+    @property
+    def hint(self) -> str:
+        return self.client_id[-4:]
+
+
 class GithubOAuthAppSecret(_SecretBase):
     """A GitHub OAuth App's credentials: a public client id and a secret."""
 
@@ -734,7 +750,8 @@ StorableSecret = Annotated[
     | MicrosoftOAuthAppSecret
     | OpenAICodexSecret
     | BrowserLoginSecret
-    | BrowserProfileSecret,
+    | BrowserProfileSecret
+    | OpenAIChatGPTSecret,
     Field(discriminator="kind"),
 ]
 """Every shape a person can actually save."""
@@ -776,7 +793,8 @@ TechnicalSecret = Annotated[
     | SmtpAccountSecret
     | HttpCredentialSecret
     | MicrosoftOAuthAppSecret
-    | OpenAICodexSecret,
+    | OpenAICodexSecret
+    | OpenAIChatGPTSecret,
     Field(discriminator="kind"),
 ]
 """Credentials generic capability readers may inject; browser values stay in their writer."""
@@ -928,6 +946,7 @@ _KIND_MODELS: dict[SecretKind, type[BaseModel]] = {
     SecretKind.OPENAI_CODEX: OpenAICodexSecret,
     SecretKind.BROWSER_LOGIN: BrowserLoginSecret,
     SecretKind.BROWSER_PROFILE: BrowserProfileSecret,
+    SecretKind.OPENAI_CHATGPT: OpenAIChatGPTSecret,
 }
 
 _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
@@ -938,6 +957,10 @@ _KIND_LABELS: dict[SecretKind, tuple[str, str]] = {
     SecretKind.BROWSER_PROFILE: (
         "Browser contact profile",
         "Private contact and address fields for a destination-confirmed hosted browser fill.",
+    ),
+    SecretKind.OPENAI_CHATGPT: (
+        "ChatGPT plan usage (official)",
+        "An application-specific ChatGPT grant for the public Responses API. Requires an eligible deployment; independent of Codex sign-in.",
     ),
     SecretKind.SMTP_ACCOUNT: (
         "SMTP account",

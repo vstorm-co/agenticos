@@ -68,6 +68,7 @@ export interface RawMessage {
   reactions?: RoomMessageReactionSummary[] | null;
   id: string;
   conversation_id: string;
+  ordinal?: number | null;
   role: "user" | "assistant" | "system";
   content: string;
   created_at: string;
@@ -264,6 +265,7 @@ export function conversationMessageToChatMessage(msg: RawMessage): ChatMessage {
 
   return {
     id: msg.id,
+    ordinal: msg.ordinal ?? null,
     clientMessageId: msg.client_message_id ?? undefined,
     threadRootMessageId: msg.thread_root_message_id ?? undefined,
     threadReplyCount: msg.thread_reply_count,

@@ -2,9 +2,9 @@
 
 import { useId, useState } from "react";
 import { Command } from "cmdk";
-import { Check, ChevronsUpDown, Pencil } from "lucide-react";
+import { Check, ChevronsUpDown, Pencil, RefreshCw } from "lucide-react";
 
-import { Badge, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
+import { Badge, Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { COMMAND_ITEM_FOCUS, FORM_CONTROL, MENU_ROW } from "@/components/ui/control-styles";
 import { catalogModelName } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
@@ -27,7 +27,9 @@ interface ModelComboboxProps {
   /** Where the list came from, so the panel can be honest about it. */
   source: "live" | "curated" | "unlisted" | null;
   loading?: boolean;
+  onRefresh?: () => void;
   disabled?: boolean;
+  allowCustom?: boolean;
   placeholder: string;
   id?: string;
   /**
@@ -74,23 +76,28 @@ export function ModelCombobox({
   options,
   source,
   loading,
+  onRefresh,
   disabled,
+  allowCustom = true,
   placeholder,
   id,
   "aria-invalid": invalid,
   "aria-describedby": describedBy,
 }: ModelComboboxProps) {
   const t = useTranslations("agents");
+  const picker = useTranslations("chat.modelPicker");
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const listId = useId();
+  const popupId = useId();
 
   const chosen = options.find((option) => option.id === value);
   const typed = search.trim();
   // Only when it is genuinely not in the catalog. Offering "use openai/gpt-5"
   // beneath the openai/gpt-5 row is offering the same thing twice.
   const custom =
-    typed !== "" && !options.some((option) => option.id.toLowerCase() === typed.toLowerCase())
+    allowCustom &&
+    typed !== "" &&
+    !options.some((option) => option.id.toLowerCase() === typed.toLowerCase())
       ? typed
       : null;
 
@@ -108,7 +115,7 @@ export function ModelCombobox({
           type="button"
           role="combobox"
           aria-expanded={open}
-          aria-controls={listId}
+          aria-controls={popupId}
           aria-invalid={invalid}
           aria-describedby={describedBy}
           disabled={disabled}
@@ -134,7 +141,7 @@ export function ModelCombobox({
         </button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[min(28rem,90vw)] p-0" align="start">
+      <PopoverContent id={popupId} className="w-[min(28rem,90vw)] p-0" align="start">
         <Command shouldFilter>
           <div className="border-border border-b px-3 py-2">
             {/* No `autoFocus`: Radix moves focus into the panel when it opens,
@@ -147,7 +154,7 @@ export function ModelCombobox({
             />
           </div>
 
-          <Command.List id={listId} className="max-h-72 scrollbar-thin overflow-y-auto p-1.5">
+          <Command.List className="max-h-72 scrollbar-thin overflow-y-auto p-1.5">
             {/* Not `Command.Empty`: when something has been typed there *is* an
                 option - itself - and an "no matches" line above an offer to use
                 what you typed contradicts it. */}
@@ -161,6 +168,12 @@ export function ModelCombobox({
               <p className="text-muted-foreground px-3 py-6 text-center text-sm">
                 {t("providerPublishesNoList")}
               </p>
+            )}
+
+            {!allowCustom && !loading && options.length > 0 && (
+              <Command.Empty className="text-muted-foreground px-3 py-6 text-center text-sm">
+                {t("noMatchingModels")}
+              </Command.Empty>
             )}
 
             {custom !== null && (
@@ -215,6 +228,24 @@ export function ModelCombobox({
             </p>
           )}
         </Command>
+        {onRefresh && (
+          <div className="border-border flex justify-end border-t px-2 py-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={disabled || loading}
+              onClick={onRefresh}
+            >
+              <RefreshCw
+                size={14}
+                aria-hidden
+                className={cn(loading && "animate-spin motion-reduce:animate-none")}
+              />
+              {picker("refreshCatalog")}
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

@@ -18,6 +18,7 @@ notification, attachment and transcript services.
 | Identity-based mentions and selected bot responders | [`messages.ts`](https://github.com/agentes-chat/agentes-chat/blob/05468176f2af476513bea2bb1138d95d244d148b/packages/engine/src/messages.ts), [`dispatch.ts`](https://github.com/agentes-chat/agentes-chat/blob/05468176f2af476513bea2bb1138d95d244d148b/packages/engine/src/dispatch.ts) | `RoomMessageCreate.mentions`, canonical saved recipients and one queued request per selected agent |
 | Human mentions notify without adding members | [`notification-producers.ts`](https://github.com/agentes-chat/agentes-chat/blob/05468176f2af476513bea2bb1138d95d244d148b/packages/engine/src/notification-producers.ts) | `room_mention`, current conversation access checked again when read |
 | Thread follow, unread state and lifecycle | [`threads.ts`](https://github.com/agentes-chat/agentes-chat/blob/05468176f2af476513bea2bb1138d95d244d148b/packages/engine/src/threads.ts) | Room thread state, explicit follow/mute and a cursor through the last viewed reply |
+| Selected context ranges, same-room moves and cross-room references | [`threads.ts`](https://github.com/agentes-chat/agentes-chat/blob/05468176f2af476513bea2bb1138d95d244d148b/packages/engine/src/threads.ts) | [Range snapshot, atomic edit/move/return, and live audience checks](agentes-thread-ranges.md), added in draft PR 190 |
 | Emoji reactions and attachment sharing | [`chat.ts`](https://github.com/agentes-chat/agentes-chat/blob/05468176f2af476513bea2bb1138d95d244d148b/apps/server/src/routes/app/chat.ts) | Human emoji aggregates, existing upload cards and attachment routing in room posts |
 
 Agentes fixes a direct message at two participants. In-place conversion to a
@@ -140,7 +141,8 @@ another room event is relayed. Polling remains a recovery path.
 
 The migration chain continues from `0345_credential_continuations` through
 `0349_room_participants`, `0350_room_mention_requests`,
-`0351_room_message_reactions` and `0352_room_thread_state`. Legacy room requests
+`0351_room_message_reactions`, `0352_room_thread_state` and the follow-up
+`0358_room_thread_context`. Legacy room requests
 remain primary requests with explicit dispatch. Downgrades refuse to erase used
 feature evidence. Schema changes are exercised against disposable PostgreSQL;
 production migration and deployment are separate operations.
@@ -154,8 +156,9 @@ than an additional paid routing model. Existing quotes, pins, search, thread
 navigation and presence are reused.
 
 This comparison does not cover Agentes's wiki, business applications or plugin
-ecosystem. Advanced thread context ranges and moving conversation segments are
-distinct from the existing reply threads and are not claimed by this change.
+ecosystem. Selected context ranges and conversation-segment moves are implemented
+in the [stacked context-range follow-up](agentes-thread-ranges.md). Its validation
+and release state remain separate from the initial multiplayer foundation.
 
 Validation is recorded in the PR with the exact focused suites and migration
 rehearsals. Local tests do not establish deployed, multi-browser acceptance or a

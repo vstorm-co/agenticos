@@ -8,13 +8,13 @@ import { Button } from "@/components/ui";
 import { StartActions, StartBack } from "./start-navigation";
 import { StartStageArtwork } from "./start-stage-artwork";
 import layout from "./administration.module.css";
+import { useStartVariant } from "./start-experience";
 import { StartGuide } from "./start-guide";
 import styles from "./guided-start.module.css";
 
 export function StartQuestion({
   stage,
   index,
-  total,
   title,
   message,
   children,
@@ -25,7 +25,6 @@ export function StartQuestion({
 }: {
   stage: "deployment" | "organization";
   index: number;
-  total: number;
   title: string;
   message: string;
   children: ReactNode;
@@ -35,6 +34,7 @@ export function StartQuestion({
   onSkip?: () => void;
 }) {
   const t = useTranslations("start.guided");
+  const studio = useStartVariant() === "studio";
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     heading.current?.focus({ preventScroll: true });
@@ -44,13 +44,13 @@ export function StartQuestion({
       <h2 ref={heading} tabIndex={-1} className={styles.questionTitle}>
         {title}
       </h2>
-      <div className={styles.questionMeta}>
-        <span>{t("question", { current: index + 1, total })}</span>
-        <span>{t("changeLater")}</span>
-      </div>
       <StartGuide message={message} />
-      <div className={layout.stageStudio}>
-        <section key={index} className={styles.question} aria-label={title}>
+      <div className={studio ? styles.studioLayout : layout.stageStudio}>
+        <section
+          key={index}
+          className={studio ? styles.studioQuestion : styles.question}
+          aria-label={title}
+        >
           <div className={styles.answer}>{children}</div>
           <StartActions back={onBack && <StartBack onClick={onBack} disabled={pending} />}>
             {onSkip && (
@@ -64,7 +64,7 @@ export function StartQuestion({
             </Button>
           </StartActions>
         </section>
-        <StartStageArtwork stage={stage} />
+        {!studio && <StartStageArtwork stage={stage} />}
       </div>
     </div>
   );

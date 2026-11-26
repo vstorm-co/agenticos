@@ -15,6 +15,7 @@ import { useTranslations } from "next-intl";
 import {
   useDeviceLink,
   useDeviceStatus,
+  useExternalAgents,
   useLocalFolders,
   useLocalServices,
 } from "@/hooks/use-desktop";
@@ -32,6 +33,11 @@ import { worksOnThisComputer } from "@/hooks/use-local-access-gate";
 import { useWorkOnStore, type LocalTarget } from "@/stores/work-on-store";
 import { LocalSkillsControl } from "./local-skills-control";
 import { LocalCodingControl } from "./local-coding-control";
+import { useProviderCatalog } from "@/hooks/use-model-providers";
+import {
+  conversationRegistrations,
+  NativeConversationControl,
+} from "./native-conversation-control";
 
 /** The last part of a path, which is what a person recognises a folder by. */
 function folderName(path: string): string {
@@ -168,6 +174,8 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
   const { link } = useDeviceLink();
   const { state, pick, revoke } = useLocalFolders();
   const services = useLocalServices().state.data ?? [];
+  const nativeRuntimes = useProviderCatalog().data?.native_runtimes;
+  const registrations = conversationRegistrations(useExternalAgents().state.data ?? []);
   const conversationId = useConversationStore((store) => store.currentConversationId);
   const target = useWorkOnStore((store) => store.targetFor(conversationId));
   const setTarget = useWorkOnStore((store) => store.set);
@@ -249,6 +257,9 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
         ...choice.target,
         folder: grant.path,
         mode: grant.mode,
+        ...(choice.target?.conversation_runtime && grant.mode !== "full_access"
+          ? { conversation_runtime: null }
+          : {}),
         computer_grant: undefined,
       };
       setTarget(choice.conversationId, target, localAgent === null);
@@ -404,6 +415,9 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                             ...target,
                             folder: grant.path,
                             mode: grant.mode,
+                            ...(target?.conversation_runtime && grant.mode !== "full_access"
+                              ? { conversation_runtime: null }
+                              : {}),
                           })
                         }
                         className="min-w-0 flex-1 text-left"
@@ -433,6 +447,16 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                 })}
               </div>
             )}
+            {target !== null && (
+              <NativeConversationControl
+                codexEnabled={nativeRuntimes?.codex === true}
+                claudeEnabled={nativeRuntimes?.claude_code === true}
+                externalEnabled={nativeRuntimes?.external === true}
+                registrations={registrations}
+                target={target}
+                onChange={(next) => setTarget(conversationId, next)}
+              />
+            )}
             {target !== null && services.length > 0 && (
               <div className="space-y-2 py-2">
                 <label className="block text-xs">
@@ -445,6 +469,7 @@ function ComputerWorkOn({ agentEnabled }: { agentEnabled: boolean }) {
                       setTarget(conversationId, {
                         ...target,
                         model_service: event.target.value || null,
+                        ...(target.conversation_runtime ? { conversation_runtime: null } : {}),
                       })
                     }
                   >

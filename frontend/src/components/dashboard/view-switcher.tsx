@@ -52,13 +52,13 @@ export function ViewSwitcher({
   useScrollFade(strip);
   useTabIndicator(strip, views.length > 1);
   if (views.length < 2)
-    return actions ? <div className="mb-5 flex justify-end">{actions}</div> : null;
+    return actions ? <div className="mb-4 flex justify-end">{actions}</div> : null;
 
   return (
     // Tabs, not a second pill control: which dashboard this is sits a level
     // above the period it is read over, and two identical pill rows stacked
     // under one another read as two filters of equal weight.
-    <div className="border-border mb-5 grid gap-x-4 gap-y-2 md:grid-cols-[minmax(0,1fr)_auto] md:border-b">
+    <div className="border-border mb-4 grid gap-x-4 gap-y-2 md:grid-cols-[minmax(0,1fr)_auto] md:border-b">
       <div className="border-border min-w-0 border-b md:border-0">
         <div
           ref={strip}

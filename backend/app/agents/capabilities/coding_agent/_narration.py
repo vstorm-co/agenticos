@@ -18,7 +18,7 @@ from typing import Any, Literal
 
 from app.agents.capabilities.coding_agent._harness import (
     LABELS,
-    Harness,
+    AcpHarness,
     LiveItem,
     Said,
     StepStarted,
@@ -41,13 +41,13 @@ class Narration:
 
     sink: SubagentEventSink | None
     task_id: str
-    harness: Harness
+    harness: AcpHarness
     depth: int
     parent_task_id: str | None
     _open_steps: dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def for_call(cls, deps: Any, task_id: str, harness: Harness) -> Narration:
+    def for_call(cls, deps: Any, task_id: str, harness: AcpHarness) -> Narration:
         """The panel for this tool call, one level inside the delegate making it, if any."""
         sink = getattr(deps, "subagent_events", None)
         acting = acting_delegate()

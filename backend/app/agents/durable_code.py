@@ -1,4 +1,4 @@
-"""Approval continuation adapter for harness 0.66 / Monty 1.5.
+"""Approval continuation adapter for the pinned harness and Monty runtime.
 
 The harness has no checkpoint executor extension point. This local toolset
 subclass reuses its catalog, validation, ToolManager dispatch, quotas and return
@@ -32,11 +32,11 @@ from pydantic_ai.toolsets.abstract import ToolsetTool
 from pydantic_ai_harness import CodeMode
 from pydantic_ai_harness._code_tools import run_nested_call
 from pydantic_ai_harness._monty_exec import PrintCapture
+from pydantic_ai_harness._monty_turns import model_safe_result
 from pydantic_ai_harness.code_mode._toolset import (
     _TOOL_RETURN_CONTENT_TA,
     CodeModeToolset,
     RunCodeExecution,
-    _model_safe_result,
     _resolve_resource_limits,
     _RunCodeTool,
     global_mode_is_sequential,
@@ -210,7 +210,7 @@ class DurableCodeToolset(CodeModeToolset[AgentDeps]):
             return (
                 None
                 if result is None
-                else _model_safe_result(_TOOL_RETURN_CONTENT_TA.validate_python(result))
+                else model_safe_result(_TOOL_RETURN_CONTENT_TA.validate_python(result))
             )
         except (MontySyntaxError, MontyTypingError, MontyRuntimeError) as error:
             state.has_executed_feed = True

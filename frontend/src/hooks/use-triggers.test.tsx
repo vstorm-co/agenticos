@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useTriggerAttempts, useTriggers } from "./use-triggers";
 import { apiClient } from "@/lib/api-client";
+import { qk } from "@/lib/query-keys";
 import type { Trigger } from "@/types/triggers";
 
 vi.mock("@/lib/api-client", () => ({
@@ -102,6 +103,23 @@ describe("useTriggers", () => {
       interval_seconds: 300,
     });
     expect(toast.success).toHaveBeenCalledWith("Trigger created");
+  });
+
+  it("refreshes the chat listing when creation adds a routine log", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    vi.mocked(apiClient.post).mockResolvedValue(trigger({ conversation_id: "routine-log" }));
+    const { result } = renderHook(() => useTriggers("a1"), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await result.current.create.mutateAsync({
+      prompt: "summarise",
+      trigger_type: "schedule",
+      interval_seconds: 300,
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversations.all() });
   });
 
   it("sends only is_active when pausing, and names the act", async () => {

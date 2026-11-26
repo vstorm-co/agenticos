@@ -14,7 +14,7 @@ from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.mention import MentionKind
 from app.schemas.room_participant import RoomMentionRead
 from app.schemas.room_reaction import RoomMessageReactionRead
-from app.schemas.room_thread import RoomThreadSummary
+from app.schemas.room_thread import RoomThreadMovedStubRead, RoomThreadSummary
 
 if TYPE_CHECKING:
     from app.db.models.user import User
@@ -486,6 +486,9 @@ class MessageRead(MessageBase, TimestampSchema):
 
     id: UUID
     conversation_id: UUID
+    ordinal: int | None = Field(
+        default=None, description="Stable transcript order for persisted messages"
+    )
     room_mentions: list[RoomMentionRead] = Field(default_factory=list)
     reactions: list[RoomMessageReactionRead] = Field(
         default_factory=list,
@@ -749,9 +752,9 @@ class ConversationRead(ConversationBase, TimestampSchema):
         description="Private or public room visibility; null for legacy conversations and project chats",
     )
     is_archived: bool = False
-    origin: Literal["api", "workflow"] | None = Field(
+    origin: Literal["api", "workflow", "routine"] | None = Field(
         default=None,
-        description="`api` for organization-key runs, `workflow` for private agent-step threads; null otherwise",
+        description="`api` for organization-key runs, `workflow` for private agent-step threads, `routine` for read-only shared routine histories; null otherwise",
     )
     is_favourite: bool = Field(
         default=False,
@@ -843,6 +846,10 @@ class ConversationRead(ConversationBase, TimestampSchema):
             "`GET /conversations/shared-with-me` and on a single conversation's read; "
             "null for the owner and for anyone reading it another way."
         ),
+    )
+    can_fork_routine_log: bool = Field(
+        default=False,
+        description="Whether this reader created the routine and may fork its shared history into a private chat.",
     )
     forked_from: ConversationForkOrigin | None = Field(
         default=None,
@@ -947,6 +954,7 @@ class MessageList(BaseSchema):
 
     items: list[MessageRead]
     total: int
+    moved_thread_stubs: list[RoomThreadMovedStubRead] = Field(default_factory=list)
     cost: ConversationCost | None = Field(
         default=None,
         description=(

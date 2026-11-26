@@ -116,11 +116,7 @@ export function AgentCard({
     <div className="h-full">
       <ResourceCard className={cn(busy && "pointer-events-none opacity-50")}>
         <Link
-          href={
-            attention && !isSystemAgent(agent.kind)
-              ? `${ROUTES.AGENT_DETAIL(agent.id)}?tab=evals`
-              : ROUTES.AGENT_DETAIL(agent.id)
-          }
+          href={ROUTES.AGENT_DETAIL(agent.id)}
           className="focus-visible:ring-ring absolute inset-0 rounded-xl outline-none focus-visible:ring-2"
           aria-label={tc("openNamed", { name: agent.name })}
         />

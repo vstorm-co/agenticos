@@ -10,8 +10,12 @@ import { cn } from "@/lib/utils";
 export function ConversationAccessNotice({
   state,
   onRetry,
+  onContinue,
+  continuing = false,
 }: {
-  state: "checking" | "error" | "view";
+  state: "checking" | "error" | "view" | "routine";
+  onContinue?: () => void;
+  continuing?: boolean;
   onRetry: () => void;
 }) {
   const t = useTranslations("chat");
@@ -34,9 +38,22 @@ export function ConversationAccessNotice({
             ? "accessChecking"
             : state === "error"
               ? "accessFailed"
-              : "conversationViewOnly",
+              : state === "routine"
+                ? "routineHistoryReadOnly"
+                : "conversationViewOnly",
         )}
       </span>
+      {state === "routine" && onContinue && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onContinue}
+          disabled={continuing}
+        >
+          {t("routineContinueChat")}
+        </Button>
+      )}
       {state === "error" && (
         <Button type="button" variant="ghost" size="sm" onClick={onRetry}>
           {t("accessRetry")}

@@ -18,6 +18,15 @@ pytestmark = pytest.mark.security
 class TestConversationTenantIsolation:
     """Conversation listing and creation respect organization_id (PostgreSQL)."""
 
+    @pytest.fixture(autouse=True)
+    def no_imported_context(self):
+        """No room here imports another's messages; the listing still asks."""
+        with patch(
+            "app.repositories.room_thread_context_access.external_context_edges",
+            AsyncMock(return_value=[]),
+        ):
+            yield
+
     @pytest.fixture
     def mock_db(self):
         return MagicMock()

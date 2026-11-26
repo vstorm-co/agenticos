@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Bell,
   Globe2,
   Mail,
   LockKeyhole,
@@ -56,7 +57,6 @@ export function DeploymentAccess({
         ))}
       </div>
       <div className="mt-5 space-y-2">
-        <p className={styles.hint}>{t("domainsPreserved")}</p>
         <Link
           href="/admin/settings?section=access"
           target="_blank"
@@ -101,9 +101,9 @@ export function DeploymentDestination({
         <strong>{org.name}</strong>
         <span>{t("destinationBody", { role })}</span>
       </button>
-      <p className={styles.hint}>
-        {defaultOrg && defaultOrg !== org.id ? t("otherDestination") : t("destinationHint")}
-      </p>
+      {defaultOrg && defaultOrg !== org.id && (
+        <p className={styles.hint}>{t("otherDestination")}</p>
+      )}
       <label className={styles.switchRow}>
         <span>
           <strong>{t("personalTitle")}</strong>
@@ -134,22 +134,20 @@ export function DeploymentAnnouncement({
   const t = useTranslations("start.guided");
   return (
     <div className={styles.announcementLayout}>
-      <div
-        className={styles.preview}
-        role="region"
-        aria-label={t("livePreview")}
-        data-level={level}
-      >
-        <div className={styles.previewHeader}>
-          <strong>{t("livePreview")}</strong>
-          <label htmlFor="start-announcement">{t("welcomeMessage")}</label>
+      <section aria-label={t("livePreview")} className={styles.announcementPreview}>
+        <p className={styles.previewCaption}>{t("livePreview")}</p>
+        <div className={styles.notice} data-level={level}>
+          <Bell className="size-4 shrink-0" aria-hidden />
+          <p>{value || t("announcementEmpty")}</p>
         </div>
+      </section>
+      <div className={styles.announcementField}>
+        <label htmlFor="start-announcement">{t("welcomeMessage")}</label>
         <Textarea
           id="start-announcement"
-          className={styles.announcementEditor}
           rows={3}
           maxLength={4000}
-          placeholder={t("announcementEmpty")}
+          placeholder={t("announcementPlaceholder")}
           value={value ?? ""}
           disabled={pending}
           onChange={(event) => onChange({ announcement: event.target.value || null })}

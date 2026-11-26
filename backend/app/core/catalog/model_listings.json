@@ -191,6 +191,76 @@
     "context_field": "context_window",
     "modalities_path": "architecture.output_modalities"
   },
+  "kimi_code": {
+    "url": "https://api.kimi.ai/coding/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "alibaba_coding_plan": {
+    "url": "https://coding-intl.dashscope.aliyuncs.com/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "opencode_go": {
+    "url": "https://opencode.ai/inference/go/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "ollama_cloud": {
+    "url": "https://ollama.com/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "cliproxyapi": {
+    "url": "http://cliproxyapi:8317/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "nous_portal": {
+    "url": "https://inference-api.nousresearch.com/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "inception": {
+    "url": "https://api.inceptionlabs.ai/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "cline": {
+    "url": "https://api.cline.bot/api/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "chutes": {
+    "url": "https://llm.chutes.ai/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
+  "synthetic": {
+    "url": "https://api.synthetic.new/openai/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
   "openai_compatible": {
     "url": "",
     "array_path": "data",

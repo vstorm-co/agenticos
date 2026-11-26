@@ -116,44 +116,41 @@ async def list_observers_for_bot(
     return [(exposure, slug) for exposure, slug in result.all()]
 
 
-async def active_agents_for_bots(
+async def bindings_for_bots(
     db: AsyncSession, *, channel_bot_ids: list[UUID]
-) -> dict[UUID, list[Agent]]:
-    """Which agents answer on each of these bots, in one query.
+) -> dict[UUID, list[tuple[AgentExposure, Agent]]]:
+    """Every binding on each of these bots with its agent, in one query.
 
     The channels listing asks it of every row at once, the same way the agent
     gallery asks `active_surfaces_for_agents` for its badges - a query per bot
     is a page that gets slower the more channels an organization has.
 
-    Paused bindings are excluded: a bot whose only agent is switched off answers
-    nothing, and a listing that named it would be describing a channel that is
-    silent. Bots with no active binding are simply absent from the result.
+    A paused binding is listed, and the caller marks it: it still takes the bot
+    under `uq_exposure_bot`, so a listing that left it out would offer to bind a
+    bot that refuses. Bots with no binding are simply absent from the result.
     """
     if not channel_bot_ids:
         return {}
     result = await db.execute(
-        select(AgentExposure.channel_bot_id, Agent)
+        select(AgentExposure.channel_bot_id, AgentExposure, Agent)
         .join(Agent, Agent.id == AgentExposure.agent_id)
-        .where(
-            AgentExposure.channel_bot_id.in_(channel_bot_ids),
-            AgentExposure.is_active.is_(True),
-        )
+        .where(AgentExposure.channel_bot_id.in_(channel_bot_ids))
         .order_by(AgentExposure.channel_bot_id, Agent.slug)
     )
-    found: dict[UUID, list[Agent]] = {}
-    for channel_bot_id, agent in result.all():
-        found.setdefault(channel_bot_id, []).append(agent)
+    found: dict[UUID, list[tuple[AgentExposure, Agent]]] = {}
+    for channel_bot_id, exposure, agent in result.all():
+        found.setdefault(channel_bot_id, []).append((exposure, agent))
     return found
 
 
 async def bound_agent_by_bot(db: AsyncSession, *, channel_bot_ids: list[UUID]) -> dict[UUID, UUID]:
     """Which agent each of these bots is bound to, paused bindings included.
 
-    Distinct from `active_agents_for_bots`, and the difference is the whole
-    point: that one answers "who is answering here" and skips a paused binding,
-    while this answers "is this bot taken" - and a paused binding still occupies
-    `uq_exposure_bot`. The picker needs this one, or it offers a bot that
-    refuses with a 409 the moment somebody chooses it.
+    Distinct from `bindings_for_bots`: this one returns only `bot -> agent_id`,
+    with no join, which is all the targets picker needs to answer "is this bot
+    taken". A paused binding still occupies `uq_exposure_bot`, so it counts, or
+    the picker offers a bot that refuses with a 409 the moment somebody chooses
+    it.
     """
     if not channel_bot_ids:
         return {}

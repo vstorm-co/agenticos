@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
+vi.mock("@/hooks/use-report-start-step", () => ({ useReportStartStep: () => undefined }));
 import type { Onboarding } from "@/lib/onboarding-api";
 import { StartMember } from "./start-member";
 
@@ -30,6 +31,7 @@ vi.mock("./start-stage-artwork", () => ({ StartStageArtwork: () => null }));
 vi.mock("./start-language", () => ({ StartLanguage: () => null }));
 vi.mock("./start-companions", () => ({ StartCompanions: () => null }));
 vi.mock("@/components/ui/avatar-face", () => ({ AvatarFace: () => null }));
+vi.mock("./start-subscriptions", () => ({ StartSubscriptions: () => null }));
 vi.mock("./start-tasks", () => ({ StartTasks: () => <h2>First task examples</h2> }));
 vi.mock("./start-finish", () => ({
   StartFinish: () => <button onClick={env.finish}>Finish setup</button>,
@@ -88,6 +90,8 @@ it("guides a new account through personal questions and a first task without adm
     screen.getByRole("heading", { name: "What should your agents know about you?" }),
   ).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Skip for now" }));
+  expect(screen.getByRole("heading", { name: "Your subscriptions" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   expect(screen.getByRole("heading", { name: "First task examples" })).toBeVisible();
   expect(screen.queryByRole("slider")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Finish setup" }));
@@ -98,6 +102,8 @@ it("welcomes an existing account to another organization without repeating its p
   render(<StartMember data={data} />);
   expect(screen.getByText(/profile already exists/)).toBeVisible();
   await userEvent.click(screen.getByRole("button", { name: "Use my saved profile" }));
+  expect(screen.getByRole("heading", { name: "Your subscriptions" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   expect(screen.getByRole("heading", { name: "First task examples" })).toBeVisible();
   expect(env.callbacks.size).toBe(0);
 });
@@ -144,6 +150,8 @@ it("lets an invited account reuse its saved identity even without a job descript
   window.history.replaceState(null, "", "/onboarding?welcome=1&entry=joined");
   render(<StartMember data={data} />);
   await userEvent.click(screen.getByRole("button", { name: "Use my saved profile" }));
+  expect(screen.getByRole("heading", { name: "Your subscriptions" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   expect(screen.getByRole("heading", { name: "First task examples" })).toBeVisible();
   expect(env.callbacks.size).toBe(0);
 });
@@ -151,4 +159,56 @@ it("lets an invited account reuse its saved identity even without a job descript
 it("keeps the member welcome focused on setup", () => {
   render(<StartMember data={data} />);
   expect(screen.queryByRole("button", { name: "Explore the application" })).not.toBeInTheDocument();
+});
+
+vi.mock("./start-connections", () => ({
+  StartModels: () => <p>Full model catalog and Vault keys</p>,
+  StartTools: () => <p>Personal MCP connections</p>,
+}));
+vi.mock("./start-launch", () => ({ StartLaunch: () => <h2>Real AgenticOS and Architect</h2> }));
+it.each(["conversation", "studio", "launchpad"])(
+  "adds working model and MCP stages to %s without administrator steps",
+  async (variant) => {
+    window.history.replaceState(
+      null,
+      "",
+      `/onboarding?variant=${variant}&start-step=member.subscriptions&workspace=workspace`,
+    );
+    render(<StartMember data={data} />);
+    if (variant === "studio") expect(screen.queryByText("Step 4 of 7")).not.toBeInTheDocument();
+    else expect(screen.getByText("Step 4 of 7")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: variant === "studio" ? "Continue" : "Save and continue" }),
+    );
+    expect(await screen.findByText("Full model catalog and Vault keys")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: variant === "studio" ? "Continue" : "Save and continue" }),
+    );
+    expect(await screen.findByText("Personal MCP connections")).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: variant === "studio" ? "Continue" : "Save and continue" }),
+    );
+    expect(screen.getByRole("heading", { name: "Real AgenticOS and Architect" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "First task examples" })).not.toBeInTheDocument();
+    expect(window.location.search).toContain(`variant=${variant}`);
+    expect(window.location.search).toContain("start-step=member.task");
+  },
+);
+
+it("preserves direction and returns to the preceding personal question in Studio", async () => {
+  window.history.replaceState(
+    null,
+    "",
+    "/onboarding?variant=studio&start-step=member.profile&workspace=workspace",
+  );
+  const { container } = render(<StartMember data={data} />);
+  expect(screen.queryByText(/^Step \d+ of \d+$/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Save personal details" }));
+  expect(container.querySelector("[data-start-frame]")).toHaveAttribute(
+    "data-direction",
+    "forward",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(container.querySelector("[data-start-frame]")).toHaveAttribute("data-direction", "back");
+  expect(screen.getByRole("heading", { name: "Make yourself at home" })).toBeVisible();
 });

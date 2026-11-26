@@ -39,10 +39,13 @@ from app.db.models.agent import AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.conversation import Message, ToolCall
+from app.db.models.dataset import DatasetCase
+from app.db.models.eval_run import EvalRunCase
 from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.knowledge_gap import (
     GapSignal,
     KnowledgeGapClassification,
+    KnowledgeGapEvalClassification,
     KnowledgeGapMember,
     KnowledgeGapTopic,
     KnowledgeSearch,
@@ -341,6 +344,10 @@ class TopicRow(NamedTuple):
     last_asked_at: datetime
     queries: list[str]
     agent_ids: list[UUID]
+    subjects: list[str] = []
+    """What the classifier named the misses read from answers, the oldest first."""
+    test_questions: int = 0
+    """Of `question_count`, the misses read from an eval's answer to a test question."""
 
 
 class QuestionRow(NamedTuple):
@@ -379,12 +386,17 @@ async def list_topics(
     """Topics of these knowledge bases, the most asked first, with how many there are."""
     question_count = func.count(KnowledgeSearch.id)
     last_asked_at = func.max(KnowledgeSearch.created_at)
+    # A miss read from an eval's answer is a test question, which nobody asked.
+    tested = and_(
+        KnowledgeSearch.message_id.is_(None),
+        KnowledgeSearch.signal != GapSignal.RETRIEVAL.value,
+    )
     grouped = (
         select(
             KnowledgeGapTopic,
             _status().label("status"),
             question_count.label("question_count"),
-            func.count(distinct(_asker())).label("asker_count"),
+            func.count(distinct(_asker())).filter(~tested).label("asker_count"),
             last_asked_at.label("last_asked_at"),
             func.array_agg(
                 aggregate_order_by(KnowledgeSearch.query, KnowledgeSearch.created_at),
@@ -393,6 +405,14 @@ async def list_topics(
             func.array_agg(distinct(KnowledgeSearch.agent_id), type_=ARRAY(PG_UUID())).label(
                 "agent_ids"
             ),
+            func.array_remove(
+                func.array_agg(
+                    aggregate_order_by(KnowledgeSearch.subject, KnowledgeSearch.created_at),
+                    type_=ARRAY(Text),
+                ),
+                None,
+            ).label("subjects"),
+            func.count(KnowledgeSearch.id).filter(tested).label("test_questions"),
         )
         .join(KnowledgeGapMember, KnowledgeGapMember.topic_id == KnowledgeGapTopic.id)
         .join(KnowledgeSearch, KnowledgeSearch.id == KnowledgeGapMember.search_id)
@@ -424,6 +444,8 @@ async def list_topics(
             last_asked_at=row[4],
             queries=list(row[5] or []),
             agent_ids=[agent for agent in row[6] or [] if agent is not None],
+            subjects=list(row[7] or []),
+            test_questions=row[8],
         )
         for row in result.all()
     ], total
@@ -879,14 +901,18 @@ CANDIDATE_COMMENTS = 5
 
 
 class CandidateRow(NamedTuple):
-    """An answer a model has still to read for a knowledge gap, with what it is shown."""
+    """An answer a model has still to read for a knowledge gap, with what it is shown.
 
-    message_id: UUID
+    A chat answer is its message; an eval answer has none and no conversation, and
+    is the run that gave it.
+    """
+
+    message_id: UUID | None
     run_id: UUID
     agent_id: UUID
     agent_version_id: UUID | None
     """The version that answered, whose instructions and context files the model reads."""
-    conversation_id: UUID
+    conversation_id: UUID | None
     asker_id: UUID | None
     """Who started the run, whose question a miss read from it keeps."""
     question: str | None
@@ -1073,6 +1099,89 @@ async def classification_candidates(
     ]
 
 
+async def eval_answer_candidates(
+    db: AsyncSession,
+    knowledge_base_id: UUID,
+    *,
+    organization_id: UUID,
+    run_ids: Sequence[UUID],
+    limit: int,
+) -> list[CandidateRow]:
+    """The eval answers among `run_ids` a model has still to read for one knowledge base.
+
+    An improvement session's failed training answers: the case's question and the
+    answer its eval recorded. One an erasure cleared has nothing left to read. The
+    asker is the person whose question the case was taken from, when one was.
+    """
+    if not run_ids:
+        return []
+    read = (
+        select(KnowledgeGapEvalClassification.run_id)
+        .where(
+            KnowledgeGapEvalClassification.run_id == AgentRun.id,
+            KnowledgeGapEvalClassification.knowledge_base_id == knowledge_base_id,
+        )
+        .exists()
+    )
+    result = await db.execute(
+        select(
+            AgentRun.id,
+            AgentRun.agent_id,
+            AgentRun.agent_version_id,
+            DatasetCase.asked_by_user_id,
+            DatasetCase.input,
+            # Never null here, as the filter below keeps; coalesced for the row's type.
+            func.coalesce(EvalRunCase.answer, ""),
+        )
+        .join(EvalRunCase, EvalRunCase.agent_run_id == AgentRun.id)
+        .join(DatasetCase, DatasetCase.id == EvalRunCase.case_revision_id)
+        .where(
+            AgentRun.organization_id == organization_id,
+            AgentRun.id.in_(list(run_ids)),
+            EvalRunCase.answer.is_not(None),
+            ~read,
+        )
+        .order_by(AgentRun.started_at.desc(), AgentRun.id)
+        .limit(limit)
+    )
+    return [
+        CandidateRow(
+            message_id=None,
+            run_id=run_id,
+            agent_id=agent_id,
+            agent_version_id=version_id,
+            conversation_id=None,
+            asker_id=asker_id,
+            question=question,
+            answer=answer,
+            comments=[],
+            result_count=0,
+            top_similarity=None,
+            missed=False,
+        )
+        for run_id, agent_id, version_id, asker_id, question, answer in result.all()
+    ]
+
+
+async def eval_answers_kept(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> set[UUID]:
+    """Hold surviving answers through classification writes; case erasure takes the same locks."""
+    if not run_ids:
+        return set()
+    result = await db.execute(
+        select(EvalRunCase.agent_run_id)
+        .where(
+            EvalRunCase.organization_id == organization_id,
+            EvalRunCase.agent_run_id.in_(list(run_ids)),
+            EvalRunCase.answer.is_not(None),
+        )
+        .order_by(EvalRunCase.id)
+        .with_for_update()
+    )
+    return {run_id for run_id in result.scalars() if run_id is not None}
+
+
 async def count_unchecked(
     db: AsyncSession, knowledge_base_id: UUID, *, organization_id: UUID, since: datetime
 ) -> int:
@@ -1101,6 +1210,8 @@ class Verdict(NamedTuple):
     """What a miss is grouped by: the person's question, bounded as a search's query is."""
     reason: str | None = None
     """The model's one sentence on why."""
+    subject: str | None = None
+    """What a miss lacks, as the model named it: what its topic is grouped and named by."""
 
 
 async def still_asked(
@@ -1111,22 +1222,19 @@ async def still_asked(
     An answer whose conversation went, or whose run lost its starter to an
     erasure, has nobody's question left to record.
     """
-    if not candidates:
+    asked = {
+        message_id: candidate.asker_id
+        for candidate in candidates
+        if (message_id := candidate.message_id) is not None
+    }
+    if not asked:
         return set()
     result = await db.execute(
         select(Message.id, AgentRun.user_id)
         .join(AgentRun, AgentRun.id == Message.run_id)
-        .where(
-            AgentRun.organization_id == organization_id,
-            Message.id.in_([candidate.message_id for candidate in candidates]),
-        )
+        .where(AgentRun.organization_id == organization_id, Message.id.in_(list(asked)))
     )
-    starters = {row[0]: row[1] for row in result.all()}
-    return {
-        candidate.message_id
-        for candidate in candidates
-        if candidate.message_id in starters and starters[candidate.message_id] == candidate.asker_id
-    }
+    return {message_id for message_id, starter in result.all() if starter == asked[message_id]}
 
 
 async def record_classifications(
@@ -1203,6 +1311,7 @@ async def record_classifications(
                     "conversation_id": verdict.candidate.conversation_id,
                     "knowledge_base_ids": [knowledge_base_id],
                     "query": verdict.query,
+                    "subject": verdict.subject,
                     "result_count": verdict.candidate.result_count,
                     "top_similarity": verdict.candidate.top_similarity,
                     "signal": verdict.signal.value,
@@ -1221,6 +1330,125 @@ async def record_classifications(
     # `execute` is typed to return `Result`, which has no `rowcount`; a DML
     # statement actually returns a `CursorResult`, which does (see `resource_grant`).
     return result.rowcount or 0  # ty: ignore[missing-attribute]
+
+
+async def record_eval_classifications(
+    db: AsyncSession,
+    verdicts: Sequence[Verdict],
+    knowledge_base_id: UUID,
+    *,
+    organization_id: UUID,
+    run_id: UUID,
+) -> tuple[int, int]:
+    """Remember each eval answer as read for one knowledge base, and record its misses there.
+
+    As :func:`record_classifications` does for chat answers, by the run that gave
+    each. An eval records no searches, so a refusal has none to take out of a topic.
+
+    Returns:
+        How many answers were newly classified, and how many misses were recorded.
+    """
+    if not verdicts:
+        return 0, 0
+    statement = pg_insert(KnowledgeGapEvalClassification).values(
+        [
+            {
+                "run_id": verdict.candidate.run_id,
+                "knowledge_base_id": knowledge_base_id,
+                "organization_id": organization_id,
+                "signal": verdict.verdict,
+                "reason": verdict.reason,
+                "classifier_run_id": run_id,
+            }
+            for verdict in verdicts
+        ]
+    )
+    inserted = set(
+        await db.scalars(
+            statement.on_conflict_do_nothing(
+                index_elements=[
+                    KnowledgeGapEvalClassification.run_id,
+                    KnowledgeGapEvalClassification.knowledge_base_id,
+                ],
+            ).returning(KnowledgeGapEvalClassification.run_id)
+        )
+    )
+    misses = [
+        verdict
+        for verdict in verdicts
+        if verdict.candidate.run_id in inserted and verdict.signal is not None
+    ]
+    if not misses:
+        await db.flush()
+        return len(inserted), 0
+    result = await db.execute(
+        pg_insert(KnowledgeSearch)
+        .values(
+            [
+                {
+                    "organization_id": organization_id,
+                    "run_id": verdict.candidate.run_id,
+                    "agent_id": verdict.candidate.agent_id,
+                    "conversation_id": None,
+                    "knowledge_base_ids": [knowledge_base_id],
+                    "query": verdict.query,
+                    "subject": verdict.subject,
+                    "result_count": 0,
+                    "top_similarity": None,
+                    "signal": verdict.signal.value,
+                    "message_id": None,
+                }
+                for verdict in misses
+                if verdict.signal is not None
+            ]
+        )
+        .on_conflict_do_nothing(
+            index_elements=[KnowledgeSearch.run_id, KnowledgeSearch.knowledge_base_ids],
+            index_where=and_(
+                KnowledgeSearch.message_id.is_(None),
+                KnowledgeSearch.signal != GapSignal.RETRIEVAL.value,
+            ),
+        )
+    )
+    await db.flush()
+    return len(inserted), result.rowcount or 0  # ty: ignore[missing-attribute]
+
+
+async def eval_classifications_of(
+    db: AsyncSession,
+    run_ids: Sequence[UUID],
+    knowledge_base_ids: Sequence[UUID],
+    *,
+    organization_id: UUID,
+) -> dict[UUID, tuple[UUID | None, list[tuple[str, str | None]]]]:
+    """Each eval answer's agent, and its verdicts in these knowledge bases with the reasons.
+
+    As :func:`classifications_of`, by the run that gave the answer.
+    """
+    if not run_ids or not knowledge_base_ids:
+        return {}
+    result = await db.execute(
+        select(
+            KnowledgeGapEvalClassification.run_id,
+            AgentRun.agent_id,
+            KnowledgeGapEvalClassification.signal,
+            KnowledgeGapEvalClassification.reason,
+        )
+        .outerjoin(AgentRun, AgentRun.id == KnowledgeGapEvalClassification.run_id)
+        .where(
+            KnowledgeGapEvalClassification.organization_id == organization_id,
+            KnowledgeGapEvalClassification.run_id.in_(list(run_ids)),
+            KnowledgeGapEvalClassification.knowledge_base_id.in_(list(knowledge_base_ids)),
+        )
+        .order_by(
+            KnowledgeGapEvalClassification.classified_at,
+            KnowledgeGapEvalClassification.knowledge_base_id,
+        )
+    )
+    found: dict[UUID, tuple[UUID | None, list[tuple[str, str | None]]]] = {}
+    for answer_run, agent_id, signal, reason in result.all():
+        found.setdefault(answer_run, (agent_id, []))[1].append((signal, reason))
+    return found
 
 
 async def classifications_of(

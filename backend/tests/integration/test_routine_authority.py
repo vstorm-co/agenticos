@@ -297,7 +297,10 @@ async def test_a_nonpersonal_schedule_resumes_without_borrowing_creator_authorit
         await RoutineAuthority.capture(db, approver, agent_id=world.agent.id, run=run)
 
 
-async def test_an_invalid_recorded_routine_actor_is_refused(db: AsyncSession) -> None:
+@pytest.mark.parametrize("field", ["acts_as_creator", "action_mode"])
+async def test_an_invalid_recorded_routine_authority_is_refused(
+    db: AsyncSession, field: str
+) -> None:
     world = await _world(db)
     run = AgentRun(
         agent_id=world.agent.id,
@@ -307,7 +310,7 @@ async def test_an_invalid_recorded_routine_actor_is_refused(db: AsyncSession) ->
         routine_kind="trigger",
         routine_policy={
             "approved_sources": world.trigger.approved_sources,
-            "acts_as_creator": "false",
+            field: "invalid",
         },
     )
     with pytest.raises(AuthorizationError):

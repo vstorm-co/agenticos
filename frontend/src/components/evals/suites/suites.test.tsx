@@ -93,6 +93,7 @@ const ESTIMATE = {
   judge_model_profile_id: null,
   total_usd: "0.20",
   rerun_ceiling_usd: "0.10",
+  expected_usd: "0.25",
   agent_remaining_usd: null,
   org_remaining_usd: null,
   agent_after_usd: null,

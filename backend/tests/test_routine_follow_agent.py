@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.approval import ApprovalPending
 from app.agents.capabilities.approval import ApprovalGate
-from app.agents.mcp import ALWAYS_ASKS
+from app.agents.mcp import ALWAYS_ASKS, PLATFORM_TOOL
 from app.agents.spec import AgentSpec
 from app.schemas.routine_sources import RoutineSourcePolicy
 from app.services.routine_authority import RoutineAuthority
@@ -22,7 +22,10 @@ from tests.test_approval_gate import _call, _ctx, _Recorder
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
-@pytest.mark.parametrize("gate_kind", ["free", "agent_required", "mandatory_platform"])
+@pytest.mark.parametrize(
+    "gate_kind",
+    ["free", "agent_required", "mandatory_platform", "reporter_free", "reporter_required"],
+)
 async def test_follow_agent_sending_uses_the_real_agent_and_mandatory_gates(gate_kind: str):
     person = uuid4()
     policy = RoutineSourcePolicy(
@@ -42,6 +45,7 @@ async def test_follow_agent_sending_uses_the_real_agent_and_mandatory_gates(gate
         role="owner",
         acts_as_creator=True,
         source_policy=policy,
+        action_mode="manual" if gate_kind.startswith("reporter") else None,
     )
     db = AsyncMock(spec=AsyncSession)
 
@@ -50,12 +54,20 @@ async def test_follow_agent_sending_uses_the_real_agent_and_mandatory_gates(gate
         yield db
 
     name = (
-        "agenticos_publish_workflow" if gate_kind == "mandatory_platform" else "send_chat_message"
+        "agenticos_publish_inbox_finding"
+        if gate_kind.startswith("reporter")
+        else "agenticos_publish_workflow"
+        if gate_kind == "mandatory_platform"
+        else "send_chat_message"
     )
     definition = ToolDefinition(
         name=name,
         capability_id=None if gate_kind == "mandatory_platform" else "channel_actions",
-        metadata={ALWAYS_ASKS: True} if gate_kind == "mandatory_platform" else None,
+        metadata={PLATFORM_TOOL: True}
+        if gate_kind.startswith("reporter")
+        else {ALWAYS_ASKS: True}
+        if gate_kind == "mandatory_platform"
+        else None,
     )
     spec = AgentSpec(name="Digest")
 
@@ -64,7 +76,9 @@ async def test_follow_agent_sending_uses_the_real_agent_and_mandatory_gates(gate
 
     gate = ApprovalGate(
         routine_policy=routine,
-        required_tool_names=frozenset({name}) if gate_kind == "agent_required" else frozenset(),
+        required_tool_names=frozenset({name})
+        if gate_kind in {"agent_required", "reporter_required"}
+        else frozenset(),
     )
     ctx = _ctx(None)
     callback = AsyncMock(return_value=ApprovalPending())
@@ -74,7 +88,7 @@ async def test_follow_agent_sending_uses_the_real_agent_and_mandatory_gates(gate
         patch("app.services.routine_authority.get_db_context", context),
         patch.object(RoutineAuthority, "check_in", AsyncMock()) as check,
     ):
-        if gate_kind == "free":
+        if gate_kind in {"free", "reporter_free"}:
             assert (
                 await gate.wrap_tool_execute(
                     ctx, call=_call({}), tool_def=definition, args={}, handler=handler
@@ -121,3 +135,53 @@ async def test_an_approved_ceiling_cannot_nest_or_borrow_an_unproved_policy(inva
         child["behavior"] = None
     with pytest.raises(ValidationError, match="non-nested following behavior snapshot"):
         RoutineSourcePolicy.model_validate(parent)
+
+
+@pytest.mark.parametrize("consented", [False, True])
+async def test_following_sources_support_per_tool_approval_choices(consented: bool):
+    from app.agents.spec import CapabilityBindingSpec
+
+    person = uuid4()
+    policy = RoutineSourcePolicy(
+        mode="follow_agent",
+        id=uuid4(),
+        consented_by=person,
+        reviewed_at=datetime.now(UTC),
+        version_id=uuid4(),
+        scope_hash="a" * 64,
+        spec_hash="b" * 64,
+    )
+    authority = RoutineAuthority(
+        routine_id=uuid4(),
+        organization_id=uuid4(),
+        user_id=person,
+        root_agent_id=uuid4(),
+        role="owner",
+        acts_as_creator=True,
+        source_policy=policy,
+        action_mode="per_tool",
+    )
+    db = AsyncMock(spec=AsyncSession)
+
+    @asynccontextmanager
+    async def context() -> AsyncIterator[AsyncSession]:
+        yield db
+
+    with (
+        patch("app.services.routine_authority.get_db_context", context),
+        patch.object(RoutineAuthority, "check_in", AsyncMock()),
+        patch(
+            "app.services.routine_authority.agent_trigger_repo.get_by_id",
+            AsyncMock(return_value=None),
+        ),
+        patch.object(
+            RoutineAuthority, "_consent_in", AsyncMock(return_value=person if consented else None)
+        ),
+    ):
+        decision = await authority.action_policy(
+            authority.root_agent_id,
+            AgentSpec(name="Worker", capabilities=[CapabilityBindingSpec(id="sandbox")]),
+            ToolDefinition(name="execute", capability_id="sandbox"),
+        )
+    assert decision.required
+    assert decision.consented_by == (person if consented else None)

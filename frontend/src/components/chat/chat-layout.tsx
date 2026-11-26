@@ -4,14 +4,23 @@ import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import { useId, useState, type ReactNode } from "react";
 import "./chat-layout.css";
-import { ChevronDown, SlidersHorizontal, ShieldCheck, SquareTerminal, X } from "lucide-react";
+import {
+  ChevronDown,
+  SlidersHorizontal,
+  ShieldCheck,
+  SquareTerminal,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSavedChatControls } from "@/hooks/use-saved-chat-controls";
 import { useModelProviders, usePermissions, useProviderModels } from "@/hooks";
 import { useAgentSelectionStore } from "@/stores";
 import { useAgents } from "@/hooks/use-agents";
+import { useSubscriptionAccounts } from "@/hooks/use-subscription-accounts";
 import { ModelIcon } from "@/components/icons/model-icon";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
 import { Perm } from "@/types/permissions";
@@ -42,7 +51,7 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
   const selectedAgentId = useAgentSelectionStore((state) => state.selectedAgentId);
   const { agents } = useAgents();
   const agent = agents.find((entry) => entry.id === selectedAgentId);
-  const { profiles } = useModelProviders();
+  const { profiles, catalog } = useModelProviders();
   const { can, isLoading: permissionsLoading } = usePermissions();
   const { modelProfileId, update } = useSavedChatControls();
   const model =
@@ -55,6 +64,17 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
     onChange?.(id);
   };
   const captionId = useId();
+  const sources = useTranslations("modelSources");
+  const subscriptions = useSubscriptionAccounts({
+    enabled: model?.provider === "subscription_accounts",
+  });
+  const account = subscriptions.accounts.data?.items.find(
+    (entry) => entry.model_prefix && model?.model.startsWith(`${entry.model_prefix}/`),
+  );
+  const identity =
+    model?.provider === "subscription_accounts"
+      ? account?.email || account?.label || sources("subscriptions")
+      : catalog.find((entry) => entry.id === model?.provider)?.name;
   const { models } = useProviderModels(model && can(Perm.agentsView) ? model.provider : "");
   const caption = model
     ? catalogModelName(
@@ -71,12 +91,13 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
           aria-label={t("modelSection")}
           aria-describedby={model ? captionId : undefined}
           data-chat-model
-          title={caption}
-          className="group/model focus-visible:ring-ring hover:bg-muted inline-flex h-9 max-w-52 min-w-0 items-center gap-2 rounded-full px-2.5 text-xs outline-none focus-visible:ring-2"
+          title={[caption, identity].filter(Boolean).join(" · ")}
+          className="group/model focus-visible:ring-ring hover:bg-muted inline-flex min-h-11 min-w-0 items-center gap-2 rounded-lg px-2.5 text-sm outline-none focus-visible:ring-2"
         >
           {model && <ModelIcon model={model.model} provider={model.provider} />}
-          <span id={captionId} className="truncate">
-            {caption}
+          <span id={captionId} className="chat-model-caption">
+            <span className="chat-model-name">{caption}</span>{" "}
+            {identity && <span className="chat-model-identity">{identity}</span>}
           </span>
           <ChevronDown
             className="text-muted-foreground size-3 shrink-0 transition-transform duration-150 group-data-[state=open]/model:rotate-180 motion-reduce:transition-none"
@@ -86,6 +107,10 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
       </PopoverTrigger>
       <PopoverContent
         data-chat-popover
+        onEscapeKeyDown={(event) => {
+          if (event.target instanceof Element && event.target.closest("[data-model-search]"))
+            event.preventDefault();
+        }}
         onInteractOutside={(event) => {
           if (event.target instanceof Element && event.target.closest('[role="dialog"]'))
             event.preventDefault();
@@ -96,19 +121,37 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
         className={cn(
           "max-h-[min(600px,var(--radix-popover-content-available-height))] w-[min(640px,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl p-0",
           // Keep the anchor stable while permissions and the catalog settle.
-          library && "h-[min(29rem,var(--radix-popover-content-available-height,29rem))]",
+          library &&
+            "flex h-[min(29rem,var(--radix-popover-content-available-height,29rem))] min-h-0 flex-col overflow-clip",
         )}
       >
-        <div className="border-border flex items-center justify-between border-b px-4 py-2 text-xs font-medium">
+        <div className="border-border bg-popover sticky top-0 z-10 flex shrink-0 items-center justify-between gap-2 border-b px-4 py-2 text-xs font-medium">
           {t("modelSection")}
-          <button
-            type="button"
-            aria-label={common("close")}
-            onClick={() => setOpen(false)}
-            className="hover:bg-muted grid size-7 place-items-center rounded-md"
-          >
-            <X className="size-3.5" aria-hidden />
-          </button>
+          <div className="ml-auto flex min-w-0 items-center gap-1">
+            {modelProfileId !== null && agent?.published_model && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="min-w-0 text-xs"
+                onClick={() => {
+                  change(null);
+                  setOpen(false);
+                }}
+              >
+                <RotateCcw aria-hidden className="size-3.5 shrink-0" />
+                <span className="truncate">{t("backAgentAposS")}</span>
+              </Button>
+            )}
+            <button
+              type="button"
+              aria-label={common("close")}
+              onClick={() => setOpen(false)}
+              className="hover:bg-muted grid size-7 place-items-center rounded-md"
+            >
+              <X className="size-3.5" aria-hidden />
+            </button>
+          </div>
         </div>
         {agent?.personal_model_key ? (
           <PersonalModelConnection agentId={selectedAgentId} manage />
@@ -128,15 +171,6 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
               setOpen(false);
             }}
           />
-        )}
-        {modelProfileId !== null && (
-          <button
-            type="button"
-            className="text-muted-foreground mx-4 my-3 text-xs hover:underline"
-            onClick={() => change(null)}
-          >
-            {t("backAgentAposS")}
-          </button>
         )}
       </PopoverContent>
     </Popover>

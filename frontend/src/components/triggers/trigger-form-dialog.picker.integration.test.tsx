@@ -125,9 +125,7 @@ describe("TriggerFormDialog with no agent in context", () => {
     fireEvent.change(within(dialog).getByLabelText("Ends at (device time)"), {
       target: { value: "2099-01-01T12:00" },
     });
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.type(within(dialog).getByLabelText("Message"), "Do it");
-    await user.click(within(dialog).getByRole("button", { name: "Continue" }));
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(
@@ -144,32 +142,21 @@ describe("TriggerFormDialog with no agent in context", () => {
   });
 });
 
-it("delivers a routine proposed in a chat back to that exact chat", async () => {
+it("defaults a routine proposed in a chat to shared history", async () => {
   const user = userEvent.setup();
   vi.mocked(apiClient.post).mockResolvedValue({
     id: "t-chat",
     agent_id: "a1",
     trigger_type: "schedule",
   });
-  render(
-    <TriggerFormDialog
-      agentId="a1"
-      originConversationId="source-chat"
-      open
-      onOpenChange={vi.fn()}
-    />,
-    { wrapper },
-  );
+  render(<TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} />, { wrapper });
   const dialog = await screen.findByRole("dialog");
-  await user.click(within(dialog).getByRole("button", { name: "Continue" }));
   await user.type(within(dialog).getByLabelText("Message"), "Report here");
-  await user.click(within(dialog).getByRole("button", { name: "Continue" }));
   await user.click(within(dialog).getByRole("button", { name: "Create" }));
   expect(apiClient.post).toHaveBeenCalledWith(
     "/agents/a1/triggers",
     expect.objectContaining({
-      answer_to: "conversation",
-      delivery_conversation_id: "source-chat",
+      chat_mode: "shared",
     }),
   );
 });
@@ -179,21 +166,18 @@ it("creates a quiet Inbox routine with working chats instead of a report destina
   vi.mocked(apiClient.post).mockResolvedValue({ id: "t-inbox", trigger_type: "schedule" });
   render(<TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} />, { wrapper });
   const dialog = await screen.findByRole("dialog");
-  await user.click(within(dialog).getByRole("combobox", { name: "When to bring results" }));
-  await user.click(
-    await screen.findByRole("option", { name: "Only when something needs attention" }),
-  );
-  expect(within(dialog).queryByRole("combobox", { name: "Where the answer goes" })).toBeNull();
-  await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+  expect(within(dialog).queryByRole("combobox", { name: "When to bring results" })).toBeNull();
   await user.type(
     within(dialog).getByLabelText("Message"),
     "Check new mail and prepare drafts without sending.",
   );
-  await user.click(within(dialog).getByRole("button", { name: "Continue" }));
   await user.click(within(dialog).getByRole("button", { name: "Create" }));
   expect(apiClient.post).toHaveBeenCalledWith(
     "/agents/a1/triggers",
-    expect.objectContaining({ result_mode: "inbox" }),
+    expect.objectContaining({
+      action_mode: "agent",
+      prompt: "Check new mail and prepare drafts without sending.",
+    }),
   );
 });
 
@@ -255,9 +239,7 @@ it("creates paused and saves reviewed sources and actions before enabling", asyn
   let dialog = within(await screen.findByRole("dialog"));
   await user.click(dialog.getByText("Advanced options"));
   await user.click(dialog.getByRole("checkbox", { name: /Review access before enabling/ }));
-  await user.click(dialog.getByRole("button", { name: "Continue" }));
   await user.type(dialog.getByLabelText("Message"), "Check the glossary");
-  await user.click(dialog.getByRole("button", { name: "Continue" }));
   await user.click(dialog.getByRole("button", { name: "Create" }));
   dialog = within(await screen.findByRole("dialog", { name: "Review routine access" }));
   expect(await dialog.findByText("Glossary skill")).toBeVisible();
@@ -292,9 +274,7 @@ it("creates with agent source access without a mandatory approval modal", async 
   });
   render(<TriggerFormDialog agentId="a1" open onOpenChange={closed} />, { wrapper });
   const dialog = within(await screen.findByRole("dialog"));
-  await user.click(dialog.getByRole("button", { name: "Continue" }));
   await user.type(dialog.getByLabelText("Message"), "Check the glossary");
-  await user.click(dialog.getByRole("button", { name: "Continue" }));
   await user.click(dialog.getByRole("button", { name: "Create" }));
   await waitFor(() => expect(closed).toHaveBeenCalledWith(false));
   expect(apiClient.post).toHaveBeenCalledWith(
@@ -366,8 +346,7 @@ it.each([
       expect(identity).toBeChecked();
       await user.click(identity);
       expect(identity).not.toBeChecked();
-      await user.click(dialog.getByRole("button", { name: "Continue" }));
-      await user.click(dialog.getByRole("button", { name: "Back" }));
+      await user.click(dialog.getByText("Advanced options"));
       await user.click(dialog.getByText("Advanced options"));
       expect(dialog.getByRole("checkbox", { name: /Run as me/ })).not.toBeChecked();
     } else expect(identity).toBeDisabled();
@@ -375,3 +354,44 @@ it.each([
     useAuthStore.setState({ user: previous });
   },
 );
+
+it("creates a manual-approval routine from one form without changing its source access", async () => {
+  const previous = useAuthStore.getState().user;
+  useAuthStore.setState({
+    user: {
+      id: "owner",
+      email: "owner@example.com",
+      is_active: true,
+      created_at: "2026-11-23T00:00:00Z",
+    },
+  });
+  const user = userEvent.setup();
+  vi.mocked(apiClient.post).mockResolvedValue({
+    id: "manual",
+    agent_id: "a1",
+    trigger_type: "schedule",
+  });
+  const view = render(<TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} />, { wrapper });
+  const dialog = within(await screen.findByRole("dialog"));
+  expect(dialog.queryByRole("button", { name: "Continue" })).toBeNull();
+  expect(dialog.getByLabelText("Message")).toBeVisible();
+  await user.type(
+    dialog.getByLabelText("Message"),
+    "Prepare my weekly report and ask before actions.",
+  );
+  await user.click(dialog.getByRole("combobox", { name: "Tool approvals" }));
+  await user.click(await screen.findByRole("option", { name: "Ask before actions" }));
+  await user.click(dialog.getByRole("button", { name: "Create" }));
+  await waitFor(() =>
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/agents/a1/triggers",
+      expect.objectContaining({
+        action_mode: "manual",
+        source_mode: "follow_agent",
+        runs_as_creator: true,
+      }),
+    ),
+  );
+  view.unmount();
+  useAuthStore.setState({ user: previous });
+});

@@ -198,6 +198,7 @@ class _SessionSources:
     ctx: AuthContext
     knowledge_base_ids: list[UUID]
     message_ids: list[UUID]
+    eval_run_ids: list[UUID]
     run_ids: list[UUID]
 
 
@@ -216,13 +217,14 @@ async def _session_sources(db: AsyncSession, job: ClassifyGaps) -> _SessionSourc
     )
     if ctx is None:
         raise AuthorizationError(message="The improvement requester is no longer a member")
-    ids, messages, runs = await ImprovementPipelineService(db).knowledge_sources(ctx, run)
+    sources = await ImprovementPipelineService(db).knowledge_sources(ctx, run)
     # Payloads name a snapshot, never additional authority or new evidence.
     return _SessionSources(
         ctx,
-        [kb_id for kb_id in ids if kb_id in job.knowledge_base_ids],
-        [message_id for message_id in messages if message_id in (job.message_ids or [])],
-        runs,
+        [kb_id for kb_id in sources.knowledge_base_ids if kb_id in job.knowledge_base_ids],
+        [message_id for message_id in sources.message_ids if message_id in (job.message_ids or [])],
+        [run_id for run_id in sources.eval_run_ids if run_id in (job.eval_run_ids or [])],
+        sources.source_run_ids,
     )
 
 
@@ -237,6 +239,7 @@ async def _session_affords(db: AsyncSession, job: ClassifyGaps, source: _Session
         source.knowledge_base_ids,
         source.message_ids,
         source_run_ids=source.run_ids,
+        eval_run_ids=source.eval_run_ids,
     )
     spent = await improvement_repo.spent(db, run.id, organization_id=job.organization_id)
     pipeline = ImprovementPipelineService(db)
@@ -271,12 +274,15 @@ async def _classify_session(job: ClassifyGaps) -> int:
         for _ in range(CLASSIFY_PER_REQUEST // CLASSIFY_BATCH):
             async with get_worker_db_context() as db:
                 current = await _session_sources(db, job)
-                if kb_id not in current.knowledge_base_ids or not current.message_ids:
+                if kb_id not in current.knowledge_base_ids or not (
+                    current.message_ids or current.eval_run_ids
+                ):
                     break
                 read, found = await KnowledgeGapService(db).classify_batch(
                     current.ctx,
                     kb_id,
                     message_ids=current.message_ids,
+                    eval_run_ids=current.eval_run_ids,
                     improvement_run_id=job.improvement_run_id,
                 )
             misses += found

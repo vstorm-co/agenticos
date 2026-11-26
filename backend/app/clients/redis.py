@@ -29,6 +29,14 @@ _DELETE_IF_EQUAL = (
     "return redis.call('del', KEYS[1]) else return 0 end"
 )
 
+_REPLACE_IF_EQUAL = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+  redis.call('set', KEYS[1], ARGV[2], 'EX', ARGV[3])
+  return 1
+end
+return 0
+"""
+
 _RESERVE_NUMBERS = """
 local now = tonumber(redis.call('TIME')[1])
 local count = tonumber(ARGV[1])
@@ -336,6 +344,10 @@ class RedisClient:
         await self.raw.eval(
             _UPDATE_MAPPING, 1, key, json.dumps(updates), json.dumps(list(remove)), ttl
         )
+
+    async def replace_if_equal(self, key: str, expected: str, value: str, *, ttl: int) -> bool:
+        """Update a still-current pending operation without reviving a consumed one."""
+        return bool(await self.raw.eval(_REPLACE_IF_EQUAL, 1, key, expected, value, ttl))
 
     async def delete_if_equal(self, key: str, value: str) -> bool:
         """Delete a key only while it still holds `value` - a lease given back by its holder."""

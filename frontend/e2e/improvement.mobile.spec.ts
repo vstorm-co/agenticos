@@ -370,7 +370,7 @@ test("test questions, review and improvement publish keep a guarded environment 
   expect(attempt?.included_hunk_ids).toHaveLength(1);
   await page.reload();
   await expect(
-    page.getByText(/^Attempt \d+ made .+ better: \d+ questions? fixed and none broke\./),
+    page.getByText(/^The updated agent answered \d+ more test questions correctly\./),
   ).toBeVisible();
   await capture(page, info, "improvement-result");
 
@@ -484,7 +484,12 @@ test("a session kept as a draft is history: Improve starts the next, and the his
   await page.goto(`/agents/${id(agent)}?tab=history`);
   await page.getByRole("link", { name: /Kept as draft/ }).click();
   await expect(page).toHaveURL(new RegExp(`/improve/${id(session)}$`));
-  await expect(page.getByText(/This improvement is finished/)).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Result", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.getByRole("button", { name: "Session details", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Decision", exact: true }).click();
   await expect(decided).toContainText("Kept as a draft");
   await expect(page.getByRole("button", { name: "Keep as draft" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Publish version/ })).toHaveCount(0);

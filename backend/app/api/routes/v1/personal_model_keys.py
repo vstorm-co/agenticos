@@ -5,9 +5,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, status
 
-from app.api.deps import Auth, PersonalModelKeySvc
+from app.api.deps import Auth, CopilotSignInSvc, PersonalModelKeySvc
 from app.schemas.personal_model_key import (
     AgentModelConnectionRead,
+    CopilotSignInChallenge,
+    CopilotSignInPoll,
+    CopilotSignInResult,
+    CopilotSignInStart,
     PersonalModelKeyCreate,
     PersonalModelKeyList,
 )
@@ -35,3 +39,19 @@ async def connect(
 @router.delete("/{key_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 async def disconnect(key_id: UUID, ctx: Auth, service: PersonalModelKeySvc) -> Any:
     await service.delete(ctx, key_id)
+
+
+@router.post("/agents/{agent_id}/copilot/sign-in", response_model=CopilotSignInChallenge)
+async def copilot_sign_in(
+    agent_id: UUID, data: CopilotSignInStart, ctx: Auth, service: CopilotSignInSvc
+) -> Any:
+    """Start this person's Copilot device sign-in for the agent's approved model."""
+    return await service.start(ctx, agent_id, data.expected_destination)
+
+
+@router.post("/agents/{agent_id}/copilot/poll", response_model=CopilotSignInResult)
+async def copilot_poll(
+    agent_id: UUID, data: CopilotSignInPoll, ctx: Auth, service: CopilotSignInSvc
+) -> Any:
+    """Check one authorization interval; tokens never leave the personal vault."""
+    return await service.poll(ctx, agent_id, data.handle)

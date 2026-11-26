@@ -272,6 +272,7 @@ async def pending_returns(db: AsyncSession) -> list[ConversationTask]:
                 .join(AgentRun, AgentRun.id == ConversationTask.source_run_id)
                 .where(
                     ConversationTask.delivery == "pending",
+                    ConversationTask.queue_receipt_id.is_(None),
                     ConversationTask.status.in_(
                         ("completed", "failed", "cancelled", "interrupted")
                     ),

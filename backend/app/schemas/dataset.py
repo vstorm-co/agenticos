@@ -17,6 +17,7 @@ from app.schemas.scoring import (
     DatasetScoring,
     ExpectedToolCall,
     ToolOrderModeLiteral,
+    require_key_budget,
 )
 
 CasePartitionLiteral = Literal["train", "holdout"]
@@ -45,9 +46,9 @@ class CaseMessage(BaseSchema):
 
 
 def _known_checks(checks: list[CaseCheck]) -> list[CaseCheck]:
-    """Refuse a check scoring does not know, or one whose parameters it would refuse."""
-    for check in checks:
-        CHECK.validate_python(check.model_dump(by_alias=True))
+    """Refuse a check scoring does not know, one whose parameters it would refuse, or
+    keys checks holding more keys together than an answer is matched against."""
+    require_key_budget([CHECK.validate_python(check.model_dump(by_alias=True)) for check in checks])
     return checks
 
 

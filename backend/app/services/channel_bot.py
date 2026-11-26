@@ -853,7 +853,7 @@ class ChannelBotService:
         return bot
 
     async def list_all(self, *, skip: int = 0, limit: int = 50) -> tuple[list[ChannelBotRead], int]:
-        """This organization's bots, with who answers on each, and the total.
+        """This organization's bots, with the binding on each (paused or not), and the total.
 
         The agents come back with the rows rather than being fetched per bot by
         the client: "registered and silent" is the state somebody opens this
@@ -863,7 +863,7 @@ class ChannelBotService:
         bots = await channel_bot_repo.list_for_org(
             self.db, organization_id=self._org_id, skip=skip, limit=limit
         )
-        answering = await agent_exposure_repo.active_agents_for_bots(
+        bound = await agent_exposure_repo.bindings_for_bots(
             self.db, channel_bot_ids=[bot.id for bot in bots]
         )
         total = await channel_bot_repo.count(self.db, organization_id=self._org_id)
@@ -881,12 +881,14 @@ class ChannelBotService:
                     "connection": connections.get(bot.id),
                     "agents": [
                         BotAgent(
+                            exposure_id=exposure.id,
+                            is_active=exposure.is_active,
                             id=agent.id,
                             name=agent.name,
                             slug=agent.slug,
                             has_avatar=agent.has_avatar,
                         )
-                        for agent in answering.get(bot.id, [])
+                        for exposure, agent in bound.get(bot.id, [])
                     ],
                 }
             )

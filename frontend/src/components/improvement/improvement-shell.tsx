@@ -4,11 +4,21 @@ import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, CircleDot, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleDot, Loader2, MoreHorizontal } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { usd } from "@/components/evals/format";
-import { Button } from "@/components/ui";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Button,
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui";
 import { WizardSteps } from "@/components/ui/wizard-steps";
 import { useAttemptChanges, useImprovement } from "@/hooks/use-improvements";
 import { useUrlState } from "@/hooks/use-url-state";
@@ -20,6 +30,7 @@ import {
   currentImprovementStep,
   improvementSteps,
   isActive,
+  isClosed,
   isMerge,
   isReachable,
   stopOf,
@@ -78,8 +89,10 @@ export function ImprovementShell({
   nextStep,
   footer,
   onRestart,
+  attempts,
 }: {
   session: Improvement;
+  attempts?: ReactNode;
   readOnly: ReadOnlyReason | null;
   /** Where Close leads: the agent, or the skill. */
   closeHref: string;
@@ -133,7 +146,10 @@ export function ImprovementShell({
   const current = currentImprovementStep(session);
   const views = improvementSteps(session);
   const picked = STEPS.find((id) => id === (retired ?? stepParam));
-  const step = picked && isReachable(views[picked]) ? picked : current;
+  const finished = isClosed(session);
+  const step = picked && isReachable(views[picked]) ? picked : finished ? "result" : current;
+  const hasAttempts = attempts !== undefined && session.iterations.length > 0;
+  const recordTab = finished && hasAttempts && stepParam === "attempts" ? "attempts" : step;
   const active = isActive(session);
   const working = STEPS.some((id) => views[id].state === "running");
   const attempt = currentAttempt(session);
@@ -150,43 +166,87 @@ export function ImprovementShell({
   const missingHeldOut = Number(session.iterations[0]?.verdict_detail?.missing_holdout ?? 0);
   return (
     <ReadOnlyProvider value={readOnly}>
-      <div className="space-y-6">
+      <Tabs
+        value={recordTab}
+        activationMode="manual"
+        onValueChange={setStepParam}
+        className="space-y-5"
+      >
         <SessionLine session={session} working={working} />
-        <nav
-          data-tour="improvement-steps"
-          aria-label={t("stepsLabel")}
-          className="bg-card sticky top-0 z-20 rounded-xl border p-4 shadow-sm sm:p-5"
-        >
-          <WizardSteps
-            responsive
-            steps={STEPS.map((id) => ({
-              id,
-              label: t(`steps.${id}`),
-              status: views[id].state,
-              statusLabel:
-                id === "accept" && session.status === "rejected"
-                  ? t("stepState.ended")
-                  : t(`stepState.${views[id].state}`),
-              tourId: `improvement-step-${id}`,
-              disabled: !isReachable(views[id]),
-            }))}
-            current={step}
-            onSelect={(id) => {
-              const target = STEPS.find((item) => item === id);
-              if (target) goTo(target);
-            }}
-          />
-          {step !== current && (
-            <button
-              type="button"
-              className="mt-2 text-sm underline underline-offset-4"
-              onClick={followCurrent}
-            >
-              {t("goToCurrent")}
-            </button>
-          )}
-        </nav>
-        <ReadOnlyNote />
+        {finished && (
+          <div className="flex min-w-0 items-center gap-2">
+            <TabsList className="flex-1" aria-label={t("stepsLabel")} data-tour="improvement-steps">
+              {(["result", "changes", "check", "attempts", "understand", "accept"] as const)
+                .filter(
+                  (id) =>
+                    id === "result" ||
+                    (id === "attempts"
+                      ? hasAttempts
+                      : id === "understand" || id === "accept"
+                        ? recordTab === id && isReachable(views[id])
+                        : isReachable(views[id])),
+                )
+                .map((id) => (
+                  <TabsTrigger key={id} value={id} data-tour={`improvement-step-${id}`}>
+                    {t(`record.${id}`)}
+                  </TabsTrigger>
+                ))}
+            </TabsList>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label={t("record.more")}>
+                  <MoreHorizontal className="size-4" aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {(["understand", "accept"] as const)
+                  .filter((id) => isReachable(views[id]))
+                  .map((id) => (
+                    <DropdownMenuItem key={id} onSelect={() => setStepParam(id)}>
+                      {t(`record.${id}`)}
+                    </DropdownMenuItem>
+                  ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+        {!finished && (
+          <nav
+            data-tour="improvement-steps"
+            aria-label={t("stepsLabel")}
+            className="min-w-0 border-b pb-4"
+          >
+            <WizardSteps
+              responsive
+              steps={STEPS.map((id) => ({
+                id,
+                label: t(`steps.${id}`),
+                status: views[id].state,
+                statusLabel:
+                  id === "accept" && session.status === "rejected"
+                    ? t("stepState.ended")
+                    : t(`stepState.${views[id].state}`),
+                tourId: `improvement-step-${id}`,
+                disabled: !isReachable(views[id]),
+              }))}
+              current={step}
+              onSelect={(id) => {
+                const target = STEPS.find((item) => item === id);
+                if (target) goTo(target);
+              }}
+            />
+            {!finished && step !== current && (
+              <button
+                type="button"
+                className="mt-2 text-sm underline underline-offset-4"
+                onClick={followCurrent}
+              >
+                {t("goToCurrent")}
+              </button>
+            )}
+          </nav>
+        )}
+        {readOnly === "viewOnly" && <ReadOnlyNote />}
         {session.stop_reason && step !== "result" && (
           <p role={session.status === "failed" ? "alert" : undefined} className="text-sm">
             {session.stop_reason === "no_data" && missingHeldOut > 0
@@ -200,45 +260,50 @@ export function ImprovementShell({
             <p className="mt-2 break-words">{session.error}</p>
           </NativeDisclosure>
         )}
-        <div
-          ref={content}
-          data-step-panel
-          className="bg-card min-w-0 space-y-6 rounded-2xl border p-4 sm:p-6 [&_h2]:scroll-mt-40 [&_h3]:scroll-mt-40"
-        >
-          {panel({ step, current, views, goTo, followCurrent, act })}
-          {step === stopOf(session) && (
-            <NextStep
-              session={session}
-              detail={nextStepDetail}
-              hint={
-                nextStep
-                  ? nextStep.hint
-                  : step === "changes" &&
-                      proposed.changes.filter(
-                        (hunk) => !attempt?.dropped_hunk_ids.includes(hunk.id),
-                      ).length === 1
-                    ? t("nextUp.hintSingle")
-                    : undefined
-              }
-              blocked={
-                nextStep
-                  ? nextStep.blocked
-                  : step !== "changes"
-                    ? undefined
-                    : wordingOpen
-                      ? t("nextUp.saveWordingFirst")
-                      : !attempt?.included_hunk_ids?.length
-                        ? t("selectSomeChanges")
-                        : undefined
-              }
-              body={nextStep?.body}
-              hold={Boolean(nextStep?.blocked)}
-              revision={nextStep?.revision}
-              onStarted={followCurrent}
-            />
-          )}
-          <StepDecisions session={session} step={step} />
-        </div>
+        <TabsContent value={recordTab} forceMount asChild>
+          <div
+            ref={content}
+            data-step-panel
+            aria-label={t(finished ? `record.${recordTab}` : `steps.${step}`)}
+            className="min-w-0 space-y-6 [&_h2]:scroll-mt-16 [&_h3]:scroll-mt-16"
+          >
+            {recordTab === "attempts"
+              ? attempts
+              : panel({ step, current, views, goTo, followCurrent, act })}
+            {step === stopOf(session) && (
+              <NextStep
+                session={session}
+                detail={nextStepDetail}
+                hint={
+                  nextStep
+                    ? nextStep.hint
+                    : step === "changes" &&
+                        proposed.changes.filter(
+                          (hunk) => !attempt?.dropped_hunk_ids.includes(hunk.id),
+                        ).length === 1
+                      ? t("nextUp.hintSingle")
+                      : undefined
+                }
+                blocked={
+                  nextStep
+                    ? nextStep.blocked
+                    : step !== "changes"
+                      ? undefined
+                      : wordingOpen
+                        ? t("nextUp.saveWordingFirst")
+                        : !attempt?.included_hunk_ids?.length
+                          ? t("selectSomeChanges")
+                          : undefined
+                }
+                body={nextStep?.body}
+                hold={Boolean(nextStep?.blocked)}
+                revision={nextStep?.revision}
+                onStarted={followCurrent}
+              />
+            )}
+            <StepDecisions session={session} step={step} />
+          </div>
+        </TabsContent>
         {footer}
         {readOnly === null &&
           step !== "result" &&
@@ -251,23 +316,25 @@ export function ImprovementShell({
               }}
             />
           )}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-          {previous ? (
-            <Button variant="outline" onClick={() => goTo(previous)}>
-              <ChevronLeft className="h-4 w-4" aria-hidden />
-              {t("previousStep")}
-            </Button>
-          ) : (
-            <span />
-          )}
-          {next && step !== "result" && step !== "accept" && (
-            <Button variant="outline" onClick={() => goTo(next)}>
-              {t("nextStep")}
-              <ChevronRight className="h-4 w-4" aria-hidden />
-            </Button>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
+        {!finished && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+            {previous ? (
+              <Button variant="outline" onClick={() => goTo(previous)}>
+                <ChevronLeft className="h-4 w-4" aria-hidden />
+                {t("previousStep")}
+              </Button>
+            ) : (
+              <span />
+            )}
+            {next && step !== "result" && step !== "accept" && (
+              <Button variant="outline" onClick={() => goTo(next)}>
+                {t("nextStep")}
+                <ChevronRight className="h-4 w-4" aria-hidden />
+              </Button>
+            )}
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-3 empty:hidden">
           {(active || session.status === "failed") && readOnly === null && (
             <Button
               variant="outline"
@@ -285,16 +352,18 @@ export function ImprovementShell({
             ["waiting", "ready", "stopped"].includes(session.status) &&
             step !== "result" &&
             session.stop_reason !== "budget" && <EndSession session={session} />}
-          <Link className="text-sm underline" href={closeHref}>
-            {t("close")}
-          </Link>
+          {!finished && (
+            <Link className="text-sm underline" href={closeHref}>
+              {t("close")}
+            </Link>
+          )}
         </div>
         {error && (
           <p role="alert" className="text-destructive-ink text-sm">
             {error}
           </p>
         )}
-      </div>
+      </Tabs>
     </ReadOnlyProvider>
   );
 }
@@ -325,25 +394,29 @@ function SessionLine({ session, working }: { session: Improvement; working: bool
           ? t("status.running")
           : stop
             ? t(`waitingFor.${stop}`)
-            : t(`status.${finishedAttempt ? "attemptFinished" : session.status}`)}
+            : session.skill_id && session.status === "accepted"
+              ? t("status.skillAccepted", { outcome: session.outcome ?? "other" })
+              : t(`status.${finishedAttempt ? "attemptFinished" : session.status}`)}
       </span>
       <span aria-hidden>·</span>
       <span>
-        {t("spend", {
+        {t(isClosed(session) ? "record.spent" : "spend", {
           spent: usd(session.spent_usd, locale),
           budget: usd(session.budget_usd, locale),
         })}
       </span>
-      <span
-        role="meter"
-        aria-label={t("budgetUsed")}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={used}
-        className="bg-muted h-1 w-12 overflow-hidden rounded-full"
-      >
-        <span className="bg-chart block h-full rounded-full" style={{ width: `${used}%` }} />
-      </span>
+      {!isClosed(session) && (
+        <span
+          role="meter"
+          aria-label={t("budgetUsed")}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={used}
+          className="bg-muted h-1 w-12 overflow-hidden rounded-full"
+        >
+          <span className="bg-chart block h-full rounded-full" style={{ width: `${used}%` }} />
+        </span>
+      )}
     </section>
   );
 }

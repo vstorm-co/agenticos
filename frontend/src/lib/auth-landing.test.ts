@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { goToDestination, postSignInDestination } from "./auth-landing";
+import {
+  goToDestination,
+  postRegistrationDestination,
+  postSignInDestination,
+} from "./auth-landing";
 import { ROUTES } from "./constants";
 
 describe("postSignInDestination", () => {
@@ -78,4 +82,31 @@ it("replaces browser history for a signed-in fragment redirect", () => {
   expect(replace).toHaveBeenCalledWith("/agents/a-1#tools");
   expect(assign).not.toHaveBeenCalled();
   expect(navigate).not.toHaveBeenCalled();
+});
+
+describe("postRegistrationDestination", () => {
+  it.each([
+    undefined,
+    null,
+    "/chat?id=123",
+    "https://evil.example",
+    "/invitations/raw-token",
+    "/\\[",
+    "/\t\\[",
+  ])("starts new accounts in onboarding instead of %j", (returnTo) => {
+    expect(postRegistrationDestination(returnTo)).toBe("/onboarding?welcome=1&entry=account");
+  });
+
+  it("carries only a valid staged invitation flow into onboarding", () => {
+    const flow = "0123456789abcdef0123456789abcdef";
+    expect(postRegistrationDestination(`/invitations/pending?flow=${flow}`)).toBe(
+      `/onboarding?welcome=1&entry=account&flow=${flow}`,
+    );
+    expect(postRegistrationDestination(`/de/invitations/pending?flow=${flow}`)).toContain(
+      `flow=${flow}`,
+    );
+    expect(postRegistrationDestination("/invitations/pending?flow=invalid")).toBe(
+      "/onboarding?welcome=1&entry=account",
+    );
+  });
 });

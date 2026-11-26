@@ -647,6 +647,29 @@ class TestSlackVoiceClips:
 
 
 class TestSlackSending:
+    async def test_an_unknown_submission_has_no_automatic_sdk_retry(self) -> None:
+        from aiohttp import ServerDisconnectedError
+        from slack_sdk.web.async_client import AsyncWebClient
+
+        client = AsyncWebClient(token="xoxb-test")
+        assert client.retry_handlers
+        submit = AsyncMock(side_effect=ServerDisconnectedError("acceptance unknown"))
+        client.chat_postMessage = submit
+        adapter = SlackAdapter()
+        try:
+            with (
+                patch.object(adapter, "_web", return_value=client),
+                pytest.raises(ServerDisconnectedError),
+            ):
+                await adapter.send_message(
+                    "xoxb-test", OutgoingMessage(platform_chat_id="C1", text="Routine answer")
+                )
+        finally:
+            await adapter.aclose()
+
+        assert client.retry_handlers == []
+        submit.assert_awaited_once()
+
     async def test_files_and_the_answer_are_one_message(self):
         client = MagicMock(files_upload_v2=AsyncMock(), chat_postMessage=AsyncMock())
 

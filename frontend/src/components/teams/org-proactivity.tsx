@@ -263,6 +263,7 @@ function NightlyForm({
               </legend>
               <ModelProfilePicker
                 profiles={profiles}
+                generationSettings
                 profilesStatus={profilesStatus}
                 value={form.modelId}
                 onChange={(modelId) =>

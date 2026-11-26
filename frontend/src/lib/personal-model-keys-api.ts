@@ -35,3 +35,23 @@ export const savePersonalModelKey = (data: PersonalModelKeyCreate) =>
   });
 export const deletePersonalModelKey = (keyId: string) =>
   apiClient.delete<void>(`/personal-model-keys/${keyId}`);
+
+export interface CopilotSignInChallenge {
+  handle: string;
+  user_code: string;
+  verification_uri: "https://github.com/login/device";
+  expires_at: string;
+  poll_after_seconds: number;
+}
+export interface CopilotSignInResult {
+  status: "pending" | "connected";
+  poll_after_seconds: number;
+}
+export const startCopilotSignIn = (agentId: string, destination: PersonalModelDestination) =>
+  apiClient.post<CopilotSignInChallenge>(`/personal-model-keys/agents/${agentId}/copilot/sign-in`, {
+    expected_destination: destination,
+  });
+export const pollCopilotSignIn = (agentId: string, handle: string) =>
+  apiClient.post<CopilotSignInResult>(`/personal-model-keys/agents/${agentId}/copilot/poll`, {
+    handle,
+  });

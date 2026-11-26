@@ -228,7 +228,14 @@ export function CaseDetail({
   return (
     <div className="space-y-3">
       {expectation && (
-        <Expectation expectation={expectation} datasetId={datasetId} caseId={caseId} />
+        <NativeDisclosure className="text-sm">
+          <summary className="text-muted-foreground cursor-pointer">
+            {t("plain.expectation")}
+          </summary>
+          <div className="pt-3">
+            <Expectation expectation={expectation} datasetId={datasetId} caseId={caseId} />
+          </div>
+        </NativeDisclosure>
       )}
       {unverified && (
         <p className="bg-warning/10 border-warning/35 flex items-start gap-2 rounded-md border p-3 text-sm">
@@ -237,19 +244,39 @@ export function CaseDetail({
         </p>
       )}
       <div className={arms.length > 1 ? "grid gap-3 md:grid-cols-2" : "space-y-3"}>
-        {arms.map((arm) => {
-          const own = attempts.filter((attempt) => attempt.arm_id === arm.id);
-          return (
-            <div key={arm.id} className="space-y-2">
-              <p className="text-sm font-semibold">
-                {t("sideModel", { name: sideName(arm, t, check), model: arm.model_label })}
-              </p>
-              {own.map((attempt) => (
-                <Attempt key={attempt.id} attempt={attempt} />
-              ))}
-            </div>
-          );
-        })}
+        {[...arms]
+          .sort((a, b) => Number(b.role === "baseline") - Number(a.role === "baseline"))
+          .map((arm) => {
+            const own = attempts.filter((attempt) => attempt.arm_id === arm.id);
+            return (
+              <div key={arm.id} className="space-y-2">
+                <p className="text-sm font-semibold">
+                  {t("sideModel", { name: sideName(arm, t, check), model: arm.model_label })}
+                </p>
+                {own
+                  .filter((attempt) => attempt.attempt === 0)
+                  .map((attempt) => (
+                    <Attempt key={attempt.id} attempt={attempt} />
+                  ))}
+                {own.some((attempt) => attempt.attempt > 0) && (
+                  <NativeDisclosure className="text-sm">
+                    <summary className="text-muted-foreground cursor-pointer">
+                      {t("resultReruns", {
+                        count: own.filter((attempt) => attempt.attempt > 0).length,
+                      })}
+                    </summary>
+                    <div className="mt-3 space-y-3">
+                      {own
+                        .filter((attempt) => attempt.attempt > 0)
+                        .map((attempt) => (
+                          <Attempt key={attempt.id} attempt={attempt} />
+                        ))}
+                    </div>
+                  </NativeDisclosure>
+                )}
+              </div>
+            );
+          })}
       </div>
     </div>
   );

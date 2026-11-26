@@ -208,6 +208,7 @@ function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
         <legend className="text-sm font-medium">{t("model")}</legend>
         <ModelProfilePicker
           profiles={profiles}
+          generationSettings
           profilesStatus={profilesStatus}
           value={form.modelId}
           onChange={(modelId) => edit({ modelId, ...(modelId === null ? { enabled: false } : {}) })}

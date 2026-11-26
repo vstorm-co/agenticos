@@ -376,6 +376,8 @@ it("reads bounded coding models with per-model reasoning choices", async () => {
   invoke.mockResolvedValue(options);
   await expect(commands.getLocalCodingOptions("codex")).resolves.toEqual(options);
   expect(invoke).toHaveBeenLastCalledWith("local_agent_options", { id: "codex" });
+  await expect(commands.getExternalAgentOptions("agy")).resolves.toEqual(options);
+  expect(invoke).toHaveBeenLastCalledWith("external_agent_options", { id: "agy" });
   for (const invalid of [
     null,
     {},

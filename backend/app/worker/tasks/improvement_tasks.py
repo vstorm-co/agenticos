@@ -1,7 +1,7 @@
 """Transactional improvement transitions and recovery of queued child completions."""
 
 from app.db.session import get_worker_db_context
-from app.worker.jobs import AdvanceImprovement, AdvanceSkillImprovement
+from app.worker.jobs import AdvanceImprovement, AdvanceSkillImprovement, SearchImprovement
 
 
 async def advance_improvement(job: AdvanceImprovement) -> None:
@@ -29,6 +29,12 @@ async def advance_improvement(job: AdvanceImprovement) -> None:
                 actor_name=None,
             )
         )
+
+
+async def search_improvement(job: SearchImprovement) -> None:
+    from app.services.improvement_search import SearchWorker
+
+    await SearchWorker(job.run_id, job.organization_id).run()
 
 
 async def sweep_improvements() -> int:

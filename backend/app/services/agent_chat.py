@@ -50,6 +50,7 @@ from app.agents.ephemeral_media import dump_messages
 from app.agents.factory import AgentOutput, answer_text
 from app.agents.failures import first_leaf, run_failure_summary
 from app.agents.loop_guard import ToolLoopStopped
+from app.agents.runtime_questions import RuntimeQuestionsCallback
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
 from app.agents.system_agents import refuse_system_agent
@@ -514,9 +515,11 @@ class ChatAgentRunner:
         attachments: list[ChatFile] | None = None,
         conversation_id: UUID | None,
         prompt_message_id: UUID | None = None,
+        accepted_queue_id: UUID | None = None,
         ask_user: AskUserCallback,
         stream: ChatStream,
         ask_questions: QuestionsCallback | None = None,
+        runtime_questions: RuntimeQuestionsCallback | None = None,
         on_run_open: Callable[[OpenedRun], None] | None = None,
         subagent_events: SubagentEventSink | None = None,
         on_compaction: CompactionSink | None = None,
@@ -613,6 +616,7 @@ class ChatAgentRunner:
             agent_id,
             surface=RunSurface.WEB,
             conversation_id=conversation_id,
+            accepted_queue_id=accepted_queue_id,
             user_name=user.full_name,
             # The dashboard always has a signed-in person at the keyboard, so a
             # personal MCP binding speaks as them - in a shared conversation too,
@@ -647,6 +651,7 @@ class ChatAgentRunner:
         # delegation is a tool call named `task` that goes quiet for thirty seconds.
         prepared.deps.ask_user = ask_user
         prepared.deps.ask_questions = ask_questions
+        prepared.deps.runtime_questions = runtime_questions
         prepared.deps.subagent_events = subagent_events
         # And the third: summarising a long history is a whole model request
         # between two of this turn's own, where nothing streams. Without this the

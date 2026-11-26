@@ -7,7 +7,7 @@ import { InlineSecret } from "@/components/vault/inline-secret";
 import { InlineChatGPTSignIn } from "@/components/vault/chatgpt-sign-in";
 import { AddSecretDialog } from "@/components/vault/secret-dialog";
 import { usePermissions, useSecrets } from "@/hooks";
-import type { SecretPurpose } from "@/types/secrets";
+import { isChatGPTSignInKind, type SecretPurpose } from "@/types/secrets";
 import { Perm } from "@/types/permissions";
 
 /** Reuse the vault's credential shapes and permission checks inside model selection. */
@@ -18,8 +18,15 @@ export function ModelProviderCredential({
   provider: SecretPurpose;
   onCreated: () => void;
 }) {
-  if (provider.kind === "openai_codex")
-    return <InlineChatGPTSignIn suggestedName={provider.label} onCreated={onCreated} />;
+  if (isChatGPTSignInKind(provider.kind))
+    return (
+      <InlineChatGPTSignIn
+        key={provider.id}
+        kind={provider.kind}
+        suggestedName={provider.label}
+        onCreated={onCreated}
+      />
+    );
   if (provider.kind === "api_key")
     return (
       <InlineSecret

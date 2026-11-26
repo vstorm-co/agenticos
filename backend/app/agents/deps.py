@@ -22,6 +22,7 @@ from app.agents.audience import RunAudience
 from app.agents.browser_events import BrowserEventSink
 from app.agents.code_checkpoint import CodeContinuations
 from app.agents.compaction_events import CompactionEvent
+from app.agents.runtime_questions import RuntimeQuestionsCallback
 from app.agents.steering import SteeringInbox
 from app.agents.subagent_events import SubagentEventSink
 from app.agents.visual_reports import VisualReports
@@ -127,6 +128,8 @@ class AgentDeps:
     # Set when the surface can show a card of multiple-choice questions and wait
     # for the picks (#2064); `None` hides the `ask_user` capability's tool.
     ask_questions: QuestionsCallback | None = None
+    # An owned native process needs its live RPC answered on the initiating socket.
+    runtime_questions: RuntimeQuestionsCallback | None = None
     # Whether `ask_questions` parks the run rather than asking live - a channel's,
     # answered later through buttons. Not handed to a delegate: its park surfaces
     # as a deferral of the parent's `task` call with nothing to decide, and the run

@@ -94,7 +94,9 @@ export function ListCard({
           )}
         </CardHeader>
         <CardContent
+          data-list-layout={layout}
           className={cn(
+            "list-card-content",
             layout === "grid" ? cn("p-0 pt-2", contentClassName) : contentPadding(contentClassName),
             fill && "flex min-h-0 flex-1 flex-col",
           )}
@@ -114,15 +116,21 @@ export function ListCard({
         className="shrink-0 flex-col gap-3 space-y-0 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5"
       >
         <div className="shrink-0 space-y-1">
-          <CardTitle className="text-sm">{title}</CardTitle>
+          <CardTitle className="console-section-title leading-6">{title}</CardTitle>
           <CardDescription className="text-xs">
             {counted === null ? <Skeleton className="h-3 w-24" /> : counted}
           </CardDescription>
         </div>
-        {controls}
+        {controls && (
+          <div className="flex min-w-0 flex-wrap items-center gap-2 max-sm:w-full max-sm:[&>div:only-child]:flex-1">
+            {controls}
+          </div>
+        )}
       </CardHeader>
       <CardContent
+        data-list-layout={layout}
         className={cn(
+          "list-card-content",
           layout === "grid" ? cn("p-4 sm:p-5", contentClassName) : contentPadding(contentClassName),
           fill && "flex min-h-0 flex-1 flex-col",
         )}

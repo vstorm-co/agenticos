@@ -77,25 +77,28 @@ def _inventory(spec: AgentSpec) -> tuple[list[CapabilityDef], list[CapabilityDef
 def setup_briefing(spec: AgentSpec, *, agent_id: UUID | None) -> str:
     """The section of the instructions that says what this agent can and cannot do."""
     has, missing = _inventory(spec)
+    switched_on = [f"- **{d.name}**: {_summary(d.description)}" for d in has]
+    # Collections kept while `knowledge` is off are searched by nothing.
+    if spec.served_collection_ids:
+        switched_on.append(
+            f"- **Knowledge**: {len(spec.served_collection_ids)} knowledge base(s) to answer from."
+        )
+    if spec.mcp_servers:
+        switched_on.append(
+            "- **Connected services**: the MCP tools you were given, named after the service. "
+            "For platform operations, discover the connected AgenticOS MCP tools first; "
+            "a separate capability is not needed when those tools already provide the operation."
+        )
     lines = [
         "# Your setup",
         "",
         (
             "What you can do here comes from your capabilities; each brings its own tools "
-            "and its own instructions. Switched on:"
+            "and its own instructions. "
+            + ("Switched on:" if switched_on else "Nothing is switched on.")
         ),
-        *(f"- **{d.name}**: {_summary(d.description)}" for d in has),
+        *switched_on,
     ]
-    if spec.collection_ids:
-        lines.append(
-            f"- **Knowledge**: {len(spec.collection_ids)} knowledge base(s) to answer from."
-        )
-    if spec.mcp_servers:
-        lines.append(
-            "- **Connected services**: the MCP tools you were given, named after the service. "
-            "For platform operations, discover the connected AgenticOS MCP tools first; "
-            "a separate capability is not needed when those tools already provide the operation."
-        )
     if missing:
         lines += [
             "",
@@ -120,7 +123,7 @@ def setup_briefing(spec: AgentSpec, *, agent_id: UUID | None) -> str:
             f"{unlock}."
         ),
     ]
-    if spec.skill_ids:
+    if spec.served_skill_ids:
         # Last, so the framework's list of capabilities to load follows this heading
         # rather than the paragraph about asking for what is missing.
         lines += [

@@ -15,6 +15,7 @@ export const ROUTES = {
   AGENT_MESSAGES: "/agent-messages",
   PROFILE: "/profile",
   SETTINGS: "/settings",
+  SETTINGS_SUBSCRIPTIONS: "/settings/subscriptions",
   SETTINGS_PROFILE: "/settings/profile",
   SETTINGS_MOBILE: "/settings/mobile",
   SETTINGS_BLOBBY: "/settings/blobby",

@@ -112,7 +112,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-core libreoffice-writer libreoffice-calc libreoffice-impress \
     tesseract-ocr tesseract-ocr-eng tesseract-ocr-pol \
-    git ca-certificates ffmpeg \
+    git ca-certificates ffmpeg tini \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # What `gssapi` loads at run time, for an image built with the `kerberos` extra.
@@ -138,6 +138,10 @@ COPY --from=tailscale-broker /out/licenses /app/licenses/tailscale-broker
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /app/
 COPY frontend/licenses/texts /app/licenses/texts
 
+# CLIProxyAPI (MIT), which the `subscription-gateway` service runs once per person
+# for subscription accounts (docs/models.md). Pinned; a static Go binary.
+COPY --from=eceasy/cli-proxy-api:v8.0.80 /CLIProxyAPI/CLIProxyAPI /usr/local/bin/cliproxyapi
+
 # Add venv to path
 ENV PATH="/app/.venv/bin:$PATH"
 
@@ -145,8 +149,10 @@ ENV PATH="/app/.venv/bin:$PATH"
 # directories it writes at run time are its own. uid pinned: media_data volumes
 # created by earlier images are owned by 1000.
 RUN adduser --disabled-password --gecos "" --uid 1000 appuser && \
-    mkdir -p /app/media /app/data /app/chroma_data /app/models_cache && \
-    chown -R appuser:appuser /app/media /app/data /app/chroma_data /app/models_cache
+    mkdir -p /app/media /app/data /app/chroma_data /app/models_cache /data/subscription-gateway && \
+    chmod 700 /data/subscription-gateway && \
+    chown -R appuser:appuser /app/media /app/data /app/chroma_data /app/models_cache \
+        /data/subscription-gateway
 USER appuser
 
 EXPOSE 8000
@@ -159,4 +165,8 @@ EXPOSE 8000
 # the one thing a health status exists to show. An image cannot know which of the
 # two it was started as; a service definition does. Both probes are in the compose
 # files, one per service.
+# Tini stays in front of every image command so the container gets signal
+# forwarding and child reaping even when the deployment platform does not enable
+# its own init. `-s` also covers platforms that add an outer PID 1 init.
+ENTRYPOINT ["/usr/bin/tini", "-s", "--"]
 CMD ["python", "-m", "cli.commands", "server", "run", "--host", "0.0.0.0", "--port", "8000"]

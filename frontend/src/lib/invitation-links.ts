@@ -91,7 +91,14 @@ export function pendingLandingFor(flow: string): string {
  */
 export function invitationFlowFrom(returnTo: string | null | undefined): string | null {
   if (!returnTo || !returnTo.startsWith("/") || returnTo.startsWith("//")) return null;
-  const url = new URL(returnTo, "http://placeholder.invalid");
+  let url: URL;
+  try {
+    url = new URL(returnTo, "http://placeholder.invalid");
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+    return null;
+  }
+  if (url.origin !== "http://placeholder.invalid") return null;
   if (!PENDING_PATH.test(url.pathname)) return null;
   const flow = url.searchParams.get(INVITATION_FLOW_PARAM);
   return isInvitationFlow(flow) ? flow : null;

@@ -546,7 +546,7 @@ class TestTheUpgradesBackfill:
         owner = _user()
         db.add(owner)
         await db.flush()
-        org_1, org_2, org_3, org_4, org_5 = [await _org(db, owner) for _ in range(5)]
+        org_1, org_2, org_3, org_4 = [await _org(db, owner) for _ in range(4)]
         unique_oldest = _base(org_1.id, name="later", age=timedelta(days=2))
         later_a = _base(org_1.id, name="later", age=timedelta(days=1))
         later_b = _base(org_1.id, name="later")
@@ -555,8 +555,6 @@ class TestTheUpgradesBackfill:
         app_tie_b = _base(None, scope=KBScope.APP, name="apps")
         app_tie_b.created_at = app_tie_a.created_at
         own_beside_apps = _base(org_3.id, name="apps")
-        older_app = _base(None, scope=KBScope.APP, name="carried", age=timedelta(days=2))
-        app_of_org_4 = _base(org_4.id, scope=KBScope.APP, name="carried")
         orgless_personal = _base(None, scope=KBScope.PERSONAL, owner=owner.id, name="mine")
         db.add_all(
             [
@@ -566,8 +564,6 @@ class TestTheUpgradesBackfill:
                 app_tie_a,
                 app_tie_b,
                 own_beside_apps,
-                older_app,
-                app_of_org_4,
                 orgless_personal,
             ]
         )
@@ -575,9 +571,8 @@ class TestTheUpgradesBackfill:
         behind_a_tie = _source(org_1.id, kb=None, name="later")
         on_tied_apps = _source(org_2.id, kb=None, name="apps")
         own_first = _source(org_3.id, kb=None, name="apps")
-        carried = _source(org_4.id, kb=None, name="carried")
-        not_a_members = _source(org_5.id, kb=None, name="mine")
-        sources = [behind_a_tie, on_tied_apps, own_first, carried, not_a_members]
+        not_a_members = _source(org_4.id, kb=None, name="mine")
+        sources = [behind_a_tie, on_tied_apps, own_first, not_a_members]
         db.add_all(sources)
         await db.flush()
 
@@ -588,12 +583,10 @@ class TestTheUpgradesBackfill:
 
         assert behind_a_tie.knowledge_base_id == unique_oldest.id
         assert own_first.knowledge_base_id == own_beside_apps.id
-        # An app base carrying the organization's id is one of its own.
-        assert carried.knowledge_base_id == app_of_org_4.id
         assert sorted(reported) == sorted(
             [
                 # A personal base of no organization is nobody's to sync into.
-                (str(not_a_members.id), str(org_5.id), "mine"),
+                (str(not_a_members.id), str(org_4.id), "mine"),
             ]
         )
         assert on_tied_apps.knowledge_base_id == min(app_tie_a.id, app_tie_b.id)

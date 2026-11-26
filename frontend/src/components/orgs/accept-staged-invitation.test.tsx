@@ -27,11 +27,39 @@ function render(ui: ReactElement) {
 afterEach(() => {
   useOrgStore.setState({ activeOrgId: null });
   vi.clearAllMocks();
+  acceptStaged.mockReset();
   vi.useRealTimers();
   searchParams.value = new URLSearchParams();
 });
 
 describe("closing a staged invitation after sign-in", () => {
+  it("embeds the flow in onboarding without accepting before a deliberate click", async () => {
+    const accepted = vi.fn();
+    searchParams.value = new URLSearchParams({ flow: "0123456789abcdef0123456789abcdef" });
+    acceptStaged.mockResolvedValue("org-acme");
+    render(<AcceptStagedInvitation presentation="inline" onAccepted={accepted} />);
+    expect(screen.getByRole("region", { name: "Team invitation" })).toBeVisible();
+    expect(document.querySelector(".min-h-screen")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(acceptStaged).not.toHaveBeenCalled();
+
+    screen.getByRole("button", { name: /accept/i }).click();
+    await waitFor(() => expect(accepted).toHaveBeenCalledWith("org-acme"));
+    expect(useOrgStore.getState().activeOrgId).toBe("org-acme");
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("keeps an inline refusal visible with a retry and no redundant onboarding link", async () => {
+    acceptStaged.mockRejectedValueOnce(new Error("Expired")).mockResolvedValueOnce("org-retried");
+    render(<AcceptStagedInvitation presentation="inline" />);
+    screen.getByRole("button", { name: /accept/i }).click();
+    expect(await screen.findByText(/failed/i)).toBeVisible();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    screen.getByRole("button", { name: "Try again" }).click();
+    await waitFor(() => expect(useOrgStore.getState().activeOrgId).toBe("org-retried"));
+    expect(push).toHaveBeenCalledWith("/onboarding?welcome=1&entry=joined");
+  });
+
   it("redeems the cookie of the flow the landing names and sends them to their organizations", async () => {
     // Two invitations staged side by side hold two cookies; the landing's `flow` is
     // what says which of them this tab is closing.

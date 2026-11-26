@@ -31,6 +31,9 @@ from app.repositories import (
     member as member_repo,
 )
 from app.repositories import (
+    queued_message_receipt as queued_message_receipt_repo,
+)
+from app.repositories import (
     room_participant as room_participant_repo,
 )
 from app.repositories import (
@@ -240,6 +243,14 @@ class RoomParticipantService:
         # participant somebody deliberately removed.
         if conversation.project_id is not None or conversation.room_visibility is not None:
             return False
+        if await queued_message_receipt_repo.pending_for_conversation(
+            self.db,
+            organization_id=conversation.organization_id,
+            conversation_id=conversation.id,
+        ):
+            raise ConflictError(
+                message="Resolve accepted queued messages before converting this conversation"
+            )
         if (
             await conversation_repo.has_unfinished_runs(self.db, conversation.id)
             or await conversation_task_repo.has_live_conversation_work(self.db, conversation.id)
@@ -796,12 +807,18 @@ class RoomParticipantService:
             is None
         ):
             raise AuthorizationError(message="An active organization member is required")
+        from app.services.room_thread_context_access import RoomThreadContextAccessService
+
+        blocked = await RoomThreadContextAccessService(self.db).unreadable_destinations(
+            organization_id=organization_id, user_id=user_id, actor=ctx
+        )
         return await room_participant_repo.public_directory(
             self.db,
             organization_id=organization_id,
             user_id=user_id,
             skip=skip,
             limit=limit,
+            excluded_conversation_ids=blocked,
         )
 
     async def join_public_room(self, ctx: AuthContext, conversation_id: UUID) -> Conversation:

@@ -16,7 +16,7 @@ import { ApiError } from "@/lib/api-error";
 import { qk } from "@/lib/query-keys";
 import { onRoomChange } from "@/lib/room-events";
 import type { ResumedRun } from "@/types/runs";
-import type { AskUserAnswer } from "@/types/chat";
+import type { AskUserAnswer, ChatSubmissionContext } from "@/types/chat";
 import {
   useAgentSelectionStore,
   useAuthStore,
@@ -33,18 +33,18 @@ import {
 // A decision on a parked call goes to the same REST endpoints the approvals queue
 // uses. It used to be a WebSocket `resume` frame the server silently discarded, so
 // asserting on the frame is exactly what let that pass.
-const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
+const { post, get, del } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn(), del: vi.fn() }));
 vi.mock("@/lib/api-client", async (importOriginal) => ({
   // The real error class: `usePermissions` reads a refusal by it.
   ApiError: (await importOriginal<typeof import("@/lib/api-client")>()).ApiError,
-  apiClient: { post, get },
+  apiClient: { post, get, delete: del },
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 // The outbox's copy on the device is `device-cache`'s to test; here, what the
 // hook hands it and what it does with what comes back.
 const { keepOutbox, keptOutbox } = vi.hoisted(() => ({
   keepOutbox: vi.fn(() => Promise.resolve()),
-  keptOutbox: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
+  keptOutbox: vi.fn((_conversationId: string | null): Promise<unknown[]> => Promise.resolve([])),
 }));
 vi.mock("@/lib/offline/device-cache", () => ({
   keepOutbox,
@@ -177,6 +177,7 @@ describe("room persistence events", () => {
       accountId: undefined,
       organizationId: null,
     });
+    expect(useChatStore.getState().messages).toEqual([]);
     unsubscribe();
   });
 
@@ -2463,6 +2464,168 @@ describe("useChat - approvals and questions", () => {
     );
   });
 
+  it("records feedback on a rejected call before continuing the chat", async () => {
+    post.mockResolvedValue({ status: "rejected", run_id: "r-1", continues_in_chat: true });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+    receive("session_ready", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "reject", note: "Use a draft instead" }]);
+    });
+
+    expect(post).toHaveBeenCalledWith("/approvals/ar-1", {
+      approved: false,
+      note: "Use a draft instead",
+    });
+    expect(post).not.toHaveBeenCalledWith("/runs/r-1/resume");
+  });
+
+  it.each([true, false])(
+    "shows a conflicting saved approval before continuing (server resumes: %s)",
+    async (inChat) => {
+      post
+        .mockRejectedValueOnce(
+          new ApiError(400, "Already approved", {
+            error: {
+              code: "BAD_REQUEST",
+              message: "Already approved",
+              details: {
+                approval_id: "ar-1",
+                status: "approved",
+                continues_in_chat: inChat,
+              },
+            },
+          }),
+        )
+        .mockResolvedValue({ status: "completed" });
+      const { result } = renderHook(() => useChat(), { wrapper });
+      receive("tool_approval_required", {
+        run_id: "r-1",
+        action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+        review_configs: [],
+      });
+      await act(async () => result.current.sendResumeDecisions([{ type: "reject" }]));
+      expect(result.current.pendingApproval?.actionRequests).toEqual([]);
+      expect(result.current.pendingApproval?.savedDecisions).toMatchObject([{ approved: true }]);
+      expect(post).toHaveBeenCalledTimes(1);
+      await act(async () => result.current.sendResumeDecisions([]));
+      expect(post).toHaveBeenCalledTimes(inChat ? 1 : 2);
+      expect(result.current.pendingApproval).toBeNull();
+    },
+  );
+
+  it("clears tentative chat ownership when the last approval was decided by a key", async () => {
+    post
+      .mockResolvedValueOnce({ status: "approved", continues_in_chat: true })
+      .mockRejectedValueOnce(
+        new ApiError(400, "Already approved", {
+          error: {
+            code: "BAD_REQUEST",
+            message: "Already approved",
+            details: {
+              approval_id: "ar-2",
+              status: "approved",
+              continues_in_chat: false,
+            },
+          },
+        }),
+      )
+      .mockResolvedValue({ status: "completed" });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "write", args: {} },
+        { id: "ar-2", tool_call_id: "tc-2", tool_name: "write", args: {} },
+      ],
+      review_configs: [],
+    });
+    await act(async () =>
+      result.current.sendResumeDecisions([{ type: "approve" }, { type: "approve" }]),
+    );
+    expect(result.current.pendingApproval?.actionRequests).toEqual([]);
+    expect(result.current.pendingApproval?.continuesInChat).toBe(false);
+    await act(async () => result.current.sendResumeDecisions([]));
+    expect(post.mock.calls).toEqual([
+      ["/approvals/ar-1", { approved: true }],
+      ["/approvals/ar-2", { approved: true }],
+      ["/runs/r-1/resume"],
+    ]);
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("retries only the resume and settles the previously approved step", async () => {
+    post.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("Connection lost"));
+    post.mockResolvedValueOnce({
+      status: "completed",
+      settled: [{ tool_call_id: "tc-1", result: "Sent" }],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "send_email", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+    await act(async () => result.current.sendResumeDecisions([{ type: "approve" }]));
+    expect(result.current.pendingApproval?.actionRequests).toEqual([]);
+    await act(async () => result.current.sendResumeDecisions([]));
+    expect(post.mock.calls).toEqual([
+      ["/approvals/ar-1", { approved: true }],
+      ["/runs/r-1/resume"],
+      ["/runs/r-1/resume"],
+    ]);
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]).toMatchObject({
+      status: "completed",
+      result: "Sent",
+    });
+  });
+
+  it("does not resubmit saved rejection feedback when retrying a partially decided batch", async () => {
+    post.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("Request failed"));
+    post.mockResolvedValue({ status: "completed", output: "Done." });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} },
+        { id: "ar-2", tool_call_id: "tc-2", tool_name: "send_email", args: {} },
+      ],
+      review_configs: [],
+    });
+    const decisions = [
+      { type: "reject" as const, note: "Use a draft instead" },
+      { type: "reject" as const, note: "Remove pricing" },
+    ];
+
+    await act(async () => {
+      await result.current.sendResumeDecisions(decisions);
+    });
+    expect(result.current.pendingApproval?.actionRequests.map(({ id }) => id)).toEqual(["ar-2"]);
+    expect(result.current.pendingApproval?.savedDecisions).toMatchObject([
+      { request: { id: "ar-1" }, approved: false },
+    ]);
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(post.mock.calls).toEqual([
+      ["/approvals/ar-1", { approved: false, note: "Use a draft instead" }],
+      ["/approvals/ar-2", { approved: false, note: "Remove pricing" }],
+      ["/approvals/ar-2", { approved: true }],
+      ["/runs/r-1/resume"],
+    ]);
+  });
+
   it("re-opens the panel when the continuation parks again", async () => {
     // A resume runs the agent, and the agent can reach a second gated call. Nothing
     // announces that here - the continuation runs over HTTP, so no
@@ -3454,10 +3617,8 @@ describe("useChat - approvals and questions", () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
     });
 
-    expect(post.mock.calls).toEqual([
-      ["/approvals/ar-1", { approved: true }],
-      ["/runs/r-9/resume"],
-    ]);
+    expect(post).not.toHaveBeenCalled();
+    expect(result.current.pendingApproval?.actionRequests).toHaveLength(2);
   });
 
   it("surfaces the questions an agent asked, filling in what it left out", () => {
@@ -4115,6 +4276,69 @@ describe("useChat - the outbound queue", () => {
     }
   });
 
+  it.each(["local", "server"])(
+    "pauses follow-ups after %s Stop until explicit resume",
+    async (kind) => {
+      vi.useFakeTimers();
+      try {
+        const { result, rerender } = renderHook(() => useChat(), { wrapper });
+        act(() => result.current.sendMessage("first"));
+        act(() => result.current.sendMessage("second", ["file-1"]));
+        act(() => result.current.sendMessage("third"));
+        if (kind === "local") act(() => result.current.stopGeneration());
+        receive("complete", { stopped: true });
+        receive("session_ready", {});
+        await act(async () => vi.advanceTimersByTimeAsync(500));
+        expect(
+          result.current.queuedMessages.map(({ content, paused }) => ({ content, paused })),
+        ).toEqual([
+          { content: "second", paused: true },
+          { content: "third", paused: true },
+        ]);
+        socket.isConnected = false;
+        rerender();
+        socket.isConnected = true;
+        rerender();
+        receive("session_ready", {});
+        await act(async () => vi.advanceTimersByTimeAsync(500));
+        expect(sent.mock.calls.filter(([value]) => value.message)).toHaveLength(1);
+        act(() => result.current.resumeQueued());
+        await act(async () => vi.advanceTimersByTimeAsync(100));
+        expect(
+          sent.mock.calls.filter(([value]) => value.message).map(([value]) => value.message),
+        ).toEqual(["first", "second"]);
+        expect(sent.mock.calls.find(([value]) => value.message === "second")?.[0]).toMatchObject({
+          file_ids: ["file-1"],
+        });
+        receive("complete", {});
+        receive("session_ready", {});
+        await act(async () => vi.advanceTimersByTimeAsync(100));
+        expect(
+          sent.mock.calls.filter(([value]) => value.message).map(([value]) => value.message),
+        ).toEqual(["first", "second", "third"]);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it("cancels the scheduled drain when Stop arrives before its timer", async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useChat(), { wrapper });
+      act(() => result.current.sendMessage("first"));
+      act(() => result.current.sendMessage("second"));
+      receive("complete", {});
+      receive("session_ready", {});
+      act(() => result.current.stopGeneration());
+      await act(async () => vi.advanceTimersByTimeAsync(500));
+      expect(result.current.queuedMessages[0]).toMatchObject({ content: "second", paused: true });
+      expect(sent.mock.calls.filter(([value]) => value.message)).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it.each(["conversation", "new-chat-to-existing", "organization", "account", "unmount", "clear"])(
     "cancels a scheduled send after %s changes",
     async (changed) => {
@@ -4225,13 +4449,16 @@ describe("useChat - the outbound queue", () => {
     expect(sent).not.toHaveBeenCalled();
   });
 
-  it("cancels one queued message and keeps the rest", () => {
+  it("cancels one queued message and keeps the rest", async () => {
     socket.isConnected = false;
     const { result } = renderHook(() => useChat(), { wrapper });
     act(() => result.current.sendMessage("one"));
     act(() => result.current.sendMessage("two"));
 
-    act(() => result.current.cancelQueued(result.current.queuedMessages[0]!.id));
+    const queuedId = result.current.queuedMessages[0]!.id;
+    await act(async () => {
+      await result.current.cancelQueued(queuedId);
+    });
 
     expect(result.current.queuedMessages.map((entry) => entry.content)).toEqual(["two"]);
   });
@@ -5288,6 +5515,43 @@ describe("useChat - durable questions resumed on the socket", () => {
     expect(useChatStore.getState().messages.some((message) => message.isStreaming)).toBe(false);
   });
 
+  it.each(["success", "refused", "terminal"])(
+    "preserves a newer submitted live batch after late parked %s",
+    async (outcome) => {
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      const { result } = renderHook(() => useChat(), { wrapper });
+      offer();
+      receive("complete", {});
+      act(() => result.current.sendAskUserResponses([{ answer: "Casual", skipped: false }]));
+      const oldRequest = runAnswerFrame().request_id;
+      receive("ask_user", { questions: [{ question: "Which region?", allow_custom: true }] });
+      act(() => result.current.sendAskUserResponses([{ answer: "EU", skipped: false }]));
+      const liveAnswer = sent.mock.calls.findLast(
+        ([frame]) => frame.type === "ask_user_response",
+      )?.[0];
+      expect(liveAnswer).toMatchObject({ answers: [{ answer: "EU", skipped: false }] });
+      expect(result.current.submittingQuestions).toBe(true);
+      if (outcome === "success") await act(async () => acknowledgeAnswer({}, oldRequest));
+      else
+        await act(async () =>
+          refuseAnswer(
+            {
+              status: outcome === "terminal" ? 500 : 400,
+              message: "Old answer failed",
+              code: outcome === "terminal" ? "RUN_EXECUTION_FAILED" : "BAD_REQUEST",
+              details: outcome === "terminal" ? { run_id: "r-1", status: "failed" } : null,
+            },
+            oldRequest,
+          ),
+        );
+      expect(result.current.pendingQuestions?.[0]?.question).toBe("Which region?");
+      expect(result.current.submittingQuestions).toBe(true);
+      receive("ask_user_answered", { request_id: liveAnswer?.request_id });
+      expect(result.current.pendingQuestions).toBeNull();
+      expect(result.current.submittingQuestions).toBe(false);
+    },
+  );
+
   it("holds queued follow-ups through the answer and live delegate question", async () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
     const { result } = renderHook(() => useChat(), { wrapper });
@@ -5304,10 +5568,19 @@ describe("useChat - durable questions resumed on the socket", () => {
     receive("ask_user", { questions: [{ question: "Which region?", allow_custom: true }] });
     await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
     expect(result.current.queuedMessages).toHaveLength(1);
-    act(() => result.current.sendAskUserResponses([{ answer: "EU", skipped: false }]));
     await act(async () => acknowledgeAnswer());
+    expect(result.current.pendingQuestions?.[0]?.question).toBe("Which region?");
+    act(() => result.current.sendAskUserResponses([{ answer: "EU", skipped: false }]));
     await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
     expect(result.current.queuedMessages).toHaveLength(1);
+    receive("session_ready", {});
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
+    expect(result.current.queuedMessages).toHaveLength(1);
+    const liveAnswer = sent.mock.calls.findLast(
+      ([frame]) => frame.type === "ask_user_response",
+    )?.[0];
+    receive("ask_user_answered", { request_id: liveAnswer?.request_id });
+    receive("complete", {});
     receive("session_ready", {});
     await waitFor(() => expect(result.current.queuedMessages).toHaveLength(0));
     expect(
@@ -5371,7 +5644,7 @@ describe("useChat - durable questions resumed on the socket", () => {
     expect(result.current.pendingQuestions).toBeNull();
   });
 
-  it("releases queued follow-ups when the durable question is cancelled", async () => {
+  it("holds queued follow-ups when the durable question is cancelled", async () => {
     post.mockResolvedValue("Not performed: the run was stopped.");
     useConversationStore.getState().setCurrentConversationId("c-1");
     const { result } = renderHook(() => useChat(), { wrapper });
@@ -5382,8 +5655,14 @@ describe("useChat - durable questions resumed on the socket", () => {
     act(() => result.current.sendMessage("Queued follow-up"));
     expect(result.current.queuedMessages).toHaveLength(1);
     act(() => result.current.stopGeneration());
-    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(0));
+    await waitFor(() => expect(result.current.pendingQuestions).toBeNull());
+    expect(result.current.queuedMessages).toEqual([
+      expect.objectContaining({ content: "Queued follow-up", paused: true }),
+    ]);
     expect(post).toHaveBeenCalledWith("/runs/r-1/cancel");
+    expect(sent.mock.calls.some(([frame]) => frame.message === "Queued follow-up")).toBe(false);
+    act(() => result.current.resumeQueued());
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(0));
     expect(sent.mock.calls.some(([frame]) => frame.message === "Queued follow-up")).toBe(true);
   });
 
@@ -6135,6 +6414,3540 @@ describe("useChat - adding to a running turn (#2087)", () => {
     ]);
     expect(result.current.steers).toEqual([]);
   });
+
+  it("keeps a quoted message queued because Send now cannot carry its reply", () => {
+    const { result } = renderHook(() => useChat(), { wrapper });
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+    const reply = {
+      messageId: "message-1",
+      role: "assistant" as const,
+      excerpt: "the quoted answer",
+      selectedText: "the selected quote",
+    };
+    act(() => useChatStore.getState().setReplyTo(reply));
+
+    act(() => result.current.sendMessage("answer this quote"));
+    const queued = result.current.queuedMessages[0]!;
+    expect(queued.replyTo).toEqual(reply);
+    sent.mockClear();
+
+    act(() => result.current.sendQueuedNow(queued.id));
+
+    expect(sent).not.toHaveBeenCalled();
+    expect(result.current.queuedMessages).toEqual([queued]);
+    expect(result.current.steers).toEqual([]);
+  });
+});
+
+describe("useChat - receipt-backed queue actions", () => {
+  const receiptId = "123e4567-e89b-42d3-a456-426614174001";
+
+  beforeEach(() => {
+    post.mockReset();
+    get.mockReset();
+    del.mockReset();
+    get.mockImplementation(mockReceiptGetDefaults);
+    keptOutbox.mockReset();
+    keptOutbox.mockImplementation((_conversationId: string | null) => Promise.resolve([]));
+  });
+
+  afterEach(() => {
+    keptOutbox.mockReset();
+    keptOutbox.mockImplementation((_conversationId: string | null) => Promise.resolve([]));
+  });
+
+  function prepareConversation(agentId: string | null = "agent-1") {
+    useAuthStore.setState({
+      user: {
+        id: "u-1",
+        email: "person@example.com",
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+        locale: "en",
+      } as NonNullable<ReturnType<typeof useAuthStore.getState>["user"]>,
+    });
+    useOrgStore.setState({ activeOrgId: "org-1" });
+    if (agentId) useAgentSelectionStore.getState().select(agentId);
+    else useAgentSelectionStore.setState({ selectedAgentId: null });
+    useConversationStore.getState().setCurrentConversationId("c-1");
+  }
+
+  function acceptedReceipt(payload: Record<string, unknown>) {
+    return {
+      ...payload,
+      id: receiptId,
+      conversation_id: "c-1",
+      state: "pending",
+      message_id: null,
+      task_id: null,
+      task_conversation_id: null,
+      steering_run_id: null,
+      reply_to_role: null,
+      quote_excerpt: null,
+      created_at: "2026-11-25T00:00:00Z",
+    };
+  }
+
+  function mockReceiptGetDefaults(url: string) {
+    if (url === "/me/permissions") {
+      return Promise.resolve({
+        organization_id: useOrgStore.getState().activeOrgId ?? "org-1",
+        user_id: useAuthStore.getState().user?.id ?? "u-1",
+        role: "member",
+        is_app_admin: false,
+        permissions: [],
+      });
+    }
+    if (url.includes("/compaction-availability")) return Promise.resolve({ available: false });
+    if (url.endsWith("/queued-messages")) return Promise.resolve({ items: [], next_cursor: null });
+    return Promise.resolve({});
+  }
+
+  function mockAcceptance() {
+    post.mockImplementation((url: string, payload: Record<string, unknown>) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve(acceptedReceipt(payload))
+        : Promise.resolve({}),
+    );
+  }
+
+  function markConversationTranscriptLoaded() {
+    useChatStore.getState().rereadMessages([], {
+      conversationId: "c-1",
+      selectionVersion: useConversationStore.getState().selectionVersion,
+      accountId: "u-1",
+      tenantId: "org-1",
+    });
+  }
+
+  async function waitPastQueueDrainDelay() {
+    await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 150)));
+  }
+
+  function receiptForQueue(
+    clientQueueId: string,
+    id: string,
+    content: string,
+    state: "pending" | "sent" | "steering" = "pending",
+  ) {
+    return {
+      ...acceptedReceipt({
+        client_queue_id: clientQueueId,
+        agent_id: "agent-1",
+        content,
+        file_ids: [],
+        mentions: [],
+        reply_to_message_id: null,
+        reply_to_excerpt: null,
+        page_context: null,
+        local_target: null,
+      }),
+      id,
+      state,
+    };
+  }
+
+  it("reconciles restored receipt rows against pending and terminal server state", async () => {
+    prepareConversation();
+    const pendingClientId = "123e4567-e89b-42d3-a456-426614174010";
+    const terminalClientId = "123e4567-e89b-42d3-a456-426614174011";
+    const terminalReceiptId = "123e4567-e89b-42d3-a456-426614174012";
+    const localClientId = "123e4567-e89b-42d3-a456-426614174014";
+    const localReceiptId = "123e4567-e89b-42d3-a456-426614174015";
+    const serverClientId = "123e4567-e89b-42d3-a456-426614174019";
+    const serverReceiptId = "123e4567-e89b-42d3-a456-426614174020";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "pending-local",
+        clientQueueId: pendingClientId,
+        receiptConversationId: "c-1",
+        receiptState: "steering",
+        agentId: "agent-1",
+        content: "draft the report",
+        receiptAcceptanceAttempted: true,
+        accepting: true,
+        transferring: true,
+        transferErrorAction: "task",
+      },
+      {
+        id: "terminal-local",
+        clientQueueId: terminalClientId,
+        acceptedQueueId: terminalReceiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "already sent",
+      },
+      {
+        id: "local-receipt",
+        clientQueueId: localClientId,
+        acceptedQueueId: localReceiptId,
+        receiptConversationId: "c-1",
+        receiptState: "steering",
+        agentId: "agent-1",
+        content: "receipt missing from list",
+      },
+    ]);
+    markConversationTranscriptLoaded();
+
+    let resolveReceipts!: (page: unknown) => void;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            resolveReceipts = resolve;
+          })
+        : url.endsWith(`/${localReceiptId}`)
+          ? Promise.resolve(
+              receiptForQueue(localClientId, localReceiptId, "receipt missing from list"),
+            )
+          : mockReceiptGetDefaults(url),
+    );
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(3));
+    await act(async () => {
+      resolveReceipts({
+        items: [
+          receiptForQueue(pendingClientId, receiptId, "draft the report", "pending"),
+          receiptForQueue(terminalClientId, terminalReceiptId, "already sent", "sent"),
+          receiptForQueue(serverClientId, serverReceiptId, "restore from server"),
+        ],
+        next_cursor: null,
+      });
+    });
+
+    await waitFor(() =>
+      expect(result.current.queuedMessages).toEqual([
+        expect.objectContaining({
+          id: "pending-local",
+          acceptedQueueId: receiptId,
+          receiptState: "pending",
+          transferring: false,
+          transferErrorAction: "task",
+        }),
+        expect.objectContaining({
+          id: "local-receipt",
+          acceptedQueueId: localReceiptId,
+          receiptState: "pending",
+        }),
+        expect.objectContaining({
+          id: serverClientId,
+          acceptedQueueId: serverReceiptId,
+          content: "restore from server",
+          receiptState: "pending",
+        }),
+      ]),
+    );
+  });
+
+  it("marks restored rows by action when the unresolved receipt list cannot be fetched", async () => {
+    prepareConversation();
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "unknown-local",
+        clientQueueId: "123e4567-e89b-42d3-a456-426614174013",
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "recover this send",
+        accepting: true,
+        transferring: true,
+      },
+      {
+        id: "task-local",
+        clientQueueId: "123e4567-e89b-42d3-a456-426614174016",
+        acceptedQueueId: "123e4567-e89b-42d3-a456-426614174017",
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "recover this task transfer",
+        transferErrorAction: "task",
+      },
+    ]);
+    let rejectReceipts!: (error: Error) => void;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((_resolve, reject) => {
+            rejectReceipts = reject;
+          })
+        : mockReceiptGetDefaults(url),
+    );
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(2));
+    act(() => markConversationTranscriptLoaded());
+    await waitFor(() => expect(rejectReceipts).toBeTypeOf("function"));
+    await waitPastQueueDrainDelay();
+    expect(sent.mock.calls.some(([frame]) => frame.message === "recover this send")).toBe(false);
+    await act(async () => rejectReceipts(new Error("offline")));
+    await waitFor(() =>
+      expect(result.current.queuedMessages).toEqual([
+        expect.objectContaining({
+          id: "unknown-local",
+          accepting: false,
+          transferring: false,
+          receiptErrorAction: "send",
+        }),
+        expect.objectContaining({
+          id: "task-local",
+          transferErrorAction: "task",
+          transferError: expect.any(String),
+          receiptErrorAction: undefined,
+          receiptError: undefined,
+        }),
+      ]),
+    );
+    expect(result.current.queuedMessages[0]?.receiptError).toBeTruthy();
+    expect(result.current.queuedMessages[0]?.receiptReconciliationPending).toBeUndefined();
+    act(() => result.current.resumeQueued());
+    await waitPastQueueDrainDelay();
+    expect(sent.mock.calls.some(([frame]) => frame.message === "recover this send")).toBe(false);
+  });
+
+  it("does not restore a terminal receipt as a pending queue row", async () => {
+    prepareConversation();
+    const terminalClientId = "123e4567-e89b-42d3-a456-426614174021";
+    const terminalReceiptId = "123e4567-e89b-42d3-a456-426614174022";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "finished-local",
+        clientQueueId: terminalClientId,
+        acceptedQueueId: terminalReceiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "already sent",
+      },
+    ]);
+    markConversationTranscriptLoaded();
+
+    let resolveReceipts!: (page: unknown) => void;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            resolveReceipts = resolve;
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(1));
+    await act(async () => {
+      resolveReceipts({
+        items: [receiptForQueue(terminalClientId, terminalReceiptId, "already sent", "sent")],
+        next_cursor: null,
+      });
+    });
+
+    await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+  });
+
+  it("ignores a receipt list response after conversation selection changes", async () => {
+    prepareConversation();
+    keptOutbox.mockResolvedValueOnce([]);
+    markConversationTranscriptLoaded();
+
+    let resolveReceipts!: (page: unknown) => void;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            resolveReceipts = resolve;
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(resolveReceipts).toBeTypeOf("function"));
+
+    act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+    await act(async () => {
+      resolveReceipts({
+        items: [
+          receiptForQueue(
+            "123e4567-e89b-42d3-a456-426614174023",
+            "123e4567-e89b-42d3-a456-426614174024",
+            "belongs to the old chat",
+          ),
+        ],
+        next_cursor: null,
+      });
+    });
+
+    expect(result.current.queuedMessages).toEqual([]);
+  });
+
+  it("marks a locally stored receipt when its individual recovery read fails", async () => {
+    prepareConversation();
+    const taskReceiptId = "123e4567-e89b-42d3-a456-426614174025";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "missing-local",
+        clientQueueId: "123e4567-e89b-42d3-a456-426614174018",
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "recover this individual receipt",
+      },
+      {
+        id: "task-with-missing-receipt",
+        clientQueueId: "123e4567-e89b-42d3-a456-426614174026",
+        acceptedQueueId: taskReceiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "recover this task transfer",
+        transferErrorAction: "task",
+      },
+    ]);
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({ items: [], next_cursor: null })
+        : url.endsWith(`/${receiptId}`) || url.endsWith(`/${taskReceiptId}`)
+          ? Promise.reject(new Error("receipt unavailable"))
+          : mockReceiptGetDefaults(url),
+    );
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(2));
+    act(() => markConversationTranscriptLoaded());
+    await waitFor(() =>
+      expect(result.current.queuedMessages).toEqual([
+        expect.objectContaining({
+          id: "missing-local",
+          accepting: false,
+          transferring: false,
+          receiptErrorAction: "send",
+        }),
+        expect.objectContaining({
+          id: "task-with-missing-receipt",
+          transferErrorAction: "task",
+          transferError: expect.any(String),
+          receiptErrorAction: undefined,
+          receiptError: undefined,
+        }),
+      ]),
+    );
+    expect(result.current.queuedMessages[0]?.receiptError).toBeTruthy();
+  });
+
+  it("preserves same-chat enqueue and cancel changes during an individual receipt recovery read", async () => {
+    prepareConversation();
+    const localClientId = "123e4567-e89b-42d3-a456-426614174027";
+    const localReceiptId = "123e4567-e89b-42d3-a456-426614174028";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "cancel-during-recovery",
+        clientQueueId: localClientId,
+        acceptedQueueId: localReceiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "cancel this restored row",
+      },
+    ]);
+    let resolveReceipt!: (receipt: unknown) => void;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({ items: [], next_cursor: null })
+        : url.endsWith(`/${localReceiptId}`)
+          ? new Promise((resolve) => {
+              resolveReceipt = resolve;
+            })
+          : mockReceiptGetDefaults(url),
+    );
+    del.mockResolvedValueOnce({
+      ...receiptForQueue(localClientId, localReceiptId, "cancel this restored row"),
+      state: "cancelled",
+    });
+    mockAcceptance();
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(localReceiptId),
+    );
+    act(() => markConversationTranscriptLoaded());
+    await waitFor(() => expect(resolveReceipt).toBeTypeOf("function"));
+    await waitPastQueueDrainDelay();
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      content: "cancel this restored row",
+      receiptReconciliationPending: true,
+    });
+    expect(sent.mock.calls.some(([frame]) => frame.message === "cancel this restored row")).toBe(
+      false,
+    );
+
+    // Follow an existing server run; a new prompt would wait behind this recovery read.
+    receive("turn_attached", { conversation_id: "c-1" });
+    await act(async () => result.current.cancelQueued("cancel-during-recovery"));
+    expect(result.current.queuedMessages).toEqual([]);
+
+    act(() => result.current.sendMessage("new same-chat row"));
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        content: "new same-chat row",
+        acceptedQueueId: receiptId,
+      }),
+    );
+
+    await act(async () => {
+      resolveReceipt(receiptForQueue(localClientId, localReceiptId, "cancel this restored row"));
+    });
+
+    await waitFor(() =>
+      expect(result.current.queuedMessages).toEqual([
+        expect.objectContaining({
+          content: "new same-chat row",
+          acceptedQueueId: receiptId,
+        }),
+      ]),
+    );
+  });
+
+  it("does not restore rows cancelled before and during the unresolved receipt list", async () => {
+    prepareConversation();
+    const localClientId = "123e4567-e89b-42d3-a456-426614174029";
+    const localReceiptId = "123e4567-e89b-42d3-a456-426614174030";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "cancel-during-list",
+        clientQueueId: localClientId,
+        acceptedQueueId: localReceiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "cancel before list returns",
+      },
+    ]);
+    let resolveReceipts!: (page: unknown) => void;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            resolveReceipts = resolve;
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    del.mockResolvedValueOnce({
+      ...receiptForQueue(localClientId, localReceiptId, "cancel before list returns"),
+      state: "cancelled",
+    });
+    mockAcceptance();
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(localReceiptId),
+    );
+    act(() => markConversationTranscriptLoaded());
+    await waitFor(() => expect(resolveReceipts).toBeTypeOf("function"));
+    await waitPastQueueDrainDelay();
+    expect(sent.mock.calls.some(([frame]) => frame.message === "cancel before list returns")).toBe(
+      false,
+    );
+
+    await act(async () => result.current.cancelQueued("cancel-during-list"));
+    expect(result.current.queuedMessages).toEqual([]);
+
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("created and cancelled during list"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    const createdDuringList = result.current.queuedMessages[0]!;
+    del.mockResolvedValueOnce({
+      ...receiptForQueue(
+        createdDuringList.clientQueueId!,
+        receiptId,
+        "created and cancelled during list",
+      ),
+      state: "cancelled",
+    });
+    await act(async () => result.current.cancelQueued(createdDuringList.id));
+    expect(result.current.queuedMessages).toEqual([]);
+
+    await act(async () => {
+      resolveReceipts({
+        items: [
+          receiptForQueue(localClientId, localReceiptId, "cancel before list returns"),
+          receiptForQueue(
+            createdDuringList.clientQueueId!,
+            receiptId,
+            "created and cancelled during list",
+          ),
+        ],
+        next_cursor: null,
+      });
+    });
+
+    await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+  });
+
+  it("keeps cancel-after-accept blocked when a stale list returns during cancellation", async () => {
+    prepareConversation();
+    const localReceiptId = "123e4567-e89b-42d3-a456-426614174036";
+    let resolveOutbox!: (items: unknown[]) => void;
+    let resolveAccept!: (receipt: unknown) => void;
+    let resolveReceipts!: (page: unknown) => void;
+    let resolveCancel!: (receipt: unknown) => void;
+    keptOutbox.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveOutbox = resolve;
+      }),
+    );
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            resolveReceipts = resolve;
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    post.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            resolveAccept = resolve;
+          })
+        : Promise.resolve({}),
+    );
+    del.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCancel = resolve;
+        }),
+    );
+    markConversationTranscriptLoaded();
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(resolveOutbox).toBeTypeOf("function"));
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("cancel after accept"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.accepting).toBe(true));
+    const queued = result.current.queuedMessages[0]!;
+    const clientQueueId = queued.clientQueueId!;
+
+    await act(async () => result.current.cancelQueued(queued.id));
+    expect(result.current.queuedMessages[0]).toMatchObject({ cancelRequested: true });
+    await act(async () => resolveOutbox([]));
+    await waitFor(() => expect(resolveReceipts).toBeTypeOf("function"));
+    await act(async () =>
+      resolveAccept(receiptForQueue(clientQueueId, localReceiptId, "cancel after accept")),
+    );
+    await waitFor(() => expect(resolveCancel).toBeTypeOf("function"));
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        acceptedQueueId: localReceiptId,
+        transferring: true,
+        transferErrorAction: "cancel",
+      }),
+    );
+
+    await act(async () =>
+      resolveReceipts({
+        items: [receiptForQueue(clientQueueId, localReceiptId, "cancel after accept")],
+        next_cursor: null,
+      }),
+    );
+    receive("complete", {});
+    receive("session_ready", {});
+    await waitPastQueueDrainDelay();
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      acceptedQueueId: localReceiptId,
+      transferring: true,
+      transferErrorAction: "cancel",
+    });
+    expect(sent.mock.calls.some(([frame]) => frame.message === "cancel after accept")).toBe(false);
+
+    await act(async () =>
+      resolveCancel({
+        ...receiptForQueue(clientQueueId, localReceiptId, "cancel after accept"),
+        state: "cancelled",
+      }),
+    );
+    await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+  });
+
+  it("keeps an explicit receipt retry blocked while an older list is pending", async () => {
+    prepareConversation();
+    const localClientId = "123e4567-e89b-42d3-a456-426614174037";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "retry-during-list",
+        clientQueueId: localClientId,
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "retry only after receipt read",
+        receiptErrorAction: "send",
+        receiptError: "previous receipt read failed",
+      },
+    ]);
+    let resolveReceipts!: (page: unknown) => void;
+    let resolveRetry!: (receipt: unknown) => void;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            resolveReceipts = resolve;
+          })
+        : url.endsWith(`/${receiptId}`)
+          ? new Promise((resolve) => {
+              resolveRetry = resolve;
+            })
+          : mockReceiptGetDefaults(url),
+    );
+    markConversationTranscriptLoaded();
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.queuedMessages[0]?.id).toBe("retry-during-list"));
+    await waitFor(() => expect(resolveReceipts).toBeTypeOf("function"));
+    act(() => result.current.retryQueued("retry-during-list"));
+    await waitFor(() => expect(resolveRetry).toBeTypeOf("function"));
+
+    await act(async () =>
+      resolveReceipts({
+        items: [receiptForQueue(localClientId, receiptId, "retry only after receipt read")],
+        next_cursor: null,
+      }),
+    );
+    await waitPastQueueDrainDelay();
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      id: "retry-during-list",
+      transferring: true,
+    });
+    expect(
+      sent.mock.calls.some(([frame]) => frame.message === "retry only after receipt read"),
+    ).toBe(false);
+
+    await act(async () =>
+      resolveRetry(
+        receiptForQueue(localClientId, receiptId, "retry only after receipt read", "sent"),
+      ),
+    );
+    await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+    expect(
+      sent.mock.calls.some(([frame]) => frame.message === "retry only after receipt read"),
+    ).toBe(false);
+  });
+
+  it("restores a server-only receipt after an unrelated same-chat enqueue during list recovery", async () => {
+    prepareConversation();
+    const serverClientId = "123e4567-e89b-42d3-a456-426614174031";
+    const serverReceiptId = "123e4567-e89b-42d3-a456-426614174032";
+    keptOutbox.mockResolvedValueOnce([]);
+    mockAcceptance();
+    markConversationTranscriptLoaded();
+
+    let resolveReceipts!: (page: unknown) => void;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            resolveReceipts = resolve;
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(resolveReceipts).toBeTypeOf("function"));
+
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("new same-chat row"));
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        content: "new same-chat row",
+        acceptedQueueId: receiptId,
+      }),
+    );
+    const newRow = result.current.queuedMessages[0]!;
+
+    await act(async () => {
+      resolveReceipts({
+        items: [
+          receiptForQueue(newRow.clientQueueId!, receiptId, "new same-chat row"),
+          receiptForQueue(serverClientId, serverReceiptId, "restore server-only row"),
+        ],
+        next_cursor: null,
+      });
+    });
+
+    await waitFor(() =>
+      expect(result.current.queuedMessages).toEqual([
+        expect.objectContaining({
+          id: newRow.id,
+          content: "new same-chat row",
+          acceptedQueueId: receiptId,
+        }),
+        expect.objectContaining({
+          id: serverClientId,
+          content: "restore server-only row",
+          acceptedQueueId: serverReceiptId,
+          receiptState: "pending",
+        }),
+      ]),
+    );
+  });
+
+  it("waits for outbox hydration and receipt reconciliation before draining cached rows", async () => {
+    prepareConversation();
+    const localClientId = "123e4567-e89b-42d3-a456-426614174033";
+    let resolveOutbox!: (items: unknown[]) => void;
+    keptOutbox.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveOutbox = resolve;
+      }),
+    );
+    markConversationTranscriptLoaded();
+
+    let resolveReceipts!: (page: unknown) => void;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            resolveReceipts = resolve;
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(resolveOutbox).toBeTypeOf("function"));
+    expect(get).not.toHaveBeenCalledWith("/conversations/c-1/queued-messages");
+
+    await act(async () =>
+      resolveOutbox([
+        {
+          id: "hydrated-local",
+          clientQueueId: localClientId,
+          acceptedQueueId: receiptId,
+          receiptConversationId: "c-1",
+          receiptState: "pending",
+          agentId: "agent-1",
+          content: "hydrated while offline",
+        },
+      ]),
+    );
+    await waitFor(() => expect(resolveReceipts).toBeTypeOf("function"));
+    expect(result.current.queuedMessages).toMatchObject([
+      {
+        id: "hydrated-local",
+        receiptReconciliationPending: true,
+        content: "hydrated while offline",
+      },
+    ]);
+    await waitPastQueueDrainDelay();
+    expect(sent.mock.calls.some(([frame]) => frame.message === "hydrated while offline")).toBe(
+      false,
+    );
+  });
+
+  it("merges a terminal recovery into a paused row before resume", async () => {
+    prepareConversation();
+    const localClientId = "123e4567-e89b-42d3-a456-426614174034";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "paused-during-recovery",
+        clientQueueId: localClientId,
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "terminal while paused",
+      },
+    ]);
+    markConversationTranscriptLoaded();
+
+    let resolveReceipt!: (receipt: unknown) => void;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({ items: [], next_cursor: null })
+        : url.endsWith(`/${receiptId}`)
+          ? new Promise((resolve) => {
+              resolveReceipt = resolve;
+            })
+          : mockReceiptGetDefaults(url),
+    );
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    await waitFor(() => expect(resolveReceipt).toBeTypeOf("function"));
+    await waitPastQueueDrainDelay();
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      receiptReconciliationPending: true,
+      content: "terminal while paused",
+    });
+    expect(sent.mock.calls.some(([frame]) => frame.message === "terminal while paused")).toBe(
+      false,
+    );
+
+    act(() => result.current.stopGeneration());
+    expect(result.current.queuedMessages[0]).toMatchObject({ paused: true });
+    await act(async () =>
+      resolveReceipt(receiptForQueue(localClientId, receiptId, "terminal while paused", "sent")),
+    );
+    await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+
+    act(() => result.current.resumeQueued());
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(sent.mock.calls.some(([frame]) => frame.message === "terminal while paused")).toBe(
+      false,
+    );
+  });
+
+  it("resumes a persisted cancellation after receipt recovery", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174038";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "cancel-after-reload",
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "cancel after reload",
+        accepting: true,
+        receiptAcceptanceAttempted: true,
+        cancelRequested: true,
+      },
+    ]);
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({
+            items: [receiptForQueue(clientQueueId, receiptId, "cancel after reload")],
+            next_cursor: null,
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    del.mockResolvedValueOnce({
+      ...receiptForQueue(clientQueueId, receiptId, "cancel after reload"),
+      state: "cancelled",
+    });
+    markConversationTranscriptLoaded();
+    socket.isConnected = false;
+
+    try {
+      const { result } = renderHook(
+        () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+        { wrapper },
+      );
+
+      await waitFor(() =>
+        expect(del).toHaveBeenCalledWith(`/conversations/c-1/queued-messages/${receiptId}`),
+      );
+      await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+    } finally {
+      socket.isConnected = true;
+    }
+  });
+
+  it("retries a persisted cancellation with the same idempotency key when no receipt was saved", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174039";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "cancel-before-receipt-after-reload",
+        clientQueueId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "cancel before receipt after reload",
+        queueSettings: { modelProfileId: null, approvalMode: "follow_agent" },
+        accepting: true,
+        receiptAcceptanceAttempted: true,
+        cancelRequested: true,
+      },
+    ]);
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({ items: [], next_cursor: null })
+        : mockReceiptGetDefaults(url),
+    );
+    let resolveAcceptance!: (receipt: unknown) => void;
+    let acceptancePayload: Record<string, unknown> | undefined;
+    post.mockImplementation((url: string, payload?: Record<string, unknown>) => {
+      if (url === "/conversations/c-1/queued-messages") {
+        acceptancePayload = payload;
+        return new Promise((resolve) => {
+          resolveAcceptance = resolve;
+        });
+      }
+      return Promise.resolve({});
+    });
+    del.mockResolvedValueOnce({
+      ...receiptForQueue(clientQueueId, receiptId, "cancel before receipt after reload"),
+      state: "cancelled",
+    });
+    markConversationTranscriptLoaded();
+    socket.isConnected = false;
+
+    try {
+      const { result } = renderHook(
+        () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+        { wrapper },
+      );
+
+      await waitFor(() => expect(resolveAcceptance).toBeTypeOf("function"));
+      expect(acceptancePayload?.client_queue_id).toBe(clientQueueId);
+      await act(async () => resolveAcceptance(acceptedReceipt(acceptancePayload ?? {})));
+      await waitFor(() =>
+        expect(del).toHaveBeenCalledWith(`/conversations/c-1/queued-messages/${receiptId}`),
+      );
+      await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+    } finally {
+      socket.isConnected = true;
+    }
+  });
+
+  it("continues receipt recovery when the device outbox read rejects", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174040";
+    keptOutbox.mockRejectedValueOnce(new Error("device storage unavailable"));
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({
+            items: [receiptForQueue(clientQueueId, receiptId, "restore after outbox failure")],
+            next_cursor: null,
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    markConversationTranscriptLoaded();
+    socket.isConnected = false;
+
+    try {
+      const { result } = renderHook(
+        () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+        { wrapper },
+      );
+
+      await waitFor(() =>
+        expect(result.current.queuedMessages).toEqual([
+          expect.objectContaining({
+            id: clientQueueId,
+            acceptedQueueId: receiptId,
+            content: "restore after outbox failure",
+            receiptState: "pending",
+          }),
+        ]),
+      );
+      expect(get.mock.calls.some(([url]) => url === "/conversations/c-1/queued-messages")).toBe(
+        true,
+      );
+    } finally {
+      socket.isConnected = true;
+    }
+  });
+
+  it("does not let an old outbox rejection complete the next conversation's load", async () => {
+    prepareConversation();
+    let rejectFirstOutbox!: (error: Error) => void;
+    let resolveSecondOutbox!: (rows: unknown[]) => void;
+    keptOutbox.mockImplementation((conversationId: string | null) => {
+      if (conversationId === "c-1")
+        return new Promise((_resolve, reject) => {
+          rejectFirstOutbox = reject;
+        });
+      return new Promise((resolve) => {
+        resolveSecondOutbox = resolve;
+      });
+    });
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-2/queued-messages"
+        ? Promise.resolve({ items: [], next_cursor: null })
+        : mockReceiptGetDefaults(url),
+    );
+    markConversationTranscriptLoaded();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(rejectFirstOutbox).toBeTypeOf("function"));
+
+    act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+    act(() =>
+      useChatStore.getState().rereadMessages([], {
+        conversationId: "c-2",
+        selectionVersion: useConversationStore.getState().selectionVersion,
+        accountId: "u-1",
+        tenantId: "org-1",
+      }),
+    );
+    await waitFor(() => expect(resolveSecondOutbox).toBeTypeOf("function"));
+
+    await act(async () => rejectFirstOutbox(new Error("the previous outbox read failed")));
+    expect(get.mock.calls.some(([url]) => url === "/conversations/c-2/queued-messages")).toBe(
+      false,
+    );
+
+    await act(async () => resolveSecondOutbox([]));
+    await waitFor(() =>
+      expect(get.mock.calls.some(([url]) => url === "/conversations/c-2/queued-messages")).toBe(
+        true,
+      ),
+    );
+    expect(result.current.queuedMessages).toEqual([]);
+  });
+
+  it("keeps receipt recovery pending when a previous connection's list read rejects", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174066";
+    const content = "wait for the current connection's receipt list";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "connection-recovery-row",
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content,
+      },
+    ]);
+    const receiptLists: Array<(page: unknown) => void> = [];
+    const rejectFirstReceiptList: Array<(error: Error) => void> = [];
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve, reject) => {
+            receiptLists.push(resolve);
+            rejectFirstReceiptList.push(reject);
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    markConversationTranscriptLoaded();
+    const wasConnected = socket.isConnected;
+
+    try {
+      const { result, rerender } = renderHook(
+        () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+        { wrapper },
+      );
+      await waitFor(() => expect(receiptLists).toHaveLength(1));
+      expect(result.current.queuedMessages[0]?.receiptReconciliationPending).toBe(true);
+
+      socket.isConnected = false;
+      await act(async () => rerender());
+      await waitFor(() => expect(receiptLists).toHaveLength(2));
+      await act(async () => rejectFirstReceiptList[0]!(new Error("connection dropped")));
+
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        id: "connection-recovery-row",
+        receiptReconciliationPending: true,
+      });
+      expect(result.current.queuedMessages[0]?.receiptErrorAction).toBeUndefined();
+      expect(result.current.queuedMessages[0]?.receiptError).toBeUndefined();
+
+      await act(async () =>
+        receiptLists[1]!({
+          items: [receiptForQueue(clientQueueId, receiptId, content)],
+          next_cursor: null,
+        }),
+      );
+      await waitFor(() => {
+        expect(result.current.queuedMessages[0]).toMatchObject({
+          acceptedQueueId: receiptId,
+        });
+        expect(result.current.queuedMessages[0]?.receiptReconciliationPending).toBeUndefined();
+        expect(result.current.queuedMessages[0]?.receiptErrorAction).toBeUndefined();
+        expect(result.current.queuedMessages[0]?.receiptError).toBeUndefined();
+      });
+    } finally {
+      socket.isConnected = wasConnected;
+    }
+  });
+
+  it.each(["conversation", "same-chat selection"] as const)(
+    "retries a pending acceptance after a newer %s scope loads while the old request is pending",
+    async (scopeChange) => {
+      prepareConversation();
+      const acceptanceResolvers: Array<(receipt: unknown) => void> = [];
+      const acceptancePayloads: Array<Record<string, unknown>> = [];
+      const restoredOutbox: { row?: Record<string, unknown>; reads: string[] } = { reads: [] };
+      keptOutbox.mockImplementation((conversationId: string | null = null) => {
+        restoredOutbox.reads.push(conversationId ?? "");
+        return Promise.resolve(
+          conversationId === "c-1" && restoredOutbox.row ? [restoredOutbox.row] : [],
+        );
+      });
+      post.mockImplementation((url: string, payload?: Record<string, unknown>) => {
+        if (url === "/conversations/c-1/queued-messages") {
+          acceptancePayloads.push(payload ?? {});
+          return new Promise((resolve) => acceptanceResolvers.push(resolve));
+        }
+        return Promise.resolve({});
+      });
+      socket.isConnected = true;
+      markConversationTranscriptLoaded();
+
+      try {
+        const { result } = renderHook(
+          () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+          { wrapper },
+        );
+        await waitFor(() => expect(restoredOutbox.reads).toContain("c-1"));
+
+        act(() => result.current.sendMessage("active turn"));
+        receive("model_request_start", {});
+        act(() => result.current.sendMessage("queued during scope reload"));
+        await waitFor(() => expect(acceptanceResolvers).toHaveLength(1));
+        const clientQueueId = acceptancePayloads[0]?.client_queue_id as string;
+        expect(clientQueueId).toBeTruthy();
+        socket.isConnected = false;
+
+        restoredOutbox.row = {
+          id: "queued-during-first-scope",
+          clientQueueId,
+          receiptConversationId: "c-1",
+          receiptState: "pending",
+          agentId: "agent-1",
+          content: "queued during scope reload",
+          queueSettings: { modelProfileId: null, approvalMode: "follow_agent" },
+          accepting: true,
+          receiptAcceptanceAttempted: true,
+        };
+        const previousC1Loads = restoredOutbox.reads.filter((id) => id === "c-1").length;
+        if (scopeChange === "conversation") {
+          act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+          await waitFor(() => expect(restoredOutbox.reads).toContain("c-2"));
+          act(() => useConversationStore.getState().setCurrentConversationId("c-1"));
+        } else {
+          act(() => useConversationStore.getState().setCurrentConversationId("c-1"));
+        }
+        act(() => markConversationTranscriptLoaded());
+
+        await waitFor(() =>
+          expect(restoredOutbox.reads.filter((id) => id === "c-1").length).toBeGreaterThan(
+            previousC1Loads,
+          ),
+        );
+        await waitFor(() => {
+          expect(acceptanceResolvers).toHaveLength(2);
+          expect(result.current.queuedMessages[0]).toMatchObject({
+            clientQueueId,
+            accepting: true,
+          });
+        });
+        expect(acceptancePayloads[1]?.client_queue_id).toBe(clientQueueId);
+        expect(result.current.queuedMessages[0]?.acceptedQueueId).toBeUndefined();
+
+        await act(async () =>
+          acceptanceResolvers[0]!(acceptedReceipt(acceptancePayloads[0] ?? {})),
+        );
+        expect(result.current.queuedMessages[0]).toMatchObject({
+          clientQueueId,
+          accepting: true,
+        });
+        expect(result.current.queuedMessages[0]?.acceptedQueueId).toBeUndefined();
+
+        await act(async () =>
+          acceptanceResolvers[1]!(acceptedReceipt(acceptancePayloads[1] ?? {})),
+        );
+        await waitFor(() =>
+          expect(result.current.queuedMessages[0]).toMatchObject({
+            clientQueueId,
+            acceptedQueueId: receiptId,
+            accepting: false,
+          }),
+        );
+      } finally {
+        socket.isConnected = true;
+      }
+    },
+  );
+
+  it("keeps a persisted acceptance blocked when receipt recovery is disabled", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174042";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "acceptance-outcome-unknown",
+        clientQueueId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "do not replay an unknown acceptance",
+        accepting: true,
+        receiptAcceptanceAttempted: true,
+      },
+    ]);
+    markConversationTranscriptLoaded();
+
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        clientQueueId,
+        accepting: true,
+        receiptAcceptanceAttempted: true,
+      }),
+    );
+    await waitPastQueueDrainDelay();
+
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      clientQueueId,
+      accepting: true,
+      receiptAcceptanceAttempted: true,
+    });
+    expect(post).not.toHaveBeenCalledWith("/conversations/c-1/queued-messages", expect.anything());
+    expect(
+      sent.mock.calls.some(([frame]) => frame.message === "do not replay an unknown acceptance"),
+    ).toBe(false);
+  });
+
+  it("does not retry receipt actions after receipt recovery is disabled", async () => {
+    prepareConversation();
+    const acceptanceClientId = "123e4567-e89b-42d3-a456-426614174061";
+    const sendClientId = "123e4567-e89b-42d3-a456-426614174062";
+    const sendReceiptId = "123e4567-e89b-42d3-a456-426614174063";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "disabled-accept-retry",
+        clientQueueId: acceptanceClientId,
+        receiptConversationId: "c-1",
+        agentId: "agent-1",
+        content: "acceptance is still uncertain",
+        queueSettings: { modelProfileId: null, approvalMode: "follow_agent" },
+        receiptAcceptanceAttempted: true,
+        receiptErrorAction: "accept",
+        receiptError: "previous acceptance was not confirmed",
+      },
+      {
+        id: "disabled-send-retry",
+        clientQueueId: sendClientId,
+        acceptedQueueId: sendReceiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "the previous send status is unknown",
+        queueSettings: { modelProfileId: null, approvalMode: "follow_agent" },
+        receiptErrorAction: "send",
+        receiptError: "previous receipt read failed",
+      },
+    ]);
+    const wasConnected = socket.isConnected;
+    socket.isConnected = false;
+    markConversationTranscriptLoaded();
+
+    try {
+      const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+      await waitFor(() => expect(result.current.queuedMessages).toHaveLength(2));
+
+      act(() => result.current.retryQueued("disabled-accept-retry"));
+      act(() => result.current.retryQueued("disabled-send-retry"));
+
+      expect(post.mock.calls.some(([url]) => url === "/conversations/c-1/queued-messages")).toBe(
+        false,
+      );
+      expect(get.mock.calls.some(([url]) => String(url).endsWith(`/${sendReceiptId}`))).toBe(false);
+      expect(result.current.queuedMessages).toEqual([
+        expect.objectContaining({
+          id: "disabled-accept-retry",
+          accepting: false,
+          receiptErrorAction: undefined,
+          receiptError: undefined,
+        }),
+        expect.objectContaining({
+          id: "disabled-send-retry",
+          receiptErrorAction: "send",
+          receiptError: "previous receipt read failed",
+        }),
+      ]);
+    } finally {
+      socket.isConnected = wasConnected;
+    }
+  });
+
+  it("allows cancelling a stale persisted transfer when receipt recovery is disabled", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174043";
+    const content = "cancel the interrupted transfer";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: clientQueueId,
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content,
+        transferring: true,
+      },
+    ]);
+    del.mockResolvedValueOnce({
+      ...receiptForQueue(clientQueueId, receiptId, content),
+      state: "cancelled",
+    });
+    markConversationTranscriptLoaded();
+
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        acceptedQueueId: receiptId,
+        transferring: false,
+        receiptReconciliationPending: true,
+      }),
+    );
+    await waitPastQueueDrainDelay();
+    expect(sent.mock.calls.some(([frame]) => frame.message === content)).toBe(false);
+
+    await act(async () => result.current.cancelQueued(clientQueueId));
+    expect(del).toHaveBeenCalledWith(`/conversations/c-1/queued-messages/${receiptId}`);
+    await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+  });
+
+  it("keeps an in-flight cancellation intent through a recovery-list merge", async () => {
+    prepareConversation();
+    mockAcceptance();
+    let resolveAcceptance!: (receipt: unknown) => void;
+    let acceptancePayload: Record<string, unknown> | undefined;
+    post.mockImplementation((url: string, payload?: Record<string, unknown>) => {
+      if (url === "/conversations/c-1/queued-messages") {
+        acceptancePayload = payload;
+        return new Promise((resolve) => {
+          resolveAcceptance = resolve;
+        });
+      }
+      return Promise.resolve({});
+    });
+    const receiptLists: Array<(page: unknown) => void> = [];
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => receiptLists.push(resolve))
+        : mockReceiptGetDefaults(url),
+    );
+    markConversationTranscriptLoaded();
+
+    try {
+      const { result, rerender } = renderHook(
+        () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+        { wrapper },
+      );
+      await waitFor(() => expect(receiptLists).toHaveLength(1));
+
+      act(() => result.current.sendMessage("active turn"));
+      receive("model_request_start", {});
+      act(() => result.current.sendMessage("cancel while acceptance is in flight"));
+      await waitFor(() => expect(resolveAcceptance).toBeTypeOf("function"));
+      const clientQueueId = acceptancePayload?.client_queue_id as string;
+      const queued = result.current.queuedMessages[0]!;
+      await act(async () => result.current.cancelQueued(queued.id));
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        cancelRequested: true,
+        accepting: true,
+      });
+
+      socket.isConnected = false;
+      rerender();
+      await waitFor(() => expect(receiptLists).toHaveLength(2));
+      await act(async () => {
+        receiptLists[1]!({
+          items: [
+            receiptForQueue(clientQueueId, receiptId, "cancel while acceptance is in flight"),
+          ],
+          next_cursor: null,
+        });
+      });
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        accepting: true,
+        cancelRequested: true,
+      });
+      expect(result.current.queuedMessages[0]?.acceptedQueueId).toBeUndefined();
+
+      del.mockResolvedValueOnce({
+        ...receiptForQueue(clientQueueId, receiptId, "cancel while acceptance is in flight"),
+        state: "cancelled",
+      });
+      await act(async () => resolveAcceptance(acceptedReceipt(acceptancePayload ?? {})));
+      await waitFor(() =>
+        expect(del).toHaveBeenCalledWith(`/conversations/c-1/queued-messages/${receiptId}`),
+      );
+      await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+
+      await act(async () => {
+        receiptLists[0]!({
+          items: [
+            receiptForQueue(clientQueueId, receiptId, "cancel while acceptance is in flight"),
+          ],
+          next_cursor: null,
+        });
+      });
+      expect(result.current.queuedMessages).toEqual([]);
+    } finally {
+      socket.isConnected = true;
+    }
+  });
+
+  it("keeps Send now on the same receipt until a receipt-correlated applied ack", async () => {
+    prepareConversation();
+    mockAcceptance();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("use the reviewed figures"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+
+    const queued = result.current.queuedMessages[0]!;
+    act(() => result.current.sendQueuedNow(queued.id));
+    expect(
+      sent.mock.calls.filter(([value]) => (value as Record<string, unknown>).type === "steer"),
+    ).toHaveLength(1);
+    expect(sent.mock.calls.at(-1)?.[0]).toEqual({
+      type: "steer",
+      text: "use the reviewed figures",
+      accepted_queue_id: receiptId,
+    });
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      id: queued.id,
+      receiptState: "pending",
+      transferring: true,
+    });
+    act(() => result.current.sendQueuedNow(queued.id));
+    expect(
+      sent.mock.calls.filter(([value]) => (value as Record<string, unknown>).type === "steer"),
+    ).toHaveLength(1);
+
+    receive("steer_claimed", { accepted_queue_id: receiptId, run_id: "run-1" });
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      acceptedQueueId: receiptId,
+      receiptState: "steering",
+      steeringRunId: "run-1",
+    });
+    receive("steer_applied", {
+      accepted_queue_id: receiptId,
+      run_id: "run-1",
+      text: "Use the checked figures",
+    });
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(
+      useChatStore
+        .getState()
+        .messages.flatMap((message) => message.parts ?? [])
+        .filter((part) => part.id === `accepted-steer:${receiptId}`),
+    ).toHaveLength(1);
+
+    // A replay acknowledgement has identity only and cannot add raw receipt text.
+    receive("steer_applied", { accepted_queue_id: receiptId, run_id: "run-1" });
+    expect(
+      useChatStore
+        .getState()
+        .messages.flatMap((message) => message.parts ?? [])
+        .filter((part) => part.id === `accepted-steer:${receiptId}`),
+    ).toHaveLength(1);
+  });
+
+  it("uses only the screened text when an identity-only applied ack arrives first", async () => {
+    prepareConversation();
+    mockAcceptance();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("raw queued words"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    const queued = result.current.queuedMessages[0]!;
+    act(() => result.current.sendQueuedNow(queued.id));
+    receive("steer_claimed", { accepted_queue_id: receiptId, run_id: "run-1" });
+    receive("steer_applied", { accepted_queue_id: receiptId, run_id: "run-1" });
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(
+      useChatStore
+        .getState()
+        .messages.flatMap((message) => message.parts ?? [])
+        .some((part) => part.type === "steer"),
+    ).toBe(false);
+
+    receive("steer_applied", {
+      accepted_queue_id: receiptId,
+      run_id: "run-1",
+      text: "screened words",
+    });
+    receive("steer_applied", {
+      accepted_queue_id: receiptId,
+      run_id: "run-1",
+      text: "screened words",
+    });
+
+    const applied = useChatStore
+      .getState()
+      .messages.flatMap((message) => message.parts ?? [])
+      .filter((part) => part.id === `accepted-steer:${receiptId}`);
+    expect(applied).toEqual([
+      expect.objectContaining({ type: "steer", content: "screened words" }),
+    ]);
+  });
+
+  it("reconciles a lost Send now acknowledgement before it can be retried", async () => {
+    prepareConversation();
+    mockAcceptance();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("keep the same receipt"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    const queued = result.current.queuedMessages[0]!;
+    act(() => result.current.sendQueuedNow(queued.id));
+    get.mockImplementation((url: string) =>
+      url.endsWith(`/${receiptId}`)
+        ? Promise.resolve({
+            ...acceptedReceipt({
+              client_queue_id: queued.clientQueueId,
+              agent_id: "agent-1",
+              content: queued.content,
+              file_ids: [],
+              mentions: [],
+              reply_to_message_id: null,
+              reply_to_excerpt: null,
+              page_context: null,
+              local_target: null,
+            }),
+            state: "steering",
+            steering_run_id: "run-1",
+          })
+        : mockReceiptGetDefaults(url),
+    );
+
+    receive("error", {
+      message: "The running task has already ended",
+      code: "no_active_run",
+      accepted_queue_id: receiptId,
+    });
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        receiptState: "steering",
+        steeringRunId: "run-1",
+        transferring: false,
+      }),
+    );
+    expect(
+      sent.mock.calls.filter(([value]) => (value as Record<string, unknown>).type === "steer"),
+    ).toHaveLength(1);
+  });
+
+  it("releases a lost steer claim for receipt recovery after the socket drops", async () => {
+    prepareConversation();
+    keptOutbox.mockResolvedValueOnce([]);
+    markConversationTranscriptLoaded();
+    mockAcceptance();
+    let listCalls = 0;
+    let resolveRecovery!: (page: unknown) => void;
+    get.mockImplementation((url: string) => {
+      if (url === "/conversations/c-1/queued-messages") {
+        listCalls += 1;
+        return listCalls === 1
+          ? Promise.resolve({ items: [], next_cursor: null })
+          : new Promise((resolve) => {
+              resolveRecovery = resolve;
+            });
+      }
+      return mockReceiptGetDefaults(url);
+    });
+
+    const { result, rerender } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(listCalls).toBe(1));
+    await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+
+    act(() => result.current.sendMessage("draft the report"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("the same accepted steer"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    const queued = result.current.queuedMessages[0]!;
+    act(() => result.current.sendQueuedNow(queued.id));
+    expect(result.current.queuedMessages[0]).toMatchObject({ transferring: true });
+    expect(
+      sent.mock.calls.filter(([value]) => (value as Record<string, unknown>).type === "steer"),
+    ).toHaveLength(1);
+
+    socket.isConnected = false;
+    await act(async () => rerender());
+    await waitFor(() => expect(resolveRecovery).toBeTypeOf("function"));
+    await act(async () =>
+      resolveRecovery({
+        items: [
+          {
+            ...receiptForQueue(
+              queued.clientQueueId!,
+              receiptId,
+              "the same accepted steer",
+              "steering",
+            ),
+            steering_run_id: "run-1",
+          },
+        ],
+        next_cursor: null,
+      }),
+    );
+
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        acceptedQueueId: receiptId,
+        receiptState: "steering",
+        steeringRunId: "run-1",
+        transferring: false,
+      }),
+    );
+    expect(
+      sent.mock.calls.filter(([value]) => (value as Record<string, unknown>).type === "steer"),
+    ).toHaveLength(1);
+  });
+
+  it("removes a never-submitted missing-agent row locally instead of retrying acceptance", async () => {
+    prepareConversation(null);
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("cannot freeze an agent yet"));
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]?.receiptErrorAction).toBe("accept"),
+    );
+    const queued = result.current.queuedMessages[0]!;
+
+    await act(async () => result.current.cancelQueued(queued.id));
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(post).not.toHaveBeenCalledWith("/conversations/c-1/queued-messages", expect.anything());
+  });
+
+  it("removes a never-submitted settings-unsupported row without retrying acceptance", async () => {
+    prepareConversation();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.setModelProfile("custom-profile"));
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("queued with an unsupported model override"));
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        receiptUnsupported: true,
+        receiptErrorAction: "accept",
+      }),
+    );
+    const queued = result.current.queuedMessages[0]!;
+
+    await act(async () => result.current.cancelQueued(queued.id));
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(post).not.toHaveBeenCalledWith("/conversations/c-1/queued-messages", expect.anything());
+  });
+
+  it("returns the server task conversation for navigation and removes only a confirmed task", async () => {
+    prepareConversation();
+    mockAcceptance();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("turn this into a task"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    post.mockResolvedValueOnce({ id: "task-1", conversation_id: "task-topic-1", status: "queued" });
+
+    let topic: string | null = null;
+    await act(async () => {
+      topic = await result.current.runQueuedAsTask(result.current.queuedMessages[0]!.id);
+    });
+
+    expect(topic).toBe("task-topic-1");
+    expect(result.current.queuedMessages).toEqual([]);
+  });
+
+  it("does not restore a task-transferred row from a stale receipt list", async () => {
+    prepareConversation();
+    keptOutbox.mockResolvedValueOnce([]);
+    mockAcceptance();
+    let resolveReceipts!: (page: unknown) => void;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            resolveReceipts = resolve;
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    markConversationTranscriptLoaded();
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(resolveReceipts).toBeTypeOf("function"));
+
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("move to a task"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    const queued = result.current.queuedMessages[0]!;
+    const clientQueueId = queued.clientQueueId!;
+    expect(clientQueueId).toBeTruthy();
+    post.mockImplementation((url: string, payload?: Record<string, unknown>) =>
+      url.endsWith(`/queued-messages/${receiptId}/run-as-task`)
+        ? Promise.resolve({ id: "task-1", conversation_id: "task-topic-1", status: "queued" })
+        : url === "/conversations/c-1/queued-messages"
+          ? Promise.resolve(acceptedReceipt(payload ?? {}))
+          : Promise.resolve({}),
+    );
+
+    let topic: string | null = null;
+    await act(async () => {
+      topic = await result.current.runQueuedAsTask(queued.id);
+    });
+    expect(topic).toBe("task-topic-1");
+    expect(result.current.queuedMessages).toEqual([]);
+
+    await act(async () => {
+      resolveReceipts({
+        items: [receiptForQueue(clientQueueId, receiptId, "move to a task")],
+        next_cursor: null,
+      });
+    });
+
+    expect(result.current.queuedMessages).toEqual([]);
+  });
+
+  it.each(["account", "organization", "selection"] as const)(
+    "does not return a stale task topic when %s changes before the response settles",
+    async (boundary) => {
+      prepareConversation();
+      mockAcceptance();
+      const { result } = renderHook(
+        () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+        { wrapper },
+      );
+      act(() => result.current.sendMessage("active turn"));
+      receive("model_request_start", {});
+      act(() => result.current.sendMessage("move this into a task"));
+      await waitFor(() =>
+        expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId),
+      );
+
+      let resolveTask!: (task: { id: string; conversation_id: string; status: string }) => void;
+      post.mockImplementation((url: string, payload?: Record<string, unknown>) => {
+        if (url === "/conversations/c-1/queued-messages")
+          return Promise.resolve(acceptedReceipt(payload ?? {}));
+        if (url.endsWith(`/queued-messages/${receiptId}/run-as-task`))
+          return new Promise((resolve) => {
+            resolveTask = resolve;
+          });
+        return Promise.resolve({});
+      });
+
+      let outcome: string | null = null;
+      let taskRequest!: Promise<string | null>;
+      await act(async () => {
+        taskRequest = result.current.runQueuedAsTask(result.current.queuedMessages[0]!.id);
+      });
+      await waitFor(() => expect(resolveTask).toBeTypeOf("function"));
+      await act(async () => {
+        if (boundary === "account") useAuthStore.setState({ user: { id: "u-2" } as never });
+        else if (boundary === "organization") useOrgStore.setState({ activeOrgId: "org-2" });
+        else {
+          useConversationStore.getState().setCurrentConversationId("c-2");
+          useConversationStore.getState().setCurrentConversationId("c-1");
+        }
+        resolveTask({ id: "task-1", conversation_id: "task-topic-old", status: "queued" });
+        outcome = await taskRequest;
+      });
+
+      expect(outcome).toBeNull();
+    },
+  );
+
+  it("recovers an accepted row from the receipt list after its POST response is lost", async () => {
+    prepareConversation();
+    const content = "recover the accepted row";
+    let acceptancePayload: Record<string, unknown> | undefined;
+    post.mockImplementation((url: string, payload?: Record<string, unknown>) => {
+      if (url === "/conversations/c-1/queued-messages") {
+        acceptancePayload = payload;
+        return Promise.reject(new Error("accept response lost"));
+      }
+      return Promise.resolve({});
+    });
+    get.mockImplementation((url: string) => {
+      if (url !== "/conversations/c-1/queued-messages") return mockReceiptGetDefaults(url);
+      const clientQueueId = acceptancePayload?.client_queue_id;
+      return Promise.resolve({
+        items:
+          typeof clientQueueId === "string"
+            ? [receiptForQueue(clientQueueId, receiptId, content)]
+            : [],
+        next_cursor: null,
+      });
+    });
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage(content));
+
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        content,
+        acceptedQueueId: receiptId,
+        receiptState: "pending",
+        clientQueueId: acceptancePayload?.client_queue_id,
+      }),
+    );
+    expect(result.current.queuedMessages).toHaveLength(1);
+    expect(acceptancePayload?.client_queue_id).toBeTruthy();
+    expect(
+      post.mock.calls.filter(([url]) => url === "/conversations/c-1/queued-messages"),
+    ).toHaveLength(1);
+  });
+
+  it("retries an unconfirmed acceptance with its original client id", async () => {
+    prepareConversation();
+    const content = "retry the unconfirmed acceptance";
+    const acceptancePayloads: Array<Record<string, unknown>> = [];
+    post.mockImplementation((url: string, payload?: Record<string, unknown>) => {
+      if (url === "/conversations/c-1/queued-messages") {
+        acceptancePayloads.push(payload ?? {});
+        return Promise.reject(new Error("accept unavailable"));
+      }
+      return Promise.resolve({});
+    });
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({ items: [], next_cursor: null })
+        : mockReceiptGetDefaults(url),
+    );
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage(content));
+
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        content,
+        accepting: false,
+        receiptErrorAction: "accept",
+      }),
+    );
+    const queued = result.current.queuedMessages[0]!;
+    const clientQueueId = queued.clientQueueId!;
+    expect(acceptancePayloads).toHaveLength(2);
+
+    post.mockImplementation((url: string, payload?: Record<string, unknown>) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve(acceptedReceipt(payload ?? {}))
+        : Promise.resolve({}),
+    );
+    act(() => result.current.retryQueued(queued.id));
+
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        accepting: false,
+        receiptErrorAction: undefined,
+      }),
+    );
+    expect(
+      post.mock.calls
+        .filter(([url]) => url === "/conversations/c-1/queued-messages")
+        .map(([, payload]) => (payload as Record<string, unknown>).client_queue_id),
+    ).toEqual([clientQueueId, clientQueueId, clientQueueId]);
+  });
+
+  it("shares an acceptance lock for duplicate outbox ids and ignores the response after clear", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174064";
+    const queueSettings = { modelProfileId: null, approvalMode: "follow_agent" } as const;
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "duplicate-outbox-row-a",
+        clientQueueId,
+        receiptConversationId: "c-1",
+        agentId: "agent-1",
+        content: "the first persisted copy",
+        queueSettings,
+        receiptAcceptanceAttempted: true,
+        receiptErrorAction: "accept",
+        receiptError: "acceptance was not confirmed",
+      },
+      {
+        id: "duplicate-outbox-row-b",
+        clientQueueId,
+        receiptConversationId: "c-1",
+        agentId: "agent-1",
+        content: "a duplicate persisted copy",
+        queueSettings,
+        receiptAcceptanceAttempted: true,
+        receiptErrorAction: "accept",
+        receiptError: "acceptance was not confirmed",
+      },
+    ]);
+    let resolveAcceptance!: (receipt: unknown) => void;
+    let acceptancePayload: Record<string, unknown> | undefined;
+    post.mockImplementation((url: string, payload?: Record<string, unknown>) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            acceptancePayload = payload;
+            resolveAcceptance = resolve;
+          })
+        : Promise.resolve({}),
+    );
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({ items: [], next_cursor: null })
+        : mockReceiptGetDefaults(url),
+    );
+    markConversationTranscriptLoaded();
+    let renderCount = 0;
+    const { result } = renderHook(
+      () => {
+        const chat = useChat({ conversationId: "c-1", queueReceiptsEnabled: true });
+        // A synchronous recovery loop must fail this regression instead of hanging the worker.
+        if (++renderCount > 100) throw new Error("Duplicate receipt acceptance did not settle");
+        return chat;
+      },
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(2));
+
+    act(() => result.current.retryQueued("duplicate-outbox-row-a"));
+    await waitFor(() => expect(resolveAcceptance).toBeTypeOf("function"));
+    act(() => result.current.retryQueued("duplicate-outbox-row-b"));
+
+    expect(
+      post.mock.calls.filter(([url]) => url === "/conversations/c-1/queued-messages"),
+    ).toHaveLength(1);
+    expect(result.current.queuedMessages).toEqual([
+      expect.objectContaining({ id: "duplicate-outbox-row-a", accepting: true }),
+      expect.objectContaining({ id: "duplicate-outbox-row-b", accepting: false }),
+    ]);
+
+    act(() => result.current.clearQueued());
+    await act(async () => {
+      resolveAcceptance(acceptedReceipt(acceptancePayload ?? {}));
+      await Promise.resolve();
+    });
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(
+      post.mock.calls.filter(([url]) => url === "/conversations/c-1/queued-messages"),
+    ).toHaveLength(1);
+  });
+
+  it("continues a cancellation after retrying an unconfirmed acceptance", async () => {
+    prepareConversation();
+    const content = "cancel after acceptance retry";
+    const acceptancePayloads: Array<Record<string, unknown>> = [];
+    post.mockImplementation((url: string, payload?: Record<string, unknown>) => {
+      if (url === "/conversations/c-1/queued-messages") {
+        acceptancePayloads.push(payload ?? {});
+        return acceptancePayloads.length < 3
+          ? Promise.reject(new Error("accept unavailable"))
+          : Promise.resolve(acceptedReceipt(payload ?? {}));
+      }
+      return Promise.resolve({});
+    });
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({ items: [], next_cursor: null })
+        : mockReceiptGetDefaults(url),
+    );
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage(content));
+
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        accepting: false,
+        receiptErrorAction: "accept",
+      }),
+    );
+    const queued = result.current.queuedMessages[0]!;
+    const clientQueueId = queued.clientQueueId!;
+    del.mockResolvedValueOnce({
+      ...receiptForQueue(clientQueueId, receiptId, content),
+      state: "cancelled",
+    });
+
+    await act(async () => result.current.cancelQueued(queued.id));
+
+    await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+    expect(acceptancePayloads.map((payload) => payload.client_queue_id)).toEqual([
+      clientQueueId,
+      clientQueueId,
+      clientQueueId,
+    ]);
+    expect(del).toHaveBeenCalledWith(`/conversations/c-1/queued-messages/${receiptId}`);
+  });
+
+  it("keeps a cancellation retryable when acceptance is confirmed but deletion is not", async () => {
+    prepareConversation();
+    const content = "cancel after the acceptance response arrives";
+    let resolveAcceptance!: (receipt: unknown) => void;
+    let acceptancePayload: Record<string, unknown> | undefined;
+    post.mockImplementation((url: string, payload?: Record<string, unknown>) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            acceptancePayload = payload;
+            resolveAcceptance = resolve;
+          })
+        : Promise.resolve({}),
+    );
+    get.mockImplementation((url: string) =>
+      url.endsWith(`/${receiptId}`)
+        ? Promise.resolve(
+            receiptForQueue(String(acceptancePayload?.client_queue_id), receiptId, content),
+          )
+        : mockReceiptGetDefaults(url),
+    );
+    del.mockRejectedValueOnce(new Error("cancel response was lost"));
+    markConversationTranscriptLoaded();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage(content));
+    await waitFor(() => expect(resolveAcceptance).toBeTypeOf("function"));
+    const queued = result.current.queuedMessages[0]!;
+    expect(acceptancePayload?.client_queue_id).toEqual(expect.any(String));
+    expect(acceptancePayload?.client_queue_id).toBe(queued.clientQueueId);
+
+    await act(async () => result.current.cancelQueued(queued.id));
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      accepting: true,
+      cancelRequested: true,
+    });
+
+    await act(async () => {
+      resolveAcceptance(acceptedReceipt(acceptancePayload ?? {}));
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(del).toHaveBeenCalledWith(`/conversations/c-1/queued-messages/${receiptId}`),
+    );
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        id: queued.id,
+        acceptedQueueId: receiptId,
+        receiptState: "pending",
+        transferring: false,
+        cancelRequested: false,
+        receiptReconciliationPending: undefined,
+        receiptErrorAction: "cancel",
+        receiptError: expect.any(String),
+        transferErrorAction: "cancel",
+        transferError: expect.any(String),
+      }),
+    );
+  });
+
+  it("does not apply a delayed accept-cancel response after switching conversations", async () => {
+    prepareConversation();
+    const content = "cancel the accepted row in the previous conversation";
+    const nextConversationContent = "keep the next conversation's row";
+    let acceptancePayload: Record<string, unknown> | undefined;
+    let resolveAcceptance!: (receipt: unknown) => void;
+    let resolveCancel!: (receipt: unknown) => void;
+    post.mockImplementation((url: string, payload?: Record<string, unknown>) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            acceptancePayload = payload;
+            resolveAcceptance = resolve;
+          })
+        : Promise.resolve({}),
+    );
+    del.mockImplementation(() => new Promise((resolve) => (resolveCancel = resolve)));
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-2/queued-messages"
+        ? Promise.resolve({ items: [], next_cursor: null })
+        : mockReceiptGetDefaults(url),
+    );
+    markConversationTranscriptLoaded();
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage(content));
+    await waitFor(() => expect(resolveAcceptance).toBeTypeOf("function"));
+
+    const previousRow = result.current.queuedMessages[0]!;
+    expect(acceptancePayload?.client_queue_id).toEqual(expect.any(String));
+    expect(acceptancePayload?.client_queue_id).toBe(previousRow.clientQueueId);
+    const previousRowId = previousRow.id;
+    const nextConversationRow = () => ({
+      id: previousRowId,
+      clientQueueId: "123e4567-e89b-42d3-a456-426614174071",
+      receiptConversationId: "c-2",
+      agentId: "agent-1",
+      content: nextConversationContent,
+      queueSettings: { modelProfileId: null, approvalMode: "follow_agent" },
+      receiptErrorAction: "accept" as const,
+      receiptError: "this conversation's earlier acceptance was not confirmed",
+    });
+    keptOutbox.mockImplementation((conversationId: string | null) =>
+      Promise.resolve(conversationId === "c-2" ? [nextConversationRow()] : []),
+    );
+    await act(async () => result.current.cancelQueued(previousRow.id));
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      id: previousRow.id,
+      accepting: true,
+      cancelRequested: true,
+    });
+
+    await act(async () => {
+      resolveAcceptance(acceptedReceipt(acceptancePayload ?? {}));
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(del).toHaveBeenCalledWith(`/conversations/c-1/queued-messages/${receiptId}`),
+    );
+
+    act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+    await waitFor(() =>
+      expect(result.current.queuedMessages).toEqual([
+        expect.objectContaining(nextConversationRow()),
+      ]),
+    );
+
+    await act(async () => {
+      resolveCancel({
+        ...receiptForQueue(String(acceptancePayload?.client_queue_id), receiptId, content),
+        state: "cancelled",
+      });
+      await Promise.resolve();
+    });
+
+    expect(result.current.queuedMessages).toEqual([expect.objectContaining(nextConversationRow())]);
+    expect(result.current.queuedMessages[0]?.transferring).toBeUndefined();
+    expect(result.current.queuedMessages[0]?.cancelRequested).toBeUndefined();
+  });
+
+  it("keeps cancellation uncertainty visible and retries through both error paths", async () => {
+    prepareConversation();
+    mockAcceptance();
+    const content = "cancel with uncertain outcome";
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage(content));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    const queued = result.current.queuedMessages[0]!;
+    get.mockImplementation((url: string) =>
+      url.endsWith(`/${receiptId}`)
+        ? Promise.reject(new Error("receipt read unavailable"))
+        : mockReceiptGetDefaults(url),
+    );
+    del.mockRejectedValueOnce(new Error("cancel response lost"));
+
+    await act(async () => result.current.cancelQueued(queued.id));
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        acceptedQueueId: receiptId,
+        transferring: false,
+        cancelRequested: false,
+        receiptErrorAction: "cancel",
+        transferErrorAction: "cancel",
+      }),
+    );
+
+    del.mockResolvedValueOnce(receiptForQueue(queued.clientQueueId!, receiptId, content));
+    act(() => result.current.retryQueued(queued.id));
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        acceptedQueueId: receiptId,
+        transferring: false,
+        receiptErrorAction: undefined,
+        transferErrorAction: "cancel",
+      }),
+    );
+
+    del.mockResolvedValueOnce({
+      ...receiptForQueue(queued.clientQueueId!, receiptId, content),
+      state: "cancelled",
+    });
+    act(() => result.current.retryQueued(queued.id));
+    await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+    expect(del).toHaveBeenCalledTimes(3);
+  });
+
+  it("reconciles a failed receipt retry and ignores a late response after clear", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174044";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "retry-receipt",
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "recover send status",
+        receiptErrorAction: "send",
+        receiptError: "previous send status was unknown",
+      },
+    ]);
+    let receiptReads = 0;
+    let resolveReceipt!: (receipt: unknown) => void;
+    get.mockImplementation((url: string) => {
+      if (url.endsWith(`/${receiptId}`)) {
+        receiptReads += 1;
+        return receiptReads === 1
+          ? Promise.reject(new Error("status read failed"))
+          : new Promise((resolve) => {
+              resolveReceipt = resolve;
+            });
+      }
+      return mockReceiptGetDefaults(url);
+    });
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.queuedMessages[0]?.id).toBe("retry-receipt"));
+
+    act(() => result.current.retryQueued("retry-receipt"));
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        transferring: false,
+        receiptErrorAction: "send",
+        receiptError: expect.any(String),
+      }),
+    );
+
+    act(() => result.current.retryQueued("retry-receipt"));
+    await waitFor(() => expect(resolveReceipt).toBeTypeOf("function"));
+    expect(result.current.queuedMessages[0]).toMatchObject({ transferring: true });
+    act(() => result.current.retryQueued("retry-receipt"));
+    expect(receiptReads).toBe(2);
+
+    act(() => result.current.clearQueued());
+    await act(async () =>
+      resolveReceipt(receiptForQueue(clientQueueId, receiptId, "recover send status")),
+    );
+    expect(result.current.queuedMessages).toEqual([]);
+  });
+
+  it.each(["resolve", "reject"] as const)(
+    "ignores a manual receipt reconciliation that finishes after leaving its chat (%s)",
+    async (outcome) => {
+      prepareConversation();
+      const clientQueueId = "123e4567-e89b-42d3-a456-426614174065";
+      const content = "keep this receipt in its original chat";
+      keptOutbox.mockResolvedValueOnce([
+        {
+          id: "manual-reconcile-scope-row",
+          clientQueueId,
+          acceptedQueueId: receiptId,
+          receiptConversationId: "c-1",
+          receiptState: "pending",
+          agentId: "agent-1",
+          content,
+        },
+      ]);
+      let resolveReceipt!: (receipt: unknown) => void;
+      let rejectReceipt!: (error: Error) => void;
+      get.mockImplementation((url: string) => {
+        if (url === "/conversations/c-1/queued-messages")
+          return Promise.resolve({
+            items: [receiptForQueue(clientQueueId, receiptId, content)],
+            next_cursor: null,
+          });
+        if (url.endsWith(`/${receiptId}`))
+          return new Promise((resolve, reject) => {
+            resolveReceipt = resolve;
+            rejectReceipt = reject;
+          });
+        return mockReceiptGetDefaults(url);
+      });
+      markConversationTranscriptLoaded();
+      const { result } = renderHook(
+        () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+        { wrapper },
+      );
+      await waitFor(() =>
+        expect(result.current.queuedMessages[0]).toMatchObject({
+          acceptedQueueId: receiptId,
+          receiptReconciliationPending: undefined,
+        }),
+      );
+
+      receive("error", {
+        message: "the prior steer acknowledgement was lost",
+        code: "no_active_run",
+        accepted_queue_id: receiptId,
+      });
+      await waitFor(() => expect(resolveReceipt).toBeTypeOf("function"));
+      expect(result.current.queuedMessages[0]?.transferring).toBe(true);
+      act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+      await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+
+      if (outcome === "resolve") {
+        await act(async () => resolveReceipt(receiptForQueue(clientQueueId, receiptId, content)));
+      } else {
+        await act(async () => rejectReceipt(new Error("the old chat is no longer selected")));
+      }
+
+      expect(result.current.queuedMessages).toEqual([]);
+    },
+  );
+
+  it("does not steer until acceptance is confirmed and restores a refused steer frame", async () => {
+    prepareConversation();
+    const content = "send this accepted correction";
+    let resolveAcceptance!: (receipt: unknown) => void;
+    let acceptancePayload: Record<string, unknown> | undefined;
+    post.mockImplementation((url: string, payload?: Record<string, unknown>) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            acceptancePayload = payload;
+            resolveAcceptance = resolve;
+          })
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage(content));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.accepting).toBe(true));
+    const queued = result.current.queuedMessages[0]!;
+
+    act(() => result.current.sendQueuedNow(queued.id));
+    expect(sent).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolveAcceptance(acceptedReceipt(acceptancePayload ?? {})));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    sent.mockReturnValueOnce(false);
+    act(() => result.current.sendQueuedNow(queued.id));
+    expect(sent.mock.calls.at(-1)?.[0]).toEqual({
+      type: "steer",
+      text: content,
+      accepted_queue_id: receiptId,
+    });
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      id: queued.id,
+      acceptedQueueId: receiptId,
+      transferring: false,
+    });
+
+    act(() => result.current.sendQueuedNow(queued.id));
+    expect(sent.mock.calls.at(-1)?.[0]).toEqual({
+      type: "steer",
+      text: content,
+      accepted_queue_id: receiptId,
+    });
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      id: queued.id,
+      acceptedQueueId: receiptId,
+      transferring: true,
+    });
+  });
+
+  it("does not cancel a receipt owned by another conversation", async () => {
+    prepareConversation();
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "other-chat-row",
+        clientQueueId: "123e4567-e89b-42d3-a456-426614174045",
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-other",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "belongs to another conversation",
+      },
+    ]);
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.queuedMessages[0]?.id).toBe("other-chat-row"));
+
+    await act(async () => result.current.cancelQueued("other-chat-row"));
+
+    expect(del).not.toHaveBeenCalled();
+    expect(result.current.queuedMessages).toMatchObject([
+      { id: "other-chat-row", receiptConversationId: "c-other", acceptedQueueId: receiptId },
+    ]);
+  });
+
+  it("does not apply a cancel response after switching conversations", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174067";
+    const content = "cancel in the chat that owns this receipt";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "cancel-scope-row",
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content,
+      },
+    ]);
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({
+            items: [receiptForQueue(clientQueueId, receiptId, content)],
+            next_cursor: null,
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    let resolveCancel!: (receipt: unknown) => void;
+    del.mockImplementation(() => new Promise((resolve) => (resolveCancel = resolve)));
+    markConversationTranscriptLoaded();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        id: "cancel-scope-row",
+        receiptReconciliationPending: undefined,
+      }),
+    );
+
+    let cancelRequest!: Promise<void>;
+    act(() => {
+      cancelRequest = result.current.cancelQueued("cancel-scope-row");
+    });
+    await waitFor(() => expect(resolveCancel).toBeTypeOf("function"));
+    expect(result.current.queuedMessages[0]).toMatchObject({ transferring: true });
+    act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+    await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+
+    await act(async () => {
+      resolveCancel({
+        ...receiptForQueue(clientQueueId, receiptId, content),
+        state: "cancelled",
+      });
+      await cancelRequest;
+    });
+
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(del).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps one cancel request when a delayed steer frame clears its transfer flag", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174068";
+    const content = "cancel while a stale steer frame arrives";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "cancel-lock-row",
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content,
+      },
+    ]);
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({
+            items: [receiptForQueue(clientQueueId, receiptId, content)],
+            next_cursor: null,
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    let resolveCancel!: (receipt: unknown) => void;
+    del.mockImplementation(() => new Promise((resolve) => (resolveCancel = resolve)));
+    markConversationTranscriptLoaded();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        acceptedQueueId: receiptId,
+        receiptReconciliationPending: undefined,
+      }),
+    );
+
+    let cancelRequest!: Promise<void>;
+    act(() => {
+      cancelRequest = result.current.cancelQueued("cancel-lock-row");
+    });
+    await waitFor(() => expect(resolveCancel).toBeTypeOf("function"));
+    await act(async () => result.current.cancelQueued("cancel-lock-row"));
+    expect(del).toHaveBeenCalledTimes(1);
+
+    receive("steer_unapplied", { accepted_queue_id: receiptId });
+    expect(result.current.queuedMessages[0]).toMatchObject({ transferring: false });
+    await act(async () => result.current.cancelQueued("cancel-lock-row"));
+    expect(del).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveCancel({
+        ...receiptForQueue(clientQueueId, receiptId, content),
+        state: "cancelled",
+      });
+      await cancelRequest;
+    });
+    expect(result.current.queuedMessages).toEqual([]);
+  });
+
+  it("keeps a task-transfer error retryable and preserves the pending receipt", async () => {
+    prepareConversation();
+    mockAcceptance();
+    const content = "retry this task transfer";
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage(content));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    const queued = result.current.queuedMessages[0]!;
+    get.mockImplementation((url: string) =>
+      url.endsWith(`/${receiptId}`)
+        ? Promise.resolve(receiptForQueue(queued.clientQueueId!, receiptId, content))
+        : mockReceiptGetDefaults(url),
+    );
+    post.mockImplementation((url: string) =>
+      url.endsWith(`/queued-messages/${receiptId}/run-as-task`)
+        ? Promise.reject(new Error("task response lost"))
+        : Promise.resolve({}),
+    );
+
+    let taskConversation: string | null = "unexpected";
+    await act(async () => {
+      taskConversation = await result.current.runQueuedAsTask(queued.id);
+    });
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        acceptedQueueId: receiptId,
+        receiptState: "pending",
+        transferring: false,
+        transferErrorAction: "task",
+        transferError: expect.any(String),
+      }),
+    );
+    expect(taskConversation).toBeNull();
+
+    post.mockImplementation((url: string) =>
+      url.endsWith(`/queued-messages/${receiptId}/run-as-task`)
+        ? Promise.resolve({ id: "task-2", conversation_id: "task-topic-2", status: "queued" })
+        : Promise.resolve({}),
+    );
+    act(() => result.current.retryQueued(queued.id));
+
+    await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+    const taskPostCount = post.mock.calls.filter(([url]) =>
+      String(url).endsWith(`/queued-messages/${receiptId}/run-as-task`),
+    ).length;
+    act(() => result.current.retryQueued(queued.id));
+    await act(async () => result.current.cancelQueued(queued.id));
+    expect(
+      post.mock.calls.filter(([url]) =>
+        String(url).endsWith(`/queued-messages/${receiptId}/run-as-task`),
+      ),
+    ).toHaveLength(taskPostCount);
+    expect(del).not.toHaveBeenCalled();
+  });
+
+  it("does not start a task transfer before receipt recovery finishes", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174069";
+    const content = "wait for receipt recovery before starting a task";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "task-before-recovery-row",
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content,
+      },
+    ]);
+    let resolveReceipts!: (page: unknown) => void;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => {
+            resolveReceipts = resolve;
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    const wasConnected = socket.isConnected;
+    socket.isConnected = false;
+    markConversationTranscriptLoaded();
+
+    try {
+      const { result } = renderHook(
+        () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+        { wrapper },
+      );
+      await waitFor(() =>
+        expect(result.current.queuedMessages[0]).toMatchObject({
+          id: "task-before-recovery-row",
+          acceptedQueueId: receiptId,
+          receiptReconciliationPending: true,
+        }),
+      );
+      await waitFor(() => expect(resolveReceipts).toBeTypeOf("function"));
+
+      let taskConversation: string | null = "unexpected";
+      await act(async () => {
+        taskConversation = await result.current.runQueuedAsTask("task-before-recovery-row");
+      });
+
+      expect(taskConversation).toBeNull();
+      expect(
+        post.mock.calls.some(([url]) =>
+          String(url).endsWith(`/queued-messages/${receiptId}/run-as-task`),
+        ),
+      ).toBe(false);
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        receiptReconciliationPending: true,
+      });
+      expect(result.current.queuedMessages[0]?.transferring).toBeUndefined();
+
+      await act(async () =>
+        resolveReceipts({
+          items: [receiptForQueue(clientQueueId, receiptId, content)],
+          next_cursor: null,
+        }),
+      );
+      await waitFor(() =>
+        expect(result.current.queuedMessages[0]?.receiptReconciliationPending).toBeUndefined(),
+      );
+    } finally {
+      socket.isConnected = wasConnected;
+    }
+  });
+
+  it("keeps one task transfer when a delayed steer frame clears its transfer flag", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174070";
+    const content = "run the accepted row as a task once";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "task-lock-row",
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content,
+      },
+    ]);
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({
+            items: [receiptForQueue(clientQueueId, receiptId, content)],
+            next_cursor: null,
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    let resolveTask!: (task: unknown) => void;
+    post.mockImplementation((url: string) =>
+      url.endsWith(`/queued-messages/${receiptId}/run-as-task`)
+        ? new Promise((resolve) => (resolveTask = resolve))
+        : Promise.resolve({}),
+    );
+    const wasConnected = socket.isConnected;
+    socket.isConnected = false;
+    markConversationTranscriptLoaded();
+
+    try {
+      const { result } = renderHook(
+        () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+        { wrapper },
+      );
+      await waitFor(() =>
+        expect(result.current.queuedMessages[0]).toMatchObject({
+          id: "task-lock-row",
+          receiptReconciliationPending: undefined,
+        }),
+      );
+
+      let taskRequest!: Promise<string | null>;
+      act(() => {
+        taskRequest = result.current.runQueuedAsTask("task-lock-row");
+      });
+      await waitFor(() => expect(resolveTask).toBeTypeOf("function"));
+      receive("steer_unapplied", { accepted_queue_id: receiptId });
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        receiptState: "pending",
+        transferring: false,
+      });
+
+      let duplicateTask: string | null = "unexpected";
+      await act(async () => {
+        duplicateTask = await result.current.runQueuedAsTask("task-lock-row");
+      });
+      expect(duplicateTask).toBeNull();
+      expect(
+        post.mock.calls.filter(([url]) =>
+          String(url).endsWith(`/queued-messages/${receiptId}/run-as-task`),
+        ),
+      ).toHaveLength(1);
+
+      await act(async () => {
+        resolveTask({ id: "task-1", conversation_id: "task-chat-1", status: "queued" });
+        await taskRequest;
+      });
+      expect(result.current.queuedMessages).toEqual([]);
+    } finally {
+      socket.isConnected = wasConnected;
+    }
+  });
+
+  it("removes a task row when its receipt already confirms the message was sent", async () => {
+    prepareConversation();
+    mockAcceptance();
+    const content = "already sent before task transfer";
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage(content));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    const queued = result.current.queuedMessages[0]!;
+    get.mockImplementation((url: string) =>
+      url.endsWith(`/${receiptId}`)
+        ? Promise.resolve(receiptForQueue(queued.clientQueueId!, receiptId, content, "sent"))
+        : mockReceiptGetDefaults(url),
+    );
+    post.mockImplementation((url: string) =>
+      url.endsWith(`/queued-messages/${receiptId}/run-as-task`)
+        ? Promise.reject(new Error("task response lost"))
+        : Promise.resolve({}),
+    );
+
+    let taskConversation: string | null = "unexpected";
+    await act(async () => {
+      taskConversation = await result.current.runQueuedAsTask(queued.id);
+    });
+
+    expect(taskConversation).toBeNull();
+    expect(result.current.queuedMessages).toEqual([]);
+  });
+
+  it("does not transfer a queued task when its captured computer grant cannot move", async () => {
+    prepareConversation();
+    mockAcceptance();
+    const submission: ChatSubmissionContext = {
+      agentId: "agent-1",
+      pageContext: null,
+      local: {
+        payload: { computer_grant: "grant-1" },
+        fileRoot: null,
+        projectId: null,
+      },
+    };
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() =>
+      result.current.sendMessage(
+        "keep the active grant here",
+        undefined,
+        undefined,
+        undefined,
+        submission,
+      ),
+    );
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    const queued = result.current.queuedMessages[0]!;
+
+    let taskConversation: string | null = "unexpected";
+    await act(async () => {
+      taskConversation = await result.current.runQueuedAsTask(queued.id);
+    });
+
+    expect(taskConversation).toBeNull();
+    expect(
+      post.mock.calls.some(([url]) =>
+        String(url).endsWith(`/queued-messages/${receiptId}/run-as-task`),
+      ),
+    ).toBe(false);
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      id: queued.id,
+      acceptedQueueId: receiptId,
+      transferring: false,
+    });
+  });
+
+  it("keeps accepted rows in order while their acceptance requests are still in flight", async () => {
+    prepareConversation();
+    const acceptances: Array<{
+      payload: Record<string, unknown>;
+      resolve: (receipt: unknown) => void;
+    }> = [];
+    post.mockImplementation((url: string, payload?: Record<string, unknown>) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((resolve) => acceptances.push({ payload: payload ?? {}, resolve }))
+        : Promise.resolve({}),
+    );
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("first accepted row"));
+    act(() => result.current.sendMessage("second accepted row"));
+    await waitFor(() => expect(acceptances).toHaveLength(2));
+    const [first, second] = result.current.queuedMessages;
+
+    act(() => result.current.moveQueued(second!.id, 0));
+
+    expect(result.current.queuedMessages.map((item) => item.id)).toEqual([first!.id, second!.id]);
+    await act(async () => {
+      acceptances[0]!.resolve(
+        receiptForQueue(
+          String(acceptances[0]!.payload.client_queue_id),
+          "123e4567-e89b-42d3-a456-426614174046",
+          "first accepted row",
+        ),
+      );
+      acceptances[1]!.resolve(
+        receiptForQueue(
+          String(acceptances[1]!.payload.client_queue_id),
+          "123e4567-e89b-42d3-a456-426614174047",
+          "second accepted row",
+        ),
+      );
+    });
+    await waitFor(() =>
+      expect(result.current.queuedMessages.map((item) => item.accepting)).toEqual([false, false]),
+    );
+    expect(result.current.queuedMessages.map((item) => item.id)).toEqual([first!.id, second!.id]);
+  });
+
+  it("moves a receipt-backed outbox with a newly created conversation", async () => {
+    prepareConversation();
+    useConversationStore.getState().setCurrentConversationId(null);
+    socket.isConnected = false;
+    let conversationId: string | null = null;
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "new-chat-receipt-row",
+        clientQueueId: "123e4567-e89b-42d3-a456-426614174048",
+        acceptedQueueId: receiptId,
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "keep this receipt with the created chat",
+      },
+    ]);
+
+    try {
+      const { result, rerender } = renderHook(
+        () => useChat({ conversationId, queueReceiptsEnabled: true }),
+        { wrapper },
+      );
+      await waitFor(() =>
+        expect(result.current.queuedMessages[0]?.id).toBe("new-chat-receipt-row"),
+      );
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        socket.onMessage?.(
+          new MessageEvent("message", {
+            data: JSON.stringify({
+              type: "conversation_created",
+              data: { conversation_id: "c-new" },
+            }),
+          }),
+        );
+        conversationId = "c-new";
+        rerender();
+      });
+
+      expect(keepOutbox).toHaveBeenCalledWith(null, []);
+      expect(keepOutbox).toHaveBeenLastCalledWith("c-new", [
+        expect.objectContaining({
+          id: "new-chat-receipt-row",
+          acceptedQueueId: receiptId,
+          receiptConversationId: "c-new",
+          receiptReconciliationPending: true,
+        }),
+      ]);
+    } finally {
+      socket.isConnected = true;
+    }
+  });
+
+  it("does not let a failed receipt-list read overwrite an active cancellation", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174049";
+    const content = "cancel while the recovery list fails";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "cancel-during-failed-list",
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content,
+      },
+    ]);
+    let rejectReceipts!: (error: Error) => void;
+    let resolveCancel!: (receipt: unknown) => void;
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? new Promise((_resolve, reject) => {
+            rejectReceipts = reject;
+          })
+        : mockReceiptGetDefaults(url),
+    );
+    del.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCancel = resolve;
+        }),
+    );
+    markConversationTranscriptLoaded();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]?.id).toBe("cancel-during-failed-list"),
+    );
+    await waitFor(() => expect(rejectReceipts).toBeTypeOf("function"));
+
+    let cancelRequest!: Promise<void>;
+    act(() => {
+      cancelRequest = result.current.cancelQueued("cancel-during-failed-list");
+    });
+    await waitFor(() => expect(resolveCancel).toBeTypeOf("function"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.transferring).toBe(true));
+    await act(async () => rejectReceipts(new Error("list unavailable")));
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      id: "cancel-during-failed-list",
+      transferring: true,
+      transferErrorAction: "cancel",
+      receiptError: undefined,
+    });
+
+    await act(async () => {
+      resolveCancel({
+        ...receiptForQueue(clientQueueId, receiptId, content),
+        state: "cancelled",
+      });
+      await cancelRequest;
+    });
+    await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+  });
+
+  it("ignores mismatched single-receipt recovery data without replacing the local row", async () => {
+    prepareConversation();
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174050";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "identity-checked-row",
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        receiptConversationId: "c-1",
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "preserve the requested receipt identity",
+      },
+    ]);
+    get.mockImplementation((url: string) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({ items: [], next_cursor: null })
+        : url.endsWith(`/${receiptId}`)
+          ? Promise.resolve(
+              receiptForQueue(
+                "123e4567-e89b-42d3-a456-426614174051",
+                "123e4567-e89b-42d3-a456-426614174052",
+                "a different receipt must not take this row",
+              ),
+            )
+          : mockReceiptGetDefaults(url),
+    );
+    markConversationTranscriptLoaded();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]?.receiptReconciliationPending).toBe(true),
+    );
+    await waitFor(() =>
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        id: "identity-checked-row",
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        content: "preserve the requested receipt identity",
+      }),
+    );
+    expect(result.current.queuedMessages).toHaveLength(1);
+  });
+
+  it.each(["resolve", "reject"] as const)(
+    "does not merge an individual receipt read after leaving its chat (%s)",
+    async (outcome) => {
+      prepareConversation();
+      const clientQueueId = "123e4567-e89b-42d3-a456-426614174053";
+      keptOutbox.mockResolvedValueOnce([
+        {
+          id: "scope-changed-receipt",
+          clientQueueId,
+          acceptedQueueId: receiptId,
+          receiptConversationId: "c-1",
+          receiptState: "pending",
+          agentId: "agent-1",
+          content: "receipt read belongs to the old chat",
+        },
+      ]);
+      let resolveReceipt!: (receipt: unknown) => void;
+      let rejectReceipt!: (error: Error) => void;
+      get.mockImplementation((url: string) => {
+        if (url === "/conversations/c-1/queued-messages")
+          return Promise.resolve({ items: [], next_cursor: null });
+        if (url.endsWith(`/${receiptId}`))
+          return new Promise((resolve, reject) => {
+            resolveReceipt = resolve;
+            rejectReceipt = reject;
+          });
+        return mockReceiptGetDefaults(url);
+      });
+      markConversationTranscriptLoaded();
+      const { result } = renderHook(
+        () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+        { wrapper },
+      );
+      await waitFor(() => expect(resolveReceipt).toBeTypeOf("function"));
+
+      act(() => useConversationStore.getState().setCurrentConversationId("c-2"));
+      await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
+      if (outcome === "resolve") {
+        await act(async () =>
+          resolveReceipt(
+            receiptForQueue(clientQueueId, receiptId, "receipt read belongs to the old chat"),
+          ),
+        );
+      } else {
+        await act(async () => rejectReceipt(new Error("old chat is no longer selected")));
+      }
+      expect(result.current.queuedMessages).toEqual([]);
+    },
+  );
+
+  it("does not steer an accepted row when its text trims to empty", async () => {
+    prepareConversation();
+    mockAcceptance();
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("active turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("   "));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+    const queued = result.current.queuedMessages[0]!;
+
+    act(() => result.current.sendQueuedNow(queued.id));
+
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      id: queued.id,
+      acceptedQueueId: receiptId,
+      transferring: false,
+    });
+  });
+
+  it("does not transfer or cancel a receipt before it has a conversation owner", async () => {
+    prepareConversation();
+    useConversationStore.getState().setCurrentConversationId(null);
+    const clientQueueId = "123e4567-e89b-42d3-a456-426614174054";
+    keptOutbox.mockResolvedValueOnce([
+      {
+        id: "ownerless-receipt-row",
+        clientQueueId,
+        acceptedQueueId: receiptId,
+        receiptState: "pending",
+        agentId: "agent-1",
+        content: "wait for this receipt's conversation",
+      },
+    ]);
+    const { result } = renderHook(
+      () => useChat({ conversationId: null, queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.queuedMessages[0]?.id).toBe("ownerless-receipt-row"));
+
+    let taskConversation: string | null = "unexpected";
+    await act(async () => {
+      taskConversation = await result.current.runQueuedAsTask("ownerless-receipt-row");
+    });
+
+    expect(taskConversation).toBeNull();
+    expect(
+      post.mock.calls.some(([url]) =>
+        String(url).endsWith(`/queued-messages/${receiptId}/run-as-task`),
+      ),
+    ).toBe(false);
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      id: "ownerless-receipt-row",
+      acceptedQueueId: receiptId,
+    });
+
+    await act(async () => result.current.cancelQueued("ownerless-receipt-row"));
+    expect(del).not.toHaveBeenCalled();
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      id: "ownerless-receipt-row",
+      acceptedQueueId: receiptId,
+    });
+  });
+
+  it("reconciles an accepted queue run to its server message and leaves the next receipt queued", async () => {
+    prepareConversation();
+    markConversationTranscriptLoaded();
+
+    const nextReceiptId = "123e4567-e89b-42d3-a456-426614174046";
+    const receiptIds = [receiptId, nextReceiptId];
+    let nextReceipt = 0;
+    post.mockImplementation((url: string, payload: Record<string, unknown>) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({
+            ...acceptedReceipt(payload),
+            id: receiptIds[nextReceipt++]!,
+          })
+        : Promise.resolve({}),
+    );
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(get.mock.calls.some(([url]) => url === "/conversations/c-1/queued-messages")).toBe(
+        true,
+      ),
+    );
+    await waitPastQueueDrainDelay();
+
+    receive("session_ready", {});
+    act(() => result.current.sendMessage("first turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("accepted once"));
+    act(() => result.current.sendMessage("leave the next row queued"));
+
+    await waitFor(() =>
+      expect(result.current.queuedMessages.map((item) => item.acceptedQueueId)).toEqual(receiptIds),
+    );
+
+    receive("complete", {});
+    receive("session_ready", {});
+    await waitPastQueueDrainDelay();
+
+    const acceptedFrame = sent.mock.calls
+      .map(([value]) => value as Record<string, unknown>)
+      .find((value) => value.accepted_queue_id === receiptId);
+    expect(acceptedFrame).toMatchObject({
+      message: "accepted once",
+      accepted_queue_id: receiptId,
+    });
+
+    const temporary = useChatStore
+      .getState()
+      .messages.find((message) => message.content === "accepted once")!;
+    expect(temporary.isTemporaryId).toBe(true);
+
+    // The drainer has already removed the sent head. The ack must preserve the
+    // following receipt and rename the temporary bubble to the server's message ID.
+    expect(result.current.queuedMessages).toEqual([
+      expect.objectContaining({
+        content: "leave the next row queued",
+        acceptedQueueId: nextReceiptId,
+      }),
+    ]);
+    receive("accepted_queue_run_exists", {
+      accepted_queue_id: receiptId,
+      conversation_id: "c-1",
+      message_id: "server-message-1",
+      run_id: "run-2",
+      run_status: "running",
+    });
+
+    expect(result.current.queuedMessages.map((item) => item.acceptedQueueId)).toEqual([
+      nextReceiptId,
+    ]);
+    const reconciled = useChatStore
+      .getState()
+      .messages.find((message) => message.id === "server-message-1");
+    expect(reconciled).toMatchObject({
+      content: "accepted once",
+      isTemporaryId: false,
+    });
+    expect(reconciled?.renderKey).toBe(temporary.id);
+    expect(useChatStore.getState().messages.some((message) => message.id === temporary.id)).toBe(
+      false,
+    );
+
+    // A replayed ack is harmless and must not reintroduce the sent row.
+    receive("accepted_queue_run_exists", {
+      accepted_queue_id: receiptId,
+      conversation_id: "c-1",
+      message_id: "server-message-1",
+      run_id: "run-2",
+      run_status: "running",
+    });
+    expect(result.current.queuedMessages.map((item) => item.acceptedQueueId)).toEqual([
+      nextReceiptId,
+    ]);
+    expect(
+      useChatStore.getState().messages.filter((message) => message.id === "server-message-1"),
+    ).toHaveLength(1);
+  });
+
+  it("ignores empty and late steer claims while deduplicating the receipt steer", async () => {
+    prepareConversation();
+    mockAcceptance();
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("first turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("use the reviewed figures"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+
+    const queued = result.current.queuedMessages[0]!;
+    act(() => result.current.sendQueuedNow(queued.id));
+
+    receive("steer_claimed", { run_id: "run-1" });
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      acceptedQueueId: receiptId,
+      receiptState: "pending",
+      transferring: true,
+    });
+    expect(result.current.steers).toEqual([]);
+
+    receive("steer_claimed", { accepted_queue_id: receiptId, run_id: "run-1" });
+    receive("steer_claimed", { accepted_queue_id: receiptId, run_id: "run-1" });
+
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      acceptedQueueId: receiptId,
+      receiptState: "steering",
+      steeringRunId: "run-1",
+      transferring: false,
+    });
+    expect(result.current.steers.filter((steer) => steer.id === receiptId)).toEqual([
+      { id: receiptId, text: "use the reviewed figures" },
+    ]);
+    expect(result.current.steers).toHaveLength(1);
+
+    receive("steer_applied", {
+      accepted_queue_id: receiptId,
+      run_id: "run-1",
+      text: "Use the reviewed figures",
+    });
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(result.current.steers).toEqual([]);
+    const acceptedSteerParts = () =>
+      useChatStore
+        .getState()
+        .messages.flatMap((message) => message.parts ?? [])
+        .filter((part) => part.id === `accepted-steer:${receiptId}`);
+    expect(acceptedSteerParts()).toHaveLength(1);
+
+    // A terminal applied event can overtake a transient claim. A late claim must
+    // not recreate the receipt row or its waiting steer.
+    receive("steer_claimed", { accepted_queue_id: receiptId, run_id: "run-1" });
+    expect(result.current.queuedMessages).toEqual([]);
+    expect(result.current.steers).toEqual([]);
+    expect(acceptedSteerParts()).toHaveLength(1);
+  });
+
+  it("ignores an applied receipt steer acknowledgement from a different run", async () => {
+    prepareConversation();
+    mockAcceptance();
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("first turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("use the reviewed figures"));
+    await waitFor(() => expect(result.current.queuedMessages[0]?.acceptedQueueId).toBe(receiptId));
+
+    const queued = result.current.queuedMessages[0]!;
+    act(() => result.current.sendQueuedNow(queued.id));
+    receive("steer_claimed", { accepted_queue_id: receiptId, run_id: "run-1" });
+
+    receive("steer_applied", {
+      accepted_queue_id: receiptId,
+      run_id: "different-run",
+      text: "stale text from the wrong run",
+    });
+
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      acceptedQueueId: receiptId,
+      receiptState: "steering",
+      steeringRunId: "run-1",
+      transferring: false,
+    });
+    expect(result.current.steers).toEqual([{ id: receiptId, text: "use the reviewed figures" }]);
+    expect(
+      useChatStore
+        .getState()
+        .messages.flatMap((message) => message.parts ?? [])
+        .filter((part) => part.id === `accepted-steer:${receiptId}`),
+    ).toEqual([]);
+  });
+
+  it("restores only the matching unapplied receipt steer and preserves other work", async () => {
+    prepareConversation();
+    const nextReceiptId = "123e4567-e89b-42d3-a456-426614174047";
+    const receiptIds = [receiptId, nextReceiptId];
+    let nextReceipt = 0;
+    post.mockImplementation((url: string, payload: Record<string, unknown>) =>
+      url === "/conversations/c-1/queued-messages"
+        ? Promise.resolve({
+            ...acceptedReceipt(payload),
+            id: receiptIds[nextReceipt++]!,
+          })
+        : Promise.resolve({}),
+    );
+
+    const { result } = renderHook(
+      () => useChat({ conversationId: "c-1", queueReceiptsEnabled: true }),
+      { wrapper },
+    );
+    act(() => result.current.sendMessage("first turn"));
+    receive("model_request_start", {});
+    act(() => result.current.sendMessage("retry this after the active turn"));
+    act(() => result.current.sendMessage("leave this other row alone"));
+    await waitFor(() =>
+      expect(result.current.queuedMessages.map((item) => item.acceptedQueueId)).toEqual(receiptIds),
+    );
+
+    const [queued] = result.current.queuedMessages;
+    act(() => result.current.sendQueuedNow(queued!.id));
+    receive("steer_claimed", { accepted_queue_id: receiptId, run_id: "run-1" });
+
+    let directSteerAccepted = false;
+    act(() => {
+      directSteerAccepted = result.current.sendSteerMessage("keep this direct steer");
+    });
+    expect(directSteerAccepted).toBe(true);
+    expect(result.current.steers.map((steer) => steer.text)).toEqual([
+      "retry this after the active turn",
+      "keep this direct steer",
+    ]);
+
+    receive("steer_unapplied", {
+      accepted_queue_id: "123e4567-e89b-42d3-a456-426614174099",
+      run_id: "run-1",
+    });
+    receive("steer_unapplied", {
+      accepted_queue_id: receiptId,
+      run_id: "different-run",
+    });
+
+    // Missing receipt rows and acknowledgements for another run leave both the
+    // queue row and its steering marker untouched.
+    expect(result.current.queuedMessages[0]).toMatchObject({
+      acceptedQueueId: receiptId,
+      receiptState: "steering",
+      steeringRunId: "run-1",
+    });
+    expect(result.current.queuedMessages.map((item) => item.acceptedQueueId)).toEqual(receiptIds);
+    expect(result.current.steers.map((steer) => steer.text)).toEqual([
+      "retry this after the active turn",
+      "keep this direct steer",
+    ]);
+
+    receive("steer_unapplied", { accepted_queue_id: receiptId, run_id: "run-1" });
+
+    expect(result.current.queuedMessages).toEqual([
+      expect.objectContaining({
+        content: "retry this after the active turn",
+        acceptedQueueId: receiptId,
+        receiptState: "pending",
+        transferring: false,
+      }),
+      expect.objectContaining({
+        content: "leave this other row alone",
+        acceptedQueueId: nextReceiptId,
+        receiptState: "pending",
+      }),
+    ]);
+    expect(result.current.queuedMessages[0]?.steeringRunId).toBeUndefined();
+    expect(result.current.steers).toEqual([
+      expect.objectContaining({ text: "keep this direct steer" }),
+    ]);
+  });
 });
 
 describe("useChat - loaded transcript subscriptions", () => {
@@ -6629,6 +10442,40 @@ describe("useChat - the outbox (#2097)", () => {
     vi.useRealTimers();
   });
 
+  it("holds an outbox restored after Stop and preserves pause through Retry", async () => {
+    vi.useFakeTimers();
+    try {
+      let restore!: (kept: unknown[]) => void;
+      keptOutbox.mockReturnValueOnce(
+        new Promise((resolve) => {
+          restore = resolve;
+        }),
+      );
+      const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+      act(() => result.current.stopGeneration());
+      await act(async () =>
+        restore([{ id: "q-1", content: "kept follow-up", refused: "Budget spent" }]),
+      );
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        paused: true,
+        refused: "Budget spent",
+      });
+      expect(keepOutbox).toHaveBeenLastCalledWith("c-1", [
+        expect.objectContaining({ paused: true }),
+      ]);
+      act(() => result.current.retryQueued("q-1"));
+      await act(async () => vi.advanceTimersByTimeAsync(500));
+      expect(result.current.queuedMessages[0]).toMatchObject({ paused: true });
+      expect(result.current.queuedMessages[0]?.refused).toBeUndefined();
+      expect(sent.mock.calls.some(([frame]) => frame.message === "kept follow-up")).toBe(false);
+      act(() => result.current.resumeQueued());
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(sent.mock.calls.some(([frame]) => frame.message === "kept follow-up")).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("holds a kept message while the network is gone, saying it waits", async () => {
     socket.isConnected = false;
     keptOutbox.mockResolvedValueOnce([{ id: "q-1", content: "written on the train" }]);
@@ -6656,6 +10503,22 @@ describe("useChat - the outbox (#2097)", () => {
       "written on the train",
       "typed just now",
     ]);
+  });
+
+  it("does not restore an offline row cancelled while the native outbox was loading", async () => {
+    socket.isConnected = false;
+    let restore!: (kept: unknown[]) => void;
+    keptOutbox.mockReturnValueOnce(new Promise((resolve) => (restore = resolve)));
+    const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    await waitFor(() => expect(restore).toBeTypeOf("function"));
+
+    act(() => result.current.sendMessage("created during outbox read"));
+    const queued = result.current.queuedMessages[0]!;
+    await act(async () => result.current.cancelQueued(queued.id));
+    expect(result.current.queuedMessages).toEqual([]);
+
+    await act(async () => restore([{ id: queued.id, content: queued.content }]));
+    await waitFor(() => expect(result.current.queuedMessages).toEqual([]));
   });
 
   it("takes a new chat's queue along when the chat gets its id", async () => {
@@ -8370,6 +12233,178 @@ describe("explicit room thread stream scope", () => {
     expect(result.current.activeThreadRootId).toBeNull();
   });
 
+  it("announces a saved thread answer only for its still selected run scope", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+    const changed = vi.fn();
+    const unsubscribe = onRoomChange(changed);
+
+    receive("model_request_start", scope("root-a", { run_id: "run-current" }));
+    receive(
+      "message_saved",
+      scope("root-a", { message_id: "saved-current", run_id: "run-current" }),
+    );
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(changed).toHaveBeenLastCalledWith({
+      conversationId: "c-1",
+      accountId: undefined,
+      organizationId: null,
+    });
+
+    receive("model_request_start", scope("root-a", { run_id: "run-stale" }));
+    act(() => {
+      useConversationStore.getState().setCurrentConversationId("c-2");
+      useConversationStore.getState().setCurrentConversationId("c-1");
+    });
+    receive("message_saved", scope("root-a", { message_id: "saved-stale", run_id: "run-stale" }));
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(useChatStore.getState().messages[0]?.id).toBe("saved-current");
+    unsubscribe();
+  });
+
+  it("recovers the thread scope when the run id first arrives with the saved answer", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const onTurnSaved = vi.fn();
+    renderHook(() => useChat({ conversationId: "c-1", onTurnSaved }), { wrapper });
+    const changed = vi.fn();
+    const unsubscribe = onRoomChange(changed);
+
+    receive("model_request_start", scope("root-a"));
+    receive(
+      "message_saved",
+      scope("root-a", {
+        message_id: "saved-id-only-run",
+        run_id: "run-first-named-on-save",
+        run_status: "completed",
+      }),
+    );
+
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(onTurnSaved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: "c-1",
+        threadRootMessageId: "root-a",
+        selectionVersion: useConversationStore.getState().selectionVersion,
+        refreshMainTranscript: false,
+      }),
+    );
+    expect(useChatStore.getState().messages[0]).toMatchObject({
+      id: "saved-id-only-run",
+      isTemporaryId: false,
+      threadRootMessageId: "root-a",
+    });
+    unsubscribe();
+  });
+
+  it("asks the selected main room to reread a saved answer when no bubble streamed", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const onTurnSaved = vi.fn();
+    renderHook(() => useChat({ conversationId: "c-1", onTurnSaved }), { wrapper });
+    const changed = vi.fn();
+    const unsubscribe = onRoomChange(changed);
+
+    receive("turn_attached", scope(null));
+    receive(
+      "message_saved",
+      scope(null, {
+        message_id: "saved-main-without-bubble",
+        run_id: "main-run-first-named-on-save",
+        run_status: "completed",
+      }),
+    );
+
+    expect(useChatStore.getState().messages).toEqual([]);
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(onTurnSaved).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: "c-1",
+        threadRootMessageId: null,
+        selectionVersion: useConversationStore.getState().selectionVersion,
+        refreshMainTranscript: true,
+      }),
+    );
+    unsubscribe();
+  });
+
+  it.each(["selection", "account", "organization"] as const)(
+    "does not use an unkeyed save scope after its %s identity changes",
+    (boundary) => {
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      const onTurnSaved = vi.fn();
+      renderHook(() => useChat({ conversationId: "c-1", onTurnSaved }), { wrapper });
+      const changed = vi.fn();
+      const unsubscribe = onRoomChange(changed);
+      receive("turn_attached", scope("root-a"));
+
+      act(() => {
+        if (boundary === "selection") {
+          useConversationStore.getState().setCurrentConversationId("c-2");
+          useConversationStore.getState().setCurrentConversationId("c-1");
+        } else if (boundary === "account") {
+          useAuthStore.setState({
+            user: { id: "another-account", email: "other@example.com" } as never,
+          });
+        } else {
+          useOrgStore.setState({ activeOrgId: "another-org" });
+        }
+      });
+      receive(
+        "message_saved",
+        scope("root-a", {
+          message_id: `stale-${boundary}`,
+          run_id: `run-stale-${boundary}`,
+        }),
+      );
+
+      expect(changed).not.toHaveBeenCalled();
+      expect(onTurnSaved).toHaveBeenCalledWith(undefined);
+      unsubscribe();
+    },
+  );
+
+  it.each(["account", "organization"] as const)(
+    "does not refresh a saved thread after its %s scope changes",
+    (boundary) => {
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+      const changed = vi.fn();
+      const unsubscribe = onRoomChange(changed);
+      receive("model_request_start", scope("root-a", { run_id: `run-${boundary}` }));
+
+      act(() => {
+        if (boundary === "account")
+          useAuthStore.setState({
+            user: { id: "another-account", email: "other@example.com" } as never,
+          });
+        else useOrgStore.setState({ activeOrgId: "another-org" });
+      });
+      receive(
+        "message_saved",
+        scope("root-a", { message_id: `saved-${boundary}`, run_id: `run-${boundary}` }),
+      );
+
+      expect(changed).not.toHaveBeenCalled();
+      unsubscribe();
+    },
+  );
+
+  it("forgets the oldest run's save scope once more than fifty are held", () => {
+    useConversationStore.getState().setCurrentConversationId("c-1");
+    const onTurnSaved = vi.fn();
+    renderHook(() => useChat({ conversationId: "c-1", onTurnSaved }), { wrapper });
+    for (let run = 0; run <= 50; run += 1) {
+      receive("model_request_start", scope("root-a", { run_id: `run-${run}` }));
+    }
+
+    receive("message_saved", scope("root-a", { message_id: "saved-oldest", run_id: "run-0" }));
+    expect(onTurnSaved).toHaveBeenLastCalledWith(undefined);
+
+    receive("message_saved", scope("root-a", { message_id: "saved-next", run_id: "run-1" }));
+    expect(onTurnSaved).toHaveBeenLastCalledWith(
+      expect.objectContaining({ threadRootMessageId: "root-a" }),
+    );
+  });
+
   it("can recover scope from model_request_start and rejects late frames from another conversation", () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
     const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
@@ -8587,6 +12622,35 @@ it("ends an existing streaming segment when a resumed background turn attaches",
   ).toBe(false);
 });
 
+it("correlates native human answers and ignores a close for an older card", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("ask_user", {
+    runtime_question_id: "native-two",
+    questions: [{ question: "Which?", options: [{ label: "A" }], allow_custom: false }],
+  });
+  receive("runtime_question_closed", { runtime_question_id: "native-one" });
+  expect(result.current.pendingQuestions?.[0]?.requestId).toBe("native-two");
+  act(() => result.current.sendAskUserResponses([{ answer: "", selected: ["A"], skipped: false }]));
+  expect(sent).toHaveBeenLastCalledWith({
+    type: "ask_user_response",
+    runtime_question_id: "native-two",
+    request_id: expect.any(String),
+    answers: [{ answer: "", selected: ["A"], skipped: false }],
+  });
+});
+
+it("closes an expired native card and cannot submit its late answer", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("ask_user", {
+    runtime_question_id: "native-one",
+    questions: [{ question: "Which?", options: [{ label: "A" }], allow_custom: false }],
+  });
+  receive("runtime_question_closed", { runtime_question_id: "native-one" });
+  expect(result.current.pendingQuestions).toBeNull();
+  act(() => result.current.sendAskUserResponses([{ answer: "", selected: ["A"], skipped: false }]));
+  expect(sent.mock.calls.filter(([frame]) => frame.type === "ask_user_response")).toHaveLength(0);
+});
+
 it("adopts a server-created identity when the local conversation already has an ID", () => {
   useConversationStore.getState().setCurrentConversationId("c-local");
   renderHook(() => useChat({ conversationId: "c-local" }), { wrapper });
@@ -8594,6 +12658,41 @@ it("adopts a server-created identity when the local conversation already has an 
   expect(useConversationStore.getState().currentConversationId).toBe("c-persisted");
 });
 
+it("keeps a native answer disabled until acknowledgement and ignores its later close", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("ask_user", {
+    runtime_question_id: "native-one",
+    questions: [{ question: "Which?", options: [{ label: "A" }], allow_custom: false }],
+  });
+  act(() => result.current.sendAskUserResponses([{ answer: "", selected: ["A"], skipped: false }]));
+  expect(result.current.pendingQuestions?.[0]?.requestId).toBe("native-one");
+  expect(result.current.submittingQuestions).toBe(true);
+  const frame = sent.mock.calls.at(-1)?.[0];
+  receive("ask_user_answered", { request_id: frame.request_id });
+  expect(result.current.pendingQuestions).toBeNull();
+  expect(result.current.submittingQuestions).toBe(false);
+  receive("ask_user", {
+    runtime_question_id: "native-two",
+    questions: [{ question: "Next?", options: [{ label: "B" }], allow_custom: false }],
+  });
+  receive("runtime_question_closed", { runtime_question_id: "native-one" });
+  expect(result.current.pendingQuestions?.[0]?.requestId).toBe("native-two");
+});
+
+it("clears native submission when the runtime closes before acknowledging", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("ask_user", {
+    runtime_question_id: "native-one",
+    questions: [{ question: "Which?", options: [{ label: "A" }], allow_custom: false }],
+  });
+  act(() => result.current.sendAskUserResponses([{ answer: "", selected: ["A"], skipped: false }]));
+  const frame = sent.mock.calls.at(-1)?.[0];
+  receive("runtime_question_closed", { runtime_question_id: "native-one" });
+  expect(result.current.pendingQuestions).toBeNull();
+  expect(result.current.submittingQuestions).toBe(false);
+  receive("ask_user_answered", { request_id: frame.request_id });
+  expect(result.current.pendingQuestions).toBeNull();
+});
 it.each([false, true])(
   "keeps question receipts through result-before-ACK and history (server correction: %s)",
   (corrected) => {

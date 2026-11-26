@@ -10,7 +10,7 @@ import { FieldDiff, editable, fieldLabel, parsed } from "./field-change";
 import { NewSkillPreview } from "./new-skill-preview";
 import { DiffView } from "./diff-view";
 import { InstructionsEditor, editedPassage } from "./instructions-editor";
-import { locatePassage } from "@/lib/diff";
+import { leadingContext, locatePassage, trailingContext } from "@/lib/diff";
 
 /**
  * One suggestion: what it changes, why, and the decision on it.
@@ -119,12 +119,12 @@ export function SuggestionCard({
           />
         ) : (
           <DiffView
-            context={hunk.context_before}
+            context={leadingContext(hunk.context_before)}
             before={hunk.old_text}
             after={
               hunk.status === "accepted" ? (hunk.accepted_text ?? hunk.new_text) : hunk.new_text
             }
-            trailing={hunk.context_after}
+            trailing={trailingContext(hunk.context_after)}
           />
         )}
         <RationaleText text={hunk.rationale} evidence={hunk.evidence} />

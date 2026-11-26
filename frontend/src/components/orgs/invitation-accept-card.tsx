@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { qk } from "@/lib/query-keys";
+import { cn } from "@/lib/utils";
 import { useOrgStore } from "@/stores/org-store";
 
 /**
@@ -19,7 +20,16 @@ import { useOrgStore } from "@/stores/org-store";
  * cookie. The wording, the four states and where a success or a refusal lands are
  * the same, so they live here once rather than in two components that drift.
  */
-export function InvitationAcceptCard({ accept }: { accept: () => Promise<string> }) {
+export function InvitationAcceptCard({
+  accept,
+  presentation = "page",
+  onAccepted,
+}: {
+  accept: () => Promise<string>;
+  presentation?: "page" | "inline";
+  /** Replaces navigation after the accepted organization becomes active. */
+  onAccepted?: (organizationId: string) => void;
+}) {
   const t = useTranslations("pages.invitations");
   const start = useTranslations("start");
   const router = useRouter();
@@ -37,16 +47,25 @@ export function InvitationAcceptCard({ accept }: { accept: () => Promise<string>
       await queryClient.invalidateQueries({ queryKey: qk.organizations.list() });
       setActiveOrgId(organizationId);
       setStatus("success");
-      router.push("/onboarding?welcome=1&entry=joined");
+      if (onAccepted) onAccepted(organizationId);
+      else router.push("/onboarding?welcome=1&entry=joined");
     } catch {
       setStatus("error");
     }
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
+    <div
+      className={
+        presentation === "page" ? "flex min-h-screen items-center justify-center p-4" : "w-full"
+      }
+    >
+      <Card
+        className={cn("w-full", presentation === "page" && "max-w-md")}
+        role="region"
+        aria-label={t("teamInvitation")}
+      >
+        <CardHeader className={presentation === "page" ? "text-center" : undefined}>
           <CardTitle>{t("teamInvitation")}</CardTitle>
           <CardDescription>{t("youAposVeBeen")}</CardDescription>
         </CardHeader>
@@ -66,9 +85,11 @@ export function InvitationAcceptCard({ accept }: { accept: () => Promise<string>
               <Button variant="outline" onClick={handleAccept}>
                 {start("retry")}
               </Button>
-              <Button variant="outline" onClick={() => router.push("/onboarding")}>
-                {start("openStart")}
-              </Button>
+              {presentation === "page" && (
+                <Button variant="outline" onClick={() => router.push("/onboarding")}>
+                  {start("openStart")}
+                </Button>
+              )}
             </>
           )}
           {(status === "idle" || status === "loading") && (

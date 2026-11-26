@@ -9,6 +9,7 @@ import {
   Slash,
   Smile,
   UserCircle,
+  CreditCard,
 } from "lucide-react";
 
 import type { PageTab } from "@/components/dashboard/page-tabs";
@@ -40,6 +41,7 @@ import { ROUTES } from "@/lib/constants";
  */
 export const SETTINGS_TABS: readonly PageTab[] = [
   { labelKey: "profile", href: ROUTES.SETTINGS_PROFILE, icon: UserCircle },
+  { labelKey: "subscriptions", href: ROUTES.SETTINGS_SUBSCRIPTIONS, icon: CreditCard },
   {
     labelKey: "account",
     href: ROUTES.SETTINGS_ACCOUNT,

@@ -53,8 +53,8 @@ export function ApprovalsWaiting({
               className={styles.approvalRow}
               approval={approval}
               deciding={deciding}
-              onDecide={(approved, final, choice) =>
-                decideStep.mutate({ id: approval.id, approved, final, choice })
+              onDecide={(approved, final, choice, note) =>
+                decideStep.mutate({ id: approval.id, approved, final, choice, note })
               }
             />
           </li>
@@ -65,7 +65,7 @@ export function ApprovalsWaiting({
             key={approval.id}
             approval={approval}
             deciding={deciding}
-            onDecide={(approved) => decideTool.mutate({ id: approval.id, approved })}
+            onDecide={(approved, note) => decideTool.mutate({ id: approval.id, approved, note })}
             onOpenRun={() => router.push(`${queue}&run=${encodeURIComponent(approval.run_id)}`)}
           />
         ))}

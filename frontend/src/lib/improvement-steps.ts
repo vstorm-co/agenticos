@@ -15,7 +15,7 @@ export interface ImprovementStepView {
   content: ImprovementStepContent;
 }
 
-const PROPOSING: readonly string[] = ["proposing", "filtering", "drafting"];
+const PROPOSING: readonly string[] = ["searching", "proposing", "filtering", "drafting"];
 const CHECKING: readonly string[] = ["evaluating", "judging"];
 const ANALYZED: readonly string[] = ["analyzing", "classifying"];
 

@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 
 interface McpServerCardProps {
+  presentation?: "card" | "onboarding";
   name: string;
   icon: string | null;
   category?: string;
@@ -47,6 +48,7 @@ interface McpServerCardProps {
  * dialog.
  */
 export function McpServerCard({
+  presentation = "card",
   name,
   icon,
   category,
@@ -61,6 +63,37 @@ export function McpServerCard({
   onOpen,
   dataTour,
 }: McpServerCardProps) {
+  if (presentation === "onboarding")
+    return (
+      <div
+        role="group"
+        aria-label={name}
+        data-tour={dataTour}
+        className="flex min-w-0 items-center gap-4 py-4"
+      >
+        <span className="border-foreground/10 grid size-12 shrink-0 place-items-center rounded-xl border bg-white">
+          {mark ?? (
+            <McpServerIcon
+              icon={icon}
+              category={category}
+              name={name}
+              url={url}
+              className="size-8 text-neutral-900"
+            />
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <span className="text-sm font-semibold">{name}</span>
+          <p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs leading-5">
+            {description}
+          </p>
+          <div className="text-muted-foreground mt-1 flex min-w-0 items-center gap-1.5 text-xs">
+            {status}
+          </div>
+        </div>
+        <div className="shrink-0">{actions}</div>
+      </div>
+    );
   return (
     <ResourceCard
       role="group"

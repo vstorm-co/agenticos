@@ -1,5 +1,5 @@
 ---
-source_sha: "3b887e9777b8"
+source_sha: "481ac5e647a5"
 ---
 
 # Postawić agenta tam, gdzie ludzie już są { #putting-an-agent-where-people-already-are }
@@ -1198,7 +1198,7 @@ Przychodzące `references` muszą być listą ciągów bez CR i LF; zachowane wp
    commands and messages from the messages tab*. Bez tego Slack ukrywa pole
    wiadomości bota i wiadomość bezpośrednia jest niemożliwa.
 8. Opublikuj agenta, a potem go podepnij: Builder → agent → **Availability** →
-   bot.
+   bot albo **Channels** → wiersz bota → **Bind agent**.
 9. Zaproś bota na kanał — `/invite @your-bot` — i wspomnij o nim.
 
 !!! tip "Albo wklej manifest i pomiń kroki 2, 4, 6 i 7"
@@ -1382,12 +1382,13 @@ wklej i ten, bo inaczej bot zachowa dostęp, który miał.
     connected** wraz z powodem — supervisor wie, a do #1351 wpisywał to do logu
     kontenera i nigdzie indziej.
 
-    Reszta nadal milczy, a to jest kolejność, w jakiej należy to sprawdzać:
-    brak agenta podpiętego do bota (wiersz to mówi), brakujący scope albo
-    subskrypcja eventu, a potem błędne `BOT_ID` w Request URL. To ostatnie nie
-    może zgłosić się samo: route eventów odpowiada **200 i nic nie robi** na id
-    bota, którego nie potrafi znaleźć, i to celowo, bo sondujący powinien się
-    dowiedzieć jedynie, że endpoint istnieje — co już powiedział mu URL.
+    Reszta nadal milczy, a to jest kolejność, w jakiej należy to sprawdzać: brak
+    agenta podpiętego do bota albo wstrzymane powiązanie (wiersz mówi które),
+    brakujący scope albo subskrypcja eventu, a potem błędne `BOT_ID` w Request
+    URL. To ostatnie nie może zgłosić się samo: route eventów odpowiada **200 i
+    nic nie robi** na id bota, którego nie potrafi znaleźć, i to celowo, bo
+    sondujący powinien się dowiedzieć jedynie, że endpoint istnieje — co już
+    powiedział mu URL.
 
 Działa na kanałach i w DM-ach. Wiadomość z powiązanego konta wykonuje się jako ta
 osoba — nigdy jako bot; wiadomość z konta, którego nikt nie powiązał, wykonuje
@@ -1453,6 +1454,12 @@ obok `/new`, `/link` i `/help` — pokazuje *pisze…* w trakcie pracy i nazywa 
 na którym jest, wysyła odpowiedzi jako HTML Telegrama przekonwertowany z Markdownu
 agenta, więc bloki kodu i linki przetrwają, a w grupie z tematami odpowiada w tym
 samym temacie.
+
+Odpowiedź przesyłana strumieniowo jest formatowana tak samo, gdy
+się skończy. Punkty listy zaczynają się od `•`, a lista zadań pokazuje ☐ i ☒.
+Odpowiedź dłuższa niż 4096 znaków Telegrama przychodzi jako kilka
+wiadomości, a blok kodu przecięty między dwiema z nich jest zamykany i otwierany
+ponownie.
 
 ## Mattermost { #mattermost }
 
@@ -2010,6 +2017,16 @@ do czatu. Cofnięty dostęp blokuje wysyłkę. Platforma bez idempotentnej wysy�
 może pokazać duplikat, jeśli przyjęła wiadomość, ale zgubiła potwierdzenie.
 Wyczerpane próby widać w **Admin → Background jobs** (`deliver-channel-handback`).
 
+### Odpowiedzi rutyn w czacie prywatnym { #routine-answers-in-a-private-chat }
+
+Gdy rutyna utworzona w czacie prywatnym na Telegramie, Slacku, Mattermoście, Teams, Discordzie lub Matrixie otwiera nowy czat dla każdego uruchomienia (`chat_mode=per_run`), bot publikuje odpowiedź każdego uruchomienia także w czacie, w którym ją utworzono, więc osoba czyta ją tam, gdzie o nią poprosiła. Całe uruchomienie zostaje w osobnym czacie w konsoli.
+
+Wysyłka wyniku rutyny do prywatnego czatu ma jedną trwałą próbę. Gdy worker się zatrzyma lub platforma nie potwierdzi przyjęcia, wynik zostaje oznaczony jako niedostępny zamiast automatycznie wysłany ponownie. Pełna odpowiedź pozostaje w konsoli. Takie zachowanie zapobiega powielaniu wiadomości po niepewnym wyniku wysyłki.
+
+Przed publikacją platforma ponownie sprawdza powiązane konto twórcy, jego członkostwo, przypisanego agenta i rozmowę. Dopóki publikacja czeka, rutyna pokazuje **Wysyłanie ostatniego wyniku do czatu**. Gdy czat przyjmie odpowiedź, status to `delivered`. Gdy czat jej nie przyjmie, rutyna pokazuje **Ostatni wynik niedostępny w czacie**, a jej właściciel dostaje powiadomienie. Odpowiedź zostaje w dzienniku uruchomień.
+
+Rutyna z jedną wspólną historią (`chat_mode=shared`) niczego nie publikuje w czacie. Czaty grupowe, SMS, iMessage i e-mail zostawiają odpowiedź w konsoli. Po `/new` stara rozmowa nie jest już rozmową czatu, więc późniejsze odpowiedzi zostają w konsoli. Nie kieruj dodatkowo powiadomień rutyny do tego samego czatu: odpowiedź przyszłaby dwa razy.
+
 ### Następne kroki jako przyciski { #next-steps-as-buttons }
 
 Odpowiedź agenta z [Następnymi krokami](reference/capabilities.md#follow-ups),
@@ -2104,6 +2121,13 @@ więc różnica między konsolą a Mattermost pozostaje widoczna.
     Slacka, bocie Telegrama i dwóch serwerach Mattermosta naraz, a każde z tych
     powiązań niesie własne instrukcje, własne odpytania o kanał i własny zakres
     workspace'u.
+
+    Powiąż lub odłącz agenta na jego zakładce **Availability** albo w wierszu
+    bota w **Channels**. Channels oferuje tylko agentów, których możesz
+    opublikować (`agents:publish` na tym agencie), i wiąże w domyślnym środowisku
+    agenta; środowisko, wstrzymanie, odpytania i instrukcje zostają na zakładce
+    Availability. Wiersz pokazuje agenta, którego nie możesz opublikować, bez
+    akcji odłączenia, a wstrzymane powiązanie wypisuje jako wstrzymane.
 
     Zastąpiło to routowanie kilku agentów za jednym botem przez `@slug`.
     Działało i źle się czytało: ktoś na kanale musiał wpisać uchwyt, żeby wybrać
@@ -3031,7 +3055,9 @@ Nowe powiązania mają włączone wszystkie obsługiwane narzędzia. Istniejące
 tego się nie oferuje: Telegram nie daje botowi żadnego katalogu czatów do
 przeszukania ani żadnego sposobu na czytanie wiadomości, których do niego nie
 wysłano, a `getChatAdministrators` to całość tego, co może wylistować — więc lista
-członków w Telegramie to lista administratorów i mówi to wprost.
+członków w Telegramie to lista administratorów i mówi to wprost. Czat prywatny
+nie ma listy członków w ogóle: `{channel_members}` pokazuje tam `(unavailable)`, a narzędzie
+członków mówi dlaczego, bez wywoływania Telegrama.
 
 Trzy rzeczy warte wiedzy przed ich przyznaniem:
 

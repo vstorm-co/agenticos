@@ -394,3 +394,70 @@ def test_a_check_is_bounded_whatever_the_agent_allows(published, effective) -> N
     approved = approve_sources(original, _connection())
     spec = original.model_copy(update={"max_steps": published})
     assert constrain_sources(spec, approved).max_steps == effective
+
+
+@pytest.mark.parametrize("proof", ["none", "failed", "read"])
+async def test_monitor_reporter_is_not_a_source_write_but_requires_a_successful_read(
+    proof: str,
+) -> None:
+    from app.agents.mcp import PLATFORM_TOOL
+
+    published = []
+
+    async def publish() -> str:
+        published.append(True)
+        return "published"
+
+    raw = FunctionToolset[object](
+        tools=[
+            Tool(publish, name="agenticos_publish_inbox_finding", metadata={PLATFORM_TOOL: True})
+        ]
+    )
+    receipt = WatchReadReceipt(completed_calls=0 if proof == "none" else 1)
+    if proof == "failed":
+        receipt.failed_requests.add("unresolved source")
+    bounded = WatchSourceTools(raw, receipt=receipt)
+    ctx = _ctx()
+    tools = await bounded.get_tools(ctx)
+    if proof == "read":
+        assert (
+            await bounded.call_tool(
+                "agenticos_publish_inbox_finding", {}, ctx, tools["agenticos_publish_inbox_finding"]
+            )
+            == "published"
+        )
+        assert published == [True] and receipt.completed_calls == 1
+    else:
+        with pytest.raises(BadRequestError, match="successfully"):
+            await bounded.call_tool(
+                "agenticos_publish_inbox_finding", {}, ctx, tools["agenticos_publish_inbox_finding"]
+            )
+        assert not published
+
+
+async def test_failed_reporting_does_not_poison_source_evidence_and_a_retry_can_recover() -> None:
+    from app.agents.mcp import PLATFORM_TOOL
+
+    calls = 0
+
+    async def publish() -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("delivery failed")
+        return "published"
+
+    raw = FunctionToolset[object](
+        tools=[
+            Tool(publish, name="agenticos_publish_inbox_finding", metadata={PLATFORM_TOOL: True})
+        ]
+    )
+    receipt = WatchReadReceipt(completed_calls=1)
+    bounded = WatchSourceTools(raw, receipt=receipt)
+    ctx = _ctx()
+    tool = (await bounded.get_tools(ctx))["agenticos_publish_inbox_finding"]
+    with pytest.raises(RuntimeError, match="delivery failed"):
+        await bounded.call_tool("agenticos_publish_inbox_finding", {}, ctx, tool)
+    assert receipt.failed_reports and not receipt.failed_requests
+    await bounded.call_tool("agenticos_publish_inbox_finding", {}, ctx, tool)
+    assert not receipt.failed_reports and receipt.completed_calls == 1

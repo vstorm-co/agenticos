@@ -321,7 +321,7 @@ or mention only people to talk with them. The answer, including a run resumed
 after a question or approval, belongs to that thread. The main room and its
 threads share one agent-request queue; a waiting run keeps later requests queued.
 
-An agent's conversation context prioritizes the original message and the thread's
+Without a selected context range, an agent prioritizes the original message and the thread's
 replies. Remaining history space can include main-room messages from before the
 original message. Replies from other threads and later main-room messages are
 excluded. Project instructions, shared files and project knowledge still apply.
@@ -349,6 +349,41 @@ If the chat is removed from its project, its existing threads remain readable by
 people who can still access that chat. Thread replies become read-only unless the
 owner explicitly converts it into a standalone room. Former project membership
 alone no longer grants access.
+
+### Selected thread context
+
+Use **Select context** to choose the first and last saved messages for a new thread.
+You can exclude individual messages before creating it. The selection contains
+1–500 messages in transcript order; the new thread opens with its own title and
+shows the selected context separately from replies. Creating it does not request
+an agent response.
+
+**Move into thread** moves those selected messages out of the main timeline and
+leaves a title and count linking back to the thread. **Return to room** restores
+only the moved messages; replies stay in the thread. Message identities, authors,
+attachments, reactions and original order are preserved. You can edit a moved
+selection directly: the old range returns and the replacement moves together.
+
+Choose another source room to reference its messages without moving them. The
+source must be in the same organization and readable by every current reader of
+the destination. Private and project sources also require compatible agent
+membership. A destination with a public sharing link cannot import context.
+Access is checked again when the context is read and before an agent uses it.
+
+Readers must retain access to every linked source to open the destination room,
+its files or its search results. Sharing the destination with someone does not
+share the source. Public links and forks that include imported context are
+unavailable. Once the context has been used for a request or reply, its source
+and thread marker stay attached even if replies are deleted; you can still edit
+the selection within that source. Replies appear after saving and a fresh access
+check, rather than streaming source-derived text.
+
+The thread starter or a room manager can change its context while both rooms are
+idle. Finish queued, running or paused work first. Archived threads are read-only,
+and a selection containing another thread cannot be moved. Included context does
+not increase reply or unread counts. Exclusions are kept out of the agent's
+selected history, including automatic quotes.
+
 
 ## Deleting a project
 
