@@ -306,7 +306,21 @@ if [ -n "$FILESYSTEM_GATEWAY" ] || [ -n "$FILESYSTEM_EXPORT_IMAGE" ]; then
     echo "Configure both SANDBOXD_FILESYSTEM_GATEWAY_URL and SANDBOXD_FILESYSTEM_EXPORT_IMAGE before deploying." >&2
     exit 1
   fi
-  BACKEND+=(-f docker-compose.project-filesystem.yml)
+  # The procedure travels independently of the target checkout. In particular,
+  # 1.94.0 supports these settings but predates the operator overlay file.
+  FILESYSTEM_OVERLAY=$(mktemp "${TMPDIR:-/tmp}/agenticos-projectfs.XXXXXX")
+  trap 'rm -f "$FILESYSTEM_OVERLAY"' EXIT
+  cat > "$FILESYSTEM_OVERLAY" <<'PROJECTFS_COMPOSE'
+services:
+  sandboxd:
+    networks:
+      - projectfs_gateway
+networks:
+  projectfs_gateway:
+    driver: bridge
+    internal: false
+PROJECTFS_COMPOSE
+  BACKEND+=(-f "$FILESYSTEM_OVERLAY")
 fi
 
 # The sandbox service is behind a compose profile, so it is opt-in - and a

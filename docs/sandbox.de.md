@@ -1,5 +1,5 @@
 ---
-source_sha: "279162aefa3d"
+source_sha: "4810cee98986"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -76,7 +76,7 @@ möglich; interne Compose-Namen wie `api` sind auf der isolierten Bridge nicht
 verfügbar. `host.docker.internal:<port>` benötigt eine aus Docker erreichbare
 API-Schnittstelle; ein nur an Loopback veröffentlichter Produktionsport genügt nicht.
 
-Füge bei Compose für Live-Mounts `-f docker-compose.project-filesystem.yml` nach den Basis- und Proxydateien hinzu. `scripts/deploy.sh` wählt die Datei automatisch, wenn beide Einstellungen gesetzt sind, und verweigert unvollständige Konfiguration. Nur sandboxd erhält eine separate ausgehende Bridge; privates Datennetz, Agentenisolation und fehlende veröffentlichte Supervisorports bleiben unverändert.
+Füge bei Compose für Live-Mounts `-f docker-compose.project-filesystem.yml` nach den Basis- und Proxydateien hinzu. `scripts/deploy.sh` erzeugt dieselbe Konfiguration außerhalb des Checkouts, wenn beide Einstellungen gesetzt sind, unterstützt damit Rollbacks auf ältere Versionen und verweigert unvollständige Konfiguration. Nur sandboxd erhält eine separate ausgehende Bridge; privates Datennetz, Agentenisolation und fehlende veröffentlichte Supervisorports bleiben unverändert.
 
 Die Funktion bleibt bis zur Konfiguration deaktiviert. Clients wählen keine
 Hostpfade, Images oder Gateway-Adressen. Der Helfer veröffentlicht keine Ports;
