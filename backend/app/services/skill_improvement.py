@@ -1031,6 +1031,7 @@ class SkillImprovementService:
             )
         await self._decidable(run)
         await self._refuse_merge_moved(run, line.skill)
+        alone = await self._main_alone_check(run, lock=True)
         read = await self._read(ctx, run, line)
         if "return_to_main" not in read.outcomes:
             raise BadRequestError(
@@ -1039,7 +1040,6 @@ class SkillImprovementService:
                 details={"main_alone": read.main_alone},
             )
         assert run.fork_id is not None, "a catch-up runs on its fork"
-        alone = await self._main_alone_check(run)
         assert alone is not None, "return to main is offered after main alone was checked"
         await self._refuse_unreviewed(data, alone)
         await self.checks.decidable_for_session(ctx, run.skill_id, alone.id)
@@ -1761,13 +1761,15 @@ class SkillImprovementService:
             details={"moved": moved},
         )
 
-    async def _main_alone_check(self, run: SkillImprovementRun) -> SkillCheck | None:
+    async def _main_alone_check(
+        self, run: SkillImprovementRun, *, lock: bool = False
+    ) -> SkillCheck | None:
         """A catch-up's second check, of main's newest version alone, once it started."""
         iteration = await self._iteration(run)
         if iteration.main_alone_check_id is None:
             return None
         return await skill_check_repo.get(
-            self.db, iteration.main_alone_check_id, organization_id=run.organization_id
+            self.db, iteration.main_alone_check_id, organization_id=run.organization_id, lock=lock
         )
 
     async def _propose(self, ctx: AuthContext, run: SkillImprovementRun, line: SessionLine) -> None:
@@ -2060,13 +2062,13 @@ class SkillImprovementService:
                 details={"base_version_id": run.base_version_id, "latest": line.latest},
             )
 
-    async def _check(self, run: SkillImprovementRun) -> SkillCheck | None:
+    async def _check(self, run: SkillImprovementRun, *, lock: bool = False) -> SkillCheck | None:
         """The current attempt's check, once it started."""
         iteration = await self._iteration(run)
         if iteration.skill_check_id is None:
             return None
         return await skill_check_repo.get(
-            self.db, iteration.skill_check_id, organization_id=run.organization_id
+            self.db, iteration.skill_check_id, organization_id=run.organization_id, lock=lock
         )
 
     async def _refuse_unreviewed(
@@ -2074,7 +2076,11 @@ class SkillImprovementService:
         data: SkillImprovementApply | SkillImprovementFork | SkillImprovementReturn,
         current: SkillCheck,
     ) -> None:
-        """Refuse a decision on any result but the one the person reviewed, as judged then."""
+        """Refuse a decision on any result but the one the person reviewed, as judged then.
+
+        `current` is held locked: a review that judges its agents again does so under the
+        check's lock, so the result hashed here is the one the decision is made on.
+        """
         rows = await skill_check_repo.list_agents(
             self.db, [current.id], organization_id=current.organization_id
         )
@@ -2094,7 +2100,7 @@ class SkillImprovementService:
                 message="The session has no result to decide on now",
                 details={"status": run.status},
             )
-        check = await self._check(run)
+        check = await self._check(run, lock=True)
         assert check is not None, "a session waits with a result only after its check"
         return check
 

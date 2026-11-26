@@ -6,6 +6,8 @@ the fake the improvement session's tests use, and the conflicts' model call is p
 here and answered by settling its request, so each move is the session's own.
 """
 
+import asyncio
+import contextlib
 import threading
 import uuid
 from dataclasses import replace
@@ -15,7 +17,7 @@ from typing import Any
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import (
     AlreadyExistsError,
@@ -34,7 +36,7 @@ from app.db.models.skill import Skill
 from app.db.models.skill_check import AgentState, CheckStatus, SkillCheck
 from app.db.models.skill_improvement import SkillImprovementPurpose, SkillImprovementRun
 from app.db.models.skill_version import SkillFork, SkillVersion
-from app.repositories import skill_improvement_repo, skill_version_repo
+from app.repositories import skill_check_repo, skill_improvement_repo, skill_version_repo
 from app.schemas.authoring import AuthoringEstimate
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_check import AgentRef, SkillCheckAgentRead
@@ -56,7 +58,13 @@ from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_authoring import _improver, _owner
-from tests.integration.test_skill_bindings import _fork, _serving, _spec, _with_specialist
+from tests.integration.test_skill_bindings import (
+    _fork,
+    _serving,
+    _spec,
+    _waiting_for_a_lock,
+    _with_specialist,
+)
 from tests.integration.test_skill_improvement import _checked, reviewed_check
 
 pytestmark = pytest.mark.anyio
@@ -1331,3 +1339,55 @@ async def _described(db: AsyncSession, ctx: AuthContext) -> tuple[Skill, SkillFo
     await SkillService(db).update(ctx, skill.id, SkillUpdate(description="How refunds are paid."))
     await db.refresh(skill)
     return skill, fork
+
+
+class TestAReturnBesideAReview:
+    @pytest.mark.security
+    async def test_a_return_waits_for_a_review_judging_main_alone_and_refuses_the_old_result(
+        self, db: AsyncSession, engine: AsyncEngine, call_price, monkeypatch
+    ):
+        """Main alone is judged again under its lock while the return waits for it: the
+        result the return was confirmed on is gone."""
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        skill, fork = await _diverged(db, ctx)
+        await _serving(db, ctx, "Desk", _spec(skill, fork_id=str(fork.id)))
+        run = await _started(db, ctx, skill, fork)
+        await _advance(db, run)
+        await _advance(db, run)
+        await _check_now(db, ctx, run)
+        await db.refresh(run)
+        await _settle(db, run, "passed", "no_better")
+        shown = await reviewed_check(db, ctx, skill.id, run.id, main_alone=True)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def returning() -> object:
+            async with factory() as session:
+                return await SkillImprovementService(session).return_to_main(
+                    ctx, skill.id, run.id, SkillImprovementReturn(confirmed=True, **shown)
+                )
+
+        task: asyncio.Task[object] | None = None
+        async with factory() as judging:
+            try:
+                alone = await skill_check_repo.get(
+                    judging, shown["check_id"], organization_id=ctx.organization_id, lock=True
+                )
+                assert alone is not None
+                alone.verdict = "passed"
+                await judging.flush()
+                task = asyncio.create_task(returning())
+                await _waiting_for_a_lock(factory, task)
+
+                await judging.commit()
+                with pytest.raises(ConcurrentChangeError, match="Refresh the session"):
+                    await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+
+        assert not [call for call in fake.calls if call[0] == "discard"]

@@ -2985,3 +2985,53 @@ class TestADecisionBesideTheSkillsDelete:
                     task.cancel()
                     with contextlib.suppress(asyncio.CancelledError):
                         await task
+
+
+class TestADecisionBesideAReview:
+    @pytest.mark.security
+    async def test_a_decision_waits_for_a_review_judging_its_check_and_refuses_the_old_result(
+        self, db: AsyncSession, engine: AsyncEngine, evidence, monkeypatch
+    ):
+        """A review of a case judges the check's agents again under the check's lock; a
+        decision made meanwhile waits for it, and the result it was confirmed on is gone."""
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="passed")
+        shown = await reviewed_check(db, ctx, run.skill_id, run.id)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def applying() -> object:
+            async with factory() as session:
+                return await SkillImprovementService(session).apply(
+                    ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True, **shown)
+                )
+
+        task: asyncio.Task[object] | None = None
+        async with factory() as judging:
+            try:
+                check = await skill_check_repo.get(
+                    judging, shown["check_id"], organization_id=ctx.organization_id, lock=True
+                )
+                assert check is not None
+                [row] = await skill_check_repo.list_agents(
+                    judging, [check.id], organization_id=ctx.organization_id
+                )
+                row.regressions_confirmed = row.regressions_confirmed + 1
+                await judging.flush()
+                task = asyncio.create_task(applying())
+                await _waiting_for_a_lock(factory, task)
+
+                await judging.commit()
+                with pytest.raises(ConcurrentChangeError, match="Refresh the session"):
+                    await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+
+        assert [call for call in fake.calls if call[0] == "apply"] == []
