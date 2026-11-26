@@ -25,6 +25,7 @@ from app.api.deps import (
 )
 from app.api.public_api import ASSISTANT, PUBLIC
 from app.clients.subscription_gateway import configured_gateway
+from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.field_errors import refused_field
 from app.core.permissions import Perm
@@ -430,6 +431,32 @@ async def list_provider_models(
     refresh: bool = False,
 ) -> Any:
     """List models; `refresh` bypasses this API replica's cache, preserving key and endpoint checks."""
+    if provider == CLAUDE_SUBSCRIPTION_PROVIDER:
+        if secret_id is not None:
+            raise refused_field(
+                "secret_id", "Claude subscriptions use the signed-in user's native connection"
+            )
+        if base_url is not None or api is not None:
+            raise refused_field(
+                "base_url",
+                "Claude subscriptions use the native runtime and do not take a key or endpoint",
+            )
+        models, source = await models_for(provider)
+        return ProviderModelList(
+            items=[
+                ProviderModelRead(
+                    id=entry.id,
+                    name=entry.name,
+                    context_length=entry.context_length,
+                    output_modalities=list(entry.output_modalities),
+                    apis=[],
+                    chat_capable=True,
+                )
+                for entry in models
+            ],
+            total=len(models),
+            source=source,
+        )
     if provider == "subscription_accounts":
         # The caller's own signed-in accounts decide what the gateway serves;
         # somebody who signed in to none sees nothing to pick from.

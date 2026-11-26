@@ -1,5 +1,5 @@
 ---
-source_sha: "9314a411801c"
+source_sha: "e97f2796d68c"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -581,7 +581,10 @@ się użyć, wpisując identyfikator ręcznie.
 | Google Vertex AI | `google_cloud` | JSON konta serwisowego |
 | ChatGPT (Codex subscription) | `openai_codex` | logowanie do ChatGPT, zapisywane przez zalogowanie się, a nie wpisywane |
 | ChatGPT (oficjalne użycie planu) | `openai_chatgpt` | grant aplikacji z osobną zgodą na korzystanie z planu, utworzony przez logowanie |
+| Claude (subskrypcja) | `claude-subscription` | natywne środowisko Claude właściciela profilu, bez klucza w vault |
 | Konta subskrypcyjne | `subscription_accounts` | własne logowania każdej osoby do subskrypcji, przez dołączoną bramę; bez klucza |
+
+`claude-subscription` zachowuje istniejące natywne środowisko Claude skonfigurowane przez operatora dla profili przypisanych do właściciela. Jest oddzielne od dołączonej bramy `subscription_accounts`; tylko zapisany właściciel profilu może je wyświetlać, edytować lub uruchamiać.
 
 Pierwsze trzy są powodem, dla którego sekret w ogóle ma *rodzaj*. Formularz, który
 zbierałby dla Azure jeden nieprzejrzysty token, zbierałby coś, co da się wypełnić

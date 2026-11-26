@@ -1,5 +1,5 @@
 ---
-source_sha: "9314a411801c"
+source_sha: "e97f2796d68c"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -618,7 +618,10 @@ wenn Sie die ID eintippen.
 | Google Vertex AI | `google_cloud` | Service-Account-JSON |
 | ChatGPT (Codex-Abonnement) | `openai_codex` | eine ChatGPT-Anmeldung, gespeichert durch Anmelden statt durch Eintippen |
 | ChatGPT (offizielle Plannutzung) | `openai_chatgpt` | eine durch Anmeldung erstellte Anwendungsfreigabe mit gesonderter Planzustimmung |
+| Claude (Abonnement) | `claude-subscription` | native Claude-Laufzeit des Profileigentümers, kein Vault-Key |
 | Abonnement-Konten | `subscription_accounts` | die eigenen Abonnement-Anmeldungen jeder Person, über das mitgelieferte Gateway; kein Schlüssel |
+
+`claude-subscription` erhält die bestehende, vom Betreiber konfigurierte native Claude-Laufzeit für Profile mit festem Besitzer. Sie ist vom mitgelieferten `subscription_accounts`-Gateway getrennt; nur der gespeicherte Besitzer des Profils kann sie auflisten, bearbeiten oder ausführen.
 
 Die ersten drei sind der Grund, warum ein Secret überhaupt eine *Art* hat. Ein
 Formular, das für Azure ein einzelnes undurchsichtiges Token einsammelte, würde

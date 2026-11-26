@@ -568,7 +568,10 @@ text: a server that publishes no list can still be used by typing the id.
 | Google Vertex AI | `google_cloud` | service account JSON |
 | ChatGPT (Codex subscription) | `openai_codex` | a ChatGPT sign-in, stored by signing in rather than typed |
 | ChatGPT (official plan usage) | `openai_chatgpt` | an application grant with separate plan consent, created by signing in |
+| Claude (subscription) | `claude-subscription` | the profile owner's native Claude runtime, no vault key |
 | Subscription accounts | `subscription_accounts` | each person's own subscription sign-ins, through the bundled gateway; no key |
+
+`claude-subscription` keeps the existing operator-configured native runtime for owner-bound profiles. It is separate from the bundled `subscription_accounts` gateway; only the profile's saved owner can list, edit or run it.
 
 The first three are the reason a secret has a *kind* at all. A form that collected one
 opaque token for Azure would collect something fillable-in-correctly that still

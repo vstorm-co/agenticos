@@ -1,5 +1,5 @@
 ---
-source_sha: "9314a411801c"
+source_sha: "e97f2796d68c"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -596,7 +596,10 @@ puede usar escribiendo el identificador a mano.
 | Google Vertex AI | `google_cloud` | JSON de la cuenta de servicio |
 | ChatGPT (suscripción de Codex) | `openai_codex` | un inicio de sesión de ChatGPT, guardado iniciando sesión en vez de tecleado |
 | ChatGPT (uso oficial del plan) | `openai_chatgpt` | una autorización de aplicación con consentimiento separado del plan, creada al iniciar sesión |
+| Claude (suscripción) | `claude-subscription` | runtime nativo de Claude del propietario del perfil, sin clave en el vault |
 | Cuentas de suscripción | `subscription_accounts` | los inicios de sesión de suscripción de cada persona, a través de la pasarela incluida; sin clave |
+
+`claude-subscription` conserva el runtime nativo de Claude existente, configurado por el operador, para perfiles vinculados a su propietario. Está separado de la pasarela incluida `subscription_accounts`; solo el propietario guardado del perfil puede consultarlo, editarlo o ejecutarlo.
 
 Los tres primeros son la razón de que un secreto tenga un *kind*. Un formulario que
 recogiera un único token opaco para Azure recogería algo que se puede rellenar

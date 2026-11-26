@@ -33,6 +33,7 @@ from app.agents.model_resolver import (
     get_provider,
     lacks_key,
 )
+from app.core.claude_subscription import CLAUDE_SUBSCRIPTION_PROVIDER, ClaudeSubscriptionOwner
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -395,11 +396,22 @@ class TestProviderCatalog:
         - which is also what proves the declaration is right.
         """
         spec = PROVIDERS[provider_id]
-        # OpenRouter is the one provider that rejects a bare model id, and does
-        # so in the constructor rather than at request time.
-        model = "openai/gpt-4.1" if provider_id == "openrouter" else "some-model"
+        # OpenRouter rejects a bare model id in the constructor, while the native
+        # Claude subscription accepts only its curated aliases.
+        model = (
+            "openai/gpt-4.1"
+            if provider_id == "openrouter"
+            else "sonnet"
+            if provider_id == CLAUDE_SUBSCRIPTION_PROVIDER
+            else "some-model"
+        )
         # A subscription-accounts credential reaches a client only once bound
         # to a person's gateway scope, as a key and an endpoint.
+        claude_owner = (
+            ClaudeSubscriptionOwner(uuid.uuid4(), uuid.uuid4())
+            if provider_id == CLAUDE_SUBSCRIPTION_PROVIDER
+            else None
+        )
         credential = ResolvedCredential(
             provider=provider_id,
             secret=ApiKeySecret(api_key="gateway-token")
@@ -416,6 +428,8 @@ class TestProviderCatalog:
             )
             if provider_id == "openai_chatgpt"
             else None,
+            personal_owner_user_id=claude_owner.user_id if claude_owner is not None else None,
+            claude_subscription_owner=claude_owner,
         )
         assert build_model(credential, model) is not None
 
