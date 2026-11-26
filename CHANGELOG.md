@@ -42,6 +42,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Upgrading
 
 - Migration `0375_tool_approval_platform_call` adds `tool_approvals.platform_call` and fills it for the calls already recorded: a call of no capability whose tool name starts with `agenticos_`.
+- Stop old API and workers before migration `0375_tool_approval_platform_call`, then start only updated code, as for `0374_case_from_conversation`. An old process parks a platform call without its mark, and any approver could then release it; mixed-version writes during this upgrade are unsupported.
 - Reading an Improve session now needs `runs:view`. Members and Viewers who read sessions through the API or the Architect need it granted.
 - A tool override that renames a capability's tool to a name starting with `agenticos_` is refused at publish. Rename that tool before the agent is published again; versions already published keep running.
 - `update_skill`, `add_skill_resource` and `update_context_file` always ask now, and no standing consent or `never` override releases them. A routine or unattended run that calls them waits for a person's approval.
