@@ -496,7 +496,28 @@ class NotificationService:
             owner_user_id=agent.owner_user_id,
             initiator_user_id=run.user_id,
         )
-        if not recipients:
+        # Imported here: the approvals service reaches this module through its chat handback.
+        from app.services.approvals import runs_as_its_person
+
+        own = [
+            str(approval.id)
+            for approval in approvals
+            if runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+        ]
+        # Only the run's person may approve their platform call, so they are told of it
+        # whatever audience the agent's approval alert names, or none.
+        person = (
+            run.user_id
+            if own
+            and run.user_id is not None
+            and await member_repo.list_member_ids_for(
+                self.db, organization_id=run.organization_id, user_ids=[run.user_id]
+            )
+            else None
+        )
+        if person is not None:
+            recipients.discard(person)
+        elif not recipients:
             return
 
         # The queue, not the agent. This addressed `/agents/{id}` - the
@@ -523,32 +544,26 @@ class NotificationService:
             "approvals_url": absolute_context_url(approvals_path),
             "app_name": settings.PROJECT_NAME,
         }
-        # Imported here: the approvals service reaches this module through its chat handback.
-        from app.services.approvals import runs_as_its_person
-
-        own = [
-            str(approval.id)
-            for approval in approvals
-            if runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
-        ]
         occurrence_id = hashlib.sha256(
             ":".join(sorted(str(approval.id) for approval in approvals)).encode()
         ).hexdigest()
-        person = run.user_id
-        if own and person is not None and person in recipients and run.conversation_id is not None:
-            # The run's person answers their own platform call in the conversation it
-            # was asked in, which brings its card back; the queue is not theirs to read.
-            recipients.discard(person)
-            chat_path = self._link(f"/chat?id={run.conversation_id}", run.organization_id)
+        if person is not None:
+            # In the conversation the call was asked in its card comes back; the queue
+            # lists it only for a person who holds `approvals:decide`.
+            own_path = (
+                approvals_path
+                if run.conversation_id is None
+                else self._link(f"/chat?id={run.conversation_id}", run.organization_id)
+            )
             await self._center.write(
                 recipients=[person],
                 event_type=NotificationEventType.APPROVAL_REQUESTED,
                 occurrence_id=occurrence_id,
                 summary=summary,
-                context_url=chat_path,
+                context_url=own_path,
                 render_context={
                     **render_context,
-                    "approvals_url": absolute_context_url(chat_path),
+                    "approvals_url": absolute_context_url(own_path),
                     APPROVABLE_BY: str(person),
                     APPROVABLE_CALLS: own,
                 },
