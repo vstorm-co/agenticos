@@ -90,20 +90,24 @@ class TestCompletingAnIngest:
             changed.assert_not_awaited()
 
 
-async def test_the_delete_reads_the_vector_id_from_the_deleted_row() -> None:
+@pytest.mark.parametrize("parsed_path", [None, "rag/a.parsed.jsonl"])
+async def test_the_delete_reads_the_vector_id_from_the_deleted_row(parsed_path: str | None) -> None:
     """`RETURNING`, so a settlement committed after the caller loaded the row is seen."""
     result = MagicMock()
-    result.all.return_value = [("rag/a.md", "vec-1")]
+    result.all.return_value = [("rag/a.md", parsed_path, "vec-1")]
     db = MagicMock(execute=AsyncMock(return_value=result), flush=AsyncMock())
     doc_id = uuid.uuid4()
 
     deleted = await rag_document_repo.delete_with_vectors(db, doc_id)
 
     assert deleted.vector_document_ids == ["vec-1"]
-    assert deleted.storage_paths == ["rag/a.md"]
+    assert deleted.storage_paths == ["rag/a.md", *([parsed_path] if parsed_path else [])]
     sql = str(db.execute.await_args.args[0].compile(dialect=postgresql.dialect()))
     assert sql.startswith("DELETE FROM rag_documents WHERE rag_documents.id =")
-    assert "RETURNING rag_documents.storage_path, rag_documents.vector_document_id" in sql
+    assert (
+        "RETURNING rag_documents.storage_path, rag_documents.parsed_content_path, "
+        "rag_documents.vector_document_id"
+    ) in sql
 
 
 @pytest.mark.parametrize("found", [True, False])

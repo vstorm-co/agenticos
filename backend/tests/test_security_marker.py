@@ -41,6 +41,9 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_mobile_microphone_permission.py::test_microphone_purpose_is_present_in_the_shipped_app_and_generator": "native microphone purpose metadata consistency, not a runtime authorization decision",
+    "tests/test_mobile_microphone_permission.py::test_microphone_purpose_is_translated_in_every_existing_native_locale": "native purpose-string localization coverage, not a runtime authorization decision",
+    "tests/test_platform_describers.py::test_invalid_nested_eval_references_do_not_break_the_approval_card": "malformed display-reference handling, not permission to decide the approval",
     "tests/test_matrix_adapter.py::TestPrompts::test_an_approval_is_numbered_in_its_thread": "numbered prompt rendering, not an authorization decision or refusal",
     "tests/test_platform_mcp_disclosure.py::test_large_run_history_preserves_the_real_pending_approval_contract": "preserves pending-call metadata in a bounded response, not an approval authorization refusal",
     "tests/test_platform_mcp_disclosure.py::test_large_pending_approvals_keep_bounded_identities_and_a_full_console_review_link": "bounds pending-call payloads and hands full review to the console, not an approval decision",

@@ -71,3 +71,20 @@ it("sends the explicitly reviewed decision answer rather than silently accepting
     reference_answer: "Corrected answer",
   });
 });
+
+it("keeps platform action identity separate from labels and inherited consent", async () => {
+  const action = { kind: "platform" as const, tool_id: "publish_finding" };
+  const review = {
+    ...action,
+    name: "Notify me",
+    group: "tasks" as const,
+    consented: true,
+    waivable: true,
+  };
+  expect(JSON.parse(routineActionIdentity(review))).toEqual(action);
+  await routineActionsApi.replace("agent", "routine", [action], "reviewed-platform-tools");
+  expect(apiClient.put).toHaveBeenCalledWith("/agents/agent/triggers/routine/action-consents", {
+    actions: [action],
+    review_token: "reviewed-platform-tools",
+  });
+});

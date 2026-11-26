@@ -191,6 +191,7 @@ from app.agents.capabilities.sandbox import (
     SHARED_SCOPES,
     WORKSPACE_RESOURCE,
     WORKSPACE_SHARED_RESOURCE,
+    SandboxConfig,
     WorkspaceIdentity,
 )
 from app.agents.capabilities.sandbox._identity import SessionScope
@@ -2490,9 +2491,8 @@ def _in_project(spec: AgentSpec, project: Project) -> AgentSpec:
     capabilities = list(spec.capabilities)
     if own is not None and own.enabled:
         config = project_sandbox(project).model_dump(mode="json")
-        configured = sandbox_config(spec)
-        if configured is not None:
-            config["include_execute"] = configured.include_execute
+        configured = SandboxConfig.model_validate(own.config)
+        config["include_execute"] = configured.include_execute
         file_binding = own.model_copy(update={"config": config})
         capabilities = [
             file_binding if binding.id == SANDBOX_CAPABILITY_ID else binding

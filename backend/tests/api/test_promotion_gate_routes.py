@@ -20,6 +20,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
 from app.schemas.eval_suite import EvalSuiteResultRead, EvalSuiteThreshold
 from app.schemas.promotion_gate import (
+    PromotionGateEstimate,
     PromotionGateRead,
     PromotionGateRunRead,
     PromotionGuardRead,
@@ -166,3 +167,19 @@ async def test_a_reason_too_short_to_say_anything_is_refused_before_the_service(
 
     assert response.status_code == 422
     environments.update.assert_not_awaited()
+
+
+async def test_gate_estimate_quotes_a_version_without_starting_guards(
+    client: AsyncClient, gate: MagicMock
+) -> None:
+    gate.estimate = AsyncMock(
+        return_value=PromotionGateEstimate(total_usd="0.15", suite_ids=[_SUITE])
+    )
+    async with client as http:
+        response = await http.get(_url("/gate/estimate"), params={"version_id": str(_VERSION)})
+        missing = await http.get(_url("/gate/estimate"))
+    assert response.status_code == 200
+    assert response.json() == {"total_usd": "0.15", "suite_ids": [str(_SUITE)]}
+    assert gate.estimate.await_args.args[1:] == (_AGENT, _ENV, _VERSION)
+    assert missing.status_code == 422
+    gate.run.assert_not_awaited()

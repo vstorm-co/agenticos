@@ -479,3 +479,51 @@ def test_a_table_version_reference_cannot_choose_an_unrelated_resource() -> None
 
     with pytest.raises(BadRequestError):
         workflow_pins(content)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("file_format", ["json", "yaml"])
+async def test_workflow_download_uses_the_reviewed_workflow_selection(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, file_format: str
+) -> None:
+    from app.core.permissions import AuthContext
+    from app.schemas.resource_bundle import BundleDownloadCreate, BundleResource, ResourceBundle
+    from app.services.portability import PortabilityService
+    from app.services.portability.documents import document_bytes
+
+    root = BundleResource(key="workflow/root", kind=BundleResourceKind.WORKFLOW, name="Draft")
+    bundle = ResourceBundle(roots=(root.key,), resources=(root,))
+    service = PortabilityService(mock_db_session)
+    selected = AsyncMock(return_value=(bundle, {}))
+    monkeypatch.setattr(service, "selected_agent", selected)
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
+    identity = uuid4()
+    selection = BundleDownloadCreate.model_validate({"resources": {}, "file_format": file_format})
+
+    assert await service.download_workflow(ctx, identity, selection) == document_bytes(
+        bundle, selection.file_format
+    )
+    selected.assert_awaited_once_with(
+        ctx, identity, selection, root_kind=BundleResourceKind.WORKFLOW
+    )
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_an_unsupported_export_root_is_refused_before_reading_source_data(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.exceptions import BadRequestError
+    from app.core.permissions import AuthContext
+    from app.services.portability import PortabilityService
+
+    service = PortabilityService(mock_db_session)
+    read = AsyncMock()
+    monkeypatch.setattr(service.sources, "read", read)
+    with pytest.raises(BadRequestError, match="agent or workflow root"):
+        await service.export_resource(
+            AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner"),
+            BundleResourceKind.TABLE,
+            uuid4(),
+        )
+    read.assert_not_awaited()

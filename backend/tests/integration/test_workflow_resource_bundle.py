@@ -74,3 +74,35 @@ async def test_workflow_dependency_cycles_require_explicit_reuse_or_skip(db: Asy
     )
     with pytest.raises(BadRequestError, match="cycle"):
         await PortabilityService(db).import_bundle(ctx, request)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("tags", [[], ["reviewed"]])
+async def test_an_empty_workflow_import_preserves_tags_in_an_unpublished_private_draft(
+    db: AsyncSession, tags: list[str]
+) -> None:
+    from app.schemas.resource_bundle import (
+        BundleContentLayer,
+        BundleResource,
+        ResourceBundle,
+    )
+
+    ctx = await _ctx(db)
+    root = BundleResource(
+        key="workflow/empty",
+        kind=BundleResourceKind.WORKFLOW,
+        name="Empty imported draft",
+        definition={"name": "Empty imported draft", "tags": tags},
+        included=frozenset({BundleContentLayer.DEFINITION}),
+    )
+    request = BundleImportCreate(
+        operation_id=uuid4(),
+        bundle=ResourceBundle(roots=(root.key,), resources=(root,)),
+        choices={root.key: BundleImportChoice(action="create")},
+    )
+
+    receipt = await PortabilityService(db).import_workflow(ctx, request)
+    copied = await WorkflowRegistryService(db).get(ctx, receipt.roots[root.key])
+    assert copied.tags == tags
+    assert copied.current_version_id is None and copied.visibility == "private"
+    assert copied.draft_graph is None

@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import AuthorizationError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.dataset import Dataset
 from app.db.models.improvement import ImprovementRun
@@ -277,7 +277,8 @@ async def test_a_check_the_reader_can_no_longer_open_is_left_out(service):
     assert [a.number for a in read.measurement_noise.by_attempt] == [2]
 
 
-async def test_a_working_session_and_a_reader_without_runs_view_get_no_signal(service):
+@pytest.mark.security
+async def test_a_working_session_has_no_signal_and_a_reader_without_runs_view_is_refused(service):
     pipeline, compare, _ = service
     working = await pipeline._read(OWNER, _session("running"))  # type: ignore[arg-type]
     assert working.measurement_noise is None
@@ -287,8 +288,8 @@ async def test_a_working_session_and_a_reader_without_runs_view_get_no_signal(se
         role=OrgRoleName.OWNER.value,
         key_scopes=frozenset({Perm.AGENTS_VIEW}),
     )
-    hidden = await pipeline._read(narrowed, _session("stopped"))  # type: ignore[arg-type]
-    assert hidden.measurement_noise is None
+    with pytest.raises(AuthorizationError, match="runs:view"):
+        await pipeline._read(narrowed, _session("stopped"))  # type: ignore[arg-type]
     compare.assert_not_awaited()
 
 
@@ -382,14 +383,14 @@ async def test_criterion_metadata_needs_its_dataset_and_named_skill(service, mon
     )
     ctx = replace(OWNER, key_scopes=frozenset({Perm.AGENTS_VIEW})) if denied == "runs" else OWNER
 
-    read = await pipeline._read(ctx, run, noise=False)
-
     if denied == "runs":
-        # Without runs:view a session reads as its status alone, rounds and all left out.
-        assert read.iterations == []
+        with pytest.raises(AuthorizationError, match="runs:view"):
+            await pipeline._read(ctx, run, noise=False)
+        improvement_pipeline.improvement_repo.list_iterations.assert_not_awaited()
         criterion_access.eval_run_repo.datasets.assert_not_awaited()
-        assert "private rubric" not in read.model_dump_json()
         return
+
+    read = await pipeline._read(ctx, run, noise=False)
     returned = read.iterations[0].verdict_detail
     assert returned is not None and returned["fixed"] == 0
     assert ("criteria" in returned) is (denied in {None, "id_only_readable"})

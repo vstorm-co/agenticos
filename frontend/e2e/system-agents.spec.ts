@@ -21,10 +21,12 @@ test("pipeline models and instructions belong to the dataset", async ({ page }) 
   const generator = page.locator('[data-tour="datasets-generator-settings"]');
   await generator.getByRole("combobox").click();
   await page.getByRole("option").first().click();
-  await generator.getByRole("button", { name: "Instructions", exact: true }).click();
+  await generator.getByRole("button", { name: "Dataset-specific guidance", exact: true }).click();
   const instructions =
     "Generate cases from the published refund policy. Include a clear expected answer.";
-  await generator.getByRole("textbox", { name: "Instructions", exact: true }).fill(instructions);
+  await generator
+    .getByRole("textbox", { name: "Dataset-specific guidance", exact: true })
+    .fill(instructions);
   const save = generator.getByRole("button", { name: "Save", exact: true });
   const saved = page.waitForResponse(
     (response) =>
@@ -36,9 +38,9 @@ test("pipeline models and instructions belong to the dataset", async ({ page }) 
   await expect(save).toBeVisible();
   await expect(save).toBeDisabled();
   await page.reload();
-  await expect(generator.getByRole("textbox", { name: "Instructions", exact: true })).toHaveValue(
-    instructions,
-  );
+  await expect(
+    generator.getByRole("textbox", { name: "Dataset-specific guidance", exact: true }),
+  ).toHaveValue(instructions);
   await expect(page.locator('[data-tour="datasets-grading"]')).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Which judge", exact: true })).toHaveCount(0);
 });

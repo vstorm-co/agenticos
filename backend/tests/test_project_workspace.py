@@ -280,3 +280,12 @@ async def test_opening_a_project_workspace_rechecks_its_current_generation(monke
         )
         assert identity.project_workspace_id is None
     guard.assert_awaited_once_with(service.db, ctx, old.id)
+
+
+@pytest.mark.security
+def test_project_context_preserves_an_explicitly_disabled_projects_binding() -> None:
+    original = AgentSpec(name="Writer", capabilities=[{"id": "projects", "enabled": False}])
+    contextual = _in_project(original, _project())
+    assert contextual.capabilities == original.capabilities
+    assert len(contextual.capabilities) == 1
+    assert not contextual.capabilities[0].enabled

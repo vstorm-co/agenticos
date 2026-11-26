@@ -443,7 +443,7 @@ async def test_workflow_source_removes_only_run_data_and_unsafe_column_bindings(
 ) -> None:
     from app.schemas.workflow import StoredWorkflowSettings
     from app.services.portability.workflows import WorkflowContent
-    from app.workflows.contracts.io import Binding, FileRef, TableIORef
+    from app.workflows.contracts.io import Binding, FileRef, LiteralValue, TableIORef
     from app.workflows.graph.model import NodeInstance, NodePosition, WorkflowGraph
 
     identity = uuid4()
@@ -468,6 +468,14 @@ async def test_workflow_source_removes_only_run_data_and_unsafe_column_bindings(
                 target_node_id=node.id,
                 target_field="b",
                 source=TableIORef(table_id=uuid4(), column_ids=(uuid4(),), schema_version=1),
+            ),
+            Binding(
+                target_node_id=node.id, target_field="literal", source=LiteralValue(value="Keep")
+            ),
+            Binding(
+                target_node_id=node.id,
+                target_field="table",
+                source=TableIORef(table_id=uuid4(), schema_version=1),
             ),
         ),
     )
@@ -495,7 +503,7 @@ async def test_workflow_source_removes_only_run_data_and_unsafe_column_bindings(
     assert isinstance(source.content, WorkflowContent) and source.content.graph is not None
     assert source.content.graph.nodes[0].pinned_output is None
     assert source.content.graph.nodes[0].config == {"message": "Keep"}
-    assert source.content.graph.bindings == ()
+    assert source.content.graph.bindings == graph.bindings[2:]
     assert len(source.content.omitted) == 2
     assert "error_workflow_run_as" not in source.content.settings.model_dump()
     assert (
@@ -520,3 +528,38 @@ async def test_a_reused_table_reports_its_current_schema_version(
         ),
     )
     assert source.version_number == 7 and not source.copyable and source.definition is None
+
+
+async def test_workflow_without_a_draft_exports_metadata_without_a_graph(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.schemas.workflow import StoredWorkflowSettings
+    from app.services.portability.workflows import WorkflowContent
+
+    identity = uuid4()
+    monkeypatch.setattr(
+        "app.services.portability.sources.WorkflowRegistryService.get",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                id=identity,
+                name="Empty draft",
+                description=None,
+                tags=[],
+                settings=StoredWorkflowSettings(),
+                draft_graph=None,
+            )
+        ),
+    )
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
+    source = await BundleSources(mock_db_session).read(
+        ctx,
+        BundleResource(
+            key=f"workflow/{identity}",
+            kind=BundleResourceKind.WORKFLOW,
+            name="Draft",
+            source_id=identity,
+        ),
+    )
+    assert isinstance(source.content, WorkflowContent)
+    assert source.content.graph is None
+    assert source.content.omitted == ()

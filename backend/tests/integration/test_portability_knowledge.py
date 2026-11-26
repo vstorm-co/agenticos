@@ -271,6 +271,7 @@ async def test_failed_worker_rolls_back_all_rows_and_expiry_collects_unowned_fil
     assert not await storage.exists(stored)
 
 
+@pytest.mark.security
 async def test_streamed_chunk_reader_pages_text_ids_and_keeps_tenant_and_base_scope(
     engine: AsyncEngine,
 ) -> None:

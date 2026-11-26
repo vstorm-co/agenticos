@@ -50,6 +50,7 @@ import * as outcomes from "./outcomes/[[...path]]/route";
 import * as systemAgents from "./system-agents/[[...path]]/route";
 import * as mlCalls from "./ml/calls/[[...path]]/route";
 import * as projects from "./projects/[[...path]]/route";
+import * as portability from "./portability/[[...path]]/route";
 import * as browserSignIns from "./browser-sign-ins/[[...path]]/route";
 import * as channelLink from "./me/channel-link/[[...path]]/route";
 import * as notifications from "./notifications/[[...path]]/route";
@@ -175,6 +176,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["me/slash-commands", slashCommands],
   ["notifications", notifications],
   ["projects", projects],
+  ["portability", portability],
   ["orgs", orgs],
   ["orgs/[id]", org],
   ["orgs/[id]/invitations", orgInvitations],

@@ -170,3 +170,19 @@ def test_an_unset_model_and_a_capability_without_settings_stay_portable() -> Non
     carried, unresolved = portable(WorkflowGraph(entry_node_id=step.id, nodes=(step,)))
     assert carried.nodes[0].config["inline"] == spec
     assert not unresolved
+
+
+def test_schema_declared_reference_list_items_are_omitted_individually() -> None:
+    from app.workflows.graph.portable import _strip_spec
+
+    identity = str(uuid.uuid4())
+    found: list[tuple[str, str]] = []
+    carried = _strip_spec(
+        [identity, None],
+        {"type": "array", "items": {"type": "string", "format": "uuid"}},
+        {},
+        "inline.resource_ids",
+        found,
+    )
+    assert carried == [None]
+    assert found == [("inline.resource_ids.0", "agent_spec")]

@@ -61,7 +61,9 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.tools import DeferredToolRequests
 from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RunUsage, UsageLimits
+from pydantic_ai.workspaces import Workspace, WorkspaceRef
 from pydantic_ai_backends import StateBackend
+from pydantic_ai_backends.workspaces import StateWorkspaceBackend
 from subagents_pydantic_ai import SubAgentConfig, TaskHandle, TaskManager, TaskStatus
 
 from app.agents.capabilities import CapabilityBinding, CapabilityBuildContext, build, get
@@ -2809,3 +2811,45 @@ async def test_discovered_delegate_checks_live_access_before_spending(refused: b
         assert "Delegation refused" in answer and ledger.total_usd == 0
     else:
         assert "found it" in answer and ledger.total_usd == ENTRY.cost_usd
+
+
+@pytest.mark.security
+async def test_delegate_snapshots_a_project_backend_before_writing() -> None:
+    parents, child = StateBackend(), StateBackend()
+    snapshots: list[bool] = []
+
+    class ProjectBackend(StateWorkspaceBackend):
+        def snapshot_for_delegate(self) -> Workspace:
+            snapshots.append(True)
+            return document_workspace(child)
+
+    project = Workspace(
+        ProjectBackend({"project": parents}, ref=WorkspaceRef(provider="state", id="project"))
+    )
+    await delegate_to(
+        a_capability(a_runtime(_a_writing_delegate(project))),
+        replace(a_context(), workspace=project),
+    )
+    assert snapshots == [True]
+    assert child.read_bytes("/notes.md") == b"found it"
+    assert parents.files == {}
+
+
+async def test_delegate_inheriting_an_absent_workspace_receives_none() -> None:
+    seen: list[bool] = []
+
+    def ping(ctx: RunContext[AgentDeps]) -> str:
+        seen.append(ctx.workspace is None or not ctx.workspace.attached)
+        return "looked"
+
+    delegate = ResolvedSubagent(
+        name="researcher",
+        description="Researches a topic and cites its sources.",
+        build=lambda: PydanticAgent(one_tool_call(), deps_type=AgentDeps, tools=[ping]),
+        workspace="parent",
+    )
+    proxy = _LazyAgent(delegate, _idle_journal(delegate))
+    arguments = {"instructions": "Research without files"}
+    assert proxy._own_workspace(arguments) is arguments
+    await delegate_to(a_capability(a_runtime(delegate)), a_context())
+    assert seen == [True]

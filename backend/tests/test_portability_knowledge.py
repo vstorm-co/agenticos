@@ -293,6 +293,7 @@ async def test_parsed_only_and_unavailable_layers_do_not_copy_originals(
     assert assets == () and count == 0
 
 
+@pytest.mark.security
 async def test_stream_limits_close_reader_and_snapshot_budget_applies_across_documents(
     mock_db_session: AsyncMock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -401,6 +402,7 @@ def test_definition_refuses_index_claims_and_duplicate_document_ids() -> None:
         KnowledgeBaseContent.model_validate({**_content().model_dump(), "documents": [doc, doc]})
 
 
+@pytest.mark.security
 async def test_private_snapshot_creation_checks_permission_and_mapped_endpoint(
     mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:

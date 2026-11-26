@@ -566,19 +566,26 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
             chat = Conversation(organization_id=org_id, user_id=owner_id, title="Private")
             db.add_all([agent, chat])
             db.flush()
-            # A Core insert names only these columns: the model is at head and the
-            # schema here is not.
+            # Core inserts still apply current Python defaults to later columns;
+            # historical SQL must stay independent of the model at head.
             run_id = uuid4()
             db.execute(
-                insert(AgentRun).values(
-                    id=run_id,
-                    organization_id=org_id,
-                    agent_id=agent.id,
-                    started_at=datetime.now(UTC),
-                    user_id=owner_id,
-                    conversation_id=chat.id,
-                    routine_policy={"approved_sources": []},
-                )
+                text(
+                    "INSERT INTO agent_runs "
+                    "(id, organization_id, agent_id, user_id, conversation_id, started_at, "
+                    "surface, status, input_tokens, output_tokens, cost_usd, cost_is_partial, "
+                    "routine_kind, routine_policy) VALUES "
+                    "(:id, :org, :agent, :owner, :chat, :started, 'web', 'running', "
+                    "0, 0, 0, false, 'trigger', '{\"approved_sources\": []}'::jsonb)"
+                ),
+                {
+                    "id": run_id,
+                    "org": org_id,
+                    "agent": agent.id,
+                    "owner": owner_id,
+                    "chat": chat.id,
+                    "started": datetime.now(UTC),
+                },
             )
             db.commit()
 

@@ -26,6 +26,7 @@ from app.core.exceptions import AlreadyExistsError, AuthenticationError
 from app.api.deps import get_redis
 from app.api.deps import get_db_session
 from app.main import app
+from app.repositories import deployment_settings_repo
 
 
 @pytest.mark.anyio
@@ -64,8 +65,10 @@ async def error_client(
     mock_user_service_with_errors: MagicMock,
     mock_redis: MagicMock,
     mock_db_session,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> AsyncClient:
     """Client with mocked services that raise errors."""
+    monkeypatch.setattr(deployment_settings_repo, "get", AsyncMock(return_value=None))
     app.dependency_overrides[get_user_service] = lambda: mock_user_service_with_errors
     app.dependency_overrides[get_redis] = lambda: mock_redis
     app.dependency_overrides[get_db_session] = lambda: mock_db_session

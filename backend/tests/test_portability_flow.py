@@ -655,3 +655,36 @@ async def test_export_does_not_offer_inline_copy_of_opaque_connection_credential
     option = next(item for item in preview.options if item.reusable_id == model_id)
     assert option.available and not option.layers and not option.can_create
     assert "PRIVATE" not in document_bytes(preview.bundle, "json").decode()
+
+
+@pytest.mark.security
+async def test_import_checks_each_dependency_creation_permission_before_writing(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.permissions import ROLE_PERMS, Perm, Scope
+
+    monkeypatch.setitem(ROLE_PERMS, "test:agent-import-only", {Perm.AGENTS_EDIT: Scope.ALL})
+    receipts(monkeypatch)
+    bundle = agent_snapshot(AgentSpec(name="Agent", context_ids=[uuid4()]))
+    bundle = bundle.model_copy(
+        update={
+            "resources": tuple(
+                resource.model_copy(
+                    update={
+                        "definition": {"name": "Policy", "content": "Agreed context"},
+                        "included": frozenset({BundleContentLayer.DEFINITION}),
+                    }
+                )
+                if resource.kind == BundleResourceKind.CONTEXT
+                else resource
+                for resource in bundle.resources
+            )
+        }
+    )
+    service = PortabilityService(mock_db_session)
+    create = AsyncMock()
+    monkeypatch.setattr(service, "_create", create)
+
+    with pytest.raises(AuthorizationError, match="create this resource type"):
+        await service.import_bundle(actor("test:agent-import-only"), request_for(bundle))
+    create.assert_not_awaited()

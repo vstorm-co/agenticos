@@ -2733,7 +2733,16 @@ async def test_routine_policy_database_errors_propagate_without_a_savepoint(db, 
 
 @pytest.mark.security
 @pytest.mark.parametrize(
-    "change", ["other_person", "unbound", "not_always", "other_tenant", "key", "publisher"]
+    "change",
+    [
+        "other_person",
+        "unbound",
+        "not_always",
+        "other_tenant",
+        "key",
+        "publisher",
+        "malformed_calls",
+    ],
 )
 async def test_an_own_call_notice_rechecks_the_current_call_and_person(
     db: AsyncSession, change: str
@@ -2761,6 +2770,8 @@ async def test_an_own_call_notice_rechecks_the_current_call_and_person(
         notice.organization_id = uuid.uuid4()
     elif change == "key":
         reader = dataclasses.replace(reader, api_key_id=uuid.uuid4())
+    elif change == "malformed_calls":
+        notice.render_context = {APPROVABLE_BY: str(person.id), APPROVABLE_CALLS: "not-a-list"}
     else:
         reader = dataclasses.replace(reader, subject_is_publisher_fallback=True)
     await db.flush()

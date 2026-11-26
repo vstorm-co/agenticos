@@ -205,3 +205,33 @@ def test_google_account_source_metadata_is_recovered_only_from_a_verifiable_gran
     assert service.account_source_organization(account) == (
         None if change in {"legacy", "missing_payload"} else SOURCE_ORG
     )
+
+
+async def test_live_shared_client_token_requires_current_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    organization_id = uuid4()
+    connection = _oauth_connection(
+        _base_payload(
+            access_token="still-live",
+            expires_at=4102444800,
+            organization_oauth_client=True,
+            account_source_organization_id=organization_id,
+        )
+    )
+    current = AsyncMock(return_value=True)
+    monkeypatch.setattr(service.McpConnectionService, "_account_source_current", current)
+    refresh = AsyncMock()
+    monkeypatch.setattr(service, "_refresh_under_lock", refresh)
+
+    @asynccontextmanager
+    async def context():
+        yield AsyncMock()
+
+    monkeypatch.setattr(service, "get_worker_db_context", context)
+    assert await service._oauth_access_token(connection) == "still-live"
+    assert current.await_args.args[0] is connection
+    assert current.await_args.args[2] == organization_id
+    current.return_value = False
+    assert await service._oauth_access_token(connection) is None
+    refresh.assert_not_awaited()

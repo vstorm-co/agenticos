@@ -82,7 +82,10 @@ export function RoutineToolSelection({
               const controlId = `${id}-${identity}`;
               return (
                 <div key={identity} className="flex flex-wrap items-center gap-3 py-3">
-                  <Label htmlFor={controlId} className="min-w-0 flex-1 basis-40 space-y-1">
+                  <Label
+                    htmlFor={controlId}
+                    className="min-w-0 flex-1 basis-40 flex-col items-start space-y-1"
+                  >
                     <span className="block break-words">{item.name}</span>
                     <span className="text-muted-foreground block text-xs font-normal">
                       {t(item.agent === "ask" ? "agentAsks" : "agentFree")}
