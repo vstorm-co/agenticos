@@ -1166,7 +1166,12 @@
       "runAcpAgent": "Zewnętrzny agent ACP",
       "runningAcpAgent": "Zewnętrzny agent ACP",
       "inspectAcpAgent": "Odczytaj modele ACP",
-      "readingAcpModels": "Odczytywanie modeli ACP"
+      "readingAcpModels": "Odczytywanie modeli ACP",
+      "approveAcceptImprovement": "Przyjąć próbę {attempt} dla {agent} ({verdict, select, better {lepsza} criteria_better {lepsza w kryteriach} no_change {bez zmian} criteria_worse {gorsza w kryteriach} regression {gorsza} inconclusive {nierozstrzygnięta} other {niezmierzona}}) {publish, select, yes {i ją opublikować} other {jako szkic}}",
+      "approvePublishAgent": "Opublikować {agent}",
+      "approveChangeSkillVersion": "{state, select, main {Przenieść {agent} na główną linię skilla {skill}} pinned {Przypiąć {agent} do skilla {skill} v{version}} other {Przenieść {agent} na fork {fork} skilla {skill}}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {Zastosować ulepszony skill {skill}} apply_and_pin {Zastosować ulepszony skill {skill} i przypiąć agentów, którym by zaszkodził} fork_for_helped {Utworzyć fork skilla {skill} dla agentów, którym pomógł} fork_for_chosen {Utworzyć fork skilla {skill} dla: {agents}} catch_up {Zaktualizować fork skilla {skill} do main} other {Przywrócić fork skilla {skill} do main}}",
+      "approveStartEvalRun": "Przetestować {agent} na datasecie {dataset} v{version}"
     },
     "turnWasStopped": "zatrzymano",
     "unfavourite": "Usuń z ulubionych",

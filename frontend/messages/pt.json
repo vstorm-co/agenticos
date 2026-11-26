@@ -2165,7 +2165,12 @@
       "runAcpAgent": "Agente ACP externo",
       "runningAcpAgent": "Agente ACP externo",
       "inspectAcpAgent": "Ler opções de modelo ACP",
-      "readingAcpModels": "Lendo opções de modelo ACP"
+      "readingAcpModels": "Lendo opções de modelo ACP",
+      "approveAcceptImprovement": "Aceitar a tentativa {attempt} para {agent} ({verdict, select, better {melhor} criteria_better {melhor nos critérios} no_change {sem mudança} criteria_worse {pior nos critérios} regression {pior} inconclusive {inconclusiva} other {não medida}}) {publish, select, yes {e publicá-la} other {como rascunho}}",
+      "approvePublishAgent": "Publicar {agent}",
+      "approveChangeSkillVersion": "{state, select, main {Mover {agent} para a linha principal de {skill}} pinned {Fixar {agent} em {skill} v{version}} other {Mover {agent} para o fork {fork} de {skill}}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {Aplicar o skill melhorado {skill}} apply_and_pin {Aplicar o skill melhorado {skill} e fixar os agents que ele prejudicaria} fork_for_helped {Criar um fork de {skill} para os agents que ele ajudou} fork_for_chosen {Criar um fork de {skill} para: {agents}} catch_up {Atualizar o fork de {skill} com a main} other {Devolver o fork de {skill} à main}}",
+      "approveStartEvalRun": "Testar {agent} no dataset {dataset} v{version}"
     },
     "turnWasStopped": "interrompido",
     "unfavourite": "Remover dos favoritos",

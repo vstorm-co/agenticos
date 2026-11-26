@@ -488,6 +488,26 @@ class TestWhatEachReaderIsOffered:
         assert row.may_approve is True
 
 
+@pytest.mark.security
+async def test_a_platform_calls_names_are_read_by_its_person_alone(db: AsyncSession):
+    """The names were read with the person's own grants: an approver who may not open
+    that agent decides from the arguments, as the queue and the parked read show it."""
+    org = await _org(db)
+    builder = await _member(db, org, OrgRoleName.BUILDER)
+    operator = await _member(db, org, OrgRoleName.OPERATOR)
+    run, approval = await _parked(db, org, builder)
+    approval.context = {"agent": "Payroll", "attempt": "2", "publish": "yes"}
+    await db.flush()
+
+    [row], _total = await ApprovalService(db).list_approvals(operator)
+    [theirs] = await AgentRunnerService(db).parked_calls(builder, run, for_decision=True)
+    [others] = await AgentRunnerService(db).parked_calls(operator, run)
+
+    assert row.context is None and others.context is None
+    assert theirs.context == {"agent": "Payroll", "attempt": "2", "publish": "yes"}
+    assert row.content_hidden is False
+
+
 def _parked_runs(db: AsyncSession) -> ParkedRunService:
     return ParkedRunService(db, runner=AgentRunnerService(db), approvals=ApprovalService(db))
 

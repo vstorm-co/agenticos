@@ -1784,15 +1784,21 @@ class TestActingOnASession:
 
         accepted = await server.call_tool(
             "accept_improvement",
-            {"agent_id": str(AGENT), "session_id": str(SESSION), "publish": publish},
+            {
+                "agent_id": str(AGENT),
+                "session_id": str(SESSION),
+                "attempt": 2,
+                "publish": publish,
+            },
         )
 
         assert api.request.await_args.args == (
             "POST",
             f"/agents/{AGENT}/improvements/{SESSION}/finish",
         )
+        # The attempt the card named, which the server holds the acceptance to.
         assert api.request.await_args.kwargs == {
-            "json": {"confirmed": True, "publish": publish, "automatic_check": False}
+            "json": {"confirmed": True, "attempt": 2, "publish": publish, "automatic_check": False}
         }
         assert accepted.structured_content["version"] == 4
 

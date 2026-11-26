@@ -365,6 +365,7 @@ from app.services.api_key import ApiKeyService, mint_for_run
 from app.services.approvals import (
     ApprovalService,
     answers_for,
+    described_for,
     may_approve,
     may_decide,
     runs_as_its_person,
@@ -7983,6 +7984,8 @@ class AgentRunnerService:
             tool_args, context = withhold(
                 hidden, tool_args=approval.tool_args or {}, context=approval.context
             )
+            if not described_for(ctx, approval.tool_id, run.user_id):
+                context = None
             parked.append(
                 ParkedCall(
                     id=approval.id,

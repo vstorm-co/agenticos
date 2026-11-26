@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { toolCaption, toolDisplayName } from "./agent-step-captions";
+import { approvalSummary, toolCaption, toolDisplayName } from "./agent-step-captions";
 
 import { createTranslator } from "next-intl";
 
@@ -70,5 +70,77 @@ describe("toolDisplayName", () => {
   it("humanises anything else", () => {
     expect(toolDisplayName("post_invoice", t)).toBe("Post Invoice");
     expect(toolDisplayName("linear_create_issue", t)).toBe("Linear Create Issue");
+  });
+});
+
+describe("approvalSummary for the platform's own tools", () => {
+  it("says which attempt of which agent is accepted, its verdict and the version published", () => {
+    const context = { agent: "Support", attempt: "2", verdict: "better", publish: "yes" };
+    expect(approvalSummary(null, context, t, "agenticos_accept_improvement")).toBe(
+      "Accept attempt 2 for Support (better) and publish it",
+    );
+    expect(
+      approvalSummary(
+        null,
+        { ...context, verdict: "", publish: "no" },
+        t,
+        "agenticos_accept_improvement",
+      ),
+    ).toBe("Accept attempt 2 for Support (not measured) as a draft");
+  });
+
+  it("names what a publish, an eval and a skill move do", () => {
+    expect(approvalSummary(null, { agent: "Support" }, t, "agenticos_publish_agent")).toBe(
+      "Publish Support",
+    );
+    expect(
+      approvalSummary(
+        null,
+        { agent: "Support", dataset: "Refunds", version: "3" },
+        t,
+        "agenticos_start_eval_run",
+      ),
+    ).toBe("Test Support on the dataset Refunds v3");
+    expect(
+      approvalSummary(
+        null,
+        { skill: "Tone", agent: "Support", state: "pinned", version: "4" },
+        t,
+        "agenticos_change_skill_version",
+      ),
+    ).toBe("Pin Support to Tone v4");
+    expect(
+      approvalSummary(
+        null,
+        { skill: "Tone", outcome: "apply" },
+        t,
+        "agenticos_accept_skill_improvement",
+      ),
+    ).toBe("Apply the improved skill Tone");
+    expect(
+      approvalSummary(
+        null,
+        { skill: "Tone", agent: "Support", state: "fork", fork: "Gentle" },
+        t,
+        "agenticos_change_skill_version",
+      ),
+    ).toBe("Move Support to the fork Gentle of Tone");
+    expect(
+      approvalSummary(
+        null,
+        { skill: "Tone", outcome: "fork_for_chosen", agents: "Support, Billing" },
+        t,
+        "agenticos_accept_skill_improvement",
+      ),
+    ).toBe("Fork Tone for Support, Billing");
+  });
+
+  it("falls back to the arguments without a description or for another tool", () => {
+    expect(approvalSummary(null, null, t, "agenticos_publish_agent")).toBeNull();
+    expect(approvalSummary(null, { attempt: "2" }, t, "agenticos_publish_agent")).toBeNull();
+    expect(
+      approvalSummary(null, { agent: "Support", version: "8" }, t, "publish_agent"),
+    ).toBeNull();
+    expect(approvalSummary(null, { agent: "Support", version: "8" }, t)).toBeNull();
   });
 });

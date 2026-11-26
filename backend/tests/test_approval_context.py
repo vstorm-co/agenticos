@@ -33,6 +33,7 @@ from app.agents.capabilities.approval import (
 )
 from app.agents.capabilities.approval import _capability as gate_module
 from app.agents.deps import AgentDeps
+from app.agents.mcp import PLATFORM_TOOL
 from app.services.agent_runner import ApprovalChannel
 
 # What an approver is shown, and whether a held call is described: approval-gate behaviour.
@@ -143,6 +144,23 @@ class TestTheGateDescribes:
 
         assert (request.describe, request.capability_tool_id) == (None, None)
         describe.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_only_a_call_the_platform_binding_marked_gets_the_platforms_card(self):
+        """A connection may be named after the platform and serve `agenticos_*` tools of
+        its own; only the binding's mark makes a call the platform's to describe."""
+        gate = ApprovalGate(gate_every_tool=True)
+
+        def tool(metadata: dict[str, object] | None) -> ToolDefinition:
+            return ToolDefinition(
+                name="agenticos_publish_agent",
+                parameters_json_schema={"type": "object", "properties": {}},
+                metadata=metadata,
+            )
+
+        assert (await _park(gate, tool(None))).describe is None
+        assert (await _park(gate, tool({PLATFORM_TOOL: False}))).describe is None
+        assert (await _park(gate, tool({PLATFORM_TOOL: True}))).describe is not None
 
     async def test_a_tool_with_no_describer_is_asked_about_as_before(self):
         request = await _park(ApprovalGate(required_tool_names=frozenset({"update_record"})))

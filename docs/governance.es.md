@@ -1,5 +1,5 @@
 ---
-source_sha: "ca0138b9ea83"
+source_sha: "ad8c16ba300b"
 ---
 
 # Governance { #governance }
@@ -1687,6 +1687,8 @@ La cola de aprobaciones es de la organización, pero algunas llamadas citan lo q
 
 Una llamada de la plataforma que pregunta siempre - aceptar una mejora, publicar un agent, invitar a un miembro - se ejecuta con la autoridad de plataforma de la persona para la que actúa su run. Por eso solo esa persona, con su propia sesión, puede aprobarla: ni otro miembro con `approvals:decide`, ni una clave de API, aunque sea la suya, ni un administrador mediante suplantación. Quien tiene `approvals:decide` puede seguir rechazándola. Basta con ser esa persona, así que un Builder o un Member aprueba la tarjeta del Architect en su propio chat y continúa allí el run. Solo ella puede continuar un run tras una llamada de la plataforma aprobada.
 
+La tarjeta de una llamada así dice con nombres lo que hace, leído como la persona del run cuando se aparca: el agent, el intento y su veredicto, el fork del skill o los agents que mueve un cambio de skill, el dataset en el que corre un eval y el precio indicado. Solo se acepta el intento que nombra la tarjeta. Los argumentos en bruto siguen en Detalles, y una llamada cuyos registros la persona no puede leer muestra solo esos.
+
 En un canal como Slack o Telegram, la persona responde en ese chat, desde la cuenta de chat vinculada a ella. Cuando el run pregunta a la vez por otras llamadas, la persona responde solo a las suyas, y el resto espera a alguien con `approvals:decide`. El run continúa cuando cada llamada tiene respuesta.
 
 Un run sin persona - el de un visitante en un widget o una página pública, el de un miembro de canal sin vincular, o uno cuya persona se eliminó - no tiene a nadie cuya respuesta cuente, así que su llamada de la plataforma espera hasta caducar; un run así nunca tiene autoridad de plataforma. Un cambio del despliegue (`change_deployment`) necesita las dos reglas a la vez: la persona del run, que además debe ser administradora de la aplicación. El Architect de cualquier otra persona no puede cambiarlo.
@@ -2167,8 +2169,7 @@ Así que la audiencia se divide por el permiso en lugar de recortarse a él:
 | Quien recibe tiene | Recibe |
 | --- | --- |
 | `approvals:decide` | la solicitud, con el enlace a la cola |
-| nada, pero es la persona del run y entre las llamadas está su propia llamada de la plataforma que siempre pregunta | la solicitud, con un enlace a la conversación donde se preguntó, mientras esa llamada espera |
-| cualquier cosa menor | el _hecho_: el run está retenido y no fallido, tiene que responderlo alguien que pueda decidir aprobaciones, y no se le pide nada |
+| cualquier cosa menor | el _hecho_: el run está retenido y no fallido, aprobarlo corresponde a un owner, admin u operator, y no se le pide nada |
 
 Recortarla dejaría a la única persona que seguro espera el run — quien lo inició — sin
 oír nada sobre por qué se detuvo.

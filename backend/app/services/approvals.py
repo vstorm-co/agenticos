@@ -86,6 +86,16 @@ def _own_run(ctx: AuthContext, run_user_id: UUID | None) -> bool:
     return ctx.user_id is not None and ctx.api_key_id is None and run_user_id == ctx.user_id
 
 
+def described_for(ctx: AuthContext, tool_id: str, person_id: UUID | None) -> bool:
+    """Whether `ctx` may read the stored description of a parked call.
+
+    A platform call is described with the names its run's person may read - an
+    agent, a skill, a dataset - so only that person reads them; everyone else
+    decides from its arguments. Any other call's description has its own rule.
+    """
+    return not tool_id.startswith(f"{PLATFORM_MCP_NAME}_") or _own_run(ctx, person_id)
+
+
 def runs_as_its_person(tool_id: str, *, always_asks: bool) -> bool:
     """Whether this is a platform call that always asks.
 
@@ -312,7 +322,14 @@ class ApprovalService:
         what the run's person reads. Its private keys stay for somebody who may see
         the run - the person whose run it is, or a reader of every run who may view
         the agent - and are left out for everyone else, with `content_hidden` set.
+        A platform call's description is left out for anybody but its person.
         """
+        rows = [
+            row
+            if described_for(ctx, row.tool_id, row.acts_for_user_id)
+            else replace(row, context=None)
+            for row in rows
+        ]
         private = {
             row.id: fields
             for row in rows
