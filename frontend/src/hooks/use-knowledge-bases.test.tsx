@@ -1436,3 +1436,16 @@ it("does not invalidate another tenant's snapshot when indexing finishes after a
   });
   expect(toast.success).not.toHaveBeenCalled();
 });
+
+it("queues no document indexing without an open knowledge base", async () => {
+  const { result } = renderHook(() => useKBDetail(null), { wrapper });
+  const snapshot = { content: "another knowledge base's parsed snapshot" };
+  client.setQueryData(qk.kb.documentParsed("kb-1", "d-1"), snapshot);
+  await act(async () => {
+    await result.current.retryDocument("d-1");
+  });
+  expect(apiClient.post).not.toHaveBeenCalled();
+  expect(client.getQueryData(qk.kb.documentParsed("kb-1", "d-1"))).toEqual(snapshot);
+  expect(toast.success).not.toHaveBeenCalled();
+  expect(toast.error).not.toHaveBeenCalled();
+});
