@@ -314,8 +314,9 @@ class TestContinuingPastAnApprovedPlatformCall:
 @asynccontextmanager
 async def _client(db: AsyncSession, ctx: AuthContext) -> AsyncIterator[AsyncClient]:
     overrides = app.dependency_overrides.copy()
+    redis = AsyncMock()
     app.dependency_overrides[deps.get_auth_context] = lambda: ctx
-    app.dependency_overrides[deps.get_redis] = lambda: AsyncMock()
+    app.dependency_overrides[deps.get_redis] = lambda: redis
     app.dependency_overrides[deps.get_parked_run_service] = lambda: ParkedRunService(
         db, runner=AgentRunnerService(db), approvals=ApprovalService(db)
     )
@@ -459,7 +460,7 @@ class TestWhatEachReaderIsOffered:
         _first, platform = await _parked(db, org, builder)
         _second, other = await _parked(db, org, builder, tool_id="send_email", always_asks=False)
 
-        rows, _total = await ApprovalService(db).list_approvals(operator)
+        rows, _ = await ApprovalService(db).list_approvals(operator)
 
         offered = {row.id: row.may_approve for row in rows}
         assert offered == {platform.id: False, other.id: True}
@@ -481,7 +482,7 @@ class TestWhatEachReaderIsOffered:
         run.channel_identity_id = identity.id
         await db.flush()
 
-        [row], _total = await ApprovalService(db).list_approvals(publisher)
+        [row], _ = await ApprovalService(db).list_approvals(publisher)
 
         assert row.id == approval.id
         assert row.triggered_by_user_id is None
@@ -499,7 +500,7 @@ async def test_a_platform_calls_names_are_read_by_its_person_alone(db: AsyncSess
     approval.context = {"agent": "Payroll", "attempt": "2", "publish": "yes"}
     await db.flush()
 
-    [row], _total = await ApprovalService(db).list_approvals(operator)
+    [row], _ = await ApprovalService(db).list_approvals(operator)
     [theirs] = await AgentRunnerService(db).parked_calls(builder, run, for_decision=True)
     [others] = await AgentRunnerService(db).parked_calls(operator, run)
 
