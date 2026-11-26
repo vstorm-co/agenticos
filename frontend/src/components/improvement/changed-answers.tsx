@@ -9,6 +9,17 @@ import { getErrorMessage } from "@/lib/api-error";
 import type { CaseFlip, EvalCase } from "@/types/eval-runs";
 import { Details, StateBadge } from "./widgets";
 
+/** As many changed answers as a step lists; the check lists them all. */
+const SHOWN = 50;
+
+/** Regressions first: a list cut short must never cut one of them. */
+const RANK: Record<CaseFlip["flip"], number> = {
+  regression: 0,
+  fixed: 1,
+  unchanged: 2,
+  incomplete: 2,
+};
+
 /**
  * Changed held-out questions, each marked newly fixed or newly broken. Only a change
  * the repeat answers confirmed counts in the verdict; the rest wait under their own heading.
@@ -34,19 +45,15 @@ export function ChangedAnswers({
 }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
-  const { cases, error, isLoading } = useEvalCases(runId, {
-    caseIds: flips.slice(0, 100).map((flip) => flip.case_id),
-    limit: 50,
-  });
-  const baseline = useEvalCases(baselineRunId, {
-    caseIds: flips.slice(0, 100).map((flip) => flip.case_id),
-    limit: 50,
-  });
+  const shown = [...flips].sort((a, b) => RANK[a.flip] - RANK[b.flip]).slice(0, SHOWN);
+  const caseIds = shown.map((flip) => flip.case_id);
+  const { cases, error, isLoading } = useEvalCases(runId, { caseIds, limit: SHOWN });
+  const baseline = useEvalCases(baselineRunId, { caseIds, limit: SHOWN });
   if (error || baseline.error)
     return <p role="alert">{getErrorMessage(error ?? baseline.error, tErrors)}</p>;
   if (isLoading || baseline.isLoading) return <p role="status">{t("loading")}</p>;
   const byCase = new Map(flips.map((flip) => [flip.case_id, flip]));
-  const ordered = flips.flatMap((flip) => cases.filter((item) => item.case_id === flip.case_id));
+  const ordered = shown.flatMap((flip) => cases.filter((item) => item.case_id === flip.case_id));
   const confirmed = ordered.filter((item) => byCase.get(item.case_id)?.confirmed);
   const pending = ordered.filter((item) => !byCase.get(item.case_id)?.confirmed);
   const row = (item: EvalCase, index: number) => (
@@ -78,6 +85,11 @@ export function ChangedAnswers({
           </summary>
           <div className="mt-3 space-y-3">{pending.map(row)}</div>
         </NativeDisclosure>
+      )}
+      {flips.length > shown.length && (
+        <p className="text-muted-foreground text-sm">
+          {t("changedMore", { count: flips.length - shown.length })}
+        </p>
       )}
       <Link className="text-sm underline" href={`/agents/${agentId}/evals/${runId}`}>
         {t("openCheck")}

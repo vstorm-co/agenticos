@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from app.api import deps
 from app.core.config import settings
@@ -19,6 +19,7 @@ from app.db.models.user import User
 from app.main import app
 from app.schemas.dataset import (
     DatasetCaseContent,
+    DatasetCaseCreate,
     DatasetCaseFromMessage,
     DatasetCaseUpdate,
     DatasetCreate,
@@ -39,8 +40,10 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
 __all__ = ["_environment"]
 
 
+@pytest.mark.parametrize("uncertain", [False, True])
 async def test_case_text_is_masked_on_every_public_read_and_export_but_not_internal_execution(
     db,
+    uncertain: bool,
 ) -> None:
     owner = await _owner(db)
     viewer = await _member(db, owner, OrgRoleName.VIEWER)
@@ -56,6 +59,19 @@ async def test_case_text_is_masked_on_every_public_read_and_export_but_not_inter
         case.case_id,
         DatasetCaseUpdate(checks=[{"type": "contains", "value": "30 days"}]),
     )
+    if uncertain:
+        revisions = (
+            await db.scalars(select(DatasetCase).where(DatasetCase.dataset_id == dataset.id))
+        ).all()
+        for revision in revisions:
+            revision.source = "synthetic"
+            revision.source_run_id = revision.source_message_id = (
+                revision.source_conversation_id
+            ) = None
+            revision.asked_by_user_id = revision.noted_by_user_id = None
+            revision.history_author_ids = [None] * len(revision.history)
+            revision.from_conversation = True
+        await db.flush()
     version = (await service.read(owner, dataset.id)).latest_version
     db.add(
         ResourceGrant(
@@ -89,6 +105,7 @@ async def test_case_text_is_masked_on_every_public_read_and_export_but_not_inter
                 assert case.counter_example not in response.text
             read = await service.read_case(viewer, dataset.id, case.case_id)
             assert read.masked and not read.history and not read.checks and read.note is None
+            assert read.input == "Source unavailable or origin unverified"
             refused = await client.patch(
                 f"{path}/cases/{case.case_id}", json={"input": "Overwrite hidden text"}
             )
@@ -100,8 +117,12 @@ async def test_case_text_is_masked_on_every_public_read_and_export_but_not_inter
             for reader in (owner, replace(owner, role=OrgRoleName.VIEWER)):
                 ctx = reader
                 visible = await client.get(f"{path}/cases/{case.case_id}")
-                assert visible.status_code == 200 and visible.json()["input"] == case.input
-                assert visible.json()["masked"] is False
+                assert visible.status_code == 200
+                protected = uncertain and reader.role == OrgRoleName.VIEWER
+                assert visible.json()["masked"] is protected
+                assert visible.json()["input"] == (
+                    "Source unavailable or origin unverified" if protected else case.input
+                )
             ctx = await _owner(db)
             assert (await client.get(f"{path}/cases/{case.case_id}")).status_code == 404
     finally:
@@ -128,6 +149,9 @@ async def test_case_text_is_masked_on_every_public_read_and_export_but_not_inter
         )
     ).one()
     assert stored.input == case.input
+    assert stored.from_conversation
+    if uncertain:
+        assert stored.source == "synthetic" and stored.source_conversation_id is None
 
 
 async def test_private_source_warning_names_somebody_else_but_not_the_conversation_owner(
@@ -173,9 +197,148 @@ async def test_a_source_check_without_a_person_or_for_an_unknown_message_finds_n
         await service.source_privacy(replace(owner, user_id=None), answer.id)
 
 
+async def test_a_source_check_answers_another_tenant_or_a_hidden_thread_as_an_unknown_id(
+    db,
+) -> None:
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    stranger = await _owner(db)
+    _, answer = await _rated_down_turn(db, owner)
+    service = DatasetService(db)
+
+    refusals = []
+    for reader, message_id in (
+        (owner, uuid.uuid4()),
+        (stranger, answer.id),
+        (viewer, answer.id),
+    ):
+        with pytest.raises(NotFoundError) as refused:
+            await service.source_privacy(reader, message_id)
+        refusals.append((refused.value.message, refused.value.details))
+
+    assert refusals == [("Message not found", None)] * 3
+
+
+@pytest.mark.parametrize("uncertain", [False, True])
+async def test_a_masked_case_is_never_a_twin_of_a_guessed_question(db, uncertain: bool) -> None:
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="twins", visibility="org"))
+    _, answer = await _rated_down_turn(db, owner)
+    case = await service.add_from_message(
+        owner, dataset.id, DatasetCaseFromMessage(message_id=answer.id)
+    )
+
+    if uncertain:
+        await db.execute(
+            update(DatasetCase)
+            .where(DatasetCase.case_id == case.case_id)
+            .values(
+                source="synthetic",
+                source_conversation_id=None,
+                source_message_id=None,
+                source_run_id=None,
+                asked_by_user_id=None,
+                from_conversation=True,
+            )
+        )
+    alone = await service.list_cases(viewer, dataset.id, same_input=case.input)
+    typed = await service.add_case(
+        owner, dataset.id, DatasetCaseCreate(input=case.input, reference_answer="Yes.")
+    )
+
+    for_owner = await service.list_cases(owner, dataset.id, same_input=case.input, limit=1)
+    for_viewer = await service.list_cases(viewer, dataset.id, same_input=case.input, limit=1)
+
+    assert (alone.total, alone.items) == (0, [])
+    assert (for_owner.total, [item.case_id for item in for_owner.items]) == (2, [case.case_id])
+    assert (for_viewer.total, [item.case_id for item in for_viewer.items]) == (1, [typed.case_id])
+
+
+@pytest.mark.security
+async def test_a_case_written_before_the_flag_is_masked_by_its_source(db) -> None:
+    """A writer from before `from_conversation` leaves it unset on a copied or drafted case."""
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="older", visibility="org"))
+    _, answer = await _rated_down_turn(db, owner)
+    await service.add_from_message(owner, dataset.id, DatasetCaseFromMessage(message_id=answer.id))
+    drafted = GeneratedCase(
+        content=DatasetCaseContent(input="Can I return a kettle?", reference_answer="Yes."),
+        source_conversation_id=answer.conversation_id,
+    )
+    await service.add_generated(owner, await service.lock_for_edit(owner, dataset.id), [drafted])
+    await db.execute(
+        update(DatasetCase)
+        .where(DatasetCase.dataset_id == dataset.id)
+        .values(from_conversation=False)
+    )
+
+    reads = (await service.list_cases(viewer, dataset.id)).items
+
+    assert [read.masked for read in reads] == [True, True]
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("authorship", ["note", "history"])
+async def test_an_edit_of_a_case_with_chat_authorship_stays_masked(db, authorship: str) -> None:
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="noted", visibility="org"))
+    case = await service.add_case(
+        owner,
+        dataset.id,
+        DatasetCaseCreate(input="Can I return a kettle?", reference_answer="Yes."),
+    )
+    await db.execute(
+        update(DatasetCase)
+        .where(DatasetCase.dataset_id == dataset.id)
+        .values(
+            noted_by_user_id=owner.user_id if authorship == "note" else None,
+            history_author_ids=[owner.user_id] if authorship == "history" else [],
+            history=[{"role": "user", "content": "Earlier question"}]
+            if authorship == "history"
+            else [],
+            from_conversation=False,
+        )
+    )
+    await service.update_case(
+        owner, dataset.id, case.case_id, DatasetCaseUpdate(reference_answer="Within 30 days.")
+    )
+
+    [read] = (await service.list_cases(viewer, dataset.id)).items
+
+    assert read.masked and read.input != "Can I return a kettle?"
+
+
+@pytest.mark.security
+async def test_a_reviewed_case_whose_chat_is_gone_is_still_masked(db) -> None:
+    owner = await _owner(db)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    service = DatasetService(db)
+    dataset = await service.create(owner, DatasetCreate(name="reviewed", visibility="org"))
+    await service.add_reviewed_case(
+        owner,
+        dataset.id,
+        DatasetCaseContent(input="Can I return a kettle?", reference_answer="Yes."),
+        asked_by=owner.user_id,
+        source_run_id=None,
+        source_conversation_id=None,
+    )
+
+    [read] = (await service.list_cases(viewer, dataset.id)).items
+
+    assert read.masked and read.input != "Can I return a kettle?"
+
+
+@pytest.mark.security
 async def test_cases_from_one_conversation_are_masked_together_and_once_it_is_gone(db) -> None:
     """Cases sharing a conversation are shown or hidden by one access check; nobody, and
-    then everybody once the conversation is deleted, reads a conversation case masked."""
+    then everybody once the conversation is deleted, reads a case from it masked - copied
+    or generated. A case generated from no chat is never masked."""
     owner = await _owner(db)
     as_viewer = replace(owner, role=OrgRoleName.VIEWER)
     service = DatasetService(db)
@@ -188,7 +351,12 @@ async def test_cases_from_one_conversation_are_masked_together_and_once_it_is_go
         content=DatasetCaseContent(input="Can I return a kettle?", reference_answer="Yes."),
         source_conversation_id=answer.conversation_id,
     )
-    await service.add_generated(owner, await service.lock_for_edit(owner, dataset.id), [drafted])
+    plain = GeneratedCase(
+        content=DatasetCaseContent(input="Do you sell kettles?", reference_answer="Yes.")
+    )
+    await service.add_generated(
+        owner, await service.lock_for_edit(owner, dataset.id), [drafted, plain]
+    )
 
     shown = (await service.list_cases(as_viewer, dataset.id)).items
     hidden = await service.case_reads(replace(owner, user_id=None), await _held(db, dataset.id))
@@ -198,12 +366,20 @@ async def test_cases_from_one_conversation_are_masked_together_and_once_it_is_go
         for read in await service.case_reads(as_viewer, await _held(db, dataset.id))
     }
 
-    assert [read.masked for read in shown] == [False, False]
-    assert [read.input for read in shown] == [copied.input, "Can I return a kettle?"]
-    assert [read.masked for read in hidden] == [True, True]
+    generated, unlinked = (read.case_id for read in shown[1:])
+    assert [read.masked for read in shown] == [False, False, False]
+    assert [read.input for read in shown] == [
+        copied.input,
+        "Can I return a kettle?",
+        "Do you sell kettles?",
+    ]
+    assert [read.masked for read in hidden] == [True, True, False]
     assert copied.input not in {read.input for read in hidden}
     assert gone[copied.case_id].masked
     assert gone[copied.case_id].input != copied.input
+    assert gone[generated].masked
+    assert gone[generated].input != "Can I return a kettle?"
+    assert not gone[unlinked].masked
 
 
 async def test_a_draft_from_another_organizations_message_is_attributed_to_nobody(db) -> None:
@@ -285,3 +461,187 @@ async def test_review_hides_answers_notes_and_judge_evidence_without_runs_view(d
     assert read.answer_hidden and read.case_masked
     assert "PRIVATE_" not in read.model_dump_json()
     assert case.input not in read.model_dump_json()
+
+
+_SECRET = "ghp_" + "a1B2" * 9
+
+
+async def _graded_with_passages(db):
+    """An eval run's score whose judge found passages in an organization base, holding
+    a token, in the owner's personal base, and one kept without naming its base."""
+    from decimal import Decimal
+
+    from app.db.models.case_score import CaseScore
+    from app.db.models.dataset import DatasetVersion
+    from app.db.models.eval_run import ArmRole, ArmSource, EvalRun, EvalRunArm, EvalRunCase
+    from app.db.models.knowledge_base import KnowledgeBase
+    from app.repositories import eval_run_repo
+    from app.schemas.scoring import DatasetScoring
+
+    owner = await _owner(db)
+    bases = {}
+    for name, scope in (("shared", "org"), ("personal", "personal")):
+        base = KnowledgeBase(
+            organization_id=owner.organization_id,
+            name=f"{name}-{uuid.uuid4().hex[:6]}",
+            collection_name=f"{name}_{uuid.uuid4().hex[:8]}",
+            embedding_model="text-embedding-3-small",
+            embedding_dim=1536,
+            scope=scope,
+            visibility="org",
+            owner_user_id=owner.user_id if scope == "personal" else None,
+        )
+        db.add(base)
+        bases[name] = base
+    await db.flush()
+    dataset = await DatasetService(db).create(owner, DatasetCreate(name="graded by search"))
+    run, message = await _rated_down_turn(db, owner)
+    case = await DatasetService(db).add_from_message(
+        owner, dataset.id, DatasetCaseFromMessage(message_id=message.id)
+    )
+    version = await db.scalar(
+        select(DatasetVersion)
+        .where(DatasetVersion.dataset_id == dataset.id)
+        .order_by(DatasetVersion.number.desc())
+    )
+    assert version is not None
+    arm = EvalRunArm(
+        role=ArmRole.CANDIDATE.value,
+        position=0,
+        source=ArmSource.DRAFT.value,
+        spec={},
+        spec_hash="d",
+        model_label="m",
+    )
+    eval_run = await eval_run_repo.create(
+        db,
+        organization_id=owner.organization_id,
+        run=EvalRun(
+            agent_id=run.agent_id,
+            dataset_id=dataset.id,
+            dataset_version_id=version.id,
+            status="completed",
+            scoring={},
+            scoring_hash="s",
+            estimate_usd=Decimal("1"),
+        ),
+        arms=[arm],
+    )
+    score = CaseScore(
+        organization_id=owner.organization_id,
+        dataset_id=dataset.id,
+        case_revision_id=case.id,
+        case_id=case.case_id,
+        run_id=run.id,
+        agent_id=run.agent_id,
+        eval_run_id=eval_run.id,
+        answer="Thirty days.",
+        scoring=DatasetScoring().model_dump(mode="json"),
+        results=[
+            {
+                "scorer": "judge",
+                "name": "correctness",
+                "required": True,
+                "status": "pass",
+                "reason": "It matches the handbook.",
+                "knowledge": [
+                    {
+                        "source": "SHARED_SOURCE",
+                        "quote": f"SHARED_PASSAGE key {_SECRET}",
+                        "knowledge_base_ids": [str(bases["shared"].id)],
+                    },
+                    {
+                        "source": "PERSONAL_SOURCE",
+                        "quote": "PERSONAL_PASSAGE",
+                        "knowledge_base_ids": [str(bases["personal"].id)],
+                    },
+                    {"source": "LEGACY_SOURCE", "quote": "LEGACY_PASSAGE"},
+                ],
+            }
+        ],
+        passed=True,
+        review_state="none",
+    )
+    db.add(score)
+    await db.flush()
+    await eval_run_repo.add_cases(
+        db,
+        organization_id=owner.organization_id,
+        cases=[
+            EvalRunCase(
+                eval_run_id=eval_run.id,
+                arm_id=arm.id,
+                case_id=case.case_id,
+                case_revision_id=case.id,
+                position=0,
+                attempt=0,
+                answer="Thirty days.",
+                calls=[],
+                case_score_id=score.id,
+            )
+        ],
+    )
+    return owner, dataset, eval_run
+
+
+def _passages(reads) -> str:
+    return " ".join(
+        f"{found.source} {found.quote}"
+        for read in reads
+        for result in read.results
+        for found in result.knowledge
+    )
+
+
+async def test_a_judge_s_passages_reach_only_readers_of_the_answer_and_the_collection(db) -> None:
+    from app.core.permissions import Perm
+    from app.services.scoring import ScoringService
+
+    owner, dataset, _ = await _graded_with_passages(db)
+    builder = await _member(db, owner, OrgRoleName.BUILDER)
+    viewer = await _member(db, owner, OrgRoleName.VIEWER)
+    keyed = replace(
+        builder,
+        api_key_id=uuid.uuid4(),
+        key_scopes=frozenset({Perm.DATASETS_VIEW, Perm.RUNS_VIEW, Perm.AGENTS_VIEW}),
+    )
+    scores = ScoringService(db)
+
+    async def seen_by(reader) -> str:
+        return _passages((await scores.list_scores(reader, dataset.id)).items)
+
+    seen_by_owner = await seen_by(owner)
+    assert "SHARED_PASSAGE key [redacted:github_token]" in seen_by_owner
+    assert "PERSONAL_PASSAGE" in seen_by_owner
+    assert _SECRET not in seen_by_owner and "LEGACY" not in seen_by_owner
+    seen_by_builder = await seen_by(builder)
+    assert "SHARED_PASSAGE" in seen_by_builder
+    assert "PERSONAL" not in seen_by_builder and "LEGACY" not in seen_by_builder
+    assert await seen_by(keyed) == ""
+    assert await seen_by(viewer) == ""
+
+
+async def test_an_eval_run_s_cases_show_only_the_passages_their_reader_may_read(db) -> None:
+    from app.services.eval_run import EvalRunService
+
+    owner, _, eval_run = await _graded_with_passages(db)
+    builder = await _member(db, owner, OrgRoleName.BUILDER)
+    runs = EvalRunService(db)
+
+    async def seen_by(reader) -> str:
+        cases = await runs.cases(reader, eval_run.id)
+        return _passages(
+            attempt.score
+            for case in cases.items
+            for attempt in case.attempts
+            if attempt.score is not None
+        )
+
+    seen_by_owner = await seen_by(owner)
+    assert "PERSONAL_PASSAGE" in seen_by_owner
+    assert "SHARED_PASSAGE key [redacted:github_token]" in seen_by_owner
+    assert "LEGACY" not in seen_by_owner
+    seen_by_builder = await seen_by(builder)
+    assert "SHARED_PASSAGE" in seen_by_builder
+    assert "PERSONAL" not in seen_by_builder and "LEGACY" not in seen_by_builder
+    assert _SECRET not in seen_by_builder

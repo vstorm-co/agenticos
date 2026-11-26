@@ -31,6 +31,13 @@ class SkillProposalRead(BaseSchema, TimestampSchema):
     resources: dict[str, str] = Field(
         default_factory=dict, description="The resource files, as name to content"
     )
+    contains_credential: bool = Field(
+        default=False,
+        description=(
+            "The proposed text quotes a credential. It is shown redacted, and Apply is "
+            "refused: discard it and make the change by hand"
+        ),
+    )
     status: str
     decided_by_user_id: UUID | None = None
     decided_at: datetime | None = None

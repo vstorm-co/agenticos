@@ -4,6 +4,7 @@ Apart from `app.schemas.eval_suite` because an eval run's own read carries the
 verdict of a check made on a suite, and the suite schemas read the run's.
 """
 
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -54,6 +55,18 @@ class ThresholdReason(BaseSchema):
     detail: str | None = None
 
 
+class EvalSuiteJudged(BaseSchema):
+    """The suite's verdict on a completed check, kept for the run's verdict it was judged from.
+
+    `outcome_at` is when that run verdict was kept: a later one - after a person
+    decided a score - judges the suite again.
+    """
+
+    status: EvalSuiteResultStatus
+    reasons: list[ThresholdReason] = Field(default_factory=list)
+    outcome_at: datetime
+
+
 class EvalSuiteCheck(BaseSchema):
     """The eval suite a check ran on, as it stood when the check started.
 
@@ -64,6 +77,7 @@ class EvalSuiteCheck(BaseSchema):
     suite_id: UUID
     name: str
     threshold: EvalSuiteThreshold
+    judged: EvalSuiteJudged | None = None
 
 
 class EvalSuiteCheckRead(BaseSchema):

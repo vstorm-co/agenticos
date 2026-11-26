@@ -1,0 +1,11 @@
+# Opt in only when sandboxd needs a gateway outside the private data network.
+# This bridge has no proxy, published ports or agent containers.
+services:
+  sandboxd:
+    networks:
+      - projectfs_gateway
+
+networks:
+  projectfs_gateway:
+    driver: bridge
+    internal: false

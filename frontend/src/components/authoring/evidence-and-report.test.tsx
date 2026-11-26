@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { EvidenceList } from "./evidence-list";
+import { ConversationEvidence, EvidenceList } from "./evidence-list";
 import { VerifyReport } from "./verify-report";
 
 describe("EvidenceList", () => {
@@ -46,6 +46,37 @@ describe("EvidenceList", () => {
     expect(
       screen.getByText("2 cited items could not be found in the runs and were left out."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("evidence from agents the reader cannot see", () => {
+  it("counts it instead of saying nothing could be checked", () => {
+    render(<EvidenceList items={[]} dropped={0} hidden={2} />);
+    expect(
+      screen.getByText("2 cited items are from agents you cannot see and are not shown."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No evidence that could be checked.")).not.toBeInTheDocument();
+  });
+
+  it("counts it beside the evidence the reader can see", () => {
+    render(
+      <EvidenceList items={[{ run_id: "run-a", quote: "Thirty days" }]} dropped={0} hidden={1} />,
+    );
+    expect(screen.getByText("Thirty days")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 cited item is from an agent you cannot see and is not shown."),
+    ).toBeInTheDocument();
+  });
+
+  it("counts it in the Improve wizard instead of saying nothing is quoted", () => {
+    const { rerender } = render(<ConversationEvidence items={[]} sources={{}} hidden={2} />);
+    expect(
+      screen.getByText("2 cited items are from agents you cannot see and are not shown."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing is quoted|No test question/)).not.toBeInTheDocument();
+
+    rerender(<ConversationEvidence items={[]} sources={{}} />);
+    expect(screen.getByText(/No test question or conversation is quoted/)).toBeInTheDocument();
   });
 });
 

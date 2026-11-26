@@ -1,6 +1,6 @@
 [project]
 name = "agenticos"
-version = "1.93.0"
+version = "1.94.0"
 description = "OS for your agents."
 requires-python = ">=3.15"
 license = { text = "Apache-2.0" }
@@ -25,7 +25,7 @@ dependencies = [
     "pydantic[email]>=2.14.4",
     "pydantic-settings>=2.16.3",
     "python-multipart>=0.0.34",
-    "logfire[fastapi,asyncpg,redis,httpx]>=6.0.0",
+    "logfire[fastapi,asyncpg,redis,httpx]>=6.0.1",
     "sqlalchemy[asyncio]>=2.1.9",
     "asyncpg>=0.32.0",
     # Alembic's, not the application's. Every application URL is
@@ -115,7 +115,7 @@ dependencies = [
     # Google Drive speaks plain REST through `app/services/rag/drive_api.py`;
     # `google-auth` only signs the service account's token, over `requests`.
     # `google-api-python-client` was 108 MB of discovery documents for four URLs.
-    "google-auth[requests]>=2.62.2",
+    "google-auth[requests]>=2.63.1",
     "boto3>=1.44.7",
     # Two HTTP libraries, deliberately. `httpx` is what fourteen modules build
     # and send their own requests with - the portals, the channels, the model
@@ -710,6 +710,7 @@ include = [
     # response body a fifth call site would otherwise hand it (#882).
     "app/core/field_errors.py",
     "app/core/phone.py",
+    "app/core/redaction.py",
     # Whose memory a row is - the three owner-key shapes, and the one place they
     # are built and read. A leaf module because everything from the models to the
     # capability needs it and every other home is an import cycle (#788).
@@ -1691,6 +1692,7 @@ include = [
     # response body a fifth call site would otherwise hand it (#882).
     "app/core/field_errors.py",
     "app/core/phone.py",
+    "app/core/redaction.py",
     # Whose memory a row is - the three owner-key shapes, and the one place they
     # are built and read. A leaf module because everything from the models to the
     # capability needs it and every other home is an import cycle (#788).

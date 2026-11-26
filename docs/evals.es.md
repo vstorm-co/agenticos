@@ -1,5 +1,5 @@
 ---
-source_sha: "c068bbccca45"
+source_sha: "80da2d54c72a"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -71,7 +71,8 @@ desde entonces ofrece **Test again** en su lugar. Mientras el run responde, la
 página dice cuántas primeras respuestas hay, y la comparación espera a los dos
 lados. Las respuestas que el juez no logró calificar dicen por qué y no cuentan
 ni como aprobadas ni como fallidas, y **Grade again**, en el encabezado, las
-vuelve a calificar sin preguntar al agent, para quien pueda ejecutar el dataset.
+vuelve a calificar sin preguntar al agent, para quien pueda ejecutar el dataset y
+leer las respuestas del run.
 
 Bajo el veredicto están los lados uno junto al otro, cómo se comparan y los
 casos - cada fila con un punto de aprobado o fallido por lado, filtrados por
@@ -232,6 +233,10 @@ lectura individual nombra el eval run y el caso al que respondió (`eval_case`),
 para un lector que pueda ver el dataset. Se ejecuta como la persona que inició
 el eval, con su rol actual, y no lee ni escribe su memoria personal.
 
+Ese rol se vuelve a leer antes de cada caso. Si quien inició el eval ha dejado
+la organización, ha perdido el acceso al agent o al dataset, o se ha revocado su
+clave, el run falla antes de responder otro caso.
+
 Cada caso se ejecuta **aislado**, como describe [Entornos](environments.md):
 una herramienta con una conexión de prueba en el entorno del run se ejecuta
 contra ella, una herramienta de la que se sabe que solo lee se ejecuta en la
@@ -346,7 +351,8 @@ calificar**: el run lista esas puntuaciones como `ungraded_score_ids`, y
 volver a calificarlas (`POST /api/v1/datasets/{id}/scores/rescore`) lee la
 respuesta guardada en el intento en lugar de preguntar al agent. El veredicto
 de una persona en la [cola de revisión](datasets.md#review) sustituye el
-resultado de los evaluadores para ese caso, y las cifras del run lo siguen.
+resultado de los evaluadores para ese caso, y las cifras del run lo siguen,
+igual que siguen a una nueva calificación.
 
 Un juez que busca - [Knowledge search](concepts.md#system-agent-spec) en su
 pestaña Toolbox - comprueba los hechos de una respuesta contra las bases de conocimiento
@@ -355,6 +361,11 @@ que encontró allí: el documento y el comienzo del pasaje. Hasta que sus runs l
 den un historial, la estimación cuenta cada calificación por los pasos del
 juez. Un juez empieza con temperatura 0, para que la misma respuesta se
 califique igual dos veces, y su página avisa cuando se sube.
+
+Un pasaje encontrado solo lo ve quien puede ver la respuesta y leer la base de
+conocimiento de la que procede, y las credenciales que contenga se ocultan antes
+de guardarlo. Un pasaje que no nombra su base de conocimiento no lo ve nadie,
+porque puede proceder de la base de conocimiento personal de alguien.
 
 Un run terminado conserva el veredicto, los recuentos y las tasas de aprobados
 de su primer candidato como `outcome`, para que un listado los lea sin volver a
@@ -391,6 +402,8 @@ Los nombres de criterios, sus calificaciones y las atribuciones a skills requier
 Las fuentes de skills guardadas usan ID estables: cambiar el nombre conserva su identidad, mientras que eliminarlo y reutilizar el nombre nunca restablece el acceso a pruebas antiguas. Los detalles de criterios de sesión que nombran un skill sin su ID original también se ocultan. El nombre visible opcional del skill no concede acceso: el ID original se comprueba también cuando falta su etiqueta.
 
 Las lecturas interactivas de comparaciones permiten hasta 30 solicitudes por persona y 60 por organización por minuto, con una comparación en ejecución por organización. La consola y la API comparten estos límites. Las solicitudes excesivas o simultáneas reciben HTTP 429 con `Retry-After`; los clientes deben esperar antes de reintentar. Redis compartido coordina los workers; durante una caída se conserva un límite local por worker. Los cambios manuales de veredicto en respuestas de evaluaciones comparten el mismo presupuesto y bloqueo, después de autorizar el acceso al dataset y antes de modificar la calificación o los resultados guardados.
+
+Leer un run lo compara de nuevo solo cuando una persona decidió una de sus calificaciones después de guardarse su veredicto, y esa comparación usa el mismo bloqueo y presupuesto. Mientras el bloqueo está ocupado, una lista de runs y el aviso del Builder sobre si se puede aceptar un cambio de modelo muestran el veredicto de cada run tal como se guardó, y leer un run por sí solo responde 429. Aceptar el cambio sigue comparando. Una comprobación sobre una suite de evaluación guarda el veredicto de la suite junto con el del run, de modo que volver a leerla no compara nada.
 
 Los lectores necesitan `runs:view` antes de ocupar la exclusión o consumir cuota. Las comparaciones activas renuevan sus bloqueos; la caducidad de 120 segundos recupera los de procesos caídos. Un fallo de renovación en Redis se registra y mantiene el bloqueo local del worker.
 
@@ -769,6 +782,13 @@ el dataset: un run sobre un dataset que el lector no puede abrir no se lista, y
 pedirlo por id responde `404`, igual que un run de otra organización. Los runs
 de un dataset requieren además `datasets:view` sobre él, y solo listan los
 agents que el lector puede ver.
+
+Decidir sobre una de las respuestas de un run, o volver a calificarla, requiere
+`runs:view` y acceso al agent que respondió además del permiso propio del
+dataset: `datasets:edit` para decidir, `datasets:run` para calificar. Cualquiera
+de las dos cambia el veredicto del run y lo construido sobre él: el gate de una
+suite, una sesión de mejora, una comprobación de skill. Un grant sobre el
+dataset por sí solo no las abre.
 
 Crear, cambiar, pausar o ejecutar una suite requiere `agents:edit` y
 `agents:run` en el agent, `datasets:run` en el dataset y `runs:view`, y una

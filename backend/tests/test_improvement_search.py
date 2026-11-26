@@ -11,7 +11,12 @@ from pydantic import ValidationError
 
 from app.agents.spec import AgentSpec
 from app.core.config import settings
-from app.db.models.improvement import ImprovementSearchVariant, SearchProgress, SearchVariantStatus
+from app.db.models.improvement import (
+    ImprovementRun,
+    ImprovementSearchVariant,
+    SearchProgress,
+    SearchVariantStatus,
+)
 from app.schemas.improvement import ImprovementStart, ImprovementTarget, SearchOptions
 from app.schemas.scoring import DatasetScoring, ScorerResult
 from app.schemas.token_pricing import TokenPricing
@@ -19,6 +24,8 @@ from app.services import authoring_hunks
 from app.services.improvement_search import (
     _close_generation,
     _grading,
+    _longer_instructions_usd,
+    _prompt,
     _proposal_price,
     case_share,
     draw_questions,
@@ -78,6 +85,12 @@ def test_every_variant_is_scored_on_the_same_draw_of_training_questions():
     assert draw_questions(list(reversed(cases)), size=12, seed=7) == drawn
     assert draw_questions(cases, size=12, seed=8) != drawn
     assert sorted(draw_questions(cases[:5], size=12, seed=7), key=str) == sorted(cases[:5], key=str)
+
+
+def test_a_variant_an_erasure_emptied_is_never_a_winner():
+    emptied, kept = _variant(1, 0.9, text=""), _variant(2, 0.7, text="Refund one charge.")
+
+    assert winner([emptied, kept], 0.5) == [kept]
 
 
 def test_a_case_scores_the_share_of_its_required_checks_that_passed():
@@ -290,6 +303,47 @@ async def test_search_round_estimates_use_custom_rates(
     assert price == expected
 
 
+@pytest.mark.parametrize(
+    ("currency", "expected"), [("USD", Decimal("0.005")), ("EUR", Decimal("0.01"))]
+)
+async def test_longer_search_instructions_use_custom_input_price(
+    currency: str, expected: Decimal
+) -> None:
+    spec = AgentSpec(name="Clerk", instructions="Be brief.", model_profile_id=uuid4())
+    credential = SimpleNamespace(
+        custom_pricing=TokenPricing(input=50, output=200, currency=currency),
+        exchange_rates={"USD": Decimal(1), "EUR": Decimal("0.5")},
+    )
+    resolved = SimpleNamespace(model="not-a-priced-model", provider="openai", credential=credential)
+    with patch.object(ModelProfileService, "resolve", return_value=resolved):
+        cost = await _longer_instructions_usd(
+            AsyncMock(), AsyncMock(), spec, spec.instructions + "x" * 400
+        )
+    assert cost == expected
+
+
 def test_a_variant_names_itself_by_attempt_generation_and_score():
     variant = _variant(2, 0.75)
     assert "generation=2" in repr(variant) and "score=0.75" in repr(variant)
+
+
+@pytest.mark.parametrize(
+    "note", [None, "", "Keep the refund deadlines.", "Keep deadlines; api_key=Kanar3kRetrySecret"]
+)
+async def test_search_retry_notes_keep_requests_but_never_send_credentials_to_the_helper(
+    note: str | None,
+) -> None:
+    run = ImprovementRun(organization_id=uuid4(), dataset_id=uuid4(), dataset_version=1)
+    with patch(
+        "app.services.improvement_search.ImprovementSearchService.train_questions",
+        new=AsyncMock(return_value=[]),
+    ):
+        prompt = await _prompt(AsyncMock(), run, _progress(), [], count=2, note=note)
+    assert "Kanar3kRetrySecret" not in prompt
+    if note:
+        if "api_key=" in note:
+            assert "Keep deadlines; [redacted:" in prompt
+        else:
+            assert f"<note>\n{note}\n</note>" in prompt
+    else:
+        assert "<note>" not in prompt
