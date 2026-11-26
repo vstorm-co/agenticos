@@ -57,9 +57,10 @@ def project_tools(port: ProjectWorkspacePort | None) -> FunctionToolset[object]:
         """Select an accessible project's shared files without changing the command target.
 
         Find the ID with Projects search or the platform's project listing first.
-        File tools use that project. Commands keep their selected executor; choose
-        select_execution_target explicitly when commands need the project files.
-        No files are copied, mounted or synchronized into the agent's own runtime.
+        Explicit Project file tools use that project. Commands keep the selected
+        executor. On a mount-enabled private Docker workspace, PROJECT_DIR points
+        to its live shared files without copying; Python reads os.environ["PROJECT_DIR"].
+        Choose select_execution_target only when you need the Project's own runtime.
         Omit project_id to clear project context and restore agent execution.
         This never moves the conversation. A new user turn starts fresh;
         approval continuations retain selection and recheck current access.

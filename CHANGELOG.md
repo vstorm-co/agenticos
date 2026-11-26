@@ -38,7 +38,7 @@ Two things are versioned separately from this file and worth knowing about:
   Projects capability searches accessible projects and reads/writes bounded text
   from web chat and linked private channels without granting a shell. Chat Files
   exposes authorized project and agent workspace origins separately.
-- Keep the agent's own file tools and command environment by default in project chats. The compact project card keeps explicit executor pins under advanced settings. Agents can use the project executor for direct project work, or transfer selected binary files between project and agent storage without rewriting contents through the model. Transfers verify size and hashes and refuse unconfirmed destination replacement; they do not mount or synchronize workspaces.
+- Keep the agent's own tools and environment while opening selected project files live under `/project/<immutable lease UUID>` in supported private Docker conversation/run workspaces. Commands receive `PROJECT_DIR`; generic relative paths keep their agent-workspace meaning. Fresh project authorization and renewable run leases guard every filesystem operation. An explicit project executor and optional byte-copy tool remain available; live access requires no file transfer.
 - Reusable webhook event sources with provider presets, private or organization visibility, vault-backed authentication and independent routine/workflow subscribers. Members who can use a source can inspect its next unfiltered event without a routine or workflow. Attaching it still requires edit and run access to the target. In a workflow editor, pin a captured event or paste example JSON for step tests. New workflow webhook steps default to choosing a reusable source; select a dedicated endpoint for synchronous responses. Existing dedicated endpoints retain their behavior.
 
 - Per-role console navigation, an optional simple-assistant preset, a permission-filtered navigation preview and membership-owned menu choices. Deployment and organization controls can hide optional product prompts without changing resource access or operational notices.
@@ -120,6 +120,14 @@ Two things are versioned separately from this file and worth knowing about:
 - Refine project resource and export dialogs with real resource identities and responsive layouts, explain Python Actions inputs/functions/results, and move personal navigation editing into the sidebar. Optional setup guidance covers the new controls; snoozed setup cards stay hidden, and organization settings save independently without disabling unrelated controls.
 
 ### Upgrading
+
+- Live project mounts require matching sandboxd SDK/image 0.2.40, retained containers,
+  a durable workspace root and the operator-configured filesystem gateway/exporter
+  pair. The gateway must be reachable from sandboxd and its isolated helper bridge;
+  Compose-only DNS and loopback-only host ports are insufficient. The feature stays
+  disabled until configured. Existing unmounted sessions need explicit recovery;
+  unsupported providers/scopes fail clearly. Native project storage needs durable
+  extended attributes and atomic hard links; database-backed state is supported.
 
 - New projects default to stored files, even when a sandbox connection is available.
   API clients that want automatic sandbox selection must send `backend: auto`;

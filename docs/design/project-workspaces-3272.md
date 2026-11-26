@@ -1,47 +1,55 @@
 # Project workspaces: discussion 3272
 
-This follow-up implements the separation requested in discussion #3272 within
-release candidate #3455. It does not introduce a shared filesystem driver or
-promise that two providers can mount the same directory.
+This follow-up implements the shared-filesystem behavior requested in
+[discussion #3272](https://github.com/vstorm-co/agenticos/discussions/3272),
+as part of release candidate #3455. AgenticOS remains unmerged until acceptance.
 
 ## Files and execution
 
-Project file tools use the project's authoritative shared files. Generic file
-tools, working directory and commands use the selected executor, which defaults
-to the agent's own environment even in a project chat. A command that needs the
-project's own environment can select the Project executor through tools; no user
-radio switch is required. A deliberate advanced UI/API executor pin remains
-binding for the run.
+Project files have one authoritative store. An agent retains its own runtime,
+toolchain and working directory. A mount-enabled Docker connection adds a live
+filesystem at `/project`; commands receive `PROJECT_DIR=/project/<lease-id>`.
+Shell and Python can use existing Project files immediately and write results
+back without transfer calls or synchronization. Generic relative file paths
+still address the agent's own workspace. The optional Project executor runs in
+the Project's separate runtime when deliberately selected.
 
-A service-backed Project provides a command-capable shared workspace. A
-stored-files Project needs no running container and provides no shell. New
-Projects default to stored files; explicit automatic or named sandbox selection
-remains available. Existing Projects retain their backend. Shared files persist
-across project chats; an indefinitely running process is not part
-of that contract. Selection by tools outside an attached project remains scoped
-to one run, including approval/question continuations. It does not move the
-conversation or give an unverified channel audience private Project access.
+New Projects default to stored files and need no running Project container.
+Existing Projects retain their backend. The mount supports stored files and
+service-backed native filesystems that pass the required filesystem checks.
+`transfer_project_file` remains an optional explicit bounded copy; it is not
+needed for the live mount and is not described as its implementation.
 
-## Moving data when the agent's own CLI needs it
+## Isolation and lifecycle
 
-`transfer_project_file` transfers one named file as bytes, at most 8 MiB. The
-model supplies paths, not file contents. `to_agent` prepares an input for the
-agent's own tools; `from_agent` explicitly saves a result to the Project. Direct
-commands in the Project workspace need no transfer.
+Sandboxd receives a typed, application-issued binding for an exact tenant and
+session, never model-selected host paths, URLs or images. A trusted Rust NFS
+export helper reaches the operator-configured API gateway on its own bridge;
+it publishes no ports. Docker mounts its NFS volume into an unprivileged agent.
+The agent receives neither helper credentials nor Docker privileges.
 
-The receipt identifies both namespaces, relative agent path, absolute command
-path, byte count and SHA-256. An existing destination requires its expected
-current digest. The service rechecks authority, Project generation and canonical
-path boundaries. No automatic tree synchronization, deletion propagation,
-implicit writeback, image/mount configuration or provider credentials cross the
-boundary. Ordinary shell writes are not transactionally locked by the digest
-check; this is conflict detection, not an atomic shared filesystem.
+Immutable run-lease directories prevent an existing filehandle from silently
+changing to another Project. Every RPC checks the current run, actor membership,
+credential scopes, conversation audience, Project grant and generation, and
+routine source policy. Writes commit before acknowledgement. Leases renew while
+the run is active, expire after 90 seconds without renewal, and are revoked on
+selection change, pause and cleanup. Continuations restore selection rather than
+persisted live authority. Project files remain outside agent snapshots, Skills,
+attachments and output-spill staging.
 
-Sandboxd's current session-creation wire contract deliberately does not accept
-mounts, and the configured remote providers have no common mount contract.
-Changing `cwd` cannot expose another machine's files. A future shared mount
-requires explicit infrastructure support and its own authorization/lifecycle
-contract; it cannot be implemented as a path alias in this router.
+This first implementation supports private conversation- and run-scoped Docker
+executors with an explicitly enabled host contract. Other providers and shared
+executor scopes refuse admission. Existing sessions without the mount require
+explicit migration/recreation preserving their own files. An exporter restart
+invalidates its handles and stops the retained agent; recovery requires an
+explicit remount, never command replay or an empty replacement workspace.
+
+Regular files and directories are supported. Symlinks and ownership changes are
+not supported. Native writable filesystems require extended attributes and atomic
+hard-link publication for durable exclusive creation. Linux container storage
+passed the probe; the tested macOS bind mount returned `ENOTSUP` and is refused.
+External API renames invalidate path-based handles; full POSIX inode identity
+across external delete/recreate is not claimed.
 
 ## Console acceptance follow-up
 

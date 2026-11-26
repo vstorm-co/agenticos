@@ -67,17 +67,24 @@ access is personal to a conversation; it cannot publish as an agent-shared works
 
 ## Selecting a project during a run
 
-`select_project_workspace` changes the file and shell tools' workspace for the
-current run only; `null` restores the original. The runner injects a selector
+`select_project_workspace` selects shared Project files for the current run;
+`null` clears selection. Commands and generic relative file paths keep the
+selected executor, initially the agent's own. A mount-enabled private Docker
+executor receives `PROJECT_DIR=/project/<run-lease-id>` for live access without
+copying. `select_execution_target` explicitly chooses the Project's own runtime.
+The runner injects a selector
 port and owns the routing workspace. Tools never query the database themselves.
 The original workspace still holds private attachments, skill staging and output
 spills; selecting a project copies none of them into shared storage. Apps that
-read the run workspace use the selected files.
+read the run workspace retain that executor's namespace.
 
 The service checks live organization membership, project use access and workspace
 transfer state for every operation, and attaches and flushes project storage in that
-operation's transaction. Persistence errors are visible failures. A file-only
-project refuses commands. Existing Sandbox write and shell approval settings stay
+operation's transaction. Mount RPC acknowledgements follow committed writes;
+leases expire and are revoked when the run stops or selection changes. The
+agent keeps its toolchain even for a stored-files Project. Such a Project has
+no separate command executor. Unsupported hosts and shared executor scopes
+refuse live mount admission explicitly. Existing Sandbox write and shell approval settings stay
 in force. Publisher fallbacks and anonymous callers cannot select projects.
 Routines cannot widen their reviewed project source, and isolated evals receive
 no selector port. The selected id is saved in paused run state, never inferred

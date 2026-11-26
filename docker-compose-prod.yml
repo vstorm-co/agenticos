@@ -321,7 +321,7 @@ services:
     # client and this service ship together, and a client newer than the service
     # calls routes it does not have (#2484). Bump both at once;
     # backend/tests/test_sandboxd_compat.py fails when they differ.
-    image: ghcr.io/vstorm-co/sandboxd:0.2.39
+    image: ghcr.io/vstorm-co/sandboxd:0.2.40
     profiles: [sandbox]
     # Without an init the server is PID 1, and Python reaps only the children it
     # waits on: anything orphaned under it stays a zombie for the container's
@@ -385,6 +385,10 @@ services:
       # session rather than at start-up.
       SANDBOXD_SANDBOX_UID: "10001"
       SANDBOXD_PERSIST_CONTAINERS: "true"
+      # Optional live Project mount: configure both SANDBOXD_FILESYSTEM_GATEWAY_URL
+      # and SANDBOXD_FILESYSTEM_EXPORT_IMAGE in backend/.env (forwarded above).
+      # The gateway must be reachable from sandboxd AND its separate export bridge.
+      # Do not use a Compose-only DNS name or a host-loopback-only API binding.
       # What a session installed inside its container - the build, the wheels,
       # `node_modules` - reclaimed a day after it stopped. Without it a persisted
       # container is kept for ever and the host fills up with the ones nobody

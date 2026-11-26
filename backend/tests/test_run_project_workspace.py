@@ -1050,3 +1050,246 @@ async def test_continued_project_mutations_require_fresh_reads(setup: SimpleName
     assert await child.read_text("shared.md") == "updated while parked"
     await child.write_text("shared.md", "reviewed replacement")
     assert await setup.project.read_text("shared.md") == "reviewed replacement"
+
+
+async def test_project_mount_directory_is_server_injected_without_changing_cwd_or_toolchain(
+    setup: SimpleNamespace,
+    tmp_path: Path,
+) -> None:
+    from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace
+
+    selector = setup.selector
+    selector.original = Workspace(LocalWorkspaceBackend(tmp_path))
+    selector.agent_execution_available = True
+    selector.filesystem_binding_id = uuid4()
+    await selector.select(uuid4())
+    mounted = f"/project/{uuid4()}"
+    supervisor = SimpleNamespace(directory=AsyncMock(return_value=mounted), close=AsyncMock())
+    selector._project_mount = supervisor
+    result = await selector.run(
+        [sys.executable, "-c", "import os;print(os.environ['PROJECT_DIR']);print(os.getcwd())"],
+        env={"PROJECT_DIR": "/untrusted", "KEEP": "yes"},
+        timeout=5,
+    )
+    assert result.stdout.splitlines() == [mounted, str(tmp_path.resolve())]
+    supervisor.directory.assert_awaited_once_with(
+        binding_id=selector.filesystem_binding_id,
+        project_id=selector.project_id,
+        generation=selector.project_generation,
+    )
+    child = selector.snapshot_for_delegate()
+    assert child._project_mount is supervisor
+    await selector.close_agent(keep_spills=False)
+    supervisor.close.assert_awaited_once()
+
+
+async def test_selected_project_refuses_an_executor_without_live_mount_before_running(
+    setup: SimpleNamespace,
+    tmp_path: Path,
+) -> None:
+    from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace
+
+    selector = setup.selector
+    selector.original = Workspace(LocalWorkspaceBackend(tmp_path))
+    selector.agent_execution_available = True
+    await selector.select(uuid4())
+    supervisor = SimpleNamespace(directory=AsyncMock(), close=AsyncMock())
+    selector._project_mount = supervisor
+    with pytest.raises(WorkspaceUnavailableError, match="mount-enabled Docker"):
+        await selector.run([sys.executable, "-c", "open('leak','w').write('no')"])
+    assert not (tmp_path / "leak").exists()
+    supervisor.directory.assert_not_awaited()
+
+
+async def test_mount_access_is_revoked_on_project_change_clear_and_close_failure(
+    setup: SimpleNamespace,
+) -> None:
+    selector = setup.selector
+    await selector.select(uuid4())
+    supervisor = SimpleNamespace(close=AsyncMock())
+    selector._project_mount = supervisor
+    await selector.select(uuid4())
+    await selector.select(None)
+    assert supervisor.close.await_count == 2
+    opened = SimpleNamespace(workspace=setup.original, row_id=uuid4())
+    selector.agent_workspace = opened
+    supervisor.close.side_effect = RuntimeError("revoke failed")
+    with pytest.raises(RuntimeError, match="revoke failed"):
+        await selector.close_agent(keep_spills=False)
+    setup.service.close.assert_awaited_once_with(opened, keep_spills=False)
+
+
+async def test_real_run_owns_mount_supervisor_and_lazy_executor_binding(
+    setup: SimpleNamespace,
+    tmp_path: Path,
+) -> None:
+    from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace
+
+    binding_id, run_id = uuid4(), uuid4()
+    opened = SimpleNamespace(
+        workspace=Workspace(LocalWorkspaceBackend(tmp_path)),
+        row_id=None,
+        filesystem_binding_id=binding_id,
+    )
+    root = RunProjectWorkspace(
+        setup.original,
+        setup.ctx,
+        audience=RunAudience(user_id=setup.ctx.user_id),
+        granted_scopes=setup.selector.granted_scopes,
+        run_id=run_id,
+        conversation_id=uuid4(),
+        open_agent_executor=AsyncMock(return_value=opened),
+        agent_execution_available=True,
+    )
+    supervisor = root._project_mount
+    assert supervisor is not None and supervisor.run_id == run_id
+    await root.select(uuid4())
+    mounted = f"/project/{uuid4()}"
+    supervisor.directory = AsyncMock(return_value=mounted)
+    result = await root.run(
+        [sys.executable, "-c", "import os;print(os.environ['PROJECT_DIR'])"],
+        timeout=5,
+    )
+    assert result.stdout.strip() == mounted
+    assert supervisor.directory.await_args.kwargs["binding_id"] == binding_id
+    await root.close_agent(keep_spills=False)
+
+
+async def test_mount_commits_attached_uploads_before_first_command_and_only_once(
+    setup: SimpleNamespace,
+    tmp_path: Path,
+) -> None:
+    from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace
+
+    selector = setup.selector
+    selector.original = Workspace(LocalWorkspaceBackend(tmp_path))
+    selector.agent_execution_available = True
+    selector.filesystem_binding_id = uuid4()
+    project_id = uuid4()
+    selector.conversation_project_id = project_id
+    await selector.select(project_id)
+    events = []
+
+    async def stage(db):
+        (tmp_path / "upload.txt").write_text("attached upload")
+        events.append("stage")
+
+        def settled():
+            events.append("committed baseline")
+
+        return settled
+
+    async def directory(**kwargs):
+        assert events == ["stage", "committed baseline"]
+        return str(tmp_path)
+
+    selector.initialize_project = AsyncMock(side_effect=stage)
+    selector._project_mount = SimpleNamespace(
+        directory=AsyncMock(side_effect=directory), close=AsyncMock()
+    )
+    script = "import os,pathlib;p=pathlib.Path(os.environ['PROJECT_DIR']);print((p/'upload.txt').read_text());(p/'result.txt').write_text('live result')"
+    first = await selector.run([sys.executable, "-c", script], timeout=5)
+    assert first.stdout.strip() == "attached upload"
+    second = await selector.run([sys.executable, "-c", script], timeout=5)
+    assert second.stdout.strip() == "attached upload"
+    selector.initialize_project.assert_awaited_once()
+    assert (tmp_path / "result.txt").read_text() == "live result"
+    await selector.close_agent(keep_spills=False)
+
+
+async def test_mount_never_admits_lease_if_upload_staging_fails(
+    setup: SimpleNamespace,
+    tmp_path: Path,
+) -> None:
+    from pydantic_ai.workspaces import LocalWorkspaceBackend, Workspace
+
+    selector = setup.selector
+    selector.original = Workspace(LocalWorkspaceBackend(tmp_path))
+    selector.agent_execution_available = True
+    selector.filesystem_binding_id = uuid4()
+    selector.conversation_project_id = uuid4()
+    await selector.select(selector.conversation_project_id)
+    selector.initialize_project = AsyncMock(side_effect=RuntimeError("upload flush failed"))
+    selector._project_mount = SimpleNamespace(directory=AsyncMock(), close=AsyncMock())
+    with pytest.raises(RuntimeError, match="upload flush failed"):
+        await selector.run([sys.executable, "-c", "raise AssertionError('must not run')"])
+    selector._project_mount.directory.assert_not_awaited()
+    assert not selector._project_initialized
+
+
+@pytest.mark.parametrize(
+    ("admitted", "current", "expected"),
+    [
+        (None, frozenset({"projects:use"}), frozenset({"projects:use"})),
+        (frozenset({"projects:view"}), None, frozenset({"projects:view"})),
+        (
+            frozenset({"projects:view"}),
+            frozenset({"projects:view", "projects:use"}),
+            frozenset({"projects:view"}),
+        ),
+        (
+            frozenset({"projects:view", "projects:use"}),
+            frozenset({"projects:view"}),
+            frozenset({"projects:view"}),
+        ),
+    ],
+)
+async def test_project_actor_intersects_admitted_and_current_key_permissions(
+    setup: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+    admitted,
+    current,
+    expected,
+) -> None:
+    from dataclasses import replace
+
+    from app.core.permissions import Perm
+
+    def permissions(values):
+        return None if values is None else frozenset(Perm(value) for value in values)
+
+    original = replace(setup.ctx, api_key_id=uuid4(), key_scopes=permissions(admitted))
+    setup.selector.ctx = original
+    refreshed = replace(original, key_scopes=permissions(current), key_internal=True)
+    monkeypatch.setattr(
+        module,
+        "ApiKeyService",
+        lambda _: SimpleNamespace(context_for_key=AsyncMock(return_value=refreshed)),
+    )
+    actor = await setup.selector._actor(MagicMock())
+    assert actor.key_scopes == permissions(expected)
+    assert actor.key_internal is False
+    assert setup.selector.ctx is original
+    assert setup.selector.ctx.key_scopes == permissions(admitted)
+
+
+@pytest.mark.parametrize(("admitted", "current"), [(True, False), (True, True), (False, True)])
+async def test_project_actor_cannot_gain_internal_key_authority(
+    setup: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+    admitted: bool,
+    current: bool,
+) -> None:
+    from dataclasses import replace
+
+    setup.selector.ctx = replace(setup.ctx, api_key_id=uuid4(), key_internal=admitted)
+    refresh = AsyncMock(return_value=replace(setup.selector.ctx, key_internal=current))
+    monkeypatch.setattr(module, "ApiKeyService", lambda _: SimpleNamespace(context_for_key=refresh))
+    actor = await setup.selector._actor(MagicMock())
+    assert actor.key_internal is (admitted and current)
+
+
+async def test_project_actor_refuses_revoked_key_before_project_lookup(
+    setup: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dataclasses import replace
+
+    from app.core.exceptions import AuthenticationError
+
+    setup.selector.ctx = replace(setup.ctx, api_key_id=uuid4())
+    refresh = AsyncMock(side_effect=AuthenticationError(message="The API key was revoked"))
+    monkeypatch.setattr(module, "ApiKeyService", lambda _: SimpleNamespace(context_for_key=refresh))
+    with pytest.raises(AuthenticationError, match="revoked"):
+        await setup.selector.select(uuid4())
+    setup.guard.assert_not_awaited()

@@ -159,6 +159,14 @@ def _resolved(
     return ResolvedConnection(row=row, token=token)
 
 
+@pytest.fixture(autouse=True)
+def legacy_filesystem_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Workspace unit fakes represent legacy hosts; mount admission has its own tests."""
+    monkeypatch.setattr(
+        SandboxConnectionService, "supports_project_filesystem", AsyncMock(return_value=False)
+    )
+
+
 def _serve(monkeypatch, resolved: ResolvedConnection | Exception) -> None:
     async def _resolve(self, ctx, connection_id):
         if isinstance(resolved, Exception):
@@ -6230,3 +6238,142 @@ async def test_creating_a_file_materializes_the_session_and_makes_the_archive_br
     assert after is not None
     assert after[1].unreadable_reason is None and after[1].unreadable_code is None
     assert after[1].entries[0]["path"] == "notes.txt"
+
+
+@pytest.mark.parametrize("scope", ["run", "conversation"])
+async def test_private_docker_workspace_receives_only_its_immutable_mount_credential(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_db_session: AsyncMock,
+    sandboxes: _Sandboxes,
+    scope: str,
+) -> None:
+    from pydantic import SecretStr
+
+    from app.schemas.project_filesystem_authority import ProjectFilesystemCredential
+    from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+
+    resolved = _resolved()
+    _serve(monkeypatch, resolved)
+    _a_row_is_created(monkeypatch)
+    monkeypatch.setattr(
+        SandboxConnectionService, "supports_project_filesystem", AsyncMock(return_value=True)
+    )
+    credential = ProjectFilesystemCredential(uuid4(), SecretStr("private-binding-token"))
+    mint = AsyncMock(return_value=credential)
+    monkeypatch.setattr(ProjectFilesystemBindingService, "credential", mint)
+    identity = _identity()
+    opened = await SandboxWorkspaceService(mock_db_session).open(
+        _spec(backend="service"), ctx=_ctx(), identity=identity, scope_override=scope
+    )
+    assert opened is not None
+    assert opened.filesystem_binding_id == credential.binding_id
+    [adapter] = sandboxes.made
+    assert adapter["filesystem_binding"].id == credential.binding_id
+    assert adapter["filesystem_binding"].token == credential.token
+    assert "private-binding-token" not in repr(opened)
+    mint.assert_awaited_once_with(
+        organization_id=identity.organization_id,
+        connection_id=resolved.row.id,
+        session_name=opened.scope_key,
+        workspace_id=opened.row_id,
+        conversation_id=identity.conversation_id,
+    )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("already_bound", [False, True])
+async def test_enabling_mounts_preserves_retained_ordinary_sessions_and_their_files(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_db_session: AsyncMock,
+    sandboxes: _Sandboxes,
+    already_bound: bool,
+) -> None:
+    from pydantic import SecretStr
+
+    from app.db.models.project_filesystem import ProjectFilesystemBinding
+    from app.schemas.project_filesystem_authority import ProjectFilesystemCredential
+    from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+
+    resolved = _resolved()
+    _serve(monkeypatch, resolved)
+    row = _row(backend="service", session_id="retained-session", connection_id=resolved.row.id)
+    monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+    monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+    monkeypatch.setattr(
+        SandboxConnectionService, "supports_project_filesystem", AsyncMock(return_value=True)
+    )
+    credential = ProjectFilesystemCredential(uuid4(), SecretStr("retained-binding-token"))
+    lookup = AsyncMock(
+        return_value=ProjectFilesystemBinding(id=credential.binding_id) if already_bound else None
+    )
+    monkeypatch.setattr(sandbox_workspace.filesystem_binding_repo, "binding_for_session", lookup)
+    mint = AsyncMock(return_value=credential)
+    monkeypatch.setattr(ProjectFilesystemBindingService, "credential", mint)
+    (sandboxes.root / "retained.txt").write_text("existing private files")
+    mock_db_session.add = MagicMock()
+    identity = _identity()
+    opened = await SandboxWorkspaceService(mock_db_session).open(
+        _spec(backend="service"), ctx=_ctx(), identity=identity
+    )
+    assert opened is not None
+    assert await opened.workspace.read_text("retained.txt") == "existing private files"
+    assert sandboxes.attached == [
+        WorkspaceRef(provider=f"sandboxd:{resolved.row.id}", id="retained-session")
+    ]
+    assert sandboxes.destroyed == []
+    lookup.assert_awaited_once_with(
+        mock_db_session,
+        organization_id=identity.organization_id,
+        connection_id=resolved.row.id,
+        session_name=opened.scope_key,
+    )
+    [adapter] = sandboxes.made
+    if already_bound:
+        assert opened.filesystem_binding_id == credential.binding_id
+        assert adapter["filesystem_binding"].id == credential.binding_id
+        assert adapter["filesystem_binding"].token == credential.token
+        mint.assert_awaited_once()
+    else:
+        assert opened.filesystem_binding_id is None and adapter["filesystem_binding"] is None
+        mint.assert_not_awaited()
+
+
+@pytest.mark.security
+async def test_invalid_retained_mount_binding_is_not_downgraded_to_an_ordinary_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+    mock_db_session: AsyncMock,
+    sandboxes: _Sandboxes,
+) -> None:
+    from app.core.exceptions import AuthorizationError
+    from app.db.models.project_filesystem import ProjectFilesystemBinding
+    from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+
+    resolved = _resolved()
+    _serve(monkeypatch, resolved)
+    row = _row(
+        backend="service", session_id="retained-bound-session", connection_id=resolved.row.id
+    )
+    monkeypatch.setattr(workspace_repo, "get_by_key", AsyncMock(return_value=row))
+    monkeypatch.setattr(workspace_repo, "touch", AsyncMock(return_value=row))
+    monkeypatch.setattr(
+        SandboxConnectionService, "supports_project_filesystem", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(
+        sandbox_workspace.filesystem_binding_repo,
+        "binding_for_session",
+        AsyncMock(return_value=ProjectFilesystemBinding(id=uuid4())),
+    )
+    monkeypatch.setattr(
+        ProjectFilesystemBindingService,
+        "credential",
+        AsyncMock(
+            side_effect=AuthorizationError(message="The sandbox filesystem identity changed")
+        ),
+    )
+    (sandboxes.root / "retained.txt").write_text("existing private files")
+    with pytest.raises(AuthorizationError, match="identity changed"):
+        await SandboxWorkspaceService(mock_db_session).open(
+            _spec(backend="service"), ctx=_ctx(), identity=_identity()
+        )
+    assert sandboxes.made == sandboxes.attached == sandboxes.destroyed == []
+    assert (sandboxes.root / "retained.txt").read_text() == "existing private files"

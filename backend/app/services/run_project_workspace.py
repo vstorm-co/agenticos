@@ -10,7 +10,7 @@ import json
 import posixpath
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from hashlib import sha256
 from typing import Literal
 from uuid import UUID
@@ -53,6 +53,65 @@ from app.services.sandbox_workspace import (
 MAX_TRANSFER_BYTES = 8 * 1024 * 1024
 
 
+@dataclass(frozen=True)
+class ProjectRunAuthority:
+    """Revalidate admitted project access for model tools and mounted filesystem RPC."""
+
+    ctx: AuthContext
+    audience: RunAudience
+    granted_scopes: frozenset[str]
+    conversation_project_id: UUID | None = None
+    admitted_actor: AuthContext | None = None
+
+    async def actor(
+        self, db: AsyncSession, *, project_scope: bool = True, admitted: bool = False
+    ) -> AuthContext:
+        if project_scope and "projects:read" not in self.granted_scopes:
+            raise AuthorizationError(message="Project access is disabled for this run.", details={})
+        original = self.admitted_actor if admitted and self.admitted_actor is not None else self.ctx
+        user_id = original.user_id
+        if user_id is None or original.subject_is_publisher_fallback:
+            raise AuthorizationError(message="Select a project as a connected organization member.")
+        if original.api_key_id is not None:
+            current = await ApiKeyService(db).context_for_key(
+                original.api_key_id, organization_id=original.organization_id
+            )
+            if current.user_id != original.user_id:
+                raise AuthorizationError(
+                    message="The run's credential no longer belongs to its original issuer.",
+                    details={},
+                )
+            original = replace(
+                original,
+                role=current.role,
+                is_app_admin=current.is_app_admin,
+                key_scopes=(
+                    current.key_scopes
+                    if original.key_scopes is None
+                    else original.key_scopes
+                    if current.key_scopes is None
+                    else original.key_scopes & current.key_scopes
+                ),
+                key_internal=original.key_internal and current.key_internal,
+            )
+        member = await member_context(db, organization_id=original.organization_id, user_id=user_id)
+        if member is None:
+            raise AuthorizationError(message="Your organization membership is no longer active")
+        return replace(original, role=member.role, is_app_admin=member.is_app_admin)
+
+    async def project(self, db: AsyncSession, project_id: UUID) -> tuple[AuthContext, Project]:
+        ctx = await self.actor(db, admitted=project_id == self.conversation_project_id)
+        if (not self.audience.private or self.audience.shared_transcript) and (
+            project_id != self.conversation_project_id or not self.audience.private
+        ):
+            raise AuthorizationError(
+                message="Use a private conversation to read another project. The audience here has not been granted access.",
+                details={"project_id": project_id},
+            )
+        project = await project_for_workspace(db, ctx, project_id)
+        return ctx, project
+
+
 class RunProjectWorkspace(Workspace):
     """One selector per top-level run; approval resumes restore only the project id."""
 
@@ -73,6 +132,9 @@ class RunProjectWorkspace(Workspace):
         | None = None,
         agent_execution_available: bool | None = None,
         admitted_actor: AuthContext | None = None,
+        run_id: UUID | None = None,
+        conversation_id: UUID | None = None,
+        filesystem_binding_id: UUID | None = None,
     ) -> None:
         super().__init__(original or Workspace(_UnavailableWorkspace()))
         self.original = original
@@ -97,6 +159,22 @@ class RunProjectWorkspace(Workspace):
         self._pinned_view = False
         self._lifecycle_owner: RunProjectWorkspace = self
         self.admitted_actor = admitted_actor
+        self.filesystem_binding_id = filesystem_binding_id
+        self._project_mount = None
+        if run_id is not None:
+            from app.schemas.project_filesystem_authority import ProjectFilesystemAuthority
+            from app.services.project_filesystem_runtime import ProjectFilesystemRuntime
+
+            self._project_mount = ProjectFilesystemRuntime(
+                run_id=run_id,
+                authority=ProjectFilesystemAuthority(
+                    actor=ctx,
+                    audience=audience,
+                    granted_scopes=granted_scopes,
+                    conversation_project_id=conversation_project_id,
+                    conversation_id=conversation_id,
+                ),
+            )
         self.agent_workspace: OpenWorkspace | None = None
         self.agent_workspace_at_start: set[str] | None = None
         self._agent_initialization = asyncio.Lock()
@@ -152,6 +230,8 @@ class RunProjectWorkspace(Workspace):
         )
         selected._pinned_view = True
         selected._lifecycle_owner = self._lifecycle_owner
+        selected._project_mount = self._project_mount
+        selected.filesystem_binding_id = self.filesystem_binding_id
         selected.origins = self.origins
         selected._read_versions = dict(self._read_versions)
         return selected.workspace
@@ -183,46 +263,24 @@ class RunProjectWorkspace(Workspace):
         # A routing handle is never a portable authority to either filesystem.
         return None
 
+    def project_authority(self) -> ProjectRunAuthority:
+        return ProjectRunAuthority(
+            ctx=self.ctx,
+            audience=self.audience,
+            granted_scopes=self.granted_scopes,
+            conversation_project_id=self.conversation_project_id,
+            admitted_actor=self.admitted_actor,
+        )
+
     async def _actor(
         self, db: AsyncSession, *, project_scope: bool = True, admitted: bool = False
     ) -> AuthContext:
-        if project_scope and "projects:read" not in self.granted_scopes:
-            raise AuthorizationError(message="Project access is disabled for this run.", details={})
-        original = self.admitted_actor if admitted and self.admitted_actor is not None else self.ctx
-        user_id = original.user_id
-        if user_id is None or original.subject_is_publisher_fallback:
-            raise AuthorizationError(message="Select a project as a connected organization member.")
-        if original.api_key_id is not None:
-            current = await ApiKeyService(db).context_for_key(
-                original.api_key_id, organization_id=original.organization_id
-            )
-            if current.user_id != original.user_id:
-                raise AuthorizationError(
-                    message="The run's credential no longer belongs to its original issuer.",
-                    details={},
-                )
-            original = replace(
-                original,
-                role=current.role,
-                is_app_admin=current.is_app_admin,
-                key_scopes=current.key_scopes,
-                key_internal=current.key_internal,
-            )
-        member = await member_context(db, organization_id=original.organization_id, user_id=user_id)
-        if member is None:
-            raise AuthorizationError(message="Your organization membership is no longer active")
-        return replace(original, role=member.role, is_app_admin=member.is_app_admin)
+        return await self.project_authority().actor(
+            db, project_scope=project_scope, admitted=admitted
+        )
 
     async def _project(self, db: AsyncSession, project_id: UUID) -> tuple[AuthContext, Project]:
-        ctx = await self._actor(db, admitted=project_id == self.conversation_project_id)
-        if (not self.audience.private or self.audience.shared_transcript) and (
-            project_id != self.conversation_project_id or not self.audience.private
-        ):
-            raise AuthorizationError(
-                message="Use a private conversation to read another project. The audience here has not been granted access.",
-                details={"project_id": project_id},
-            )
-        project = await project_for_workspace(db, ctx, project_id)
+        ctx, project = await self.project_authority().project(db, project_id)
         if self.require_project is not None:
             self.require_project(project)
         return ctx, project
@@ -233,8 +291,8 @@ class RunProjectWorkspace(Workspace):
                 "This run's workspace is closed. Start a new turn; delegated tools cannot reopen it after cleanup."
             )
 
-    @asynccontextmanager
-    async def _open(self) -> AsyncGenerator[Workspace]:
+    async def _initialize_staging(self) -> None:
+        """Commit attached-project uploads before a fresh live filesystem view opens."""
         self._require_open()
         project_id = self._require_selection()
         owner = self._lifecycle_owner
@@ -258,6 +316,12 @@ class RunProjectWorkspace(Workspace):
                         settled()
                     owner._project_initialized = True
                     self._require_open()
+
+    @asynccontextmanager
+    async def _open(self) -> AsyncGenerator[Workspace]:
+        self._require_open()
+        project_id = self._require_selection()
+        await self._initialize_staging()
         async with get_db_context() as db:
             try:
                 ctx, project = await self._project(db, project_id)
@@ -307,6 +371,8 @@ class RunProjectWorkspace(Workspace):
             project_id, "agent" if project_id is None else self.execution_target
         )
         if project_id is None:
+            if self._project_mount is not None:
+                await self._project_mount.close()
             self.project_id = None
             self.project_generation = None
             self.execution_target = "agent"
@@ -330,6 +396,8 @@ class RunProjectWorkspace(Workspace):
                 message="The delegated workspace generation changed. Restart this run before selecting it again.",
                 details={},
             )
+        if project_id != self.project_id and self._project_mount is not None:
+            await self._project_mount.close()
         self.project_id = project_id
         self.project_generation = generation
         self.project_context_observed = True
@@ -351,7 +419,7 @@ class RunProjectWorkspace(Workspace):
                 and not (
                     self.project_context_observed and self.original_scope in ("agent", "channel")
                 ),
-                "message": "Explicit project file tools use this project. Generic file tools and commands keep the selected executor. No files were copied or mounted; transfer selected files explicitly when another executor needs them.",
+                "message": "Explicit project file tools use this project. Commands keep the agent's own executor and toolchain. On a mount-enabled Docker connection, PROJECT_DIR points to the live Project files with no copying. Use that environment variable in shell or Python; generic relative file paths still refer to the chosen executor.",
             }
         )
 
@@ -595,7 +663,7 @@ class RunProjectWorkspace(Workspace):
         return json.dumps(
             {
                 "execution_target": target,
-                "message": "Commands and generic file tools use this executor. Explicit project tools still use the project. No files were copied or mounted.",
+                "message": "Commands and generic file tools use this executor. Explicit project tools still use the project. Agent execution exposes live Project files through PROJECT_DIR on a mount-enabled private Docker workspace.",
             }
         )
 
@@ -938,10 +1006,17 @@ class RunProjectWorkspace(Workspace):
         """The runner closes the independent executor only after collecting its output."""
         self.stop_admission()
         opened, self.agent_workspace = self.agent_workspace, None
-        if opened is None:
-            return None
-        async with get_db_context() as db:
-            return await SandboxWorkspaceService(db).close(opened, keep_spills=keep_spills)
+        failure = None
+        try:
+            if self._project_mount is not None:
+                await self._project_mount.close()
+        finally:
+            if opened is not None:
+                async with get_db_context() as db:
+                    failure = await SandboxWorkspaceService(db).close(
+                        opened, keep_spills=keep_spills
+                    )
+        return failure
 
     async def run(
         self,
@@ -969,7 +1044,28 @@ class RunProjectWorkspace(Workspace):
                     except AppException as error:
                         raise PermissionError(error.message) from error
             async with self._open_agent() as workspace:
-                return await workspace.run(command, shell=shell, env=env, timeout=timeout, cwd=cwd)
+                environment = dict(env or {})
+                environment.pop("PROJECT_DIR", None)
+                if self.project_id is not None and self._project_mount is not None:
+                    opened = self._lifecycle_owner.agent_workspace
+                    binding_id = (
+                        self.filesystem_binding_id
+                        if opened is None
+                        else opened.filesystem_binding_id
+                    )
+                    if binding_id is None:
+                        raise WorkspaceUnavailableError(
+                            "Live Project files require a mount-enabled Docker connection and a private conversation- or run-scoped workspace. After enabling mounts, start a new conversation to keep an older conversation and its files intact, or explicitly select Project execution."
+                        )
+                    await self._initialize_staging()
+                    environment["PROJECT_DIR"] = await self._project_mount.directory(
+                        binding_id=binding_id,
+                        project_id=self.project_id,
+                        generation=self.project_generation,
+                    )
+                return await workspace.run(
+                    command, shell=shell, env=environment, timeout=timeout, cwd=cwd
+                )
         if self.project_id is None:
             raise WorkspaceUnavailableError("Select a project before executing commands there.")
         async with self._open() as workspace:

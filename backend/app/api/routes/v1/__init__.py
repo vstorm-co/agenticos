@@ -46,6 +46,7 @@ from app.api.routes.v1 import agent_environments, agent_exposures, agent_trigger
 from app.api.routes.v1 import trigger_webhooks
 from app.api.routes.v1 import agents as agent_registry
 from app.api.routes.v1 import model_providers
+from app.api.routes.v1 import project_filesystem
 from app.api.routes.v1 import secrets
 from app.api.routes.v1 import runs as agent_runs
 from app.api.routes.v1 import stats
@@ -327,6 +328,9 @@ v1_router.include_router(
 )
 v1_router.include_router(portability.router)
 v1_router.include_router(projects.router, prefix="/projects", tags=["projects"])
+v1_router.include_router(
+    project_filesystem.router, prefix="/project-filesystem", tags=["project-filesystem"]
+)
 v1_router.include_router(
     sharing.project_sharing_router, prefix="/projects", tags=["projects:sharing"]
 )

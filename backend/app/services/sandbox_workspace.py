@@ -57,6 +57,7 @@ from pydantic_ai_backends.remote.archive import DEFAULT_TIMEOUT_SECONDS, Workspa
 from pydantic_ai_backends.remote.wire import MAX_TREES
 from pydantic_ai_backends.workspaces import (
     DaytonaWorkspace,
+    FilesystemBinding,
     SandboxdWorkspace,
     StateWorkspaceBackend,
 )
@@ -96,7 +97,9 @@ from app.repositories import agent_workspace as workspace_repo
 from app.repositories import conversation as conversation_repo
 from app.repositories import member as member_repo
 from app.repositories import pending_sandbox_destroy as pending_destroy_repo
+from app.repositories import project_filesystem_bindings as filesystem_binding_repo
 from app.repositories import project_repo
+from app.schemas.project_filesystem_authority import ProjectFilesystemCredential
 from app.schemas.workspace import ConversationWorkspaceOrigins, WorkspaceOriginRead
 from app.services import device_hub
 from app.services.access import PROJECT, accessible_ids, resolve_access
@@ -477,6 +480,9 @@ class OpenWorkspace:
     row_id: UUID | None
     """The `agent_workspaces` row, absent only where there is no database to
     write to - a run-scoped workspace, or a spec being exercised by a test."""
+
+    filesystem_binding_id: UUID | None = None
+    """Sandbox identity; each run receives separate, short-lived Project authority."""
 
     connection_id: UUID | None = None
     """Which registered connection it runs on, for a workspace that is not `state`."""
@@ -1041,9 +1047,39 @@ class SandboxWorkspaceService:
         briefing: str | None = None
         parses_documents = False
         notice = _OpeningNotice(on_wait) if on_wait is not None else None
+        row = await self._row(config, identity, key, scope, connection_id=resolved.row.id)
+        filesystem = None
+        if scope in ("conversation", "run") and await self.connections.supports_project_filesystem(
+            resolved
+        ):
+            from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+
+            # Enabling optional mounts cannot retrofit a retained ordinary session.
+            # A recorded binding must still be forwarded, including any refusal.
+            if (
+                row is None
+                or row.session_id is None
+                or (
+                    await filesystem_binding_repo.binding_for_session(
+                        self.db,
+                        organization_id=identity.organization_id,
+                        connection_id=resolved.row.id,
+                        session_name=key,
+                    )
+                )
+                is not None
+            ):
+                filesystem = await ProjectFilesystemBindingService(self.db).credential(
+                    organization_id=identity.organization_id,
+                    connection_id=resolved.row.id,
+                    session_name=key,
+                    workspace_id=None if row is None else row.id,
+                    conversation_id=identity.conversation_id,
+                )
         sandbox = self._service_capability(
             resolved,
             key,
+            filesystem_binding=filesystem,
             runtime=config.runtime,
             tenant=str(identity.organization_id),
             on_wait=notice.waiting if notice is not None else None,
@@ -1053,7 +1089,6 @@ class SandboxWorkspaceService:
             briefing = runtime_briefing(alias)
             parses_documents = runtime_parses_documents(alias)
 
-        row = await self._row(config, identity, key, scope, connection_id=resolved.row.id)
         opened = (
             None
             if row is None or row.session_id is None
@@ -1089,6 +1124,7 @@ class SandboxWorkspaceService:
             scope_key=key,
             row_id=row.id if row is not None else None,
             connection_id=resolved.row.id,
+            filesystem_binding_id=None if filesystem is None else filesystem.binding_id,
             briefing=briefing,
             parses_documents=parses_documents,
         )
@@ -1101,6 +1137,7 @@ class SandboxWorkspaceService:
         runtime: str | None = None,
         tenant: str | None = None,
         on_wait: Callable[[], Awaitable[None]] | None = None,
+        filesystem_binding: ProjectFilesystemCredential | None = None,
     ) -> ServiceSandbox:
         """What supplies the sandbox named `key` on one of the organization's connections.
 
@@ -1143,6 +1180,11 @@ class SandboxWorkspaceService:
                 details={"connection_id": str(resolved.row.id)},
             )
         return SandboxdWorkspace(
+            filesystem_binding=None
+            if filesystem_binding is None
+            else FilesystemBinding(
+                id=filesystem_binding.binding_id, token=filesystem_binding.token
+            ),
             service_url=resolved.row.base_url,
             token=resolved.token,
             # One provider name per connection, so a ref from one host is never

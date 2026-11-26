@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "b4ca951d7c1e"
+source_sha: "b3e1868645f3"
 ---
 
 # Projekty { #projects }
@@ -79,8 +79,9 @@ Sam wybór nie uruchamia płatnego środowiska.
 
 Wybór trwa przez bieżący run, także wznowienia po zatwierdzeniu lub pytaniu. Następna
 wiadomość w zwykłym czacie lub prywatnym kanale zaczyna bez projektu. Czat projektu
-zaczyna ze swoim projektem. Historia pozostaje w pierwotnej rozmowie; nie kopiujemy
-ani nie montujemy plików. Każda operacja sprawdza aktualne członkostwo, zakresy,
+zaczyna ze swoim projektem. Historia pozostaje w pierwotnej rozmowie; wybór nie kopiuje
+plików. Obsługiwane polecenia używają montowania opisanego poniżej. Każda operacja
+sprawdza aktualne członkostwo, zakresy,
 dostęp i generację workspace. Rutyny zachowują zatwierdzone źródła, a izolowane
 ewaluacje nie mogą wybierać aktywnych projektów.
 
@@ -105,18 +106,35 @@ Bez przypięcia agent może użyć `select_execution_target`, gdy build lub inne
 potrzebuje środowiska projektu. Nie musisz przełączać opcji przy każdym zadaniu.
 Sam wybór nie uruchamia polecenia ani nie przenosi pliku.
 
-Gdy specjalistyczne narzędzie agenta potrzebuje pliku projektu na swoim dysku, użyj
-`transfer_project_file` z `direction: to_agent`, ścieżką projektu i ścieżką agenta.
-Serwer przesyła bajty bezpośrednio, także pliki binarne do 8 MiB; model otrzymuje
-ścieżki, rozmiar i potwierdzenie SHA-256 zamiast treści do przepisywania.
-`direction: from_agent` zapisuje uzgodniony wynik w projekcie. Polecenia wykonywane
-bezpośrednio w sandboxie projektu nie potrzebują takiego transferu.
+W obsługiwanym prywatnym workspace Docker o zakresie rozmowy lub runu wybrany
+projekt jest dostępny na żywo pod `/project/<UUID dzierżawy>` we własnym środowisku
+agenta. `PROJECT_DIR` wskazuje ten katalog przy każdym poleceniu: użyj
+`cd "$PROJECT_DIR" && ...`, aby narzędzie pracowało na plikach projektu. Ścieżki
+względne nadal dotyczą workspace agenta. Odczyty i zapisy przez zamontowaną ścieżkę
+trafiają bezpośrednio do wspólnego projektu, także dla plików binarnych; nie trzeba
+ich kopiować ani synchronizować.
 
-To jawna kopia, nie montowanie ani synchronizacja. Późniejsze zmiany nie są przenoszone.
-Istniejący plik docelowy wymaga aktualnego `expected_sha256`; różnica odmawia nadpisania.
-Transfer ponownie sprawdza dostęp, generację workspace, granice ścieżek i rozmiar.
-Kontrola skrótu nie blokuje transakcyjnie zwykłych zapisów z powłoki. Wybierz nową
-ścieżkę wyniku, jeżeli nie zamierzasz zastępować znanego pliku.
+Montowanie obsługuje też projekt przechowujący pliki w bazie. Natywny system plików
+projektu wymaga trwałych rozszerzonych atrybutów i atomowych twardych dowiązań;
+zweryfikowany system Linux je obsługuje, a bind mounty macOS mogą ich odmawiać.
+Nieobsługiwany magazyn, stare sesje sandboxa, wykonawcy inni niż Docker oraz
+współdzielone zakresy użytkownika, agenta lub kanału zwracają jasny błąd, gdy
+polecenia projektu wymagają montowania. Nie podstawiają plików lokalnych ani nie
+przełączają wykonawcy po cichu. Wybierz jawnie wykonawcę projektu, gdy jego
+obsługiwane środowisko ma być celem pracy.
+
+Montowanie używa niezmiennej dzierżawy runu, odnawianej podczas działania. Koniec
+runu, pauza lub zmiana projektu ją unieważniają. Każde żądanie plikowe sprawdza
+aktualny dostęp i generację workspace. Dowiązania symboliczne i zmiany właściciela
+są odmawiane. Restart eksportera unieważnia uchwyty NFS: wykonywanie zatrzymuje się
+do jawnego odzyskania systemu plików sandboxa, z zachowaniem jego własnego workspace,
+bez podmiany na puste środowisko.
+
+`transfer_project_file` pozostaje opcjonalną jawną kopią bajtów dla osobnego wyniku
+lub innego obsługiwanego magazynu. Obsługuje pliki binarne do 8 MiB i zwraca ścieżki,
+rozmiar oraz potwierdzenie SHA-256. Istniejący cel wymaga aktualnego `expected_sha256`.
+W przeciwieństwie do dostępu przez montowanie kopia nie przenosi późniejszych zmian;
+kontrola skrótu nie blokuje transakcyjnie zwykłych zapisów powłoki.
 
 Czaty projektu dają dostęp do plików także bez Sandbox, a przesłane w nich pliki trafiają
 do projektu. Nie włączają wyłączonego Sandbox ani brakujących narzędzi powłoki.

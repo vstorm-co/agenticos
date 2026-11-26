@@ -73,10 +73,11 @@ def project_tools(port: ProjectContextPort | None) -> FunctionToolset[AgentDeps]
         """Select shared project files and scoped guidance for this run without changing the executor.
 
         Choose an ID from search_projects. Use the project file tools to inspect
-        its files. Commands keep their current target: inspect execution_target
-        in the result and explicitly choose the project executor when shell work
-        needs those files. No files are mounted, copied or synchronized into the
-        agent workspace. Omit the ID to clear the project and use agent execution.
+        its files. Commands keep the agent's toolchain and current executor. On a
+        mount-enabled private Docker workspace, shell commands receive PROJECT_DIR
+        pointing to the live shared files; Python reads os.environ["PROJECT_DIR"].
+        There is no copy or synchronization step. Project execution remains an
+        explicit option for using its separate runtime. Omit the ID to clear it.
         Selection opens no container and does not move the conversation. New user
         turns start fresh; approval continuations retain this run's selection.
         A shared-workspace delegation pins the project's context and executor

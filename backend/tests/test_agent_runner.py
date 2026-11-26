@@ -12329,3 +12329,35 @@ async def test_preparation_briefs_and_materialises_agent_skills_in_its_own_execu
     assert agent_document.read_bytes(f"{SKILLS_ROOT}/reconcile/reconcile.py") == b"print('ok')"
     assert project_document.files == {}
     assert prepared.materialised_skills is not None
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("failure", [TimeoutError("revoke timed out"), RuntimeError("cleanup bug")])
+async def test_mount_cleanup_failure_still_settles_run_and_spend(failure, caplog) -> None:
+    service = AgentRunnerService(_db())
+    ledger = SpendLedger()
+    ledger.record("gpt-4.1", RequestUsage(input_tokens=1_000_000), "openai")
+    prepared = _prepared(ledger)
+    prepared.project_workspace = SimpleNamespace(
+        workspace=MagicMock(),
+        agent_workspace=None,
+        origins={},
+        conversation_project_id=None,
+        close_agent=AsyncMock(side_effect=failure),
+        stop_admission=MagicMock(),
+    )
+    with patch("app.services.agent_runner.agent_run_repo.finish_run", new=AsyncMock()) as finish:
+        await service.finish(
+            prepared,
+            status=RunStatus.AWAITING_APPROVAL,
+            paused_state=PausedRunState(
+                messages=[],
+                tool_call_ids={},
+            ),
+        )
+    recorded = finish.call_args.kwargs
+    assert recorded["status"] == RunStatus.FAILED.value
+    assert recorded["error"] == "Project filesystem access could not be released"
+    assert recorded["cost_usd"] == Decimal("2.00")
+    assert "Project filesystem cleanup failed" in caplog.text
+    prepared.project_workspace.close_agent.assert_awaited_once_with(keep_spills=True)

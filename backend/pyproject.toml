@@ -151,7 +151,7 @@ dependencies = [
     # `sandboxd`. Floors at 0.2.32 for named sandboxd sessions and Daytona
     # sandboxes, which a workspace keyed on its scope opens or attaches by name
     # (#2003).
-    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.39",
+    "pydantic-ai-backend[console,remote,workspaces,daytona]>=0.2.40",
     # DaytonaWorkspace uses the 0.x root client. SDK 2.x moves these methods
     # into v0/v2 namespaces, which the workspace adapter does not yet support.
     "daytona>=0.226.1,<2",
@@ -775,6 +775,14 @@ include = [
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/run_project_workspace.py",
+    "app/schemas/project_filesystem.py",
+    "app/schemas/project_filesystem_authority.py",
+    "app/repositories/project_filesystem.py",
+    "app/repositories/project_filesystem_bindings.py",
+    "app/services/project_filesystem.py",
+    "app/services/project_filesystem_bindings.py",
+    "app/services/project_filesystem_gateway.py",
+    "app/services/project_filesystem_runtime.py",
     "app/services/sandbox_workspace.py",
     "app/services/sandboxd_compat.py",
     # A `.zip` or `.tar.gz` unpacked into a workspace, and a folder zipped out
@@ -1747,6 +1755,14 @@ include = [
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/run_project_workspace.py",
+    "app/schemas/project_filesystem.py",
+    "app/schemas/project_filesystem_authority.py",
+    "app/repositories/project_filesystem.py",
+    "app/repositories/project_filesystem_bindings.py",
+    "app/services/project_filesystem.py",
+    "app/services/project_filesystem_bindings.py",
+    "app/services/project_filesystem_gateway.py",
+    "app/services/project_filesystem_runtime.py",
     "app/services/sandbox_workspace.py",
     "app/services/sandboxd_compat.py",
     # A `.zip` or `.tar.gz` unpacked into a workspace, and a folder zipped out

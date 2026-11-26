@@ -2,7 +2,7 @@
 
 Prepared 26 November 2026 for [aggregate PR #3455](https://github.com/vstorm-co/agenticos/pull/3455). This is a review and acceptance document, not a release announcement. The selected changes are assembled for testing on one checkout. **Merge, version publication and production deployment are not authorized.**
 
-The practical result is a more configurable console, portable agents/workflows with reviewed dependencies, separate project files and execution targets, reusable event sources, and tighter approval/Improve behavior. The tables below identify each selected source rather than treating successful source CI as proof that the combined train passes.
+The practical result is a more configurable console, portable agents/workflows with reviewed dependencies, live shared Project files with independent execution targets, reusable event sources, and tighter approval/Improve behavior. The tables below identify each selected source rather than treating successful source CI as proof that the combined train passes.
 
 ## Selected source pull requests
 
@@ -134,6 +134,17 @@ production scheduler test.
 3. Preserve the exact Monty 1.6.0 pin while durable checkpoints exist. Treat a later interpreter upgrade as checkpoint-compatibility work.
 4. Knowledge snapshots carry no searchable vector index. Destination credentials/endpoints and explicit indexing remain operator/member actions. Snapshot downgrade is protected against orphaning stored content.
 5. Review actual desktop/mobile captures, complete exact-head CI and obtain maintainer acceptance before merge. A version cut and deployment need the later explicit authorization.
+
+## Shared Project filesystem follow-up
+
+The live mount implementation and its provider, lifecycle and verification limits
+are recorded in [the filesystem review](project-filesystem-review-2026-11-26.md).
+This supersedes the earlier transfer-only completion claim. The optional SDK
+release is authorized separately; AgenticOS remains unmerged for acceptance.
+
+## Follow-up after publication
+
+- [ ] After the release containing these changes is published, reply to [discussion #3272](https://github.com/vstorm-co/agenticos/discussions/3272). Include the released version and release link, the verified shared-filesystem behavior, supported sandbox providers, setup requirements and any remaining limits. The maintainer authorized this reply on 26 November 2026; do not post it before publication or describe an explicit file copy as a shared mount.
 
 ## Review reports
 

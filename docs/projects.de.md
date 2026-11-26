@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "b4ca951d7c1e"
+source_sha: "b3e1868645f3"
 ---
 
 # Projekte { #projects }
@@ -83,7 +83,8 @@ privaten Projektkontext. Die Auswahl allein startet keine kostenpflichtige Laufz
 Die Auswahl gilt für einen Lauf einschließlich Freigabe- und Fragenfortsetzungen.
 Die nächste Nachricht im gewöhnlichen Chat oder privaten Kanal beginnt ohne Auswahl;
 ein Projektchat beginnt mit seinem Projekt. Der Verlauf bleibt in seiner Unterhaltung.
-Dateien werden weder kopiert noch eingebunden. Jede Operation prüft aktuelle
+Die Auswahl kopiert keine Dateien. Unterstützte Befehle verwenden den unten
+beschriebenen Live-Mount. Jede Operation prüft aktuelle
 Mitgliedschaft, Scopes, Zugriff und Workspace-Generation. Routinen bleiben auf geprüfte
 Quellen beschränkt; isolierte Evaluationen wählen keine aktiven Projekte.
 
@@ -109,19 +110,35 @@ den Executor für den ganzen Lauf. Ohne Fixierung kann der Agent mit
 Du musst nicht für jede Aufgabe umschalten. Die Auswahl führt keinen Befehl aus und
 überträgt keine Datei.
 
-Benötigt ein Spezialwerkzeug eine Projektdatei auf der eigenen Festplatte, verwende
-`transfer_project_file` mit `direction: to_agent`, Projektpfad und Agentenpfad.
-Der Server überträgt Bytes direkt, auch Binärdateien bis 8 MiB. Das Modell erhält
-Pfade, Größe und einen SHA-256-Beleg statt umzuschreibender Inhalte.
-`direction: from_agent` speichert ein vereinbartes Ergebnis im Projekt.
-Direkte Befehle im Projekt-Executor benötigen keine Übertragung.
+In einem unterstützten privaten Docker-Workspace für eine Unterhaltung oder einen
+Lauf ist das gewählte Projekt unter `/project/<Lease-UUID>` live in der eigenen
+Umgebung des Agenten verfügbar. `PROJECT_DIR` benennt diesen Ordner für jeden Befehl:
+Nutze `cd "$PROJECT_DIR" && ...`, wenn ein Werkzeug Projektdateien bearbeiten soll.
+Relative Pfade bleiben im eigenen Workspace. Lesen und Schreiben über den Mount
+wirken direkt auf das gemeinsame Projekt, auch bei Binärdateien; Kopieren oder
+Synchronisieren ist nicht erforderlich.
 
-Dies ist eine explizite Kopie, kein Mount und keine Synchronisierung. Spätere Änderungen
-werden nicht weitergegeben. Ein vorhandenes Ziel benötigt seinen aktuellen
-`expected_sha256`; Abweichungen verhindern das Ersetzen. Die Übertragung prüft Zugriff,
-Workspace-Generation, Pfadgrenzen und Größe erneut. Diese Hash-Prüfung sperrt gewöhnliche
-Shellschreibvorgänge nicht transaktional. Wähle einen neuen Ergebnispfad, wenn keine
-bekannte Datei ersetzt werden soll.
+Der Mount unterstützt auch Projekte mit in der Datenbank gespeicherten Dateien.
+Ein natives Projektdateisystem benötigt dauerhafte erweiterte Attribute und atomare
+Hardlinks; das geprüfte Linux-Dateisystem unterstützt sie, macOS-Bind-Mounts können
+sie verweigern. Nicht unterstützte Speicher, alte Sandbox-Sitzungen, andere Executor
+als Docker sowie gemeinsam genutzte Benutzer-, Agenten- oder Kanal-Scopes melden
+klar einen Fehler, wenn Projektbefehle diesen Mount benötigen. Es gibt weder lokale
+Ersatzdateien noch einen stillen Executorwechsel. Wähle explizit den Projekt-Executor,
+wenn dessen unterstützte Umgebung das gewünschte Ziel ist.
+
+Der Mount verwendet eine unveränderliche Lauf-Lease, die während des Laufs erneuert
+wird. Das Ende eines Laufs, eine Pause oder ein Projektwechsel widerrufen sie. Jede Dateianfrage prüft
+aktuelle Zugriffsrechte und die Workspace-Generation. Symlinks und Änderungen des
+Eigentümers werden abgelehnt. Ein Exporter-Neustart macht NFS-Handles ungültig: Die
+Ausführung stoppt bis zur expliziten Wiederherstellung des Sandbox-Dateisystems.
+Der eigene Workspace bleibt erhalten und wird nicht still durch einen leeren ersetzt.
+
+`transfer_project_file` bleibt eine optionale explizite Bytekopie für ein getrenntes
+Ergebnis oder ein anderes unterstütztes Speicherziel. Binärdateien bis 8 MiB liefern
+Pfade, Größe und SHA-256-Beleg. Ein vorhandenes Ziel benötigt den aktuellen
+`expected_sha256`. Anders als beim Live-Mount werden spätere Änderungen nicht
+übertragen; die Hash-Prüfung sperrt normale Shellschreibvorgänge nicht transaktional.
 
 Projektchats bieten Dateizugriff ohne Sandbox; ihre Uploads bleiben im Projekt.
 Sie aktivieren weder deaktivierte Sandboxes noch fehlende Shellwerkzeuge.

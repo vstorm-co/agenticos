@@ -162,7 +162,7 @@ requires-dist = [
     { name = "psutil", specifier = ">=7.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.13" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.14.4" },
-    { name = "pydantic-ai-backend", extras = ["console", "remote", "workspaces", "daytona"], specifier = ">=0.2.39" },
+    { name = "pydantic-ai-backend", extras = ["console", "remote", "workspaces", "daytona"], specifier = ">=0.2.40" },
     { name = "pydantic-ai-harness", extras = ["e2b", "opensandbox", "repair-tool-arguments"], specifier = ">=0.71.0" },
     { name = "pydantic-ai-otari", specifier = ">=0.1.0,<0.2" },
     { name = "pydantic-ai-skills", specifier = ">=2.1.2" },
@@ -3682,15 +3682,15 @@ email = [
 
 [[package]]
 name = "pydantic-ai-backend"
-version = "0.2.39"
+version = "0.2.40"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic", extra = ["email"] },
     { name = "wcmatch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/07/a1/8a25b5a0543e655c21267cf10e1fc5bb03c847bf8378162e81ca23aa9134/pydantic_ai_backend-0.2.39.tar.gz", hash = "sha256:989c9576b7fd2fa9ab01108f71bf86a9e6bd33fc1d1ba6c1f3221619485c3fb8", size = 2862179, upload-time = "2026-10-30T13:05:02.85Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/eb/97/a1a8b5cd0736eed965ab0b015f8b762bdffecb3897a3a80d5c01f8849480/pydantic_ai_backend-0.2.40.tar.gz", hash = "sha256:eb01fc676a1cb445aef0d64aab83473353df2889672cf3550490991afc13a32a", size = 2907331, upload-time = "2026-11-26T14:31:38.832Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/98/ee/2e7f581763c5a2c77dcabf4d6be07128b032b19dfba7b703836439720745/pydantic_ai_backend-0.2.39-py3-none-any.whl", hash = "sha256:51308492d26b9a1495ab3779fd7e635f1a81ff708b66998138c77f18b7844e3d", size = 219082, upload-time = "2026-10-30T13:05:01.018Z" },
+    { url = "https://files.pythonhosted.org/packages/61/6e/a30bd97d3caa5b11ecaa2030209a69d6ad4b585e2f562c10773bc70c71fc/pydantic_ai_backend-0.2.40-py3-none-any.whl", hash = "sha256:0fce484fbb33de006eb24b14a30f1ce73b0657689833fd0d7be5ba8f5b3a4128", size = 226225, upload-time = "2026-11-26T14:31:37.48Z" },
 ]
 
 [package.optional-dependencies]

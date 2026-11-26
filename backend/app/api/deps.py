@@ -21,7 +21,8 @@ from fastapi import Depends
 from fastapi import Header
 from fastapi import Query
 from fastapi import WebSocket, Cookie, WebSocketException
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
+from pydantic import SecretStr
 
 from app.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -2660,3 +2661,33 @@ def get_chat_cost_visibility_service(db: DBSession) -> ChatCostVisibilityService
 ChatCostVisibilitySvc = Annotated[
     ChatCostVisibilityService, Depends(get_chat_cost_visibility_service)
 ]
+
+
+from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+from app.services.project_filesystem_gateway import ProjectFilesystemGateway
+
+
+def get_project_filesystem_binding_service(db: DBSession) -> ProjectFilesystemBindingService:
+    return ProjectFilesystemBindingService(db)
+
+
+def get_project_filesystem_gateway(db: DBSession) -> ProjectFilesystemGateway:
+    return ProjectFilesystemGateway(db)
+
+
+_filesystem_bearer = HTTPBearer(auto_error=False, scheme_name="ProjectFilesystemBinding")
+
+
+def get_project_filesystem_token(
+    credential: Annotated[HTTPAuthorizationCredentials | None, Depends(_filesystem_bearer)],
+) -> SecretStr | None:
+    return None if credential is None else SecretStr(credential.credentials)
+
+
+ProjectFilesystemBindingSvc = Annotated[
+    ProjectFilesystemBindingService, Depends(get_project_filesystem_binding_service)
+]
+ProjectFilesystemGatewaySvc = Annotated[
+    ProjectFilesystemGateway, Depends(get_project_filesystem_gateway)
+]
+ProjectFilesystemToken = Annotated[SecretStr | None, Depends(get_project_filesystem_token)]

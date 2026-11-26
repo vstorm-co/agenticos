@@ -292,6 +292,7 @@ from app.core.exceptions import (
     AppException,
     AuthorizationError,
     BadRequestError,
+    ExternalServiceError,
     ModelCallFailedError,
     NotFoundError,
     RunExecutionError,
@@ -2517,11 +2518,13 @@ def _in_project(spec: AgentSpec, project: Project) -> AgentSpec:
         "Generic file tools and shell commands use your own workspace by default. "
         "The explicit project file tools always use the shared project. "
         "Files-only projects have no executor. Your own configured coding tools remain available "
-        "in your own command environment; choose the project executor explicitly when a command "
-        "must act directly on service-backed project files. Use transfer_project_file for bounded "
-        "binary transfers when your own tools need a project input, or to save an agreed result "
-        "back to the project. Returned paths belong to the named workspace, not both. "
-        "There is no implicit file mount or sync.\n\n"
+        "in your own command environment. On a mount-enabled private Docker workspace, shell "
+        "commands receive PROJECT_DIR pointing to the live shared Project files without copying. "
+        "Use \"$PROJECT_DIR\" in shell or os.environ['PROJECT_DIR'] in Python. Relative file paths "
+        "still belong to your own workspace. Choose the Project executor explicitly only when "
+        "you need its separate runtime. An unsupported executor reports a configuration error; "
+        "use Project file tools for files-only work. transfer_project_file remains an explicit "
+        "bounded copy for workflows that intentionally need a separate file.\n\n"
         "Several project members may speak here; address the person whose message you answer.\n\n"
         f"<project_reference>\n{reference}\n</project_reference>"
     )
@@ -5643,6 +5646,11 @@ class AgentRunnerService:
                     subject_is_publisher_fallback=run_person is None or project_actor is None,
                 ),
                 require_project=None if routine is None else routine.require_project,
+                run_id=run.id,
+                conversation_id=conversation_id,
+                filesystem_binding_id=None
+                if workspace is None
+                else workspace.filesystem_binding_id,
                 audience=audience,
                 granted_scopes=DEFAULT_GRANTED_SCOPES,
                 admitted_actor=project_actor if project is not None else None,
@@ -7473,18 +7481,32 @@ class AgentRunnerService:
         # using it. `close` reports a typed failure without replacing accounting.
         # A parked run keeps its spills: the history it resumes from names them -
         # parked on an approval or on a question to the person alike.
+        failures: list[WorkspaceFlushFailure] = []
+        if prepared.project_workspace is not None:
+            try:
+                agent_result = await prepared.project_workspace.close_agent(
+                    keep_spills=status in (RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER)
+                )
+            except Exception:
+                # Cleanup faults must still settle accounting and end the run's
+                # gateway authority. Keep the bug visible in logs and run status.
+                logger.exception(
+                    "Project filesystem cleanup failed", extra={"run_id": prepared.run.id}
+                )
+                agent_result = WorkspaceFlushFailure(
+                    ExternalServiceError(
+                        message="Project filesystem access could not be released",
+                        details={"run_id": str(prepared.run.id)},
+                    )
+                )
+            if agent_result is not None:
+                failures.append(agent_result)
         workspace_result = await self.workspaces.close(
             prepared.workspace,
             keep_spills=status in (RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER),
         )
-
-        failures = [workspace_result] if isinstance(workspace_result, WorkspaceFlushFailure) else []
-        if prepared.project_workspace is not None:
-            agent_result = await prepared.project_workspace.close_agent(
-                keep_spills=status in (RunStatus.AWAITING_APPROVAL, RunStatus.AWAITING_ANSWER)
-            )
-            if agent_result is not None:
-                failures.append(agent_result)
+        if isinstance(workspace_result, WorkspaceFlushFailure):
+            failures.append(workspace_result)
         for failure in failures:
             error = "; ".join(part for part in (error, failure.error.message) if part)
             if status in (

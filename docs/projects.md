@@ -78,7 +78,8 @@ context. Selection opens no paid runtime by itself.
 Selection lasts for the current run, including approval and question continuations.
 A later message in an ordinary chat or private channel starts with no selected
 project. A project chat always starts with its own project. History stays in its
-original conversation; no files are copied or mounted. Every operation checks current
+original conversation; selection does not copy files. Supported commands use the live
+mount described below. Every operation checks current
 membership, scopes, project access and workspace generation. Routines remain limited
 to reviewed sources; isolated evaluations cannot select live projects.
 
@@ -103,18 +104,33 @@ whole run. Without a pin, the agent can choose `select_execution_target` when a 
 or other command needs the project's environment. You do not need to change a radio
 button for each task. Selection alone neither runs a command nor transfers a file.
 
-For a specialized agent tool that needs a physical project file, use
-`transfer_project_file` with `direction: to_agent`, a project path and an agent path.
-The server transfers the bytes directly, including binary files up to 8 MiB; the
-model receives paths, size and a SHA-256 receipt rather than contents to rewrite.
-Use `direction: from_agent` to save an agreed result back into the shared project.
-Direct commands in the project executor need no transfer.
+With a supported private Docker conversation or run workspace, the selected project
+is available live at `/project/<lease UUID>` in the agent's own environment.
+`PROJECT_DIR` names that directory for each command: use `cd "$PROJECT_DIR" && ...`
+when a tool should operate on project files. Relative file paths still refer to the
+agent's own workspace. Reads and writes through the mounted path reach the shared
+project directly, including binary files; no copy or synchronization is required.
 
-This is an explicit copy, not a mount or synchronization. Later edits do not propagate.
-An existing destination requires its current `expected_sha256`; a mismatch refuses
-replacement. Transfers recheck access, workspace generation, path containment and
-size. Ordinary shell writes are not transactionally locked by this digest check.
-Prefer a new result path when you do not intend to replace a known file.
+The mount also works with a project's stored-files backend. A native project
+filesystem must support durable extended attributes and atomic hard links; the
+verified Linux filesystem does, while macOS bind mounts may refuse these operations.
+Unsupported storage, old sandbox sessions, non-Docker executors and shared user,
+agent or channel scopes fail clearly when project commands need this mount. They
+never substitute local files or silently switch executors. Explicitly choose the
+project executor when its own supported environment is the intended target.
+
+The mount uses an immutable run lease, renewed while the run is active. Run end,
+pause or project selection changes revoke it. Each filesystem request checks current
+project access and workspace generation. Symlinks and ownership changes are refused.
+A restarted exporter invalidates its NFS handles: execution stops until the sandbox
+filesystem is explicitly recovered, preserving its own workspace rather than
+silently replacing it with an empty one.
+
+`transfer_project_file` remains an optional explicit byte copy for a separate result
+or another supported storage target. It accepts binary files up to 8 MiB and returns
+paths, size and a SHA-256 receipt. An existing destination requires its current
+`expected_sha256`. Unlike live mounted access, this copy does not propagate later
+edits; the digest check does not transactionally lock ordinary shell writes.
 
 Project chats supply file access even without Sandbox, and their uploads stay in the
 project. They do not enable a disabled Sandbox or grant missing shell tools. Per-tool

@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "b4ca951d7c1e"
+source_sha: "b3e1868645f3"
 ---
 
 # Proyectos { #projects }
@@ -82,7 +82,8 @@ privado. Seleccionar no inicia por sí solo un entorno de pago.
 La selección dura una ejecución, incluidas continuaciones tras aprobaciones y
 preguntas. El siguiente mensaje en un chat normal o canal privado comienza sin
 proyecto; un chat de proyecto empieza con el suyo. El historial queda en su
-conversación. No se copian ni montan archivos. Cada operación comprueba membresía,
+conversación. Seleccionar no copia archivos. Los comandos compatibles usan el montaje
+en vivo descrito abajo. Cada operación comprueba membresía,
 scopes, acceso y generación del workspace actuales. Las rutinas conservan las fuentes
 revisadas; las evaluaciones aisladas no seleccionan proyectos activos.
 
@@ -109,19 +110,35 @@ el ejecutor durante toda la ejecución. Sin fijarlo, el agente puede usar
 proyecto. No necesitas cambiar opciones para cada tarea. Seleccionar no ejecuta
 comandos ni transfiere archivos.
 
-Si una herramienta especializada necesita un archivo del proyecto en su disco, usa
-`transfer_project_file` con `direction: to_agent`, la ruta del proyecto y la del agente.
-El servidor transfiere los bytes directamente, incluidos binarios de hasta 8 MiB.
-El modelo recibe rutas, tamaño y un comprobante SHA-256, no contenido para reescribir.
-`direction: from_agent` guarda un resultado acordado en el proyecto. Los comandos
-directos en el ejecutor del proyecto no necesitan transferencia.
+En un workspace Docker privado compatible de conversación o ejecución, el proyecto
+seleccionado aparece en vivo en `/project/<UUID de concesión>` dentro del entorno
+propio del agente. `PROJECT_DIR` indica ese directorio para cada comando: usa
+`cd "$PROJECT_DIR" && ...` para trabajar con archivos del proyecto. Las rutas
+relativas siguen apuntando al workspace propio. Las lecturas y escrituras por el
+montaje llegan directamente al proyecto compartido, incluidos binarios; no hace
+falta copiar ni sincronizar.
 
-Es una copia explícita, no un montaje ni sincronización. Los cambios posteriores no se
-propagan. Un destino existente requiere su `expected_sha256` actual; una diferencia
-rechaza el reemplazo. La transferencia vuelve a verificar acceso, generación del
-workspace, límites de rutas y tamaño. El control del hash no bloquea de forma
-transaccional escrituras shell normales. Usa una ruta nueva si no quieres reemplazar
-un archivo conocido.
+El montaje también admite proyectos con archivos almacenados en la base de datos.
+Un sistema de archivos nativo necesita atributos extendidos duraderos y enlaces
+duros atómicos; el sistema Linux verificado los admite, mientras los bind mounts de
+macOS pueden rechazarlos. Almacenamiento incompatible, sesiones antiguas, ejecutores
+que no sean Docker y scopes compartidos de usuario, agente o canal producen un
+error claro cuando los comandos necesitan el montaje. No sustituyen archivos
+locales ni cambian de ejecutor en silencio. Elige explícitamente el ejecutor del
+proyecto cuando su entorno compatible sea el destino deseado.
+
+El montaje usa una concesión inmutable por ejecución, renovada mientras está activa.
+Terminar, pausar o cambiar de proyecto la revoca. Cada petición comprueba acceso
+actual y generación del workspace. Se rechazan enlaces simbólicos y cambios de
+propietario. Reiniciar el exportador invalida los handles NFS: la ejecución se detiene
+hasta recuperar explícitamente el sistema de archivos del sandbox, conservando su
+workspace propio sin sustituirlo silenciosamente por uno vacío.
+
+`transfer_project_file` sigue disponible como copia explícita opcional de bytes para
+un resultado separado u otro destino compatible. Admite binarios de hasta 8 MiB y
+devuelve rutas, tamaño y recibo SHA-256. Un destino existente necesita su
+`expected_sha256` actual. A diferencia del montaje en vivo, esta copia no propaga
+cambios posteriores; el hash no bloquea transaccionalmente escrituras shell normales.
 
 Los chats del proyecto dan acceso a archivos sin Sandbox y sus cargas permanecen en
 el proyecto. No activan Sandboxes desactivados ni herramientas shell ausentes.
