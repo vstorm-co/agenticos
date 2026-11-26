@@ -260,7 +260,10 @@ class AgentRun(Base, TimestampMixin):
     accepted_queue_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey(
-            "accepted_queued_messages.id", ondelete="SET NULL", name="fk_agent_run_accepted_queue"
+            "accepted_queued_messages.id",
+            ondelete="SET NULL",
+            name="fk_agent_run_accepted_queue",
+            use_alter=True,
         ),
         nullable=True,
     )

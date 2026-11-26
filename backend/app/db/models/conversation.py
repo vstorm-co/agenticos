@@ -313,7 +313,10 @@ class Message(Base, TimestampMixin):
     accepted_queue_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey(
-            "accepted_queued_messages.id", ondelete="SET NULL", name="fk_message_accepted_queue"
+            "accepted_queued_messages.id",
+            ondelete="SET NULL",
+            name="fk_message_accepted_queue",
+            use_alter=True,
         ),
         nullable=True,
     )
