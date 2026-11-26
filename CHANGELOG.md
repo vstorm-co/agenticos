@@ -21,6 +21,29 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Show a suggestion reworded at an Improve session's Changes step with that wording in the Suggestions strip, and a skill session's description change as its old and new text before it is checked or applied.
+- Keep a person's wording exactly as typed, audit dismissing every suggestion at once, and keep every check's run on its batch when checks start together.
+- Follow a suggestion's passage to a new place only when it cannot be confused with another, so a short phrase such as an amount is no longer rewritten in another sentence.
+- Keep a dismissed suggestion dismissed for later requests, Verify and Improve sessions until the agent is next published.
+- Keep a session kept as a draft accepted when a newer request replaces its suggestions, record the publish of what it measured, and reject it when its draft is discarded.
+
+### Security
+
+- Keep the authoring assistant's changes to what a person reviewed. A suggestion never adds settings its card does not show (tool overrides, a vault secret, a disabled binding, looser approval), never adds a capability whose tools reach beyond the deployment, and adding back a capability the published version binds is judged as reconfiguring it. Text holding a character a person cannot see - a control character other than a newline or a tab, a bidirectional control, a Unicode tag character - is neither proposed, checked, accepted nor applied, and every diff writes such characters out by their code.
+- Accept an Improve session, and decide a skill session, only on the attempt and result that were reviewed: accepting names the attempt and two fingerprints of it, a decision names the check and its result, and a review that judges a case again since then refuses the stale confirmation. Publishing draft edits the session never measured needs its own confirmation.
+
+### Upgrading
+
+- **BREAKING:** API clients that accept an Improve session or decide a skill session must send what was reviewed:
+  - `POST /api/v1/agents/{agent_id}/improvements/{run_id}/finish` requires `attempt`, `candidate_spec_hash` and `result_hash` of the attempt being accepted, from `ImprovementRead.iterations[]`; with `publish: true` on a session that reads `unmeasured_draft_edits`, also `publish_unmeasured_edits: true`.
+  - `POST /api/v1/skills/{skill_id}/improvements/{run_id}/apply` and `/fork` require `check_id` and `result_hash` from the session's `check`; `/return-to-main` requires them from its `main_alone_check`.
+
+  A request without them is refused with `422`; one naming another attempt or result, with `409`.
+
+## [1.95.0] - 2026-11-26
+
+### Fixed
+
 - Resume a live eval comparison after returning to the tab when its last poll failed, while keeping normal focus reads disabled.
 
 - Keep live Project mounts reachable on isolated production Compose hosts with an opt-in supervisor-only gateway bridge. Deployment refuses incomplete filesystem configuration without placing sandboxd on the proxy network or changing agent networking.
@@ -41,11 +64,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Show a skill merge's candidate text as source, open each changed file to what each side changed (or offer each side as a download), and say how many cited evidence items come from agents the reader cannot see.
 - Give keyboard focus back to where it was when a dialog opened without a trigger closes. Name the verdict in the attempt picker and the state of each skill check row for screen readers. Offer "See what changed" for a tested draft only with edit access, and say when History cannot read the tested version.
 - Name every reason an agent goes unchecked in a skill check's price, and list regressions first among changed answers with a count of those left out. Count a session's knowledge topics by their own ids, with a retry when they cannot be read. Read and name a dataset linked into the Improve start dialog before pricing on it.
-- Show a suggestion reworded at an Improve session's Changes step with that wording in the Suggestions strip, and a skill session's description change as its old and new text before it is checked or applied.
-- Keep a person's wording exactly as typed, audit dismissing every suggestion at once, and keep every check's run on its batch when checks start together.
-- Follow a suggestion's passage to a new place only when it cannot be confused with another, so a short phrase such as an amount is no longer rewritten in another sentence.
-- Keep a dismissed suggestion dismissed for later requests, Verify and Improve sessions until the agent is next published.
-- Keep a session kept as a draft accepted when a newer request replaces its suggestions, record the publish of what it measured, and reject it when its draft is discarded.
 
 ### Changed
 
@@ -67,19 +85,12 @@ Two things are versioned separately from this file and worth knowing about:
 - Erasing a person clears the Improve search variants written over a dataset holding their words and the notes on the attempts of their sessions.
 - Recheck the acting person's access to the agent, `runs:view` and the dataset before each unit of an Improve search reads questions or pays for a model call, and stop the session when it is gone.
 - Fence every quoted question, answer, failed check and earlier version in the Improve search's proposal prompt, so a dataset's text cannot read as the platform's own instructions.
-- Keep the authoring assistant's changes to what a person reviewed. A suggestion never adds settings its card does not show (tool overrides, a vault secret, a disabled binding, looser approval), never adds a capability whose tools reach beyond the deployment, and adding back a capability the published version binds is judged as reconfiguring it. Text holding a character a person cannot see - a control character other than a newline or a tab, a bidirectional control, a Unicode tag character - is neither proposed, checked, accepted nor applied, and every diff writes such characters out by their code.
-- Accept an Improve session, and decide a skill session, only on the attempt and result that were reviewed: accepting names the attempt and two fingerprints of it, a decision names the check and its result, and a review that judges a case again since then refuses the stale confirmation. Publishing draft edits the session never measured needs its own confirmation.
 
 ### Upgrading
 
 - Migration `0374_case_from_conversation` preserves conversation privacy and conservatively protects every legacy synthetic revision without a surviving document reference, including historical revisions. Readers without `runs:view` see unavailable or unverified source material; permitted readers retain all data. Known document-only, manual and imported cases are unchanged.
 - Stop old API and workers before migration `0374_case_from_conversation`, then start only updated code. Old writers do not preserve the privacy flag; mixed-version writes during this upgrade are unsupported. The managed deployer stops these processes before migration.
 - Dataset imports past 10 MB or 10,000 rows are now refused. A deployment that imports larger files raises `DATASET_IMPORT_MAX_BYTES` or `DATASET_IMPORT_MAX_ROWS` before upgrading.
-- **BREAKING:** API clients that accept an Improve session or decide a skill session must send what was reviewed:
-  - `POST /api/v1/agents/{agent_id}/improvements/{run_id}/finish` requires `attempt`, `candidate_spec_hash` and `result_hash` of the attempt being accepted, from `ImprovementRead.iterations[]`; with `publish: true` on a session that reads `unmeasured_draft_edits`, also `publish_unmeasured_edits: true`.
-  - `POST /api/v1/skills/{skill_id}/improvements/{run_id}/apply` and `/fork` require `check_id` and `result_hash` from the session's `check`; `/return-to-main` requires them from its `main_alone_check`.
-
-  A request without them is refused with `422`; one naming another attempt or result, with `409`.
 
 ## [1.94.0] - 2026-11-26
 
@@ -23064,7 +23075,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.95.0...HEAD
+[1.95.0]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...v1.94.0
 [1.93.0]: https://github.com/vstorm-co/agenticos/compare/v1.92.0...v1.93.0
 [1.92.0]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...v1.92.0
