@@ -243,6 +243,20 @@ record_release_images() {
   done
 }
 
+stop_api_writers() {
+  local service containers
+  # Use the running stack's labels: a rollback target can predate its worker.
+  for service in app worker; do
+    containers=$(docker ps -q \
+      --filter "label=com.docker.compose.project.working_dir=$APP_DIR" \
+      --filter "label=com.docker.compose.service=$service")
+    if [ -n "$containers" ]; then
+      # Docker returns one opaque container ID per line.
+      docker stop --timeout 60 $containers
+    fi
+  done
+}
+
 SHA="${1:?usage: deploy.sh <commit-sha>}"
 APP_DIR="${APP_DIR:-/opt/agenticos}"
 COMPOSE_ENV="${APP_DIR}/backend/.env"
@@ -533,6 +547,8 @@ compose "${FRONTEND[@]}" pull --quiet
 prepare_sandbox_runtimes "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 check_image_space "$PREVIOUS_RELEASE_IMAGES"
 retire_services
+say "Stopping the old API and worker before migrations"
+stop_api_writers
 say "Starting the API"
 compose_up "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 
