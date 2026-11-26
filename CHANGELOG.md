@@ -19,6 +19,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep Improve session pages loading while permissions are read, with a retry when they cannot be, instead of saying access is missing. Stop polling live pages after a failed read, say which part stopped updating with a Retry, and keep a loaded eval result on screen when a refresh fails. A link to a dataset case says the case is gone only when it is.
+- Show a skill merge's candidate text as source, open each changed file to what each side changed (or offer each side as a download), and say how many cited evidence items come from agents the reader cannot see.
+- Give keyboard focus back to where it was when a dialog opened without a trigger closes. Name the verdict in the attempt picker and the state of each skill check row for screen readers. Offer "See what changed" for a tested draft only with edit access, and say when History cannot read the tested version.
+- Name every reason an agent goes unchecked in a skill check's price, and list regressions first among changed answers with a count of those left out. Count a session's knowledge topics by their own ids, with a retry when they cannot be read. Read and name a dataset linked into the Improve start dialog before pricing on it.
+- Translate the Improve wizard, skill improvement, the assistant's suggestions and the eval screens fully into French and Turkish.
+- Show in the console's language why an eval comparison has no verdict, why an agent stayed on a skill's fork, and why an Improve session or an assistant request failed. API responses keep the English sentence beside new `invalid_reason_code` and `invalid_reason_params`, `refused_code`, and `error_code` and `error_params` fields.
+
+### Upgrading
+
+- Migration `0369_run_error_code` adds nullable `error_code` and `error_params` columns to `improvement_runs` and `authoring_requests`, and fills them for stored failures whose sentence the backend writes word for word. No other action is needed. A failure it cannot code keeps showing its stored sentence, and the downgrade drops both columns.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added
