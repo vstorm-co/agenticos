@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 
 import httpx
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from pydantic_ai.exceptions import ModelHTTPError
 
 from app.core.exceptions import BadRequestError
@@ -93,6 +93,20 @@ def test_a_credential_a_person_named_is_redacted_from_our_own_message() -> None:
 
     assert "Kanar3kName" not in described and "[redacted:url_credentials]" in described
     assert describe(plain).startswith("BadRequestError: Agent Support cannot run")
+
+
+@pytest.mark.security
+def test_a_credential_in_a_dynamic_validation_field_is_redacted() -> None:
+    class MappingPayload(BaseModel):
+        values: dict[str, int]
+
+    with pytest.raises(ValidationError) as invalid:
+        MappingPayload.model_validate({"values": {"api_key=Kanar3kSyntheticMarker": "invalid"}})
+
+    described = describe(invalid.value)
+
+    assert "Kanar3kSyntheticMarker" not in described
+    assert "values.[redacted:query_secret]" in described
 
 
 def test_a_validation_error_names_the_fields_that_failed() -> None:
