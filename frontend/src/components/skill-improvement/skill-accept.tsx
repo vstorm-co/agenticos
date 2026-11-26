@@ -48,6 +48,11 @@ const WRITES: (CheckOutcome | MergeOutcome)[] = [
   "return_to_main",
 ];
 
+/** A check as judged: a review of a case judges it again and keeps its id. */
+function judged(check: SkillCheck): string {
+  return `${check.id}:${check.result_hash}`;
+}
+
 /**
  * What to do with a measured attempt. The check decides what may be done: applying
  * when nobody is worse, pinning the agents it made worse when somebody is, improving
@@ -88,11 +93,15 @@ export function SkillAccept({
   const unknown =
     check.agents.filter((row) => row.state === "unknown").length + check.hidden_unknown;
   const unknownNames = names("unknown");
-  const [acknowledged, setAcknowledged] = useState(false);
-  const [aloneAcknowledged, setAloneAcknowledged] = useState(false);
-  const aloneUnknown = unmeasured(session.main_alone_check);
-  // A confirmation holds for the check, as judged, that was on screen when it was given.
-  const reviewed = `${check.id}:${check.result_hash}`;
+  const alone = session.main_alone_check;
+  // A confirmation or an acknowledgement holds for the results, as judged, that were on
+  // screen when it was given.
+  const reviewed = alone ? `${judged(check)}|${judged(alone)}` : judged(check);
+  const [acknowledgedFor, setAcknowledgedFor] = useState<string | null>(null);
+  const acknowledged = acknowledgedFor === judged(check);
+  const [aloneAcknowledgedFor, setAloneAcknowledgedFor] = useState<string | null>(null);
+  const aloneAcknowledged = !!alone && aloneAcknowledgedFor === judged(alone);
+  const aloneUnknown = unmeasured(alone);
   const [confirmedFor, setConfirmedFor] = useState<string | null>(null);
   const confirmed = confirmedFor === reviewed;
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -171,16 +180,13 @@ export function SkillAccept({
       {session.outcomes.includes("return_to_main") && (
         <Button
           variant="outline"
-          disabled={
-            !confirmed || !session.main_alone_check || (aloneUnknown > 0 && !aloneAcknowledged)
-          }
+          disabled={!confirmed || !alone || (aloneUnknown > 0 && !aloneAcknowledged)}
           loading={busy}
           onClick={() =>
             void decide(async () => {
-              const alone = session.main_alone_check!;
               const done = await returnToMain.mutateAsync({
-                checkId: alone.id,
-                resultHash: alone.result_hash,
+                checkId: alone!.id,
+                resultHash: alone!.result_hash,
                 acknowledgeUnknown: aloneAcknowledged,
               });
               onReturned?.(done.returned);
@@ -213,7 +219,9 @@ export function SkillAccept({
                 <Checkbox
                   id="skill-accept-unknown"
                   checked={acknowledged}
-                  onCheckedChange={(checked) => setAcknowledged(checked === true)}
+                  onCheckedChange={(checked) =>
+                    setAcknowledgedFor(checked === true ? judged(check) : null)
+                  }
                 />
                 <Label htmlFor="skill-accept-unknown" className="leading-snug font-normal">
                   {t("acknowledge", {
@@ -226,16 +234,13 @@ export function SkillAccept({
               <AddTestQuestions skillId={session.skill_id} />
             </div>
           )}
-          {!recheck &&
-            aloneUnknown > 0 &&
-            session.main_alone_check &&
-            session.outcomes.includes("return_to_main") && (
-              <MainAloneAcknowledge
-                check={session.main_alone_check}
-                checked={aloneAcknowledged}
-                onChange={setAloneAcknowledged}
-              />
-            )}
+          {!recheck && aloneUnknown > 0 && alone && session.outcomes.includes("return_to_main") && (
+            <MainAloneAcknowledge
+              check={alone}
+              checked={aloneAcknowledged}
+              onChange={(checked) => setAloneAcknowledgedFor(checked ? judged(alone) : null)}
+            />
+          )}
           {!recheck && writes && (
             <div className="flex items-start gap-2">
               <Checkbox
