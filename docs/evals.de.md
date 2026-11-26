@@ -1,5 +1,5 @@
 ---
-source_sha: "bf3c7ff0c636"
+source_sha: "f31d1e7d7b11"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -81,7 +81,7 @@ antwortet, sagt die Seite, wie viele erste Antworten vorliegen, und der
 Vergleich wartet auf beide Seiten. Antworten, die der Bewerter nicht bewerten
 konnte, sagen, warum, und zählen weder als bestanden noch als nicht bestanden,
 und **Erneut bewerten** (Grade again) im Kopfbereich bewertet sie erneut, ohne den Agent zu
-fragen, für jeden, der das Dataset laufen lassen darf.
+fragen, für jeden, der das Dataset laufen lassen und die Antworten des Runs lesen darf.
 
 Unter dem Urteil stehen die Seiten nebeneinander, wie die beiden abschneiden,
 und die Fälle - jede Zeile mit einem Punkt für bestanden oder nicht bestanden
@@ -255,6 +255,11 @@ das Dataset sehen darf. Er läuft als die Person, die den Eval gestartet hat,
 mit ihrer aktuellen Rolle, und liest oder schreibt nicht ihr persönliches
 Gedächtnis.
 
+Diese Rolle wird vor jedem Fall erneut gelesen. Hat die startende Person die
+Organisation verlassen, den Zugriff auf den Agent oder das Dataset verloren oder
+wurde ihr Schlüssel widerrufen, schlägt der Run fehl, bevor er einen weiteren
+Fall beantwortet.
+
 Jeder Fall läuft **isoliert**, wie [Umgebungen](environments.md) beschreibt:
 Ein Tool mit einer Testverbindung in der Umgebung des Runs läuft gegen diese,
 ein Tool, von dem bekannt ist, dass es nur liest, läuft auf der normalen
@@ -375,7 +380,7 @@ Bewertungen als `ungraded_score_ids`, und sie erneut zu bewerten
 (`POST /api/v1/datasets/{id}/scores/rescore`) liest die im Versuch behaltene
 Antwort, statt den Agent zu fragen. Das Urteil einer Person bei der
 [Prüfung](datasets.md#review) ersetzt für diesen Fall das Ergebnis der Scorer,
-und die Zahlen des Runs folgen ihm.
+und die Zahlen des Runs folgen ihm, wie sie einer neuen Bewertung folgen.
 
 Ein Bewerter, der sucht - [Knowledge search](concepts.md#system-agent-spec) auf
 seinem Toolbox-Tab -, prüft die Fakten einer Antwort an den Wissensbasen des Agents,
@@ -384,6 +389,11 @@ er dort fand: das Dokument und den Anfang der Stelle. Bis seine Runs ihm einen
 Verlauf geben, bepreist die Schätzung jede Bewertung mit den Schritten des
 Bewerters. Ein Bewerter beginnt mit Temperatur 0, damit dieselbe Antwort
 zweimal gleich bewertet wird, und seine Seite warnt, wenn sie erhöht wird.
+
+Eine gefundene Stelle sieht nur, wer die Antwort sehen und die Wissensbasis
+lesen darf, aus der sie stammt, und Zugangsdaten darin werden geschwärzt, bevor
+sie gespeichert wird. Eine Stelle, die ihre Wissensbasis nicht nennt, sieht
+niemand, da sie aus der persönlichen Wissensbasis einer Person stammen kann.
 
 Ein abgeschlossener Run behält Urteil, Zählungen und Bestehensquoten seines
 ersten Kandidaten als `outcome`, sodass eine Liste sie liest, ohne jeden Run
@@ -421,6 +431,8 @@ Kriteriennamen, Einzelbewertungen und Skill-Zuordnungen erfordern `runs:view`, Z
 Gespeicherte Skill-Quellen verwenden stabile IDs: Eine Umbenennung behält die Identität bei; Löschen und erneutes Verwenden des Namens stellt keinen Zugriff auf alte Belege wieder her. Kriteriendetails einer Sitzung mit benanntem Skill, aber ohne ursprüngliche Skill-ID bleiben ebenfalls verborgen. Der optionale angezeigte Skill-Name gewährt keinen Zugriff: Die ursprüngliche ID wird auch ohne Bezeichnung geprüft.
 
 Interaktive Vergleichsabrufe erlauben bis zu 30 Anfragen pro Person und 60 pro Organisation und Minute; je Organisation wird jeweils ein Vergleich ausgeführt. Konsole und API teilen diese Grenzen. Überschüssige oder gleichzeitige Anfragen erhalten HTTP 429 mit `Retry-After`; Clients sollen vor dem Wiederholen warten. Gemeinsames Redis koordiniert die Worker; bei einem Ausfall bleibt je Worker eine lokale Begrenzung bestehen. Manuelle Bewertungsänderungen für Eval-Antworten nutzen dasselbe Budget und dieselbe Sperre, nach Prüfung des Datensatzzugriffs und vor Änderungen an der Bewertung oder gespeicherten Ergebnissen.
+
+Das Lesen eines Runs vergleicht ihn nur dann erneut, wenn eine Person seit dem Speichern seines Urteils über eine seiner Bewertungen entschieden hat, und dieser Vergleich nutzt dieselbe Sperre und dasselbe Budget. Solange die Sperre belegt ist, zeigen eine Liste von Runs und der Hinweis im Builder, ob ein Modellwechsel angenommen werden kann, das Urteil jedes Runs wie gespeichert, und das Lesen eines einzelnen Runs antwortet mit 429. Das Annehmen des Wechsels vergleicht weiterhin. Eine Prüfung auf einer Eval-Suite speichert das Urteil der Suite zusammen mit dem des Runs, sodass ein erneutes Lesen nichts vergleicht.
 
 Leser benötigen `runs:view`, bevor sie die Parallelitätssperre belegen oder Kontingent verbrauchen. Aktive Vergleiche erneuern ihre Sperren; der Ablauf nach 120 Sekunden gibt Sperren abgestürzter Prozesse frei. Eine fehlgeschlagene Redis-Erneuerung wird protokolliert und behält die lokale Worker-Sperre bei.
 
@@ -823,6 +835,13 @@ Agent als auch das Dataset sehen kann - ein Run über ein Dataset, das sie nicht
 `404`, wie bei einem Run einer anderen Organisation. Die Runs eines Datasets
 erfordern außerdem `datasets:view` darauf und listen nur die Agents, die die
 lesende Person sehen darf.
+
+Über eine der Antworten eines Runs zu entscheiden oder sie erneut zu bewerten,
+erfordert neben der eigenen Berechtigung des Datasets - `datasets:edit` zum
+Entscheiden, `datasets:run` zum Bewerten - auch `runs:view` und Zugriff auf den
+antwortenden Agent. Beides ändert das Urteil des Runs und was darauf aufbaut:
+das Gate einer Suite, eine Verbesserungssitzung, eine Skill-Prüfung. Eine
+Freigabe des Datasets allein öffnet beides nicht.
 
 Eine Suite anzulegen, zu ändern, zu pausieren oder auszuführen erfordert
 `agents:edit` und `agents:run` auf dem Agent, `datasets:run` auf dem Dataset und

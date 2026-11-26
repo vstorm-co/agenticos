@@ -134,7 +134,7 @@ class TestWhatReachesTheModel:
         ask = AsyncMock(side_effect=AppException(message="stop here"))
 
         with patch("app.services.improvement_search.SystemAgentRunner.run", new=ask):
-            assert await worker._propose(unit) is None
+            assert await worker._propose(unit) == "refused"
 
         instructions = ask.await_args.kwargs["instructions"]
         assert HELD_OUT in instructions and instructions.endswith(HOSTILE)

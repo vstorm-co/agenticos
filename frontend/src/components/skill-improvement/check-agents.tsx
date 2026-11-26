@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Eye } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -10,6 +10,7 @@ import { useReadOnly } from "@/components/improvement/read-only";
 import { StateBadge, type Tone } from "@/components/improvement/widgets";
 import { Checkbox, SearchInput, Label } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
+import { knownReason } from "@/lib/skill-check-reasons";
 import { cn } from "@/lib/utils";
 import type { SkillCheck, SkillCheckAgent, UnknownReason } from "@/types/skill-checks";
 import { AddTestQuestions } from "./add-test-questions";
@@ -30,27 +31,17 @@ const TONE: Record<ReturnType<typeof shownState>, Tone> = {
 
 /** The groups in the order a person reads them: what blocks a decision first. */
 const GROUPS: Bucket[] = ["worse", "unknown", "pending", "same", "better"];
-const REASONS: (UnknownReason | "other" | null)[] = [
-  "no_questions",
-  "no_budget",
-  "no_access",
-  "no_published_version",
-  "inconclusive",
-  "failed",
-  "unscorable",
-  "all_evidence",
-  "own_not_asked",
-  "too_few_questions",
-  "cancelled",
-  "other",
-  null,
-];
-
 /** A reason this page does not know by name is still a reason: it reads as "other". */
 const reasonOf = (row: SkillCheckAgent): UnknownReason | "other" | null =>
-  row.unknown_reason === null || REASONS.includes(row.unknown_reason)
-    ? row.unknown_reason
-    : "other";
+  row.unknown_reason === null || knownReason(row.unknown_reason) ? row.unknown_reason : "other";
+
+/** Unknown because its own questions did not finish after the skill's were judged - a stage
+ * carries counts only once judged - without a regression: acknowledging it applies a change
+ * only part of its check has seen. */
+const unfinished = (row: SkillCheckAgent): boolean =>
+  row.state === "unknown" &&
+  row.unknown_reason === "failed" &&
+  row.stages.some((stage) => stage.kind === "skill_set" && stage.counts !== null);
 
 const byName = (a: SkillCheckAgent, b: SkillCheckAgent) => a.agent.name.localeCompare(b.agent.name);
 
@@ -222,13 +213,20 @@ function AgentRow({
 }) {
   const t = useTranslations("skillImprovement.agents");
   const [open, setOpen] = useState(false);
+  const id = useId();
   const measured = !["queued", "running", "unknown"].includes(row.state);
+  const described = [
+    row.unknown_reason !== null && `${id}-reason`,
+    measured && `${id}-counts`,
+    `${id}-state`,
+  ].filter(Boolean);
   return (
     <li>
       <button
         type="button"
         aria-expanded={open}
         aria-label={t("details", { name: row.agent.name })}
+        aria-describedby={described.join(" ")}
         className="hover:bg-muted/40 flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-left"
         onClick={() => {
           setOpen(!open);
@@ -238,12 +236,14 @@ function AgentRow({
         <span className="min-w-0 flex-1 basis-48">
           <span className="block truncate text-sm font-medium">{row.agent.name}</span>
           {row.unknown_reason !== null && (
-            <span className="text-muted-foreground mt-1 block max-w-xl text-xs">
-              {t(`unknown.${reasonOf(row)}`, {
-                fixed: row.fixed,
-                broken: row.broken,
-                heldOut: row.held_out,
-              })}
+            <span id={`${id}-reason`} className="text-muted-foreground mt-1 block max-w-xl text-xs">
+              {unfinished(row)
+                ? t("unknown.unfinished")
+                : t(`unknown.${reasonOf(row)}`, {
+                    fixed: row.fixed,
+                    broken: row.broken,
+                    heldOut: row.held_out,
+                  })}
             </span>
           )}
           {row.via_specialist !== null && (
@@ -254,7 +254,7 @@ function AgentRow({
         </span>
         <span className="flex items-center gap-3">
           {measured && (
-            <span className="text-muted-foreground text-xs tabular-nums">
+            <span id={`${id}-counts`} className="text-muted-foreground text-xs tabular-nums">
               {t(row.state === "within_noise" ? "fixedBrokenUnconfirmed" : "fixedBroken", {
                 fixed: row.fixed,
                 broken: row.broken,
@@ -267,7 +267,7 @@ function AgentRow({
               {t("seen")}
             </span>
           )}
-          <StateBadge tone={TONE[shownState(row.state)]}>
+          <StateBadge id={`${id}-state`} tone={TONE[shownState(row.state)]}>
             {t(`state.${shownState(row.state)}`)}
           </StateBadge>
           <ChevronDown

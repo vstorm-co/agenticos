@@ -137,6 +137,18 @@ class Engine(BaseModel):
                 if option.startswith("label=com.docker.compose.service="):
                     selected = [c for c in selected if c.service == option.split("=", 2)[2]]
             return "\n".join(c.id for c in selected)
+        if args[:3] == ["stop", "--timeout", "60"] and len(args) > 3:
+            for identifier in args[3:]:
+                container = next(c for c in self.containers if c.id == identifier)
+                if (
+                    container.service not in {"app", "worker"}
+                    or container.working_dir != os.environ["APP_DIR"]
+                ):
+                    raise RuntimeError(
+                        "refusing to stop a container outside the current writer stack"
+                    )
+                container.running = False
+            return "\n".join(args[3:])
         if args[0] == "inspect":
             if args[2] == "{{.Image}}":
                 return "\n".join(

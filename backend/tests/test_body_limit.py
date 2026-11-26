@@ -47,6 +47,19 @@ class TestTheCapItself:
 
         assert max_body_bytes() > 100 * 1024 * 1024
 
+    def test_it_follows_the_dataset_import_ceiling_when_that_is_the_larger(self, monkeypatch):
+        """An import limit set in bytes above every upload limit is reachable too."""
+        for name in (
+            "MAX_UPLOAD_SIZE_MB",
+            "CHAT_MAX_UPLOAD_SIZE_MB",
+            "EMBED_MAX_UPLOAD_SIZE_MB",
+            "ML_MAX_UPLOAD_SIZE_MB",
+        ):
+            monkeypatch.setattr(settings, name, 10)
+        monkeypatch.setattr(settings, "DATASET_IMPORT_MAX_BYTES", 100 * 1024 * 1024)
+
+        assert max_body_bytes() > 100 * 1024 * 1024
+
     def test_it_leaves_room_for_the_envelope_around_a_file(self, monkeypatch):
         """A multipart body is the file plus boundaries, part headers and any other
         field the form carries. A cap at exactly the file size refuses an upload at
