@@ -728,7 +728,11 @@ async def decide_approval(
         **({"remember_scope": data.remember_scope} if data.remember_scope else {}),
     )
     read = ApprovalRead.model_validate(decided.approval)
-    tool_args, context = withhold(decided.hidden, tool_args=read.tool_args, context=read.context)
+    tool_args, context = withhold(
+        decided.hidden,
+        tool_args=read.tool_args,
+        context=read.context if decided.described else None,
+    )
     return read.model_copy(
         update={
             "continues_in_chat": decided.continues_in_chat,

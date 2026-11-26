@@ -402,6 +402,17 @@ class ApprovalService:
             read.append(row)
         return read
 
+    async def described_to(self, ctx: AuthContext, approval: ToolApproval) -> bool:
+        """Whether this reader may read the call's stored description, as `as_read_by` decides."""
+        if not approval.platform_call:
+            return True
+        run = await agent_run_repo.get_run(
+            self.db, approval.run_id, organization_id=ctx.organization_id
+        )
+        return described_for(
+            ctx, None if run is None else run.user_id, platform_call=approval.platform_call
+        )
+
     async def hidden_fields(self, ctx: AuthContext, approval: ToolApproval) -> frozenset[str]:
         """The keys of one approval this reader may not see; empty when they may see it all."""
         fields = private_approval_fields(approval.capability_tool_id)

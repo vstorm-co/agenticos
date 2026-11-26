@@ -523,6 +523,8 @@ async def test_the_runs_person_approves_through_the_queue_route_without_the_perm
     org = await _org(db)
     builder = await _member(db, org, OrgRoleName.BUILDER)
     _run, approval = await _parked(db, org, builder)
+    approval.context = {"agent": "Payroll", "attempt": "2", "publish": "yes"}
+    await db.flush()
 
     async with _client(db, builder) as client:
         response = await client.post(
@@ -531,6 +533,30 @@ async def test_the_runs_person_approves_through_the_queue_route_without_the_perm
 
     assert response.status_code == 200, response.text
     assert response.json()["status"] == ApprovalStatus.APPROVED.value
+    assert response.json()["context"] == {"agent": "Payroll", "attempt": "2", "publish": "yes"}
+
+
+@pytest.mark.security
+async def test_another_approver_rejecting_a_platform_call_reads_none_of_its_names(
+    db: AsyncSession,
+):
+    """The decision's answer reads the call as the queue does: the names were read with
+    the run's person's grants, so an approver who rejects it gets its arguments alone."""
+    org = await _org(db)
+    builder = await _member(db, org, OrgRoleName.BUILDER)
+    operator = await _member(db, org, OrgRoleName.OPERATOR)
+    _run, approval = await _parked(db, org, builder)
+    approval.context = {"agent": "Payroll", "attempt": "2", "publish": "yes"}
+    await db.flush()
+
+    async with _client(db, operator) as client:
+        response = await client.post(
+            f"{settings.API_V1_STR}/approvals/{approval.id}", json={"approved": False}
+        )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == ApprovalStatus.REJECTED.value
+    assert response.json()["context"] is None
 
 
 class TestACapabilityToolRenamedLikeAPlatformTool:
