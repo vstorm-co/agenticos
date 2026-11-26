@@ -1,5 +1,5 @@
 ---
-source_sha: "df7b5d085f04"
+source_sha: "e92fc3dfc743"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -886,7 +886,8 @@ zerowy jest zapisywany jako `0 USD` nawet bez kursu. Jeśli obowiązuje limit
 wydatków, przed inferencją wymagany jest kurs wymiany, gdy dowolna stawka
 profilu może naliczyć opłatę za tokeny. Dotyczy to też odczytów i zapisów cache.
 
-Wydatki na pulpicie, historia uruchomień, koszty rozmów i pozostały budżet są
+Statystyki workflow (sumy, opisy miesięcznych budżetów i koszty kroków), wydatki
+na pulpicie, historia uruchomień, koszty rozmów i pozostały budżet są
 wyświetlane w efektywnej walucie organizacji. Widoki używają bieżącego ręcznego
 kursu: zmiana kursu zmienia wyświetlany odpowiednik, ale zapisany koszt USD
 pozostaje stały. Brak kursu raportowego oznacza nieznaną kwotę. Pola budżetów i

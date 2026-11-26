@@ -8,9 +8,13 @@ import type {
   WorkflowStats as Stats,
 } from "@/lib/workflows/types";
 
+import type { CurrencyContext } from "@/lib/currency-api";
+import { CurrencyProvider } from "@/components/providers/currency-provider";
+
 import { WorkflowStats } from "./workflow-stats";
 
 const state = vi.hoisted(() => ({
+  currency: undefined as CurrencyContext | undefined,
   stats: null as Stats | null,
   isLoading: false,
   asked: [] as number[],
@@ -22,6 +26,10 @@ vi.mock("@/hooks", () => ({
     state.asked.push(days);
     return { stats: state.stats, isLoading: state.isLoading };
   },
+}));
+
+vi.mock("@/hooks/use-currencies", () => ({
+  useCurrencies: () => ({ data: state.currency }),
 }));
 
 const BUCKETS = [0, 0.1, 0.25, 0.5, 1].map((upto) => ({ upto, count: 0 }));
@@ -161,12 +169,51 @@ function stats(overrides: Partial<Stats> = {}): Stats {
 }
 
 beforeEach(() => {
+  state.currency = undefined;
   state.stats = stats();
   state.isLoading = false;
   state.asked = [];
 });
 
 describe("WorkflowStats", () => {
+  it("converts costs and budget captions with the current organization rate", () => {
+    state.stats = stats({ monthly_budget_usd: 1, month_cost_usd: 0.5, cost_is_partial: true });
+    state.currency = {
+      currency: "PLN",
+      default_currency: "USD",
+      inherited: false,
+      rates: { USD: "1", PLN: "4" },
+    };
+    const view = render(
+      <CurrencyProvider>
+        <WorkflowStats workflowId="wf" />
+      </CurrencyProvider>,
+    );
+    expect(screen.getByText("PLN 0.0492+")).toBeVisible();
+    expect(screen.getByText("PLN 2.00 of PLN 4.00 this month, test runs included")).toBeVisible();
+    expect(screen.getByText("PLN 0.0400")).toBeVisible();
+
+    state.currency = { ...state.currency, rates: { USD: "1", PLN: "8" } };
+    view.rerender(
+      <CurrencyProvider>
+        <WorkflowStats workflowId="wf" />
+      </CurrencyProvider>,
+    );
+    expect(screen.getByText("PLN 0.0984+")).toBeVisible();
+    expect(screen.getByText("PLN 4.00 of PLN 8.00 this month, test runs included")).toBeVisible();
+    expect(state.stats.cost_usd).toBe(0.0123);
+
+    state.currency = { ...state.currency, rates: { USD: "1" } };
+    view.rerender(
+      <CurrencyProvider>
+        <WorkflowStats workflowId="wf" />
+      </CurrencyProvider>,
+    );
+    expect(screen.getByText("—+")).toBeVisible();
+    expect(screen.getByText("— of — this month, test runs included")).toBeVisible();
+    expect(screen.queryByText(/PLN/)).not.toBeInTheDocument();
+  });
+
   it("shows how its runs ended, how long they took and what they cost", () => {
     render(<WorkflowStats workflowId="wf" />);
 

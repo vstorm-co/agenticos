@@ -1,5 +1,5 @@
 ---
-source_sha: "df7b5d085f04"
+source_sha: "e92fc3dfc743"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -911,7 +911,8 @@ aunque falte el tipo de cambio. Si hay un límite de gasto, se requiere un tipo
 de cambio antes de la inferencia cuando alguna tarifa por token del perfil puede
 generar un cargo. Esto incluye las lecturas y escrituras de caché.
 
-El gasto del panel, el historial de ejecuciones, los costes de conversación y el
+Las estadísticas de workflows (totales, textos del presupuesto mensual y costes
+de pasos), el gasto del panel, el historial de ejecuciones, los costes de conversación y el
 presupuesto restante se muestran en la moneda efectiva de la organización. Estas
 vistas usan el tipo manual actual: cambiarlo modifica el equivalente mostrado,
 pero el coste registrado en USD permanece fijo. Sin tipo de presentación, el

@@ -1,5 +1,5 @@
 ---
-source_sha: "df7b5d085f04"
+source_sha: "e92fc3dfc743"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -940,6 +940,7 @@ Ausgabenlimit ist vor der Inferenz ein Wechselkurs erforderlich, sobald einer
 der Tokenpreise des Profils Kosten verursachen kann. Das gilt auch für
 Lese- und Schreibzugriffe auf den Cache.
 
+Workflow-Statistiken (Gesamtkosten, monatliche Budgetangaben und Schrittkosten),
 Dashboard-Ausgaben, Run-Verlauf, Unterhaltungskosten und verbleibende Budgets
 werden in der effektiven Organisationswährung angezeigt. Die Ansicht verwendet
 den aktuellen manuellen Kurs: Eine Kursänderung ändert den angezeigten Gegenwert,

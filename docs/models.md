@@ -861,7 +861,8 @@ Zero costs record as `0 USD` even if the currency's rate is unavailable. A
 spending cap requires a configured exchange rate before inference if any of the
 profile's token prices can incur a charge, including cache reads and writes.
 
-Dashboard spending, run history, conversation costs and budget headroom display the
+Workflow statistics (totals, monthly budget captions and step costs), dashboard
+spending, run history, conversation costs and budget headroom display the
 organization's effective currency. These views use the current manual rate; a rate
 change changes the displayed equivalent, while the recorded USD cost stays fixed.
 Missing reporting rates show an unknown amount. Budget inputs and the remaining
