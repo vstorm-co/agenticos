@@ -307,7 +307,20 @@ class ApprovalService:
         acts on, and the decided list is the same rows read as an accountability
         trail - which is why it comes back with the decider's name and no way to
         decide again.
+
+        Without `approvals:decide` it is only the caller's own pending platform calls
+        that always ask, signed in as themselves: nobody else may approve those, and
+        a run asked in no conversation has no other place to show them.
         """
+        if not ctx.has(Perm.APPROVALS_DECIDE):
+            if not answers_for(ctx, ctx.user_id):
+                return [], 0
+            filters = replace(
+                filters or ApprovalFilters(),
+                statuses=None,
+                answerable_by=ctx.user_id,
+                tool_prefix=f"{PLATFORM_MCP_NAME}_",
+            )
         rows, total = await agent_run_repo.list_approvals(
             self.db,
             organization_id=ctx.organization_id,

@@ -38,6 +38,7 @@ from app.db.models.channel_identity import ChannelIdentity
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.main import app
+from app.repositories.agent_run import ApprovalFilters
 from app.schemas.conversation import HistoryProvenance
 from app.services.agent_runner import AgentRunnerService, PausedRunState
 from app.services.approvals import ApprovalService
@@ -317,6 +318,7 @@ async def _client(db: AsyncSession, ctx: AuthContext) -> AsyncIterator[AsyncClie
     redis = AsyncMock()
     app.dependency_overrides[deps.get_auth_context] = lambda: ctx
     app.dependency_overrides[deps.get_redis] = lambda: redis
+    app.dependency_overrides[deps.get_approval_service] = lambda: ApprovalService(db)
     app.dependency_overrides[deps.get_parked_run_service] = lambda: ParkedRunService(
         db, runner=AgentRunnerService(db), approvals=ApprovalService(db)
     )
@@ -527,3 +529,78 @@ async def test_the_runs_person_approves_through_the_queue_route_without_the_perm
 
     assert response.status_code == 200, response.text
     assert response.json()["status"] == ApprovalStatus.APPROVED.value
+
+
+class TestTheQueueOfAPersonWithoutApprovalsDecide:
+    """A run asked in no conversation - a routine's - shows its person's platform call
+    nowhere but the queue, and only that person may approve it."""
+
+    async def test_they_list_exactly_their_own_waiting_platform_calls(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        colleague = await _member(db, org, OrgRoleName.BUILDER)
+        _run, own = await _parked(db, org, builder)
+        await _parked(db, org, colleague)
+        await _parked(db, org, builder, tool_id="send_email", always_asks=False)
+        await _parked(db, org, builder, status=ApprovalStatus.APPROVED)
+        elsewhere = await _org(db)
+        db.add(
+            OrganizationMember(
+                id=uuid.uuid4(),
+                organization_id=elsewhere.id,
+                user_id=builder.user_id,
+                role=OrgRoleName.BUILDER.value,
+            )
+        )
+        await db.flush()
+        await _parked(
+            db,
+            elsewhere,
+            AuthContext(user_id=builder.user_id, organization_id=elsewhere.id, role=builder.role),
+        )
+
+        rows, total = await ApprovalService(db).list_approvals(builder)
+        record, _ = await ApprovalService(db).list_approvals(
+            builder,
+            filters=ApprovalFilters(statuses=[ApprovalStatus.APPROVED.value]),
+        )
+
+        assert ([row.id for row in rows], total) == ([own.id], 1)
+        assert rows[0].may_approve is True
+        assert [row.id for row in record] == [own.id]
+
+    async def test_a_key_or_an_impersonated_session_lists_none(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        await _parked(db, org, builder)
+        key = replace(builder, api_key_id=uuid.uuid4())
+
+        assert await ApprovalService(db).list_approvals(key) == ([], 0)
+        with _impersonated_by(uuid.uuid4()):
+            assert await ApprovalService(db).list_approvals(builder) == ([], 0)
+
+    async def test_an_approver_still_lists_the_whole_queue(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        operator = await _member(db, org, OrgRoleName.OPERATOR)
+        _run, platform = await _parked(db, org, builder)
+        _run, other = await _parked(db, org, builder, tool_id="send_email", always_asks=False)
+
+        rows, total = await ApprovalService(db).list_approvals(operator)
+
+        assert ({row.id for row in rows}, total) == ({platform.id, other.id}, 2)
+
+    async def test_they_read_and_answer_it_through_the_routes(self, db: AsyncSession):
+        org = await _org(db)
+        builder = await _member(db, org, OrgRoleName.BUILDER)
+        _run, approval = await _parked(db, org, builder)
+
+        async with _client(db, builder) as client:
+            listed = await client.get(f"{settings.API_V1_STR}/approvals")
+            decided = await client.post(
+                f"{settings.API_V1_STR}/approvals/{approval.id}", json={"approved": True}
+            )
+
+        assert listed.status_code == 200, listed.text
+        assert [item["id"] for item in listed.json()["items"]] == [str(approval.id)]
+        assert decided.status_code == 200, decided.text
