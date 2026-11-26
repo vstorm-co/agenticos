@@ -199,7 +199,8 @@ items:
       - [openrouter]
       - [ollama]
       - [openai]
-    evidence: "data-protection.md: `embedding_provider` (`openrouter`, `openai` or `ollama`, from the catalog)"
+      - [openai_compatible]
+    evidence: "data-protection.md: `embedding_provider` (`openrouter`, `openai`, `ollama` or `openai_compatible`, from the catalog)"
 
   - id: default-pdf-parser-pl
     category: factual

@@ -237,7 +237,8 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
           isLoading={isLoading}
           isUploading={isUploading}
           onRefresh={() => refresh()}
-          onEditParseOptions={() => setOverrideOpen(true)}
+          onEditSettings={() => setIngestionOpen(true)}
+          onUploadWithSettings={() => setOverrideOpen(true)}
           onChooseFiles={() => fileInputRef.current?.click()}
           onDelete={() => setDeletingCollection(true)}
         />
@@ -310,7 +311,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
                 setUploadUnit("");
               }}
             >
-              {t("clear")}
+              {t("revertPendingChanges")}
             </Button>
           </div>
         </div>
@@ -362,7 +363,7 @@ export default function KBDetailPage({ params }: KBDetailPageProps) {
             onLoadMore={() => loadMoreDocuments()}
             onPreview={setViewerDoc}
             onRemove={setRemovingDocument}
-            onRetry={retryDocument}
+            onRetry={(doc) => retryDocument(doc.id, uploadOverride)}
             onChooseFiles={() => fileInputRef.current?.click()}
           />
         </TabsContent>

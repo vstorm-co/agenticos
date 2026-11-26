@@ -758,7 +758,7 @@ include = [
     "app/services/run_reaper.py",
     "app/services/run_heartbeat.py",
     "app/repositories/agent_workspace.py",
-    "app/repositories/local_service.py",
+    "app/repositories/service_connection.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
     "app/repositories/skill_usage.py",
@@ -772,7 +772,10 @@ include = [
     # to the same bar as the other security-sensitive services here.
     "app/services/office_convert.py",
     "app/services/chat_timeline.py",
-    "app/services/local_service.py",
+    "app/services/service_connection.py",
+    "app/services/embedding_probe_token.py",
+    "app/services/embedding_probe.py",
+    "app/services/embedding_probe_call.py",
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/run_project_workspace.py",
@@ -856,6 +859,7 @@ include = [
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
     "app/services/rag/failures.py",
+    "app/services/rag/docling.py",
     "app/services/rag_scratch.py",
     # Who hears that a run stopped on its budget or parked on an approval. The
     # emails are the only signal for a run nobody was watching — a Slack
@@ -990,7 +994,7 @@ include = [
     "app/api/routes/v1/agent_exposures.py",
     "app/api/routes/v1/agent_triggers.py",
     "app/api/routes/v1/trigger_webhooks.py",
-    "app/api/routes/v1/local_services.py",
+    "app/api/routes/v1/service_connections.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/skill_checks.py",
@@ -1739,7 +1743,7 @@ include = [
     "app/services/run_reaper.py",
     "app/services/run_heartbeat.py",
     "app/repositories/agent_workspace.py",
-    "app/repositories/local_service.py",
+    "app/repositories/service_connection.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
     "app/repositories/skill_usage.py",
@@ -1753,7 +1757,10 @@ include = [
     # to the same bar as the other security-sensitive services here.
     "app/services/office_convert.py",
     "app/services/chat_timeline.py",
-    "app/services/local_service.py",
+    "app/services/service_connection.py",
+    "app/services/embedding_probe_token.py",
+    "app/services/embedding_probe.py",
+    "app/services/embedding_probe_call.py",
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/run_project_workspace.py",
@@ -1867,6 +1874,7 @@ include = [
     # what leaves a worker for a stored column the whole organization reads —
     # the same judgement the vault and the exception handlers are held to.
     "app/services/rag/failures.py",
+    "app/services/rag/docling.py",
     "app/services/rag_scratch.py",
     # Who hears that a run stopped on its budget or parked on an approval. The
     # emails are the only signal for a run nobody was watching — a Slack
@@ -2001,7 +2009,7 @@ include = [
     "app/api/routes/v1/agent_exposures.py",
     "app/api/routes/v1/agent_triggers.py",
     "app/api/routes/v1/trigger_webhooks.py",
-    "app/api/routes/v1/local_services.py",
+    "app/api/routes/v1/service_connections.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/skill_checks.py",

@@ -42,7 +42,7 @@ import * as visuals from "./visuals/[[...path]]/route";
 import * as improvements from "./improvements/[[...path]]/route";
 import * as kb from "./kb/[[...path]]/route";
 import * as knowledgeGaps from "./knowledge-gaps/[[...path]]/route";
-import * as localServices from "./local-services/[[...path]]/route";
+import * as serviceConnections from "./service-connections/[[...path]]/route";
 import * as mcpConnections from "./mcp-connections/[[...path]]/route";
 import * as mcpOauth from "./mcp-oauth/[[...path]]/route";
 import * as memory from "./memory/[[...path]]/route";
@@ -161,7 +161,7 @@ const MOUNTED: [string, Record<string, unknown>][] = [
   ["improvements", improvements],
   ["kb", kb],
   ["knowledge-gaps", knowledgeGaps],
-  ["local-services", localServices],
+  ["service-connections", serviceConnections],
   ["mcp-connections", mcpConnections],
   ["mcp-oauth", mcpOauth],
   ["memory", memory],
@@ -234,6 +234,13 @@ const MOUNTED: [string, Record<string, unknown>][] = [
 const VERBS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 
 describe("the proxied route mounts", () => {
+  it("the old local-services proxy route is gone", async () => {
+    const { existsSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    expect(existsSync(join(__dirname, "local-services"))).toBe(false);
+    expect(existsSync(join(__dirname, "service-connections"))).toBe(true);
+  });
+
   it("requires a session before issuing an administrator recovery link", async () => {
     const { NextRequest } = await import("next/server");
     expect(Object.keys(adminUserPasswordReset)).toEqual(["POST"]);

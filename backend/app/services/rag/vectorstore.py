@@ -48,9 +48,11 @@ from app.services.rag.models import (
     DocumentInfo,
     DocumentPageChunk,
     SearchResult,
+    StoredChunk,
     VectorDocumentId,
 )
 from app.services.rag.overlay import active_overlay
+from app.services.rag.vector_limits import HNSW_MAX_VECTOR_DIM
 
 logger = logging.getLogger(__name__)
 
@@ -242,6 +244,19 @@ class BaseVectorStore(ABC):
     ) -> AsyncGenerator[DocumentChunk]:
         """Bounded export reader; unsupported stores must refuse instead of loading all."""
         raise NotImplementedError("This vector store does not support streamed document exports")
+
+    @abstractmethod
+    async def probe_chunks(
+        self, collection_name: str, scope: VectorScope, *, min_length: int, shortest: int
+    ) -> list[StoredChunk]:
+        """The stored chunks an embedding test re-embeds, with the vectors they were indexed at.
+
+        Within `scope` - the base's own rows, so a shared collection name never lends
+        another tenant's text to a test - the `shortest` chunks of at least
+        `min_length` characters, plus the longest chunk, once each. Ties break by
+        chunk id, so the same corpus gives the same pick. An unknown collection is
+        an empty list.
+        """
 
     @abstractmethod
     async def get_chunks_around(
@@ -478,18 +493,6 @@ from app.services.rag.embeddings import EmbeddingService
 # collection name is shared, and is None where the caller has none in hand (#913).
 EmbeddingResolver = Callable[[str, UUID | None], Awaitable[ResolvedEmbeddings | None]]
 
-# pgvector's HNSW builds over a `vector` column only up to this width; past it,
-# `CREATE INDEX` fails with "column cannot have more than 2000 dimensions for
-# hnsw index". `halfvec` raises the ceiling to 4000, which is how the wider
-# models are supported here.
-#
-# This was reachable for the first time today. The dev and CI databases ran
-# stock `postgres:16-alpine`, so `CREATE EXTENSION vector` failed first and hid
-# it - and the shipped default, `text-embedding-3-large`, is 3072 wide. Every
-# collection created with the default configuration would have failed on its
-# first upload, in a worker, with a 500 and no explanation on screen.
-_HNSW_MAX_VECTOR_DIM = 2000
-
 # How many chunks go into one `INSERT`. The statement used to run once per chunk,
 # so a 200-page PDF at the default `chunk_size` was one to three thousand
 # sequential round trips inside one open transaction - a second or two on a local
@@ -638,6 +641,7 @@ def embedder_for(collection_name: str, resolved: ResolvedEmbeddings) -> Embeddin
         key_origin=resolved.describe(collection_name),
         base_url=resolved.base_url,
         keyless=resolved.key_source is EmbeddingKeySource.KEYLESS,
+        require_usage=resolved.require_usage,
     )
 
 
@@ -686,7 +690,7 @@ class PgVectorStore(BaseVectorStore):
         # refuses on first use - the resolver answering None rather than nobody
         # asking.
         self._resolver = resolver
-        self._services: dict[tuple[str, str, str, str], EmbeddingService] = {}
+        self._services: dict[tuple[str, str, str, str, bool], EmbeddingService] = {}
         self.async_session = async_sessionmaker(engine, expire_on_commit=False)
 
     def _table(self, name: str) -> str:
@@ -718,7 +722,7 @@ class PgVectorStore(BaseVectorStore):
     ) -> tuple[EmbeddingService, int]:
         """The embedder and vector width this one collection uses.
 
-        Cached per (collection, model, key): an `EmbeddingService` holds an
+        Cached per collection, target, credential and usage policy: an `EmbeddingService` holds an
         HTTP client, and rebuilding one per chunk would open a connection pool
         per page of a PDF. The collection is in the key because the service
         carries a `key_origin` naming it - two collections on the same key
@@ -736,7 +740,13 @@ class PgVectorStore(BaseVectorStore):
             return self.embedder, self.dim
         # A collection moved to another provider must not be answered by a client
         # built for the old one, so the provider is part of the key.
-        cache_key = (name, resolved.model, resolved.api_key, resolved.base_url)
+        cache_key = (
+            name,
+            resolved.model,
+            resolved.api_key,
+            resolved.base_url,
+            resolved.require_usage,
+        )
         service = self._services.get(cache_key)
         if service is None:
             service = embedder_for(name, resolved)
@@ -755,7 +765,7 @@ class PgVectorStore(BaseVectorStore):
         Building the index on one expression and ordering by another silently
         costs the index, so both come from here.
         """
-        if dim > _HNSW_MAX_VECTOR_DIM:
+        if dim > HNSW_MAX_VECTOR_DIM:
             return f"(embedding::halfvec({dim}))"
         return "embedding"
 
@@ -791,7 +801,7 @@ class PgVectorStore(BaseVectorStore):
         """Create the collection table and indexes under a per-name DDL lock."""
         table = self._table(name)
         _, dim = await self._for_collection(name)
-        operator_class = "halfvec_cosine_ops" if dim > _HNSW_MAX_VECTOR_DIM else "vector_cosine_ops"
+        operator_class = "halfvec_cosine_ops" if dim > HNSW_MAX_VECTOR_DIM else "vector_cosine_ops"
         async with self.async_session() as session:
             # IF NOT EXISTS can still race on PostgreSQL's catalog uniqueness.
             # This transaction must not reacquire COLLECTION_TEARDOWN: an unfiled
@@ -1047,7 +1057,7 @@ class PgVectorStore(BaseVectorStore):
         where_clause = f"WHERE {' AND '.join(conjuncts)}" if conjuncts else ""
         # The query vector has to be cast the same way the column is, or Postgres
         # compares a halfvec against a vector and refuses the operator outright.
-        query_expr = f"(:query_vec)::halfvec({dim})" if dim > _HNSW_MAX_VECTOR_DIM else ":query_vec"
+        query_expr = f"(:query_vec)::halfvec({dim})" if dim > HNSW_MAX_VECTOR_DIM else ":query_vec"
         params: dict[str, Any] = {
             "query_vec": str(query_vector),
             "limit": limit,
@@ -1559,6 +1569,36 @@ class PgVectorStore(BaseVectorStore):
                     }
                 )
             cursor = str(rows[-1][0])
+
+    async def probe_chunks(
+        self, collection_name: str, scope: VectorScope, *, min_length: int, shortest: int
+    ) -> list[StoredChunk]:
+        if not await self._collection_exists(collection_name):
+            return []
+        table = self._table(collection_name)
+        clause, params = _vector_scope_clause(scope)
+        # Built from literals only; every value is bound. The vector is read back as
+        # text (`[0.1,0.2]`, which is JSON) because it is compared in Python.
+        scoped = (
+            f"SELECT id, content, embedding::text AS vector FROM {table} "
+            f"WHERE {clause} AND content IS NOT NULL AND content <> '' "
+            "AND embedding IS NOT NULL"
+        )
+        async with self.async_session() as session:
+            result = await session.execute(
+                text(
+                    f"WITH scoped AS ({scoped}), "
+                    "short AS (SELECT * FROM scoped WHERE char_length(content) >= :min_len "
+                    "ORDER BY char_length(content), id LIMIT :shortest), "
+                    "longest AS (SELECT * FROM scoped "
+                    "ORDER BY char_length(content) DESC, id LIMIT 1) "
+                    "SELECT content, vector FROM (SELECT * FROM short UNION SELECT * FROM longest) "
+                    "AS picked ORDER BY char_length(content), id"
+                ),
+                {**params, "min_len": min_length, "shortest": shortest},
+            )
+            rows = result.fetchall()
+        return [StoredChunk(content=row[0], embedding=json.loads(row[1])) for row in rows]
 
     async def get_chunks_around(
         self,

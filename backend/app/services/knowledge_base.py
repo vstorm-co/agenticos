@@ -1,26 +1,28 @@
 import logging
 import re
 import secrets
+from collections.abc import Sequence
 from typing import Literal
 from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import record_audit
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.locks import LockScope, hold_name
 from app.db.models.knowledge_base import KBScope, KnowledgeBase
-from app.db.models.local_service import LocalServiceKind
 from app.db.models.resource_grant import Visibility
+from app.db.models.service_connection import ServiceConnectionKind
 from app.db.vector_tables import MAX_COLLECTION_NAME_LENGTH
 from app.repositories import (
     collection_teardown_repo,
     knowledge_base_repo,
-    local_service_repo,
     organization_secret_repo,
     rag_document_repo,
     resource_grant_repo,
+    service_connection_repo,
     sync_log_repo,
 )
 from app.repositories.rag_document import CollectionCounts, CollectionScope
@@ -33,6 +35,8 @@ from app.schemas.knowledge_base import (
 )
 from app.services.access import COLLECTION, SECRET, resolve_access, visible_resource_ids
 from app.services.collection_access import CollectionAccessService, readable_kb, writable_kb
+from app.services.embedding_probe_token import ProbeBinding, ProbePurpose, read_probe_token
+from app.services.embedding_resolution import EmbeddingSettings, TargetIdentity, identify_target
 from app.services.ingestion_config import (
     IngestionConfig,
     IngestionConfigService,
@@ -79,41 +83,69 @@ def _check_provider_fits_scope(
 
     An app-scoped collection belongs to no organization, so there is no vault
     it could name a key from and no deployment-wide key either; the one way it
-    can embed is through a keyless endpoint on the deployment's own network
-    (#1631). Refused here, on the control that chose the provider, rather than
+    can embed is through a service connection the deployment registered: a
+    keyless endpoint on its own network (#1631), or a custom one that holds no
+    key. Refused here, on the control that chose the provider, rather than
     discovered on the first document that fails to index.
     """
-    if organization_id is None and not provider.keyless:
+    if organization_id is None and not provider.via_connection:
         raise refused_field(
             "embedding_provider",
             f"An app-scoped collection belongs to no organization and has no vault to hold a "
             f"key for {provider.name}. Choose a keyless provider on the deployment's own "
-            "network, or create the collection inside an organization.",
+            "network, or a custom one at a deployment-wide connection, or create the "
+            "collection inside an organization.",
         )
 
 
 def _refuse_endpoint_for_keyed(
     provider: embedding_providers.EmbeddingProviderEntry, *, endpoint_id: UUID | None
 ) -> None:
-    """A vendor's address is the catalog's; a local service named for one is a mistake to record."""
+    """A vendor's address is the catalog's; a service connection named for one is a mistake to record."""
     if endpoint_id is not None:
         raise refused_field(
             "embedding_endpoint_id",
-            f"{provider.name} is reached at its own address; a local service applies only to "
-            "a keyless provider on the deployment's own network.",
+            f"{provider.name} is reached at its own address; a service connection applies only to "
+            "a provider reached through one.",
         )
 
 
-def _refuse_key_for_keyless(
+def _refuse_key_for_connection_provider(
     provider: embedding_providers.EmbeddingProviderEntry, *, secret_id: UUID | None
 ) -> None:
-    """A keyless endpoint takes no credential, so a key chosen for it is a mistake to name."""
-    if secret_id is not None:
+    """A provider reached through a service connection takes no key from the collection.
+
+    A keyless endpoint takes none at all; a custom one takes the key its connection
+    carries, so a key chosen on the collection is a second one nothing would use.
+    """
+    if secret_id is None:
+        return
+    if provider.any_model:
         raise refused_field(
             "embedding_secret_id",
-            f"{provider.name} takes no key: it is a keyless endpoint on the deployment's own "
-            "network, and nothing is billed for its embeddings.",
+            f"{provider.name} is reached through a service connection, which holds the key "
+            "if it needs one; a collection names none.",
         )
+    raise refused_field(
+        "embedding_secret_id",
+        f"{provider.name} takes no key: it is a keyless endpoint on the deployment's own "
+        "network, and nothing is billed for its embeddings.",
+    )
+
+
+def _serves_any_model(provider: str | None) -> bool:
+    entry = None if provider is None else embedding_providers.get(provider)
+    return entry is not None and entry.any_model
+
+
+_EMBEDDING_FIELDS = (
+    ("embedding_provider", "provider"),
+    ("embedding_endpoint_id", "endpoint_id"),
+    ("embedding_secret_id", "secret_id"),
+    ("embedding_base_url", "base_url"),
+    ("embedding_model", "model"),
+)
+"""A collection's five embedding settings: the schema field, and the name on `EmbeddingSettings`."""
 
 
 def _no_knowledge_base(kb_id: UUID) -> NotFoundError:
@@ -670,11 +702,13 @@ class KnowledgeBaseService:
                 ),
             )
         if embedding_endpoint_id is not None:
-            from app.services.local_service import LocalServiceService
+            from app.services.service_connection import ServiceConnectionService
 
-            endpoint = await LocalServiceService(self.db).get_visible(ctx, embedding_endpoint_id)
+            endpoint = await ServiceConnectionService(self.db).get_visible(
+                ctx, embedding_endpoint_id
+            )
             if (
-                endpoint.kind != LocalServiceKind.EMBEDDING
+                endpoint.kind != ServiceConnectionKind.EMBEDDING
                 or endpoint.provider != embedding_provider
             ):
                 raise BadRequestError(message="Choose an embedding endpoint for this provider")
@@ -747,7 +781,9 @@ class KnowledgeBaseService:
         collection_name = data.collection_name or _derive_collection_name(data.name)
         await CollectionAccessService(self.db).claim(ctx, collection_name)
         shared = await self._shared_embedding(collection_name, data)
-        config = await self._usable_config(ctx, data.ingestion_config)
+        config = await self._usable_config(
+            ctx, data.ingestion_config, app_scoped=data.scope == KBScope.APP.value
+        )
         # The creator owns what they create, org scope included: `own` in the
         # permission matrix is meaningless for a row nobody owns, and sharing
         # starts from an owner. App-scoped bases stay ownerless - they belong
@@ -767,7 +803,15 @@ class KnowledgeBaseService:
             embedding_endpoint_id = shared.embedding_endpoint_id
             embedding_base_url = shared.embedding_base_url
         else:
-            embedding_model, embedding_dim = chosen_embedding(data.embedding_model)
+            # A provider that serves any model has no catalog width: the test the
+            # token comes from measured it, and the collection is created at that.
+            measured = None
+            if data.embedding_model is not None and _serves_any_model(data.embedding_provider):
+                claims = read_probe_token(data.probe_token, ctx=ctx, purpose=ProbePurpose.KB_CREATE)
+                measured = claims.dim
+            embedding_model, embedding_dim = chosen_embedding(
+                data.embedding_model, measured_dim=measured
+            )
             if data.embedding_provider is None:
                 raise refused_field(
                     "embedding_provider",
@@ -787,17 +831,37 @@ class KnowledgeBaseService:
                 await embedding_providers.require_served_at(
                     provider, embedding_base_url, model=embedding_model, field="embedding_model"
                 )
-            if provider.keyless:
-                _refuse_key_for_keyless(provider, secret_id=embedding_secret_id)
+            if provider.via_connection:
+                _refuse_key_for_connection_provider(provider, secret_id=embedding_secret_id)
                 if embedding_endpoint_id is None:
                     raise refused_field(
                         "embedding_endpoint_id",
-                        f"Choose the local service {provider.name} answers at; the catalog "
+                        f"Choose the service connection {provider.name} answers at; the catalog "
                         "holds no address for a server the deployment runs itself.",
                     )
                 await self._check_embedding_endpoint(
-                    embedding_endpoint_id, organization_id=org_id, provider=provider
+                    embedding_endpoint_id, organization_id=org_id, provider=provider, ctx=ctx
                 )
+                if provider.any_model:
+                    await self._require_tested(
+                        ctx,
+                        purpose=ProbePurpose.KB_CREATE,
+                        token=data.probe_token,
+                        identity=await identify_target(
+                            self.db,
+                            EmbeddingSettings(
+                                provider=provider.provider,
+                                endpoint_id=embedding_endpoint_id,
+                                secret_id=None,
+                                base_url=None,
+                                model=embedding_model,
+                            ),
+                            organization_id=org_id,
+                        ),
+                        model=embedding_model,
+                        dim=embedding_dim,
+                        bases=(),
+                    )
             else:
                 _refuse_endpoint_for_keyed(provider, endpoint_id=embedding_endpoint_id)
                 if embedding_secret_id is None:
@@ -956,6 +1020,18 @@ class KnowledgeBaseService:
         *,
         ctx: AuthContext,
     ) -> KnowledgeBase:
+        """Change a knowledge base: its name, description, ingestion or embeddings.
+
+        A change to where or how it embeds could strand the vectors already stored,
+        so it is proven before it is saved: by the `probe_token` a passing test of
+        exactly these settings returned, or by `unverified`, which skips the proof
+        and is audited with the settings before and after. A rename or an ingestion
+        change needs neither.
+
+        Raises:
+            BadRequestError: On `probe_token` when a change comes with no valid
+                proof; on the field whose value is wrong for any other refusal.
+        """
         kb = await self.get_for_write(kb_id, ctx=ctx)
         await self._check_system_agents(
             ctx,
@@ -966,17 +1042,69 @@ class KnowledgeBaseService:
         config = (
             None
             if data.ingestion_config is None
-            else await self._usable_config(ctx, data.ingestion_config)
+            else await self._usable_config(
+                ctx, data.ingestion_config, app_scoped=kb.scope == KBScope.APP.value
+            )
         )
+        before = EmbeddingSettings.of(kb)
+        target = await self.plan_embedding(kb, data, ctx=ctx)
+        moved = target != before
+        if moved and data.unverified:
+            await self._check_siblings_agree(kb, target)
+        elif moved:
+            await self._require_tested(
+                ctx,
+                purpose=ProbePurpose.KB_CHANGE,
+                token=data.probe_token,
+                identity=await identify_target(self.db, target, organization_id=kb.organization_id),
+                model=target.model,
+                dim=kb.embedding_dim,
+                bases=[kb],
+            )
+        helpers: dict[Literal["gap_drafter_agent_id", "gap_classifier_agent_id"], UUID | None] = {}
+        if "gap_drafter_agent_id" in data.model_fields_set:
+            helpers["gap_drafter_agent_id"] = data.gap_drafter_agent_id
+        if "gap_classifier_agent_id" in data.model_fields_set:
+            helpers["gap_classifier_agent_id"] = data.gap_classifier_agent_id
+        updated = await knowledge_base_repo.update(
+            self.db,
+            db_kb=kb,
+            system_agents=helpers,
+            name=data.name,
+            description=data.description,
+            ingestion_config=None if config is None else config.model_dump(mode="json"),
+            embedding_provider=data.embedding_provider,
+            embedding_model=data.embedding_model,
+            embedding_secret_id=data.embedding_secret_id,
+            embedding_endpoint_id=data.embedding_endpoint_id,
+            embedding_base_url=target.base_url,
+            set_embedding_base_url=target.base_url != kb.embedding_base_url,
+            clear_embedding_secret=target.secret_id is None and kb.embedding_secret_id is not None,
+        )
+        if moved:
+            await self._record_embedding_change(
+                ctx, kb, before, target, verified=not data.unverified
+            )
+        return updated
+
+    async def plan_embedding(
+        self, kb: KnowledgeBase, data: KnowledgeBaseUpdate, *, ctx: AuthContext
+    ) -> EmbeddingSettings:
+        """The embedding settings a base would have after `data`, every refusal applied.
+
+        What the save and a test of it both ask first, so a test never runs for
+        settings the save would refuse. Reads and checks; changes nothing.
+        """
         # The provider the collection will be on when this update lands, which is
         # what the key has to match: moving to OpenAI and choosing an OpenAI key
         # in one request must be accepted, and either half alone must be checked
         # against the other half as it already stands. The model and the width are
         # the collection's own - `require` refuses a provider that cannot serve
         # them, because the vectors already stored are in that model's space.
+        model = data.embedding_model or kb.embedding_model
         provider = embedding_providers.require(
             data.embedding_provider or kb.embedding_provider,
-            model=kb.embedding_model,
+            model=model,
             dim=kb.embedding_dim,
         )
         url_named = "embedding_base_url" in data.model_fields_set
@@ -997,23 +1125,26 @@ class KnowledgeBaseService:
             # Changing the destination lends the retained key to that host just
             # as choosing a new key does. Managing connections alone is not
             # authority to send a colleague's private credential elsewhere.
+            # Through the normalised view, like the kept-key check: a key a
+            # connection-served row still holds from before is never lent anywhere.
+            kept = EmbeddingSettings.of(kb).secret_id
             if (
-                kb.embedding_secret_id is not None
+                kept is not None
                 and data.embedding_secret_id is None
-                and not provider.keyless
+                and not provider.via_connection
             ):
                 await self._check_embedding_secret(
-                    kb.embedding_secret_id,
+                    kept,
                     ctx=ctx,
                     organization_id=kb.organization_id,
                     provider=provider,
                 )
             wanted_url = await self._embedding_url(ctx, provider.provider, wanted_url)
             if wanted_url is not None:
-                # The model is the collection's own and cannot follow the move,
-                # so an endpoint that does not serve it is the wrong endpoint.
+                # The model cannot follow the move, so an endpoint that does not
+                # serve it is the wrong endpoint.
                 await embedding_providers.require_served_at(
-                    provider, wanted_url, model=kb.embedding_model, field="embedding_base_url"
+                    provider, wanted_url, model=model, field="embedding_base_url"
                 )
             shared = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
             if any(row.id != kb.id and row.embedding_base_url != wanted_url for row in shared):
@@ -1023,19 +1154,20 @@ class KnowledgeBaseService:
                 )
         if data.embedding_provider is not None:
             _check_provider_fits_scope(provider, organization_id=kb.organization_id)
-        if provider.keyless:
-            # A key the row still holds from the provider it left is not
-            # refused: the resolver never opens it for a keyless endpoint, and a
-            # move back to a keyed provider checks it against that one.
-            _refuse_key_for_keyless(provider, secret_id=data.embedding_secret_id)
+        if provider.via_connection:
+            # A key a row still holds from the provider it left is not refused, and
+            # is never carried over: the connection holds the key, the save clears
+            # this one, and a move back to a keyed provider has to name a key.
+            _refuse_key_for_connection_provider(provider, secret_id=data.embedding_secret_id)
             if data.embedding_endpoint_id is not None:
                 await self._check_embedding_endpoint(
                     data.embedding_endpoint_id,
                     organization_id=kb.organization_id,
                     provider=provider,
+                    ctx=ctx,
                 )
-            elif data.embedding_provider is not None:
-                await self._check_kept_endpoint(kb, provider=provider)
+            elif data.embedding_provider is not None or data.embedding_model is not None:
+                await self._check_kept_endpoint(kb, provider=provider, ctx=ctx)
         else:
             _refuse_endpoint_for_keyed(provider, endpoint_id=data.embedding_endpoint_id)
             if data.embedding_secret_id is not None:
@@ -1047,23 +1179,94 @@ class KnowledgeBaseService:
                 )
             elif data.embedding_provider is not None:
                 await self._check_kept_secret(kb, provider=provider)
-        helpers: dict[Literal["gap_drafter_agent_id", "gap_classifier_agent_id"], UUID | None] = {}
-        if "gap_drafter_agent_id" in data.model_fields_set:
-            helpers["gap_drafter_agent_id"] = data.gap_drafter_agent_id
-        if "gap_classifier_agent_id" in data.model_fields_set:
-            helpers["gap_classifier_agent_id"] = data.gap_classifier_agent_id
-        return await knowledge_base_repo.update(
+        return EmbeddingSettings(
+            provider=provider.provider,
+            endpoint_id=data.embedding_endpoint_id or kb.embedding_endpoint_id,
+            secret_id=None
+            if provider.via_connection
+            else data.embedding_secret_id or EmbeddingSettings.of(kb).secret_id,
+            base_url=wanted_url,
+            model=model,
+            collection=kb.collection_name,
+        )
+
+    async def _require_tested(
+        self,
+        ctx: AuthContext,
+        *,
+        purpose: ProbePurpose,
+        token: str | None,
+        identity: TargetIdentity,
+        model: str | None,
+        dim: int | None,
+        bases: Sequence[KnowledgeBase],
+    ) -> int | None:
+        """Refuse a save without a valid proof of a test of exactly these settings.
+
+        Returns the width the test measured, which only a creation uses.
+
+        Raises:
+            BadRequestError: On `probe_token`.
+        """
+        claims = read_probe_token(token, ctx=ctx, purpose=purpose)
+        claims.require_match(
+            ProbeBinding.of(purpose, identity, model=model, dim=dim, knowledge_bases=bases)
+        )
+        return claims.dim
+
+    async def _check_siblings_agree(self, kb: KnowledgeBase, target: EmbeddingSettings) -> None:
+        """Refuse an untested move of a collection another knowledge base shares.
+
+        The vectors are one table's, and the siblings embed their queries with what
+        their own rows say; moving one without a test could leave the others
+        searching a space nothing proves they still match. A tested move skips this:
+        the test proved the stored vectors are where they were.
+        """
+        shared = await knowledge_base_repo.list_by_collection_name(self.db, kb.collection_name)
+        for sibling in shared:
+            if sibling.id == kb.id:
+                continue
+            kept = EmbeddingSettings.of(sibling)
+            for field, name in _EMBEDDING_FIELDS:
+                if getattr(kept, name) != getattr(target, name):
+                    raise refused_field(
+                        field,
+                        "This collection shares its embedding configuration with another "
+                        "knowledge base",
+                    )
+
+    async def _record_embedding_change(
+        self,
+        ctx: AuthContext,
+        kb: KnowledgeBase,
+        before: EmbeddingSettings,
+        after: EmbeddingSettings,
+        *,
+        verified: bool,
+    ) -> None:
+        """Audit a change to how a base embeds: what changed if it was tested, both
+        sides in full if it was not. Never a key and never an address's query."""
+        if verified:
+            action = "knowledge_base.embedding_changed"
+            details: dict[str, object] = {
+                "fields": [
+                    field
+                    for field, name in _EMBEDDING_FIELDS
+                    if getattr(before, name) != getattr(after, name)
+                ],
+                "verified": True,
+            }
+        else:
+            action = "knowledge_base.embedding_changed_unverified"
+            details = {"previous": before.for_audit(), "new": after.for_audit()}
+        await record_audit(
             self.db,
-            db_kb=kb,
-            system_agents=helpers,
-            name=data.name,
-            description=data.description,
-            ingestion_config=None if config is None else config.model_dump(mode="json"),
-            embedding_provider=data.embedding_provider,
-            embedding_secret_id=data.embedding_secret_id,
-            embedding_endpoint_id=data.embedding_endpoint_id,
-            embedding_base_url=wanted_url,
-            set_embedding_base_url=url_named,
+            actor_user_id=ctx.subject_id,
+            organization_id=kb.organization_id,
+            action=action,
+            target_type="knowledge_base",
+            target_id=str(kb.id),
+            details=details,
         )
 
     async def _check_system_agents(
@@ -1091,22 +1294,30 @@ class KnowledgeBaseService:
         *,
         organization_id: UUID | None,
         provider: embedding_providers.EmbeddingProviderEntry,
+        ctx: AuthContext,
     ) -> None:
-        """Refuse a local service this collection may not name, or one of the wrong shape.
+        """Refuse a service connection this collection may not name, or one of the wrong shape.
 
         Visible means the organization's own or the deployment's; an app-scoped
         collection, with no organization, sees the deployment's alone. A service
         another organization registered is phrased as one that does not exist,
         so a refusal cannot enumerate another tenant's hosts.
+
+        A connection that carries a Vault key spends that key on every call, so
+        naming one - for a new base, a move, or a Test - needs `connections:view`,
+        the permission that lists connections at all. Without it a Member who can
+        read a base could reuse the id it exposes and send requests on a key that
+        was never shared with them.
         """
-        row = await local_service_repo.get_visible(
+        row = await service_connection_repo.get_visible(
             self.db, endpoint_id, organization_id=organization_id
         )
         if row is None:
             raise refused_field(
-                "embedding_endpoint_id", "That local service is not one this collection may name."
+                "embedding_endpoint_id",
+                "That service connection is not one this collection may name.",
             )
-        if row.kind != LocalServiceKind.EMBEDDING.value or row.provider != provider.provider:
+        if row.kind != ServiceConnectionKind.EMBEDDING.value or row.provider != provider.provider:
             raise refused_field(
                 "embedding_endpoint_id",
                 f"'{row.name}' is a {row.provider} {row.kind} service, and this collection "
@@ -1117,19 +1328,29 @@ class KnowledgeBaseService:
                 "embedding_endpoint_id",
                 f"'{row.name}' is turned off. Turn it on under Knowledge, or choose another.",
             )
+        if row.secret_id is not None and not ctx.has(Perm.CONNECTIONS_VIEW):
+            raise refused_field(
+                "embedding_endpoint_id",
+                f"'{row.name}' uses a Vault key, and naming it needs the connections permission. "
+                "Ask an administrator.",
+            )
 
     async def _check_kept_endpoint(
-        self, kb: KnowledgeBase, *, provider: embedding_providers.EmbeddingProviderEntry
+        self,
+        kb: KnowledgeBase,
+        *,
+        provider: embedding_providers.EmbeddingProviderEntry,
+        ctx: AuthContext,
     ) -> None:
         """Moving onto a keyless provider needs its address, in the same request or already on the row."""
         if kb.embedding_endpoint_id is None:
             raise refused_field(
                 "embedding_endpoint_id",
-                f"Moving to {provider.name} needs the local service it answers at, in the "
+                f"Moving to {provider.name} needs the service connection it answers at, in the "
                 "same request.",
             )
         await self._check_embedding_endpoint(
-            kb.embedding_endpoint_id, organization_id=kb.organization_id, provider=provider
+            kb.embedding_endpoint_id, organization_id=kb.organization_id, provider=provider, ctx=ctx
         )
 
     async def _check_kept_secret(
@@ -1138,18 +1359,33 @@ class KnowledgeBaseService:
         *,
         provider: embedding_providers.EmbeddingProviderEntry,
     ) -> None:
-        """Refuse a provider change that would leave the old key pointed at it.
+        """Refuse a keyed provider that would be paid with no key, or with the wrong one.
 
-        The key stays where it is unless the caller says otherwise, so moving the
-        provider on its own can produce a collection holding an OpenRouter key and
-        an OpenAI address - which is the one thing this whole change exists to stop.
-        Named on `embedding_provider`, because that is the control that moved.
+        The key stays where it is unless the caller says otherwise. With none kept -
+        a base reached through a connection holds none of its own, and any key such
+        a row still carries from before is ignored - the request must name one, and
+        the refusal is on `embedding_secret_id`. With one kept, a provider change
+        would leave an OpenRouter key pointed at an OpenAI address, which is
+        refused on `embedding_provider`, the control that moved.
         """
-        if kb.embedding_secret_id is None or kb.organization_id is None:
+        # Read through the normalised view: a row on a connection provider may still
+        # hold the key of the provider it left, and that one is never reused.
+        kept = EmbeddingSettings.of(kb).secret_id
+        if kept is None:
+            moving = kb.embedding_provider != provider.provider
+            raise refused_field(
+                "embedding_secret_id",
+                (
+                    f"Moving to {provider.name} needs the vault key that pays for it, in the "
+                    "same request: a base reached through a connection holds none of its own."
+                    if moving
+                    else f"Choose the vault key that pays for this collection's embeddings on "
+                    f"{provider.name}; it names none."
+                ),
+            )
+        if kb.organization_id is None:
             return
-        row = await organization_secret_repo.get(
-            self.db, kb.embedding_secret_id, organization_id=kb.organization_id
-        )
+        row = await organization_secret_repo.get(self.db, kept, organization_id=kb.organization_id)
         if row is None or row.purpose == provider.provider:
             return
         raise refused_field(
@@ -1160,7 +1396,7 @@ class KnowledgeBaseService:
         )
 
     async def _usable_config(
-        self, ctx: AuthContext, config: IngestionConfig | None
+        self, ctx: AuthContext, config: IngestionConfig | None, *, app_scoped: bool
     ) -> IngestionConfig:
         """The configuration to store, proven to work before it is stored.
 
@@ -1170,12 +1406,22 @@ class KnowledgeBaseService:
         uploader had nothing to do with - into a message on the field that
         caused it. This is the same trade
         :func:`app.services.model_profile._validate_model_id` makes.
+
+        What the parser reaches is checked as the collection itself, not as its
+        creator: an app-scoped base belongs to no organization, and its syncs resolve
+        its parser connection, OCR server and LlamaParse key with none
+        (`app.worker.tasks.rag_tasks`). So it may only name deployment-wide
+        connections, and a LlamaParse key, which is always an organization's, is
+        refused for it. The image model stays the caller's: its syncs skip image
+        description, and an upload resolves it for the uploader's organization.
         """
         chosen = config or deployment_defaults()
+        owner = None if app_scoped else ctx.organization_id
         service = IngestionConfigService(self.db)
         await service.resolved_image_model(ctx.organization_id, chosen)
-        await service.check_llamaparse_secret(ctx.organization_id, chosen)
-        await service.check_ocr_endpoint(ctx.organization_id, chosen)
+        await service.check_llamaparse_secret(owner, chosen)
+        await service.check_ocr_endpoint(owner, chosen)
+        await service.check_docling_connection(owner, chosen)
         return chosen
 
     async def delete(self, kb_id: UUID, *, ctx: AuthContext) -> None:

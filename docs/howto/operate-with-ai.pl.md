@@ -1,5 +1,5 @@
 ---
-source_sha: "d2ccce975127"
+source_sha: "f20102760a53"
 ---
 
 # Zarządzaj AgenticOS przez klienta AI { #operate-agenticos-with-an-ai-client }
@@ -37,7 +37,7 @@ są przykładami, a nie zamkniętym katalogiem zastosowań.
 Profile modeli mogą wskazywać istniejące identyfikatory vaultu.
 `list_secret_references` zwraca tylko dostępne nazwy, ID, rodzaje i przeznaczenia,
 bez wartości ani końcówek kluczy. Odkrywanie endpointów embeddingów identyfikuje
-lokalne usługi. `get_setup_link` przekazuje wprowadzanie sekretów i zgodę OAuth
+połączenia usług. `get_setup_link` przekazuje wprowadzanie sekretów i zgodę OAuth
 do własnej sesji użytkownika w konsoli. Nie wklejaj sekretów ani adresu callback
 OAuth do rozmowy lub pakietu.
 

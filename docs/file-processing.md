@@ -521,14 +521,23 @@ connection per checkout and caps nothing, where the pool queues at
 
 ### Supported formats
 
-`.txt`, `.md` and `.docx` are read by the built-in Python parsers whatever the
-collection's parser is. Beyond those, the set follows the parser:
+`.txt` and `.md` are read by the built-in text reader whatever the collection's
+parser is. Every other format goes to the collection's parser, and the set
+follows it. A `.docx` goes to the parser when it reads Word, and to the built-in
+Word reader otherwise, which keeps headings and tables (as markdown tables) in
+document order:
 
 | Parser | Also reads | Needs |
 |--------|-----------|-------|
-| PyMuPDF | `.pdf` | nothing |
-| LiteParse | `.pdf`; images (`.png`, `.jpg`, `.tiff`, `.svg`, …); office formats (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **for office formats only** — images are converted natively |
-| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, images | A LlamaParse key in the organization's vault, named by the collection (`llamaparse_secret_id`). There is no deployment key |
+| PyMuPDF | `.pdf`; `.docx` through the built-in Word reader | nothing |
+| LiteParse | `.pdf`, `.docx`; images (`.png`, `.jpg`, `.tiff`, `.svg`, …); office formats (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **for `.docx` and the other office formats** — images are converted natively |
+| LlamaParse | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, images | A LlamaParse key in the organization's vault, named by the collection (`llamaparse_secret_id`). There is no deployment key |
+| Docling | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.html`, `.htm`, `.csv`; images (`.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`, `.webp`) | A Docling Serve registered as a service connection, named by the collection (`docling_connection_id`) |
+
+A `.docx`, `.pptx` or `.xlsx` is checked for an oversized or malformed archive
+before any parser receives it, with the chat archive limits (`CHAT_ARCHIVE_MAX_MEMBERS`,
+`CHAT_ARCHIVE_MEMBER_MAX_BYTES`, `CHAT_ARCHIVE_TOTAL_MAX_BYTES`). A very large `.pptx` or
+`.xlsx` over them is now refused at parse time under LiteParse and LlamaParse too.
 
 The backend Dockerfile installs LibreOffice and Tesseract, so office formats and
 OCR work out of the box in a container. Running the backend outside Docker, an
@@ -551,6 +560,7 @@ variable. Stored on `knowledge_bases.ingestion_config`.
 | PyMuPDF (default) | Fast local processing, text-heavy documents; the only one that extracts embedded images for description |
 | LiteParse | Local, no key, layout-aware; reads office formats and images; markdown output |
 | LlamaParse | Complex layouts and scanned PDFs; cloud, billed per page |
+| Docling | Layout, tables and pages kept faithfully, with OCR, on a Docling Serve you run yourself; reads Word, Excel, PowerPoint, HTML and images too |
 
 ### LiteParse options
 
@@ -561,6 +571,58 @@ variable. Stored on `knowledge_bases.ingestion_config`.
 | `ocr_language` | `eng` | Tesseract codes — three letters, `+`-joined for several (`eng+pol`). A language with no pack installed reads nothing; add `tesseract-ocr-<lang>` to the Dockerfile. |
 | `liteparse_dpi` | `150` | Higher reads faint scans, slower. |
 | `max_pages` | `1000` | The setting that bounds the cost of one document; `parse_timeout_seconds` only bounds the wait. |
+
+### Docling options
+
+Docling is a document converter you host yourself ([Docling Serve](https://docling-project.github.io/docling/usage/api_server/)).
+A collection that chooses it names a **Docling connection**: a service
+connection of the kind *Document parser*, with the address of the server (normally on your own network; the
+platform does not restrict it to private addresses) and, when the server asks for one, a Vault key (purpose `docling`,
+sent as `X-Api-Key`). A deployment-wide connection holds no key. The connection
+is the collection's own, so an upload override can change the options below but
+cannot choose Docling for a collection that has no connection; such an upload is
+refused at once.
+
+**Test** on the connection form checks that the address answers as a Docling
+Serve and that the key is accepted, without converting anything. It reports the
+server's version, "key refused", "this server requires a key", "nothing answered"
+or "not Docling Serve". It never blocks Save: changing a parser moves no vector
+space.
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `docling_connection_id` | none | Required while the parser is Docling. Must be an active *Document parser* connection the organization may use. |
+| `ocr` | `false` | Turns Docling's OCR on. With it off, a scanned PDF has no text and the upload is refused with "turn OCR on". |
+| `auto_ocr` | `true` | On: OCR only the bitmap areas of a page. Off: OCR every page. |
+| `docling_ocr_languages` | empty | Up to eight two-letter codes (`de`, `en`). Docling refuses Tesseract's three-letter codes, so this is a separate field from `ocr_language`. Empty uses the engine's default. |
+| `docling_ocr_preset` | `auto` | `auto`, `easyocr`, `rapidocr` or `tesseract`. Free text, because Docling advertises engines the server may not have installed. |
+| `docling_table_mode` | `accurate` | `fast` or `accurate` table reconstruction. |
+| `max_pages` | `1000` | Pages converted, from page 1. |
+| `parse_timeout_seconds` | `600` | How long the platform waits for one document, at most 3000 seconds, so the refusal arrives before the job's own one-hour limit. |
+
+Chunks keep their page numbers: Docling's markdown is split per page and the
+collection's own splitter, chunk size and overlap apply to each page as for the
+other parsers. A `.docx` has no pages and is read as page 1; citations treat
+`.docx` as unpaged under every parser.
+
+A document is refused, with a message that never quotes the server, when Docling
+reports a failed or partly failed conversion, when it stops with an internal
+error (its own log has the cause; check the OCR languages and preset), when the
+key is refused, or when it has not finished within the deadline. A conversion
+that is still running when the platform gives up is **not** cancelled — Docling
+has no cancel — and Retry collects its result instead of submitting a second
+conversion. The same applies to a worker restart or a queue retry. If the Docling
+server itself restarted, it has forgotten the task and the next attempt submits
+again.
+
+Docling is given the same timeout, so a conversion that was really
+running when the platform stopped waiting has usually timed out too, and Retry
+then names the pages it did not finish; raising the timeout before Retry starts a
+new conversion. A failure after the parse (embedding, indexing) is retried with a
+new conversion, because the finished one has already been collected.
+
+Tested against Docling Serve 1.39.0. An older server cannot name the failed
+pages, and the OCR presets on offer are not checked against what is installed.
 
 ### Chunking configuration
 
@@ -653,7 +715,92 @@ All three are decided **per collection**, not per deployment, by
 |---|---|
 | **Model and width** | Recorded on the knowledge base at creation (`embedding_model`, `embedding_dim`) and never changed afterwards — `PgVectorStore` writes `embedding vector(N)` once, so a second model either cannot be written or is silently compared against vectors from another space. A new collection chooses one of the models its provider serves; there is no deployment default. |
 | **Provider** | Which OpenAI-compatible endpoint serves that model (`embedding_provider`). **Changeable**, unlike the model: the same model at the same width produces vectors in the same space wherever it is served from, so `PATCH /kb/{id}` moves a collection between providers and leaves everything already indexed valid. |
-| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for, and which must be a key **for that provider**. There is no deployment-wide embedding key: a new personal or organization collection has to name one, and a collection without a usable key refuses to index or search until it has one. The `ollama` provider is **keyless** - an Ollama on the deployment's own network - so a collection on it names no key and is refused if it tries to; it names a **local service** instead (`embedding_endpoint_id`), a row under Knowledge → Integrations that carries the address, the organization's own or a deployment-wide one the app admin registered. An **app-scoped** collection belongs to no organization and so has no vault to name a key from; it may embed only through a keyless provider at a deployment-wide service, and choosing a keyed one for it is refused where the provider was chosen. |
+| **Credential** | The vault key chosen on the collection (`embedding_secret_id`), which is what the organization is billed for, and which must be a key **for that provider**. There is no deployment-wide embedding key: a new personal or organization collection has to name one, and a collection without a usable key refuses to index or search until it has one. The `ollama` provider is **keyless** - an Ollama on the deployment's own network - so a collection on it names no key and is refused if it tries to; it names a **service connection** instead (`embedding_endpoint_id`), a row under Knowledge → Integrations that carries the address, the organization's own or a deployment-wide one the app admin registered. The custom `openai_compatible` provider is reached the same way, and its key lives on the connection ([below](#a-custom-openai-compatible-endpoint-and-the-test)). An **app-scoped** collection belongs to no organization and so has no vault to name a key from; it may embed only through a keyless provider at a deployment-wide connection, and choosing a keyed one for it is refused where the provider was chosen. |
+
+#### A custom OpenAI-compatible endpoint, and the Test { #a-custom-openai-compatible-endpoint-and-the-test }
+
+The catalog entry `openai_compatible`, shown as **Custom (OpenAI-compatible)**, lists no
+models. It embeds through any OpenAI-compatible endpoint the organization registers as a
+**service connection** (Knowledge → Integrations → **Add server**, API style
+*OpenAI-compatible*), and the model is typed as free text.
+
+The connection may carry an organization Vault key (purpose `openai_compatible`): only
+an organization-owned connection can hold one, and binding a key lends it to every
+collection on the connection, so choosing it needs `secrets:view` on that key. A
+connection requires a key if one was given at creation or added later, and removing the
+key from a keyed connection is refused. A deployment-wide connection is keyless. A
+deleted key makes the connection refuse by name instead of sending requests without it.
+
+Naming a keyed connection for a collection, a move or a Test needs `connections:view`,
+since every call spends its key; a Member without it can use keyless connections only.
+
+A custom endpoint may serve any model, so nothing about it can be assumed. Two Tests keep
+a collection's vector space from moving by accident:
+
+- **Creating a collection.** **Test** makes one call on a fixed text and measures the
+  width, which must be between 1 and 4000 (the index limit). **Create** stays disabled until
+  the Test of the exact endpoint and model in the form has passed. There is no override on
+  create.
+- **Changing one.** Any change that could move the vector space needs a passing Test of the
+  new values or a confirmed unverified save: a provider, key, endpoint or model change on a
+  knowledge base, and an address or key edit on an embedding connection. Renaming a
+  connection, pausing it, or editing an OCR connection needs none.
+
+What a Test does:
+
+- It re-embeds up to **3 stored chunks** of each affected knowledge base - the two shortest
+  of at least 100 characters, and the longest - one request each, through the new
+  settings. The vectors are normalized and compared with the stored ones; it passes if the
+  lowest cosine similarity is **0.995 or higher** and the widths match exactly.
+- If the first comparison fails it is **repeated once** before the Test fails.
+- A knowledge base with nothing stored has no chunk to compare, so one call on a fixed
+  text checks only its width, which was fixed when it was created. A connection shared by several
+  knowledge bases tests each of them, in its own scope, and the result names every one.
+- Before it runs, the dialog shows the number of **probes**, each one billed embedding call (`GET .../estimate`), and
+  twice that is the most it can make. Failure is a normal answer, not an error, naming the
+  cause per knowledge base: `unreachable`, `key_refused`, `model_unknown`, `wrong_width` or
+  `vectors_differ`.
+- A pass returns a **token valid for 10 minutes**, bound to the exact values tested: the
+  connection, address, key and the key's generation, model, measured width and the
+  knowledge bases that passed. Changing any value, rotating the key, or attaching another
+  knowledge base to the connection voids it. The server does not test again on save, so
+  saving costs nothing.
+
+**Save without testing** sends `unverified: true` after a confirmation. It is audited as
+`knowledge_base.embedding_changed_unverified` or `service_connection.updated_unverified`,
+with the previous and new settings that are not secret. There is no revert and nothing is
+stored beyond the audit entry. A tested move of a knowledge base is allowed even when its
+collection is shared with other knowledge bases; an unverified move is refused when the
+collection is shared and its settings would differ from the others'.
+
+Paid embeddings under a run cap, and keyed custom endpoints paid by an organization with a dollar cap,
+require a catalog-priced model and valid usage reporting. If an endpoint later omits or corrupts usage,
+the partial receipt is retained and the job stops before another batch or file; the policy refusal is
+not automatically retried. Uncapped and keyless endpoints can still return valid vectors with partial
+cost information. Ingestion and sync budgets still admit a job/window of work, so already admitted
+work can overshoot a cap; partial receipts cannot reveal unknown provider fees.
+
+An indexed embedding response must identify each input exactly once. Shuffled indices are put back
+in input order; duplicate, mixed, null or out-of-range indices are refused. Compatible endpoints
+that omit every index retain their existing array-order contract.
+
+Limitations:
+
+- A failed Test has no way forward but a new knowledge base: there is **no rebuild** of an
+  existing index onto another model.
+- Each keyed Test call checks the paying organization's monthly cap and records its reported
+  embedding usage before returning or retrying, including a failed comparison or a cancelled
+  request. Unknown prices cannot run under a dollar cap; missing usage remains explicitly
+  partial and stops further capped calls. Concurrent calls already admitted may overshoot the
+  cap. Cancellation waits for bounded settlement; a lost provider response or process failure
+  cannot reveal unknown fees. Settlement never replays a request after cancellation or a receipt failure.
+- A key rotated in place in the Vault after a save is **not tested again** - the same key id
+  still passes.
+- A Test samples **3 chunks**. An endpoint that matches those and differs elsewhere is not
+  caught.
+- Chat, speech and image providers do not use service connections yet.
+- The platform MCP tool `create_knowledge_base` cannot create a custom knowledge base: it
+  has no probe token. Use the console.
 
 Which knowledge base a collection name resolves to is itself a tenant question.
 `collection_name` is indexed but **not unique** — two organizations can name a
@@ -1279,6 +1426,32 @@ document that did not fail, or that has no stored file — one that predates
 uploads keeping theirs, or one a sync ingested — is refused with a 400 rather
 than moved to `processing`
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+A collection's own settings are under **Settings** in its page header (also
+**Edit** on the **How documents are read** tab). **Upload with different
+settings…**, on the **Upload** button's menu, sets changes for the next uploads
+only and leaves the collection as it is. A deployment admin creating a collection
+also sees **Every organization (deployment-wide)**: an app-scoped collection,
+which may name only deployment-wide connections and keyless providers.
+
+In the console, a failed document has a retry icon beside **Failed** for anyone
+who may edit the collection. A retry parses with the collection's settings as
+they are when you click it, and records them on the document. So a scan that failed
+with OCR off is retried after turning OCR on, without uploading it again. A retry
+is refused when the current parser no longer reads the file's format, and the
+document keeps its settings. A retry replaces only what its own failed attempt
+left; another upload of the same file stays in the list.
+
+The changes pending for the next uploads (**Upload with different settings…** on the **Upload** button's menu, then **Apply**) apply
+to a retry too, in place of the ones the file was uploaded with. With none
+pending - after **Revert** - a retry reads with the collection's settings alone.
+
+Through the API, `POST /rag/documents/{id}/retry` with no body keeps the
+changes the file was uploaded with; a body's `ingestion_override` replaces them,
+and an empty one means the collection's settings alone. A retry never replaces
+another upload of the same file, even when the original upload asked to replace:
+upload the file again with `replace=true` for that. **Revert** in the banner drops the pending
+changes.
 
 The retry also refuses an organization's document filed under no knowledge base: its
 chunks would be written deployment-wide, where the organization's base that lists it

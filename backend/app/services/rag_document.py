@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.exceptions import AlreadyExistsError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
-from app.db.models.knowledge_base import KnowledgeBase
+from app.db.models.knowledge_base import KBScope, KnowledgeBase
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.db.vector_tables import VectorWriterKind, VectorScope
 from app.services.rag.config import get_supported_formats
@@ -354,12 +354,25 @@ class RAGDocumentService:
         collection_name = collection.collection_name
         ingestion = IngestionConfigService(self.db)
         ingestion.check_embedding_model(
-            collection=collection_name, built_with=collection.embedding_model
+            collection=collection_name,
+            built_with=collection.embedding_model,
+            provider=collection.embedding_provider,
+            dim=collection.embedding_dim,
         )
 
         config = IngestionConfig.model_validate(collection.ingestion_config)
         if override is not None:
             config = override.applied_to(config)
+        # Every upload, not only an overridden one: an override can switch a
+        # collection to Docling, and a stored Docling collection's connection can
+        # have been paused since. Refused here rather than in a worker.
+        # Checked as the collection: an app-scoped one belongs to no organization and
+        # may name only deployment-wide connections, whoever uploads to it.
+        await ingestion.check_docling_connection(
+            None if collection.scope == KBScope.APP.value else ctx.organization_id,
+            config,
+            name_field=False,
+        )
 
         allowed = get_supported_formats(config.pdf_parser.value)
         max_size = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
@@ -444,6 +457,7 @@ class RAGDocumentService:
         file_data: bytes,
         replace: bool,
         attempt: int,
+        replace_own_only: bool = False,
     ) -> None:
         """Put the file where the worker can read it and dispatch the parse.
 
@@ -480,6 +494,7 @@ class RAGDocumentService:
                 filepath=tmp_path,
                 source_path=filename,
                 replace=replace,
+                replace_own_only=replace_own_only,
                 attempt=attempt,
             ),
             organization_id=organization_id,
@@ -653,6 +668,18 @@ class RAGDocumentService:
 
             await queue_external_state_cleanup(self.db, storage_paths, [])
 
+    async def record_parser_task(
+        self, doc_id: str, parser_task: dict[str, object] | None, *, attempt: int
+    ) -> bool:
+        """Keep, or with `None` clear, the remote parse this attempt is waiting on.
+
+        Returns False when the row is gone or a later retry superseded `attempt`;
+        the parse carries on, and its settlement is fenced by the same attempt.
+        """
+        return await rag_document_repo.set_parser_task(
+            self.db, UUID(doc_id), parser_task=parser_task, expected_attempt=attempt
+        )
+
     async def fail_ingestion(self, doc_id: str, error_message: str, *, attempt: int) -> None:
         """Mark a document ingestion as failed.
 
@@ -700,11 +727,10 @@ class RAGDocumentService:
             # ever because its failure notification could not be addressed.
             logger.exception("Failed to notify about a failed ingestion for %s", doc_id)
 
-    async def retry_ingestion(self, doc_id: str) -> RAGDocument:
-        """Index an imported original, or parse a failed document again.
-
-        Stored imports explicitly adopt the destination knowledge base's current
-        settings. Import itself never dispatches this work.
+    async def retry_ingestion(
+        self, doc_id: str, *, override: IngestionOverride | None = None
+    ) -> RAGDocument:
+        """Index a stored original or parse a failed document again.
 
         It reads the stored copy rather than asking for the file again: the
         upload kept one for exactly this, and a retry that needed the original
@@ -717,6 +743,21 @@ class RAGDocumentService:
         nothing - so a retry replaced the diagnosis with a document that would
         stay `processing` for ever, which is worse than the failure it was
         asked to fix.
+
+        It parses with the collection's settings as they are *now*, with an
+        override on top. Given, `override` replaces the one the file was uploaded
+        with - the console always sends the departures pending for the next
+        uploads, since re-reading a failed file is adding it again, and an empty
+        one means the collection's settings alone. `None` (an API call with no
+        body) keeps the file's own. So a document that failed because OCR was off
+        is retried after turning OCR on, without uploading it again. The new settings are checked the way an upload checks them (the
+        parser still reads this format, its Docling connection is usable, its
+        image model resolves) and written to the row in the same transaction as
+        the attempt bump, so a refused retry changes nothing. A document whose
+        base is gone keeps the settings it was last read with, with a given
+        override on top. A Docling task kept from a deadline is still collected
+        when the settings are unchanged; a change submits a new conversion
+        (`app.services.rag.docling`).
 
         Bumps `ingestion_attempt` before dispatching (#1598): this is a
         resubmission of the same document id, not a new document, so without
@@ -751,7 +792,6 @@ class RAGDocumentService:
                 message="This document is filed under no knowledge base; upload it again",
                 details={"doc_id": doc_id, "filename": doc.filename},
             )
-        config: dict[str, object] | None = None
         if doc.status == DocumentStatus.STORED:
             if doc.filesize > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
                 raise BadRequestError(
@@ -761,10 +801,9 @@ class RAGDocumentService:
                 raise BadRequestError(
                     message="Choose a knowledge base before indexing this original"
                 )
-            kb = await knowledge_base_repo.get_by_id(self.db, doc.knowledge_base_id)
-            if kb is None:
+            if await knowledge_base_repo.get_by_id(self.db, doc.knowledge_base_id) is None:
                 raise NotFoundError(message="Knowledge base not found")
-            config = IngestionConfig.model_validate(kb.ingestion_config).model_dump(mode="json")
+        await self._take_current_settings(doc, override=override)
         file_data = await get_file_storage().load(doc.storage_path)
         new_attempt = doc.ingestion_attempt + 1
         updated = await rag_document_repo.update_status(
@@ -781,7 +820,7 @@ class RAGDocumentService:
             # `expected_attempt` closes for `complete_ingestion`/
             # `fail_ingestion` one layer up.
             expected_attempt=doc.ingestion_attempt,
-            ingestion_config=config,
+            ingestion_config=doc.ingestion_config,
         )
         if updated is None:
             raise NotFoundError(message="Document not found", details={"doc_id": doc_id})
@@ -793,6 +832,10 @@ class RAGDocumentService:
             file_data=file_data,
             replace=True,
             attempt=new_attempt,
+            # What the failed attempt itself may have left, not another upload of
+            # the same file: that one is a row somebody can see, and a retry must
+            # not delete it behind their back.
+            replace_own_only=True,
         )
         return updated
 
@@ -810,6 +853,58 @@ class RAGDocumentService:
             return VectorScope(tenant=None)
         kb = await knowledge_base_repo.get_by_id(self.db, doc.knowledge_base_id)
         return kb.vector_scope if kb is not None else VectorScope(tenant=None)
+
+    async def _take_current_settings(
+        self, doc: RAGDocument, *, override: IngestionOverride | None
+    ) -> None:
+        """Point a failed document at its base's current settings, checked as an upload is.
+
+        Raises:
+            BadRequestError: If the base's parser no longer reads this format, or
+                its Docling connection or image model is not usable.
+        """
+        kb = (
+            None
+            if doc.knowledge_base_id is None
+            else await knowledge_base_repo.get_by_id(self.db, doc.knowledge_base_id)
+        )
+        if kb is None and override is None:
+            return
+        # A base that is gone has no current settings; an override then lands on
+        # the ones the document was last read with.
+        config = IngestionConfig.model_validate(
+            doc.ingestion_config if kb is None else kb.ingestion_config
+        )
+        if override is not None:
+            config = override.applied_to(config)
+        elif doc.ingestion_override:
+            config = IngestionOverride.model_validate(doc.ingestion_override).applied_to(config)
+        ingestion = IngestionConfigService(self.db)
+        await ingestion.check_docling_connection(
+            None if kb is not None and kb.scope == KBScope.APP.value else doc.organization_id,
+            config,
+            name_field=False,
+        )
+        ext = f".{doc.filetype}".lower()
+        if ext not in get_supported_formats(config.pdf_parser.value):
+            raise BadRequestError(
+                message=(
+                    f"This collection's parser no longer reads '{ext}' files; "
+                    "change its parser or upload the file to another collection"
+                ),
+                details={"doc_id": doc.id, "ext": ext, "parser": config.pdf_parser.value},
+            )
+        doc.ingestion_config = config.model_dump(mode="json")
+        if override is not None:
+            doc.ingestion_override = (
+                None if override.is_empty else override.model_dump(mode="json", exclude_unset=True)
+            )
+        doc.image_description_model = (
+            None
+            if doc.organization_id is None
+            else await ingestion.resolved_image_model(doc.organization_id, config)
+        )
+        await self.db.flush()
 
     async def delete_document(
         self,

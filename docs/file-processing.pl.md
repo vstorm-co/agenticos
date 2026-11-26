@@ -1,5 +1,5 @@
 ---
-source_sha: "b0a1ea4798cd"
+source_sha: "5e09c7ebe814"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -544,14 +544,24 @@ i niczego nie limituje, podczas gdy pula kolejkuje przy
 
 ### Obsługiwane formaty { #supported-formats }
 
-`.txt`, `.md` i `.docx` czytają wbudowane parsery pythonowe niezależnie od tego,
-jaki parser ma kolekcja. Poza nimi zestaw idzie za parserem:
+`.txt` i `.md` czyta wbudowany czytnik tekstu niezależnie od tego, jaki parser
+ma kolekcja. Każdy inny format trafia do parsera kolekcji, a zestaw idzie za nim.
+`.docx` trafia do parsera, gdy ten czyta Worda, a w przeciwnym razie do
+wbudowanego czytnika Worda, który zachowuje nagłówki i tabele (jako tabele
+markdown) w kolejności dokumentu:
 
 | Parser | Czyta dodatkowo | Wymaga |
 |--------|-----------|-------|
-| PyMuPDF | `.pdf` | niczego |
-| LiteParse | `.pdf`; obrazy (`.png`, `.jpg`, `.tiff`, `.svg`, …); formaty biurowe (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **tylko dla formatów biurowych** — obrazy są konwertowane natywnie |
-| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, obrazy | Klucz LlamaParse w vaulcie organizacji, wskazany przez kolekcję (`llamaparse_secret_id`). Nie ma klucza na poziomie wdrożenia |
+| PyMuPDF | `.pdf`; `.docx` przez wbudowany czytnik Worda | niczego |
+| LiteParse | `.pdf`, `.docx`; obrazy (`.png`, `.jpg`, `.tiff`, `.svg`, …); formaty biurowe (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **dla `.docx` i pozostałych formatów biurowych** — obrazy są konwertowane natywnie |
+| LlamaParse | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, obrazy | Klucz LlamaParse w vaulcie organizacji, wskazany przez kolekcję (`llamaparse_secret_id`). Nie ma klucza na poziomie wdrożenia |
+| Docling | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.html`, `.htm`, `.csv`; obrazy (`.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`, `.webp`) | Docling Serve zarejestrowany jako połączenie usługi, wskazany przez kolekcję (`docling_connection_id`) |
+
+Plik `.docx`, `.pptx` lub `.xlsx` jest sprawdzany pod kątem zbyt dużego lub
+uszkodzonego archiwum, zanim dostanie go jakikolwiek parser, według limitów archiwów czatu
+(`CHAT_ARCHIVE_MAX_MEMBERS`, `CHAT_ARCHIVE_MEMBER_MAX_BYTES`,
+`CHAT_ARCHIVE_TOTAL_MAX_BYTES`). Bardzo duży `.pptx` lub `.xlsx` ponad te limity
+jest teraz odrzucany przy parsowaniu także w LiteParse i LlamaParse.
 
 Dockerfile backendu instaluje LibreOffice i Tesseract, więc formaty biurowe i OCR
 działają w kontenerze od razu. Przy backendzie uruchomionym poza Dockerem upload
@@ -575,6 +585,7 @@ Per kolekcja, na `/rag`, z możliwością nadpisania per upload — nie przez zm
 | PyMuPDF (domyślny) | Szybkie przetwarzanie lokalne, dokumenty z dużą ilością tekstu; jedyny, który wyciąga osadzone obrazy do opisania |
 | LiteParse | Lokalny, bez klucza, świadomy układu; czyta formaty biurowe i obrazy; wyjście w markdownie |
 | LlamaParse | Złożone układy i skanowane PDF-y; chmura, rozliczana za stronę |
+| Docling | Układ, tabele i strony zachowane wiernie, z OCR, na Docling Serve, który prowadzisz sam; czyta też Word, Excel, PowerPoint, HTML i obrazy |
 
 ### Opcje LiteParse { #liteparse-options }
 
@@ -585,6 +596,58 @@ Per kolekcja, na `/rag`, z możliwością nadpisania per upload — nie przez zm
 | `ocr_language` | `eng` | Kody Tesseracta — trzy litery, łączone przez `+` dla kilku (`eng+pol`). Język bez zainstalowanej paczki nie przeczyta nic; dodaj `tesseract-ocr-<lang>` do Dockerfile'a. |
 | `liteparse_dpi` | `150` | Wyżej czyta blade skany, ale wolniej. |
 | `max_pages` | `1000` | Ustawienie, które ogranicza koszt jednego dokumentu; `parse_timeout_seconds` ogranicza tylko czas oczekiwania. |
+
+### Opcje Docling { #docling-options }
+
+Docling to konwerter dokumentów, który hostujesz sam ([Docling Serve](https://docling-project.github.io/docling/usage/api_server/)).
+Kolekcja, która go wybiera, wskazuje **połączenie z Docling**: połączenie usługi
+rodzaju *Parser dokumentów*, z adresem serwera (zwykle w Twojej
+sieci; platforma nie ogranicza go do adresów prywatnych) i, jeśli serwer o to
+prosi, kluczem z Vaulta (cel `docling`, wysyłany jako `X-Api-Key`). Połączenie
+na poziomie wdrożenia nie ma klucza. Połączenie należy do kolekcji, więc nadpisanie
+przy wgrywaniu może zmienić poniższe opcje, ale nie może wybrać Docling dla
+kolekcji bez połączenia; takie wgranie jest od razu odrzucane.
+
+**Test** w formularzu połączenia sprawdza, czy adres odpowiada jak Docling Serve
+i czy klucz jest przyjęty, niczego nie konwertując. Podaje wersję serwera albo
+„klucz odrzucony”, „ten serwer wymaga klucza”, „nikt nie odpowiada” lub „to nie
+jest Docling Serve”. Nigdy nie blokuje zapisu: zmiana parsera nie przesuwa
+przestrzeni wektorowej.
+
+| Ustawienie | Domyślnie | Uwagi |
+|---------|---------|-------|
+| `docling_connection_id` | brak | Wymagane, gdy parserem jest Docling. Musi być aktywnym połączeniem *Parser dokumentów*, z którego organizacja może korzystać. |
+| `ocr` | `false` | Włącza OCR w Docling. Przy wyłączonym skan PDF nie ma tekstu, a wgranie jest odrzucane z komunikatem „włącz OCR”. |
+| `auto_ocr` | `true` | Włączone: OCR tylko obszarów bitmapowych strony. Wyłączone: OCR każdej strony. |
+| `docling_ocr_languages` | puste | Do ośmiu dwuliterowych kodów (`de`, `en`). Docling odrzuca trzyliterowe kody Tesseract, dlatego to osobne pole od `ocr_language`. Puste używa domyślnego ustawienia silnika. |
+| `docling_ocr_preset` | `auto` | `auto`, `easyocr`, `rapidocr` lub `tesseract`. Dowolny tekst, bo Docling podaje silniki, których serwer może nie mieć zainstalowanych. |
+| `docling_table_mode` | `accurate` | Szybkie (`fast`) lub dokładne (`accurate`) odtwarzanie tabel. |
+| `max_pages` | `1000` | Liczba konwertowanych stron, od strony 1. |
+| `parse_timeout_seconds` | `600` | Jak długo platforma czeka na jeden dokument, najwyżej 3000 sekund, by odmowa przyszła przed własnym, godzinnym limitem zadania. |
+
+Chunki zachowują numery stron: markdown z Docling jest dzielony na strony, a
+własny splitter kolekcji, rozmiar chunka i zakładka działają na każdej stronie
+tak jak przy innych parserach. Plik `.docx` nie ma stron i jest czytany jako
+strona 1; cytowania traktują `.docx` jako niestronicowany przy każdym parserze.
+
+Dokument jest odrzucany, z komunikatem, który nigdy nie cytuje serwera, gdy
+Docling zgłasza nieudaną lub częściowo nieudaną konwersję, gdy kończy się
+wewnętrznym błędem (przyczyna jest w jego własnym logu; sprawdź języki OCR i
+preset), gdy klucz jest odrzucony albo gdy nie skończył przed terminem. Konwersja,
+która jeszcze trwa, gdy platforma się poddaje, **nie** jest anulowana — Docling
+nie ma anulowania — a Ponów odbiera jej wynik zamiast zlecać drugą konwersję.
+To samo dotyczy restartu workera lub ponowienia z kolejki. Jeśli sam serwer
+Docling się zrestartował, zapomniał zadanie i kolejna próba zleca je od nowa.
+
+Docling dostaje ten sam limit czasu, więc konwersja, która naprawdę trwała, gdy
+platforma przestała czekać, zwykle też przekroczyła swój czas, a Ponów wskazuje
+wtedy strony, których nie skończyła; podniesienie limitu przed Ponów zleca nową
+konwersję. Błąd po parsowaniu (embedding, indeksowanie) jest ponawiany nową
+konwersją, bo gotowa została już odebrana.
+
+Sprawdzone z Docling Serve 1.39.0. Starszy serwer nie potrafi wskazać
+nieudanych stron, a oferowane presety OCR nie są sprawdzane względem tego, co
+jest zainstalowane.
 
 ### Konfiguracja chunkowania { #chunking-configuration }
 
@@ -683,7 +746,100 @@ przez `app/services/embedding_resolution.py` w oparciu o katalog w
 |---|---|
 | **Model i szerokość** | Zapisywane na bazie wiedzy przy tworzeniu (`embedding_model`, `embedding_dim`) i nigdy potem niezmieniane — `PgVectorStore` zapisuje `embedding vector(N)` raz, więc drugi model albo nie da się zapisać, albo jest po cichu porównywany z wektorami z innej przestrzeni. Nowa kolekcja wybiera jeden z modeli, które serwuje jej provider; nie ma wartości domyślnej wdrożenia. |
 | **Provider** | Który endpoint zgodny z OpenAI obsługuje ten model (`embedding_provider`). **Zmienialny**, inaczej niż model: ten sam model o tej samej szerokości produkuje wektory w tej samej przestrzeni niezależnie od tego, skąd jest serwowany, więc `PATCH /kb/{id}` przenosi kolekcję między providerami i zostawia wszystko, co już zaindeksowane, ważne. |
-| **Poświadczenie** | Klucz z vault wybrany na kolekcji (`embedding_secret_id`), czyli to, za co organizacja jest rozliczana i co musi być kluczem **dla tego providera**. Nie ma klucza embeddingowego na poziomie wdrożenia: nowa kolekcja osobista albo organizacyjna musi wskazać klucz, a kolekcja bez używalnego klucza odmawia indeksowania i wyszukiwania, dopóki go nie dostanie. Provider `ollama` jest **bezkluczowy** — to Ollama w sieci samego wdrożenia — więc kolekcja u niego nie wskazuje żadnego klucza i zostaje odrzucona, jeśli spróbuje; zamiast tego wskazuje **usługę lokalną** (`embedding_endpoint_id`), wiersz w Knowledge → Integrations, który niesie adres, własny organizacji albo ogólnowdrożeniowy, zarejestrowany przez administratora aplikacji. Kolekcja **app-scoped** nie należy do żadnej organizacji, więc nie ma vaultu, z którego mogłaby wskazać klucz; może embedować wyłącznie przez providera bezkluczowego na usłudze ogólnowdrożeniowej, a wybór providera z kluczem jest dla niej odrzucany tam, gdzie provider był wybierany. |
+| **Poświadczenie** | Klucz z vault wybrany na kolekcji (`embedding_secret_id`), czyli to, za co organizacja jest rozliczana i co musi być kluczem **dla tego providera**. Nie ma klucza embeddingowego na poziomie wdrożenia: nowa kolekcja osobista albo organizacyjna musi wskazać klucz, a kolekcja bez używalnego klucza odmawia indeksowania i wyszukiwania, dopóki go nie dostanie. Provider `ollama` jest **bezkluczowy** — to Ollama w sieci samego wdrożenia — więc kolekcja u niego nie wskazuje żadnego klucza i zostaje odrzucona, jeśli spróbuje; zamiast tego wskazuje **połączenie usługi** (`embedding_endpoint_id`), wiersz w Knowledge → Integrations, który niesie adres, własny organizacji albo ogólnowdrożeniowy, zarejestrowany przez administratora aplikacji. Własny provider `openai_compatible` osiąga się tak samo, a jego klucz mieszka na połączeniu ([niżej](#a-custom-openai-compatible-endpoint-and-the-test)). Kolekcja **app-scoped** nie należy do żadnej organizacji, więc nie ma vaultu, z którego mogłaby wskazać klucz; może embedować wyłącznie przez providera bezkluczowego na połączeniu ogólnowdrożeniowym, a wybór providera z kluczem jest dla niej odrzucany tam, gdzie provider był wybierany. |
+
+#### Własny endpoint zgodny z OpenAI i Test { #a-custom-openai-compatible-endpoint-and-the-test }
+
+Wpis katalogu `openai_compatible`, widoczny jako **Custom (OpenAI-compatible)**, nie
+wymienia żadnych modeli. Embeduje przez dowolny endpoint zgodny z OpenAI, który
+organizacja rejestruje jako **połączenie usługi** (Knowledge → Integrations →
+**Add server**, styl API *OpenAI-compatible*), a model wpisuje się jako dowolny tekst.
+Połączenie może nieść klucz z vaultu organizacji (przeznaczenie `openai_compatible`):
+klucz może mieć tylko połączenie należące do organizacji, a przypięcie klucza
+użycza go każdej kolekcji na tym połączeniu, więc jego wybór wymaga `secrets:view`
+na tym kluczu. Połączenie wymaga klucza, jeśli podano go przy tworzeniu albo dodano
+później, a usunięcie klucza z połączenia z kluczem jest odrzucane. Połączenie
+ogólnowdrożeniowe jest bezkluczowe. Usunięty klucz sprawia, że połączenie odmawia
+z nazwą zamiast wysyłać żądania bez niego.
+
+Wskazanie połączenia z kluczem dla
+kolekcji, przeniesienia albo Testu wymaga `connections:view`, bo każde wywołanie
+zużywa jego klucz; Member bez tego uprawnienia może używać tylko połączeń bez klucza.
+
+Własny endpoint może serwować dowolny model, więc o niczym nie wolno zakładać. Dwa
+Testy chronią przestrzeń wektorów kolekcji przed przypadkowym przesunięciem:
+
+- **Tworzenie kolekcji.** **Test** wykonuje jedno wywołanie na stałym tekście i mierzy
+  szerokość, która musi mieścić się między 1 a 4000 (limit indeksu). **Create** pozostaje
+  nieaktywne, dopóki Test dokładnie tego endpointu i modelu z formularza nie przejdzie.
+  Przy tworzeniu nie ma obejścia.
+- **Zmiana istniejącej.** Każda zmiana, która mogłaby przesunąć przestrzeń wektorów,
+  wymaga zaliczonego Testu nowych wartości albo potwierdzonego zapisu niesprawdzonego:
+  zmiana providera, klucza, endpointu lub modelu na bazie wiedzy oraz edycja adresu lub
+  klucza połączenia embeddingowego. Zmiana nazwy połączenia, jego wstrzymanie czy edycja
+  połączenia OCR nie wymaga żadnej.
+
+Co robi Test:
+
+- Embeduje ponownie do **3 zapisanych chunków** każdej objętej bazy wiedzy - dwa
+  najkrótsze liczące co najmniej 100 znaków i najdłuższy - jedno żądanie na chunk, przez
+  nowe ustawienia. Wektory są normalizowane i porównywane z zapisanymi; test przechodzi,
+  jeśli najniższe podobieństwo cosinusowe wynosi **0,995 lub więcej**, a szerokości są
+  dokładnie równe.
+- Jeśli pierwsze porównanie się nie powiedzie, jest **powtarzane raz**, zanim Test
+  zawiedzie.
+- Baza wiedzy bez niczego zapisanego nie ma fragmentu do porównania, więc jedno wywołanie
+  na stałym tekście sprawdza tylko jej szerokość, ustaloną przy tworzeniu. Połączenie współdzielone
+  przez kilka baz wiedzy testuje każdą z nich, w jej własnym zakresie, a wynik wymienia
+  każdą.
+- Przed uruchomieniem okno pokazuje liczbę **prób**, z których każda jest płatnym wywołaniem embeddingu (`GET .../estimate`), a
+  dwukrotność to najwięcej, ile Test może wykonać. Porażka to zwykła odpowiedź, nie błąd;
+  wskazuje przyczynę dla każdej bazy wiedzy: `unreachable`, `key_refused`,
+  `model_unknown`, `wrong_width` albo `vectors_differ`.
+- Zaliczenie zwraca **token ważny 10 minut**, związany z dokładnie przetestowanymi
+  wartościami: połączeniem, adresem, kluczem i jego generacją, modelem, zmierzoną
+  szerokością i bazami wiedzy, które przeszły. Zmiana którejkolwiek wartości, rotacja
+  klucza albo podpięcie kolejnej bazy wiedzy do połączenia go unieważnia. Serwer nie
+  testuje ponownie przy zapisie, więc zapis nic nie kosztuje.
+
+**Save without testing** wysyła `unverified: true` po potwierdzeniu. Jest zapisywane w
+audycie jako `knowledge_base.embedding_changed_unverified` albo
+`service_connection.updated_unverified`, z poprzednimi i nowymi ustawieniami, które nie
+są sekretne. Nie ma cofnięcia i nic poza wpisem audytu nie jest przechowywane. Przeniesienie
+bazy wiedzy po zaliczonym Teście jest dozwolone, nawet gdy jej kolekcja jest współdzielona
+z innymi bazami wiedzy; przeniesienie niesprawdzone jest odrzucane, gdy kolekcja jest
+współdzielona, a jej ustawienia różniłyby się od ustawień pozostałych.
+
+Płatne embeddingi w runie z limitem oraz własne endpointy z kluczem opłacane przez organizację
+z limitem USD wymagają modelu z ceną w katalogu i poprawnego raportowania zużycia. Jeśli endpoint
+później pominie lub uszkodzi zużycie, częściowe rozliczenie zostaje zapisane, a zadanie zatrzymuje
+się przed kolejnym batchem lub plikiem; odmowa zasad nie jest automatycznie ponawiana. Endpointy
+bez limitu lub bez klucza nadal mogą zwrócić poprawne wektory z częściową informacją o kosztach.
+Budżety ingestii i synchronizacji nadal dopuszczają całe zadanie lub okno pracy, więc dopuszczona
+wcześniej praca może przekroczyć limit; częściowe rozliczenie nie ujawnia nieznanych opłat providera.
+
+Odpowiedź embeddingowa z indeksami musi wskazać każde wejście dokładnie raz. Przestawione indeksy
+są porządkowane według wejścia; duplikaty, mieszane, puste lub przekroczone indeksy są odrzucane.
+Zgodne endpointy bez żadnych indeksów zachowują dotychczasowy kontrakt kolejności tablicy.
+
+Ograniczenia:
+
+- Nieudany Test nie ma dalszej drogi poza nową bazą wiedzy: **nie ma przebudowy**
+  istniejącego indeksu na inny model.
+- Każde wywołanie Testu z kluczem sprawdza miesięczny limit płacącej organizacji i zapisuje
+  zgłoszone zużycie embeddingów przed zwróceniem wyniku lub ponowieniem, również przy
+  nieudanym porównaniu lub anulowaniu żądania. Nieznana cena blokuje Test przy limicie USD;
+  brak zużycia pozostaje jawnie częściowym rozliczeniem i zatrzymuje dalsze płatne wywołania.
+  Wcześniej dopuszczone równoległe wywołania mogą przekroczyć limit. Anulowanie czeka na
+  ograniczone czasowo rozliczenie; utracona odpowiedź lub awaria procesu nie pozwala ustalić
+  nieznanych opłat. Rozliczenie nigdy nie powtarza żądania po anulowaniu ani błędzie zapisu opłaty.
+- Klucz zrotowany w miejscu w vaulcie po zapisie **nie jest testowany ponownie** - ten sam
+  identyfikator klucza nadal przechodzi.
+- Test próbkuje **3 chunki**. Endpoint, który się z nimi zgadza, a gdzie indziej różni,
+  nie zostanie wykryty.
+- Providery czatu, mowy i obrazów nie używają jeszcze połączeń usług.
+- Narzędzie platform MCP `create_knowledge_base` nie utworzy własnej bazy wiedzy: nie ma
+  tokenu testu. Użyj konsoli.
 
 To, do której bazy wiedzy rozwiązuje się nazwa kolekcji, jest samo w sobie
 pytaniem o tenanta. `collection_name` jest indeksowane, ale **nieunikalne** — dwie
@@ -1358,6 +1514,31 @@ pliku — sprzed czasu, gdy uploady zaczęły zachowywać swoje, albo wciągnię
 przez synchronizację — jest odrzucany z 400, zamiast być przestawiony na
 `processing`
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+Własne ustawienia kolekcji są pod **Settings** w nagłówku jej strony (także
+**Edit** na karcie **How documents are read**). **Upload with different
+settings…** w menu przycisku **Upload** ustawia zmiany tylko dla kolejnych
+uploadów i zostawia kolekcję bez zmian. Administrator wdrożenia, tworząc
+kolekcję, widzi też **Every organization (deployment-wide)**: kolekcję app-scoped,
+która może wskazywać tylko połączenia całego wdrożenia i providerów bez klucza.
+
+W konsoli nieudany dokument ma ikonę ponowienia obok **Failed** dla każdego, kto
+może edytować kolekcję. Ponowienie parsuje z ustawieniami kolekcji takimi, jakie
+są w chwili kliknięcia, i zapisuje je na dokumencie. Skan, który zawiódł przy
+wyłączonym OCR, ponawia się więc po włączeniu OCR, bez ponownego uploadu.
+Ponowienie jest odrzucane, gdy obecny parser nie czyta już formatu pliku, a
+dokument zachowuje swoje ustawienia. Ponowienie zastępuje tylko to, co zostawiła
+jego własna nieudana próba; inny upload tego samego pliku zostaje na liście.
+
+Zmiany oczekujące dla kolejnych uploadów (**Upload with different settings…** w menu przycisku **Upload**, potem **Apply**)
+dotyczą też ponowienia, zamiast tych, z którymi plik został przesłany. Gdy żadne
+nie czekają - po **Revert** - ponowienie czyta z samymi ustawieniami kolekcji.
+
+Przez API `POST /rag/documents/{id}/retry` bez treści zachowuje zmiany, z
+którymi plik został przesłany; `ingestion_override` w treści je zastępuje, a
+pusty oznacza same ustawienia kolekcji. Ponowienie nigdy nie zastępuje innego
+uploadu tego samego pliku, nawet gdy pierwotny upload prosił o zastąpienie: do
+tego prześlij plik ponownie z `replace=true`. **Revert** w banerze usuwa oczekujące zmiany.
 
 Ponowienie odrzuca też dokument organizacji nieprzypisany do żadnej bazy wiedzy: jego
 chunki zostałyby zapisane dla całego wdrożenia, gdzie baza organizacji, która go

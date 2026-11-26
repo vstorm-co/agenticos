@@ -407,9 +407,9 @@ async def test_private_snapshot_creation_checks_permission_and_mapped_endpoint(
     mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from app.core.exceptions import AuthorizationError
-    from app.db.models.local_service import LocalService
+    from app.db.models.service_connection import ServiceConnection
     from app.services import knowledge_base as domain
-    from app.services.local_service import LocalServiceService
+    from app.services.service_connection import ServiceConnectionService
 
     ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
     service = domain.KnowledgeBaseService(mock_db_session)
@@ -421,8 +421,8 @@ async def test_private_snapshot_creation_checks_permission_and_mapped_endpoint(
     monkeypatch.setattr(domain.CollectionAccessService, "claim", claim)
     check_secret = AsyncMock()
     monkeypatch.setattr(service, "_check_embedding_secret", check_secret)
-    local = LocalService(id=endpoint, kind="embedding", provider="openai", name="Destination")
-    monkeypatch.setattr(LocalServiceService, "get_visible", AsyncMock(return_value=local))
+    local = ServiceConnection(id=endpoint, kind="embedding", provider="openai", name="Destination")
+    monkeypatch.setattr(ServiceConnectionService, "get_visible", AsyncMock(return_value=local))
     arguments: _SnapshotArguments = {
         "name": "Imported",
         "description": None,
@@ -755,3 +755,110 @@ def test_parsed_preview_availability_matches_the_content_endpoint(
         ingestion_config={},
     )
     assert _tracked_item(doc).has_parsed_content is available
+
+
+@pytest.mark.parametrize("mapping", ["reuse", "skip", "missing"])
+async def test_docling_binding_keeps_legacy_wire_kind_and_strips_source_identity(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, mapping: str
+) -> None:
+    from app.agents.spec import AgentSpec
+    from app.schemas.resource_bundle import BundleImportChoice, BundleImportCreate
+    from app.services.portability.contracts import references_for
+    from app.services.portability.facade import PortabilityService
+    from app.services.portability.snapshots import agent_snapshot
+    from app.services.portability.sources import SourceDefinition
+    from tests.test_portability_flow import receipts
+
+    receipts(monkeypatch)
+    source, destination, kb_id = uuid4(), uuid4(), uuid4()
+    content = _content().model_copy(
+        update={
+            "ingestion_config": IngestionConfig(pdf_parser="docling", docling_connection_id=source)
+        }
+    )
+    references = tuple(reference for reference, _pin in references_for(content))
+    key = f"local_service/{source}"
+    assert len(references) == 1 and references[0].target == key
+    kb = BundleResource(
+        key=f"knowledge_base/{kb_id}",
+        kind="knowledge_base",
+        name="Docling files",
+        source_id=kb_id,
+        definition=content.model_dump(mode="json"),
+        references=references,
+        included=frozenset({Layer.DEFINITION}),
+    )
+    bundle = agent_snapshot(AgentSpec(name="Reader", collection_ids=[kb_id]))
+    bundle = bundle.model_copy(
+        update={
+            "resources": (
+                *(kb if item.key == kb.key else item for item in bundle.resources),
+                BundleResource(key=key, kind="local_service", name="Docling", source_id=source),
+            )
+        }
+    )
+    bundle = type(bundle).model_validate_json(bundle.model_dump_json())
+    choices = {
+        item.key: BundleImportChoice(action="create")
+        for item in bundle.resources
+        if item.key != key
+    }
+    if mapping != "missing":
+        choices[key] = BundleImportChoice(
+            action=mapping, destination_id=destination if mapping == "reuse" else None
+        )
+    service = PortabilityService(mock_db_session)
+    monkeypatch.setattr(
+        service.sources,
+        "read",
+        AsyncMock(return_value=SourceDefinition(destination, "Destination")),
+    )
+    create = AsyncMock(side_effect=lambda *_args: uuid4())
+    monkeypatch.setattr(service, "_create", create)
+    request = BundleImportCreate(operation_id=uuid4(), bundle=bundle, choices=choices)
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="owner")
+    if mapping == "missing":
+        with pytest.raises(BadRequestError):
+            await service.import_bundle(ctx, request)
+        create.assert_not_awaited()
+        return
+    result = await service.import_bundle(ctx, request)
+    assert result.omitted_bindings.get(kb.key, ()) == (
+        (("ingestion_config", "docling_connection_id"),) if mapping == "skip" else ()
+    )
+    definition = next(
+        call.args[2]
+        for call in create.await_args_list
+        if call.args[1] == BundleResourceKind.KNOWLEDGE_BASE
+    )
+    imported = KnowledgeBaseContent.model_validate(definition)
+    assert imported.ingestion_config.docling_connection_id == (
+        destination if mapping == "reuse" else None
+    )
+    assert str(source) not in str(definition)
+
+
+def test_document_snapshot_docling_reference_is_discovered_separately_from_base() -> None:
+    from app.services.portability.references import resource_pins
+
+    connection = uuid4()
+    content = _content().model_copy(
+        update={
+            "documents": (
+                KnowledgeDocumentContent(
+                    id=uuid4().hex,
+                    filename="scan.pdf",
+                    filesize=1,
+                    filetype="pdf",
+                    ingestion_config=IngestionConfig(
+                        pdf_parser="docling", docling_connection_id=connection
+                    ),
+                ),
+            )
+        }
+    )
+    pins = resource_pins(content)
+    assert len(pins) == 1
+    assert pins[0].kind == BundleResourceKind.LOCAL_SERVICE
+    assert pins[0].source_id == connection
+    assert pins[0].path == ("documents", 0, "ingestion_config", "docling_connection_id")

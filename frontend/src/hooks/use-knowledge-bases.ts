@@ -19,6 +19,7 @@ import type {
   SyncSourceRead,
   SyncSourceUpdate,
 } from "@/lib/rag-api";
+import { retryKBDocument } from "@/lib/rag-api";
 import { overrideSize } from "@/lib/ingestion-config";
 import { useTenantGuard, useTenantId } from "@/hooks/use-organizations";
 import { usePermissions } from "./use-permissions";
@@ -544,11 +545,15 @@ export function useKBDetail(id: string | null) {
   );
 
   const retryDocument = useCallback(
-    async (docId: string) => {
+    async (docId: string, override?: IngestionOverride) => {
       if (!id) return;
       const startedIn = activeOrgId;
       try {
-        await apiClient.post(`/rag/documents/${docId}/retry`);
+        if (override === undefined) {
+          await apiClient.post(`/rag/documents/${docId}/retry`);
+        } else {
+          await retryKBDocument(docId, override);
+        }
         if (!stillSameTenant(startedIn)) return;
         queryClient.removeQueries({ queryKey: qk.kb.documentParsed(id, docId) });
         await refreshIngestion();

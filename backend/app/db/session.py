@@ -5,6 +5,7 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
     AsyncSession,
@@ -93,7 +94,12 @@ async def _managed_session(
             # A domain refusal (a 4xx AppException) is an ordinary outcome, not an
             # application error, so it rolls back without a traceback - the ERROR
             # line, and its stack, is kept for the unexpected and for 5xx faults (#19).
-            if not isinstance(exc, AppException) or exc.status_code >= 500:
+            # A body the schema refused is the same kind of outcome, answered 422 by
+            # its own handler, and its errors repeat the submitted values verbatim.
+            refusal = isinstance(exc, RequestValidationError) or (
+                isinstance(exc, AppException) and exc.status_code < 500
+            )
+            if not refusal:
                 logger.exception("DB session error, rolling back")
             try:
                 await session.rollback()
@@ -219,6 +225,18 @@ async def get_worker_db_context() -> AsyncGenerator[AsyncSession]:
             yield session
     finally:
         await worker_engine.dispose()
+
+
+@asynccontextmanager
+async def get_independent_db_context() -> AsyncGenerator[AsyncSession]:
+    """Commit a short receipt/preflight independently of a caller's transaction.
+
+    A request may already own a pooled connection. Taking a second connection
+    from that same pool can deadlock at capacity; the existing owned NullPool
+    lifecycle avoids that circular wait and never commits the caller's state.
+    """
+    async with get_worker_db_context() as session:
+        yield session
 
 
 @asynccontextmanager

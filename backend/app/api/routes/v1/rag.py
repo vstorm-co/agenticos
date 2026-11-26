@@ -66,6 +66,7 @@ from app.schemas.rag import (
     RAGFilterValues,
     RAGIngestResponse,
     RAGMessageResponse,
+    RAGRetryRequest,
     RAGRetryResponse,
     RAGSearchRequest,
     RAGSearchResponse,
@@ -84,7 +85,7 @@ from app.schemas.sync_source import (
     SyncSourceRead,
     SyncSourceUpdate,
 )
-from app.services.ingestion_config import PdfParserName, parse_override
+from app.services.ingestion_config import IngestionOverride, PdfParserName, parse_override
 from app.services.model_profile import validate_endpoint_url
 from app.services.rag import embedding_providers
 from app.services.rag.config import get_supported_formats
@@ -101,7 +102,7 @@ async def list_embedding_models() -> Any:
     create-collection form and the one that moves an existing collection to
     another provider, and hardcoding it in the client is how the form and the
     build drift apart. There is no deployment default in it: the model, the
-    provider and what pays - a vault key, or a local service for a keyless
+    provider and what pays - a vault key, or a service connection for a keyless
     provider - are the collection's own choice, every time.
     """
     return {
@@ -111,6 +112,7 @@ async def list_embedding_models() -> Any:
                 "name": entry.name,
                 "models": [{"model": model.model, "dim": model.dim} for model in entry.models],
                 "keyless": entry.keyless,
+                "any_model": entry.any_model,
             }
             for entry in embedding_providers.providers()
         ],
@@ -533,10 +535,19 @@ async def retry_ingestion(
     rag_doc_svc: RAGDocumentSvc,
     access: CollectionAccessSvc,
     ctx: Auth,
+    body: RAGRetryRequest | None = None,
 ) -> Any:
-    """Index an imported original or retry ingestion with this document's edit access."""
+    """Index a stored original or retry ingestion with document edit access.
+
+    It parses with the collection's settings as they are now. A body replaces
+    the departures the file was uploaded with by its `ingestion_override` -
+    the console sends the ones pending for the next uploads, and an empty or
+    absent one means the collection's settings alone. No body keeps the file's
+    own.
+    """
     tracked = await access.writable_document(ctx, doc_id)
-    doc = await rag_doc_svc.retry_ingestion(str(tracked.id))
+    override = None if body is None else (body.ingestion_override or IngestionOverride())
+    doc = await rag_doc_svc.retry_ingestion(str(tracked.id), override=override)
     return RAGRetryResponse(id=str(doc.id), status="processing", message="Retry queued")
 
 

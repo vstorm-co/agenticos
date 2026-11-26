@@ -52,7 +52,6 @@ from app.db.models.eval_suite import EvalSuite
 from app.db.models.event_source import EventSource
 from app.db.models.group import Group, GroupMember
 from app.db.models.knowledge_base import KnowledgeBase
-from app.db.models.local_service import LocalService
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.notification_route import NotificationRoute
@@ -61,6 +60,7 @@ from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.project import Project
 from app.db.models.sandbox_connection import SandboxConnection
+from app.db.models.service_connection import ServiceConnection
 from app.db.models.session import Session
 from app.db.models.skill import Skill, SkillResource
 from app.db.models.skill_version import SkillFork
@@ -103,7 +103,6 @@ from app.schemas.eval_suite import EvalSuiteUpdate
 from app.schemas.event_source import EventSourceUpdate
 from app.schemas.group import GroupLeadUpdate, GroupUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
-from app.schemas.local_service import LocalServiceUpdate
 from app.schemas.mcp_connection import (
     McpConnectionUpdate,
     OrgMcpConnectionUpdate,
@@ -123,6 +122,7 @@ from app.schemas.retention import RetentionUpdate
 from app.schemas.sandbox_connection import SandboxConnectionUpdate
 from app.schemas.scoring import DatasetScoringUpdate, JudgeScorerUpdate
 from app.schemas.secret import SecretUpdate
+from app.schemas.service_connection import ServiceConnectionUpdate
 from app.schemas.session import SessionAppUpdate
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.schemas.skill_version import SkillForkUpdate
@@ -195,7 +195,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     GroupUpdate: Group,
     GroupLeadUpdate: GroupMember,
     KnowledgeBaseUpdate: KnowledgeBase,
-    LocalServiceUpdate: LocalService,
+    ServiceConnectionUpdate: ServiceConnection,
     SystemAgentUpdate: SystemAgentProfile,
     McpConnectionUpdate: McpConnection,
     MemoryNoteUpdate: AgentMemoryFile,

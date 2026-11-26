@@ -150,7 +150,7 @@ def main() -> None:
     service = mapping(
         client.request(
             "POST",
-            "/local-services",
+            "/service-connections",
             {
                 "name": f"Smoke embeddings {stamp}",
                 "kind": "embedding",

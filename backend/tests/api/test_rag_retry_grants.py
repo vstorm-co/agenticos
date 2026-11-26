@@ -13,14 +13,16 @@ from app.core.permissions import AuthContext
 from app.db.models.rag_document import DocumentStatus, RAGDocument
 from app.main import app
 from app.services.collection_access import CollectionAccessService
+from app.services.ingestion_config import IngestionOverride
 from app.services.rag_document import RAGDocumentService
 
 pytestmark = pytest.mark.anyio
 
 
 @pytest.mark.parametrize("allowed", [True, False])
+@pytest.mark.parametrize("override", [None, IngestionOverride(ocr=True)])
 async def test_indexing_delegates_to_the_document_access_decision(
-    client: AsyncClient, allowed: bool
+    client: AsyncClient, allowed: bool, override: IngestionOverride | None
 ) -> None:
     ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role="viewer")
     document = RAGDocument(id=uuid4(), status=DocumentStatus.STORED)
@@ -40,11 +42,19 @@ async def test_indexing_delegates_to_the_document_access_decision(
             deps.get_rag_document_service: lambda: service,
         },
     ):
-        response = await client.post(f"{settings.API_V1_STR}/rag/documents/{document.id}/retry")
+        arguments = (
+            {}
+            if override is None
+            else {"ingestion_override": override.model_dump(exclude_unset=True)}
+        )
+        response = await client.post(
+            f"{settings.API_V1_STR}/rag/documents/{document.id}/retry",
+            **({} if override is None else {"json": arguments}),
+        )
     assert response.status_code == (200 if allowed else 403)
     access.writable_document.assert_awaited_once_with(ctx, str(document.id))
     if allowed:
-        service.retry_ingestion.assert_awaited_once_with(str(document.id))
+        service.retry_ingestion.assert_awaited_once_with(str(document.id), override=override)
         assert response.json()["status"] == "processing"
     else:
         service.retry_ingestion.assert_not_awaited()

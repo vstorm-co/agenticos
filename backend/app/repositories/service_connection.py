@@ -1,4 +1,4 @@
-"""Data access for local services."""
+"""Data access for service connections."""
 
 from typing import Any
 from uuid import UUID
@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models.local_service import LocalService
+from app.db.models.service_connection import ServiceConnection
 
 
 def _visible_to(organization_id: UUID | None):
@@ -16,16 +16,16 @@ def _visible_to(organization_id: UUID | None):
     sees the deployment's rows and nobody else's.
     """
     if organization_id is None:
-        return LocalService.organization_id.is_(None)
+        return ServiceConnection.organization_id.is_(None)
     return or_(
-        LocalService.organization_id == organization_id,
-        LocalService.organization_id.is_(None),
+        ServiceConnection.organization_id == organization_id,
+        ServiceConnection.organization_id.is_(None),
     )
 
 
 async def get_visible(
     db: AsyncSession, service_id: UUID, *, organization_id: UUID | None
-) -> LocalService | None:
+) -> ServiceConnection | None:
     """One service, if this organization may name it.
 
     The scope is not decoration: without it a service id from another tenant
@@ -33,31 +33,41 @@ async def get_visible(
     be sent to.
     """
     result = await db.execute(
-        select(LocalService).where(LocalService.id == service_id, _visible_to(organization_id))
+        select(ServiceConnection).where(
+            ServiceConnection.id == service_id, _visible_to(organization_id)
+        )
     )
     return result.scalar_one_or_none()
 
 
-async def list_visible(db: AsyncSession, *, organization_id: UUID | None) -> list[LocalService]:
+async def list_visible(
+    db: AsyncSession, *, organization_id: UUID | None
+) -> list[ServiceConnection]:
     result = await db.execute(
-        select(LocalService)
+        select(ServiceConnection)
         .where(_visible_to(organization_id))
-        .order_by(LocalService.kind, LocalService.organization_id.is_(None), LocalService.name)
+        .order_by(
+            ServiceConnection.kind,
+            ServiceConnection.organization_id.is_(None),
+            ServiceConnection.name,
+        )
     )
     return list(result.scalars().all())
 
 
 async def get_by_name(
     db: AsyncSession, *, organization_id: UUID | None, kind: str, name: str
-) -> LocalService | None:
+) -> ServiceConnection | None:
     """A row of this kind by name, within one owner - the organization's or the deployment's."""
     owner = (
-        LocalService.organization_id.is_(None)
+        ServiceConnection.organization_id.is_(None)
         if organization_id is None
-        else LocalService.organization_id == organization_id
+        else ServiceConnection.organization_id == organization_id
     )
     result = await db.execute(
-        select(LocalService).where(owner, LocalService.kind == kind, LocalService.name == name)
+        select(ServiceConnection).where(
+            owner, ServiceConnection.kind == kind, ServiceConnection.name == name
+        )
     )
     return result.scalar_one_or_none()
 
@@ -71,14 +81,18 @@ async def create(
     name: str,
     base_url: str,
     created_by_user_id: UUID | None,
-) -> LocalService:
-    row = LocalService(
+    secret_id: UUID | None,
+    requires_key: bool,
+) -> ServiceConnection:
+    row = ServiceConnection(
         organization_id=organization_id,
         kind=kind,
         provider=provider,
         name=name,
         base_url=base_url,
         created_by_user_id=created_by_user_id,
+        secret_id=secret_id,
+        requires_key=requires_key,
     )
     db.add(row)
     await db.flush()
@@ -87,8 +101,8 @@ async def create(
 
 
 async def update(
-    db: AsyncSession, *, row: LocalService, update_data: dict[str, Any]
-) -> LocalService:
+    db: AsyncSession, *, row: ServiceConnection, update_data: dict[str, Any]
+) -> ServiceConnection:
     for field, value in update_data.items():
         setattr(row, field, value)
     await db.flush()
@@ -96,6 +110,6 @@ async def update(
     return row
 
 
-async def delete(db: AsyncSession, *, row: LocalService) -> None:
+async def delete(db: AsyncSession, *, row: ServiceConnection) -> None:
     await db.delete(row)
     await db.flush()

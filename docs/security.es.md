@@ -1,5 +1,5 @@
 ---
-source_sha: "79536bb10996"
+source_sha: "7ff2edf55896"
 ---
 
 # Seguridad { #security }
@@ -88,6 +88,13 @@ sin rodeos porque una revisión lo va a encontrar:
   usarlo, así que los protege la caducidad y el uso único, no el cifrado. Los
   refresh tokens de sesión son la excepción que sí se hashea en reposo
   (`sessions.refresh_token_hash`).
+- **Los tokens de prueba de embeddings** - la prueba de que un Test pasó, que presenta un guardado - son
+  JWT firmados (HS256 con `SECRET_KEY`), válidos 10 minutos y ligados a los valores exactos probados. No
+  son credenciales: la autenticación con token de acceso rechaza cualquier token cuyo tipo no sea `access`,
+  así que ninguno puede iniciar sesión a nadie. Una fila de conexión guarda el id de un secreto del vault,
+  nunca su valor, y las entradas de auditoría de una conexión o de un cambio de embeddings no contienen
+  clave, token ni query string de URL.
+
 - **Los archivos subidos y los del chat** están donde los ponga
   `FILE_STORAGE_BACKEND` (`app/services/file_storage.py`). Con `local`, el valor
   por defecto, eso es en claro en el sistema de archivos del contenedor de la
@@ -135,7 +142,7 @@ agent del que depende el equipo.
 | `organization_members` | Cascada | A qué organizaciones pertenece, como qué y desde cuándo | Una fila que la nombra directamente y que un administrador ya ve |
 | `channel_identities` | **Purgado explícitamente** | Sí | `SET NULL` dejaba la fila con un id de Slack, un nombre de usuario y un nombre visible de alguien que ya no está, vinculada a nadie |
 | `agent_runs` | `SET NULL` — se conservan | Runs que iniciaron y lo que costó cada uno | El gasto es el registro de la organización; un run anónimo sigue contando para el mes |
-| `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `local_services` | `SET NULL` — se conservan | No | Creados *para la organización*. Quitarlos se llevaría el trabajo del equipo con la persona |
+| `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `service_connections` | `SET NULL` — se conservan | No | Creados *para la organización*. Quitarlos se llevaría el trabajo del equipo con la persona |
 | `organization_secrets` | `SET NULL`, y un secreto privado asciende a la organización | No | Una credencial sobre la que corre la organización. El ascenso es lo que impide que un secreto sin dueño bloquee el borrado |
 | `organizations` | La org personal se borra; una compartida que crearon pasa a otro propietario | No | Nadie puede quedarse con una organización sin propietario |
 | `resource_grants` | Cascada en quien lo recibe; `SET NULL` en quien lo concedió | No | Un permiso *para* ellos es suyo; uno que *concedieron* es el registro de la organización de quién puede qué |

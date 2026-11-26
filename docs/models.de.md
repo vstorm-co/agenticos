@@ -1,5 +1,5 @@
 ---
-source_sha: "b4f01f7af48e"
+source_sha: "7347ebc121ae"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -588,6 +588,12 @@ Anbieters spricht über diesen Anbieter.
 dass die Auswahl genau das anbietet, was Ihr Server ausliefert. Die Modell-ID
 bleibt Freitext: Ein Server ohne veröffentlichte Liste ist trotzdem benutzbar,
 wenn Sie die ID eintippen.
+
+**Embeddings über dasselbe Gateway.** Ein Gateway, das ein `openai_compatible`-Chatprofil erreicht, kann auch
+embedden: Registrieren Sie es unter Knowledge → Integrations als **Dienstverbindung** mit dem API-Stil
+*OpenAI-compatible* und wählen Sie denselben Vault-Schlüssel (sein Zweck ist `openai_compatible`). Die
+Collection nutzt dann den Embedding-Provider **Custom (OpenAI-compatible)** mit einem Model, das Sie
+eingeben, nach einem Test gegen ihre gespeicherten Chunks. Siehe [Dateiverarbeitung](file-processing.md#a-custom-openai-compatible-endpoint-and-the-test).
 
 ### Wenn die Zugangsdaten kein API-Key sind { #when-the-credential-is-not-an-api-key }
 

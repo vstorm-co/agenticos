@@ -1030,3 +1030,32 @@ class TestASyncLogPassedInIsNotLeftRunning:
         assert answer["status"] == "error"
         sync_svc.complete_sync.assert_not_awaited()
         sources.update_after_sync.assert_awaited_once()
+
+
+async def test_usage_policy_refusal_stops_source_before_next_file_and_retains_partial_receipt():
+    from app.agents.capabilities.budget import record_ambient_cost
+    from app.core.exceptions import EmbeddingBudgetError
+
+    connector = _connector()
+    connector.list_files.return_value = RemoteListing(
+        files=[
+            RemoteFile(id="one", name="one.md", source_path="gdrive://one"),
+            RemoteFile(id="two", name="two.md", source_path="gdrive://two"),
+        ]
+    )
+    async with _syncing(mode="full", listing=[], connector=connector) as (ingest, documents):
+
+        async def refuse(**_):
+            record_ambient_cost("custom", None)
+            raise EmbeddingBudgetError(message="usage unavailable")
+
+        ingest.side_effect = refuse
+        answer = await rag_tasks._run_source_sync(str(uuid.uuid4()), sync_log_id=str(uuid.uuid4()))
+        receipt = rag_tasks._record_embedding_spend
+        receipt.assert_awaited_once()
+        assert receipt.call_args.args[0].has_unpriced_models
+    assert answer["status"] == "error"
+    ingest.assert_awaited_once()
+    documents.fail_ingestion.assert_awaited_once()
+    connector.download_file.assert_awaited_once()
+    connector.aclose.assert_awaited_once()

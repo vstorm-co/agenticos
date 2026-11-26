@@ -76,7 +76,8 @@ and hash:
 `POST /api/v1/ml/documents/analyze` reads what a document already carries. The
 `parser` field chooses between `liteparse`, which preserves the layout and reads
 office formats where LibreOffice is installed, and `pymupdf`, which reads PDFs
-and is faster. `chunk_size`, `chunk_overlap` and `chunking_strategy` shape the
+and `.docx` and is faster. A `.docx` is read by the chosen engine, not by a
+separate built-in reader. `chunk_size`, `chunk_overlap` and `chunking_strategy` shape the
 prepared chunks; the strategies are `recursive`, `fixed` and `markdown`, and a
 fourth spelling is refused rather than quietly treated as `recursive`.
 
@@ -103,14 +104,13 @@ refused at the boundary instead. A deployment that installs more packs widens th
 list in the same change.
 
 `ocr_service_id` names an OCR server registered under
-[local services](configuration.md), so a deployment running its own recognition
+[service connections](configuration.md), so a deployment running its own recognition
 sidecar sends the pages there; omit it and the engine bundled with the parser
 reads them. Either way the pages stay on the deployment's own network.
 
-**A `.docx` is refused here**, although the parser reads one. Ingestion routes
-office documents to the native reader before it consults the OCR parser, so
-accepting one would extract its existing paragraphs, skip its scanned pages and
-say nothing about the difference. Convert it to PDF.
+A `.docx` is recognised like any other document: the chosen engine reads it
+(LiteParse converts it through LibreOffice), so a scanned page inside one is
+recognised too.
 
 One call recognises at most **200 pages** and has **120 seconds**, both narrower
 than ingestion's, because a caller is waiting on this and nobody waits on an
@@ -150,7 +150,7 @@ in the vault, the one named is the one that pays.
     Every catalogued provider is reached at its own address, with a key. A
     keyless server on your own network - a Whisper behind an OpenAI-compatible
     API - is not reachable today. It is a planned follow-up: a
-    [local service](configuration.md) of a new kind, `speech`, named in place of
+    [service connection](configuration.md) of a new kind, `speech`, named in place of
     a key, as collections already name an embedding or an OCR server.
 
 A refusal says why in `details.reason`, here and on

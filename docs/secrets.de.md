@@ -1,5 +1,5 @@
 ---
-source_sha: "62a1e2196945"
+source_sha: "0bb86fae5329"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -217,6 +217,15 @@ bekommen, auch eines vor einem Gateway. Ohne Key läuft nur ein Profil weiter, d
 absichtlich ohne Key gespeichert wurde
 ([Ein Profil ohne Schlüssel](models.md#a-profile-without-a-key)).
 
+**Dienstverbindungen.** Eine Embedding-Verbindung im OpenAI-kompatiblen Stil kann einen
+Vault-Schlüssel benennen, einen API-Schlüssel mit dem Zweck `openai_compatible`. Nur eine Verbindung der
+Organisation kann einen halten; eine deploymentweite Verbindung ist schlüssellos. Einen Schlüssel zu
+binden heißt, ihn zu verleihen, wie bei einem Modellprofil: Seine Auswahl, beim Anlegen und bei jeder
+Schlüsseländerung, braucht `secrets:view` auf diesem Schlüssel. Ein gelöschter Schlüssel lässt die
+Verbindung mit Namen ablehnen, statt Anfragen ohne ihn zu senden, und der Wert des Schlüssels steht nie
+in der Zeile der Verbindung, in ihren API-Antworten oder in ihren Audit-Einträgen. Das Rotieren des
+Werts an Ort und Stelle testet die Verbindung nicht erneut.
+
 **Spracherkennung.** Ein API-Schlüssel, dessen Zweck der Anbieter ist, per ID
 neben Anbieter und Modell benannt, wo immer Spracherkennung eingerichtet wird:
 in der Voreinstellung der Organisation, in der Überschreibung eines Agents und
@@ -316,6 +325,7 @@ Organisation ihren eigenen Key mitbringen darf:
 | Exa | `web_research` |
 | Logfire | [Observability](reference/spec.md#observability) pro Agent — Traces in ein eigenes Projekt |
 | LlamaParse | PDF-Parsing, abgerechnet auf den eigenen Key der Organisation |
+| Docling Serve (Zweck `docling`) | Dokumenten-Parsing auf einem Docling Serve, den die Organisation betreibt; der Key ist optional, gehört zu einer Verbindung der Organisation und wird als `X-Api-Key` gesendet |
 | ElevenLabs | [`text_to_speech`](reference/capabilities.md#text-to-speech) — Sprache in den Stimmen des ElevenLabs-Kontos der Organisation |
 | BytePlus ModelArk | [`video_generation`](reference/capabilities.md#video-generation) — die Seedance-Videomodelle von ByteDance |
 

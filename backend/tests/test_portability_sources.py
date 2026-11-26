@@ -105,7 +105,12 @@ pytestmark = pytest.mark.anyio
             KnowledgeBaseContent,
         ),
         ("sandbox_connection", "SandboxConnectionService.get", {"name": "Sandbox"}, type(None)),
-        ("local_service", "LocalServiceService.get_visible", {"name": "Local OCR"}, type(None)),
+        (
+            "local_service",
+            "ServiceConnectionService.get_visible",
+            {"name": "Local OCR"},
+            type(None),
+        ),
     ],
 )
 async def test_source_adapters_use_scoped_services_and_never_serialize_storage_rows(

@@ -1,5 +1,5 @@
 ---
-source_sha: "79536bb10996"
+source_sha: "7ff2edf55896"
 ---
 
 # Bezpieczeństwo { #security }
@@ -84,6 +84,13 @@ wprost, bo przegląd i tak to znajdzie:
   wyszukiwane po równości, nie pieczętowane w vault. Kto ma wartość, ten może jej
   użyć, więc chroni je wygaśnięcie i jednorazowość, a nie szyfrowanie. Wyjątkiem
   są refresh tokeny sesji, haszowane w spoczynku (`sessions.refresh_token_hash`).
+- **Tokeny testu embeddingów** - dowód, że Test przeszedł, który przedstawia zapis - to podpisane
+  JWT (HS256 z `SECRET_KEY`), ważne 10 minut i związane z dokładnie przetestowanymi wartościami. To nie
+  są poświadczenia: uwierzytelnianie tokenem dostępu odrzuca każdy token, którego typ nie jest `access`,
+  więc żaden nie zaloguje nikogo. Wiersz połączenia trzyma identyfikator sekretu z vaultu, nigdy jego
+  wartość, a wpisy audytu dla połączenia albo zmiany embeddingów nie zawierają klucza, tokenu ani
+  zapytania w URL.
+
 - **Wgrane pliki i pliki z czatu** leżą tam, gdzie umieści je
   `FILE_STORAGE_BACKEND` (`app/services/file_storage.py`). Przy domyślnym
   `local` jest to system plików kontenera API otwartym tekstem, chroniony
@@ -130,7 +137,7 @@ dalej, bo usunięcie konta kolegi nie może usunąć agenta, od którego zależy
 | `organization_members` | Kaskada | Do których organizacji, jako kto, od kiedy | Wiersz wskazujący wprost na tę osobę, widoczny już dla administratora |
 | `channel_identities` | **Czyszczone jawnie** | Tak | `SET NULL` zostawiał wiersz z id Slacka, nazwą i nazwą wyświetlaną osoby, której już nie ma, powiązany z nikim |
 | `agent_runs` | `SET NULL` — zachowywane | Runy, które uruchomili, i ile kosztowały | Wydatek jest zapisem organizacji; anonimowy run wciąż liczy się do miesiąca |
-| `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `local_services` | `SET NULL` — zachowywane | Nie | Stworzone *dla organizacji*. Usunięcie zabrałoby pracę zespołu razem z osobą |
+| `agents`, `knowledge_bases`, `skills`, `contexts`, `agent_triggers`, `agent_environments`, `agent_exposures`, `service_connections` | `SET NULL` — zachowywane | Nie | Stworzone *dla organizacji*. Usunięcie zabrałoby pracę zespołu razem z osobą |
 | `organization_secrets` | `SET NULL`, a sekret prywatny awansuje do organizacji | Nie | Poświadczenie, na którym działa organizacja. Awans jest tym, co nie pozwala bezpańskiemu sekretowi zablokować usunięcia |
 | `organizations` | Org osobista usuwana; współdzielona, którą stworzyli, przechodzi na innego właściciela | Nie | Nikt nie może zostać z organizacją bez właściciela |
 | `resource_grants` | Kaskada po obdarowanym; `SET NULL` po nadającym | Nie | Uprawnienie *dla* nich jest ich; uprawnienie, które *nadali*, jest zapisem organizacji, kto co może |
