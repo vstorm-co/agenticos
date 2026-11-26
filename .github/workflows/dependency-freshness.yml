@@ -1,7 +1,8 @@
 # Are we still compatible with the newest release of everything?
 #
-# Nothing in `pyproject.toml` is capped, so the lockfile is the only thing
-# holding versions still. Without something that tries the newest of each, the
+# Dependencies are tested at their newest supported versions. Provider bounds
+# document incompatible upstream API migrations; the lockfile holds exact
+# versions still. Without something that tries the newest of each, the
 # first anyone hears of a breaking change is a Dependabot pull request nobody
 # had time to read - or, for a transitive dependency Dependabot does not
 # propose at all, a failure in production.

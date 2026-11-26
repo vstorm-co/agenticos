@@ -132,7 +132,6 @@ def test_an_agent_configured_in_a_step_travels_without_this_deployments_ids():
     assert kept["inline"] == {
         "name": "Lead scorer",
         "instructions": "Score the lead.",
-        "collection_ids": [],
         "capabilities": [
             {"id": "web_research", "config": {"max_results": 3}},
             {"id": "clock"},
@@ -141,7 +140,7 @@ def test_an_agent_configured_in_a_step_travels_without_this_deployments_ids():
     }
     assert sorted(entry.field for entry in unresolved) == [
         "inline.capabilities.0.config.secret_id",
-        "inline.collection_ids.0",
+        "inline.collection_ids",
         "inline.mcp_servers.0",
         "inline.model_profile_id",
     ]
@@ -171,3 +170,19 @@ def test_an_unset_model_and_a_capability_without_settings_stay_portable() -> Non
     carried, unresolved = portable(WorkflowGraph(entry_node_id=step.id, nodes=(step,)))
     assert carried.nodes[0].config["inline"] == spec
     assert not unresolved
+
+
+def test_schema_declared_reference_list_items_are_omitted_individually() -> None:
+    from app.workflows.graph.portable import _strip_spec
+
+    identity = str(uuid.uuid4())
+    found: list[tuple[str, str]] = []
+    carried = _strip_spec(
+        [identity, None],
+        {"type": "array", "items": {"type": "string", "format": "uuid"}},
+        {},
+        "inline.resource_ids",
+        found,
+    )
+    assert carried == [None]
+    assert found == [("inline.resource_ids.0", "agent_spec")]

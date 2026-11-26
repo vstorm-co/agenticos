@@ -122,6 +122,55 @@ describe("useTriggers", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.conversations.all() });
   });
 
+  it("refreshes cached subscribers on create, rebind, pause and delete without touching samples", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useTriggers("a1"), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    const shared = trigger({ trigger_type: "event", source_id: "new-source" });
+    vi.mocked(apiClient.post).mockResolvedValue(shared);
+    vi.mocked(apiClient.patch).mockResolvedValue(shared);
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+    const oldUsage = qk.eventSources.usage("old-source");
+    const newUsage = qk.eventSources.usage("new-source");
+    const sample = qk.eventSources.capture("new-source", "listener");
+    client.setQueryData(sample, {});
+    const operations = [
+      {
+        mutate: () =>
+          result.current.create.mutateAsync({
+            trigger_type: "event",
+            source_id: "new-source",
+            prompt: "Triage",
+          }),
+        refreshOld: false,
+      },
+      {
+        mutate: () =>
+          result.current.update.mutateAsync({
+            triggerId: "t1",
+            patch: { source_id: "new-source" },
+          }),
+        refreshOld: true,
+      },
+      {
+        mutate: () => result.current.setActive.mutateAsync({ triggerId: "t1", isActive: false }),
+        refreshOld: false,
+      },
+      { mutate: () => result.current.remove.mutateAsync("t1"), refreshOld: true },
+    ];
+    for (const { mutate, refreshOld } of operations) {
+      client.setQueryData(oldUsage, []);
+      client.setQueryData(newUsage, []);
+      await mutate();
+      expect(client.getQueryState(newUsage)?.isInvalidated).toBe(true);
+      expect(client.getQueryState(oldUsage)?.isInvalidated).toBe(refreshOld);
+      expect(client.getQueryState(sample)?.isInvalidated).toBe(false);
+    }
+  });
+
   it("sends only is_active when pausing, and names the act", async () => {
     const { toast } = await import("sonner");
     vi.mocked(apiClient.patch).mockResolvedValue(trigger({ is_active: false }));

@@ -56,7 +56,7 @@ export function ImprovementPage({ agentId, sessionId }: { agentId: string; sessi
           title={t("title", { name: agent.name })}
           breadcrumbs={[{ label: agent.name, href: `/agents/${agentId}` }, { label: t("heading") }]}
         />
-        <p role="alert">{t("permission")}</p>
+        <p role="alert">{can(Perm.runsView) ? t("permission") : t("permissionRuns")}</p>
         <Link className="text-sm underline underline-offset-4" href={`/agents/${agentId}`}>
           {t("openAgent")}
         </Link>

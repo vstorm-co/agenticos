@@ -40,6 +40,9 @@ class LockScope(IntEnum):
     #: Retained copied transcript bytes, serialized through the clone commit.
     CONVERSATION_FORK_STORAGE_PER_ORG = 31
     CONNECTED_ACCOUNTS = 25
+    MCP_OAUTH_CLIENTS_PER_ORG = 39
+    #: Resumable transfers serialize request replay and open-operation ceilings.
+    PORTABILITY_PER_OWNER = 40
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2
@@ -151,7 +154,7 @@ class LockScope(IntEnum):
     #: check of the same text running and pay for it twice.
     SKILL_CHECK_STARTS_PER_SKILL = 37
     #: A custom-priced profile's approval and replacement of the credential it uses.
-    MODEL_PRICING_PER_SECRET = 39
+    MODEL_PRICING_PER_SECRET = 41
 
 
 def _key(subject: UUID) -> int:

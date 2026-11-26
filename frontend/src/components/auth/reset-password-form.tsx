@@ -8,6 +8,8 @@ import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { getErrorMessage } from "@/lib/api-error";
+import { useBranding } from "@/components/branding/branding-provider";
+import { ProviderSignIn } from "@/components/auth/provider-sign-in";
 import { AuthHeading } from "@/components/auth/auth-heading";
 import { Button, Input, Label } from "@/components/ui";
 import { apiClient, ApiError } from "@/lib/api-client";
@@ -19,6 +21,7 @@ interface Props {
 }
 
 export function ResetPasswordForm({ token }: Props) {
+  const branding = useBranding();
   const tErrors = useTranslations("errors");
 
   const t = useTranslations("auth.resetPassword");
@@ -63,6 +66,8 @@ export function ResetPasswordForm({ token }: Props) {
       setSubmitting(false);
     }
   };
+
+  if (!branding.passwordSignInEnabled) return <ProviderSignIn />;
 
   return (
     <div className="space-y-8">

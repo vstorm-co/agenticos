@@ -3,6 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { ArrowRight, Loader2, Mic, TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { SetupIndicator } from "@/components/settings/setup-indicator";
@@ -36,6 +37,7 @@ import type { SpeechToTextProvider } from "@/hooks/use-model-providers";
 import { NO_FAILURE, submitFailure, type SubmitFailure } from "@/lib/api-error";
 import type { Organization, VoiceSettingsUpdate } from "@/types";
 import { Perm } from "@/types/permissions";
+import { qk } from "@/lib/query-keys";
 
 /** The fields a refusal can name, so each message lands under its control. */
 const FIELDS = [
@@ -112,7 +114,7 @@ export function OrgVoiceSettings({
   // for somebody who may not change them.
   return can(Perm.orgSettings) ? (
     <>
-      <VoiceForm org={org} collapsible={collapsible} />
+      <VoiceForm key={org.id} org={org} collapsible={collapsible} />
       <OrgTextToSpeechSettings org={org} />
     </>
   ) : null;
@@ -215,7 +217,9 @@ function useVoiceDraft(org: Organization) {
 
 function VoiceForm({ org, collapsible }: { org: Organization; collapsible: boolean }) {
   const t = useTranslations("teams");
-  const { providers, languages } = useSpeechToTextProviders();
+  const common = useTranslations("common");
+  const client = useQueryClient();
+  const { providers, languages, isLoading, isError } = useSpeechToTextProviders();
   const form = useVoiceDraft(org);
   const [forceOpen, setForceOpen] = useState(false);
   const { draft, failure } = form;
@@ -255,15 +259,36 @@ function VoiceForm({ org, collapsible }: { org: Organization; collapsible: boole
         <p className="text-muted-foreground mt-0.5 mb-4 text-sm">{t("voice.sttDescription")}</p>
         <OrgVoiceUsage />
         <NotReady org={org} providers={providers} />
-        <DefaultFields
-          draft={draft}
-          providers={providers}
-          languages={languages}
-          failure={failure}
-          lengthInvalid={form.lengthInvalid}
-          onChange={form.edit}
-        />
-        <div className="mt-5 flex justify-end gap-2">
+        {isError && (
+          <div role="status" className="mb-4 space-y-2 rounded-lg border p-3">
+            <p className="text-muted-foreground text-sm">{t("voice.tts.catalogUnavailable")}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                void client.refetchQueries({
+                  queryKey: qk.providers.speechToTextModels(),
+                  type: "active",
+                })
+              }
+            >
+              {common("retry")}
+            </Button>
+          </div>
+        )}
+        <fieldset disabled={form.saving} aria-busy={form.saving} className="min-w-0">
+          <DefaultFields
+            draft={draft}
+            providers={providers}
+            languages={languages}
+            failure={failure}
+            lengthInvalid={form.lengthInvalid}
+            onChange={form.edit}
+            catalogUnavailable={isLoading || isError}
+          />
+        </fieldset>
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:justify-end max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:whitespace-normal">
           <Button
             variant="ghost"
             size="sm"
@@ -325,6 +350,7 @@ interface FieldsProps {
   failure: SubmitFailure;
   lengthInvalid: boolean;
   onChange: (next: Partial<Draft>) => void;
+  catalogUnavailable: boolean;
 }
 
 /**
@@ -348,6 +374,7 @@ function DefaultFields(props: FieldsProps) {
         >
           <Select
             value={draft.provider ?? NO_PROVIDER}
+            disabled={props.catalogUnavailable}
             onValueChange={(next) => {
               if (next === NO_PROVIDER) {
                 onChange({ provider: null, model: null, secretId: null });
@@ -366,6 +393,11 @@ function DefaultFields(props: FieldsProps) {
               <SelectItem value={NO_PROVIDER} textValue={t("voice.providerNone")}>
                 {t("voice.providerNone")}
               </SelectItem>
+              {draft.provider && !chosen && (
+                <SelectItem value={draft.provider} disabled>
+                  <ProviderRow provider={draft.provider} name={draft.provider} />
+                </SelectItem>
+              )}
               {providers.map((entry) => {
                 const label = entry.name;
                 return (
@@ -389,6 +421,15 @@ function DefaultFields(props: FieldsProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                {draft.model && !chosen.models.some((model) => model.id === draft.model) && (
+                  <SelectItem value={draft.model} disabled>
+                    <ModelLabel
+                      model={draft.model}
+                      provider={chosen.provider}
+                      label={draft.model}
+                    />
+                  </SelectItem>
+                )}
                 {chosen.models.map((model) => (
                   <SelectItem key={model.id} value={model.id} textValue={model.name}>
                     <ModelLabel model={model.id} provider={chosen.provider} label={model.name} />
@@ -452,13 +493,19 @@ function LanguageField({ draft, languages, failure, onChange }: FieldsProps) {
   const options = useMemo(() => {
     // `fallback: "code"` answers a code it cannot name with the code itself.
     const names = new Intl.DisplayNames([locale], { type: "language", fallback: "code" });
-    return languages
+    const codes =
+      typeof draft.language === "string" &&
+      draft.language.length > 0 &&
+      !languages.includes(draft.language)
+        ? [...languages, draft.language]
+        : languages;
+    return codes
       .map((code) => ({
         code,
         label: t("voice.languageOption", { name: names.of(code)!, code }),
       }))
       .sort((a, b) => a.label.localeCompare(b.label, locale));
-  }, [languages, locale, t]);
+  }, [draft.language, languages, locale, t]);
   return (
     <FormField
       label={t("voice.language")}

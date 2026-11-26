@@ -5,15 +5,17 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import String, and_, cast, false, func, inspect, or_, select, update
+from sqlalchemy import Select, String, and_, cast, false, func, inspect, or_, select, true, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 from sqlalchemy.orm.attributes import set_committed_value
 
+from app.db.models.agent_run import AgentRun
 from app.db.models.agent_workspace import AgentWorkspace
 from app.db.models.conversation import Conversation, Message
 from app.db.models.project import Project
+from app.schemas.workspace import RunWorkspaceOrigin
 
 
 async def get_by_key(
@@ -142,16 +144,13 @@ async def mark_used(db: AsyncSession, *, workspace_id: UUID) -> None:
     )
 
 
-async def get_for_project(
-    db: AsyncSession, *, organization_id: UUID, project_id: UUID
-) -> AgentWorkspace | None:
-    """A project's container, the most recently used where a moved project left two."""
-    result = await db.execute(
+def _active_project_workspaces(organization_id: UUID) -> Select[AgentWorkspace]:
+    return (
         select(AgentWorkspace)
         .join(Project, Project.id == AgentWorkspace.project_id)
         .where(
             AgentWorkspace.organization_id == organization_id,
-            AgentWorkspace.project_id == project_id,
+            Project.organization_id == organization_id,
             AgentWorkspace.recovery_of_id.is_(None),
             AgentWorkspace.backend == Project.backend,
             or_(
@@ -164,10 +163,39 @@ async def get_for_project(
                 )
             ),
         )
+    )
+
+
+async def get_for_project(
+    db: AsyncSession, *, organization_id: UUID, project_id: UUID
+) -> AgentWorkspace | None:
+    """The active generation's container, most recently used where a move left two."""
+    result = await db.execute(
+        _active_project_workspaces(organization_id)
+        .where(Project.id == project_id)
         .order_by(AgentWorkspace.last_used_at.desc().nulls_last())
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def active_for_projects(
+    db: AsyncSession, *, organization_id: UUID, project_ids: Sequence[UUID]
+) -> dict[UUID, AgentWorkspace]:
+    """Metadata only, batched for the conversation's project origin picker."""
+    if not project_ids:
+        return {}
+    result = await db.execute(
+        _active_project_workspaces(organization_id)
+        .where(Project.id.in_(project_ids))
+        .options(defer(AgentWorkspace.files, raiseload=True))
+        .order_by(AgentWorkspace.last_used_at.desc().nulls_last())
+    )
+    rows: dict[UUID, AgentWorkspace] = {}
+    for row in result.scalars():
+        if row.project_id is not None:
+            rows.setdefault(row.project_id, row)
+    return rows
 
 
 async def list_for_project(
@@ -192,20 +220,19 @@ async def kept_for_conversation(
     names no conversation, so a lookup by conversation alone found nothing and
     the chat's files panel and usage meter said the chat had no workspace.
     """
-    rows = await list_for_conversation(
-        db, organization_id=organization_id, conversation_id=conversation_id
-    )
-    active = next((row for row in rows if row.recovery_of_id is None), None)
-    if active is not None:
-        return active
     project_id = await db.scalar(
         select(Conversation.project_id).where(
             Conversation.id == conversation_id, Conversation.organization_id == organization_id
         )
     )
-    if project_id is None:
-        return None
-    return await get_for_project(db, organization_id=organization_id, project_id=project_id)
+    if project_id is not None:
+        project = await get_for_project(db, organization_id=organization_id, project_id=project_id)
+        if project is not None:
+            return project
+    rows = await list_for_conversation(
+        db, organization_id=organization_id, conversation_id=conversation_id
+    )
+    return next((row for row in rows if row.recovery_of_id is None), None)
 
 
 async def list_for_conversation(
@@ -286,7 +313,13 @@ async def project_recovery_candidates(
 
 
 async def list_for_reader(
-    db: AsyncSession, *, organization_id: UUID, user_id: UUID | None, see_all: bool
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID | None,
+    see_all: bool,
+    workspace_ids: Sequence[UUID] | None = None,
+    readable_conversation_id: UUID | None = None,
 ) -> list[AgentWorkspace]:
     """The workspaces one person may see, most recently used first.
 
@@ -316,6 +349,15 @@ async def list_for_reader(
     query = select(AgentWorkspace).where(
         AgentWorkspace.organization_id == organization_id, AgentWorkspace.project_id.is_(None)
     )
+    if workspace_ids is not None:
+        query = query.where(
+            or_(
+                AgentWorkspace.id.in_(workspace_ids),
+                AgentWorkspace.conversation_id == readable_conversation_id
+                if readable_conversation_id is not None
+                else false(),
+            )
+        )
     from app.db.models.coding_account import CodingAccount
 
     personal_owner = select(CodingAccount.id).where(
@@ -348,6 +390,9 @@ async def list_for_reader(
             or_(
                 AgentWorkspace.owner_ref == str(user_id),
                 AgentWorkspace.conversation_id.in_(mine),
+                AgentWorkspace.conversation_id == readable_conversation_id
+                if readable_conversation_id is not None
+                else false(),
                 and_(AgentWorkspace.scope == "agent", AgentWorkspace.agent_id.in_(my_agents)),
             )
         )
@@ -466,3 +511,31 @@ async def initialize_personal_coding(
 ) -> None:
     workspace.coding_source_revision = source_revision
     await db.flush()
+
+
+async def recorded_origins(
+    db: AsyncSession, *, organization_id: UUID, conversation_id: UUID, limit: int = 101
+) -> list[RunWorkspaceOrigin]:
+    """Distinct actual file origins, most recently used first, without loading run transcripts."""
+    entries = func.jsonb_array_elements(AgentRun.workspace_origins).table_valued("value").lateral()
+    kind = func.jsonb_extract_path_text(entries.c.value, "kind")
+    workspace_id = func.jsonb_extract_path_text(entries.c.value, "workspace_id")
+    project_id = func.jsonb_extract_path_text(entries.c.value, "project_id")
+    seen = func.max(AgentRun.created_at)
+    result = await db.execute(
+        select(kind, workspace_id, project_id)
+        .select_from(AgentRun)
+        .join(entries, true())
+        .where(
+            AgentRun.organization_id == organization_id, AgentRun.conversation_id == conversation_id
+        )
+        .group_by(kind, workspace_id, project_id)
+        .order_by(seen.desc())
+        .limit(limit)
+    )
+    return [
+        RunWorkspaceOrigin.model_validate(
+            {"kind": row[0], "workspace_id": row[1], "project_id": row[2]}
+        )
+        for row in result.all()
+    ]

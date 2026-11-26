@@ -17,6 +17,7 @@ import { SidebarUser } from "@/components/layout/sidebar-user";
 import { OrganizationSwitcher } from "@/components/layout/organization-switcher";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ConsoleNavigationDialog } from "@/components/settings/console-navigation-dialog";
 
 export function SidebarShell({
   children,
@@ -67,6 +68,7 @@ export function SidebarShell({
             below now. */}
         <div className={cn("flex items-center gap-0.5", collapsed && "flex-col")}>
           <NotificationBell variant="icon" />
+          <ConsoleNavigationDialog compact sidebar />
           <ConsoleVersion collapsed={collapsed} />
         </div>
         <SidebarUser compact={collapsed} />

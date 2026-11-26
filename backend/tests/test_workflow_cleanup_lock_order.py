@@ -44,9 +44,9 @@ async def test_every_parked_run_is_claimed_before_the_first_audit_entry() -> Non
     org = uuid4()
     low, high = sorted([uuid4(), uuid4()])
     node_runs = [
-        SimpleNamespace(id=uuid4(), waiting_agent_run_id=high),
-        SimpleNamespace(id=uuid4(), waiting_agent_run_id=None),
-        SimpleNamespace(id=uuid4(), waiting_agent_run_id=low),
+        SimpleNamespace(id=uuid4(), waiting_agent_run_id=high, resume_payload=None),
+        SimpleNamespace(id=uuid4(), waiting_agent_run_id=None, resume_payload=None),
+        SimpleNamespace(id=uuid4(), waiting_agent_run_id=low, resume_payload=None),
     ]
     run = SimpleNamespace(id=uuid4(), organization_id=org)
     order: list[tuple[str, Any]] = []

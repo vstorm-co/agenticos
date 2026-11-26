@@ -20,6 +20,7 @@ import { adoptAccountContext, contextSavedBy } from "@/lib/account-context";
 import { appearanceChosenBy } from "@/lib/account-appearance";
 import { adoptAccountLocale, localeChosenBy } from "@/lib/account-locale";
 import { ApiError, getErrorMessage, parseErrorMessage } from "@/lib/api-error";
+import { isPlatformTool } from "@/lib/approval-view";
 import { turnFileSourceFromEvent } from "@/lib/turn-file-source";
 import { clientId } from "@/lib/ids";
 import { keepOutbox, keptOutbox } from "@/lib/offline/device-cache";
@@ -36,6 +37,7 @@ import type {
   AskUserAnswer,
   AskUserQuestion,
   BrowserFrame,
+  ChatMessage,
   ChatMessageFile,
   ChatPerson,
   Compaction,
@@ -136,6 +138,13 @@ function withoutThread(threads: ReadonlySet<string>, id: string | null): Readonl
   const next = new Set(threads);
   next.delete(id);
   return next;
+}
+
+/** Finished answers the transcript holds - saved ones, not a local bubble still to be renamed. */
+function savedAnswers(messages: readonly ChatMessage[]): number {
+  return messages.filter(
+    (message) => message.role === "assistant" && !message.isStreaming && !message.isTemporaryId,
+  ).length;
 }
 
 /** How often a person still writing says so, and how long a room shows it after. */
@@ -501,10 +510,14 @@ export function useChat(options: UseChatOptions = {}) {
   // because reaching for state inside a setter's updater is how a side effect
   // ends up running twice.
   const interruptedForRef = useRef<ConversationRef | null>(null);
-  // How many answers the interrupted thread had finished at the moment its
-  // socket went. The turn landing takes it past this, which is the only signal
-  // this client has that the turn it lost is over.
+  // A new saved segment must land after the drop. A run may already have saved
+  // an ask_user segment before its continuation loses the socket.
   const finishedWhenInterrupted = useRef(0);
+  const savedBeforeDropRef = useRef<ReadonlySet<string>>(new Set());
+  // The question of the turn the drop interrupted. Its saved row carries the
+  // turn's run, and an answer of that run is what lands it - not any answer in
+  // the thread, which another turn still being written can save first.
+  const droppedPromptRef = useRef<string | null>(null);
   // Both notices belong to the thread the turn was interrupted in. Opening
   // another one while a reconnect is in flight used to draw the notice over a
   // thread that was never interrupted, and re-read that thread instead of the
@@ -769,17 +782,26 @@ export function useChat(options: UseChatOptions = {}) {
           declinedRef.current = null;
           followingRef.current = conversation_id;
           // Attachment replays the turn from its beginning. A local bubble left
-          // by the previous socket is that same unsaved stream, not another answer.
+          // by the previous socket is that same unsaved stream, not another answer
+          // - still streaming when another chat was opened, or ended on screen by
+          // a drop (`socketDropped`) when this socket is the one coming back.
           for (const message of chatApi.getState().messages) {
             if (
               message.conversationId === conversation_id &&
               message.role === "assistant" &&
               message.isTemporaryId &&
-              message.isStreaming &&
+              (message.isStreaming || message.socketDropped) &&
               !message.isLocalContinuation
             ) {
               chatApi.getState().removeMessage(message.id);
             }
+          }
+          // Following the turn again: its end re-reads the transcript like any
+          // followed turn's, so there is nothing left to say about the drop.
+          if (interruptedForRef.current?.id === conversation_id) {
+            interruptedForRef.current = null;
+            droppedPromptRef.current = null;
+            setInterruptedFor(null);
           }
           resumedRunIdRef.current = undefined;
           stoppedMessageIdRef.current = null;
@@ -2044,6 +2066,11 @@ export function useChat(options: UseChatOptions = {}) {
         }
       }
       const local = useWorkOnStore.getState().targetFor(conversationId || null);
+      const execution = useWorkOnStore.getState().executionFor(conversationId || null, projectId);
+      // Local folder consent has its own executor; a remembered cloud selection
+      // is used again only when the person returns to the cloud.
+      if (!scoped && execution !== null && local === null)
+        payload.project_execution_target = execution;
       const localBrowser = useWorkOnStore.getState().browserFor(conversationId || null);
       const localComputer = useWorkOnStore.getState().computerFor(conversationId || null);
       const localCoding = useWorkOnStore.getState().codingFor(conversationId || null);
@@ -2112,6 +2139,7 @@ export function useChat(options: UseChatOptions = {}) {
       // The store action that shuts the browse panel when this turn ends the
       // previous one's browse. Stable, and listed rather than omitted.
       tenantId,
+      scoped,
     ],
   );
 
@@ -2393,9 +2421,6 @@ export function useChat(options: UseChatOptions = {}) {
     runtimeQuestionIdRef.current = null;
   }, [activeConversationId, closeBrowserPanel, sendMessage, abandonRunAnswer]);
 
-  // The caller's permissions, for the restore effect below: rebuilding the
-  // approval panel reads an endpoint gated on `approvals:decide`, so a caller
-  // without it is not asked to 403 on every reopened conversation.
   const { can, isLoaded: permissionsLoaded } = usePermissions();
   const { data: controlOrgs } = useOrganizationList();
   const savedControls = useSavedChatControls(
@@ -2422,7 +2447,12 @@ export function useChat(options: UseChatOptions = {}) {
   // read as a reloaded parked run. Empty rows are left alone - a run decided
   // elsewhere but not yet resumed has nothing left to offer.
   useEffect(() => {
-    if (pendingApproval !== null || continuingApproval || !canDecide || decidingApprovalRef.current)
+    if (
+      pendingApproval !== null ||
+      continuingApproval ||
+      !permissionsLoaded ||
+      decidingApprovalRef.current
+    )
       return;
     const candidates = [...messages].reverse().flatMap((message) => {
       const calls = (message.toolCalls ?? []).filter((call) => call.status === "awaiting_approval");
@@ -2431,6 +2461,11 @@ export function useChat(options: UseChatOptions = {}) {
         !message.runId ||
         (calls.length === 0 && message.runWaitingFor !== "approval")
       )
+        return [];
+      // Without `approvals:decide` a person answers only their own platform call, so
+      // a turn showing only other calls is not asked about. One showing none - a
+      // delegated child's approval - is, and the rows say whose it is.
+      if (!canDecide && calls.length > 0 && !calls.some((call) => isPlatformTool(call.name)))
         return [];
       const key = JSON.stringify([
         message.runId,
@@ -2464,6 +2499,9 @@ export function useChat(options: UseChatOptions = {}) {
           offeredApprovalBatchesRef.current.add(key);
           const actionable = parked.filter((call) => !decidedApprovalIdsRef.current.has(call.id));
           if (actionable.length === 0) continue;
+          // Without `approvals:decide` the only call a person answers is their own
+          // platform call; a run holding none of those stays with its Stop.
+          if (!canDecide && !actionable.some((call) => call.may_decide === true)) continue;
           setPendingApproval({
             actionRequests: actionable.map((call) => ({
               id: call.id,
@@ -2477,6 +2515,8 @@ export function useChat(options: UseChatOptions = {}) {
               account: call.account,
               content_hidden: call.content_hidden,
               always_asks: call.always_asks,
+              may_decide: call.may_decide,
+              may_approve: call.may_approve,
             })),
             reviewConfigs: actionable.map((call) => ({
               tool_name: call.tool_name,
@@ -2486,8 +2526,12 @@ export function useChat(options: UseChatOptions = {}) {
             messageId: message.id,
           });
           return;
-        } catch {
-          // Keep the batch eligible for a later transcript refresh.
+        } catch (error) {
+          // Another person's run in a shared chat is refused for good; anything else
+          // stays eligible for a later transcript refresh.
+          if (error instanceof ApiError && error.status === 403) {
+            offeredApprovalBatchesRef.current.add(key);
+          }
         } finally {
           if (reads.get(runId) === request) reads.delete(runId);
         }
@@ -2496,7 +2540,14 @@ export function useChat(options: UseChatOptions = {}) {
     return () => {
       disposed = true;
     };
-  }, [messages, pendingApproval, continuingApproval, canDecide, activeConversationId]);
+  }, [
+    messages,
+    pendingApproval,
+    continuingApproval,
+    permissionsLoaded,
+    canDecide,
+    activeConversationId,
+  ]);
 
   const queryClient = useQueryClient();
 
@@ -2588,7 +2639,7 @@ export function useChat(options: UseChatOptions = {}) {
         output_tokens: resumed.output_tokens,
         cache_read_tokens: resumed.cache_read_tokens ?? null,
         cache_write_tokens: resumed.cache_write_tokens ?? null,
-        cost_usd: resumed.cost_usd ?? "0",
+        cost_usd: resumed.cost_usd ?? null,
         cost_is_partial: resumed.cost_is_partial,
         // A resume is not told where the run stands against its budget, and
         // an invented percentage is worse than a bar that is not drawn.
@@ -2677,6 +2728,8 @@ export function useChat(options: UseChatOptions = {}) {
             account: call.account,
             content_hidden: call.content_hidden,
             always_asks: call.always_asks,
+            may_decide: call.may_decide,
+            may_approve: call.may_approve,
           })),
           reviewConfigs: parkedAgain.map((call) => ({
             tool_name: call.tool_name,
@@ -2840,13 +2893,15 @@ export function useChat(options: UseChatOptions = {}) {
     ) ?? null;
 
   const sendResumeDecisions = useCallback(
-    async (decisions: Decision[]) => {
+    async (decisions: Decision[], requests?: ActionRequest[]) => {
       if (stoppingRef.current !== null || decidingApprovalRef.current) return;
       // Read from state and listed in the deps below. A ref would avoid
       // rebuilding this callback, but it cannot be written during render - and
       // rebuilding it is harmless: it is only ever passed down as a prop.
       const parked = pendingApproval;
-      if (parked === null || decisions.length !== parked.actionRequests.length) return;
+      // `requests` is the part of the batch this person may answer, when not all of it.
+      const deciding = requests ?? parked?.actionRequests ?? [];
+      if (parked === null || decisions.length !== deciding.length) return;
       // A click consumes the batch before React can render another handler.
       // HTTP continuations can park again without a WebSocket approval frame.
       const decisionToken = {};
@@ -2881,11 +2936,26 @@ export function useChat(options: UseChatOptions = {}) {
       try {
         // A run asked in a chat is continued by the server, so every answer
         // here says so and the browser must not resume it as well.
-        for (const [index, request] of parked.actionRequests.entries()) {
+        for (const [index, request] of deciding.entries()) {
           const decision = decisions[index]!;
           const decided = await decideApproval(request.id, decision);
           recordDecision(request, decision.type === "approve");
           if (decided?.continues_in_chat) continuesInChat = true;
+        }
+        const waiting = parked.actionRequests.filter(
+          (request) => !decidedApprovalIdsRef.current.has(request.id),
+        );
+        if (waiting.length > 0) {
+          // The rest is for somebody who may decide it; the run continues after them.
+          if (decidingApprovalRef.current === decisionToken) {
+            setPendingApproval({
+              ...parked,
+              actionRequests: waiting,
+              savedDecisions,
+              continuesInChat,
+            });
+          }
+          return;
         }
         await clearApprovalNotice(queryClient, activeConversationId, parked.runId);
         void queryClient.invalidateQueries({ queryKey: qk.runs.all() });
@@ -3595,16 +3665,29 @@ export function useChat(options: UseChatOptions = {}) {
       const thread = { id: activeConversationId };
       interruptedRef.current = thread;
       interruptedForRef.current = thread;
+      // The half-written answer will never be renamed: its `message_saved` was
+      // due on this socket. Marked, so the transcript's saved row replaces it
+      // when the turn lands, and a replay of the turn replaces it on attachment.
+      droppedPromptRef.current =
+        chatApi.getState().messages.findLast((message) => message.role === "user")?.id ?? null;
+      if (currentMessageIdRef.current) {
+        updateMessage(currentMessageIdRef.current, (message) =>
+          message.isTemporaryId ? { ...message, socketDropped: true } : message,
+        );
+      }
       endTurnLocally(true);
       setInterruptedFor(thread);
-      // The baseline the effect below watches. Taken here, after
-      // `endTurnLocally` has stopped the half-written answer streaming: that
-      // stop makes it *finished* by the count's own definition, so a baseline
-      // read a moment earlier would be one short and the notice would clear
-      // itself immediately.
-      finishedWhenInterrupted.current = chatApi
+      // The baseline the effect below watches: the saved answers the thread had
+      // when its socket went. The half-written one is not among them - it is
+      // replaced, not joined, by the saved row it becomes.
+      const saved = chatApi
         .getState()
-        .messages.filter((message) => message.role === "assistant" && !message.isStreaming).length;
+        .messages.filter(
+          (message) =>
+            message.role === "assistant" && !message.isStreaming && !message.isTemporaryId,
+        );
+      finishedWhenInterrupted.current = saved.length;
+      savedBeforeDropRef.current = new Set(saved.map((message) => message.id));
     }
     const thread = interruptedRef.current;
     if (!returned || thread === null) return;
@@ -3619,6 +3702,7 @@ export function useChat(options: UseChatOptions = {}) {
     onTurnInterrupted,
     chatApi,
     abandonRunAnswer,
+    updateMessage,
   ]);
 
   // Coming back to the chat with a turn still drawn as streaming. The store
@@ -3768,19 +3852,32 @@ export function useChat(options: UseChatOptions = {}) {
   //
   // Counted rather than matched on an id: the turn was interrupted before it
   // had one, and the count is the same question asked in a way this client can
-  // answer.
-  const finishedTurns = messages.filter(
-    (message) => message.role === "assistant" && !message.isStreaming,
-  ).length;
+  // answer. Saved answers only: counting the half-written bubble the drop left
+  // made a baseline that the saved answer replacing it could never pass.
+  const finishedTurns = savedAnswers(messages);
   useEffect(() => {
     const thread = interruptedForRef.current;
     // Only for the thread it happened in: `messages` is replaced wholesale on a
     // switch, so a busier thread would otherwise read as this one's answer.
     if (thread === null || thread.id !== activeConversationId) return;
     if (finishedTurns <= finishedWhenInterrupted.current) return;
+    const run = messages.find((message) => message.id === droppedPromptRef.current)?.runId;
+    if (
+      run &&
+      !messages.some(
+        (message) =>
+          message.role === "assistant" &&
+          !message.isStreaming &&
+          !message.isTemporaryId &&
+          message.runId === run &&
+          !savedBeforeDropRef.current.has(message.id),
+      )
+    )
+      return;
     interruptedForRef.current = null;
+    droppedPromptRef.current = null;
     setInterruptedFor(null);
-  }, [finishedTurns, activeConversationId]);
+  }, [finishedTurns, activeConversationId, messages]);
 
   const displayedDelegations = useMemo(
     () =>

@@ -37,6 +37,8 @@
 	<string>To scan the pairing code your console shows, and to take a photo for a message.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>To unlock AgenticOS.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>To dictate a message and talk to your agents by voice.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>To offer the photo you just took when you open a chat.</string>
 	<key>NSSupportsLiveActivities</key>

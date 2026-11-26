@@ -399,7 +399,7 @@ describe("the workflow editor page header", () => {
   it("exports the workflow as a file named by its handle", async () => {
     await renderPage();
     await userEvent.click(await screen.findByRole("button", { name: "More" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Export workflow" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Export an older workflow file" }));
     expect(exporting.mutate).toHaveBeenCalledWith({ id: "w1", slug: "w" });
   });
 

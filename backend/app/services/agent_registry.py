@@ -227,6 +227,8 @@ _SLUG_TRIM = re.compile(r"-{2,}")
 DEFAULT_GRANTED_SCOPES = frozenset(
     {
         "knowledge:read",
+        "projects:read",
+        "projects:write",
         "conversations:read",
         "web:read",
         "web:fetch",
@@ -513,7 +515,7 @@ def _refuse_system_agent_change(agent: Agent) -> None:
                 f"'{agent.name}' is a system agent the platform runs for the whole "
                 "organization - only an administrator can change it"
             ),
-            details={"agent_id": agent.id, "kind": agent.kind},
+            details={"agent_id": agent.id, "kind": agent.kind, "reason": "system_agent_admin_only"},
         )
 
 
@@ -527,6 +529,7 @@ def _refuse_system_parts(parts: Sequence[SpecPart]) -> None:
         raise BadRequestError(
             message="A system agent cannot hold this",
             details={
+                "reason": "system_agent_parts",
                 "problems": [part.message for part in parts],
                 "fields": [{"field": part.field, "message": part.message} for part in parts],
             },
@@ -1347,7 +1350,11 @@ class AgentRegistryService:
         if workflow_perm is None:
             raise BadRequestError(
                 message="This agent is configured in its workflow step",
-                details={"agent_id": str(agent.id), "workflow_id": str(agent.workflow_id)},
+                details={
+                    "agent_id": str(agent.id),
+                    "workflow_id": str(agent.workflow_id),
+                    "reason": "workflow_agent",
+                },
             )
         workflow = await workflow_repo.get(
             self.db, workflow_id, organization_id=ctx.organization_id
@@ -1370,7 +1377,7 @@ class AgentRegistryService:
         if await organization_assistant_repo.for_agent(self.db, agent.id) is not None:
             raise AuthorizationError(
                 message="Only an administrator can change the AI Architect",
-                details={"agent_id": agent.id},
+                details={"agent_id": agent.id, "reason": "architect_admin_only"},
             )
 
     async def may_run(self, ctx: AuthContext, agent: Agent) -> bool:
@@ -1519,6 +1526,7 @@ class AgentRegistryService:
         kind: AgentKind = AgentKind.AGENT,
         categories: Sequence[str] = (),
         tags: Sequence[str] = (),
+        project_id: UUID | None = None,
         skip: int = 0,
         limit: int = 50,
     ) -> tuple[list[AgentRead], int]:
@@ -1544,6 +1552,14 @@ class AgentRegistryService:
         if norm_categories is None or norm_tags is None:
             return [], 0
         see_all, grant_ids = await self._visible_scope(ctx, shared_with_me=shared_with_me)
+        member_ids = None
+        if project_id is not None:
+            from app.db.models.project_resource import ProjectResourceKind
+            from app.services.project_resources import ProjectResourceService
+
+            member_ids = await ProjectResourceService(self.db).member_ids(
+                ctx, project_id, ProjectResourceKind.AGENT
+            )
         agents, total = await agent_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
@@ -1555,6 +1571,7 @@ class AgentRegistryService:
             kind=kind,
             categories=norm_categories,
             tags=norm_tags,
+            **({"only_ids": member_ids} if project_id is not None else {}),
             skip=skip,
             limit=limit,
         )
@@ -2506,7 +2523,7 @@ class AgentRegistryService:
             # `fields` only when there is one: an empty list is a claim that
             # nothing here can be marked, which a reader would have to tell
             # apart from a refusal that never names a field at all.
-            details: dict[str, Any] = {"problems": problems.messages}
+            details: dict[str, Any] = {"reason": "does_not_publish", "problems": problems.messages}
             if problems.fields:
                 details["fields"] = problems.fields
             if problems.fixes:

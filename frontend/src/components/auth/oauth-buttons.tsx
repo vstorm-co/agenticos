@@ -3,7 +3,7 @@
 import { INVITATION_FLOW_PARAM, invitationFlowFrom } from "@/lib/invitation-links";
 import { rememberReturnTo } from "@/lib/oauth-return";
 
-import { useId } from "react";
+import { useBranding } from "@/components/branding/branding-provider";
 
 import { KeyRound, Network, Ticket, type LucideIcon } from "lucide-react";
 
@@ -105,12 +105,6 @@ interface OAuthButtonsProps {
 
 function OAuthButtons({ providers, variant, returnTo, onDirectorySignIn }: OAuthButtonsProps) {
   const { oidcIcon } = usePublicConfig();
-  const t = useTranslations("auth");
-  const unavailableId = useId();
-  const googleConfigured = providers.includes("google");
-  const visibleProviders: readonly SignInProvider[] = googleConfigured
-    ? providers
-    : ["google", ...providers];
   // A generic provider has no name of its own, so the deployment supplies one
   // and the label is built around it. The branded three keep their own catalog
   // entries: "Continue with Google" is a sentence somebody wrote, not a template
@@ -124,27 +118,9 @@ function OAuthButtons({ providers, variant, returnTo, onDirectorySignIn }: OAuth
 
   return (
     <div className="space-y-2.5">
-      {visibleProviders.map((provider) => {
+      {providers.map((provider) => {
         const label = labelFor(provider);
         const icon = <ProviderIcon provider={provider} oidcIcon={oidcIcon} />;
-        if (provider === "google" && !googleConfigured) {
-          return (
-            <div key={provider} className="space-y-2">
-              <button
-                type="button"
-                disabled
-                aria-describedby={unavailableId}
-                className={`${BUTTON} disabled:pointer-events-none disabled:opacity-50`}
-              >
-                {icon}
-                {label}
-              </button>
-              <p id={unavailableId} className="text-muted-foreground text-center text-xs">
-                {t("googleNotConfigured")}
-              </p>
-            </div>
-          );
-        }
         // A directory password is typed here rather than at a provider, so it is
         // not a redirect: the button turns the form into the directory's.
         if (provider === "ldap") {
@@ -176,13 +152,21 @@ function OAuthButtons({ providers, variant, returnTo, onDirectorySignIn }: OAuth
   );
 }
 
+export function useSignInProviders(): readonly SignInProvider[] {
+  const { signInProviders } = useBranding();
+  const { oauthProviders } = usePublicConfig();
+  return oauthProviders.filter((provider) => signInProviders.includes(provider));
+}
+
 export function OAuthBlock({
   label,
   variant = "signin",
   returnTo,
   onDirectorySignIn,
+  divider = true,
 }: {
   label: string;
+  divider?: boolean;
   variant?: Variant;
   returnTo?: string | null;
   /**
@@ -192,11 +176,12 @@ export function OAuthBlock({
    */
   onDirectorySignIn?: () => void;
 }) {
-  const { oauthProviders } = usePublicConfig();
+  const oauthProviders = useSignInProviders();
   const providers = oauthProviders.filter((provider) => provider !== "ldap" || onDirectorySignIn);
+  if (providers.length === 0) return null;
   return (
     <div className="space-y-5">
-      <OAuthDivider label={label} />
+      {divider && <OAuthDivider label={label} />}
       <OAuthButtons
         providers={providers}
         variant={variant}

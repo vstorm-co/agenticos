@@ -1,5 +1,6 @@
 """Adding to a run while it works (#2087): the words reach the model at its next request."""
 
+from contextlib import nullcontext
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock
 
@@ -40,13 +41,15 @@ def _said(messages: list[ModelMessage]) -> list[str]:
 async def test_a_correction_sent_mid_run_is_read_at_the_next_step_and_kept():
     """The tool stands in for the person: it is mid-run when the correction arrives."""
     applied = AsyncMock()
-    inbox = SteeringInbox(on_applied=applied)
+    inbox = SteeringInbox(on_applied=applied, transcript={})
     seen: list[list[str]] = []
 
     def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
         seen.append(_said(messages))
         if len(seen) == 1:
-            return ModelResponse(parts=[ToolCallPart(tool_name="look_up", args={})])
+            return ModelResponse(
+                parts=[ToolCallPart(tool_name="look_up", args={}, tool_call_id="lookup")]
+            )
         return ModelResponse(parts=[TextPart(content="Using the EU numbers.")])
 
     agent = Agent(FunctionModel(model), deps_type=_Deps, capabilities=[Steering()])
@@ -63,6 +66,7 @@ async def test_a_correction_sent_mid_run_is_read_at_the_next_step_and_kept():
     # In the history too, so the transcript and any later request keep it.
     assert any("use the EU numbers" in text for text in _said(result.all_messages()))
     applied.assert_awaited_once_with("use the EU numbers")
+    assert inbox.transcript == {"lookup": ["use the EU numbers"]}
     assert inbox.unapplied() == []
 
 
@@ -248,14 +252,14 @@ async def test_durable_additions_are_polled_and_screened_once_before_the_model_r
     from app.agents.deps import AgentDeps
 
     raw = "use key sk-ant-api03-" + "x" * 90
-    poll = AsyncMock(return_value=[raw])
+    poll = MagicMock(return_value=nullcontext([raw]))
     screen = MagicMock(wraps=input_screen(GuardrailsConfig(redact_secrets_in=True)))
     inbox = SteeringInbox(poll=poll, screen=screen)
     deps = AgentDeps(steering=inbox)
     last = ModelRequest(parts=[UserPromptPart(content="read the document")])
     ctx = MagicMock(deps=deps, messages=[last])
     sent = await Steering().before_model_request(ctx, _request([last]))
-    poll.assert_awaited_once_with(deps)
+    poll.assert_called_once_with(deps)
     screen.assert_called_once_with(raw)
     assert raw not in str(sent.messages)
     assert "Added by the person" in str(sent.messages)

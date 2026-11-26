@@ -203,6 +203,35 @@
           }
         }
       }
+    },
+    "NSMicrophoneUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To dictate a message and talk to your agents by voice."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aby dyktować wiadomości i rozmawiać głosowo z agentami."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Um Nachrichten zu diktieren und mit deinen Agenten zu sprechen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para dictar mensajes y hablar por voz con tus agentes."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

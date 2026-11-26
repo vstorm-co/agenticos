@@ -1,5 +1,5 @@
 ---
-source_sha: "febed1aea968"
+source_sha: "164e156b21c9"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -56,6 +56,40 @@ ihm, mit dem Token in `SANDBOXD_TOKEN`. Die anderen Sandbox-Backends -
 `daytona`- und `e2b`-Verbindungen sowie `state` - sind gehostete Dienste und ein
 Dokument in Postgres, und keines davon hat mit dem oben Genannten zu tun; der
 eigene Computer der Person auch nicht (siehe [Jenseits von sandboxd](#beyond-sandboxd)).
+
+### Live-Projektdateien in der Agenten-Sandbox { #live-project-files-in-the-agent-sandbox }
+
+Ein entsprechend konfigurierter sandboxd-0.2.40-Host stellt gewählte Projektdateien
+im privaten Agentencontainer einer Unterhaltung/eines Laufs unter
+`/project/<unveränderliche Lease-UUID>` bereit. Image, Pakete und eigener Workspace
+bleiben erhalten. Jeder Befehl erhält `PROJECT_DIR`; relative Pfade verwenden weiter
+den eigenen Workspace. Das authentifizierte Gateway liefert Daten einschließlich
+datenbankgestützter Projekte live, statt sie zum Agenten zu kopieren. Ein explizit
+gewählter Projekt-Executor bleibt eine separate Option.
+
+Der Operator aktiviert `SANDBOXD_FILESYSTEM_GATEWAY_URL` und
+`SANDBOXD_FILESYSTEM_EXPORT_IMAGE` gemeinsam, mit behaltenen Containern und dauerhaftem
+Workspace-Stamm. Das Exporter-Image hat dieselbe fixierte sandboxd-Version wie das
+SDK. Die Gateway-URL endet auf `/api/v1/project-filesystem` und muss von sandboxd und
+seiner privaten Hilfsbridge erreichbar sein. Eine erreichbare HTTPS-API-Adresse ist
+möglich; interne Compose-Namen wie `api` sind auf der isolierten Bridge nicht
+verfügbar. `host.docker.internal:<port>` benötigt eine aus Docker erreichbare
+API-Schnittstelle; ein nur an Loopback veröffentlichter Produktionsport genügt nicht.
+
+Die Funktion bleibt bis zur Konfiguration deaktiviert. Clients wählen keine
+Hostpfade, Images oder Gateway-Adressen. Der Helfer veröffentlicht keine Ports;
+der Agent tritt seiner Bridge nicht bei und erhält weder FUSE-Geräte noch weitere
+Mountprivilegien. Alte Sitzungen ohne Mount benötigen explizite Wiederherstellung
+unter Erhalt ihrer Dateien. Nicht unterstützte Scopes und Provider verweigern
+Projektbefehle statt andere Dateien zu verwenden. Ein Helferneustart macht alte
+NFS-Handles ungültig und stoppt den Agenten bis zur expliziten Wiederherstellung;
+es wird kein leerer Ersatz gestartet.
+
+Nativer Projektspeicher benötigt dauerhafte erweiterte Attribute und atomare
+Hardlinks; geprüfter Linux-Speicher und der datenbankgestützte State-Provider werden
+unterstützt. macOS-Bind-Mounts können die nativen Anforderungen verweigern. Symlinks
+und Eigentümerwechsel werden nicht unterstützt. [Projekte](projects.md#what-an-agent-gets-in-a-project)
+beschreibt Lease-Zugriff und den optionalen expliziten Projekt-Executor.
 
 ### Dienst und Backend ändern sich gemeinsam { #the-service-and-the-backend-move-together }
 
@@ -846,4 +880,4 @@ Aufräumen.
 
 Das Backend `state` zählt Dateien und leere Verzeichnisse zum Speicherlimit, auch beim abschließenden Zusammenführen gleichzeitiger Änderungen. Passen einzeln akzeptierte Dokumente nicht gemeinsam hinein, bleibt das gemeinsame Dokument unverändert und der spätere Stand wird als Wiederherstellungskopie unter **Documents** bestätigt. Der Run speichert einen Fehler mit der Workspace-ID der Kopie; eine Projektänderung meldet einen Konflikt statt Erfolg. Projektkopien erfordern sowohl Anzeige- als auch Nutzungszugriff. Ein Fremdschlüssel löscht die Kopie zusammen mit ihrer Quelle, auch bei gleichzeitiger Datenlöschung. Wird das Limit unter die Größe eines bestehenden Dokuments gesenkt, darf dieses weiterhin schrumpfen.
 
-Die Workbench-Anweisungen erklären Agenten, dass Befehle unter POSIX `/bin/sh` und nicht unter Bash laufen. Zum Beispiel erstellt `mkdir -p sources inbox notes` drei Ordner; `{sources,inbox,notes}` wird von dieser Shell nicht expandiert. Projektdateien gehören nach `/workspace`; das Benutzerverzeichnis (`~`) liegt außerhalb der gemeinsamen Dateien. Jeder Befehl startet einen neuen Prozess: Shellvariablen und Verzeichniswechsel gelten nicht für den nächsten Aufruf. Agenten sollen Fehler prüfen und Dateien vor einer Erfolgsmeldung verifizieren.
+Die Workbench-Anweisungen erklären Agenten, dass Befehle unter POSIX `/bin/sh` und nicht unter Bash laufen. Zum Beispiel erstellt `mkdir -p sources inbox notes` drei Ordner; `{sources,inbox,notes}` wird von dieser Shell nicht expandiert. Der aktive Executor behält seinen Arbeitsordner. Bei Live-Projektzugriff zeigt `PROJECT_DIR` auf `/project/<Lease-UUID>`; verwende diesen Pfad für gemeinsame Projektdateien. Das Benutzerverzeichnis (`~`) liegt außerhalb. Jeder Befehl startet einen neuen Prozess: Shellvariablen und Verzeichniswechsel gelten nicht für den nächsten Aufruf. Agenten sollen Fehler prüfen und Dateien vor einer Erfolgsmeldung verifizieren.

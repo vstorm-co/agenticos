@@ -27,6 +27,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -114,6 +115,14 @@ class WorkflowExposure(Base, TimestampMixin):
     secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     secret_key_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Shared sources own their credentials and URL. The exposure retains only
+    # the workflow's entry, version and execution principal.
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        nullable=True,
+        index=True,
+    )
+
     # A form's public address: the link is its only credential, kept across
     # publishes and replaced only when an editor asks for a new one.
     form_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
@@ -162,6 +171,13 @@ class WorkflowExposure(Base, TimestampMixin):
     # Declared here as well as in the migration: the integration tests build the
     # schema from the models.
     __table_args__ = (
+        UniqueConstraint("id", "organization_id", name="uq_workflow_exposure_tenant"),
+        ForeignKeyConstraint(
+            ["source_id", "organization_id"],
+            ["event_sources.id", "event_sources.organization_id"],
+            name="fk_workflow_exposure_source_tenant",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint("workflow_id", "adapter", name="uq_workflow_exposure_workflow_adapter"),
         CheckConstraint(
             "adapter IN ('webhook', 'schedule', 'form', 'channel', 'github', 'gmail', 'outlook')",
@@ -172,8 +188,10 @@ class WorkflowExposure(Base, TimestampMixin):
         # no secret; a form has its link and neither. So "why would this fire"
         # always has one answer.
         CheckConstraint(
-            "(adapter IN ('webhook', 'github') AND secret_encrypted IS NOT NULL "
-            "AND secret_key_version IS NOT NULL AND schedule_kind IS NULL "
+            "(adapter IN ('webhook', 'github') AND "
+            "((source_id IS NULL AND secret_encrypted IS NOT NULL AND secret_key_version IS NOT NULL) "
+            "OR (adapter = 'webhook' AND source_id IS NOT NULL AND secret_encrypted IS NULL "
+            "AND secret_key_version IS NULL)) AND schedule_kind IS NULL "
             "AND interval_seconds IS NULL AND cron_expression IS NULL "
             "AND next_fire_at IS NULL AND form_token IS NULL AND channel_bot_id IS NULL) "
             "OR (adapter = 'schedule' AND secret_encrypted IS NULL "
@@ -193,6 +211,10 @@ class WorkflowExposure(Base, TimestampMixin):
             "AND cron_expression IS NULL AND next_fire_at IS NULL "
             "AND (adapter = 'channel' OR channel_bot_id IS NULL))",
             name="ck_workflow_exposure_shape",
+        ),
+        CheckConstraint(
+            "source_id IS NULL OR adapter = 'webhook'",
+            name="ck_workflow_exposure_source",
         ),
         CheckConstraint(
             f"interval_seconds IS NULL OR interval_seconds >= {MIN_INTERVAL_SECONDS}",

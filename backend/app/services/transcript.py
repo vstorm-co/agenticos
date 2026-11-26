@@ -243,6 +243,28 @@ def what_arrived(attachments: Sequence[ChatFile]) -> str:
     )
 
 
+def _steered_parts(
+    steers: Mapping[str | None, list[str]],
+    calls: Sequence[RecordedToolCall],
+    answer: str,
+) -> list[dict[str, object]]:
+    """Keep corrections in their model-step order alongside visible tool calls."""
+    call_ids = {call.tool_call_id for call in calls}
+    # An anchor in an earlier turn is before all the calls in this segment.
+    parts: list[dict[str, object]] = [
+        {"type": "steer", "text": text}
+        for after, texts in steers.items()
+        if after not in call_ids
+        for text in texts
+    ]
+    for call in calls:
+        parts.append({"type": "tool", "tool_call_id": call.tool_call_id})
+        parts.extend({"type": "steer", "text": text} for text in steers.get(call.tool_call_id, []))
+    if answer:
+        parts.append({"type": "text", "text": answer})
+    return parts
+
+
 class TranscriptService:
     """Writes a run's turns into the conversation the run belongs to."""
 
@@ -260,6 +282,7 @@ class TranscriptService:
         model_content: str | None = None,
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
+        steers: Mapping[str | None, list[str]] | None = None,
         parked: Collection[str] = (),
         question_tool_call_ids: Collection[str] = (),
         model_label: str | None = None,
@@ -369,12 +392,13 @@ class TranscriptService:
                     await self._attach(asked.id, attachments)
                 for tool_call_id, result in (settled or {}).items():
                     await self._settle(run, tool_call_id=tool_call_id, result=result)
-                if answer or tool_calls:
+                if answer or tool_calls or steers:
                     return await self._answer(
                         run.conversation_id,
                         run,
                         answer=answer,
                         tool_calls=tool_calls,
+                        parts=_steered_parts(steers, tool_calls, answer) if steers else None,
                         parked=parked,
                         question_tool_call_ids=question_tool_call_ids,
                         model_label=model_label,
@@ -453,6 +477,7 @@ class TranscriptService:
         *,
         answer: str,
         tool_calls: Sequence[RecordedToolCall],
+        parts: list[dict[str, object]] | None,
         parked: Collection[str],
         question_tool_call_ids: Collection[str],
         model_label: str | None,
@@ -479,6 +504,7 @@ class TranscriptService:
             conversation_id=conversation_id,
             role="assistant",
             content=answer,
+            parts=parts,
             model_name=model_label,
             input_tokens=run.input_tokens - spent.input_tokens,
             output_tokens=run.output_tokens - spent.output_tokens,

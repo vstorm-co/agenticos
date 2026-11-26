@@ -59,9 +59,11 @@ async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     user_service: UserSvc,
     session_service: SessionSvc,
+    branding: DeploymentSettingsSvc,
 ) -> Any:
     """OAuth2 password login, returns access and refresh tokens."""
     await enforce_auth_limit(request, surface="auth_login", identifier=form_data.username)
+    await branding.require_password_sign_in()
     user = await user_service.authenticate(form_data.username, form_data.password)
     refresh_token = create_refresh_token(
         subject=str(user.id), credential_version=user.credential_version
@@ -127,6 +129,7 @@ async def register(
     user_in: UserCreate,
     user_service: UserSvc,
     staging: InvitationStagingSvc,
+    branding: DeploymentSettingsSvc,
     invitation_handle: Annotated[str | None, Header(alias="X-Invitation-Handle")] = None,
 ) -> Any:
     """Register a new user.
@@ -138,6 +141,7 @@ async def register(
     to feeds the sign-up admission check and is never returned or logged.
     """
     await enforce_auth_limit(request, surface="auth_register", identifier=user_in.email)
+    await branding.require_password_sign_in()
     if invitation_handle and not user_in.invitation_token:
         staged_token = await staging.peek(invitation_handle)
         if staged_token is not None:
@@ -322,6 +326,7 @@ async def request_password_reset(
     email is in our system. The caller (email service) is best-effort.
     """
     await enforce_auth_limit(request, surface="auth_password_reset", identifier=body.email)
+    await branding.require_password_sign_in()
     issued = await user_service.issue_password_reset_token(body.email)
     if issued is not None:
         reset_user, token = issued
@@ -343,9 +348,11 @@ async def confirm_password_reset(
     request: Request,
     body: PasswordResetConfirm,
     user_service: UserSvc,
+    branding: DeploymentSettingsSvc,
 ) -> Any:
     """Set a new password using a token from the reset email."""
     await enforce_auth_limit(request, surface="auth_password_reset_confirm")
+    await branding.require_password_sign_in()
     await user_service.confirm_password_reset(body.token, body.new_password)
     return PasswordResetConfirmResponse()
 
@@ -381,6 +388,7 @@ async def request_magic_link(
     Symmetric response to request_password_reset to avoid email enumeration.
     """
     await enforce_auth_limit(request, surface="auth_magic_link", identifier=body.email)
+    await branding.require_password_sign_in()
     issued = await user_service.issue_magic_link_token(body.email, return_to=body.return_to)
     if issued is not None:
         link_user, token = issued
@@ -403,6 +411,7 @@ async def verify_magic_link(
     body: MagicLinkVerifyRequest,
     user_service: UserSvc,
     session_service: SessionSvc,
+    branding: DeploymentSettingsSvc,
 ) -> Any:
     """Exchange a magic-link token for an access + refresh token pair.
 
@@ -411,6 +420,7 @@ async def verify_magic_link(
     whether a path is safe to honour - the same judgement for every door in.
     """
     await enforce_auth_limit(request, surface="auth_magic_link_verify")
+    await branding.require_password_sign_in()
     user, return_to = await user_service.consume_magic_link_token(body.token)
     proof = verify_special_token(body.token, expected_type="magic_link")
     proved_email = user.email if proof is not None and proof.get("email") == user.email else None

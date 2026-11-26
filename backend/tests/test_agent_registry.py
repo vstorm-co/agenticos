@@ -1979,7 +1979,8 @@ class TestValidateSpec:
             )
 
         assert refused.value.details == {
-            "problems": ["The selected model profile no longer exists"]
+            "reason": "does_not_publish",
+            "problems": ["The selected model profile no longer exists"],
         }
 
     @pytest.mark.anyio

@@ -12,7 +12,7 @@ parked run that never continues. It drives a real agent through park and resume.
 import asyncio
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -60,7 +60,8 @@ from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret
-from app.db.models.agent_run import RunSurface
+from app.db.models.agent_run import ApprovalStatus, RunSurface
+from app.repositories.agent_run import ApprovalRow
 from app.services.agent_chat import requested_approval_mode
 from app.services.agent_runner import AgentRunnerService, ApprovalChannel
 from app.services.approvals import ApprovalService
@@ -753,7 +754,28 @@ class TestApprovalQueue:
         ctx = AuthContext(
             user_id=uuid.uuid4(), organization_id=uuid.uuid4(), role=OrgRoleName.OPERATOR
         )
-        waiting = MagicMock(id=uuid.uuid4(), parked_in_chat=False)
+        waiting = ApprovalRow(
+            id=uuid.uuid4(),
+            run_id=uuid.uuid4(),
+            agent_id=uuid.uuid4(),
+            agent_name="Clerk",
+            tool_id="send_email",
+            tool_args={"to": "customer@example.com"},
+            capability_tool_id=None,
+            context=None,
+            account=None,
+            subagent_name=None,
+            subagent_agent_id=None,
+            status=ApprovalStatus.PENDING.value,
+            triggered_by_user_id=uuid.uuid4(),
+            triggered_by_email=None,
+            decided_by_user_id=None,
+            decided_by_email=None,
+            decided_at=None,
+            decided_via="click",
+            note=None,
+            created_at=None,
+        )
         db = MagicMock(flush=AsyncMock(), refresh=AsyncMock())
 
         with patch(
@@ -762,7 +784,7 @@ class TestApprovalQueue:
         ) as queue:
             pending, total = await ApprovalService(db).list_approvals(ctx, skip=10, limit=5)
 
-        assert (pending, total) == ([waiting], 1)
+        assert (pending, total) == ([replace(waiting, may_approve=True)], 1)
         assert queue.call_args.kwargs["organization_id"] == ctx.organization_id
         assert (queue.call_args.kwargs["skip"], queue.call_args.kwargs["limit"]) == (10, 5)
 
