@@ -25,10 +25,14 @@ def describe(exc: BaseException) -> str:
     `AppException` keeps its message, and a validation error says which fields
     failed without their values. Everything else stays in the worker's log beside
     the full traceback. An `AppException`'s message can still quote a name a person
-    chose, so a credential in it is redacted. A message is cut at `_MESSAGE_LIMIT`
+    chose, and validation locations may contain mapping keys, so credentials in
+    either are redacted. A message is cut at `_MESSAGE_LIMIT`
     characters.
     """
     message = _message(exc)
+    verdict = redact_secrets(message)
+    if isinstance(verdict.replacement, str):
+        message = verdict.replacement
     if len(message) > _MESSAGE_LIMIT:
         message = message[:_MESSAGE_LIMIT] + "..."
     frames = traceback.extract_tb(exc.__traceback__)[-_FRAMES:]
@@ -38,9 +42,7 @@ def describe(exc: BaseException) -> str:
 
 def _message(exc: BaseException) -> str:
     if isinstance(exc, AppException):
-        verdict = redact_secrets(exc.message)
-        replacement = verdict.replacement
-        return replacement if isinstance(replacement, str) else exc.message
+        return exc.message
     if isinstance(exc, ValidationError):
         fields = sorted(
             {
