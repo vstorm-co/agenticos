@@ -19,6 +19,36 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- See what an Improve session will read before starting it: the start dialog shows the dataset's guidance for the helper and who last changed it.
+- Read what a call of the platform's own tools does on its approval card: the agent, the attempt it accepts and its verdict, where a skill moves, the dataset version an eval runs on, and the price it was quoted at.
+- Price a promotion gate run before it starts with `GET /agents/{agent_id}/environments/{environment_id}/gate/estimate` or the `estimate_promotion_gate` tool.
+- Read the most an eval run may spend, reruns included, as `at_most_usd` on its estimate, with the `dataset_version` it priced. The console's Start eval agrees to that price and prices again if it changed.
+
+### Fixed
+
+- Send the run's own person the request for their own platform call, with a link to the conversation it was asked in, for as long as that call waits. The pending approval mail no longer names fixed roles.
+
+### Security
+
+- Let only the person an Architect run acts for, signed in as themselves, approve its platform call that always asks: not another approver, an API key or an impersonated session. They need no `approvals:decide` for it, in the chat, the approvals queue or the channel the run was asked in.
+- Show the description of a platform call's card only to the run's person; other approvers read its arguments.
+- Accept exactly the Improve attempt an approval named: `accept_improvement` names its `attempt`, and the finish is refused when another attempt was chosen meanwhile.
+- Resume a run that acts for no person - a widget visitor's, an unlinked channel member's - with no platform authority.
+- Ask before the Architect edits a skill or a Context file that published agents read.
+- Keep the platform's improver and case generator rules in every Improve session: a dataset's helper guidance is added below them and cannot replace them, and run evidence reaches the improver fenced as data.
+- Require `runs:view` to read an Improve session, its list or its findings.
+- Mark platform MCP calls that need a person - every call that always asks, every task or table write that may start agent work, and every delete, discard, end or publish - with `destructiveHint: true` for outside clients.
+- Set text other people or models wrote apart in Improve and eval tool results, under `untrusted`, and treat it as data in the Architect.
+- Refuse a paid start - an eval run, a skill update check, a promotion gate run, a knowledge draft - once it would cost more than the price the person agreed to.
+
+### Upgrading
+
+- Reading an Improve session now needs `runs:view`. Members and Viewers who read sessions through the API or the Architect need it granted.
+- `update_skill`, `add_skill_resource` and `update_context_file` always ask now, and no standing consent or `never` override releases them. A routine or unattended run that calls them waits for a person's approval.
+- Outside MCP clients calling `start_eval_run`, `start_skill_update_check`, `run_promotion_gate` or `draft_knowledge_topic` must pass the matching estimate's price as `quoted_usd` - `at_most_usd` for an eval run - and `start_eval_run` its `dataset_version`, `start_skill_update_check` its `base_version_id`. `accept_improvement` takes the `attempt` it accepts. The HTTP API keeps `quoted_usd` and `attempt` optional.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added
