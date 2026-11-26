@@ -487,6 +487,21 @@ class BackgroundOutputTests(unittest.TestCase):
             runner.memory_errors(case, wrong), ["missing expected claim or duplicate claims"]
         )
 
+    def test_memory_evidence_accepts_either_supported_user_turn(self) -> None:
+        case = next(item for item in runner.load("memory") if item.id == "memory-evidence-exact")
+        first = case.case.history[0].content
+        for quote in (first, "Ada approved the annual renewal through 2027."):
+            with self.subTest(quote=quote):
+                claim = runner.extraction._Extracted(statement=first, evidence=quote)
+                self.assertEqual(
+                    runner.memory_errors(case, runner.extraction._Extraction(claims=[claim])), []
+                )
+        bad = claim.model_copy(update={"statement": first + " The budget was $50,000."})
+        self.assertEqual(
+            runner.memory_errors(case, runner.extraction._Extraction(claims=[bad])),
+            ["the evidence must cite Ada's approval without adding the unverified budget"],
+        )
+
     def test_briefing_compares_schedule_occurrences(self) -> None:
         self.assertTrue(runner.same_test_schedule("0 6 * * MON-FRI", "0 6 * * 1-5"))
         self.assertFalse(runner.same_test_schedule("0 6 * * *", "0 6 * * 1-5"))

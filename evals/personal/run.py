@@ -736,8 +736,8 @@ def memory_errors(scenario: Scenario, found: extraction._Extraction) -> list[str
         errors.append("correction did not reuse the existing subject")
     if scenario.id == "memory-evidence-exact" and (
         len(found.claims) != 1
-        or "Ada approved" not in found.claims[0].evidence
-        or "50k" in found.claims[0].statement
+        or not re.search(r"\bAda(?: at Atlas)? approved\b", found.claims[0].evidence, re.IGNORECASE)
+        or re.search(r"\b50(?:[,\s]?000|\s*k)\b", found.claims[0].statement, re.IGNORECASE)
     ):
         errors.append("the evidence must cite Ada's approval without adding the unverified budget")
     return errors
