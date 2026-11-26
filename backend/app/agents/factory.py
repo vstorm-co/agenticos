@@ -96,6 +96,7 @@ from app.agents.isolation import IsolationGuard, RunIsolation, capability_tools
 from app.agents.loop_guard import LoopGuard
 from app.agents.manifest import RecordedToolSearch, RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec
+from app.agents.native_model_spec import NativeContext, NativeModelSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.routine_actions import RoutineToolCheck
 from app.agents.run_reviewer import RunReviewer
@@ -130,6 +131,8 @@ _AUDIENCE_AWARE = frozenset(
         BROWSER_CAPABILITY_ID,
         MEMORY_FILES_CAPABILITY_ID,
         CONVERSATION_SEARCH_CAPABILITY_ID,
+        "coding_agent",
+        "external_acp",
     }
 )
 
@@ -453,7 +456,8 @@ def build_agent(
     # bound, so a spec without one carries no audience at all.
     bound_audience = (
         audience
-        if any(binding.enabled and binding.capability_id in _AUDIENCE_AWARE for binding in bindings)
+        if isinstance(model_spec, NativeModelSpec)
+        or any(binding.enabled and binding.capability_id in _AUDIENCE_AWARE for binding in bindings)
         else None
     )
 
@@ -645,6 +649,9 @@ def build_agent(
         }
     )
 
+    if isinstance(model_spec, NativeModelSpec):
+        capabilities.append(NativeContext())
+
     agent = PydanticAgent[AgentDeps, AgentOutput](
         model=RecordingModel(model_spec.build(), recorder),
         model_settings=model_settings,
@@ -682,7 +689,12 @@ def build_agent(
         recorder=recorder,
         model_label=model_spec.label,
         approval_required_tools=approval_required,
-        usage_limits=UsageLimits(request_limit=spec.max_steps or DEFAULT_MAX_STEPS),
+        usage_limits=UsageLimits(
+            request_limit=spec.max_steps or DEFAULT_MAX_STEPS,
+            tool_calls_limit=(spec.max_steps or DEFAULT_MAX_STEPS)
+            if isinstance(model_spec, NativeModelSpec)
+            else None,
+        ),
         repairs=repairs,
     )
 

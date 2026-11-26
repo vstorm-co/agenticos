@@ -118,6 +118,24 @@ describe("the queue above the composer", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("offers explicit resume and hides Send now while the queue is paused", async () => {
+    const onResume = vi.fn();
+    const onSendNow = vi.fn();
+    render(
+      <PendingMessages
+        messages={queued.map((message) => ({ ...message, paused: true }))}
+        onCancel={vi.fn()}
+        onResume={onResume}
+        onSendNow={onSendNow}
+      />,
+    );
+    expect(screen.getByText("Queue paused")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Send now/ })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Resume queue" }));
+    expect(onResume).toHaveBeenCalledOnce();
+    expect(onSendNow).not.toHaveBeenCalled();
+  });
+
   it("lists what is waiting, in the order it will be sent", () => {
     render(<PendingMessages messages={queued} onCancel={vi.fn()} />);
 

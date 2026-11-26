@@ -99,9 +99,7 @@ async function configure() {
   const identity = dialog.getByRole("checkbox", { name: /Run as me/ });
   await waitFor(() => expect(identity).toBeChecked());
   await user.click(dialog.getByRole("button", { name: /Choose a folder/ }));
-  await user.click(dialog.getByRole("button", { name: "Continue" }));
   fireEvent.change(dialog.getByLabelText("Message"), { target: { value: "Read the report" } });
-  await user.click(dialog.getByRole("button", { name: "Continue" }));
   return { user, dialog, onCreated, onOpenChange, ...view };
 }
 describe("local routine creation", () => {

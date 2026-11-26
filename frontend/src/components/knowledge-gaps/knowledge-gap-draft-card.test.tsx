@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { KnowledgeGapDraft } from "@/types/knowledge-gaps";
+import { InImproveWizard } from "./wizard-mode";
 import { KnowledgeGapDraftCard } from "./knowledge-gap-draft-card";
 
 const state = vi.hoisted(() => ({
@@ -48,6 +49,32 @@ describe("KnowledgeGapDraftCard", () => {
     state.enabled = [];
   });
 
+  it("says a model wrote a draft still waiting to be checked and added", () => {
+    render(<KnowledgeGapDraftCard draft={DRAFT} />);
+    expect(screen.getByText("Draft — verify before adding")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /copy/i })).toBeNull();
+    expect(screen.getByText(/Written by a model from the questions above/)).toBeInTheDocument();
+  });
+
+  it("says a person wrote content no one has added yet, and names no model", () => {
+    render(<KnowledgeGapDraftCard draft={{ ...DRAFT, run_id: null }} />);
+    expect(screen.getByText("Written by a person — not added yet")).toBeInTheDocument();
+    expect(screen.queryByText(/by a model/)).toBeNull();
+  });
+
+  it("shows added content as added, saying who wrote it", () => {
+    const { rerender } = render(
+      <KnowledgeGapDraftCard draft={{ ...DRAFT, run_id: null }} addedTo="Fernhill policies" />,
+    );
+    expect(screen.getByText("Added to Fernhill policies")).toBeInTheDocument();
+    expect(
+      screen.getByText("Written by a person and added to the knowledge base from this topic."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/verify before adding/)).toBeNull();
+    rerender(<KnowledgeGapDraftCard draft={DRAFT} addedTo="Fernhill policies" />);
+    expect(screen.getByText(/Drafted by a model from the questions above/)).toBeInTheDocument();
+  });
+
   it("renders the draft as Markdown without fetching the images in it", () => {
     render(<KnowledgeGapDraftCard draft={DRAFT} />);
     const body = screen.getByTestId("markdown");
@@ -86,4 +113,14 @@ describe("KnowledgeGapDraftCard", () => {
     expect(screen.queryByText(/could not be verified/)).toBeNull();
     expect(screen.queryByRole("link", { name: "Open the run" })).toBeNull();
   });
+});
+
+it("leaves no empty footer when run links are unavailable inside Improve", () => {
+  render(
+    <InImproveWizard.Provider value>
+      <KnowledgeGapDraftCard draft={{ ...DRAFT, sources: [], unverified: 0 }} />
+    </InImproveWizard.Provider>,
+  );
+  expect(screen.queryByRole("link", { name: "Open the run" })).toBeNull();
+  expect(screen.queryByRole("button", { name: /copy/i })).toBeNull();
 });

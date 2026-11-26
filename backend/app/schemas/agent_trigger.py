@@ -495,9 +495,14 @@ class TriggerCreate(BaseSchema):
             "Narrows the agent's and the organization's limits; never lifts them (#2575)"
         ),
     )
+    chat_mode: Literal["per_run", "shared"] = Field(
+        default="shared",
+        description="A private editable chat for each execution, or one read-only shared history whose creator may fork an answer.",
+    )
+    action_mode: Literal["agent", "manual", "per_tool"] | None = None
     result_mode: Literal["report", "inbox"] = Field(
         default="report",
-        description="Report every completed run, or create deduplicated Inbox cases with a private chat per source item only when attention is needed.",
+        description="Legacy delivery compatibility: report permits answer_to delivery; inbox retains only the run log. In both modes, findings are published explicitly through publish_inbox_finding MCP, never parsed from the final answer.",
     )
     answer_to: Literal["run_log", "primary", "conversation"] = Field(
         default="primary",
@@ -519,7 +524,7 @@ class TriggerCreate(BaseSchema):
         description="A schedule stops by itself at this instant; null runs until stopped (#2575)",
     )
     runs_as_creator: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Fire as the person who made the trigger: their memory and their own "
             "MCP connections, as in their own chat. Only that person may turn it "
@@ -679,6 +684,7 @@ _UPDATE_NOT_NULLABLE = (
     "runs_as_creator",
     "overlap",
     "answer_to",
+    "chat_mode",
     "result_mode",
 )
 
@@ -755,6 +761,8 @@ class TriggerUpdate(BaseSchema):
         gt=0,
         description="This routine's own monthly limit; null removes it",
     )
+    action_mode: Literal["agent", "manual", "per_tool"] | None = None
+    chat_mode: Literal["per_run", "shared"] | None = None
     result_mode: Literal["report", "inbox"] | None = None
     answer_to: Literal["run_log", "primary", "conversation"] | None = Field(
         default=None, description="Where each fire's answer goes; see `TriggerCreate.answer_to`"
@@ -881,6 +889,8 @@ class TriggerRead(BaseSchema, TimestampSchema):
         "A version and a named environment cannot both be selected.",
     )
     teams_conversation_id: UUID | None = None
+    action_mode: Literal["agent", "manual", "per_tool"] | None = None
+    chat_mode: Literal["per_run", "shared"] = "shared"
     result_mode: Literal["report", "inbox"] = "report"
     answer_to: Literal["run_log", "primary", "conversation"] = "run_log"
     notification_channels: list[ExternalNotificationChannel] | None = Field(

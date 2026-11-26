@@ -98,6 +98,20 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    labelKey: "projects",
+    domain: "use",
+    items: [
+      {
+        labelKey: "allProjects",
+        href: ROUTES.PROJECTS,
+        icon: FolderKanban,
+        permission: Perm.projectsView,
+        dataTour: "nav-projects",
+        exact: true,
+      },
+    ],
+  },
+  {
     labelKey: "build",
     domain: "build",
     items: [
@@ -132,20 +146,6 @@ export const NAV_GROUPS: NavGroup[] = [
         href: ROUTES.ARTIFACTS,
         icon: PanelsTopLeft,
         permission: Perm.artifactsView,
-      },
-    ],
-  },
-  {
-    labelKey: "projects",
-    domain: "use",
-    items: [
-      {
-        labelKey: "allProjects",
-        href: ROUTES.PROJECTS,
-        icon: FolderKanban,
-        permission: Perm.projectsView,
-        dataTour: "nav-projects",
-        exact: true,
       },
     ],
   },

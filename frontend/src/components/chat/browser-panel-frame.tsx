@@ -1,11 +1,12 @@
 "use client";
 
-import { useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
 export type PanelSizing = "wide" | "sources";
+const SOURCES_CAP_PERCENT = 38;
 const WIDTHS = {
   wide: { min: 35, max: 65, initial: 55, step: 2 },
   sources: { min: 360, max: 420, initial: 400, step: 16 },
@@ -31,12 +32,28 @@ export function BrowserPanelFrame({
   const id = useId();
   const panel = useRef<HTMLElement>(null);
   const limits = WIDTHS[sizing];
-  const bounded = (width: number) => Math.min(limits.max, Math.max(limits.min, width));
+  const [dockWidth, setDockWidth] = useState<number | null>(null);
+  useEffect(() => {
+    const dock = panel.current?.parentElement;
+    if (!dock || contained || sizing !== "sources") return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setDockWidth(entry.contentRect.width);
+    });
+    observer.observe(dock);
+    return () => observer.disconnect();
+  }, [contained, sizing]);
+  const maxWidth =
+    sizing === "sources" && dockWidth !== null
+      ? Math.min(limits.max, (dockWidth * SOURCES_CAP_PERCENT) / 100)
+      : limits.max;
+  const bounded = (width: number) => Math.min(maxWidth, Math.max(limits.min, width));
   const [width, setWidth] = useState<number>(limits.initial);
+  const visibleWidth = Math.min(width, maxWidth);
   const [fullscreen, setFullscreen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const style: CSSProperties & { "--browser-panel-width": string } = {
-    "--browser-panel-width": sizing === "sources" ? `min(${width}px, 38%)` : `${width}%`,
+    "--browser-panel-width":
+      sizing === "sources" ? `min(${width}px, ${SOURCES_CAP_PERCENT}%)` : `${width}%`,
   };
   return (
     <aside
@@ -62,24 +79,27 @@ export function BrowserPanelFrame({
           tabIndex={0}
           aria-label={t("browserResize")}
           aria-controls={panelId ?? id}
-          aria-valuemin={limits.min}
-          aria-valuemax={limits.max}
-          aria-valuenow={Math.round(width)}
+          aria-valuemin={Math.min(limits.min, Math.round(maxWidth))}
+          aria-valuemax={Math.round(maxWidth)}
+          aria-valuenow={Math.round(visibleWidth)}
           className={cn(
             "hover:bg-foreground/10 focus-visible:bg-foreground/10 absolute inset-y-0 left-0 z-30 hidden w-3 -translate-x-1/2 cursor-col-resize touch-none bg-transparent focus-visible:outline-none",
+            // A narrower Sources dock cannot resize: its 38% cap binds even at 360px.
             layout === "browser"
               ? "@min-[900px]/browser-layout:block"
-              : "@min-[900px]/sources-layout:block",
+              : "@min-[948px]/sources-layout:block",
           )}
           onKeyDown={(event) => {
             if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
             event.preventDefault();
-            setWidth((current) =>
+            setWidth(
               event.key === "Home"
                 ? limits.min
                 : event.key === "End"
-                  ? limits.max
-                  : bounded(current + (event.key === "ArrowLeft" ? limits.step : -limits.step)),
+                  ? maxWidth
+                  : bounded(
+                      visibleWidth + (event.key === "ArrowLeft" ? limits.step : -limits.step),
+                    ),
             );
           }}
           onPointerDown={(event) => {

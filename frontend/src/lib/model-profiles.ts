@@ -1,3 +1,4 @@
+import { subscriptionModelId } from "@/lib/subscription-model-id";
 import { ApiError } from "@/lib/api-error";
 import type { ModelProfile } from "@/types/providers";
 
@@ -13,10 +14,11 @@ export function modelDetail(
 
 /** The catalog sometimes prefixes model names with the model maker. */
 export function catalogModelName(id: string, name?: string): string {
-  const display = name?.trim();
-  if (!display) return id;
-  const separator = id.includes("/") ? display.indexOf(": ") : -1;
-  return separator < 0 ? display : display.slice(separator + 2).trim() || id;
+  const model = subscriptionModelId(id);
+  const display = name ? subscriptionModelId(name.trim()) : undefined;
+  if (!display) return model;
+  const separator = model.includes("/") ? display.indexOf(": ") : -1;
+  return separator < 0 ? display : display.slice(separator + 2).trim() || model;
 }
 
 /** Match the picker’s catalog spelling while respecting a saved custom label. */
@@ -24,6 +26,14 @@ export function modelName(
   profile: Pick<ModelProfile, "label" | "provider" | "model">,
   catalogName?: string,
 ): string {
+  if (
+    profile.provider === "subscription_accounts" &&
+    (profile.label.endsWith(` · ${profile.model}`) ||
+      / · account-[a-f0-9]{24}\//.test(profile.label))
+  ) {
+    const model = subscriptionModelId(profile.model);
+    return catalogModelName(model, catalogName ?? model.split("/").at(-1));
+  }
   if (profile.label && profile.label !== profile.model && modelDetail(profile) !== null)
     return profile.label;
   return catalogModelName(profile.model, catalogName ?? profile.model.split("/").at(-1));

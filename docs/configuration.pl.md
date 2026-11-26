@@ -1,5 +1,5 @@
 ---
-source_sha: "b190a21ae0c5"
+source_sha: "b67c12b7a802"
 ---
 
 # Konfiguracja { #configuration }
@@ -1671,3 +1671,36 @@ nie ma automatycznego cofania bazy. Backupy pozostają na hoście do ręcznego u
 i nie zastępują kopii poza serwerem. Najpierw przetestuj odzyskiwanie na środowisku
 jednorazowym. Wiele hostów, własne nakładki Compose i zewnętrzny magazyn plików
 obsługuj pipeline’em: `UPDATE_PIPELINE_URL` pokazuje link HTTPS bez uruchamiania wdrożenia.
+
+## Konta subskrypcyjne { #subscription-accounts }
+
+Usługa `subscription-gateway` obsługuje własne logowania osób do subskrypcji
+([Konta subskrypcyjne](models.md#subscription-accounts)). Używa obrazu backendu
+z poleceniem `python -m app.subscription_gateway`, nie publikuje portu i trzyma
+logowania w wolumenie `subscription_accounts`.
+
+| Zmienna | Czyta ją | Znaczenie |
+|---|---|---|
+| `SUBSCRIPTION_GATEWAY_URL` | API, worker | Adres bramy, w compose `http://subscription-gateway:8400`. Brak wartości wyłącza konta subskrypcyjne. |
+| `SUBSCRIPTION_GATEWAY_TOKEN` | API, worker, brama | Wspólny token, co najmniej 32 znaki. Brama odrzuca bez niego każde żądanie, a API nie wystartuje z adresem, ale bez takiego tokenu. |
+| `SUBSCRIPTION_GATEWAY_IDLE_SECONDS` | brama | Jak długo proces osoby może być bezczynny, zanim się zatrzyma. Domyślnie 600. |
+| `SUBSCRIPTION_GATEWAY_MAX_PROCESSES` | brama | Ile procesów osób może działać naraz. Domyślnie 64; powyżej tej liczby zatrzymuje się najdawniej używany bezczynny proces. |
+
+Token powstaje sam. `make dev` i `scripts/deploy.sh` przy pierwszym uruchomieniu
+zapisują losowy `SUBSCRIPTION_GATEWAY_TOKEN` w `backend/.env` i potem go
+zachowują; `make dev` przekazuje go do `docker-compose.yml`. Aby wybrać własny,
+wpisz go tam wcześniej (`openssl rand -hex 32`).
+
+W `docker-compose-prod.yml` i `docker-compose-dev.yml` usługa jest w profilu
+`subscriptions`. `scripts/deploy.sh` i aktualizator hosta włączają ten profil i
+ustawiają `SUBSCRIPTION_GATEWAY_URL`, gdy `backend/.env` zawiera token, więc
+serwer domyślnie uruchamia bramę. Aby ją wyłączyć, zostaw w `backend/.env` pustą
+linię: `SUBSCRIPTION_GATEWAY_TOKEN=`.
+
+`docker-compose.yml` uruchomiony samodzielnie, bez klonu repozytorium, używa
+stałego lokalnego tokenu. Dla każdego takiego wdrożenia, do którego dostęp mają
+inni, ustaw własny `SUBSCRIPTION_GATEWAY_TOKEN` w `.env`.
+
+## GitHub Copilot OAuth { #github-copilot-oauth }
+
+Ustaw `GITHUB_COPILOT_OAUTH_CLIENT_ID` (domyślnie puste) na identyfikator własnej aplikacji OAuth wdrożenia i włącz w niej device flow. Bez niego osobiste logowanie Copilot jest odrzucane. To ustawienie jest odrębne od GitHub Models i poświadczeń konektora GitHub. Autoryzacja GitHub nie ustala uprawnień Copilot; musi przejść także sprawdzenie modeli czatu dla konta. Wygasające zgody GitHub App i własne bramy Enterprise nie są obsługiwane. Zobacz [konta Copilot](models.md#github-copilot-accounts).

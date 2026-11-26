@@ -1,5 +1,7 @@
 "use client";
 
+import type { ChatGPTSignInKind } from "@/types/secrets";
+
 import { useCallback, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -164,7 +166,9 @@ export interface NewChatGPTSignIn {
   description?: string | null;
   visibility?: SecretVisibility;
   /** The whole address ChatGPT sent the browser to - it carries the code. */
-  callback_url: string;
+  callback_url?: string;
+  /** Codex only: an approved device sign-in, instead of a pasted address. */
+  device_state?: string;
 }
 
 /**
@@ -175,7 +179,8 @@ export interface NewChatGPTSignIn {
  * pastes it back. `start` mints the sign-in server-side and answers with where
  * to send them; `create` and `reconnect` redeem the pasted address once.
  */
-export function useChatGPTSignIn() {
+export function useChatGPTSignIn(kind: ChatGPTSignInKind = "openai_codex") {
+  const endpoint = kind === "openai_chatgpt" ? "openai-chatgpt" : "openai-codex";
   const t = useTranslations("vault");
   const queryClient = useQueryClient();
 
@@ -183,15 +188,24 @@ export function useChatGPTSignIn() {
     // The same cancel-then-invalidate as `useSecrets`, for the same dedup race.
     await queryClient.cancelQueries({ queryKey: qk.secrets.list() });
     await queryClient.invalidateQueries({ queryKey: qk.secrets.list() });
+    await queryClient.cancelQueries({ queryKey: qk.providers.models("openai_chatgpt") });
+    await queryClient.invalidateQueries({ queryKey: qk.providers.models("openai_chatgpt") });
   }, [queryClient]);
 
   const start = useMutation({
-    mutationFn: () =>
-      apiClient.post<{ authorization_url: string }>("/secrets/openai-codex/sign-in"),
+    mutationFn: () => apiClient.post<{ authorization_url: string }>(`/secrets/${endpoint}/sign-in`),
   });
 
   const create = useMutation({
-    mutationFn: (data: NewChatGPTSignIn) => apiClient.post<Secret>("/secrets/openai-codex", data),
+    mutationFn: async (data: NewChatGPTSignIn) => {
+      if (kind === "openai_codex") return apiClient.post<Secret>(`/secrets/${endpoint}`, data);
+      const result = await apiClient.post<{ connection: Secret; plan_usage_granted: boolean }>(
+        `/secrets/${endpoint}`,
+        data,
+      );
+      if (!result.plan_usage_granted) toast.warning(t("chatgptPlanDeclined"));
+      return result.connection;
+    },
     onSuccess: async (secret) => {
       await invalidate();
       toast.success(t("secretStored", { name: secret.name, hint: secret.hint }));
@@ -199,8 +213,27 @@ export function useChatGPTSignIn() {
   });
 
   const reconnect = useMutation({
-    mutationFn: ({ id, callback_url }: { id: string; callback_url: string }) =>
-      apiClient.put<Secret>(`/secrets/${id}/openai-codex`, { callback_url }),
+    mutationFn: async ({
+      id,
+      callback_url,
+      device_state,
+    }: {
+      id: string;
+      callback_url?: string;
+      device_state?: string;
+    }) => {
+      if (kind === "openai_codex")
+        return apiClient.put<Secret>(
+          `/secrets/${id}/${endpoint}`,
+          device_state !== undefined ? { device_state } : { callback_url },
+        );
+      const result = await apiClient.put<{ connection: Secret; plan_usage_granted: boolean }>(
+        `/secrets/${id}/${endpoint}`,
+        { callback_url },
+      );
+      if (!result.plan_usage_granted) toast.warning(t("chatgptPlanDeclined"));
+      return result.connection;
+    },
     onSuccess: async (secret) => {
       await invalidate();
       toast.success(t("chatgptReconnected", { name: secret.name }));

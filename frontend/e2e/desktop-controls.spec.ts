@@ -279,9 +279,8 @@ test.describe("desktop pointer controls", () => {
     }
   });
 
-  test("scrolls a large file listing without moving the chat or its close control", async ({
-    page,
-  }) => {
+  test("docks, resizes, maximizes and scrolls a large Files panel", async ({ page }) => {
+    await page.setViewportSize({ width: 1680, height: 1000 });
     // Own the fixture: a fresh personal workspace need not contain any chats.
     const response = await page.request.post("/api/conversations", {
       data: { title: "Workspace scroll regression" },
@@ -319,7 +318,7 @@ test.describe("desktop pointer controls", () => {
           },
         }),
       );
-      await page.goto(`/chat?id=${encodeURIComponent(id)}`);
+      await page.goto(`/chat?id=${encodeURIComponent(id)}&sidebar=workspace`);
       const composer = page.getByRole("textbox", { name: "Type a message...", exact: true });
       await expect(composer).toBeVisible();
       await settleEntrances(page);
@@ -328,6 +327,35 @@ test.describe("desktop pointer controls", () => {
       const close = panel.getByRole("button", { name: "Close the file panel" });
       await expect(panel.getByRole("treeitem")).toHaveCount(120);
       await settleEntrances(page);
+
+      const dockGeometry = () =>
+        panel.evaluate((element) => {
+          const chat = element.closest(".chat-surface")?.getBoundingClientRect();
+          if (!chat) throw new Error("The Files panel has no chat surface");
+          const files = element.getBoundingClientRect();
+          return {
+            chat: Math.round(chat.width),
+            files: Math.round(files.width),
+            rightGap: Math.round(chat.right - files.right),
+          };
+        });
+      const resize = panel.getByRole("separator", { name: "Resize side panel" });
+      const maximize = panel.getByRole("button", { name: "Maximize", exact: true });
+      await expect.poll(dockGeometry).toMatchObject({ files: 400, rightGap: 0 });
+      const handle = await resize.boundingBox();
+      if (!handle) throw new Error("The docked Files panel has no visible resize handle");
+      const x = handle.x + handle.width / 2;
+      const y = handle.y + handle.height / 2;
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x - 40, y, { steps: 4 });
+      await page.mouse.up();
+      await expect.poll(dockGeometry).toMatchObject({ files: 420, rightGap: 0 });
+      await clickCenter(page, maximize);
+      await expect.poll(async () => (await panel.boundingBox())?.width).toBe(1680);
+      await clickCenter(page, panel.getByRole("button", { name: "Back beside the chat" }));
+      await expect.poll(dockGeometry).toMatchObject({ files: 420, rightGap: 0 });
+
       const initialClose = await close.boundingBox();
       const before = await composer.boundingBox();
       const scrollport = panel.locator(".overflow-y-auto");
@@ -344,6 +372,18 @@ test.describe("desktop pointer controls", () => {
       await expect(panel.getByRole("treeitem").last()).toBeInViewport();
       expect(await close.boundingBox()).toEqual(initialClose);
       expect((await composer.boundingBox())?.y).toBe(before?.y);
+
+      // Restore the conversation list at a width where the dock still fits but
+      // its 38% cap leaves no drag range. Maximize remains available.
+      await page.setViewportSize({ width: 1460, height: 1000 });
+      await page.getByRole("button", { name: "Expand conversations sidebar" }).click();
+      await expect(maximize).toBeVisible();
+      await expect(resize).toBeHidden();
+      const constrained = await dockGeometry();
+      expect(constrained.rightGap).toBe(0);
+      expect(Math.abs(constrained.files - constrained.chat * 0.38)).toBeLessThan(1);
+      await clickCenter(page, maximize);
+      await expect.poll(async () => (await panel.boundingBox())?.width).toBe(1460);
       await clickCenter(page, close);
       await expect(panel).toBeHidden();
     } finally {

@@ -273,6 +273,9 @@ describe("TriggerFormDialog custom-webhook event form", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
+      action_mode: "agent",
+      chat_mode: "shared",
+      runs_as_creator: false,
       prompt: "Triage it",
       name: null,
       trigger_type: "event",
@@ -342,6 +345,9 @@ describe("TriggerFormDialog custom-webhook event form", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
       source_mode: "follow_agent",
+      action_mode: "agent",
+      chat_mode: "shared",
+      runs_as_creator: false,
       prompt: "Handle it",
       name: null,
       trigger_type: "event",
@@ -550,7 +556,7 @@ it("keeps a new schedule on configuration until its budget is valid", async () =
   fireEvent.change(dialog.getByLabelText("Monthly budget (USD, optional)"), {
     target: { value: "not a number" },
   });
-  expect(dialog.getByRole("button", { name: "Continue" })).toBeDisabled();
+  expect(dialog.getByRole("button", { name: "Create" })).toBeDisabled();
   expect(apiClient.post).not.toHaveBeenCalled();
 });
 

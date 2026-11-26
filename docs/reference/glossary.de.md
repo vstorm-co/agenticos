@@ -1,5 +1,5 @@
 ---
-source_sha: "ef480f9f1969"
+source_sha: "75494f696b30"
 ---
 
 # Glossar { #glossary }
@@ -91,6 +91,8 @@ nicht bricht.
 | Rauschen | Antworten, die beim erneuten Fragen anders bewertet werden, obwohl sich nichts geändert hat; ein Ergebnis, das es erklären kann, liegt im Rauschen, und **Jede Frage zweimal stellen** misst es | `measurement_noise`, `purpose: stability` |
 | Prüfung | Scores, die darauf warten, dass ein Mensch sie bestätigt oder ändert | `review_state` |
 | Fallgenerator | Der System-Agent, der Fälle aus einem Agent, seinem Wissen, echten Chats und Red Teaming entwirft | `kind: generator` |
+| Schlüssel-Extraktor | Der System-Agent, der die Fakten der Referenzantwort eines Falls für seine Schlüssel-Prüfung auflistet | `kind: extractor` |
+| Quellenabdeckung | Der System-Agent, der sagt, welche Schlüssel eines Datasets keine Quelle eines Agenten enthält | `kind: coverage` |
 | Vorgeschlagener Fall | Ein entworfener Fall, der unter **Generiert** wartet, bis ein Mensch ihn annimmt oder verwirft | `case_proposal` |
 | Red Teaming | Fälle, die prüfen, ob ein Agent ablehnt, was er ablehnen muss | Tag `red-team` |
 
@@ -133,6 +135,7 @@ Jede ist unter [Capabilities](capabilities.md) beschrieben.
 | Datum und Uhrzeit | `clock` |
 | Berechnungen | `code_execution` |
 | Coding Agent | `coding_agent` |
+| Externer ACP-Agent | `external_acp` |
 | Lange Gespräche | `compaction` |
 | Computer-Bedienung | `computer_use` |
 | Kontext | `context` |

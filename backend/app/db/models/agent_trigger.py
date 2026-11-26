@@ -80,6 +80,7 @@ class TriggerDeliveryStatus(enum.StrEnum):
     RUN_LOG = "run_log"
     NO_ANSWER = "no_answer"
     NOT_COMPLETED = "not_completed"
+    PENDING = "pending"
 
 
 class TriggerType(enum.StrEnum):
@@ -256,6 +257,13 @@ class AgentTrigger(Base, TimestampMixin):
         """Safe source labels from initial setup, not provider error bodies."""
         value = (self.approved_sources or {}).get("unavailable_sources", [])
         return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
+
+    chat_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="shared", server_default="shared"
+    )
+
+    action_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    """Null retains the historical source-mode policy; new routines choose explicitly."""
 
     action_consents: Mapped[list[dict[str, object]]] = mapped_column(
         JSONB, nullable=False, default=list, server_default="[]"
@@ -464,6 +472,10 @@ class AgentTrigger(Base, TimestampMixin):
     # schema from the models, so a constraint stated only in the migration would
     # be absent from exactly the tests written to prove it rejects a row.
     __table_args__ = (
+        CheckConstraint(
+            "action_mode IS NULL OR action_mode IN ('agent', 'manual', 'per_tool')",
+            name="ck_trigger_action_mode",
+        ),
         CheckConstraint("result_mode IN ('report', 'inbox')", name="ck_trigger_result_mode"),
         CheckConstraint(
             "max_failures IS NULL OR max_failures BETWEEN 1 AND 20", name="ck_routine_max_failures"
@@ -478,7 +490,8 @@ class AgentTrigger(Base, TimestampMixin):
             ),
         ),
         CheckConstraint(
-            "last_delivery_status IN ('delivered', 'unavailable', 'run_log', 'no_answer', 'not_completed')",
+            "last_delivery_status IN ('delivered', 'unavailable', 'run_log', 'no_answer', "
+            "'not_completed', 'pending')",
             name="ck_trigger_delivery_status",
         ),
         CheckConstraint(
@@ -490,6 +503,7 @@ class AgentTrigger(Base, TimestampMixin):
         CheckConstraint(
             "monthly_budget_usd IS NULL OR monthly_budget_usd > 0", name="ck_trigger_budget"
         ),
+        CheckConstraint("chat_mode IN ('per_run', 'shared')", name="ck_trigger_chat_mode"),
         CheckConstraint(
             "answer_to IN ('run_log', 'primary', 'conversation')", name="ck_trigger_answer_to"
         ),

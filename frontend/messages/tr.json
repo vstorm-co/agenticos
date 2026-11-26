@@ -113,6 +113,18 @@
     "useEmailInstead": "Bunun yerine e-posta ve şifre kullan",
     "nativeLogoutFailed": "Oturum kapatıldı ancak uygulama yerel erişimi temizleyemedi."
   },
+  "approvalFeedback": {
+    "savedApproval": "Zaten onaylandı: {action}",
+    "savedRejection": "Zaten reddedildi: {action}",
+    "retryResume": "Sürdürmeyi yeniden dene",
+    "trigger": "Geri bildirimle reddet",
+    "hint": "Önerilen işlem çalıştırılmaz. Geri bildiriminiz ret kararıyla birlikte kaydedilir.",
+    "batchHint": "Listelenen tüm çağrılar reddedilir. Yalnızca geri bildirim vermek istediğiniz çağrılara not ekleyin.",
+    "call": "{number}. çağrı: {action}",
+    "comment": "Geri bildirim",
+    "submit": "Reddet ve geri bildirim gönder",
+    "rejectAll": "Tümünü reddet ve geri bildirim gönder"
+  },
   "common": {
     "archiveNamedConfirm": "{name} arşivlensin mi?",
     "chooseSection": "Bölüm: {section}",
@@ -385,6 +397,11 @@
     "typeToConfirm": "Onaylamak için <mono>{phrase}</mono> yazın",
     "typeYourAnswer": "Yanıtınızı yazın…",
     "useProviderDefault": "Provider varsayılanını kullan",
+    "runtimeApprovePlan": "Planı onayla",
+    "runtimeRejectPlan": "Planı reddet",
+    "runtimeYes": "Evet",
+    "runtimeNo": "Hayır",
+    "pickBetween": "{minimum} ile {maximum} arasında seçin.",
     "pickAnyNumber": "Geçerli olanların tümünü seçin.",
     "useThisAnswer": "Bunu kullan",
     "continue": "Devam",
@@ -2643,7 +2660,9 @@
       "newWatch": "İzle ve bildir",
       "newRoutine": "Yeni rutin",
       "scheduledTask": "Zamanlamaya göre çalıştır",
-      "eventTask": "Bir olay geldiğinde çalıştır"
+      "eventTask": "Bir olay geldiğinde çalıştır",
+      "watchNeedsEnabling": "Organizasyon ayarlarından izlemeyi etkinleştirin.",
+      "watchNeedsConnection": "Önce Bağlantılar bölümünde bir MCP hesabı bağlayın."
     },
     "signIns": {
       "cancel": "İptal",
@@ -3291,7 +3310,19 @@
           "blocked": "Engellendi",
           "unknown": "Doğrulanmadı"
         }
-      }
+      },
+      "agentBound": "@{agent} artık {bot} üzerinde yanıt veriyor",
+      "agentUnbound": "@{agent} artık {bot} üzerinde yanıt vermiyor",
+      "bindAgent": "Agent bağla",
+      "bindAgentConfirm": "Bağla",
+      "bindAgentDescription": "Bot, agent’ın varsayılan ortamında tek bir agent olarak yanıt verir. Ortamı değiştirmek, bağlantıyı duraklatmak veya aramaları seçmek için agent’ın Kullanılabilirlik sekmesini kullanın.",
+      "bindAgentPlaceholder": "Bir agent seçin",
+      "bindAgentTo": "{bot} için bir agent bağlayın",
+      "bindingPaused": "Bağlantı duraklatıldı",
+      "noBindableAgents": "Buraya bağlamak için yayımlama yetkiniz olan bir agent yok.",
+      "unbindAgent": "@{agent} ile {bot} bağlantısını kaldır",
+      "unbindAgentConfirm": "Bağlantıyı kaldır",
+      "unbindAgentDescription": "Başka bir agent bağlanana kadar {bot} yanıt vermez. Bağlantıya ait talimatlar, aramalar ve ortam da silinir."
     },
     "agents": {
       "shippedUpdate": {
@@ -5026,7 +5057,13 @@
     "cardOrganizations": "{count, plural, =1 {Kuruluşun hesabı} other {Kuruluşun # hesabı}}",
     "cardYoursAndOrganizations": "Sizin ve kuruluşun",
     "accountActions": "{name} için diğer işlemler",
-    "watch": "İzle"
+    "watch": "İzle",
+    "onboarding": {
+      "browseAll": "Tüm hizmetlere göz atın",
+      "showFeatured": "Önerilen hizmetlere dönün",
+      "customServer": "Özel bir MCP bağlayın",
+      "manage": "Yönet"
+    }
   },
   "sandboxes": {
     "activityLogUnreadable": "Etkinlik günlüğü okunamadı",
@@ -5875,6 +5912,32 @@
         "title": "Canlı önizleme",
         "description": "Agent masaüstünde çalışırken görüntüyü chat'te canlı göster."
       }
+    },
+    "external_acp": {
+      "agent_id": {
+        "title": "Desktop ajan kimliği",
+        "description": "Görevi başlatan kişinin bilgisayarındaki Desktop uygulaması ayarlarında kayıtlı kimlik. Oturum ve model ayarları o programa aittir."
+      },
+      "timeout_minutes": {
+        "title": "Süre sınırı (dakika)",
+        "description": "Durdurulmadan önce tek bir görevin ne kadar çalışabileceği."
+      },
+      "auth_method": {
+        "title": "Kimlik doğrulama modu",
+        "description": "Programın yapılandırılmış hesabını kullanın veya Antigravity kişisel Google oturumunu açıkça seçin. Yöntem yoksa başka hesaba ya da API anahtarına geçmeden hata verir."
+      },
+      "model_id": {
+        "title": "Harici model kimliği",
+        "description": "Bu hesap için inspect_acp_agent tarafından verilen isteğe bağlı tam kimlik. Boş değer programın modelini korur. AgenticOS model profili yerine çalışma zamanı modelini seçer."
+      },
+      "api_provider": {
+        "title": "Kasa anahtarlı sağlayıcı",
+        "description": "Yerel çalışma ortamı için isteğe bağlı kasa API anahtarı: Pi anahtar şablonuyla Inception, DeepSeek veya OpenRouter ya da Antigravity Gemini API anahtarı şablonuyla Gemini. Eşleşen yerel şablon ve başlatan üyenin ilgili kasa anahtarına bağımsız erişimi gerekir. Kayıtlı CLI kimlik bilgileri içe aktarılmaz."
+      },
+      "platform_tools": {
+        "title": "AgenticOS araçları",
+        "description": "Bu özel görüşmenin hazırlanmış araçlarını izinler, onaylar ve bütçeler korunarak dış çalışma ortamına iletir. Güncel Desktop uygulaması gerekir."
+      }
     }
   },
   "capabilityGuide": {
@@ -6157,9 +6220,22 @@
       "name": "Arka plan konuları",
       "needs": "Yayınlanmış bir konsol agent’ı, etkin bir üye ve yerel çalışma için onaylanmış bir klasör.",
       "never": "Konuşmanın tamamını kopyalamaz, onayları atlamaz, kesilen işlemleri yeniden başlatmaz; watch veya routine başlatmaz."
+    },
+    "external_acp": {
+      "name": "Harici ACP ajanı",
+      "does": "Bilgisayarınızda kurulu bir ACP programına eksiksiz bir görev devreder.",
+      "example1": "Yerel bir asistandan depoyu incelemesini isteyin",
+      "example2": "Adlandırılmış bir oturuma başka bir görevle devam edin",
+      "needs": "Desktop uygulaması, kayıtlı ve oturum açılmış bir ACP programı ve tam erişimi onaylanmış bir klasör.",
+      "never": "Yerel hesabınızın erişimiyle çalışır. Salt okunur yalıtım veya platform araçlarının iletimi yoktur. Her görev için insan onayını etkinleştirin."
     }
   },
   "agents": {
+    "profileDefaults": "Model varsayılanları",
+    "profileDefaultsHint": "Bu ayarlar, kaydedilen modelin kullanıldığı her yerde geçerlidir. Tek tek ajanlar bunları değiştirebilir. Desteklenmeyen parametreleri sağlayıcının varsayılanlarında bırakın.",
+    "profileThinkingOn": "Açık · sağlayıcı seviyesi",
+    "profileThinkingOff": "Kapalı",
+    "profileCustomThinking": "Kaydedilmiş özel ayar",
     "buildSummary": {
       "variables": "{count, plural, =0 {Sistem değişkenleri} other {Sistem değişkenleri ve # özel değişken}}",
       "voice": "Aramalar {calls, select, on {açık} other {kapalı}} · Dikte {dictation, select, on {açık} other {kapalı}}",
@@ -6195,6 +6271,8 @@
     "allowedSites": "İzin verilen siteler",
     "answersCustomerQuestionsFrom": "Ürün wiki'sinden gelen müşteri sorularını yanıtlar.",
     "anyoneThoseSites": "Bu sitelerdeki herkes",
+    "appWide": "Uygulama genelinde",
+    "appWideNotForAgents": "Agent’lar uygulama genelindeki bilgi tabanlarını kullanamaz. Kaldırmak için seçimi kaldırın.",
     "approval": "Onay",
     "approvalAlways": "Her zaman sor",
     "approvalHintDefaultReadOnly": "Bu capability yalnızca okuma yaptığı için onaysız çalışır.",
@@ -6487,6 +6565,8 @@
     "orphanedContext": "Bu Agent ayrıca kuruluşta artık bulunmayan {count, plural, =1 {1 context dosyasına} other {# context dosyasına}} başvuruyor. Yayınlamak için önce bunları temizleyin:",
     "orphanedServers": "Bu Agent ayrıca kuruluşta sunulmayan {count, plural, =1 {1 server'a} other {# server'a}} başvuruyor - kaldırılmış veya içe aktarılan bir spec'ten taşınmış olabilir. Yayınlamak için önce bunları temizleyin:",
     "orphanedSkills": "Bu Agent ayrıca kuruluşta artık bulunmayan {count, plural, =1 {1 skill'e} other {# skill'e}} başvuruyor. Yayınlamak için önce bunları temizleyin:",
+    "otherOrganization": "Başka kuruluş",
+    "otherOrganizationNotForAgents": "Bu bilgi tabanı başka bir kuruluşa ait olduğundan buradaki agent’lar bunu kullanamaz. Kaldırmak için seçimi kaldırın.",
     "staleReferences": "Bu taslak, kuruluşta artık bulunmayan şu öğelere başvuruyor: {list}. Yayınlamak için önce bunları temizleyin.",
     "staleCollections": "{count, plural, =1 {1 bilgi koleksiyonu} other {# bilgi koleksiyonu}}",
     "staleContext": "{count, plural, =1 {1 context dosyası} other {# context dosyası}}",
@@ -7124,6 +7204,7 @@
     "observationRequired": "Katılım kararını verecek modeli seçin.",
     "observationSaveFailed": "Kaydedilemedi. Değişiklikler formda duruyor; yeniden deneyin.",
     "observationSave": "Katılım ayarlarını kaydet",
+    "subscriptionAccountsNote": "Herkes bu modelleri kendi hesaplarıyla çalıştırır. Kendinizinkileri <link>Ayarlar → Profil</link> bölümünde bağlayın.",
     "connectionSettings": "Bağlantı ayarları · {provider} · {endpoint}",
     "customEndpoint": "Özel uç nokta"
   },
@@ -7255,13 +7336,20 @@
       "afternoonNamed": "İyi günler, {name}",
       "eveningNamed": "İyi akşamlar, {name}",
       "waiting": {
-        "questions": "{count, plural, other {# soru}}"
+        "questions": "{count, plural, other {yanıt bekleyen # soru}}",
+        "approvals": "{count, plural, other {onay bekleyen # işlem}}",
+        "review": "{count, plural, =1 {incelenecek 1 yanıt} other {incelenecek # yanıt}}",
+        "suites": "{count, plural, =1 {başarısız 1 test paketi} other {başarısız # test paketi}}",
+        "suggestions": "{count, plural, other {Gelen Kutusunda # öneri}}"
       },
-      "summary": "Agentlarınız bu dönemde <b>{runs, plural, =0 {hiç çalışmadı} =1 {1 kez çalıştı} other {# kez çalıştı}}</b>. {waiting, plural, =0 {Sizden yanıt bekleyen yok.} =1 {Sizden yanıt bekleyen <b>1 çağrı</b> var.} other {Sizden yanıt bekleyen <b># çağrı</b> var.}}"
+      "summary": "Agentlarınız bu dönemde <b>{runs, plural, =0 {hiç çalışmadı} =1 {1 kez çalıştı} other {# kez çalıştı}}</b>. {waiting, plural, =0 {Sizden yanıt bekleyen yok.} =1 {Sizden yanıt bekleyen <b>1 çağrı</b> var.} other {Sizden yanıt bekleyen <b># çağrı</b> var.}}",
+      "ran": "Agentlarınız bu dönemde <b>{runs, plural, =0 {hiç çalışmadı} =1 {1 kez çalıştı} other {# kez çalıştı}}</b>.",
+      "nothingWaiting": "Sizden yanıt bekleyen bir şey yok.",
+      "waitingOn": "<b>{items}</b> var."
     },
     "discover": {
       "title": "AgenticOS’u keşfedin",
-      "subtitle": "Agentlarınızın yapabildiği, kolayca gözden kaçabilecek şeyler.",
+      "subtitle": "Kendi modellerini kullan, araçlarını bağla ve sohbeti faydalı işe dönüştür.",
       "previous": "Önceki ipuçları",
       "next": "Daha fazla ipucu",
       "dismissAll": "İpuçlarını gizle",
@@ -7321,6 +7409,31 @@
           "title": "Ekibinizin çalışma biçimini öğretin",
           "body": "Skills; teklif şablonu veya işe alım kontrol listesi gibi yazılı yönergelerdir. Agent, görev gerektirdiğinde yükler.",
           "cta": "Skill yaz"
+        },
+        "subscriptions": {
+          "title": "Claude veya Codex hesabını kullan",
+          "body": "Desteklenen bir Claude Code, ChatGPT (Codex) veya Antigravity hesabını bağla ve kendi sohbetlerinde modellerini seç.",
+          "cta": "Abonelik bağla"
+        },
+        "firstTask": {
+          "title": "Gerçek bir görevle başla",
+          "body": "Araştırma özeti, tablo karşılaştırması veya küçük bir uygulama iste. Dosya ekle ve sonuçları konuşmanda sakla.",
+          "cta": "İlk görevi dene"
+        },
+        "connectedTools": {
+          "title": "Günlük araçlarını bağla",
+          "body": "GitHub, Notion veya Google Workspace’i bağla. Ajanlar izin verdiğin hizmetler ve erişim kapsamında çalışsın.",
+          "cta": "Araçlarını bağla"
+        },
+        "projects": {
+          "title": "Projeyi bir arada tut",
+          "body": "İlgili sohbetleri, dosyaları ve talimatları bir projede topla. Yeni konuşmalar aynı bağlamı kullanabilir.",
+          "cta": "Projeleri aç"
+        },
+        "personalMemory": {
+          "title": "Kişisel bağlamını kontrol et",
+          "body": "Ajanların senin hakkında neler hatırladığını incele. Kendi bellek ayarlarında kayıtlı bilgileri düzelt veya sil.",
+          "cta": "Belleğini incele"
         }
       }
     },
@@ -7881,11 +7994,15 @@
         "runs": "Runlarınız",
         "finished": "Tamamlandı",
         "finishedOf": "{total} run içinden",
-        "waiting": "Sizden yanıt bekliyor",
-        "review": "İncele",
+        "waiting": "İncelemeniz gerekiyor",
         "nothingWaiting": "Bekleyen yok",
         "spent": "Harcanan",
-        "spentLabel": "{amount} harcandı"
+        "spentLabel": "{amount} harcandı",
+        "waitingLabel": {
+          "approvals": "Onay bekleyen işlemler",
+          "questions": "Yanıt bekleyen sorular",
+          "suggestions": "Agent önerileri"
+        }
       },
       "projects": {
         "title": "Projeler",
@@ -8951,6 +9068,10 @@
         "title": "Kodlama hesapları",
         "body": "Kodlama hesabını bağla ve kullanımına açıkça izin ver. Özel bulut görevleri ortak proje dosyalarını otomatik değiştirmeden farkları ve sonuç arşivini döndürür."
       },
+      "personal-subscription-accounts": {
+        "title": "Abonelik hesapları",
+        "body": "Kendi yapay zekâ aboneliklerinizde oturum açın. \"Subscription accounts\" modelleri bunları yalnızca kendi sohbetlerinizde kullanır."
+      },
       "chat-coding-accounts": {
         "title": "Kodlama hesapların",
         "body": "Sohbetten ayrılmadan Codex veya Claude Code bağla. Bunlar özel bulut hesaplarındır; yerel masaüstü araçları kendi oturumlarını kullanır."
@@ -8966,6 +9087,10 @@
       "channels-diagnostics": {
         "title": "Hazırlığı denetle",
         "body": "Görev başlatmadan bot bağlantısını, ajan yayımını ve kendi bağlı hesaplarınızı denetleyin."
+      },
+      "channels-binding": {
+        "title": "Kimin yanıt vereceğini seçin",
+        "body": "Bir agent’ı bota bağlayın veya bağlantısını kaldırın. Bot tek bir agent olarak yanıt verir; ortam, duraklatma ve aramalar agent’ın Kullanılabilirlik sekmesinde kalır."
       }
     }
   },
@@ -9132,7 +9257,33 @@
         "off": "Kapalı",
         "asksFirst": "İlk mesajda sorar",
         "noCloud": "Bu agent bilgisayarında çalışır, bu yüzden bulut çalışma alanı yoktur. Bir klasör ya da tüm bilgisayarı seç.",
-        "agentComputerConsent": "Bu bilgisayardaki her konuşmada {agent} için izin verildi. Komutlar tek tek yerel onay istemeden çalışır. Erişimi buradan geri alabilirsin; işletim sistemi izinleri geçerli olmaya devam eder."
+        "agentComputerConsent": "Bu bilgisayardaki her konuşmada {agent} için izin verildi. Komutlar tek tek yerel onay istemeden çalışır. Erişimi buradan geri alabilirsin; işletim sistemi izinleri geçerli olmaya devam eder.",
+        "primaryRuntimeDisabled": "Bu çalışma ortamını seçmeden önce yöneticinizin uygun bir dağıtım için etkinleştirmesi gerekir. Oturum açmak sağlayıcı uygunluğunu doğrulamaz.",
+        "primaryRuntime": "Konuşma çalışma ortamı",
+        "nativeClaude": "Claude Agent · bu bilgisayar",
+        "nativeCodex": "Codex · bu bilgisayar",
+        "primaryRuntimeHelp": "Seçilen ortam kendi CLI oturumu ve model ayarlarıyla yanıt verir. AgenticOS araç izinleri ve onayları geçerlidir. Yalnızca metin; model ayarı geçersiz kılmalarını, Code Mode, inceleyicileri ve platform sıkıştırmasını kapatın. Yerel kullanım fiyatlandırılmaz.",
+        "primaryRuntimeAccess": "Çalışma ortamı araç erişimi",
+        "primaryRuntimeEdit": "Ajan ilkelerine uygun değişikliklere izin ver",
+        "primaryRuntimeModel": "Yerel model kimliği (isteğe bağlı)",
+        "primaryRuntimeReset": "Yerel oturumu sıfırla",
+        "primaryRuntimeResetHelp": "Sohbeti korur ve yeni bir yerel bağlam başlatır. Durdurma veya bağlantı hatasından sonra devam etmeden önce tamamlanan ve sonucu belirsiz işlemleri kontrol edin.",
+        "nativeExternal": "Harici ajan · bu bilgisayar",
+        "externalNotRegistered": "Burada seçmeden önce Masaüstü ayarlarında Antigravity, Cursor veya Cline gibi bir ACP ajanı kaydedin ve oturum açın.",
+        "externalRegistration": "Ajan",
+        "externalModel": "Model",
+        "externalAccountDefault": "Ajan varsayılanı ({model})",
+        "externalAccountDefaultUnknown": "Ajan varsayılanı",
+        "externalModelsLoading": "Bu ajanın oturumunda kullanılabilen modeller okunuyor…",
+        "externalModelsFailed": "Bu ajanın modelleri okunamadı. Oturumunu denetleyip yeniden deneyin.",
+        "externalModelsRetry": "Modelleri yeniden oku",
+        "externalHelp": "Ajanın CLI'deki kendi oturumunu ve ayarlarını kullanır; başka bir oturum veya faturalandırma modu kullanılmaz. Kendi araçları yerel erişimle çalışır. Listelenen bir model, yetkiyi veya kalan kotayı kanıtlamaz.",
+        "externalCliModels": "Bu ajan modelini kendi ayarlarında seçer.",
+        "geminiVaultKey": "Gemini API anahtarı",
+        "geminiDesktopKey": "Masaüstü'nün devraldığı anahtar (GEMINI_API_KEY)",
+        "geminiVaultUnavailable": "Kasa anahtarlarınız burada listelenemedi; Masaüstü'nün devraldığı anahtar kullanılır.",
+        "primaryRuntimeTerms": "Bu CLI ile kendi hesabınızı kullanırsınız. Sağlayıcının şartları üçüncü taraf uygulamalar üzerinden kullanımı kısıtlayabilir ve sağlayıcı hesabı sınırlayabilir veya askıya alabilir; bu risk size aittir.",
+        "antigravityPersonalRisk": "Bu kayıt kişisel Google oturumunuzu kullanır. Google, üçüncü taraf araçlarla kullanılan hesapları sınırlayabilir veya askıya alabilir; bu riski kaydederken kabul ettiniz."
       },
       "modelSection": "Model",
       "permissionsSection": "İzinler",
@@ -9781,7 +9932,11 @@
         "column": "Sütun",
         "value": "Değer",
         "recordLabel": "Kayıt"
-      }
+      },
+      "runAcpAgent": "Harici ACP ajanı",
+      "runningAcpAgent": "Harici ACP ajanı",
+      "inspectAcpAgent": "ACP model seçeneklerini oku",
+      "readingAcpModels": "ACP model seçenekleri okunuyor"
     },
     "turnWasStopped": "durduruldu",
     "unfavourite": "Favorilerden çıkar",
@@ -10359,7 +10514,12 @@
       "empty": "Her şey güncel. Yeni bulgular ve önemli konular burada görünecek.",
       "failed": "Gelen kutun yüklenemedi.",
       "refreshFailed": "Gelen kutunuz yenilenemedi. Son yüklenen öğeler gösteriliyor."
-    }
+    },
+    "questions": {},
+    "queuedPaused": "Kuyruk duraklatıldı",
+    "resumeQueue": "Kuyruğu sürdür",
+    "routineHistoryReadOnly": "Bu rutin geçmişi salt okunurdur. Yeni bir sohbette devam etmek için yanıtı dallandır.",
+    "routineContinueChat": "Yeni sohbette devam et"
   },
   "admin": {
     "actions": "Eylemler",
@@ -10935,7 +11095,6 @@
   },
   "triggers": {
     "setupReviewTitle": "Rutinin erişimini inceleyin",
-    "setupReviewDescription": "Rutin kaydedildi ve duraklatıldı. Kaynakları inceleyin ve sormadan çalışabilecek eylemleri seçin. Etkinleştirmek için kaydedin veya duraklatılmış bırakıp daha sonra tamamlayın.",
     "enableRoutine": "Rutini etkinleştir",
     "finishLater": "Daha sonra tamamla",
     "stopWaitingRun": "Bekleyen çalıştırmayı durdur",
@@ -11057,10 +11216,6 @@
     "weekdayFri": "Cum",
     "weekdaySat": "Cmt",
     "weekdaySun": "Paz",
-    "summaryDaily": "Her gün {time} ({zone}) saatinde çalışır.",
-    "summaryEveryNDays": "Kaydedildiği andan itibaren {count, plural, =1 {her gün} other {# günde bir}} çalışır.",
-    "summaryWeekly": "{days} günlerinde {time} ({zone}) saatinde çalışır.",
-    "summaryMonthly": "Her ayın {day}. günü {time} ({zone}) saatinde çalışır.",
     "eventSource": "Şu olayda çalışır",
     "sourceGithub": "Bir GitHub issue’su",
     "webhookUrlPreview": "İstek URL’si",
@@ -11194,7 +11349,6 @@
     "choiceWeekly": "Haftalık",
     "choiceCustom": "Özel",
     "moreOptions": "Daha fazla seçenek",
-    "summaryInterval": "Kaydedildiği andan itibaren {unit, select, minutes {{count, plural, =1 {dakikada bir} other {# dakikada bir}}} hours {{count, plural, =1 {saatte bir} other {# saatte bir}}} other {{count, plural, =1 {günde bir} other {# günde bir}}}} çalışır.",
     "templatesMore": "{count, plural, =1 {1 tane daha göster} other {# tane daha göster}}",
     "templatesFewer": "Daha az göster",
     "local": {
@@ -11207,11 +11361,6 @@
       "pick": "Bir klasör seçin…",
       "useSandbox": "Sandbox’ı kullan"
     },
-    "resultMode": "Sonuçlar ne zaman bildirilsin",
-    "resultReport": "Tamamlanan her çalışmadan sonra",
-    "resultInbox": "Yalnızca dikkat gerektiğinde",
-    "resultReportHint": "Her çalışmadan sonra seçilen sohbete bir rapor gönderin.",
-    "resultInboxHint": "Her kaynak öğesi için bir Inbox kaydı ve çalışma sohbeti oluşturun. İstenen taslakları buraya yazın; değişmeyen kontroller sessiz kalır. Göndermek yine yetki ve onay gerektirir.",
     "clearSearch": "Aramayı temizle",
     "noRoutineMatchesHint": "Agent adı, rutin başlığı veya mesajındaki sözcüklerle arayın.",
     "actionConsents": {
@@ -11242,7 +11391,8 @@
       "groupCount": "{selected} / {total}",
       "useAgent": "Agent ayarlarını kullan",
       "useAgentHint": "Bu agent'ın sohbette zaten sormadan çalıştırdığı eylemleri tam olarak seçer ve mevcut seçimin yerine koyar. Buradaki onay yalnızca agent ayarlarının izin verdiğini daraltabilir, asla genişletmez: agent'ın önce sorduğu bir eylem sunulmaz. Onayı kaydet seçilene kadar hiçbir şey kaydedilmez.",
-      "allowHeading": "Bu eylemlerin onay istemeden çalışmasına izin ver"
+      "allowHeading": "Bu eylemlerin onay istemeden çalışmasına izin ver",
+      "alwaysAsks": "Her zaman sorar: ajan veya platform gerektirir"
     },
     "sourceConsents": {
       "title": "Kaynaklar",
@@ -11262,11 +11412,29 @@
       "runsAsYou": "Sizin adınıza çalışır. İzinleriniz ve zorunlu onaylar geçerli kalır.",
       "agentIdentity": "Ajanın kendi erişimini kullanır. Kişisel hesap erişimi kapalıdır.",
       "requiredUnavailable": "Gerekli kaynaklar kullanılamıyor: {names}. Bu rutini kaydetmeden veya etkinleştirmeden önce erişimi geri yükleyin.",
-      "followApprovals": "Bu rutin için onaylanan erişim ve davranış sınırları içinde ajanın onay kurallarını kullanır. Sonraki genişletmeler veya davranış değişiklikleri oluşturan kişi tarafından incelenmelidir; zorunlu onaylar geçerli kalır. Rutine özel onaylar için İncelenen kaynaklar seçeneğini kullanın.",
       "kind": "{kind, select, capability {Capabilities} skill {Skill'ler} context {Bağlam dosyaları} knowledge {Bilgi tabanları} table {Tablolar} delegate {Delege agent'lar} remote_agent {Uzak agent'lar} platform {Platform} mcp_account {MCP hesapları} chat_connection {Sohbet bağlantıları} phone {Telefon} terminal_account {Terminal hesapları} terminal_credential {Terminal kimlik bilgileri} event_source {Olay kaynağı} other {Diğer}}",
       "kindCount": "{name} ({count})",
       "unnamed": "Artık kullanılamıyor"
-    }
+    },
+    "approvalMode": {
+      "label": "Araç onayları",
+      "hint": "Inbox bildirimi dahildir. Zorunlu ajan ve platform onayları geçerlidir.",
+      "automatic": "İzin verilen araçları otomatik çalıştır",
+      "manual": "İşlemlerden önce sor",
+      "custom": "Her araç için izinleri seç",
+      "existing": "Mevcut izinleri koru"
+    },
+    "chatModeLabel": "Sohbetler",
+    "chatMode": {
+      "per_run": "Her çalıştırma için yeni sohbet",
+      "shared": "Ortak geçmiş — salt okunur"
+    },
+    "chatModeHint": {
+      "per_run": "Her çalıştırmadan sonra sohbete devam et. Takip mesajları rutini değiştirmez.",
+      "shared": "Çalıştırmaları salt okunur ortak geçmişte tut. Yeni bir sohbette devam etmek için yanıtı dallandır."
+    },
+    "openExecutionChat": "Sohbeti aç",
+    "deliveryPending": "Son yanıt sohbete gönderiliyor"
   },
   "teams": {
     "acmeCom": "acme.com",
@@ -12103,6 +12271,74 @@
         "prepareNamed": "{name} kurulumunu yap",
         "preparing": "Hazırlanıyor…",
         "refresh": "Durumu yenile"
+      },
+      "externalAgents": {
+        "title": "Harici ACP ajanları",
+        "description": "Bu bilgisayarda görevler için kurulu bir ACP programı kaydedin. Kendi oturumunu ve modelini kullanır, dosyaları değiştirebilir ve komut çalıştırabilir; AgenticOS dışında ücret oluşturabilir.",
+        "id": "Ajan kimliği",
+        "name": "Görünen ad",
+        "program": "Çalıştırılabilir dosyanın mutlak yolu",
+        "args": "Argümanlar (JSON dizisi)",
+        "save": "Ajanı kaydet",
+        "remove": "Kaldır",
+        "removeNamed": "{name} ajanını kaldır",
+        "help": "Bu kimliği Harici ACP ajanı yeteneğinde kullanın. Argümanlar ayrı metinlerdir, örneğin acp. Parola veya belirteç eklemeyin. Görevlerden önce programın kendi komutuyla oturum açın. Hesap değiştirdikten sonra kayıtlı oturumları temizlemek için yeniden kaydedin.",
+        "invalidArgs": "Yalnızca metin içeren bir JSON dizisi girin.",
+        "provider": "Kurulum şablonu",
+        "custom": "Özel ACP programı",
+        "antigravityHelp": "Mutlak agy yolunu ve acp argümanını kullanın. Kişisel Google oturumu zorunludur; uygulama ortamından gelen Gemini API anahtarları kaldırılır. Önce agy acp --login çalıştırın. Builder içinde bu kimliği Harici ACP ajanında kullanın; inspect_acp_agent hesabın modellerini okur. Bu, görev devretmedir. Gerçek hesap uygunluğu ve plan limitleri henüz doğrulanmalıdır.",
+        "antigravityApi": "Antigravity · Gemini API anahtarı",
+        "antigravityKeyHelp": "Mutlak agy yolunu ve acp argümanını kullanın. Bir çalıştırma, kasadan seçilen Gemini anahtarını, yoksa Masaüstü'nün devraldığı GEMINI_API_KEY'i gemini-api-key oturumuyla kullanır; anahtar yoksa başlatma reddedilir ve kayıtlı Google oturumuna asla geçilmez. Google AI aboneliği değil, Gemini API fiyatları ve şartları geçerlidir; kullanım AgenticOS'ta fiyatlandırılmaz.",
+        "antigravityRisk": "Google Ek Şartları (bölüm 6), tüketici oturumunun üçüncü taraf araçlarla kullanılmasını kısıtlar ve Google ihlal saydığı hesapları sınırlayabilir veya askıya alabilir. Bu şablonu AgenticOS ajanlarıyla kullanmanın riski size aittir; Gemini API anahtarı şablonu bu riski taşımaz.",
+        "antigravityRiskAccept": "Google hesabımın sınırlanabileceğini veya askıya alınabileceğini anlıyorum ve bu riski kabul ediyorum.",
+        "opencodeHelp": "Kurulu opencode programını acp argümanıyla kaydedin. Sağlayıcıları opencode auth login veya TUI içinde /connect ile bağlayın. inspect_acp_agent gecikmeli güncellemeler dahil mevcut model listesini okur. Özel uç noktaları OpenCode içinde yapılandırın; AgenticOS kasa anahtarlarını kopyalamaz veya program dosyalarını değiştirmez. Modeller ücretsiz erişim, abonelik veya API bakiyesi kullanabilir.",
+        "opencodeGoHelp": "Yalnızca yazılım görevleri. Go anahtarını OpenCode içinde özellikle opencode-go sağlayıcısına bağlayın ve inspect_acp_agent içinden tam opencode-go/model kimliğini seçin. Diğer birincil model ad alanları reddedilir. Go Extra Usage, Console bakiyesi harcayabilir; OpenCode yardımcı modelleri başka ücretler oluşturabilir. Bu ayarları ayrıca kontrol edin. AgenticOS çalışma zamanı kullanımını fiyatlandırmaz.",
+        "cursorHelp": "Cursor CLI kurun, agent login çalıştırın ve agent status ile kontrol edin. agent programının mutlak yolunu seçin. Bu şablon CLI hesabını kullanır ve devralınan CURSOR_API_KEY ile CURSOR_AUTH_TOKEN değerlerini kaldırır; API anahtarı kaydını desteklemez. Modeller ve ücretler Cursor hesabınıza bağlıdır. İnsan yanıtı veya plan onayı gereken görevler CLI incelemesi için durur. Hesap değiştirdikten sonra yeniden kaydedin.",
+        "clineApi": "Cline API anahtarı",
+        "clineHelp": "ACP destekleyen Cline CLI kurun ve mutlak yolunu seçin. Hesap şablonu için önce cline auth çalıştırın; devralınan anahtarlar kaldırılır. Anahtar şablonu Desktop süreç ortamında CLINE_API_KEY gerektirir; anahtar yoksa kayıtlı hesaba geçmeden başlatmayı reddeder. İki şablon da Cline provider seçimini sabitler ve doğrudan --acp başlatır. Kredi, ücretsiz modeller ve ücretler hesabınıza bağlıdır. Kimlik bilgileri değişince yeniden kaydedin.",
+        "vibeHelp": "Mistral Vibe kurun ve vibe --setup işlemini tamamlayın. Argümansız vibe-acp programının mutlak yolunu seçin. Tarayıcı oturumunu ve API anahtarlarını Vibe yönetir; giriş yapmak Le Chat abonelik erişimini kanıtlamaz. Bu süreç dosyalarınızı değiştirmeden telemetriyi kapatır ve deneysel hesap kataloğunu açar. Kimlik durumu yalnızca anahtar kaynağını bildirir; anahtarı veya hesap kimliğini içermez. Hesap değişince yeniden kaydedin. Dış model kimliğini boş bırakın; ACP seçicisi kullanıcı varsayılanlarını kaydedebildiğinden modeli Vibe içinde seçin.",
+        "grokHelp": "Grok Build kurun ve grok login çalıştırın (cihaz girişi için grok login --device-auth). Mutlak grok yolunu seçin. Şablon arka plan güncellemelerini ve API anahtarı girişini kapatır, devralınan xAI anahtarlarını kaldırır ve kayıtlı etkileşimsiz giriş ister. Hâlâ API anahtarı girişi sunan CLI reddedilir. Ücretleri hesap ve gateway ayarları belirler; API anahtarı kaydı desteklenmez. Hesap değişince yeniden kaydedin.",
+        "kimiHelp": "Kimi Code CLI kurun ve kimi login çalıştırın. Mutlak kimi yolunu seçin; şablon acp başlatır ve kimlik bilgisi aktarmadan kayıtlı girişi denetler. CLI yapılandırması ayrıca ücretlendirilen sağlayıcılar içerebilir. External model ID boş kalsın, modeli Kimi içinde seçin. İnsan soruları CLI incelemesi için görevi durdurur. Hesap değişince yeniden kaydedin.",
+        "qwenHelp": "Qwen Code kurun ve qwen içindeki /auth ile Qwen Account with Subscription seçin. Mutlak qwen yolunu belirtin. Şablon ACP authenticate çağırmadan veya token aktarmadan qwen-subscription seçer; devralınan OpenAI anahtar, uç nokta ve model ayarlarını kaldırır. External model ID boş kalsın; abonelik modelini Qwen içinde seçin. Eski CLI sürümleri bu modu desteklemeyebilir. Erişim ve kotalar hesaba bağlıdır. Hesap değişince yeniden kaydedin.",
+        "qwenSubscription": "Qwen aboneliği",
+        "museApi": "Muse API anahtarı",
+        "hermesHelp": "Belgelenen Hermes ortamındaki Python yürütülebilir dosyasını bağımsız değişkensiz seçin. Desktop kendi ön plan ACP sürecini yönetir ve paylaşılan ağ geçidine bağlanmaz. Her özel görüşmenin ayrı bir Hermes dizini vardır. İlk başlatma bu dizine ait yerel kurulum yönergelerini gösterir. Model/sağlayıcı ayarlarını ve Nous Portal oturumunu orada tamamlayın; başka bir dizini veya belirteç dosyalarını kopyalamayın. Araçlar, API/abonelik seçimi ve ücretler Hermes tarafından yönetilir; AgenticOS kullanımı fiyatlandırmaz.",
+        "museHelp": "Muse, CLI 1.4.23 ve kendi MSP sunucusuyla sabitlenmiş resmi SDK kullanır. Önce muse ile hesabı ayarlayın. Ortam ve kayıtlı API anahtarları tarayıcı girişinden önceliklidir; durum gerçek kaynağı bildirir. Anahtar modu Desktop ortamında META_API_KEY gerektirir. Araçlar ve uzantılar yerel erişimi korur; maliyet bilinmez.",
+        "piHelp": "Pi, kendi hesapları, uzantıları ve modeliyle yerel RPC kullanır. Önce pi çalıştırın, giriş yapın ve sağlayıcı/model seçin. External model ID boş kalmalıdır. Araçlar ve uzantılar tam yerel erişime sahiptir. Desteklenen diyaloglar canlı sohbette görünür; platform araçları veya kasa kimlik bilgileri aktarılmaz. Maliyet bilinmez.",
+        "devinHelp": "Devin CLI kurun, devin auth login çalıştırın ve devin auth status denetleyin. Mutlak devin yolunu seçin. Şablon yerel ACP ajanını normal izinlerle başlatır ve sunulan devin-browser yöntemini ister. Ücretler ve kurumsal CLI izni hesaba bağlıdır. --cloud veya bulut görev API çağrısı başlatmaz. External model ID boş kalsın, modeli Devin içinde seçin. Hesap değişince yeniden kaydedin.",
+        "account": {
+          "status": "Hesabı kontrol et",
+          "signIn": "Muse hesabına giriş yap",
+          "signOut": "Muse hesabından çıkış yap",
+          "cancel": "İptal",
+          "envKey": "Ortam API anahtarı etkin; çıkış yapmak bunu kaldırmaz.",
+          "apiKey": "Kayıtlı API anahtarı etkin.",
+          "accountLogin": "Muse hesabına giriş yapıldı.",
+          "loggedOut": "Muse oturumu kapalı.",
+          "keyless": "Bu uç nokta kimlik bilgisi gerektirmez",
+          "openSignIn": "Muse girişini aç",
+          "deviceCode": "Cihaz kodu",
+          "waiting": "Girişin tamamlanması bekleniyor. Bu sayfayı açık tutun.",
+          "failed": "Hesap işlemi tamamlanmadı. Yerel onayı, CLI sürümünü ve ortam anahtarını kontrol edip tekrar deneyin."
+        },
+        "piKeyHelp": "Pi 1.5.2 gereklidir. Şablon seçili kasa API anahtarını yalnızca bağımsız erişiminiz varsa alır. Aracı yapılandırmasında eşleşen Pi sağlayıcısını ve tam model kimliğini seçin. Pi kayıtlı hesaplar ve keşfedilen uzantılar olmadan yalıtılmış yapılandırma kullanır. Anahtar argümanlara veya üretilen dosyalara yazılmaz. Yerel araçlar tam yerel erişime sahiptir; API ücretleri fiyatlandırılamaz.",
+        "cursorApi": "Cursor API anahtarı",
+        "grokApi": "Grok API anahtarı",
+        "cliAccount": {
+          "status": "Hesabı denetle",
+          "sign_in": "Oturum aç",
+          "reconnect": "Hesabı yeniden bağla",
+          "sign_out": "Oturumu kapat",
+          "cancel": "İptal",
+          "waiting": "İşlemi CLI oturum açma penceresinde tamamlayın.",
+          "signed_in": "CLI etkin bir hesap bildiriyor. Plan erişimi doğrulanmadı.",
+          "signed_out": "CLI oturumu kapalı.",
+          "unknown": "CLI tanınan bir hesap durumu bildirmedi.",
+          "environment_key": "Ortam anahtarı etkin. Çıkış için Desktop ortamından kaldırın.",
+          "openSignIn": "Sağlayıcı oturumunu aç",
+          "deviceCode": "Cihaz kodu",
+          "failed": "Hesap işlemi tamamlanmadı. Yerel onayı ve CLI kurulumunu denetleyin."
+        }
       }
     },
     "quickAsk": {
@@ -12526,7 +12762,18 @@
       "chatGPTSignIn": "{name}, ChatGPT aboneliği üzerinden model erişimi sağlayan bir ChatGPT oturum açmasıdır. Voice özellikleri OpenAI API key’i gerektirir; bu oturum açma burada kullanılamaz."
     },
     "notRecorded": "Kaydedilmedi",
-    "googleAccount": "Google hesabı"
+    "googleAccount": "Google hesabı",
+    "chatgptPlanDeclined": "Plan paylaşımı reddedildi. Kayıt saklandı ancak bu izin modelleri çalıştıramaz. Yeniden bağlanıp plan kullanımını onaylayın.",
+    "chatgptOfficialHelp": "Resmi ChatGPT uygulama izni, Codex’ten ayrı olarak herkese açık Responses API kullanır. Dağıtım uygun olmalı ve işletmecisi tarafından etkinleştirilmelidir. Son 127.0.0.1 adresini buraya yapıştırın. Planı reddetmek kaydı saklar ancak model erişimi vermez.",
+    "chatgptOwnerOnly": "Bu izinle modelleri yalnızca siz çalıştırabilirsiniz. Paylaşılan profiller, API anahtarları ve arka plan işleri bu izni kullanamaz.",
+    "chatgptDeviceHelp": "Bu oturumu ChatGPT'de kısa bir kodla onaylayın; geri kopyalanacak bir şey yok.",
+    "chatgptDeviceStart": "Kodla oturum aç",
+    "chatgptDeviceEnter": "Bu kodu ChatGPT'ye girin. Onayladığınızda bu sayfa kendiliğinden devam eder.",
+    "chatgptDeviceCopy": "Kodu kopyala",
+    "chatgptDeviceOpen": "ChatGPT'yi aç",
+    "chatgptDeviceWaiting": "Onayınız bekleniyor…",
+    "chatgptDeviceApproved": "Onaylandı.",
+    "chatgptPasteInstead": "Bunun yerine adres yapıştır"
   },
   "portals": {
     "backToServices": "Hizmetlere dön",
@@ -13370,6 +13617,18 @@
           "description": "Eşleştirilmiş masaüstü uygulaması ve bu sohbette Local browser seçili olmalıdır. Kişisel browser oturumunuz paylaşılmaz."
         }
       }
+    },
+    "external_acp": {
+      "auth_method": {
+        "configured": {
+          "label": "Program ayarı",
+          "description": "Programın yapılandırılmış hesabını kullanın veya Antigravity kişisel Google oturumunu açıkça seçin. Yöntem yoksa başka hesaba ya da API anahtarına geçmeden hata verir."
+        },
+        "oauth-personal": {
+          "label": "Antigravity kişisel Google oturumu",
+          "description": "Programın yapılandırılmış hesabını kullanın veya Antigravity kişisel Google oturumunu açıkça seçin. Yöntem yoksa başka hesaba ya da API anahtarına geçmeden hata verir."
+        }
+      }
     }
   },
   "apiReference": {
@@ -13648,6 +13907,39 @@
     "chatTitle": "{name} hesabın",
     "chatHelp": "Bu agent kodlama görevlerini kendi hesabınla özel bir bulut görevi olarak çalıştırır. Diğer üyeler bu hesabı kullanamaz."
   },
+  "subscriptionAccounts": {
+    "title": "Abonelik hesapları",
+    "description": "Kendi Claude, ChatGPT, Antigravity, Grok, Kimi ve diğer aboneliklerinizde oturum açın. \"Subscription accounts\" sağlayıcısındaki modeller, sohbet eden siz olduğunuzda hesaplarınızda çalışır - asla başkasınınkinde ve asla arka plan işlerinde değil.",
+    "risk": "Sağlayıcılar bir aboneliğin kendi uygulamaları dışında kullanımını kısıtlayabilir ve bu nedenle hesabı askıya alabilir. Bağlantı riski size aittir.",
+    "notConnected": "Bağlı değil",
+    "unavailable": "Kullanılamıyor",
+    "connect": "Bağla",
+    "connectAnother": "Hesap ekle",
+    "disconnect": "Bağlantıyı kes",
+    "loadFailed": "Abonelik hesaplarınız yüklenemedi",
+    "retry": "Yeniden dene",
+    "dialogTitle": "{name} bağla",
+    "deviceHelp": "Oturum açma sayfasını açın, bu kodu girin ve onaylayın. Bu pencere kendiliğinden tamamlanır.",
+    "browserHelp": "Oturum açma sayfasını açın ve onaylayın. Tarayıcınız ardından yüklenmeyen bir adrese gider - o adresin tamamını buraya kopyalayın.",
+    "starting": "Oturum açma başlatılıyor…",
+    "copyCode": "Kodu kopyala",
+    "openSignIn": "{name} oturum açmayı aç",
+    "redirectLabel": "Tarayıcınızın vardığı adres",
+    "waiting": "Sağlayıcının onayı bekleniyor…",
+    "refused": "Sağlayıcı oturum açmayı reddetti. Bu pencereyi kapatıp yeniden deneyin.",
+    "finish": "Tamamla",
+    "connected": "{name} bağlandı",
+    "providers": {
+      "claude": "Claude (Pro, Max)",
+      "codex": "ChatGPT (Codex)",
+      "antigravity": "Google Antigravity",
+      "xai": "Grok (xAI)",
+      "kimi": "Kimi Code (Moonshot)",
+      "kimi-ai": "Kimi (kimi.com)",
+      "devin": "Devin",
+      "meta": "Meta AI"
+    }
+  },
   "start": {
     "sidebarReminder": {
       "title": "Kurulumu tamamlayın",
@@ -13878,8 +14170,6 @@
     "snooze": "24 saat gizle",
     "guided": {
       "guideLabel": "Kurulum rehberin",
-      "question": "Soru {current} / {total}",
-      "changeLater": "Bunu sonra değiştirebilirsin",
       "back": "Geri",
       "keepCurrent": "Mevcut ayarları koru",
       "saving": "Kaydediliyor…",
@@ -13901,11 +14191,9 @@
       "openBody": "İzin verilen e-posta alan adlarına göre kişiler hesap oluşturabilir.",
       "closedTitle": "Kayıt kapalı",
       "closedBody": "Yeni kayıtları durdur. Mevcut hesaplar erişimlerini korur.",
-      "domainsPreserved": "İzin verilen e-posta alan adları ve hesap sınırları değişmez.",
       "destinationTitle": "Yeni hesaplar nerede başlasın?",
       "destinationGuide": "Yeni kişileri doğrudan bu şirket organizasyonunda başlatabilirsin. Bu, gelecekteki hesaplar içindir; mevcut kişiler taşınmaz ve rolleri değişmez.",
       "destinationBody": "Yeni hesaplar bu organizasyonda başlasın. Yapılandırılmış başlangıç rolü: {role}.",
-      "destinationHint": "Bu organizasyonu kullanmak için şirket kartını seç veya mevcut başlangıç yerini koru.",
       "otherDestination": "Şu anda başka bir kuruluş varsayılan. Bu kartı seçmek yalnızca gelecekteki hesaplar için onu değiştirir.",
       "personalTitle": "Kişisel organizasyonlar da oluştur",
       "personalBody": "Gelecekteki hesaplara kişisel organizasyon da ver. Yalnızca şirket organizasyonu için kapat.",
@@ -13933,16 +14221,11 @@
       "budgetTitle": "Aylık hangi sınır sana uygun?",
       "budgetGuide": "AI kullanımını sen kontrol edersin. Başlangıç tutarını seç veya kaydırıcıyı hareket ettir. Yalnızca devam ettiğinde kaydedeceğim.",
       "unlimited": "Sınırsız",
-      "unlimitedHint": "Sınır koymak için aşağıdan bir tutar seç",
-      "perMonth": "Organizasyonun tamamı için aylık USD",
       "budgetSlider": "ABD doları olarak aylık bütçe",
       "budgetInvalid": "Pozitif bir tutar veya limitsiz seçeneğini seç.",
       "budgetHint": "Bu organizasyondaki ajanların izlenen AI kullanımını sınırlar. Abonelik veya ön ödemeli kredi değildir. Sağlayıcı ayrı faturalandırır.",
       "workspaceReadyTitle": "İlk görevin için hazır",
       "workspaceReadyGuide": "Temel hazırlıklar tamam. İlk görevi deneyebiliriz. Gelişmiş kurallar ve ses özellikleri gerekirse aşağıda; bir bölümü açmak ayarları değiştirmez.",
-      "readyForPeople": "Ekibinin organizasyonu şekilleniyor",
-      "readyForPeopleBody": "{workspace} kendi kimliğine ve ayarlarına sahip. Mevcut ajanlar, görüşmeler ve kurallar korunur.",
-      "advancedOptional": "İsteğe bağlı: Yalnızca ihtiyaç duyduğunda incele. Her bölüm kendi kayıt kontrollerini kullanır.",
       "advancedSafety": "Onaylar ve herkese açık veriler",
       "advancedAssistants": "Organizasyon asistanları ve otomasyon",
       "advancedVoice": "Sesli görüşmeler",
@@ -13970,6 +14253,29 @@
       "openGovernanceSettings": "Bütçe ve onayları aç",
       "openAssistantSettings": "Asistan ayarlarını aç",
       "openVoiceSettings": "Ses ayarlarını aç"
+    },
+    "preferences": {
+      "languageTitle": "Hangi dilde çalışmak istersin?",
+      "languageHint": "Çalışma alanının dilini seç. İstediğin zaman değiştirebilirsin.",
+      "appearanceTitle": "Uygulamayı kendi tarzına göre düzenle.",
+      "appearanceHint": "Bir stil ve renk modu seç. Seçimin hemen uygulanır.",
+      "position": "{total} adımda {current}. adım",
+      "continue": "Devam et",
+      "finish": "Kuruluma devam et"
+    },
+    "modelSetup": {
+      "chooseProvider": "Zaten kullandığınız bir sağlayıcıyı seçin veya yeni bir bağlantı ekleyin.",
+      "changeProvider": "Tüm sağlayıcılar",
+      "connectionTitle": "Hesabınızı bağlayın",
+      "modelTitle": "Modelinizi seçin",
+      "vaultKey": "Kullanılan Vault anahtarı: {name}",
+      "chooseModel": "Modellere göz atın",
+      "changeConnection": "Değiştir",
+      "applying": "Modeliniz kaydediliyor…",
+      "loadFailed": "Kullanılabilir sağlayıcıları yükleyemedik. Tekrar deneyin.",
+      "noProviders": "Bu kurulumda kullanılabilir model sağlayıcısı yok.",
+      "existingModels": "Çalışma alanınıza zaten bağlı bir model seçin.",
+      "noExistingModels": "Henüz kullanıma hazır çalışma alanı modeli yok. Bir yöneticiden model bağlamasını isteyin veya önceki adımda kendi aboneliğinizi kullanın."
     }
   },
   "notificationRoutes": {
@@ -16815,7 +17121,51 @@
     "noLearningExamples": "Henüz öğrenilecek bir şey yok: son 30 günde okunabilir kaynak örneği bulunmuyor. Bir yanıtı değerlendirin veya test sorularını çalıştırıp inceleyin.",
     "sessionQuote": "{answers, plural, one {# seçili kaynak örneğini} other {# seçili kaynak örneğini}} sıralamak için en fazla {cost} (tahmini). Sonraki her deneme yaklaşık {minutes, plural, one {# dakika} other {# dakika}} sürer ve yaklaşık {perRound} tutar; başlamadan önce yeniden fiyatlandırılır. {limit} sınırı tüm oturum içindir.",
     "resultDecision": {
-      "criteriaBetter": "Deneme {number}, {agent} için bazı değerlendirme ölçütlerini iyileştirdi; hiçbir sorunun genel sonucu değişmedi."
+      "criteriaBetter": "Deneme {number}, {agent} için bazı değerlendirme ölçütlerini iyileştirdi; hiçbir sorunun genel sonucu değişmedi.",
+      "title": "Sonuç",
+      "better": "Güncellenen ajan {fixed} test sorusunu daha doğru yanıtladı.",
+      "published": "{version, select, unknown {Değişiklikler yayımlandı.} other {{version}. sürüm olarak yayımlandı.}}",
+      "acceptedDraft": "Ajanın taslağına kaydedildi."
+    },
+    "record": {
+      "result": "Sonuç",
+      "changes": "Değişiklikler",
+      "check": "Test soruları",
+      "attempts": "Denemeler",
+      "understand": "Analiz",
+      "accept": "Karar",
+      "back": "Kaynağa dön",
+      "spent": "Harcanan: {spent}",
+      "passRateScope": "Değerlendirmedeki tüm sorular",
+      "more": "Oturum ayrıntıları",
+      "answersPassed": "Geçen yanıtlar",
+      "answerCount": "{cases} yanıttan {passed}"
+    },
+    "newlyFixed": "İyileşen yanıtlar",
+    "newlyBroken": "Kötüleşen yanıtlar",
+    "workspace": {
+      "changes": "Neler değişti",
+      "evidence": "Yanıtlar iyileşti mi?",
+      "change": "Değişiklik {number}",
+      "exactChange": "Tam metni karşılaştır",
+      "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
+      "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
+    }
+  },
+  "personalModelKeys": {
+    "copilot": {
+      "title": "Copilot hesabınızı bağlayın",
+      "destination": "GitHub.com Copilot üzerinde {model} için kendi hesabınızı kullanın.",
+      "privacy": "Bağlantıyı yalnızca oturum açtığınız web sohbetleri kullanır. Kişisel model bağlantılarından kaldırın; OAuth iznini ayrıca GitHub ayarlarından iptal edin.",
+      "approveOwnCode": "Yalnızca bu AgenticOS penceresindeki kodu onaylayın.",
+      "code": "GitHub cihaz kodu",
+      "openGitHub": "GitHub cihaz yetkilendirmesini aç",
+      "pending": "Henüz onaylanmadı. Yeniden denetlemeden önce {seconds} saniye bekleyin.",
+      "check": "Yetkilendirmeyi denetle",
+      "restart": "Yeni giriş başlat",
+      "reconnect": "GitHub ile yeniden bağlan",
+      "connect": "GitHub ile giriş yap",
+      "retained": "Yeni bağlantı doğrulanana kadar mevcut bağlantınız etkin kalır."
     }
   },
   "authoring": {
@@ -16867,5 +17217,113 @@
     "maintenanceEndHint": "İsteğe bağlı. Saat {zone} bölgesinde gösterilir ve UTC olarak saklanır. Yalnızca bilgi amaçlıdır; bakımı bir yönetici bitirmelidir.",
     "maintenanceEndInformational": "Bu tahmini bir süredir. Yönetici bakımı bitirdiğinde erişim açılır.",
     "invalidTime": "Geçerli bir yerel tarih ve saat seçin."
+  },
+  "onboardingStatus": {
+    "header": "Başlangıç kurulumu",
+    "completed": "Tamamlandı",
+    "notStarted": "Başlanmadı",
+    "inProgress": "Devam ediyor",
+    "unknown": "Veri yok",
+    "otherStep": "Kurulum"
+  },
+  "evals": {
+    "resultTabs": {
+      "questions": "Yanıtlar",
+      "criteria": "Kontrol edilenler",
+      "performance": "Ayrıntılar",
+      "methodology": "Nasıl ölçüldü"
+    },
+    "resultSummary": "{fixed} doğrulanmış düzeltme · {broken} doğrulanmış gerileme",
+    "resultSides": "{baseline} → {candidate}",
+    "resultReruns": "Doğrulama tekrarları ({count})",
+    "resultFailed": "Yanıtları incele ({count})",
+    "resultNoCriteria": "Bu çalışma için henüz ölçüt ailesi sonuçları yok.",
+    "plain": {
+      "label": "Test özeti",
+      "single": "{cases} yanıtın {passed} tanesi geçti",
+      "worse": "Bazı yanıtlar kötüleşti",
+      "incomplete": "Bazı yanıtlar değerlendirilemedi",
+      "improved": "Güncellenen ajan daha iyi yanıtlıyor",
+      "requirements": "Yanıtlar daha fazla gereksiniminizi karşılıyor",
+      "unchanged": "Belirgin iyileşme yok",
+      "invalid": "Sonuçlar henüz karşılaştırılamıyor",
+      "tooFew": "Sürümleri karşılaştırmak için daha fazla bağımsız test sorusu ekleyin.",
+      "cannotCompare": "Bu testler karşılaştırılamaz. Nelerin değişmesi gerektiğini test ayrıntılarında görebilirsiniz.",
+      "changes": "{fixed} yanıt iyileşti · {broken} kötüleşti",
+      "singleBody": "{failed, plural, =0 {Yanlış yanıt bulunmadı.} other {# yanıt incelenmeli.}}",
+      "undecided": "{count, plural, other {# yanıt değerlendirilemedi.}}",
+      "unstable": "Bazı yanıtlar testler arasında değişti. İyileşmeleri doğrulanmadı.",
+      "details": "Test ayrıntıları",
+      "actions": "Diğer işlemler",
+      "expectation": "Beklenen yanıt ve değerlendirme kuralları",
+      "notCompared": "Henüz karşılaştırma yok",
+      "before": "Önce",
+      "after": "Sonra",
+      "partial": "Hangi yanıtların değerlendirilebildiğini aşağıda inceleyin.",
+      "overallWorseBody": "Hiçbir yanıt tutarlı biçimde kötüleşmese de genel kalite düştü.",
+      "requirementsBody": "Daha fazla gereksinim karşılandı, ancak bütünüyle düzelen bir yanıt doğrulanmadı.",
+      "reviewChanges": "Değişiklikleri incele",
+      "passedCount": "{cases} yanıttan {passed} tanesi geçti"
+    },
+    "cases": {
+      "answerState": {
+        "passed": "Geçti",
+        "failed": "İncelenmeli",
+        "undecided": "Puanlanmadı",
+        "incomplete": "Tamamlanamadı",
+        "pending": "Bekliyor"
+      },
+      "title": "{count, plural, other {# soru}}",
+      "outcome": {
+        "all": "Tüm yanıtlar",
+        "failed": "İncelenmeli"
+      },
+      "flip": {
+        "fixed": "{confirmed, select, true {İyileşti} other {İyileşmiş olabilir}}",
+        "regression": "{confirmed, select, true {Kötüleşti} other {Kötüleşmiş olabilir}}"
+      }
+    },
+    "workspace": {
+      "details": "Test yöntemi · ölçütler, maliyet ve ayrıntılar",
+      "answers": "Yanıtları inceleyin",
+      "answersHint": "Yanıtı ve değerlendirmesini görmek için bir soru açın."
+    }
+  },
+  "knowledgeGaps": {
+    "workspace": {
+      "draft": "Önerilen belge",
+      "evidence": "Neden gerekli ({count})",
+      "unsaved": "Kaydedilmemiş değişiklikler. Yeni bir sürüm oluşturmadan önce taslağı kaydedin.",
+      "discardTitle": "Kaydedilmemiş değişiklikler silinsin mi?",
+      "discardBody": "Bu belgedeki değişiklikler kaydedilmedi.",
+      "discard": "Değişiklikleri sil",
+      "keepEditing": "Düzenlemeye devam et",
+      "add": "Bilgi tabanına ekle",
+      "target": "Hedef: {name}",
+      "read": "Belgeyi oku",
+      "edit": "Belgeyi düzenle",
+      "searchDetails": "Bu soru neden işaretlendi?"
+    },
+    "draftCreated": "Taslak oluşturuldu: {time}"
+  },
+  "skillImprovement": {
+    "agents": {
+      "state": {
+        "unknown": "Doğrulanmadı"
+      },
+      "unknown": {
+        "too_few_questions": "Değişikliği doğrulamak için yeterli test sorusu yok. Kontrol edilen soru sayısı: {heldOut}."
+      },
+      "summary": {
+        "unknown": "{count} doğrulanmadı",
+        "better": "{count} iyileşti"
+      }
+    },
+    "workspace": {
+      "title": "Bu değişiklik ajanlarınız için ne anlama geliyor?",
+      "hint": "Beceriler paylaşılır. Değişikliğin uygulanması her ajana yardımcı olduğu anlamına gelmez.",
+      "agents": "Ajanlar üzerindeki etki",
+      "skillText": "Bu oturumda test edilen beceri"
+    }
   }
 }

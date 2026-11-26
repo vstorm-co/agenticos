@@ -327,6 +327,8 @@ async def test_the_analysis_reads_what_a_handing_agents_improve_found(db, eviden
     [analysis] = [prompt for prompt in model.prompts if prompt.startswith("Group the bad answers")]
     assert "# What an agent's own Improve found in this skill" in analysis
     assert "- The window is wrong" in analysis and "(none)" in analysis
+    # A problem the agent handed over is never dropped for want of fresh runs showing it.
+    assert "whether or not the runs above show it again" in analysis
 
 
 async def test_a_fork_sessions_analysis_reads_the_forks_own_text(db, evidence):

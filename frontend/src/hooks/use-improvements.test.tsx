@@ -262,6 +262,18 @@ it("chooses and rewords the changes a check is to measure", async () => {
   });
 });
 
+it("brings another of a search's best variants to Changes", async () => {
+  vi.mocked(apiClient.get).mockResolvedValue({ id: "s1", status: "waiting" });
+  vi.mocked(apiClient.put).mockResolvedValue({ id: "s1" });
+  const { result } = renderHook(() => useImprovement("a1", "s1"), { wrapper });
+
+  await result.current.chooseVariant.mutateAsync("v2");
+
+  expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/improvements/s1/search/choice", {
+    variant_id: "v2",
+  });
+});
+
 it("reaches a skill's session under the skill, and refreshes the skill after a step", async () => {
   vi.mocked(apiClient.get).mockResolvedValue({ id: "s1", status: "ready", skill_id: "k1" });
   vi.mocked(apiClient.put).mockResolvedValue({ id: "s1" });

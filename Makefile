@@ -1,4 +1,4 @@
-.PHONY: test-backend-shard test-backend-jobs-check test-backend-merge test-deployment ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
+.PHONY: test-backend-shard test-backend-jobs-check test-backend-merge test-deployment ci-test-db-configure test-frontend-jobs-check test-frontend-reports-check test-frontend-merge build-frontend-pack docker-test-db docker-test-db-down docker-minio install format lint desktop-dev desktop-build desktop-check mobile-android mobile-ios mobile-check lint-backend lint-frontend check audit licenses licenses-check build-frontend test run clean help sandbox-token subscription-gateway-token sandbox-workspace sandbox-runtimes deps-upgrade deps-upgrade-all db-init dev dev-down dev-logs dev-rebuild dev-frontend docker-clean dev-server dev-server-down dev-server-logs dev-server-frontend stage stage-down prod prod-down prod-frontend upgrade upgrade-dry-run upgrade-new-features upgrade-finalize docs docs-build docs-slug-check presentation audit-frontend sbom
 
 # === Environments ===========================================================
 # Three. The images are published to GHCR by `.github/workflows/images.yml`
@@ -43,6 +43,24 @@ sandbox-token:
 		token=$$(python3 -c "import secrets; print(secrets.token_urlsafe(32))"); \
 		printf '\n# Authorises opening a sandbox session, and a session runs commands\n# on this host. Treat it like the Docker socket it sits in front of.\nSANDBOXD_TOKEN=%s\n' "$$token" >> backend/.env; \
 		echo "▶ Generated SANDBOXD_TOKEN in backend/.env"; \
+	fi
+
+# The token the API, the worker and the subscription gateway share. Generated
+# into backend/.env once, like the sandbox's, and read from there by `make dev`
+# for docker-compose.yml, whose fixed fallback is only for a stack started
+# without a clone. A bare `SUBSCRIPTION_GATEWAY_TOKEN=` line is left alone.
+# docker-compose.yml takes the token by interpolation, which reads the shell and
+# the root .env, not backend/.env - so every `up` here hands it over, and the API
+# and the gateway it recreates never start on two different tokens.
+WITH_GATEWAY_TOKEN = SUBSCRIPTION_GATEWAY_TOKEN="$${SUBSCRIPTION_GATEWAY_TOKEN:-$$(sed -n 's/^SUBSCRIPTION_GATEWAY_TOKEN=//p' backend/.env 2>/dev/null | tail -1)}"
+
+subscription-gateway-token:
+	@if grep -q '^SUBSCRIPTION_GATEWAY_TOKEN=' backend/.env 2>/dev/null; then \
+		echo "SUBSCRIPTION_GATEWAY_TOKEN already set in backend/.env"; \
+	else \
+		token=$$(python3 -c "import secrets; print(secrets.token_hex(32))"); \
+		printf '\n# Shared by the API, the worker and the subscription gateway.\n# An empty value turns subscription accounts off on a server.\nSUBSCRIPTION_GATEWAY_TOKEN=%s\n' "$$token" >> backend/.env; \
+		echo "▶ Generated SUBSCRIPTION_GATEWAY_TOKEN in backend/.env"; \
 	fi
 
 # Where the sandbox service keeps each session's files, mounted at the same path
@@ -95,14 +113,14 @@ sandbox-runtimes:
 # `sandboxd:0.2` once served an older API than the backend's client spoke, and
 # every command failed as a lost session (#2484). `--pull missing` would add
 # nothing, and would override `pull_policy: never` on the images built here.
-dev: sandbox-token sandbox-workspace
+dev: sandbox-token sandbox-workspace subscription-gateway-token
 	@echo "▶ Building the backend image and starting the stack (migrations run as the \`migrate\` service)…"
-	@if ! docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; then \
+	@if ! $(WITH_GATEWAY_TOKEN) docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; then \
 		echo ""; \
 		echo "⚠ First start failed. Tearing down stale containers and retrying once…"; \
 		echo "  (volumes preserved — DB data is safe; use 'make docker-clean' for a full wipe)"; \
 		docker compose $(COMPOSE_LOCAL) down --remove-orphans; \
-		docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; \
+		$(WITH_GATEWAY_TOKEN) docker compose $(COMPOSE_LOCAL) $(COMPOSE_DEV_PROFILES) up -d --build; \
 	fi
 	@echo ""
 	@echo "🚀 Dev stack ready:"
@@ -165,7 +183,7 @@ dev-logs:
 
 dev-rebuild:
 	docker compose $(COMPOSE_LOCAL) build --no-cache app
-	docker compose $(COMPOSE_LOCAL) up -d --force-recreate app
+	$(WITH_GATEWAY_TOKEN) docker compose $(COMPOSE_LOCAL) up -d --force-recreate app
 
 # Naming the service enables its `console` profile; `--no-deps` keeps `--build`
 # from rebuilding the backend image on the way, since `make dev` owns that.

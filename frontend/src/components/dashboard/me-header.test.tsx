@@ -63,7 +63,7 @@ describe("the Me view's header", () => {
       /(Good (morning|afternoon|evening)|Hello), Kacper/,
     );
     expect(screen.getByText(/73 times/)).toBeVisible();
-    expect(screen.getByText("1 call")).toBeVisible();
+    expect(screen.getByText("1 action to approve")).toBeVisible();
     expect(useUsageStatsMock).toHaveBeenCalledWith(
       { from: PERIOD.from, to: PERIOD.to },
       { scope: "own", enabled: true },
@@ -121,6 +121,6 @@ describe("the Me view's header", () => {
     mount();
 
     expect(screen.queryByText(/Nothing is waiting on you/)).toBeNull();
-    expect(screen.getByText("1 suggestion")).toBeVisible();
+    expect(screen.getByText("1 suggestion in Inbox")).toBeVisible();
   });
 });

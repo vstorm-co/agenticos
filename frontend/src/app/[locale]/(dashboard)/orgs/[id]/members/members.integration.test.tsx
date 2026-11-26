@@ -551,6 +551,10 @@ describe("organization settings tabs", () => {
     for (const title of titles) {
       const card = await screen.findByRole("region", { name: title });
       expect(card).toHaveAttribute("data-slot", "service-card");
+      const chatHome = screen.getByRole("region", { name: "Chat home" });
+      expect(
+        card.compareDocumentPosition(chatHome) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
       const header = card.querySelector("header");
       expect(header).not.toBeNull();
       headers.push(header!);
@@ -573,7 +577,7 @@ describe("organization settings tabs", () => {
       expect(toggle).toBeVisible();
     }
     expect(new Set(headers.map((header) => header.className)).size).toBe(1);
-    expect(document.querySelectorAll('[data-slot="service-card"]')).toHaveLength(7);
+    expect(document.querySelectorAll('[data-slot="service-card"]')).toHaveLength(9);
   });
 
   it("groups background services without adding a second interactive disclosure", async () => {
@@ -644,4 +648,28 @@ describe("organization settings tabs", () => {
       expect(screen.getAllByRole("tab").map((item) => item.textContent)).toEqual(["Members"]);
     },
   );
+});
+
+it("shows the membership's onboarding status and readable current step", async () => {
+  serve("owner");
+  const fallback = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation((url) =>
+    url.includes("/members")
+      ? Promise.resolve({
+          items: [
+            {
+              ...member(ME, "me@acme.test", "owner"),
+              onboarding_completed_at: null,
+              onboarding_current_step: "member.profile",
+              onboarding_updated_at: "2026-11-22T10:00:00Z",
+            },
+          ],
+          total: 1,
+        })
+      : fallback(url),
+  );
+  await mount();
+  const row = await roleCell("me@acme.test");
+  expect(within(row).getByText("In progress")).toBeVisible();
+  expect(within(row).getByText("Your profile")).toBeVisible();
 });

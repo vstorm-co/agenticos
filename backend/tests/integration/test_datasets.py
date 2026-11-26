@@ -559,7 +559,10 @@ async def test_a_credential_in_a_case_is_redacted_before_it_is_stored(db) -> Non
             history=[{"role": "user", "content": f"use {key}"}],
             note=f"seen {key}",
             expected_tool_calls=[{"tool": "login", "args": {"token": key, "n": 1, "all": [key]}}],
-            checks=[{"type": "contains", "value": f"Bearer {key}", "nested": {"k": [key]}}],
+            checks=[
+                {"type": "contains", "value": f"Bearer {key}", "nested": {"k": [key]}},
+                {"type": "keys", "keys": [{"key": "Token", "value": key}]},
+            ],
             tags=[key],
         ),
     )
@@ -574,6 +577,8 @@ async def test_a_credential_in_a_case_is_redacted_before_it_is_stored(db) -> Non
     assert "[redacted:" in stored.input
     assert stored.expected_tool_calls[0]["args"]["n"] == 1
     assert stored.checks[0]["type"] == "contains"
+    assert stored.checks[1]["keys"][0]["key"] == "Token"
+    assert "[redacted:" in stored.checks[1]["keys"][0]["value"]
     for fmt in ("csv", "jsonl"):
         exported = await service.export(ctx, dataset.id, version=None, fmt=fmt)
         assert key not in exported.content
@@ -586,7 +591,7 @@ async def test_a_credential_in_a_case_is_redacted_before_it_is_stored(db) -> Non
         )
     )
     assert details is not None
-    assert details["redacted_secrets"] == 8
+    assert details["redacted_secrets"] == 9
 
 
 async def test_a_rated_down_answer_becomes_a_case_linked_to_its_run(db) -> None:

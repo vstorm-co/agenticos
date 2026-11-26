@@ -349,6 +349,19 @@ uv run agenticos cmd doctor --profile hipaa
 # call. Exits non-zero when it finds one, so a cron can gate on it.
 uv run agenticos cmd audit-skill-bindings
 
+# Judge again, from the runs they kept, the agents of finished skill checks that an
+# older rule judged: one kept before families of criteria shows no families, and
+# one kept before "too few questions" existed says its run could not grade every
+# answer. It also counts the judge's gradings in a skill session's attempt that
+# counted only its check's answers. No model is asked, and a decided check keeps its
+# decision. With no --check it sweeps every such check and attempt; repeat --check
+# to name some.
+# Tracks the stored verdict version, so current incomplete results are not swept
+# repeatedly. Only finished attempts are recounted. Missing original access is
+# reported as skipped rather than as a successful rejudgement.
+uv run agenticos cmd skill-checks-rejudge
+uv run agenticos cmd skill-checks-rejudge --check <check-id>
+
 # Recompute the app-admin audit trail's tamper-evidence hash chain and report any
 # break. Each entry links to the previous one's hash, so editing, reordering,
 # inserting or interior-deleting a row diverges every hash after it; a per-org
@@ -418,6 +431,24 @@ and the duplicate checks apply exactly as they do to somebody clicking the butto
 `make platform-bootstrap BOOTSTRAP_API_KEY=sk-...` wraps `bootstrap` with the
 migrations it needs. Run `doctor` first when something works locally and not on a
 fresh environment — it is faster than reading logs.
+
+### Measuring re-sent tool output
+
+```bash
+# How much of one organization's model input is tool output sent again, per agent.
+# Sizes, counts and estimates only - never a result's or a request's content.
+uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 2026-11-22
+
+# The same figures as JSON, with eval and Builder test runs counted too.
+uv run agenticos cmd tool-output-report --org <org-id> --from 2026-11-01 --to 2026-11-22 \
+  --include-eval --include-tests --json
+```
+
+A tool result stays in a run's history, so every later model request sends it again. The report measures each result as the model received it, after `tool_output_limits`, and counts it once for every request after the one that called it, taken from the run's manifest. It splits the figures by agent and by how the agent binds `tool_output_limits` and `compaction`. It also projects what replacing results over 10,000 characters with a short placeholder after two full sends would save.
+
+The figures are an estimate, and the report says so. Tokens are characters divided by four, and where one tool ran several times in a run its results' positions are averaged. A run is left out of the estimate when it has no manifest, has no conversation to record tool results in, or waited on an approval or a question.
+
+A follow-up run can carry earlier runs' results from the same conversation, and the report shows them apart, as an upper bound. A delegate never adds to its parent, and platform work is not counted under the agent that started it. The report cannot say how replacing results would change prompt caching, and it marks agents with any compaction, because their figure is overstated.
 
 ### Getting a deployment up
 

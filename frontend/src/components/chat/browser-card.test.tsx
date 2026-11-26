@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BrowserPanelAutoOpen, LiveBrowsesProvider, TurnBrowses } from "./browser-card";
+import { ChatWorkspaceProvider, useRequiredChatWorkspace } from "./chat-workspace-context";
 import type { ToolCall } from "@/types";
 import type { Browse } from "@/lib/browse";
 import { useAuthStore } from "@/stores";
@@ -71,6 +72,56 @@ beforeEach(() => {
   useBrowserPanelStore.setState({ openCallId: null });
 });
 
+function WorkspaceBrowsers({ navigable }: { navigable: boolean }) {
+  const workspace = useRequiredChatWorkspace();
+  return (
+    <>
+      <button onClick={() => workspace.openPanel("files")}>Show files</button>
+      <output aria-label="Active workspace">{workspace.activePanel}</output>
+      <BrowserCards browses={[browse({ navigable })]} />
+    </>
+  );
+}
+
+it.each([true, false])(
+  "reopens the retained browser from Files and toggles it closed (navigable: %s)",
+  async (navigable) => {
+    const user = userEvent.setup();
+    render(
+      <ChatWorkspaceProvider shared>
+        <WorkspaceBrowsers navigable={navigable} />
+      </ChatWorkspaceProvider>,
+    );
+    const open = async () => {
+      if (navigable) await user.click(screen.getByRole("button", { name: "Pricing" }));
+      else {
+        await user.click(screen.getByRole("button", { name: "Browser options" }));
+        await user.click(screen.getByRole("menuitem", { name: "Open beside the chat" }));
+      }
+    };
+    await open();
+    expect(screen.getByLabelText("Active workspace")).toHaveTextContent("browser");
+    await user.click(screen.getByRole("button", { name: "Show files" }));
+    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+    expect(screen.getByLabelText("Active workspace")).toHaveTextContent("files");
+    if (navigable)
+      expect(screen.getByRole("button", { name: "Pricing" })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    await open();
+    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+    expect(screen.getByLabelText("Active workspace")).toHaveTextContent("browser");
+    await user.click(
+      screen.getByRole("button", {
+        name: navigable ? "Pricing" : /example.test is open in the browser panel/,
+      }),
+    );
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+    expect(screen.getByLabelText("Active workspace")).toBeEmptyDOMElement();
+  },
+);
+
 describe("TurnBrowses - a browse as a browser under its message", () => {
   it("draws nothing for a turn that did not browse", () => {
     const { container } = render(<BrowserCards browses={[]} />);
@@ -115,7 +166,8 @@ describe("TurnBrowses - a browse as a browser under its message", () => {
     await userEvent.click(
       screen.getByRole("button", { name: /example.test is open in the browser panel/ }),
     );
-    expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+    expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+    expect(live.calls.at(-1)).toEqual(["run-1", "c1", true]);
   });
 
   it("fetches a finished browse's cached last view", () => {
@@ -193,6 +245,11 @@ it("opens the native tab panel rather than presenting an empty screenshot", asyn
   const user = userEvent.setup();
   render(<BrowserCards browses={[browse({ nativeId: "native-browser-test", outcome: "done" })]} />);
   await user.click(screen.getByRole("button", { name: "Pricing" }));
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
+  expect(screen.getByRole("button", { name: "Pricing" })).toHaveAttribute("aria-expanded", "true");
+  await user.click(screen.getByRole("button", { name: "Pricing" }));
+  expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+  await user.keyboard("{Enter}");
   expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
 });
 
@@ -342,4 +399,22 @@ it("does not add a historical card beside a live view when the same tab is read 
   );
   expect(screen.getAllByRole("button", { name: "Pricing" })).toHaveLength(1);
   expect(screen.queryByRole("link", { name: /Visit site/ })).toBeNull();
+});
+
+it("switches browser cards without closing a different selected page", async () => {
+  render(
+    <BrowserCards
+      browses={[
+        browse({ navigable: true, tabId: "one" }),
+        browse({ navigable: true, tabId: "two", callId: "c2", title: "Docs" }),
+      ]}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Pricing" }));
+  await userEvent.click(screen.getByRole("button", { name: "Docs" }));
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c2");
+  expect(screen.getByRole("button", { name: "Pricing" })).toHaveAttribute("aria-expanded", "false");
+  expect(screen.getByRole("button", { name: "Docs" })).toHaveAttribute("aria-expanded", "true");
+  await userEvent.click(screen.getByRole("button", { name: "Docs" }));
+  expect(useBrowserPanelStore.getState().openCallId).toBeNull();
 });

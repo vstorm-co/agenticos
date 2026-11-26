@@ -26,12 +26,13 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_ai.exceptions import UserError
 from pydantic_ai.providers.openai_codex import OpenAICodexCredentials
 from pydantic_ai.usage import RequestUsage
 
 Harness = Literal["claude_code", "codex"]
+AcpHarness = Harness | Literal["custom"]
 Access = Literal["read_only", "edit"]
 StepKind = Literal["read", "search", "edit", "command", "web", "other"]
 
@@ -42,7 +43,7 @@ MAX_TITLE_CHARS = 300
 MAX_ANSWER_CHARS = 30_000
 """How much of the harness's final answer reaches the model that asked."""
 
-LABELS: dict[Harness, str] = {"claude_code": "Claude Code", "codex": "Codex"}
+LABELS: dict[AcpHarness, str] = {"claude_code": "Claude Code", "codex": "Codex", "custom": "ACP"}
 
 CLAUDE_TOKEN_PREFIX = "sk-ant-oat"
 """What a Claude subscription token from `claude setup-token` starts with.
@@ -126,11 +127,21 @@ class CodingStep(BaseModel):
     failed: bool = False
 
 
+class RuntimeCredentials(BaseModel):
+    """Non-secret credential facts reported by the runtime, not plan entitlement."""
+
+    kind: Literal["api_key", "oauth"]
+    source: Literal["os_keyring", "cli_file", "environment", "vault"]
+    sign_out_available: bool
+
+
 class CodingReport(BaseModel):
     """What one task came to, as the model reads it and the console draws it."""
 
     kind: Literal["coding_agent"] = "coding_agent"
-    harness: Harness
+    harness: AcpHarness
+    runtime_name: str | None = Field(default=None, min_length=1, max_length=120)
+    credentials: RuntimeCredentials | None = None
     access: Access
     outcome: Literal["completed", "failed", "timed_out"]
     answer: str

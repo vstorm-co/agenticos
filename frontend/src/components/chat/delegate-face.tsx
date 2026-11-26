@@ -1,5 +1,6 @@
 "use client";
 
+import { SquareTerminal } from "lucide-react";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
 import { BrandIcon } from "@/components/icons/brand-icon";
 import type { DelegateRef } from "@/lib/delegations";
@@ -31,7 +32,11 @@ export function DelegateFace({
           className,
         )}
       >
-        <BrandIcon name={who.harness} className="size-[60%]" aria-hidden />
+        {who.harness === "custom" ? (
+          <SquareTerminal className="size-[60%]" aria-hidden />
+        ) : (
+          <BrandIcon name={who.harness} className="size-[60%]" aria-hidden />
+        )}
       </span>
     );
   }

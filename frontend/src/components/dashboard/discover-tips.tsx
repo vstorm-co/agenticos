@@ -32,6 +32,36 @@ interface Tip {
 }
 
 const TIPS: readonly Tip[] = [
+  {
+    id: "subscriptions",
+    href: ROUTES.SETTINGS_SUBSCRIPTIONS,
+    brands: [
+      { name: "claude", color: "#D97757" },
+      { name: "codex", color: "currentColor" },
+      { name: "google", color: "currentColor" },
+    ],
+  },
+  { id: "firstTask", href: `${ROUTES.CHAT}?new=workspace&answerer=agenticos`, art: "planning" },
+  {
+    id: "mcp",
+    href: ROUTES.SETTINGS_MCP,
+    brands: [
+      { name: "claude", color: "#D97757" },
+      { name: "codex", color: "currentColor" },
+    ],
+  },
+  {
+    id: "connectedTools",
+    href: ROUTES.MCP_SERVERS,
+    gate: Perm.mcpPersonalUse,
+    brands: [
+      { name: "github", color: "currentColor" },
+      { name: "notion", color: "currentColor" },
+      { name: "google", color: "currentColor" },
+    ],
+  },
+  { id: "projects", href: ROUTES.PROJECTS, art: "context", gate: Perm.projectsView },
+  { id: "personalMemory", href: ROUTES.SETTINGS_MEMORY, art: "memory_files" },
   { id: "sandbox", href: ROUTES.AGENTS, art: "sandbox", gate: Perm.agentsEdit },
   { id: "subagents", href: ROUTES.AGENTS, art: "subagents", gate: Perm.agentsEdit },
   { id: "apps", href: ROUTES.ARTIFACTS, art: "artifacts", gate: Perm.artifactsView },
@@ -56,14 +86,6 @@ const TIPS: readonly Tip[] = [
   // Keyboard tips remain available after the illustrated product examples.
   { id: "mentions", href: ROUTES.CHAT, key: "@" },
   { id: "commands", href: ROUTES.CHAT, key: "/" },
-  {
-    id: "mcp",
-    href: ROUTES.SETTINGS_MCP,
-    brands: [
-      { name: "claude", color: "#D97757" },
-      { name: "cursor", color: "currentColor" },
-    ],
-  },
 ];
 
 const DISMISSED_KEY = "agenticos:discover-tips:dismissed";

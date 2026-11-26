@@ -117,7 +117,7 @@ class SubagentStarted(_SubagentFrame):
             "moment both it and the enclosing one exist."
         ),
     )
-    harness: Literal["claude_code", "codex"] | None = Field(
+    harness: Literal["claude_code", "codex", "custom"] | None = Field(
         default=None,
         description=(
             "Set when the worker is a coding harness the `coding_agent` capability "

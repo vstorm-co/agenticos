@@ -687,6 +687,24 @@ class TestReactions:
             "m.relates_to": {"rel_type": "m.annotation", "event_id": "$question", "key": "👀"}
         }
 
+    async def test_the_router_s_homeserver_is_used_without_looking_the_bot_up(
+        self, adapter: MatrixAdapter, server: _Homeserver
+    ):
+        incoming = IncomingMessage(
+            platform="matrix",
+            bot_id=BOT,
+            platform_user_id=USER,
+            platform_chat_id=f"{room_key(ROOM)}:$question",
+            chat_type="group",
+            text="hi",
+            message_id="$question",
+        )
+        lookup = AsyncMock(return_value="https://elsewhere.example")
+        with patch.object(MatrixAdapter, "_homeserver", lookup):
+            await adapter.acknowledge_message("tok", incoming, "eyes", api_base_url=f"{BASE}/")
+        lookup.assert_not_awaited()
+        assert len(server.sent("m.reaction")) == 1
+
     async def test_a_reaction_to_a_message_in_another_room_is_refused(
         self, adapter: MatrixAdapter, server: _Homeserver
     ):

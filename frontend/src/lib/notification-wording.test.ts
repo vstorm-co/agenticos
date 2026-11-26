@@ -5,6 +5,8 @@ import de from "../../messages/de.json";
 import en from "../../messages/en.json";
 import pl from "../../messages/pl.json";
 import tr from "../../messages/tr.json";
+import fr from "../../messages/fr.json";
+import nl from "../../messages/nl.json";
 import type { Translate } from "@/lib/agent-step-captions";
 
 import { usd, wordedSummary } from "./notification-wording";
@@ -327,6 +329,8 @@ describe("every locale", () => {
     ["de", de],
     ["pl", pl],
     ["tr", tr],
+    ["fr", fr],
+    ["nl", nl],
   ])("%s words each sentence without falling back to its key", (locale, messages) => {
     const t = translator(locale, { ...en, ...messages });
     for (const row of rows) {

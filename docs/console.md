@@ -1,5 +1,16 @@
 # The console
 
+The model picker keeps its header, provider tabs and search in place while the model and provider lists scroll independently. Dashboard tab changes retain their short transition; entering the dashboard or restoring browser history does not animate the entire panel. The onboarding avatar carousel remains available beside an uploaded photo, with a hint that color changes affect the avatar shown when the photo is unavailable.
+
+**Refresh models** in a provider catalog fetches the list again while keeping your search and selection. Next to saved organization models, it reloads the saved profiles instead. Refresh does not save a model or start an agent. Endpoint, Vault key, API type and region controls appear when the provider supports them; personal subscriptions use their connected account settings.
+
+The chat model library keeps search collapsed behind the magnifier beside the Models and Account or Key tabs. Escape clears and closes search before closing the picker. Refresh and the compact model count share the tab row; the catalog source is available with the count and account details stay under Account. Existing subscription models restore their concrete service, account and model instead of a combined subscriptions choice.
+
+
+The subscriptions table keeps the first two reported limits in a compact preview. **Details** expands all windows, reset dates and the observation time. Account actions share one row, with Disconnect in the actions menu.
+
+Page titles, list controls and table headers share a compact hierarchy. Tables embedded in lists use one outer frame and keep their row height while loading. Agent cards open Build even when Evals needs attention; its indicator stays visible. Run history remains in Activity instead of above the Builder. Run inspection shows the recorded failure reason and keeps complete raw events behind disclosures. Chat keeps the model name above its provider or personal account. Projects precede Build in navigation; Knowledge starts folded and opens for its active page or your explicit choice.
+
 The default themes distinguish the canvas, sidebar, cards and floating panels. Blue identifies links and keyboard focus; enabled switches use green. Navigation uses regular weight with a medium active label. Builder section summaries show the current model, variables, voice state and first messages before opening their editors. Sign-in and account recovery use the same concise heading style and a static identity panel.
 
 New generated Inbox proposals carry a ready-to-send action request, rather than a question containing an item ID. Repeated work retains the source requests and their local dates, weekdays and time zone, so a suggested schedule can follow the evidence. Selecting a proposal prepares an editable draft and never sends it automatically. Phone chat shows two starter prompts; wider screens retain four.
@@ -12,9 +23,13 @@ If your current organization’s onboarding is unfinished, **Finish setup** retu
 
 **Settings → Profile** always keeps a manual setup link, including when reminders are off. The reminder has a clear action and a short, bounded illustration animation; reduced motion keeps it still. Returning is your choice: no tour starts automatically. In the same browser, the link remembers the last allowed step for this account and organization without storing form values.
 
+Guided setup records the current step and its update time on your organization membership. The members table shows whether setup is not started, in progress or completed, with a readable step label. Progress belongs to that membership; completing setup in one organization does not mark the others complete. Existing recorded completion remains valid, but profile contents never imply progress or completion.
+
+A step shown before you choose or join an organization is not recorded as membership progress. Account language and appearance are saved separately. Under the organization’s Assistant tab, Architect and the other assistant services appear before Chat home; matching icons and card headers make the services easier to scan.
+
 Inbox keeps the same list frame, row spacing, source marks, title/detail typography and responsive action alignment across All, Urgent, Routine results, Suggestions and Done. Done retains its decision badge and Bring back action for dismissed items, with source and time visible on phones too. Approval forms keep the same outer inset while retaining their required fields and permission checks.
 
-Files and Sources use the same compact side panel: 400px initially, adjustable from 360 to 420px and capped at 38% of the docked chat width. On a narrow desktop they can temporarily collapse the conversation list; closing restores the earlier choice unless you changed it manually. Browser keeps its wider working area, initially 55% and adjustable from 35% to 65%. Following a citation scrolls only the Sources list, keeping the transcript in place.
+Files and Sources use the same compact side panel: 400px initially, adjustable from 360 to 420px and capped at 38% of the docked chat width. If the dock is too narrow to resize, choose **Maximize** in the panel header. On a narrow desktop they can temporarily collapse the conversation list; closing restores the earlier choice unless you changed it manually. Browser keeps its wider working area, initially 55% and adjustable from 35% to 65%. Following a citation scrolls only the Sources list, keeping the transcript in place.
 
 When Files reports a workspace that has not been created yet or is no longer retained, this is distinct from a connection failure and does not prove that no files ever existed. Conversation attachments remain available. Attach and send a file through the composer, or ask the agent to create one, to use the workspace; genuine connection and archive failures remain explicit. In chat, a file link with a matching successful tool receipt opens the workspace viewer. Unverified paths remain ordinary links; an unavailable private file origin does not become a link.
 
@@ -36,7 +51,7 @@ Agent galleries show publication state as a dot and text. Needs attention uses a
 
 Resource galleries use restrained spacing, neutral metadata and consistent actions. Projects, knowledge bases, tables and datasets retain access, size and relevant resource links without gallery timestamps. In Build, Instructions has its own writing surface; Model and the optional Variables, Voice and First messages settings share one panel with separators. The primary model stays visible. Thinking and Answer format remain within Model settings; missing required configuration and validation errors remain reachable.
 
-In Build, First messages previews cards with the icon, title and message. Open a card to edit it. Saving a built-in example as a custom message keeps the other examples in the draft. The Skills, Context and Knowledge search pickers in Toolbox use selectable rows. A saved chat model stays visible in Models as well as Saved models.
+In Build, First messages previews cards with the icon, title and message. Open a card to edit it. Saving a built-in example as a custom message keeps the other examples in the draft. The Skills, Context and Knowledge search pickers in Toolbox use selectable rows. Previously used models remain in the single Models list.
 
 Variables, Voice, First messages, Run reviewers, Alerts and Tracing start collapsed, with the current configuration visible in each summary. Open the section you want to change; required setup and validation errors remain reachable. Model stays open, and Voice setup links open its matching tab.
 
@@ -162,7 +177,7 @@ On phones, sent messages stop below the floating chat buttons, keeping the user 
 
 Default agents finish a one-off request without holding the answer open for an optional automation question. Questions settle decisions needed for the current task or an automation the person requests or accepts. Optional setup cards remain non-blocking proposals.
 
-The compact source button below an answer opens Sources beside the conversation, with a full-width panel on phones. Files and Sources share the side space: opening one replaces the other. Web sources use the site favicon, requested without a referrer, or a known service logo; a globe remains when the icon is unavailable. Knowledge-base sources retain their file marks and original-document viewer.
+The compact source button below an answer toggles Sources beside the conversation, with a full-width panel on phones. Clicking it again closes the panel; choosing another answer switches its sources. Inline citations open the panel and focus the cited passage. Browser cards likewise toggle their own side panel; choosing a browser tab keeps it open. Files and Sources share the side space: opening one replaces the other. Web sources use the site favicon, requested without a referrer, or a known service logo; a globe remains when the icon is unavailable. Knowledge-base sources retain their file marks and original-document viewer.
 
 Inline web links use the same favicon policy independently of MCP connections. Unknown-site icons pass through the console's same-origin proxy and DuckDuckGo's fixed icon service. Only the hostname is sent to that service, never the reader's cookies, IP address, URL path or query. The proxy refuses redirects, non-raster content and icons over 64 KiB, and times out after three seconds. Missing or unavailable icons fall back to a globe. Inert transcript views keep remote images and unknown-site icons unloaded.
 
@@ -238,10 +253,12 @@ departments, invite a teammate and - for whoever may - put an agent in a chat ap
 Each step is ticked from what exists, wherever it was done, not from a click on the
 card; closing the card hides it in that browser.
 
-Your own view also shows **Discover AgenticOS**: one tile each for what is easy to
-miss - this deployment's own MCP server for Claude Code, Codex or Cursor,
-subagents, sandboxes, apps, routines, chat apps, the web browser, knowledge bases
-and skills - each leading to where it is switched on, and only those you can use.
+Your own view also shows **Discover AgenticOS**. It starts with personal Claude
+Code, ChatGPT (Codex) and Antigravity subscriptions, a first chat task and using
+AgenticOS from an existing coding client. Further tiles cover personal tool
+connections, projects and memory, followed by sandboxes, subagents, apps,
+routines, channels, browser use, knowledge and skills. Each links to its setup or
+working view; permission-dependent actions appear only to people who can use them.
 Close a tile, or all of them; that too is kept in the browser.
 
 Charts over time pick their own step. The span from the period's first run to now
@@ -283,7 +300,7 @@ Organization → AI & services shows individual cards with switches and expandab
 
 Scheduled, event and monitoring routines use the same dialog frame, with a fixed header and navigation and a scrolling form. Creating a watch walks through Configure, Message and Schedule; Back preserves your draft. Agent pickers show the same avatars as chat. Watch execution and delivery settings live together under one Advanced options panel.
 
-On the dashboard, Discover starts with illustrated capabilities. Hover over a
+On the dashboard, Discover starts with personal accounts and everyday tasks. Hover over a
 _Your period_ sparkline to read its bucket and value; spend is formatted as money.
 Projects show descriptions, and agent rows use the same avatars as chat.
 
@@ -305,7 +322,7 @@ Shared console fields, menu rows, pickers, tabs and settings sections use the sa
 
 Opening a saved conversation shows transcript placeholders directly, without flashing welcome suggestions; the sidebar and transcript load independently. Explicit sends glide the message near the top; queued messages do not reposition the reader. Scroll, touch and keyboard input cancel the glide. Shared menus and dialogs use small, eased transitions; the Motion preference disables movement.
 
-The main chat uses a wide composer. Its model library groups connected providers first, with provider logos and capitalized names, and separates the catalog from saved models. Selecting a model applies it directly. Missing credentials can be added through the existing Vault forms inside the picker, including structured provider credentials; the existing permissions and model validation still apply. The microphone and Send controls transition as the draft changes.
+The main chat uses a wide composer. Its model library groups connected providers first, with provider logos and capitalized names, with one Models list and a separate account or key tab. Selecting a model applies it directly. Missing credentials can be added through the existing Vault forms inside the picker, including structured provider credentials; the existing permissions and model validation still apply. The microphone and Send controls transition as the draft changes.
 
 ## The inbox { #the-inbox }
 
@@ -806,9 +823,9 @@ in the box. A recording that failed to transcribe is kept until you press
 The glow around a hosted page's box while you speak follows **Voice glow** under
 **Settings → Profile → Appearance**, beside the theme and **Motion**: **Vivid**,
 **Subtle** (the default) or **Off**. It is remembered per browser. **Motion**
-decides how much the whole console moves: **System** (the default) follows the
+decides how much the whole console moves: **System** follows the
 operating system's reduced-motion setting, **Reduce** turns motion down without
-it, and **Full** keeps it whatever the operating system says. While motion is
+it, and **Full** (the default in a new browser) keeps it whatever the operating system says. While motion is
 reduced there is no glow at all, the strip appears without sliding, and the level
 is a five-step indicator.
 
@@ -1052,12 +1069,12 @@ Saved browser sign-ins use a compact, full-width settings panel instead of stret
 
 ## Languages
 
-The console speaks English, Polish, German and Turkish. The walkthrough's first
-card offers the four, and
+The console speaks English, Polish, German, Turkish, French, Dutch and Brazilian Portuguese. The
+walkthrough's first card offers all seven, and
 the account menu changes the language at any time; the choice is kept on your
 account, so the console opens in it on every device you sign in on. You can also
 ask an agent - "switch to English" - and the page changes as it answers, without a
-reload. Every agent answers in it unless you write in another language. Product
+reload. Every agent answers in it unless you explicitly request another language. Product
 words - agent, skill, run, budget, MCP and the rest of the list in
 [translating](howto/translate.md) - stay English in every language.
 
@@ -1134,7 +1151,7 @@ The administration organization directory shows the uploaded organization pictur
 
 In a new organization, the shipped **AgenticOS** is selected before publication unless you chose another default. Its first message can explain model setup and show a configuration card without executing the draft or calling an AI provider. The reply and card remain in chat history. Builders can open the agent's model settings; other members see administrator guidance and the deployment's support contact when configured. Choose a model, add a key if required and publish the agent before normal AI replies can run. Ordinary drafts and archived agents remain unavailable for execution.
 
-When no published agent is available, onboarding offers somebody who may prepare an agent **Connect a model**, which picks a model and prepares one. Everybody else is offered an accessible shipped AgenticOS draft as a setup chat. Members can open it without model-management permissions; it provides configuration guidance, not an AI task result. Inaccessible drafts remain unavailable, and an accessible published agent takes precedence.
+The Studio walkthrough introduces the installed AgenticOS and Architect. If the shipped AgenticOS is still an accessible setup draft, its action opens the configuration chat; publishing and normal agent execution retain their usual checks. Authorized builders can configure Architect when it needs a model. Ordinary drafts and inaccessible agents do not become runnable through onboarding.
 
 Closing the start offer snoozes it for this membership’s effective 1, 3 or 7 day interval, using server time. It can return if setup is unfinished and reminders are enabled. After the questions, **Finish setup and open the app** records completion for this membership. Optional fields, invitations, a model, an agent and an AI run are not required. Completion and a successful task are separate states.
 
@@ -1234,3 +1251,21 @@ Sidebar groups expand and collapse smoothly. Hidden destinations cannot receive 
 Settings retains horizontal tabs. API keys and MCP clients share **API & MCP**, with separate access controls and existing URLs; MCP is the default view and the URL can select either tab. Mobile setup is linked from **Account**. Profile groups identity and agent context side by side on wide screens, with separate appearance and linked-account cards. List workspaces stretch to the available height. Organizations and Groups are reached through **Manage organizations** in the workspace switcher rather than duplicated in the sidebar. Page, list and table empty states share the same decorative illustration. Directory waits for permissions and list data before presenting its single empty-state creation action.
 
 Personal settings have no separate Assistant tab. Page tips live in **Account**; the old `/settings/assistant` URL redirects there. **Inbox preferences** contains the personal nightly-suggestion delivery switch, while suggestion history and restoration remain in Inbox. Organization models, budgets, memory maintenance and Voice stay in **AI & services**. Form labels share a minimum row height, including inline help; standard inputs and selects use the same height, with larger touch targets on coarse pointers. Compact table filters retain their own size. MCP setup owns its frame rather than being wrapped in a second bordered container.
+
+The model picker applies selections directly without a success notification. Use **Back to the agent's own model** to clear the conversation override. Personal subscriptions have a dedicated step after personal context during onboarding: each service has a tile with a direct **Connect** action. **Settings → Subscriptions** lists one row per account, with search, pagination and provider-reported usage windows; unknown limits remain explicitly unavailable.
+
+Three onboarding layouts can be compared at `/onboarding?variant=conversation`, `?variant=studio` and `?variant=launchpad`. They share the same forms, permissions and saves: a conversational column, a studio with a side journey, and a wide launchpad. The design switch keeps the current step and mounted form drafts. Scripted guide messages reveal progressively, with a complete accessible message and static reduced-motion view.
+
+These preview flows add a model step using the normal provider catalog, existing Vault keys and inline connection forms, followed by the existing MCP catalog with personal and shared account scopes. Model selections are remembered for the person’s new chats; they do not change a shared agent’s published model. Connecting MCP does not bind its tools to every agent.
+
+Administrators can continue to team and deployment setup or go straight to the installed AgenticOS and Architect. Opening either agent sends no AI request; unavailable agents retain their setup guidance.
+
+Studio is the default at `/onboarding`. The other layouts remain available through their preview parameters. Studio uses one form column and a compact journey rail, without repeated decorative character panels. Personal appearance uses a swipeable carousel of the account’s real avatar colors: browsing does not save a choice; selecting one uses the existing account save. Motion respects the app and operating-system preferences.
+
+Studio keeps its heading and bottom actions in place while the current step moves between them. The avatar gallery snaps to a centered preview when dragged or browsed with the arrow keys; selecting a preview saves it. Reduced motion removes the spring and step movement. Unfinished setup is offered only in the sidebar, without a second banner across the workspace.
+
+New accounts open `/onboarding` after password registration or their first OAuth or directory sign-in, including registration from an invitation. Language and appearance come before workspace setup; addressed invitations can be reviewed and accepted here. Joining remains an explicit choice. Language is saved on the account and supplied to agents through `{{language}}` and the person briefing. An explicit request for another language takes precedence.
+
+After subscriptions, model setup presents a provider first, then its connection and model. Personal subscriptions remain in their previous step. Tools start with suggested services; **Browse all services** opens the complete MCP catalog.
+
+When an agent asks a question, its card and the normal composer stay visible together. The composer keeps your draft and attachments; new messages wait in the queue while you answer through the card. Stopping a response pauses queued messages until you explicitly resume the queue. Natural completion continues the queue normally.

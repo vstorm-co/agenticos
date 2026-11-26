@@ -15,9 +15,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
 from app.agents.model_resolver import PROVIDERS, ModelApi, is_decision_api
-from app.api.deps import Auth, ModelProfileSvc, SecretSvc, require
+from app.api.deps import Auth, ModelProfileSvc, SecretSvc, SubscriptionAccountSvc, require
 from app.api.public_api import ASSISTANT, PUBLIC
-from app.core.exceptions import AuthorizationError
+from app.clients.subscription_gateway import configured_gateway
+from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.field_errors import refused_field
 from app.core.permissions import Perm
 from app.schemas.model_profile import (
@@ -50,7 +51,11 @@ from app.services import realtime_models
 from app.services.image_models import image_providers
 from app.services.model_catalog import CUSTOM_LISTINGS, models_for
 from app.services.model_outputs import stated_outputs
-from app.services.model_profile import provider_catalog, validate_endpoint_url
+from app.services.model_profile import (
+    native_runtime_availability,
+    provider_catalog,
+    validate_endpoint_url,
+)
 from app.services.speech_to_text import LANGUAGES as SPEECH_TO_TEXT_LANGUAGES
 from app.services.speech_to_text import providers as speech_to_text_providers
 from app.services.text_to_speech_models import providers as text_to_speech_providers
@@ -83,10 +88,15 @@ async def list_provider_catalog() -> Any:
             native_api=spec.native_api,
             regions=list(spec.regions),
             api_from_model=spec.api_from_model,
+            personal_gateway=spec.personal_gateway,
         )
         for spec in provider_catalog()
+        # Offered only where the deployment runs the gateway.
+        if not spec.personal_gateway or configured_gateway() is not None
     ]
-    return ProviderCatalog(items=items, total=len(items))
+    return ProviderCatalog(
+        items=items, total=len(items), native_runtimes=native_runtime_availability()
+    )
 
 
 @router.get(
@@ -397,11 +407,55 @@ async def list_provider_models(
     provider: str,
     secrets: SecretSvc,
     ctx: Auth,
+    accounts: SubscriptionAccountSvc,
     base_url: str | None = None,
     secret_id: UUID | None = None,
     api: ModelApi | None = None,
+    refresh: bool = False,
 ) -> Any:
-    """List suggestions; custom authenticated endpoints require a visible selected key."""
+    """List models; `refresh` bypasses this API replica's cache, preserving key and endpoint checks."""
+    if provider == "subscription_accounts":
+        # The caller's own signed-in accounts decide what the gateway serves;
+        # somebody who signed in to none sees nothing to pick from.
+        if configured_gateway() is None:
+            return ProviderModelList(items=[], total=0, source="unlisted")
+        served = await accounts.models(ctx)
+        return ProviderModelList(
+            items=[
+                ProviderModelRead(
+                    id=model,
+                    name=model,
+                    context_length=None,
+                    output_modalities=[],
+                    apis=[],
+                    chat_capable=True,
+                )
+                for model in served
+            ],
+            total=len(served),
+            source="live",
+        )
+    if provider == "openai_chatgpt":
+        if base_url is not None or api not in (None, "responses"):
+            raise BadRequestError(
+                message="Official ChatGPT usage requires its fixed public Responses API"
+            )
+        choices = await secrets.chatgpt_models(ctx, secret_id) if secret_id is not None else []
+        return ProviderModelList(
+            items=[
+                ProviderModelRead(
+                    id=model.id,
+                    name=model.name,
+                    context_length=None,
+                    output_modalities=[],
+                    apis=["responses"],
+                    chat_capable=True,
+                )
+                for model in choices
+            ],
+            total=len(choices),
+            source="live" if secret_id is not None else "unlisted",
+        )
     if (
         base_url is None
         and (spec := PROVIDERS.get(provider)) is not None
@@ -412,8 +466,8 @@ async def list_provider_models(
         if provider not in CUSTOM_LISTINGS:
             raise refused_field(
                 "base_url",
-                "Only OpenRouter, Stav, Otari, Custom (OpenAI-compatible) and Custom "
-                "(Anthropic-compatible) support a custom model listing endpoint",
+                "Custom model listing endpoints are supported only for "
+                + ", ".join(sorted(CUSTOM_LISTINGS)),
             )
         if not ctx.has(Perm.CONNECTIONS_MANAGE):
             raise AuthorizationError(
@@ -435,7 +489,11 @@ async def list_provider_models(
         else None
     )
     models, source = await models_for(
-        provider, api_key=api_key, base_url=base_url, **({"api": api} if api is not None else {})
+        provider,
+        api_key=api_key,
+        base_url=base_url,
+        api=api,
+        refresh=refresh,
     )
     return ProviderModelList(
         items=[

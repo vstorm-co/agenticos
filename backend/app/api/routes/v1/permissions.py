@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Request
 
 from app import __version__
-from app.api.deps import Auth
+from app.api.deps import ApiKeySvc, Auth
 from app.api.public_api import PUBLIC
 from app.core.permissions import DEPLOYMENT_ADMIN_SCOPE, RESOURCE_PERMS, ROLE_PERMS, Perm
 from app.schemas.permissions import (
@@ -70,7 +70,7 @@ async def get_platform_context(request: Request, ctx: Auth) -> Any:
 
 
 @router.get("/me/permissions", response_model=MyPermissions)
-async def get_my_permissions(ctx: Auth) -> Any:
+async def get_my_permissions(ctx: Auth, api_keys: ApiKeySvc) -> Any:
     """Effective permissions for the caller in the active organization."""
     return MyPermissions(
         organization_id=str(ctx.organization_id),
@@ -81,6 +81,7 @@ async def get_my_permissions(ctx: Auth) -> Any:
             PermissionEntry(permission=perm.value, scope=scope.value)
             for perm, scope in sorted(ctx.permissions.items(), key=lambda kv: kv[0].value)
         ],
+        run_agent_id=await api_keys.run_agent_id(ctx),
     )
 
 

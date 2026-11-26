@@ -191,12 +191,12 @@ async def test_a_knowledge_source_reader_without_run_permission_returns_nothing(
     ctx, agent, _, session = await _started(db)
     limited = replace(ctx, key_scopes=frozenset({Perm.AGENTS_VIEW}))
     service = ImprovementPipelineService(db)
-    assert await service._knowledge_sources(limited, agent, session.id) == ([], [], [])
+    assert await service._knowledge_sources(limited, agent, session.id) == ([], [], [], [])
     row = await db.get(ImprovementRun, session.id)
     assert row is not None
     row.chat_evidence_run_ids = []
     await db.flush()
-    assert await service.knowledge_sources(ctx, row) == ([], [], [])
+    assert await service.knowledge_sources(ctx, row) == ([], [], [], [])
 
 
 async def test_a_suite_session_pins_check_settings_but_ignores_a_display_name_change(

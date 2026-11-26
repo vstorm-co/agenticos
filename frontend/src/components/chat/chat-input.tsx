@@ -1099,6 +1099,20 @@ export function ChatInput({
 
         <div className="chat-input-send ml-auto flex shrink-0 items-center gap-1">
           {actionsSlot}
+          {hasDraft && canStop && onStop && (
+            <Button
+              type="submit"
+              variant="ghost"
+              size="icon"
+              aria-label={t("send")}
+              disabled={sendDisabled || dictating}
+              className="chat-input-primary group size-9 shrink-0 rounded-full"
+            >
+              <span className={PRIMARY_ACTION_FACE} aria-hidden>
+                <ArrowUp className="composer-primary-glyph stroke-[2.5]" />
+              </span>
+            </Button>
+          )}
           {minimal ? (
             <Button
               type={primary === "send" ? "submit" : "button"}

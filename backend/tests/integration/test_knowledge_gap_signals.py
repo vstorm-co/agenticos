@@ -577,6 +577,7 @@ async def test_checking_answers_starts_after_the_commit_as_the_caller(db) -> Non
         "knowledge_base_ids": [str(kb.id)],
         "user_id": str(ctx.user_id),
         "message_ids": None,
+        "eval_run_ids": None,
         "improvement_run_id": None,
     }
 

@@ -12,7 +12,13 @@ vi.mock("@/hooks", () => ({
   usePermissions: () => ({ can: (perm: string) => data.perms.has(perm) }),
 }));
 
-const EVERYTHING = ["agents:edit", "artifacts:view", "channels:manage"];
+const EVERYTHING = [
+  "agents:edit",
+  "artifacts:view",
+  "channels:manage",
+  "projects:view",
+  "mcp:personal:use",
+];
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -45,16 +51,33 @@ describe("the dashboard's discover tips", () => {
       "/chat",
     );
     expect(within(tile("Shortcuts with /")).getByText("/")).toBeInTheDocument();
-    expect(screen.getAllByRole("article")).toHaveLength(11);
-    expect(screen.getAllByRole("article")[0]).toHaveAccessibleName(/computer/i);
+    expect(screen.getAllByRole("article")).toHaveLength(16);
+    expect(screen.getAllByRole("article")[0]).toHaveAccessibleName(
+      "Bring your Claude or Codex account",
+    );
+    for (const [name, href] of [
+      ["Bring your Claude or Codex account", "/settings/subscriptions"],
+      ["Start with a real task", "/chat?new=workspace&answerer=agenticos"],
+      ["Bring your everyday tools", "/mcp-servers"],
+      ["Keep a project together", "/projects"],
+      ["Control your personal context", "/settings/memory"],
+    ] as const)
+      expect(within(tile(name)).getByRole("link")).toHaveAttribute("href", href);
   });
 
   it("leaves out what the reader cannot use", () => {
     data.perms = new Set();
     render(<DiscoverTips />);
 
-    // What needs nothing: the chat's two keys, and connecting one's own client.
-    expect(screen.getAllByRole("article")).toHaveLength(3);
+    expect(screen.getAllByRole("article")).toHaveLength(6);
+    expect(tile("Bring your Claude or Codex account")).toBeInTheDocument();
+    expect(tile("Control your personal context")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("article", { name: "Bring your everyday tools" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("article", { name: "Keep a project together" }),
+    ).not.toBeInTheDocument();
   });
 
   it("closes one tip, and remembers it", async () => {
@@ -68,7 +91,7 @@ describe("the dashboard's discover tips", () => {
     unmount();
     render(<DiscoverTips />);
     expect(screen.queryByRole("article", { name: "Turn answers into apps" })).toBeNull();
-    expect(screen.getAllByRole("article")).toHaveLength(10);
+    expect(screen.getAllByRole("article")).toHaveLength(15);
   });
 
   it("goes away once every tip is closed", async () => {
@@ -97,7 +120,7 @@ describe("the dashboard's discover tips", () => {
     window.localStorage.setItem("agenticos:discover-tips:dismissed", JSON.stringify({ apps: 1 }));
     render(<DiscoverTips />);
 
-    expect(screen.getAllByRole("article")).toHaveLength(11);
+    expect(screen.getAllByRole("article")).toHaveLength(16);
   });
 
   it("pages sideways from its arrows", async () => {
@@ -125,7 +148,7 @@ describe("the dashboard's discover tips", () => {
     expect(lit()).toBe(1);
     expect(scrollTo).toHaveBeenLastCalledWith({ left: expect.any(Number), behavior: "smooth" });
 
-    act(() => vi.advanceTimersByTime(ADVANCE_MS * 10));
+    act(() => vi.advanceTimersByTime(ADVANCE_MS * (screen.getAllByRole("article").length - 1)));
     expect(lit()).toBe(0);
     expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, behavior: "smooth" });
     vi.useRealTimers();

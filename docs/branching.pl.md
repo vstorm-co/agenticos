@@ -1,5 +1,5 @@
 ---
-source_sha: "cd7998714012"
+source_sha: "98b351796193"
 ---
 
 # Gałęzie i to, co je chroni { #branches-and-what-protects-them }
@@ -385,6 +385,8 @@ gdy potrzebujesz pełnego CI. Draftu nie można scalić. Gotowe PR-y zachowują 
 wymagane checki i ochronę code scanning; zmiana statusu ich nie znosi.
 
 ## Cut i wspólne wydanie kilku zmian { #release-cuts-and-release-trains }
+
+Rytm wydań wynika z [decyzji maintainera w dyskusji #3208](https://github.com/vstorm-co/agenticos/discussions/3208#discussioncomment-19796269). Osobne wydanie po każdym scalonym PR nie jest wymagane.
 
 Zachowaj osobne PR-y i przygotowuj **jeden ręczny release dziennie**, jeśli są
 zmiany w Unreleased. Nie ma harmonogramu cutów ani automatycznej publikacji.

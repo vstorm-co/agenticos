@@ -20,7 +20,7 @@ export function SidebarSearch() {
       title={`${t("search")} (${shortcut})`}
       className="pressable-icon text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring touch:min-h-11 touch:min-w-11 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2"
     >
-      <Search className="size-[1.1rem]" aria-hidden />
+      <Search className="size-[18px]" strokeWidth={1.75} aria-hidden />
     </button>
   );
 }

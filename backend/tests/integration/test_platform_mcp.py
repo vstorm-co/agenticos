@@ -1753,3 +1753,105 @@ async def test_global_mcp_can_reopen_maintenance_without_opening_ordinary_operat
         assert refused.is_error
     await db.refresh(org)
     assert org.name == "Acme"
+
+
+@pytest.mark.security
+async def test_an_agent_schedules_itself_without_naming_itself_and_a_key_cannot(
+    db: AsyncSession, served: None
+) -> None:
+    from app.agents.spec import AgentSpec
+    from app.db.models.agent import AgentVersion
+    from app.db.models.agent_trigger import AgentTrigger
+
+    key, organization = await _owner_key(db, Perm.AGENTS_RUN, Perm.AGENTS_VIEW)
+    agent = Agent(
+        organization_id=organization.id,
+        owner_user_id=organization.created_by_user_id,
+        name="Reporter",
+        slug=f"reporter-{uuid.uuid4().hex[:8]}",
+        draft_spec=AgentSpec(name="Reporter").model_dump(mode="json"),
+    )
+    db.add(agent)
+    await db.flush()
+    version = AgentVersion(
+        id=uuid.uuid4(),
+        agent_id=agent.id,
+        organization_id=organization.id,
+        version=1,
+        spec=AgentSpec(name="Reporter").model_dump(mode="json"),
+    )
+    db.add(version)
+    await db.flush()
+    agent.current_version_id = version.id
+    ctx = AuthContext(
+        user_id=organization.created_by_user_id, organization_id=organization.id, role="owner"
+    )
+    run_key = await ApiKeyService(db).issue_for_run(ctx, agent_id=agent.id)
+    assert run_key is not None
+    await db.commit()
+    args = {"prompt": "Report", "every_minutes": 60, "runs_as_me": False}
+
+    async with _connected(key) as session:
+        refused = await session.call_tool("create_routine", args)
+    assert refused.is_error and "agent_id" in str(refused.content)
+    assert (await db.execute(select(AgentTrigger))).scalars().all() == []
+
+    async with _connected(run_key) as session:
+        created = await session.call_tool("create_routine", args)
+    assert not created.is_error, created
+    [saved] = (await db.execute(select(AgentTrigger))).scalars().all()
+    assert saved.agent_id == agent.id
+
+
+async def test_scope_free_routine_reporter_publishes_only_for_its_live_run(
+    db: AsyncSession, served: None
+) -> None:
+    from datetime import UTC, datetime
+
+    from app.repositories import agent_run_repo
+    from tests.integration.test_routine_sources import world
+
+    ctx, trigger, _, _ = await world(db)
+    run = await agent_run_repo.create_run(
+        db,
+        organization_id=ctx.organization_id,
+        agent_id=trigger.agent_id,
+        agent_version_id=trigger.pinned_version_id,
+        user_id=ctx.user_id,
+        conversation_id=None,
+        surface="schedule",
+        model_label="test",
+        started_at=datetime.now(UTC),
+        routine_origin_id=trigger.id,
+        routine_policy={
+            "acts_as_creator": True,
+            "approved_sources": trigger.approved_sources,
+            "action_consents": [],
+            "action_mode": None,
+        },
+    )
+    run.status = "running"
+    key = await ApiKeyService(db).issue_for_run(ctx, run_id=run.id, reporting_only=True)
+    assert key is not None
+    await db.commit()
+    finding = {
+        "finding": {
+            "key": "thread-1",
+            "revision": "message-1",
+            "title": "Review needed",
+            "content": "Evidence and a complete draft.",
+        }
+    }
+    async with _connected(key) as session:
+        published = await session.call_tool("publish_inbox_finding", finding)
+        assert not published.is_error
+        assert _content(published)["status"] == "published"
+        assert (
+            _content(await session.call_tool("publish_inbox_finding", finding))["status"]
+            == "unchanged_or_muted"
+        )
+        assert (await session.call_tool("create_agent_draft", {"name": "Not permitted"})).is_error
+        assert (await session.call_tool("list_inbox_items", {})).is_error
+        trigger.is_active = False
+        await db.commit()
+        assert (await session.call_tool("publish_inbox_finding", finding)).is_error

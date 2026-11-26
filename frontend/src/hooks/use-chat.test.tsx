@@ -2047,6 +2047,168 @@ describe("useChat - approvals and questions", () => {
     );
   });
 
+  it("records feedback on a rejected call before continuing the chat", async () => {
+    post.mockResolvedValue({ status: "rejected", run_id: "r-1", continues_in_chat: true });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "execute", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "execute", args: {} }],
+      review_configs: [],
+    });
+    receive("complete", {});
+    receive("session_ready", {});
+
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "reject", note: "Use a draft instead" }]);
+    });
+
+    expect(post).toHaveBeenCalledWith("/approvals/ar-1", {
+      approved: false,
+      note: "Use a draft instead",
+    });
+    expect(post).not.toHaveBeenCalledWith("/runs/r-1/resume");
+  });
+
+  it.each([true, false])(
+    "shows a conflicting saved approval before continuing (server resumes: %s)",
+    async (inChat) => {
+      post
+        .mockRejectedValueOnce(
+          new ApiError(400, "Already approved", {
+            error: {
+              code: "BAD_REQUEST",
+              message: "Already approved",
+              details: {
+                approval_id: "ar-1",
+                status: "approved",
+                continues_in_chat: inChat,
+              },
+            },
+          }),
+        )
+        .mockResolvedValue({ status: "completed" });
+      const { result } = renderHook(() => useChat(), { wrapper });
+      receive("tool_approval_required", {
+        run_id: "r-1",
+        action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+        review_configs: [],
+      });
+      await act(async () => result.current.sendResumeDecisions([{ type: "reject" }]));
+      expect(result.current.pendingApproval?.actionRequests).toEqual([]);
+      expect(result.current.pendingApproval?.savedDecisions).toMatchObject([{ approved: true }]);
+      expect(post).toHaveBeenCalledTimes(1);
+      await act(async () => result.current.sendResumeDecisions([]));
+      expect(post).toHaveBeenCalledTimes(inChat ? 1 : 2);
+      expect(result.current.pendingApproval).toBeNull();
+    },
+  );
+
+  it("clears tentative chat ownership when the last approval was decided by a key", async () => {
+    post
+      .mockResolvedValueOnce({ status: "approved", continues_in_chat: true })
+      .mockRejectedValueOnce(
+        new ApiError(400, "Already approved", {
+          error: {
+            code: "BAD_REQUEST",
+            message: "Already approved",
+            details: {
+              approval_id: "ar-2",
+              status: "approved",
+              continues_in_chat: false,
+            },
+          },
+        }),
+      )
+      .mockResolvedValue({ status: "completed" });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "write", args: {} },
+        { id: "ar-2", tool_call_id: "tc-2", tool_name: "write", args: {} },
+      ],
+      review_configs: [],
+    });
+    await act(async () =>
+      result.current.sendResumeDecisions([{ type: "approve" }, { type: "approve" }]),
+    );
+    expect(result.current.pendingApproval?.actionRequests).toEqual([]);
+    expect(result.current.pendingApproval?.continuesInChat).toBe(false);
+    await act(async () => result.current.sendResumeDecisions([]));
+    expect(post.mock.calls).toEqual([
+      ["/approvals/ar-1", { approved: true }],
+      ["/approvals/ar-2", { approved: true }],
+      ["/runs/r-1/resume"],
+    ]);
+    expect(result.current.pendingApproval).toBeNull();
+  });
+
+  it("retries only the resume and settles the previously approved step", async () => {
+    post.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("Connection lost"));
+    post.mockResolvedValueOnce({
+      status: "completed",
+      settled: [{ tool_call_id: "tc-1", result: "Sent" }],
+    });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("model_request_start", {});
+    receive("tool_call", { tool_call_id: "tc-1", tool_name: "send_email", args: {} });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [{ id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} }],
+      review_configs: [],
+    });
+    await act(async () => result.current.sendResumeDecisions([{ type: "approve" }]));
+    expect(result.current.pendingApproval?.actionRequests).toEqual([]);
+    await act(async () => result.current.sendResumeDecisions([]));
+    expect(post.mock.calls).toEqual([
+      ["/approvals/ar-1", { approved: true }],
+      ["/runs/r-1/resume"],
+      ["/runs/r-1/resume"],
+    ]);
+    expect(useChatStore.getState().messages[0]?.toolCalls?.[0]).toMatchObject({
+      status: "completed",
+      result: "Sent",
+    });
+  });
+
+  it("does not resubmit saved rejection feedback when retrying a partially decided batch", async () => {
+    post.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error("Request failed"));
+    post.mockResolvedValue({ status: "completed", output: "Done." });
+    const { result } = renderHook(() => useChat(), { wrapper });
+    receive("tool_approval_required", {
+      run_id: "r-1",
+      action_requests: [
+        { id: "ar-1", tool_call_id: "tc-1", tool_name: "send_email", args: {} },
+        { id: "ar-2", tool_call_id: "tc-2", tool_name: "send_email", args: {} },
+      ],
+      review_configs: [],
+    });
+    const decisions = [
+      { type: "reject" as const, note: "Use a draft instead" },
+      { type: "reject" as const, note: "Remove pricing" },
+    ];
+
+    await act(async () => {
+      await result.current.sendResumeDecisions(decisions);
+    });
+    expect(result.current.pendingApproval?.actionRequests.map(({ id }) => id)).toEqual(["ar-2"]);
+    expect(result.current.pendingApproval?.savedDecisions).toMatchObject([
+      { request: { id: "ar-1" }, approved: false },
+    ]);
+    await act(async () => {
+      await result.current.sendResumeDecisions([{ type: "approve" }]);
+    });
+
+    expect(post.mock.calls).toEqual([
+      ["/approvals/ar-1", { approved: false, note: "Use a draft instead" }],
+      ["/approvals/ar-2", { approved: false, note: "Remove pricing" }],
+      ["/approvals/ar-2", { approved: true }],
+      ["/runs/r-1/resume"],
+    ]);
+  });
+
   it("re-opens the panel when the continuation parks again", async () => {
     // A resume runs the agent, and the agent can reach a second gated call. Nothing
     // announces that here - the continuation runs over HTTP, so no
@@ -3038,10 +3200,8 @@ describe("useChat - approvals and questions", () => {
       await result.current.sendResumeDecisions([{ type: "approve" }]);
     });
 
-    expect(post.mock.calls).toEqual([
-      ["/approvals/ar-1", { approved: true }],
-      ["/runs/r-9/resume"],
-    ]);
+    expect(post).not.toHaveBeenCalled();
+    expect(result.current.pendingApproval?.actionRequests).toHaveLength(2);
   });
 
   it("surfaces the questions an agent asked, filling in what it left out", () => {
@@ -3667,6 +3827,69 @@ describe("useChat - the outbound queue", () => {
       expect(
         sent.mock.calls.filter(([value]) => value.message).map(([value]) => value.message),
       ).toEqual(["first", "second"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(["local", "server"])(
+    "pauses follow-ups after %s Stop until explicit resume",
+    async (kind) => {
+      vi.useFakeTimers();
+      try {
+        const { result, rerender } = renderHook(() => useChat(), { wrapper });
+        act(() => result.current.sendMessage("first"));
+        act(() => result.current.sendMessage("second", ["file-1"]));
+        act(() => result.current.sendMessage("third"));
+        if (kind === "local") act(() => result.current.stopGeneration());
+        receive("complete", { stopped: true });
+        receive("session_ready", {});
+        await act(async () => vi.advanceTimersByTimeAsync(500));
+        expect(
+          result.current.queuedMessages.map(({ content, paused }) => ({ content, paused })),
+        ).toEqual([
+          { content: "second", paused: true },
+          { content: "third", paused: true },
+        ]);
+        socket.isConnected = false;
+        rerender();
+        socket.isConnected = true;
+        rerender();
+        receive("session_ready", {});
+        await act(async () => vi.advanceTimersByTimeAsync(500));
+        expect(sent.mock.calls.filter(([value]) => value.message)).toHaveLength(1);
+        act(() => result.current.resumeQueued());
+        await act(async () => vi.advanceTimersByTimeAsync(100));
+        expect(
+          sent.mock.calls.filter(([value]) => value.message).map(([value]) => value.message),
+        ).toEqual(["first", "second"]);
+        expect(sent.mock.calls.find(([value]) => value.message === "second")?.[0]).toMatchObject({
+          file_ids: ["file-1"],
+        });
+        receive("complete", {});
+        receive("session_ready", {});
+        await act(async () => vi.advanceTimersByTimeAsync(100));
+        expect(
+          sent.mock.calls.filter(([value]) => value.message).map(([value]) => value.message),
+        ).toEqual(["first", "second", "third"]);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it("cancels the scheduled drain when Stop arrives before its timer", async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useChat(), { wrapper });
+      act(() => result.current.sendMessage("first"));
+      act(() => result.current.sendMessage("second"));
+      receive("complete", {});
+      receive("session_ready", {});
+      act(() => result.current.stopGeneration());
+      await act(async () => vi.advanceTimersByTimeAsync(500));
+      expect(result.current.queuedMessages[0]).toMatchObject({ content: "second", paused: true });
+      expect(sent.mock.calls.filter(([value]) => value.message)).toHaveLength(1);
     } finally {
       vi.useRealTimers();
     }
@@ -4738,6 +4961,43 @@ describe("useChat - durable questions resumed on the socket", () => {
     expect(useChatStore.getState().messages.some((message) => message.isStreaming)).toBe(false);
   });
 
+  it.each(["success", "refused", "terminal"])(
+    "preserves a newer submitted live batch after late parked %s",
+    async (outcome) => {
+      useConversationStore.getState().setCurrentConversationId("c-1");
+      const { result } = renderHook(() => useChat(), { wrapper });
+      offer();
+      receive("complete", {});
+      act(() => result.current.sendAskUserResponses([{ answer: "Casual", skipped: false }]));
+      const oldRequest = runAnswerFrame().request_id;
+      receive("ask_user", { questions: [{ question: "Which region?", allow_custom: true }] });
+      act(() => result.current.sendAskUserResponses([{ answer: "EU", skipped: false }]));
+      const liveAnswer = sent.mock.calls.findLast(
+        ([frame]) => frame.type === "ask_user_response",
+      )?.[0];
+      expect(liveAnswer).toMatchObject({ answers: [{ answer: "EU", skipped: false }] });
+      expect(result.current.submittingQuestions).toBe(true);
+      if (outcome === "success") await act(async () => acknowledgeAnswer({}, oldRequest));
+      else
+        await act(async () =>
+          refuseAnswer(
+            {
+              status: outcome === "terminal" ? 500 : 400,
+              message: "Old answer failed",
+              code: outcome === "terminal" ? "RUN_EXECUTION_FAILED" : "BAD_REQUEST",
+              details: outcome === "terminal" ? { run_id: "r-1", status: "failed" } : null,
+            },
+            oldRequest,
+          ),
+        );
+      expect(result.current.pendingQuestions?.[0]?.question).toBe("Which region?");
+      expect(result.current.submittingQuestions).toBe(true);
+      receive("ask_user_answered", { request_id: liveAnswer?.request_id });
+      expect(result.current.pendingQuestions).toBeNull();
+      expect(result.current.submittingQuestions).toBe(false);
+    },
+  );
+
   it("holds queued follow-ups through the answer and live delegate question", async () => {
     useConversationStore.getState().setCurrentConversationId("c-1");
     const { result } = renderHook(() => useChat(), { wrapper });
@@ -4754,10 +5014,19 @@ describe("useChat - durable questions resumed on the socket", () => {
     receive("ask_user", { questions: [{ question: "Which region?", allow_custom: true }] });
     await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
     expect(result.current.queuedMessages).toHaveLength(1);
-    act(() => result.current.sendAskUserResponses([{ answer: "EU", skipped: false }]));
     await act(async () => acknowledgeAnswer());
+    expect(result.current.pendingQuestions?.[0]?.question).toBe("Which region?");
+    act(() => result.current.sendAskUserResponses([{ answer: "EU", skipped: false }]));
     await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
     expect(result.current.queuedMessages).toHaveLength(1);
+    receive("session_ready", {});
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
+    expect(result.current.queuedMessages).toHaveLength(1);
+    const liveAnswer = sent.mock.calls.findLast(
+      ([frame]) => frame.type === "ask_user_response",
+    )?.[0];
+    receive("ask_user_answered", { request_id: liveAnswer?.request_id });
+    receive("complete", {});
     receive("session_ready", {});
     await waitFor(() => expect(result.current.queuedMessages).toHaveLength(0));
     expect(
@@ -4821,7 +5090,7 @@ describe("useChat - durable questions resumed on the socket", () => {
     expect(result.current.pendingQuestions).toBeNull();
   });
 
-  it("releases queued follow-ups when the durable question is cancelled", async () => {
+  it("holds queued follow-ups when the durable question is cancelled", async () => {
     post.mockResolvedValue("Not performed: the run was stopped.");
     useConversationStore.getState().setCurrentConversationId("c-1");
     const { result } = renderHook(() => useChat(), { wrapper });
@@ -4832,8 +5101,14 @@ describe("useChat - durable questions resumed on the socket", () => {
     act(() => result.current.sendMessage("Queued follow-up"));
     expect(result.current.queuedMessages).toHaveLength(1);
     act(() => result.current.stopGeneration());
-    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(0));
+    await waitFor(() => expect(result.current.pendingQuestions).toBeNull());
+    expect(result.current.queuedMessages).toEqual([
+      expect.objectContaining({ content: "Queued follow-up", paused: true }),
+    ]);
     expect(post).toHaveBeenCalledWith("/runs/r-1/cancel");
+    expect(sent.mock.calls.some(([frame]) => frame.message === "Queued follow-up")).toBe(false);
+    act(() => result.current.resumeQueued());
+    await waitFor(() => expect(result.current.queuedMessages).toHaveLength(0));
     expect(sent.mock.calls.some(([frame]) => frame.message === "Queued follow-up")).toBe(true);
   });
 
@@ -5891,6 +6166,40 @@ describe("useChat - the outbox (#2097)", () => {
     expect(keptOutbox).toHaveBeenCalledWith("c-1");
     expect(lastFrame().message).toBe("written on the train");
     vi.useRealTimers();
+  });
+
+  it("holds an outbox restored after Stop and preserves pause through Retry", async () => {
+    vi.useFakeTimers();
+    try {
+      let restore!: (kept: unknown[]) => void;
+      keptOutbox.mockReturnValueOnce(
+        new Promise((resolve) => {
+          restore = resolve;
+        }),
+      );
+      const { result } = renderHook(() => useChat({ conversationId: "c-1" }), { wrapper });
+      act(() => result.current.stopGeneration());
+      await act(async () =>
+        restore([{ id: "q-1", content: "kept follow-up", refused: "Budget spent" }]),
+      );
+      expect(result.current.queuedMessages[0]).toMatchObject({
+        paused: true,
+        refused: "Budget spent",
+      });
+      expect(keepOutbox).toHaveBeenLastCalledWith("c-1", [
+        expect.objectContaining({ paused: true }),
+      ]);
+      act(() => result.current.retryQueued("q-1"));
+      await act(async () => vi.advanceTimersByTimeAsync(500));
+      expect(result.current.queuedMessages[0]).toMatchObject({ paused: true });
+      expect(result.current.queuedMessages[0]?.refused).toBeUndefined();
+      expect(sent.mock.calls.some(([frame]) => frame.message === "kept follow-up")).toBe(false);
+      act(() => result.current.resumeQueued());
+      await act(async () => vi.advanceTimersByTimeAsync(100));
+      expect(sent.mock.calls.some(([frame]) => frame.message === "kept follow-up")).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("holds a kept message while the network is gone, saying it waits", async () => {
@@ -7341,6 +7650,35 @@ it("ends an existing streaming segment when a resumed background turn attaches",
   ).toBe(false);
 });
 
+it("correlates native human answers and ignores a close for an older card", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("ask_user", {
+    runtime_question_id: "native-two",
+    questions: [{ question: "Which?", options: [{ label: "A" }], allow_custom: false }],
+  });
+  receive("runtime_question_closed", { runtime_question_id: "native-one" });
+  expect(result.current.pendingQuestions?.[0]?.requestId).toBe("native-two");
+  act(() => result.current.sendAskUserResponses([{ answer: "", selected: ["A"], skipped: false }]));
+  expect(sent).toHaveBeenLastCalledWith({
+    type: "ask_user_response",
+    runtime_question_id: "native-two",
+    request_id: expect.any(String),
+    answers: [{ answer: "", selected: ["A"], skipped: false }],
+  });
+});
+
+it("closes an expired native card and cannot submit its late answer", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("ask_user", {
+    runtime_question_id: "native-one",
+    questions: [{ question: "Which?", options: [{ label: "A" }], allow_custom: false }],
+  });
+  receive("runtime_question_closed", { runtime_question_id: "native-one" });
+  expect(result.current.pendingQuestions).toBeNull();
+  act(() => result.current.sendAskUserResponses([{ answer: "", selected: ["A"], skipped: false }]));
+  expect(sent.mock.calls.filter(([frame]) => frame.type === "ask_user_response")).toHaveLength(0);
+});
+
 it("adopts a server-created identity when the local conversation already has an ID", () => {
   useConversationStore.getState().setCurrentConversationId("c-local");
   renderHook(() => useChat({ conversationId: "c-local" }), { wrapper });
@@ -7348,6 +7686,41 @@ it("adopts a server-created identity when the local conversation already has an 
   expect(useConversationStore.getState().currentConversationId).toBe("c-persisted");
 });
 
+it("keeps a native answer disabled until acknowledgement and ignores its later close", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("ask_user", {
+    runtime_question_id: "native-one",
+    questions: [{ question: "Which?", options: [{ label: "A" }], allow_custom: false }],
+  });
+  act(() => result.current.sendAskUserResponses([{ answer: "", selected: ["A"], skipped: false }]));
+  expect(result.current.pendingQuestions?.[0]?.requestId).toBe("native-one");
+  expect(result.current.submittingQuestions).toBe(true);
+  const frame = sent.mock.calls.at(-1)?.[0];
+  receive("ask_user_answered", { request_id: frame.request_id });
+  expect(result.current.pendingQuestions).toBeNull();
+  expect(result.current.submittingQuestions).toBe(false);
+  receive("ask_user", {
+    runtime_question_id: "native-two",
+    questions: [{ question: "Next?", options: [{ label: "B" }], allow_custom: false }],
+  });
+  receive("runtime_question_closed", { runtime_question_id: "native-one" });
+  expect(result.current.pendingQuestions?.[0]?.requestId).toBe("native-two");
+});
+
+it("clears native submission when the runtime closes before acknowledging", () => {
+  const { result } = renderHook(() => useChat(), { wrapper });
+  receive("ask_user", {
+    runtime_question_id: "native-one",
+    questions: [{ question: "Which?", options: [{ label: "A" }], allow_custom: false }],
+  });
+  act(() => result.current.sendAskUserResponses([{ answer: "", selected: ["A"], skipped: false }]));
+  const frame = sent.mock.calls.at(-1)?.[0];
+  receive("runtime_question_closed", { runtime_question_id: "native-one" });
+  expect(result.current.pendingQuestions).toBeNull();
+  expect(result.current.submittingQuestions).toBe(false);
+  receive("ask_user_answered", { request_id: frame.request_id });
+  expect(result.current.pendingQuestions).toBeNull();
+});
 it.each([false, true])(
   "keeps question receipts through result-before-ACK and history (server correction: %s)",
   (corrected) => {

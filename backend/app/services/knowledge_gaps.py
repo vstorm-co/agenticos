@@ -489,7 +489,11 @@ def _classification_prompt(
         "have refused, and so is a refusal of something the rules allow.\n"
         "Give each a `reason`: one sentence on why, naming the source that shows it by its "
         "name only - the context file whose rule was misapplied, or that nothing below "
-        "mentions it. Never repeat what an answer, a comment or a source says.",
+        "mentions it. Never repeat what an answer, a comment or a source says.\n"
+        "Give each `did_not_know` and `missing_information` a `topic`: what the knowledge "
+        "base lacks, in two to six words that name the subject rather than one person's "
+        'case - "Lead times by product", not "When will my 500 flyers arrive?". Answers '
+        "missing the same thing get the same words.",
     ]
     numbered = list(dict.fromkeys(c.agent_version_id for c in candidates if c.agent_version_id))
     agent_numbers = {
@@ -554,6 +558,7 @@ def _verdicts(candidates: list[CandidateRow], answers: list[ClassifiedAnswer]) -
                 signal=None if candidate.missed else signal,
                 query=(candidate.question or candidate.answer)[:MAX_QUERY_CHARS],
                 reason=answer.reason or None,
+                subject=(answer.topic.strip() or None) if signal is not None else None,
             )
         )
     return verdicts
@@ -577,6 +582,30 @@ def _branch(signals: list[str]) -> CauseBranch:
         if signal in signals:
             return branch
     return "unknown"
+
+
+def _test_question(search: KnowledgeSearch) -> str | None:
+    """The dataset case's question a miss read from an eval answer holds as its query.
+
+    A chat answer's miss names its message; an eval answer has none, and nothing
+    else records a miss without one.
+    """
+    if search.message_id is None and search.signal != GapSignal.RETRIEVAL.value:
+        return search.query
+    return None
+
+
+def _grouped_by(search: KnowledgeSearch) -> str:
+    """What a miss is grouped by: the subject the classifier named, or else its query."""
+    return search.subject or search.query
+
+
+def _cause(verdicts: list[tuple[str, str | None]]) -> tuple[CauseBranch, str | None]:
+    """The branch an answer's verdicts decide, and the reason of the first that says it."""
+    branch = _branch([signal for signal, _ in verdicts])
+    return branch, next(
+        (reason for signal, reason in verdicts if _branch([signal]) == branch and reason), None
+    )
 
 
 class _DraftState(NamedTuple):
@@ -698,9 +727,10 @@ class KnowledgeGapService:
                 knowledge_base_id=row.topic.knowledge_base_id,
                 knowledge_base_name=bases[row.topic.knowledge_base_id].name,
                 status=TopicStatus(row.status).value,
-                label=row.queries[0] if row.queries else "",
+                label=row.subjects[0] if row.subjects else row.queries[0] if row.queries else "",
                 question_count=row.question_count,
                 asker_count=row.asker_count,
+                test_question_count=row.test_questions,
                 last_asked_at=row.last_asked_at,
                 examples=_distinct(row.queries, keep=EXAMPLES),
                 agents=[agents[a] for a in row.agent_ids if a in agents],
@@ -901,7 +931,8 @@ class KnowledgeGapService:
                     search_id=q.search.id,
                     query=q.search.query,
                     signal=GapSignal(q.search.signal).value,
-                    question=q.question,
+                    question=q.question if q.question is not None else _test_question(q.search),
+                    test_question=q.question is None and _test_question(q.search) is not None,
                     top_similarity=q.search.top_similarity,
                     result_count=q.search.result_count,
                     agent=agents.get(q.search.agent_id),
@@ -1077,6 +1108,7 @@ class KnowledgeGapService:
                 await search_knowledge_base(
                     query,
                     kb_collection_names=[kb.collection_name],
+                    kb_vector_scopes={kb.collection_name: kb.vector_scope},
                     organization_id=ctx.organization_id,
                 ),
             )
@@ -1671,26 +1703,23 @@ class KnowledgeGapService:
         message_ids: list[UUID],
         *,
         source_run_ids: Sequence[UUID] = (),
+        eval_run_ids: Sequence[UUID] = (),
     ) -> Decimal:
         """Reserve a session's bounded source classification and the embeddings grouping it.
 
-        A session drafts nothing: a person drafts the topics it found, one at a
-        time. These are estimates, not a mid-call spending cap; every paid step
-        is quoted afresh before it starts. Unknown prices refuse automatic work.
+        `eval_run_ids` are the failed eval answers the session learns from, read
+        beside its chat answers. A session drafts nothing: a person drafts the
+        topics it found, one at a time. These are estimates, not a mid-call
+        spending cap; every paid step is quoted afresh before it starts. Unknown
+        prices refuse automatic work.
         """
-        if not message_ids:
+        if not message_ids and not eval_run_ids:
             return Decimal(0)
         total = Decimal(0)
         for kb_id in knowledge_base_ids:
             kb = await self._knowledge_base(ctx, kb_id, edit=True)
-            candidates = await knowledge_gap_repo.classification_candidates(
-                self.db,
-                kb.id,
-                organization_id=ctx.organization_id,
-                threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
-                since=datetime.now(UTC) - CLASSIFY_WINDOW,
-                limit=CLASSIFY_BATCH,
-                message_ids=message_ids,
+            candidates = await self._candidates(
+                ctx, kb.id, message_ids=message_ids, eval_run_ids=list(eval_run_ids)
             )
             if candidates:
                 prompt = _classification_prompt(
@@ -1720,7 +1749,7 @@ class KnowledgeGapService:
             )
             tokens = (
                 sum(len(row.query.encode("utf-8")) for row in waiting)
-                + len(message_ids) * MAX_QUERY_CHARS
+                + (len(message_ids) + len(eval_run_ids)) * MAX_QUERY_CHARS
             )
             embedding = price_request(
                 RunUsage(input_tokens=tokens),
@@ -1760,15 +1789,17 @@ class KnowledgeGapService:
         knowledge_base_id: UUID,
         *,
         message_ids: list[UUID] | None = None,
+        eval_run_ids: list[UUID] | None = None,
         improvement_run_id: UUID | None = None,
     ) -> tuple[int, int]:
         """Read the next :data:`CLASSIFY_BATCH` answers in one run, and record its verdicts.
 
         The knowledge base's newest candidates, or - with `message_ids` - those
         of these answers not read for it yet, as an improvement session sorts
-        the answers it found bad. Either way only people's runs are read, never
-        an eval's. The model is shown the instructions and the context files of
-        the agent versions that answered, those the caller may read.
+        the answers it found bad. A session also gives `eval_run_ids`, the failed
+        eval answers it learns from, read after its chat answers; nothing else
+        reads an eval's. The model is shown the instructions and the context files
+        of the agent versions that answered, those the caller may read.
 
         The caller's access is checked again, since a check runs after the
         request that asked for it.
@@ -1787,14 +1818,8 @@ class KnowledgeGapService:
         """
         _require_runs_view(ctx)
         kb = await self._knowledge_base(ctx, knowledge_base_id, edit=True)
-        candidates = await knowledge_gap_repo.classification_candidates(
-            self.db,
-            kb.id,
-            organization_id=ctx.organization_id,
-            threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
-            since=datetime.now(UTC) - CLASSIFY_WINDOW,
-            limit=CLASSIFY_BATCH,
-            message_ids=message_ids,
+        candidates = await self._candidates(
+            ctx, kb.id, message_ids=message_ids, eval_run_ids=eval_run_ids
         )
         if not candidates:
             return 0, 0
@@ -1819,17 +1844,65 @@ class KnowledgeGapService:
         # answer before this reads it or finds the miss to remove afterwards.
         for asker in sorted({v.candidate.asker_id for v in verdicts if v.candidate.asker_id}):
             await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, asker)
+        chat = [v for v in verdicts if v.candidate.message_id is not None]
+        answered = [v for v in verdicts if v.candidate.message_id is None]
         kept = await knowledge_gap_repo.still_asked(
-            self.db, [v.candidate for v in verdicts], organization_id=ctx.organization_id
+            self.db, [v.candidate for v in chat], organization_id=ctx.organization_id
         )
         misses = await knowledge_gap_repo.record_classifications(
             self.db,
-            [v for v in verdicts if v.candidate.message_id in kept],
+            [v for v in chat if v.candidate.message_id in kept],
             kb.id,
             organization_id=ctx.organization_id,
             run_id=result.run.id,
         )
-        return len(verdicts), misses
+        cleared = await knowledge_gap_repo.eval_answers_kept(
+            self.db, [v.candidate.run_id for v in answered], organization_id=ctx.organization_id
+        )
+        classified, eval_misses = await knowledge_gap_repo.record_eval_classifications(
+            self.db,
+            [v for v in answered if v.candidate.run_id in cleared],
+            kb.id,
+            organization_id=ctx.organization_id,
+            run_id=result.run.id,
+        )
+        if classified < len(answered):
+            # A discarded answer can have been erased during the model call. Its
+            # prompt must not survive only because no classification links to it.
+            await personal_data_repo.forget_runs(self.db, [result.run.id])
+        return len(verdicts), misses + eval_misses
+
+    async def _candidates(
+        self,
+        ctx: AuthContext,
+        knowledge_base_id: UUID,
+        *,
+        message_ids: list[UUID] | None,
+        eval_run_ids: list[UUID] | None,
+    ) -> list[CandidateRow]:
+        """The answers one run of the classifier reads: chat answers first, then eval ones."""
+        chat = (
+            await knowledge_gap_repo.classification_candidates(
+                self.db,
+                knowledge_base_id,
+                organization_id=ctx.organization_id,
+                threshold=settings.KNOWLEDGE_GAP_MIN_SIMILARITY,
+                since=datetime.now(UTC) - CLASSIFY_WINDOW,
+                limit=CLASSIFY_BATCH,
+                message_ids=message_ids,
+            )
+            if eval_run_ids is None or message_ids
+            else []
+        )
+        if not eval_run_ids or len(chat) >= CLASSIFY_BATCH:
+            return chat
+        return chat + await knowledge_gap_repo.eval_answer_candidates(
+            self.db,
+            knowledge_base_id,
+            organization_id=ctx.organization_id,
+            run_ids=eval_run_ids,
+            limit=CLASSIFY_BATCH - len(chat),
+        )
 
     async def _agent_sources(
         self, ctx: AuthContext, candidates: list[CandidateRow]
@@ -1903,16 +1976,39 @@ class KnowledgeGapService:
         causes: dict[UUID, GapCause] = {}
         for message_id in message_ids:
             agent_id, verdicts = found.get(message_id, (None, []))
-            branch = _branch([signal for signal, _ in verdicts])
-            reason = next(
-                (reason for signal, reason in verdicts if _branch([signal]) == branch and reason),
-                None,
-            )
+            branch, reason = _cause(verdicts)
             causes[message_id] = GapCause(
                 message_id=message_id,
                 branch=branch,
                 reason=reason if agent_id in viewable else None,
             )
+        return causes
+
+    async def eval_causes(
+        self, ctx: AuthContext, knowledge_base_ids: list[UUID], run_ids: list[UUID]
+    ) -> dict[UUID, tuple[CauseBranch, str | None]]:
+        """Why each of these eval answers went wrong, by the run that gave it, as
+        :meth:`causes` reads a chat answer: a branch, and the reason when its agent
+        may be viewed.
+
+        Raises:
+            AuthorizationError: For a caller without `runs:view` across the organization.
+            NotFoundError: For a knowledge base the caller may not read.
+        """
+        _require_runs_view(ctx)
+        for knowledge_base_id in knowledge_base_ids:
+            await self._knowledge_base(ctx, knowledge_base_id)
+        found = await knowledge_gap_repo.eval_classifications_of(
+            self.db, run_ids, knowledge_base_ids, organization_id=ctx.organization_id
+        )
+        viewable = await self._viewable_agents(
+            ctx, {agent_id for agent_id, _ in found.values() if agent_id is not None}
+        )
+        causes: dict[UUID, tuple[CauseBranch, str | None]] = {}
+        for run_id in run_ids:
+            agent_id, verdicts = found.get(run_id, (None, []))
+            branch, reason = _cause(verdicts)
+            causes[run_id] = (branch, reason if agent_id in viewable else None)
         return causes
 
     async def _viewable_agents(self, ctx: AuthContext, agent_ids: set[UUID]) -> set[UUID]:
@@ -1987,7 +2083,7 @@ class KnowledgeGapService:
         )
         width = len(next(iter(vectors.values())))
         clusters = _assign(
-            [(search.id, vectors[search.query]) for search in misses],
+            [(search.id, vectors[_grouped_by(search)]) for search in misses],
             [
                 _Cluster(
                     centroid=np.asarray(topic.centroid, dtype=np.float64),
@@ -2027,8 +2123,8 @@ class KnowledgeGapService:
     async def _embed(
         collection_name: str, resolved: ResolvedEmbeddings, misses: list[KnowledgeSearch]
     ) -> dict[str, Vector]:
-        """Each distinct query once, in one request, off the event loop."""
+        """Each distinct text a miss is grouped by once, in one request, off the event loop."""
         embedder = embedder_for(collection_name, resolved)
-        queries = list(dict.fromkeys(search.query for search in misses))
+        queries = list(dict.fromkeys(_grouped_by(search) for search in misses))
         embedded = await asyncio.to_thread(embedder.embed_queries, queries)
         return {query: _unit(vector) for query, vector in zip(queries, embedded, strict=True)}

@@ -208,7 +208,7 @@ class TestWhatAnAgentReads:
 
         await runner._delegate_resources(
             ctx,
-            AgentSpec(name="billing", skill_ids=[other.id]),
+            AgentSpec(name="billing", skill_ids=[other.id], capabilities=[{"id": "skills"}]),
             agent_id=None,
             shared=[],
             parent_resources=resources,

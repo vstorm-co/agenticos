@@ -30,6 +30,26 @@
   interpolate-size: allow-keywords;
 }
 
+/* A list supplies the boundary; an embedded table supplies its row dividers. */
+.list-card-content[data-list-layout="panel"] > [data-slot="data-table"] {
+  border-width: 0;
+  border-radius: 0;
+}
+
+@utility console-page-title {
+  font-size: clamp(1.125rem, 1rem + 0.5vw, 1.5rem);
+  line-height: 1.333;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+@utility console-section-title {
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+}
+
 /* Theme changes replace a palette; component color fades must not trail it. */
 .theme-switching *,
 .theme-switching *::before,
@@ -3271,13 +3291,12 @@ body .tour-spotlight {
   border-radius: var(--radius-lg);
   background: var(--color-control-active);
 }
-@media (prefers-reduced-motion: no-preference) {
-  :root:not([data-motion="reduce"]) [data-tab-indicator][data-indicator-ready]::before {
-    transition:
-      transform 220ms ease-out,
-      width 220ms ease-out,
-      height 220ms ease-out;
-  }
+/* The resolved application preference includes an explicit Full override of the OS. */
+:root:not([data-motion="reduce"]) [data-tab-indicator][data-indicator-ready]::before {
+  transition:
+    transform 220ms ease-out,
+    width 220ms ease-out,
+    height 220ms ease-out;
 }
 @media (forced-colors: active) {
   [data-tab-indicator="pill"][data-indicator-ready]::before {

@@ -1,5 +1,5 @@
 ---
-source_sha: "8e0da94ccb26"
+source_sha: "b0a1ea4798cd"
 ---
 
 # Przetwarzanie plików { #file-processing }
@@ -1006,6 +1006,12 @@ Trzy zasięgi na wierszu i żadnego czwartego:
 | `org` | `collections:view` sięgające po ten wiersz | `collections:edit` sięgające po ten wiersz |
 | `app` | ktokolwiek we wdrożeniu | superadmin wdrożenia (`is_app_admin`) |
 
+Baza o zasięgu `app` nie należy do żadnej organizacji i schemat tego pilnuje: jej
+`organization_id` jest zawsze puste. Dlatego agent nie może jej podpiąć - publikacja
+odrzuca ją tak samo jak każdą kolekcję spoza organizacji publikującego - natomiast
+węzeł Knowledge search w workflow, który sprawdza tylko, kto może ją czytać, może ją
+przeszukiwać.
+
 „Sięgnięcie po wiersz” to `resolve_access`, ta sama decyzja, którą podejmuje każdy
 udostępnialny zasób: zasięg wywołującego dla tego uprawnienia, poszerzony o
 dowolny jawny grant na tej jednej kolekcji. Grant poszerza to, na co pozwala rola,
@@ -1186,6 +1192,14 @@ kończy się błędem i niczego nie zapisuje
 Agent przeszukuje bazy wiedzy, do których jest przypięty, w ich własnych zakresach,
 a nie przez ponowne rozwiązywanie ich nazw. Agent przypięty do dwóch baz o tej samej
 nazwie przeszukuje ich połączony zakres, pomijając inne bazy o tej samej nazwie.
+
+Agent przypina tylko bazy własnej organizacji: bazy organizacji i bazy osobiste
+utworzone w niej. Publikacja odrzuca bazę dla całej aplikacji oraz bazę osobistą,
+którą właściciel utworzył w innej organizacji. Lista baz wiedzy nadal pokazuje je
+właścicielowi, bo może je czytać. Wybór kolekcji agenta i specjalisty ich nie
+oferuje. Taka baza, którą agent już ma, zostaje zaznaczona i oznaczona, żeby dało
+się ją usunąć. Krok Knowledge search w workflow czyta każdą bazę, którą wolno
+czytać wywołującemu, i nadal oferuje je wszystkie.
 
 **`GET /rag/collections/{name}/filter-values`** odpowiada wartościami
 `organizational_unit` faktycznie obecnymi w kolekcji, w tym samym zakresie. Istnieje,

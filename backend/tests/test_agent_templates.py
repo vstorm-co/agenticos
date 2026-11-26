@@ -555,6 +555,14 @@ def test_agenticos_delegates_only_at_the_users_explicit_request() -> None:
     assert "research or review alone is not a request for subagents" in template.instructions
 
 
+def test_agenticos_uses_the_account_language_without_guessing_from_a_greeting() -> None:
+    template = agent_templates.get("general/agenticos")
+    assert template is not None
+    assert "preferred language is {{language}}" in template.instructions
+    assert "unless the user explicitly requests another language" in template.instructions
+    assert "do not search memory or call tools to guess their language" in template.instructions
+
+
 def test_agenticos_authoring_skills_ship_their_worked_references() -> None:
     from app.services import skill_library
 

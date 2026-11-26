@@ -358,6 +358,7 @@ async def _prepare(
         exposure_id=uuid.uuid4(),
         environment_id=uuid.uuid4(),
         surface="slack",
+        routine_origin_id=None,
     )
     known_versions = versions or {}
     known_collections = collections or {}
@@ -543,9 +544,11 @@ class TestWhatAnInlineSpecialistCanReach:
         like an agent."""
         ctx = _ctx()
         parent_collection, own_collection = uuid.uuid4(), uuid.uuid4()
+        knowledge = [{"id": "knowledge"}]
         spec = _delegating(
-            inline=[_specialist(collection_ids=[own_collection])],
+            inline=[_specialist(collection_ids=[own_collection], capabilities=knowledge)],
             collection_ids=[parent_collection],
+            capabilities=knowledge,
         )
 
         prepared = await _prepare(

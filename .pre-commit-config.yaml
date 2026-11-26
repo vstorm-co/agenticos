@@ -59,9 +59,9 @@ repos:
       # `mcp-registry-sync` is deterministic and works with no outbound access.
       - id: check-added-large-files
         args: [--maxkb=1024]
-        # The registry mirror, and the banner's eight animated cards, which do
-        # not fit in a megabyte without losing what they show.
-        exclude: ^(backend/app/core/catalog/mcp_registry\.json|docs/assets/readme-banner\.webp)$
+        # The registry mirror, animated banner and complete locale catalogs do
+        # not fit in a megabyte. Catalog structure and ICU contracts have tests.
+        exclude: ^(backend/app/core/catalog/mcp_registry\.json|docs/assets/readme-banner\.webp|frontend/messages/(en|pl|de|tr|fr|nl|pt)\.json)$
       # A vault is not much use if a key reaches the repository beside it.
       - id: detect-private-key
 
@@ -94,7 +94,7 @@ repos:
         # publishers' names.
         exclude: |
           (?x)^(
-            frontend/messages/(pl|de|tr)\.json|
+            frontend/messages/(pl|de|tr|fr|nl|pt)\.json|
             backend/app/core/catalog/mcp_registry\.json|
             backend/app/core/catalog/mcp_checks\.json|
             docs/howto/translate\.md

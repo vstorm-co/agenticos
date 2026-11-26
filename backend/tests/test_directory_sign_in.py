@@ -25,6 +25,7 @@ from app.services.directory.contract import AcceptedTicket, DirectoryIdentity
 from app.services.directory.kerberos import GssapiTicketAcceptor
 from app.services.directory.ldap_directory import LdapDirectory
 from app.services.directory.sync import winning_role
+from app.services.user import OAuthAccount
 
 pytestmark = pytest.mark.anyio
 
@@ -64,8 +65,8 @@ def wired():
     user = _user()
     with (
         patch(
-            "app.services.directory.sign_in.UserService.get_or_create_oauth_user",
-            new=AsyncMock(return_value=user),
+            "app.services.directory.sign_in.UserService.get_or_create_oauth_account",
+            new=AsyncMock(return_value=OAuthAccount(user, False)),
         ) as account,
         patch(
             "app.services.directory.sign_in.DirectorySyncService.admits",
@@ -86,7 +87,7 @@ async def test_a_password_sign_in_creates_the_account_admitted_by_its_groups(wir
         MagicMock(), directory=directory, acceptor=None
     ).sign_in_with_password("jane", "pw", invitation_token="tok")
 
-    assert signed_in is user
+    assert signed_in == OAuthAccount(user, False)
     assert directory.asked == [("authenticate", "jane", "pw")]
     assert account.call_args.kwargs == {
         "provider": "ldap",
@@ -110,7 +111,7 @@ async def test_a_ticket_resolves_to_the_same_account_as_the_password(wired):
         MagicMock(), directory=directory, acceptor=_Acceptor()
     ).sign_in_with_ticket(b"token")
 
-    assert (signed_in, answer) == (user, b"answer")
+    assert (signed_in, answer) == (OAuthAccount(user, False), b"answer")
     assert directory.asked == [("lookup", "jane@CORP.EXAMPLE")]
     assert account.call_args.kwargs["provider"] == "ldap"
     assert account.call_args.kwargs["provider_id"] == "guid-1"

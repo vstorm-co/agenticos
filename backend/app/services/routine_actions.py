@@ -62,6 +62,8 @@ def action_intent(trigger: AgentTrigger) -> str:
             "local_target",
         )
     }
+    if trigger.action_mode is not None:
+        content["action_mode"] = trigger.action_mode
     if trigger.result_mode == "inbox":
         content["result_mode"] = "inbox"
     if trigger.project_id is not None:
@@ -100,8 +102,8 @@ async def instruction_fingerprint(
     spec: AgentSpec,
     project_id: UUID | None,
 ) -> str | None:
-    skills, contexts = set(spec.skill_ids), set(spec.context_ids)
-    pending = list(spec.subagents)
+    skills, contexts = set(spec.served_skill_ids), set(spec.served_context_ids)
+    pending = spec.served_subagents
     seen: set[UUID] = set()
     while pending:
         delegate = pending.pop()
@@ -118,9 +120,9 @@ async def instruction_fingerprint(
                 message="A pinned delegate is no longer available for routine consent"
             )
         child = AgentSpec.model_validate(version.spec)
-        skills.update(child.skill_ids)
-        contexts.update(child.context_ids)
-        pending.extend(child.subagents)
+        skills.update(child.served_skill_ids)
+        contexts.update(child.served_context_ids)
+        pending.extend(child.served_subagents)
     if not skills and not contexts and project_id is None:
         return None
     material = await agent_repo.mutable_instruction_material(
@@ -285,6 +287,15 @@ class RoutineActionService:
 
     async def options(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineActionOptions:
         self._human(ctx, trigger)
+        return await self.review(ctx, trigger)
+
+    async def review(self, ctx: AuthContext, trigger: AgentTrigger) -> RoutineActionOptions:
+        """The routine's actions and which of them its owner's consent still covers.
+
+        `ctx` is the owner's, but not necessarily a console session: the readiness
+        check evaluates as the creator a fire would run as. Only `options`, which
+        hands the review to a person who may then consent, demands the console.
+        """
         spec, version = await self._spec(ctx, trigger)
         mcp, unavailable = await self._mcp_options(ctx, trigger, spec)
         instructions = await instruction_fingerprint(
@@ -391,6 +402,7 @@ class RoutineActionService:
             raise BadRequestError(
                 message="Choose distinct actions whose agent approval policy permits standing consent"
             )
+        current.action_mode = "per_tool"
         intent = action_intent(current)
         # A replacement gets fresh identities: revoking and regranting cannot revive
         # the consent snapshot of a parked run.
@@ -409,7 +421,9 @@ class RoutineActionService:
             for key in ordered
         ]
         await agent_trigger_repo.update(
-            self.db, trigger=current, update_data={"action_consents": consents}
+            self.db,
+            trigger=current,
+            update_data={"action_consents": consents, "action_mode": "per_tool"},
         )
         await record_audit(
             self.db,

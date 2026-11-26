@@ -31,10 +31,11 @@ import hashlib
 import json
 import logging
 from collections import defaultdict
-from collections.abc import AsyncGenerator, Collection, Iterator, Mapping, Sequence
+from collections.abc import AsyncGenerator, Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from functools import partial
 from itertools import batched
 from typing import Literal
 from uuid import UUID
@@ -44,6 +45,7 @@ from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.usage import RunUsage
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities import all_capabilities
 from app.agents.capabilities.budget import price_request
 from app.agents.capabilities.context import ContextBody
 from app.agents.capabilities.skills import SkillBody, SkillBodyFile
@@ -78,6 +80,7 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     authoring_repo,
+    context_repo,
     dataset_repo,
     eval_run_repo,
     eval_suite_repo,
@@ -111,6 +114,7 @@ from app.schemas.eval_run import (
     EvalRunSuiteRead,
     EvalStability,
     EvalUngradedCaseRead,
+    FamilyMoveRead,
     ImprovementMeasurement,
     ProposalCheckRecord,
     RoutingErrorRead,
@@ -133,12 +137,16 @@ from app.services.eval_comparison import (
     CaseState,
     Criterion,
     CriterionComparison,
+    FamilyMove,
     Flip,
+    Grades,
     Outcome,
     PairedCase,
     PairedGrades,
     compare_criteria,
+    criteria_count,
     efficiency,
+    families,
     flips_by_tag,
     grades,
     quality_verdict,
@@ -159,6 +167,41 @@ logger = logging.getLogger(__name__)
 
 _CENT = Decimal("0.000001")
 
+EXPECTED_RERUN_SHARE = Decimal("0.5")
+"""The share of its rerun ceiling a compared run is expected to spend.
+
+The ceiling asks every case that can be asked again. A run asks again only the
+cases whose outcome, or an unsettled family of criteria, flipped: in measured
+paired runs that was 0.53 to 0.80 of the cases, so about half of the ceiling.
+"""
+
+
+def expected_cost(
+    first_answers: Decimal, rerun_ceiling: Decimal, *, purpose: EvalRunPurpose, compared: bool
+) -> Decimal:
+    """What a run most likely costs: its first answers and the reruns it expects.
+
+    A stability run asks every first answer again. A run with nothing to compare
+    with asks nothing again, whatever its ceiling reserves.
+    """
+    if purpose is EvalRunPurpose.STABILITY:
+        return first_answers + rerun_ceiling
+    if not compared:
+        return first_answers
+    return first_answers + (rerun_ceiling * EXPECTED_RERUN_SHARE).quantize(_CENT)
+
+
+def _requests(spec: AgentSpec) -> int:
+    """How many model requests one answer is priced at with no history to go by."""
+    tools = {definition.id: definition for definition in all_capabilities()}
+    calls_tools = bool(spec.mcp_servers or spec.subagents) or any(
+        binding.enabled
+        and (definition := tools.get(binding.id)) is not None
+        and bool(definition.effective_tools(binding.tool_overrides))
+        for binding in spec.capabilities
+    )
+    return 1 + settings.EVAL_FALLBACK_TOOL_ROUNDS if calls_tools else 1
+
 
 def scoring_hash(scoring: DatasetScoring) -> str:
     """A fingerprint of the scoring a run used: equal only when every setting is."""
@@ -171,8 +214,25 @@ def scoring_hash(scoring: DatasetScoring) -> str:
     for criterion in content["judge"]["criteria"]:
         if not criterion["tags"]:
             del criterion["tags"]
+    # A check that names no family scores as it did before families existed.
+    for check in content["checks"]["defaults"]:
+        if check.get("family") is None:
+            check.pop("family", None)
     canonical = json.dumps(content, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def held_out_cases(run: EvalRun) -> frozenset[UUID] | None:
+    """The cases a measured run's verdict is read on, or None for a run that keeps none aside."""
+    if run.proposal_check is None:
+        return None
+    measured = ProposalCheckRecord.model_validate(run.proposal_check).measurement
+    return None if measured is None else frozenset(measured.holdout_case_ids)
+
+
+def _held_out_count(record: ProposalCheckRecord | None) -> int | None:
+    measured = None if record is None else record.measurement
+    return None if measured is None else len(measured.holdout_case_ids)
 
 
 def spec_hash(
@@ -325,6 +385,78 @@ def scoring_refusal(
     )
 
 
+MAX_FAMILY_CRITERIA = 50
+"""Criterion names a family lists; a dataset's per-case checks can put hundreds in one."""
+
+
+def _family_read(move: FamilyMove) -> FamilyMoveRead:
+    read = FamilyMoveRead(
+        family=move.family,
+        criteria=list(move.criteria[:MAX_FAMILY_CRITERIA]),
+        cases=move.cases,
+        baseline_passed=move.baseline_passed,
+        candidate_passed=move.candidate_passed,
+        fixed=move.fixed,
+        broken=move.broken,
+        fixed_confirmed=move.fixed_confirmed,
+        broken_confirmed=move.broken_confirmed,
+        p_value=move.p_value,
+        settled=move.settled,
+        better=move.better,
+        worse=move.worse,
+    )
+    read._members = move.criteria
+    return read
+
+
+def family_move(read: FamilyMoveRead) -> FamilyMove:
+    """A family as a comparison returned it, back as the rules read it: every criterion
+    counted in it, where the comparison still holds them, not only those it shows."""
+    return FamilyMove(
+        family=read.family,
+        criteria=read._members or tuple(read.criteria),
+        cases=read.cases,
+        baseline_passed=read.baseline_passed,
+        candidate_passed=read.candidate_passed,
+        fixed=read.fixed,
+        broken=read.broken,
+        fixed_confirmed=read.fixed_confirmed,
+        broken_confirmed=read.broken_confirmed,
+        p_value=read.p_value,
+        settled=read.settled,
+    )
+
+
+type CaseGrades = tuple[Grades, tuple[Grades, ...], dict[Criterion, str]]
+"""One case on one arm: its first answer's grades, its reruns', and the families named."""
+
+
+async def compare_batches(
+    batches: AsyncGenerator[list[tuple[UUID, PairedGrades]]],
+    *,
+    each: Callable[[UUID, PairedGrades], None] | None = None,
+) -> CriterionComparison:
+    """Criteria and families compared over paired batches, `each` seeing every case.
+
+    The scratch work runs on a worker thread; database reads resume on this event
+    loop one bounded batch at a time, never on the SQLite thread.
+    """
+
+    def paired_grades() -> Iterator[PairedGrades]:
+        while (batch := from_thread.run(anext, batches, None)) is not None:
+            for case_id, pair in batch:
+                if each is not None:
+                    each(case_id, pair)
+                yield pair
+
+    try:
+        return await to_thread.run_sync(
+            partial(compare_criteria, alpha=settings.EVAL_SIGNIFICANCE), paired_grades()
+        )
+    finally:
+        await batches.aclose()
+
+
 @dataclass(frozen=True)
 class ArmPlan:
     """One arm as it will run: what, on which model, and whether it is reused."""
@@ -403,7 +535,16 @@ def _summary_read(summary: ArmSummary) -> ArmSummaryRead:
         avg_tokens=summary.avg_tokens,
         p50_ms=summary.p50_ms,
         p95_ms=summary.p95_ms,
+        criteria_passed=summary.criteria_passed,
+        criteria_graded=summary.criteria_graded,
+        partial_credit=summary.partial_credit,
     )
+
+
+def _counted(graded: Grades) -> list[int] | None:
+    """A case's first answer as `[passed, decided]` criteria, for a person to read."""
+    counted = criteria_count(graded)
+    return None if counted is None else list(counted)
 
 
 def _attempt(
@@ -428,6 +569,7 @@ def _attempt(
         tags=tuple(tags),
         reruns=tuple(reruns),
         by_person=score is not None and score.human_passed is not None,
+        criteria=None if score is None else criteria_count(grades(score.results)),
     )
 
 
@@ -694,16 +836,11 @@ class EvalRunService:
                 skill_bodies=dict(baseline_skills or {}),
                 context_bodies=dict(baseline_contexts or {}),
             )
-            # A projected body is no stored version a cached arm could have read, and a
-            # context file's stored body is live, so neither side is taken from the cache.
+            # A projected body is no stored version a cached arm could have read, so
+            # neither side is taken from the cache.
             cached = (
                 None
-                if excluded
-                or candidate_skills
-                or candidate_contexts
-                or baseline_skills
-                or baseline_contexts
-                or baseline_version is None
+                if candidate_skills or candidate_contexts or baseline_skills or baseline_contexts
                 else await self._cached(
                     ctx,
                     agent=agent,
@@ -720,6 +857,7 @@ class EvalRunService:
                     judge_id=config.judge.agent_id,
                     judge_version_id=judge_version_id,
                     judge_pinned=judge_pinned,
+                    excluded=excluded,
                 )
             )
             arms.append(baseline if cached is None else replace(baseline, cached=cached))
@@ -1115,34 +1253,58 @@ class EvalRunService:
         judge_id: UUID | None,
         judge_version_id: UUID | None = None,
         judge_pinned: bool = False,
+        excluded: Collection[UUID] = (),
     ) -> tuple[EvalRunArm, EvalRun] | None:
         """A completed baseline arm that may stand in for running this one.
 
         Only one that matches on everything the comparison holds constant: the
-        version and the skill versions it was served, the dataset version, the
-        model, the scoring, the environment
-        whose test connections answered and whether recordings did - and the judge,
-        whose published version and prompt must be the ones that graded every
-        case, or no judge at all when none would grade now. Every first answer
-        must be in and scored: a reused arm's cases are never asked again, so a
-        hole in it would read as a case nobody changed.
+        version - or for a draft, its exact fingerprint - and the skill versions
+        it was served, the dataset version, the cases left out, the model, the
+        scoring, the environment whose test connections answered and whether
+        recordings did - and the judge, whose published version and prompt must
+        be the ones that graded every case, or no judge at all when none would
+        grade now. Every first answer must be in and scored: a reused arm's cases
+        are never asked again, so a hole in it would read as a case nobody changed.
+        No context file it binds may have changed since that run was made.
+
+        A draft baseline is what an improvement session measures each attempt
+        against; while the draft is unchanged, its answers from the session's
+        previous check serve the next one, and so do a published version's from a
+        run of its own when the draft is still that version's spec.
         """
-        assert arm.version is not None
         since = datetime.now(UTC) - timedelta(hours=settings.EVAL_BASELINE_CACHE_HOURS)
-        found = await eval_run_repo.latest_arm(
-            self.db,
-            organization_id=ctx.organization_id,
-            agent_id=agent.id,
-            dataset_id=dataset.id,
-            agent_version_id=arm.version.id,
-            dataset_version_id=dataset_version.id,
-            model_profile_id=arm.model_profile_id,
-            scoring_hash=scoring_hash,
-            skill_versions=arm.skill_versions,
-            execution=execution,
-            since=since,
-        )
-        if found is None:
+        if arm.version is None:
+            found = await eval_run_repo.latest_draft_arm(
+                self.db,
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                dataset_id=dataset.id,
+                spec_hash=spec_hash(arm.spec),
+                dataset_version_id=dataset_version.id,
+                model_profile_id=arm.model_profile_id,
+                scoring_hash=scoring_hash,
+                skill_versions=arm.skill_versions,
+                execution=execution,
+                since=since,
+                excluded_case_ids=excluded,
+            )
+        elif excluded:
+            return None
+        else:
+            found = await eval_run_repo.latest_arm(
+                self.db,
+                organization_id=ctx.organization_id,
+                agent_id=agent.id,
+                dataset_id=dataset.id,
+                agent_version_id=arm.version.id,
+                dataset_version_id=dataset_version.id,
+                model_profile_id=arm.model_profile_id,
+                scoring_hash=scoring_hash,
+                skill_versions=arm.skill_versions,
+                execution=execution,
+                since=since,
+            )
+        if found is None or not await self._contexts_unchanged(ctx, arm.spec, found[1].created_at):
             return None
         attempts = await eval_run_repo.list_arm_cases(
             self.db, found[0].id, organization_id=ctx.organization_id
@@ -1163,6 +1325,20 @@ class EvalRunService:
             attempts=attempts,
         )
         return found if graded else None
+
+    async def _contexts_unchanged(self, ctx: AuthContext, spec: AgentSpec, since: datetime) -> bool:
+        """Whether every context file `spec` binds is still as it was at `since`.
+
+        A bound file's body is read live at every answer, so answers given before an
+        edit, or to a file since removed, were given to other text.
+        """
+        bound = set(spec.context_ids)
+        files = await context_repo.get_many(
+            self.db, list(bound), organization_id=ctx.organization_id
+        )
+        return len(files) == len(bound) and all(
+            (file.updated_at or file.created_at) <= since for file in files.values()
+        )
 
     async def _graded_as_now(
         self,
@@ -1216,11 +1392,14 @@ class EvalRunService:
         baseline_skills: Mapping[UUID, SkillBody] | None = None,
         baseline_contexts: Mapping[UUID, ContextBody] | None = None,
         proposal_check: ProposalCheckRecord | None = None,
+        held_out: int | None = None,
     ) -> EvalRunEstimate:
         """What a run would cost, against what the agent and organization have left.
 
         `proposal_check` is what a check of the authoring assistant's proposal
         would measure, returned beside the estimate so both sides can be named.
+        `held_out` prices a measured run whose cases kept aside are known only
+        as a count; a proposal check's own measurement takes its place.
         """
         plan = await self.plan(
             ctx,
@@ -1250,7 +1429,10 @@ class EvalRunService:
                     )
                 }
             )
-        estimate = self._knowledge_cost(await self._estimate(ctx, plan), proposal_check)
+            held_out = _held_out_count(proposal_check)
+        estimate = self._knowledge_cost(
+            await self._estimate(ctx, plan, held_out=held_out), proposal_check
+        )
         proposal_check = self._priced_check(proposal_check, estimate)
         return estimate.model_copy(update={"proposal_check": proposal_check})
 
@@ -1294,6 +1476,9 @@ class EvalRunService:
             update={
                 "total_usd": estimate.total_usd + extra,
                 "rerun_ceiling_usd": estimate.rerun_ceiling_usd + repeats,
+                "expected_usd": estimate.expected_usd
+                + extra
+                + (repeats * EXPECTED_RERUN_SHARE).quantize(_CENT),
                 "agent_after_usd": agent_after,
                 "org_after_usd": org_after,
                 "affordable": estimate.affordable
@@ -1393,10 +1578,14 @@ class EvalRunService:
         agent_id: UUID,
         model_label: str | None,
         profile_id: UUID | None = None,
+        *,
+        requests: int = 1,
+        reads: int = 0,
     ) -> tuple[Decimal, bool]:
         """What one case costs: this agent's recent runs on the model, or - with
-        no history - a typical case at the model's own price, or a flat guess
-        for a model nothing prices. The flag says whether it was history."""
+        no history - `requests` typical requests at the model's own price, reading
+        `reads` tokens more, or a flat guess for a model nothing prices. The flag
+        says whether it was history."""
         average = await agent_run_repo.average_cost(
             self.db,
             organization_id=ctx.organization_id,
@@ -1409,8 +1598,8 @@ class EvalRunService:
         if profile_id is not None:
             model = await self.models.resolve(ctx, profile_id=profile_id)
             typical = RunUsage(
-                input_tokens=settings.EVAL_FALLBACK_INPUT_TOKENS,
-                output_tokens=settings.EVAL_FALLBACK_OUTPUT_TOKENS,
+                input_tokens=settings.EVAL_FALLBACK_INPUT_TOKENS * requests + reads,
+                output_tokens=settings.EVAL_FALLBACK_OUTPUT_TOKENS * requests,
             )
             priced = price_request(typical, model.model, model.provider)
             if priced is not None:
@@ -1443,14 +1632,28 @@ class EvalRunService:
             / settings.EVAL_FALLBACK_INPUT_TOKENS
         ).quantize(_CENT)
 
-    async def _estimate(self, ctx: AuthContext, plan: RunPlan) -> EvalRunEstimate:
+    async def _estimate(
+        self, ctx: AuthContext, plan: RunPlan, *, held_out: int | None = None
+    ) -> EvalRunEstimate:
+        """The run's cost from its sides, its judge and the reruns it may ask.
+
+        `held_out` is how many cases a measured run keeps aside: only those are
+        asked again, so only those count towards its rerun ceiling.
+        """
         cases = len(plan.cases)
+        asked_again = (
+            cases if held_out is None or plan.purpose is EvalRunPurpose.STABILITY else held_out
+        )
         arms: list[ArmEstimate] = []
         arms_usd = Decimal(0)
         rerun_per_case = Decimal(0)
         for arm in plan.arms:
             per_case, known = await self._per_case(
-                ctx, plan.agent.id, arm.model_label, arm.model_profile_id
+                ctx,
+                plan.agent.id,
+                arm.model_label,
+                arm.model_profile_id,
+                requests=_requests(arm.spec),
             )
             per_case += await self._projected_input_cost(ctx, arm)
             # A reused arm's first answers are free, but a case that flips is
@@ -1503,8 +1706,12 @@ class EvalRunService:
             if judge is None:
                 judge_per_case = settings.EVAL_FALLBACK_CASE_COST_USD
             else:
+                # A grading reads the answer it grades, as long as a guessed answer is.
+                answer = settings.EVAL_FALLBACK_OUTPUT_TOKENS * max(
+                    (_requests(arm.spec) for arm in plan.arms), default=1
+                )
                 judge_per_case, known = await self._per_case(
-                    ctx, judge.id, judge_label, judge_model
+                    ctx, judge.id, judge_label, judge_model, reads=answer
                 )
                 # Its history already holds the searches it made; a guess holds one request.
                 if not known:
@@ -1514,7 +1721,8 @@ class EvalRunService:
         fresh_arms = sum(1 for arm in plan.arms if arm.cached is None)
         judge_usd = judge_per_case * cases * fresh_arms
         total = arms_usd + judge_usd
-        rerun_ceiling = (rerun_per_case + judge_per_case * len(plan.arms)) * cases * plan.reruns
+        agent_reruns = rerun_per_case * asked_again * plan.reruns
+        rerun_ceiling = agent_reruns + judge_per_case * len(plan.arms) * asked_again * plan.reruns
 
         agent_left = await self._agent_left(ctx, plan)
         org_left = await self._org_left(ctx)
@@ -1525,16 +1733,20 @@ class EvalRunService:
             judge_model_profile_id=judge_model,
             total_usd=total,
             rerun_ceiling_usd=rerun_ceiling,
+            expected_usd=expected_cost(
+                total,
+                rerun_ceiling,
+                purpose=plan.purpose,
+                compared=plan.paired
+                or plan.baseline_run_id is not None
+                or any(arm.role is ArmRole.BASELINE for arm in plan.arms),
+            ),
             agent_remaining_usd=agent_left,
             org_remaining_usd=org_left,
             # The judge bills to its own agent; only the organization pays both.
-            agent_after_usd=None
-            if agent_left is None
-            else agent_left - arms_usd - rerun_per_case * cases * plan.reruns,
+            agent_after_usd=None if agent_left is None else agent_left - arms_usd - agent_reruns,
             org_after_usd=None if org_left is None else org_left - total - rerun_ceiling,
-            affordable=(
-                agent_left is None or arms_usd + rerun_per_case * cases * plan.reruns <= agent_left
-            )
+            affordable=(agent_left is None or arms_usd + agent_reruns <= agent_left)
             and (org_left is None or total + rerun_ceiling <= org_left),
             ungraded_cases=plan.ungraded,
             missing_baseline_version=plan.missing_baseline,
@@ -1638,7 +1850,10 @@ class EvalRunService:
                     )
                 }
             )
-        estimate = self._knowledge_cost(await self._estimate(ctx, plan), proposal_check)
+        estimate = self._knowledge_cost(
+            await self._estimate(ctx, plan, held_out=_held_out_count(proposal_check)),
+            proposal_check,
+        )
         proposal_check = self._priced_check(proposal_check, estimate)
         if not estimate.affordable:
             raise PaymentRequiredError(
@@ -2211,6 +2426,14 @@ class EvalRunService:
                     reruns=run.reruns,
                     estimate_usd=run.estimate_usd,
                     rerun_ceiling_usd=run.rerun_ceiling_usd,
+                    expected_usd=expected_cost(
+                        run.estimate_usd,
+                        run.rerun_ceiling_usd,
+                        purpose=EvalRunPurpose(run.purpose),
+                        compared=run.paired
+                        or run.baseline_run_id is not None
+                        or any(arm.role == ArmRole.BASELINE.value for arm in arms_by_run[run.id]),
+                    ),
                     cost_usd=attempt_cost + judge_cost,
                     cost_is_partial=judge_partial or any(a.cost_is_partial for a in attempts),
                     attempts_done=sum(1 for a in attempts if a.status in finished),
@@ -2600,20 +2823,27 @@ class EvalRunService:
 
     async def _criterion_outcomes(
         self, ctx: AuthContext, own: Sequence[EvalRunCase]
-    ) -> dict[UUID, tuple[dict[Criterion, Outcome], tuple[dict[Criterion, Outcome], ...]]]:
+    ) -> dict[UUID, CaseGrades]:
         """Each case's first criterion outcomes on an arm, and its reruns' - the scorers'
-        own grades, which a person's verdict on the whole case leaves as they were."""
+        own grades, which a person's verdict on the whole case leaves as they were -
+        with the families their checks named."""
         scores = await self._scores(ctx, own)
-        firsts: dict[UUID, dict[Criterion, Outcome]] = {}
-        reruns: dict[UUID, list[dict[Criterion, Outcome]]] = defaultdict(list)
+        firsts: dict[UUID, Grades] = {}
+        reruns: dict[UUID, list[Grades]] = defaultdict(list)
+        named: dict[UUID, dict[Criterion, str]] = defaultdict(dict)
         for attempt in sorted(own, key=lambda a: a.attempt):
             score = scores.get(attempt.case_score_id)
             graded = grades(score.results) if score is not None else {}
+            if score is not None:
+                named[attempt.case_id].update(families(score.results))
             if attempt.attempt == 0:
                 firsts[attempt.case_id] = graded
             else:
                 reruns[attempt.case_id].append(graded)
-        return {case_id: (first, tuple(reruns[case_id])) for case_id, first in firsts.items()}
+        return {
+            case_id: (first, tuple(reruns[case_id]), named[case_id])
+            for case_id, first in firsts.items()
+        }
 
     async def criterion_batches(
         self,
@@ -2654,6 +2884,7 @@ class EvalRunService:
                         baseline_reruns=their_grades[case_id][1] if confirmed_here else (),
                         candidate_reruns=my_grades[case_id][1],
                         drift=drift,
+                        named=their_grades[case_id][2] | my_grades[case_id][2],
                     ),
                 )
                 for case_id in ids
@@ -2893,28 +3124,25 @@ class EvalRunService:
         ):
             invalid_reason = "Held-out questions remain ungraded or incomplete"
         criteria_comparison = CriterionComparison(moves=[], change=0.0)
+        counted: dict[UUID, tuple[list[int] | None, list[int] | None]] = {}
+
+        def count_criteria(case_id: UUID, pair: PairedGrades) -> None:
+            counted[case_id] = (_counted(pair.baseline), _counted(pair.candidate))
+
         if invalid_reason is None and include_criteria:
-            batches = self.criterion_batches(
-                ctx,
-                candidate,
-                attempts,
-                their_arm,
-                their_attempts,
-                case_ids=common,
-                confirmed_here=confirmed_here,
-                drift=drift,
+            criteria_comparison = await compare_batches(
+                self.criterion_batches(
+                    ctx,
+                    candidate,
+                    attempts,
+                    their_arm,
+                    their_attempts,
+                    case_ids=common,
+                    confirmed_here=confirmed_here,
+                    drift=drift,
+                ),
+                each=count_criteria,
             )
-
-            def paired_grades() -> Iterator[PairedGrades]:
-                # The worker owns scratch I/O; database reads resume on this event
-                # loop one bounded batch at a time, never on the SQLite thread.
-                while (batch := from_thread.run(anext, batches, None)) is not None:
-                    yield from (pair for _, pair in batch)
-
-            try:
-                criteria_comparison = await to_thread.run_sync(compare_criteria, paired_grades())
-            finally:
-                await batches.aclose()
         quality = quality_verdict(
             paired_cases, alpha=settings.EVAL_SIGNIFICANCE, invalid=invalid_reason is not None
         )
@@ -2987,6 +3215,8 @@ class EvalRunService:
                     candidate_reruns=list(c.candidate_reruns),
                     tags=list(c.tags),
                     candidate_error=crashed.get(c.case_id),
+                    baseline_criteria=counted.get(c.case_id, (None, None))[0],
+                    candidate_criteria=counted.get(c.case_id, (None, None))[1],
                 )
                 for c in paired_cases
             ],
@@ -3009,6 +3239,7 @@ class EvalRunService:
                 for move in criteria_comparison.moves
             ],
             criterion_change=criteria_comparison.change,
+            families=[_family_read(move) for move in criteria_comparison.families],
         )
 
     async def _first_attempts(

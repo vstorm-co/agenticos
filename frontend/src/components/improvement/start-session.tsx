@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { DIALOG_BODY } from "@/lib/dialog-sizes";
 import { StartQuestionSet, StartSignals } from "./session-inputs";
+import { MIN_SEARCH_QUESTIONS, StartMode } from "./start-search";
 import { TodayCheck } from "./today-check";
 import { WriteQuestions } from "./write-questions";
 import { limitText, limitValue, sessionLimit, usd } from "@/components/evals/format";
@@ -31,7 +32,7 @@ import { subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage, problemList } from "@/lib/api-error";
 import { isActive, openImprovement } from "@/lib/improvement-steps";
 import { useOrgStore } from "@/stores/org-store";
-import type { Improvement, ImprovementEstimate } from "@/types/improvement";
+import type { Improvement, ImprovementEstimate, ImprovementMode } from "@/types/improvement";
 
 /**
  * Configure a session over the Agent Builder, with its dataset and price visible.
@@ -42,6 +43,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
   const t = useTranslations("improvement");
   const tc = useTranslations("common");
   const tr = useTranslations("authoring.improve");
+  const ts = useTranslations("improvement.startSearch");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const router = useRouter();
@@ -67,6 +69,13 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState(false);
+  const [searchMode, setSearchMode] = useState<ImprovementMode>("steps");
+  // Kept across re-pricing, so the Search option does not flicker while a new quote loads.
+  const [trainQuestions, setTrainQuestions] = useState<number | null>(null);
+  const [searchBudget, setSearchBudget] = useState("");
+  const [gradingModel, setGradingModel] = useState<string | null>(null);
+  const searchLimit = limitValue(searchBudget);
+  const searchReady = searchMode === "steps" || Number(searchLimit) > 0;
   // A set made for this agent wins over one it was only run against or guarded by.
   const runnable = own.datasets.filter((dataset) => dataset.can_run);
   const target =
@@ -74,6 +83,10 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
   const body = {
     dataset_id: target,
     max_iterations: 3,
+    ...(searchMode === "search" && {
+      mode: searchMode,
+      search: { budget_usd: searchLimit, grading_model_profile_id: gradingModel },
+    }),
   };
   const asked = JSON.stringify(body);
   const key = `${asked}:${written}`;
@@ -88,12 +101,13 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
   // An estimate spends nothing, so the price and the time are on screen as soon
   // as there is something to price; only starting asks for a click.
   useEffect(() => {
-    if (!target) return;
+    if (!target || !searchReady) return;
     let current = true;
     estimateSession(JSON.parse(asked)).then(
       (priced) => {
         if (current) {
           setQuote({ key, value: priced });
+          setTrainQuestions(priced.train_questions ?? null);
           setRefusal(null);
         }
       },
@@ -109,7 +123,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
     return () => {
       current = false;
     };
-  }, [asked, key, target, estimateSession, tErrors]);
+  }, [asked, key, target, searchReady, estimateSession, tErrors]);
   const questionsReady = useCallback((datasetId: string) => {
     setChosen(datasetId);
     setWritten((count) => count + 1);
@@ -203,6 +217,21 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
         ) : (
           <WriteQuestions agentId={agentId} onReady={questionsReady} />
         )}
+        {target && (
+          <StartMode
+            mode={searchMode}
+            onModeChange={(chosenMode) => {
+              if (chosenMode === "search" && !searchBudget && quote)
+                setSearchBudget(limitText(sessionLimit(quote), locale));
+              setSearchMode(chosenMode);
+            }}
+            trainQuestions={trainQuestions}
+            budget={searchBudget}
+            onBudgetChange={setSearchBudget}
+            gradingModelId={gradingModel}
+            onGradingModelChange={setGradingModel}
+          />
+        )}
         {refused !== null && (
           <div
             role="alert"
@@ -249,6 +278,14 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
             <p className="text-muted-foreground text-xs">
               {t("startCostHint", { cost: usd(quote.per_round_usd, locale) })}
             </p>
+            {Number(quote.search_usd ?? 0) > 0 && (
+              <p className="text-muted-foreground text-xs">
+                {ts("quote", {
+                  search: usd(quote.search_usd ?? "0", locale),
+                  check: usd(quote.eval_usd, locale),
+                })}
+              </p>
+            )}
             {quote.reason && (
               <p role="status" className="text-sm">
                 {tr(`reason.${quote.reason}`)}
@@ -335,6 +372,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
             quote.reason !== null ||
             !Number.isFinite(Number(limit)) ||
             Number(limit) <= 0 ||
+            (searchMode === "search" && (trainQuestions ?? 0) < MIN_SEARCH_QUESTIONS) ||
             startedId !== null
           }
           onClick={() => void start()}

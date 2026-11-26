@@ -728,6 +728,23 @@ describe("finishing an OAuth sign-in", () => {
     expect(cookie(response, "agenticos_refresh_token")).toMatchObject({ value: "rt" });
   });
 
+  it.each([false, true])(
+    "forwards the trusted OAuth account-creation flag (%s)",
+    async (isNewUser) => {
+      vi.mocked(backendFetch)
+        .mockResolvedValueOnce({ access_token: "at", refresh_token: "rt", is_new_user: isNewUser })
+        .mockResolvedValueOnce({ id: "u-1" });
+      const response = await oauthCallback(
+        request({}, { code: "one-time", is_new_user: !isNewUser }),
+      );
+      expect(await response.json()).toMatchObject({ is_new_user: isNewUser });
+      expect(backendFetch).toHaveBeenNthCalledWith(1, "/api/v1/oauth/exchange", {
+        method: "POST",
+        body: JSON.stringify({ code: "one-time" }),
+      });
+    },
+  );
+
   it("refuses a callback carrying no code", async () => {
     const response = await oauthCallback(request({}, {}));
 

@@ -108,6 +108,9 @@ class KnowledgeSearch(Base):
         ARRAY(PG_UUID(as_uuid=True)), nullable=False
     )
     query: Mapped[str] = mapped_column(Text, nullable=False)
+    # What a miss read from an answer lacks, as the classifier named it: the words its
+    # topic is grouped and named by. None for a search, which is its own query.
+    subject: Mapped[str | None] = mapped_column(Text, nullable=True)
     result_count: Mapped[int] = mapped_column(Integer, nullable=False)
     top_similarity: Mapped[float | None] = mapped_column(Float, nullable=True)
     signal: Mapped[str] = mapped_column(
@@ -138,6 +141,14 @@ class KnowledgeSearch(Base):
             "knowledge_base_ids",
             unique=True,
             postgresql_where=text("message_id IS NOT NULL"),
+        ),
+        # An eval answer has no message: a miss read from it is one per run.
+        Index(
+            "uq_knowledge_searches_eval_answer",
+            "run_id",
+            "knowledge_base_ids",
+            unique=True,
+            postgresql_where=text("message_id IS NULL AND signal <> 'retrieval'"),
         ),
         CheckConstraint(
             "signal IN ('retrieval', 'answer', 'rating')", name="ck_knowledge_search_signal"
@@ -341,3 +352,53 @@ class KnowledgeGapClassification(Base):
 
     def __repr__(self) -> str:
         return f"<KnowledgeGapClassification(message={self.message_id}, signal={self.signal})>"
+
+
+class KnowledgeGapEvalClassification(Base):
+    """One eval answer a model read for one knowledge base's gaps, and what it decided.
+
+    An improvement session sorts the failed training answers it learns from; an
+    eval answer has no message, so it is kept by the run that gave it.
+    """
+
+    __tablename__ = "knowledge_gap_eval_classifications"
+
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    knowledge_base_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("knowledge_bases.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    # As `KnowledgeGapClassification.signal`.
+    signal: Mapped[str] = mapped_column(String(16), nullable=False)
+    # A model's words on a case's answer, so it goes with the case's copies.
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    classifier_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("agent_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    classified_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "signal IN ('answer', 'rating', 'none', 'refused')",
+            name="ck_eval_classification_signal",
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<KnowledgeGapEvalClassification(run={self.run_id}, signal={self.signal})>"

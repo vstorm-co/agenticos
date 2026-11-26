@@ -61,6 +61,13 @@ class ProviderInfo(BaseSchema):
             "only for Stav.ai, whose listing states it per model (`apis` on each model)."
         ),
     )
+    personal_gateway: bool = Field(
+        default=False,
+        description=(
+            "Whether models run on each person's own subscription accounts, signed in under "
+            "Settings. A profile takes no key and no endpoint; only a person's own run uses it."
+        ),
+    )
     regions: list[ModelRegion] = Field(
         default_factory=list,
         description=(
@@ -71,9 +78,18 @@ class ProviderInfo(BaseSchema):
     )
 
 
+class NativeRuntimeAvailability(BaseSchema):
+    """Operator-enabled primary Desktop runtimes; not account entitlement."""
+
+    codex: bool = False
+    claude_code: bool = False
+    external: bool = False
+
+
 class ProviderCatalog(BaseSchema):
     items: list[ProviderInfo]
     total: int
+    native_runtimes: NativeRuntimeAvailability = Field(default_factory=NativeRuntimeAvailability)
 
 
 class ModelProfileCreate(BaseSchema):

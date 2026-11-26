@@ -1,5 +1,5 @@
 ---
-source_sha: "ef480f9f1969"
+source_sha: "75494f696b30"
 ---
 
 # Glosario { #glossary }
@@ -92,6 +92,8 @@ tal como se ven en pantalla.
 | Noise | Respuestas calificadas de otra manera al preguntar de nuevo sin que nada haya cambiado; un resultado que eso podría explicar queda dentro del ruido, y **Ask each question twice** lo mide | `measurement_noise`, `purpose: stability` |
 | Review | Puntuaciones que esperan a que una persona las confirme o las cambie | `review_state` |
 | Case generator | El agent de sistema que redacta casos a partir de un agent, su conocimiento, chats reales y red teaming | `kind: generator` |
+| Key extractor | El agent de sistema que enumera los datos de la respuesta de referencia de un caso para su comprobación de claves | `kind: extractor` |
+| Source coverage | El agent de sistema que dice qué claves de un dataset no contiene ninguna fuente de un agent | `kind: coverage` |
 | Proposed case | Un caso redactado que espera en **Generated** hasta que una persona lo acepta o lo descarta | `case_proposal` |
 | Red teaming | Casos que comprueban que un agent rechaza lo que debe rechazar | etiqueta `red-team` |
 
@@ -134,6 +136,7 @@ se describe en [Capabilities](capabilities.md).
 | Date and time | `clock` |
 | Calculations | `code_execution` |
 | Coding agent | `coding_agent` |
+| Agente ACP externo | `external_acp` |
 | Long conversations | `compaction` |
 | Computer use | `computer_use` |
 | Context | `context` |

@@ -15,6 +15,7 @@ import type {
 import { Perm } from "@/types/permissions";
 import type { Permission } from "@/types/permissions";
 import { useOnboardingStore } from "@/stores/onboarding-store";
+import { useOrgStore } from "@/stores/org-store";
 
 /** Regression coverage retained for the ordinary Agent Builder after removing helper pages. */
 
@@ -175,7 +176,9 @@ vi.mock("@/hooks", async () => {
     useDelegationTree: () => ({ tree: null, isLoading: false, error: null }),
     useExposures: () => ({ exposures: [] }),
     useEmbeds: () => ({ embeds: [] }),
-    useKnowledgeBases: () => ({ kbs: [{ id: "kb1", name: "Handbook", document_count: 1 }] }),
+    useKnowledgeBases: () => ({
+      kbs: [{ id: "kb1", organization_id: "org-1", name: "Handbook", document_count: 1 }],
+    }),
     useMcpCatalog: () => ({ servers: [] }),
     useMembers: () => ({ members: [] }),
     useModelProviders: () => ({
@@ -226,9 +229,7 @@ vi.mock("@/stores", () => ({
 
 vi.mock("@/components/agents/agent-avatar", () => ({ AgentAvatar: () => null }));
 vi.mock("@/components/agents/model-settings-form", () => ({
-  ModelSettingsForm: ({ verdict }: { verdict?: string }) => (
-    <div data-testid="model-settings" data-verdict={verdict ?? "none"} />
-  ),
+  ModelSettingsForm: () => <div data-testid="model-settings" />,
 }));
 vi.mock("@/components/agents/thinking-setting", () => ({ ThinkingSetting: () => null }));
 vi.mock("@/components/ui/markdown-editor", () => ({
@@ -281,6 +282,7 @@ function viewing(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useOrgStore.setState({ activeOrgId: "org-1" });
   viewing("judge");
   page.access = { can_edit: true, can_publish: true };
   page.draft = CLEAN_DRAFT;
@@ -292,7 +294,10 @@ beforeEach(() => {
   page.skills = [];
 });
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  useOrgStore.setState({ activeOrgId: null });
+});
 
 describe("the header of a regular agent's page", () => {
   it("is not worn by an ordinary agent", async () => {

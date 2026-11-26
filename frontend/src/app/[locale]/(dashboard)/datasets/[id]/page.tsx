@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   FlaskConical,
   ListChecks,
+  SearchCheck,
   Settings2,
   Sparkles,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { EmptyCases } from "@/components/datasets/empty-cases";
 import { HelperSettings } from "@/components/datasets/helper-settings";
 import { GenerateCasesDialog } from "@/components/datasets/generate-cases-dialog";
 import { GeneratePanel } from "@/components/datasets/generate-panel";
+import { KeyCoveragePanel } from "@/components/datasets/key-coverage-panel";
 import { ReviewPanel } from "@/components/datasets/review-panel";
 import { GradingPanel, type GradingCopy } from "@/components/datasets/grading-panel";
 import { UnsavedCopiesBanner } from "@/components/datasets/unsaved-copies-banner";
@@ -68,7 +70,16 @@ interface PageProps {
 }
 
 /** Existing deep links remain valid within the three workspace sections. */
-const TABS = ["cases", "generated", "grading", "evals", "review", "settings", "results"];
+const TABS = [
+  "cases",
+  "generated",
+  "grading",
+  "evals",
+  "review",
+  "coverage",
+  "settings",
+  "results",
+];
 
 /**
  * What the case dialog is showing: a new case, or one from the list - picked up
@@ -121,7 +132,10 @@ export default function DatasetPage({ params }: PageProps) {
     remove,
   } = useDataset(id);
   // Every read behind the Evals tab and the run it starts takes runs:view.
-  const canViewRuns = usePermissions().can(Perm.runsView);
+  const { can } = usePermissions();
+  const canViewRuns = can(Perm.runsView);
+  // The key extractor runs as the person who asks, so it needs `agents:run`.
+  const canRunAgents = can(Perm.agentsRun);
   const { versions } = useDatasetVersions(id);
   const linkedCase = useDatasetCase(id, linked);
   // A link to one case opens it once it arrives, as reading it from the list would;
@@ -193,7 +207,7 @@ export default function DatasetPage({ params }: PageProps) {
       ? "cases"
       : shown === "grading" || shown === "settings"
         ? "settings"
-        : shown === "evals" || shown === "review"
+        : shown === "evals" || shown === "review" || shown === "coverage"
           ? "results"
           : "cases";
   const keep = (place: string) => ({
@@ -417,8 +431,8 @@ export default function DatasetPage({ params }: PageProps) {
             )}
           </TabsContent>
           <TabsContent value="results" className="flex min-h-0 flex-1 flex-col gap-4">
-            {canViewRuns && (
-              <div className="flex flex-wrap gap-2" aria-label={t("workspace.results")}>
+            <div className="flex flex-wrap gap-2" aria-label={t("workspace.results")}>
+              {canViewRuns && (
                 <Button
                   size="sm"
                   variant={shown === "evals" ? "secondary" : "ghost"}
@@ -428,24 +442,36 @@ export default function DatasetPage({ params }: PageProps) {
                   <FlaskConical className="size-4" aria-hidden />
                   {t("workspace.testRuns")}
                 </Button>
-                <Button
-                  size="sm"
-                  variant={shown === "review" ? "secondary" : "ghost"}
-                  aria-pressed={shown === "review"}
-                  data-tour="datasets-review-tab"
-                  onClick={() => showTab("review")}
-                >
-                  <ClipboardCheck className="size-4" aria-hidden />
-                  {t("workspace.reviewAnswers")}
-                </Button>
-              </div>
-            )}
+              )}
+              <Button
+                size="sm"
+                variant={shown === "review" ? "secondary" : "ghost"}
+                aria-pressed={shown === "review"}
+                data-tour="datasets-review-tab"
+                onClick={() => showTab("review")}
+              >
+                <ClipboardCheck className="size-4" aria-hidden />
+                {t("workspace.reviewAnswers")}
+              </Button>
+              <Button
+                size="sm"
+                variant={shown === "coverage" ? "secondary" : "ghost"}
+                aria-pressed={shown === "coverage"}
+                data-tour="datasets-coverage-tab"
+                onClick={() => showTab("coverage")}
+              >
+                <SearchCheck className="size-4" aria-hidden />
+                {t("workspace.keyCoverage")}
+              </Button>
+            </div>
             {shown === "evals" && canViewRuns ? (
               <DatasetEvalsPanel
                 datasetId={id}
                 title={t("workspace.testRuns")}
                 onReview={() => showTab("review")}
               />
+            ) : shown === "coverage" ? (
+              <KeyCoveragePanel datasetId={id} />
             ) : (
               <ReviewPanel dataset={dataset} />
             )}
@@ -501,6 +527,11 @@ export default function DatasetPage({ params }: PageProps) {
             ...new Set(cases.cases.flatMap((item) => item.expected_tool_calls.map((c) => c.tool))),
           ]}
           onSave={editable && !editing.item?.masked ? save : undefined}
+          keyDraft={
+            editable && canRunAgents && editing.item && !editing.item.masked
+              ? { datasetId: id, caseId: editing.item.case_id }
+              : undefined
+          }
           startFrom={editing.startFrom}
           remote={
             editing.item && version === null

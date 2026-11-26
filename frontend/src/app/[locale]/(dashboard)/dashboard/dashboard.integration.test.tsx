@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { TooltipProvider } from "@/components/ui";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useSyncExternalStore, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -634,6 +634,90 @@ describe("the view switcher", () => {
   });
 });
 
+describe("dashboard scope motion", () => {
+  function panel(view: string): HTMLElement {
+    const element = document.querySelector(`[data-dashboard-view="${view}"]`);
+    if (!(element instanceof HTMLElement)) throw new Error(`Missing dashboard view ${view}`);
+    return element;
+  }
+
+  it.each(["me", "org", "group", "deployment"])(
+    "keeps the restored %s view still when the page first becomes ready",
+    async (view) => {
+      auth.isAppAdmin = true;
+      groupList = { items: [{ id: "g1", name: "Finance", icon: null, member_count: 3 }], total: 1 };
+      params.set("view", view);
+      render(<DashboardPage />, { wrapper });
+      await waitFor(() =>
+        expect(document.querySelector(`[data-dashboard-view="${view}"]`)).not.toBeNull(),
+      );
+      expect(panel(view)).not.toHaveAttribute("data-state", "active");
+    },
+  );
+
+  it("animates an explicit tab change, then settles without replaying child animations", async () => {
+    render(<DashboardPage />, { wrapper });
+    await screen.findByText("dashboard.views.org.label");
+    await userEvent.click(screen.getByText("dashboard.views.org.label"));
+    const content = panel("org");
+    expect(content).toHaveAttribute("data-state", "active");
+    expect(content).toHaveAttribute("data-direction", "forward");
+    const child = content.firstElementChild;
+    if (!child) throw new Error("Expected dashboard content after the scope change");
+    // React selects this event because jsdom has no AnimationEvent constructor.
+    fireEvent(child, new Event("webkitAnimationEnd", { bubbles: true }));
+    expect(content).toHaveAttribute("data-state", "active");
+    fireEvent(content, new Event("webkitAnimationEnd", { bubbles: true }));
+    expect(content).toBeInTheDocument();
+    expect(panel("org")).not.toHaveAttribute("data-state", "active");
+    await userEvent.click(screen.getByText("dashboard.views.org.label"));
+    expect(content).not.toHaveAttribute("data-state", "active");
+    await userEvent.click(screen.getByText("dashboard.views.me.label"));
+    expect(panel("me")).toHaveAttribute("data-direction", "back");
+  });
+
+  it("restores Back and Forward destinations without another entrance", async () => {
+    render(<DashboardPage />, { wrapper });
+    await screen.findByText("dashboard.views.org.label");
+    await userEvent.click(screen.getByText("dashboard.views.org.label"));
+    expect(panel("org")).toHaveAttribute("data-state", "active");
+    act(() => {
+      params.delete("view");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      window.dispatchEvent(new Event("dashboard:test-navigation"));
+    });
+    expect(panel("me")).not.toHaveAttribute("data-state", "active");
+    act(() => {
+      params.set("view", "org");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      window.dispatchEvent(new Event("dashboard:test-navigation"));
+    });
+    expect(panel("org")).not.toHaveAttribute("data-state", "active");
+  });
+
+  it("animates an explicit group choice without animating a restored group URL", async () => {
+    groupList = {
+      items: [
+        { id: "g1", name: "Finance", icon: null, member_count: 3 },
+        { id: "g2", name: "Sales", icon: null, member_count: 5 },
+      ],
+      total: 2,
+    };
+    params.set("view", "group");
+    params.set("group", "g1");
+    const page = render(<DashboardPage />, { wrapper });
+    const selector = await screen.findByRole("combobox", { name: "dashboard.views.group.pick" });
+    await userEvent.click(selector);
+    await userEvent.click(screen.getByRole("option", { name: "Sales" }));
+    expect(params.get("group")).toBe("g2");
+    expect(panel("group")).toHaveAttribute("data-state", "active");
+    expect(panel("group")).toHaveAttribute("data-direction", "forward");
+    params.set("group", "g1");
+    page.rerender(<DashboardPage />);
+    expect(panel("group")).not.toHaveAttribute("data-state", "active");
+  });
+});
+
 describe("the viewer's dashboard", () => {
   it("shows the shared shelf and asks no org-analytics question at all", async () => {
     auth.role = "viewer";
@@ -1161,4 +1245,75 @@ it("keeps requested help open when the personal dashboard layout finishes loadin
   pending.resolve(null);
   await screen.findByRole("group", { name: "dashboard.views.label" });
   expect(screen.getByRole("button", { name: "onboarding.pageHelp" })).toBeVisible();
+});
+
+describe("dashboard surface spacing", () => {
+  function expectSharedRhythm(view: string) {
+    const panel = document.querySelector(`[data-dashboard-view="${view}"]`);
+    expect(panel).toHaveClass("gap-6", "[&>*]:mt-0");
+    expect(panel?.firstElementChild).not.toBeNull();
+    expect(panel?.previousElementSibling).toHaveClass("mb-4");
+    return panel;
+  }
+  it.each(["me", "org", "group", "deployment"])(
+    "uses one boundary and section rhythm in the %s view",
+    async (view) => {
+      auth.isAppAdmin = true;
+      groupList = { items: [{ id: "g1", name: "Finance", icon: null, member_count: 3 }], total: 1 };
+      params.set("view", view);
+      render(<DashboardPage />, { wrapper });
+      await waitFor(() =>
+        expect(document.querySelector(`[data-dashboard-view="${view}"]`)).not.toBeNull(),
+      );
+      expectSharedRhythm(view);
+    },
+  );
+  it.each(["visible", "hidden", "loading"] as const)(
+    "keeps the same boundary when the organization checklist is %s",
+    async (state) => {
+      params.set("view", "org");
+      const org = "00000000-0000-4000-8000-000000000001";
+      useOrgStore.setState({ activeOrgId: org });
+      const previous = vi.mocked(apiClient.get).getMockImplementation()!;
+      const pending = Promise.withResolvers<unknown>();
+      vi.mocked(apiClient.get).mockImplementation((path, options) =>
+        path === "/me/onboarding"
+          ? state === "loading"
+            ? pending.promise
+            : Promise.resolve({
+                organization_id: org,
+                organization_name: "Demo",
+                goal: null,
+                dismissed: state === "hidden",
+                completed: state === "hidden",
+                can_prepare: true,
+                can_configure_model: true,
+                support_email: null,
+                agents: [],
+                latest_conversation_id: null,
+                latest_completed_at: null,
+                has_result: false,
+                has_activity: false,
+              })
+          : previous(path, options),
+      );
+      render(<DashboardPage />, { wrapper });
+      await waitFor(() =>
+        expect(document.querySelector('[data-dashboard-view="org"]')).not.toBeNull(),
+      );
+      if (state === "hidden")
+        await waitFor(() =>
+          expect(screen.queryByRole("region", { name: "start.offerTitle" })).toBeNull(),
+        );
+      else expect(await screen.findByRole("region", { name: "start.offerTitle" })).toBeVisible();
+      expectSharedRhythm("org");
+    },
+  );
+  it("keeps the same boundary for an empty organization layout", async () => {
+    params.set("view", "org");
+    savedLayout = { entries: [] };
+    render(<DashboardPage />, { wrapper });
+    expect(await screen.findByText("dashboard.edit.emptyTitle")).toBeVisible();
+    expectSharedRhythm("org");
+  });
 });
