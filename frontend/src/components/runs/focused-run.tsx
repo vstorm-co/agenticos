@@ -440,13 +440,16 @@ export function FocusedRun({
             explain, and a `cancelled` run without one was stopped, not
             failed. */}
         {run.error !== null && TERMINAL_RUN_STATUSES.includes(run.status) && (
-          <p className="text-destructive flex items-start gap-1.5 text-xs">
+          <section
+            aria-label={t("recordedFailure")}
+            className="text-destructive flex items-start gap-1.5 text-xs"
+          >
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-            <span>
+            <p className="min-w-0 break-words whitespace-pre-wrap">
               <span className="font-medium">{t("whyItStopped")}: </span>
-              {run.error}
-            </span>
-          </p>
+              <span>{run.error}</span>
+            </p>
+          </section>
         )}
 
         {/* The input above includes the cache's share, priced apart from the rest:
@@ -536,17 +539,6 @@ export function FocusedRun({
         data-run-scrollport
         className="min-h-0 flex-1 scrollbar-thin space-y-6 overflow-y-auto px-4 py-4"
       >
-        {run.error && (
-          <section
-            aria-label={t("recordedFailure")}
-            className="border-destructive/40 space-y-1 border-l-2 pl-3"
-          >
-            <h3 className="text-sm font-medium">{t("recordedFailure")}</h3>
-            <p className="text-muted-foreground text-sm break-words whitespace-pre-wrap">
-              {run.error}
-            </p>
-          </section>
-        )}
         <TabsContent value="timeline">
           {/* An eval case keeps no conversation: its answer and grade live on
               the eval run, so the timeline says where rather than that nothing

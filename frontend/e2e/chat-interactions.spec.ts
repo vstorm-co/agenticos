@@ -137,13 +137,19 @@ for (const theme of ["light", "dark"] as const) {
         await expect(draft).toBeVisible();
         await expect(draft).toBeEnabled();
         await expect(draft).toHaveText("Draft kept while answering");
-        await expect(
-          page.getByRole("button", { name: "Answer the agent’s question", exact: true }),
-        ).toHaveCount(0);
-        await question.scrollIntoViewIfNeeded();
+        await page
+          .getByRole("button", { name: "Answer the agent’s question", exact: true })
+          .click();
+        const inset = await scroller.evaluate((element) => ({
+          top: element.getBoundingClientRect().top,
+          padding: Number.parseFloat(getComputedStyle(element).scrollPaddingTop) || 24,
+        }));
+        await expect
+          .poll(async () => (await question.boundingBox())?.y)
+          .toBeCloseTo(inset.top + inset.padding, 0);
         await expect(question).toBeInViewport();
         const revealed = await question.boundingBox();
-        if (!revealed) throw new Error("Expected the question after scrolling");
+        if (!revealed) throw new Error("Expected the explicitly revealed question");
         const expectQuestionStill = async () => {
           await expect
             .poll(async () => (await question.boundingBox())?.y)

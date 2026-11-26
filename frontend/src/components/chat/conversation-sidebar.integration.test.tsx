@@ -150,7 +150,7 @@ describe("the list the URL asks for", () => {
       expect(useConversationStore.getState().currentConversationId).toBe("routine-log"),
     );
     expect(apiClient.get).toHaveBeenCalledWith(
-      "/conversations/routine-log/messages?latest=true&limit=101",
+      "/conversations/routine-log/messages?latest=true&limit=101&top_level_only=true",
       expect.anything(),
     );
   });

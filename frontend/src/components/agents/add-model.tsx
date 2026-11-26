@@ -425,7 +425,8 @@ export function AddModel({
   // would offer a submit the API refuses.
   // Each person's own signed-in accounts: no key and no endpoint to choose.
   const personalGateway = capabilities?.personal_gateway ?? false;
-  const keyOptional = personalGateway || ((capabilities?.keyless ?? false) && baseUrl.trim() !== "");
+  const keyOptional =
+    personalGateway || ((capabilities?.keyless ?? false) && baseUrl.trim() !== "");
   // Only `openai` and `azure` serve both of OpenAI's APIs; for every other
   // provider there is nothing to choose and the field is not drawn.
   // What the provider publishes, where it publishes anything. Cached hard: a

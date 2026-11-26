@@ -586,40 +586,39 @@ export function ChatModelPicker({
   const Library = providerView?.component ?? ChatModelLibrary;
   if (presentation === "library" && can(Perm.connectionsManage))
     return (
-      <div className="space-y-4">
-        <Library
-          pane={
-            subscription ? (
-              <SubscriptionModelForm
-                key={providerId}
-                provider={subscription}
-                initialModel={currentSource === providerId ? current?.model : undefined}
-                disabled={connectionUnavailable}
-                onCreated={(profile) => onChange(profile.id)}
-                libraryPane={ChatModelPane}
-              />
-            ) : undefined
-          }
-          providers={modelSourceOptions(
-            providers,
-            catalog.some((entry) => entry.personal_gateway),
-            tRoot,
-          ).map((entry) => ({
-            ...entry,
-            connected:
-              entry.group === "subscriptions"
-                ? personalAccounts.accounts.data
-                  ? personalAccounts.accounts.data.items.some((account) => {
-                      const provider = subscriptionFromChoice(entry.id);
-                      return (
-                        provider !== undefined &&
-                        subscriptionBelongsTo(account, provider) &&
-                        !account.disabled &&
-                        !account.unavailable
-                      );
-                    })
-                  : null
-                : secretReadError || loadingSecrets
+      <Library
+        pane={
+          subscription ? (
+            <SubscriptionModelForm
+              key={providerId}
+              provider={subscription}
+              initialModel={currentSource === providerId ? current?.model : undefined}
+              disabled={connectionUnavailable}
+              onCreated={(profile) => onChange(profile.id)}
+              libraryPane={ChatModelPane}
+            />
+          ) : undefined
+        }
+        providers={modelSourceOptions(
+          providers,
+          catalog.some((entry) => entry.personal_gateway),
+          tRoot,
+        ).map((entry) => ({
+          ...entry,
+          connected:
+            entry.group === "subscriptions"
+              ? personalAccounts.accounts.data
+                ? personalAccounts.accounts.data.items.some((account) => {
+                    const provider = subscriptionFromChoice(entry.id);
+                    return (
+                      provider !== undefined &&
+                      subscriptionBelongsTo(account, provider) &&
+                      !account.disabled &&
+                      !account.unavailable
+                    );
+                  })
+                : null
+              : secretReadError || loadingSecrets
                 ? null
                 : secrets.some((secret) => secret.purpose === entry.id) ||
                   profiles.some(
@@ -661,7 +660,6 @@ export function ChatModelPicker({
         disabled={connectionUnavailable}
         onProviderChange={(id) => {
           setProviderId(id);
-          setPickedKey(null);
           setFailure(null);
         }}
         onModelChange={(id) => void apply(id)}
@@ -696,7 +694,6 @@ export function ChatModelPicker({
           ) : null
         }
       />
-      </div>
     );
 
   return (

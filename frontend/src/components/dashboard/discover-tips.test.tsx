@@ -58,7 +58,7 @@ describe("the dashboard's discover tips", () => {
     for (const [name, href] of [
       ["Bring your Claude or Codex account", "/settings/subscriptions"],
       ["Start with a real task", "/chat?new=workspace&answerer=agenticos"],
-      ["Bring your everyday tools", "/mcp-servers"],
+      ["Bring your everyday tools", "/connectors"],
       ["Keep a project together", "/projects"],
       ["Control your personal context", "/settings/memory"],
     ] as const)

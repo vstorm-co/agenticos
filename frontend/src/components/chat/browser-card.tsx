@@ -4,7 +4,7 @@ import { toolLookupName } from "@/lib/tool-identity";
 
 import { createContext, useContext } from "react";
 
-import { Minimize2, Monitor } from "lucide-react";
+import { Maximize2, Minimize2, Monitor } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useLiveBrowse } from "@/hooks/use-live-browse";
@@ -101,6 +101,7 @@ function InlineBrowser({
   surface: BrowseSurface;
 }) {
   const t = useTranslations("chat");
+  const workspace = useTranslations("chat.workspace");
   const { browses, surfaces = new Map(), onProtected } = useContext(LiveBrowses);
   const expand = useBrowserPanelStore((state) => state.open);
   const toggle = useBrowserPanelStore((state) => state.toggle);
@@ -122,7 +123,16 @@ function InlineBrowser({
   const browse = withLivePreview(streamed, live.browse);
   return (
     <div className="border-border bg-background aspect-[16/11] w-full min-w-0 overflow-hidden rounded-2xl border shadow-sm">
-      {expanded ? (
+      {expanded && surface === "computer" ? (
+        <button
+          type="button"
+          onClick={() => expand(streamed.callId, surface)}
+          className="text-muted-foreground hover:text-foreground flex h-full w-full flex-col items-center justify-center gap-2 text-sm"
+        >
+          <Maximize2 className="size-5" aria-hidden />
+          {workspace("openComputer")}
+        </button>
+      ) : expanded ? (
         <button
           type="button"
           onClick={() => toggle(streamed.callId)}
@@ -158,6 +168,8 @@ function InlineBrowser({
 function BrowserLink({ browse }: { browse: Browse }) {
   const t = useTranslations("browserCredentials");
   const open = useBrowserPanelStore((state) => state.open);
+  const toggle = useBrowserPanelStore((state) => state.toggle);
+  const expanded = useBrowserPanelStore((state) => state.openCallId === browse.callId);
   if (browse.outputProtected || browse.credentialPlanId) {
     return (
       <BrowserVisit
@@ -167,8 +179,6 @@ function BrowserLink({ browse }: { browse: Browse }) {
       />
     );
   }
-  const toggle = useBrowserPanelStore((state) => state.toggle);
-  const expanded = useBrowserPanelStore((state) => state.openCallId === browse.callId);
   const page = recordedBrowserPage({ args: { url: browse.url }, result: undefined });
   return (
     <BrowserVisit
