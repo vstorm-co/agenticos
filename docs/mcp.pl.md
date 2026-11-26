@@ -1,5 +1,5 @@
 ---
-source_sha: "5e69a7458f60"
+source_sha: "40d5ddda13e6"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -39,6 +39,7 @@ niczego do konfigurowania.
 | `allowed_tools` | Lista dozwolonych albo null, czyli „wszystko, co serwer oferuje”. Powiązanie zawęża ją dalej — zobacz niżej |
 | `is_enabled` | Wyłączenie bez utraty poświadczenia |
 | `include_instructions` | Dodaje własne instrukcje serwera z `initialize` do instrukcji agenta. Domyślnie wyłączone - to tekst operatora serwera, czytany jak instrukcje agenta - włączane w oknie Edit połączenia |
+| `mcp_apps` | Pokazuje stronę, z którą przychodzi narzędzie ([MCP Apps](#pages-a-tool-comes-with)), pod odpowiedzią w czacie webowym i pozwala jej wywoływać narzędzia tego serwera. Domyślnie wyłączone - strona to kod operatora serwera - włączane w oknie Edit połączenia |
 | `last_status` | Co pokazało ostatnie odpytanie i kiedy |
 
 !!! warning "Adres, do którego ten deployment nie może sięgać, zostaje odrzucony — i odmowa to mówi"
@@ -628,6 +629,64 @@ argumentami zamiast wykonywane. Jedyny wyjątek to narzędzie, które serwer ozn
 Oznaczenie to deklaracja samego serwera, więc zaufanie jest wyłączone na każdym
 połączeniu. Włącza się je w oknie **Tools** połączenia. Okno podaje, ile narzędzi
 deklaruje oznaczenie, a zmiana trafia do audytu razem z tą liczbą.
+
+### Strony, z którymi przychodzi narzędzie { #pages-a-tool-comes-with }
+
+Niektóre serwery odpowiadają na wywołanie narzędzia stroną, a nie tylko danymi:
+[MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview), oficjalne
+rozszerzenie `io.modelcontextprotocol/ui`. Narzędzie wskazuje stronę `ui://` w
+swoim `_meta.ui.resourceUri`, a host, który pokazuje strony, rysuje ją razem z
+wynikiem - wykres, dashboard, diagram, z którym można pracować.
+
+Na połączeniu z włączonym `mcp_apps`:
+
+- Połączenie mówi serwerowi, że pokazuje strony, a wywołanie takiego narzędzia jest
+  zapisywane z tym, czego strona potrzebuje: jej adresem, wejściem wywołania i
+  całym wynikiem serwera (bez obrazów i blobów). Wynik powyżej 1 MiB jest
+  pokazywany tylko jako tekst.
+- **Czat webowy** rysuje stronę pod odpowiedzią, gdy tura jest zapisana, i
+  ponownie przy ponownym otwarciu rozmowy. Kanały, API, embed i rozmowy głosowe
+  pokazują wynik tekstowy, jak dotąd.
+- Strona jest czytana z serwera przy każdym pokazaniu, przez podpisany adres ważny
+  pięć minut, z poświadczeniem połączenia. Nic ze strony nie jest tu zapisywane.
+
+Przy wyłączonym `mcp_apps` nic się nie zmienia: wpis strony, który Pydantic AI
+dołącza do takiego wyniku, jest odrzucany już w toolsecie, więc żadna powierzchnia
+go nie widzi.
+
+!!! warning "Strona to kod operatora serwera, uruchamiany w przeglądarce czytającego"
+
+    Działa w tym samym sandboxie co [aplikacja](artifacts.md): nieprzezroczysty
+    origin, więc żadnych ciasteczek, pamięci ani DOM konsoli; `connect-src 'none'`
+    i żadnych zdalnych źródeł, więc sama nie może niczego nigdzie wysłać. Domeny,
+    o które strona prosi w `_meta.ui.csp`, nie są przyznawane. Link, który chce
+    otworzyć, najpierw trafia do decyzji osoby. Strona potrzebująca zewnętrznych
+    skryptów lub stylów nie zostanie tu narysowana.
+
+Strona nie może dotrzeć do swojego serwera, więc konsola przekazuje to, o co prosi:
+`tools/call` i `resources/read` (tylko zasoby `ui://`). Przekazane wywołanie może
+tylko tyle, ile mógł run, który wykonał pierwotne wywołanie:
+
+- Trafia do połączenia tego wywołania, a własne połączenie osoby - tylko dla tej
+  osoby. Czytający musi móc uczestniczyć w rozmowie; czytanie udostępnionej
+  transkrypcji nie pozwala stronie działać.
+- Narzędzie musi być oferowane stronom (`_meta.ui.visibility`) i być na liście
+  narzędzi bindingu takiej, jaka była dla runu, oraz na liście połączenia takiej,
+  jaka jest teraz. Narzędzie, które serwer oferuje tylko stronom, nigdy nie pojawia
+  się na liście do wyboru - model go nie widzi - więc jest dozwolone dla strony,
+  która je wskazuje, i dla żadnej innej.
+- Wywołanie, na które zatwierdzenia bindingu kazałyby czekać osobie, jest
+  **odrzucane**, a nie odkładane: zatwierdzenie należy do rozmowy, a strona nie jest
+  sposobem, by je obejść. Przy `writes` dotyczy to każdego narzędzia, którego
+  serwer nie oznacza `readOnlyHint`.
+- Każde przekazane wywołanie trafia do [śladu audytowego](governance.md#audit) jako
+  `mcp_connection.app_tool_called`, z narzędziem i rozmową, nigdy z argumentami;
+  strony jednej osoby mogą przekazać 300 wywołań na minutę, a jeden adres strony
+  można wczytać 20 razy.
+
+Czego host nie oferuje stronie, na to odpowiada jak na nieznaleziony element:
+wysłanie wiadomości w imieniu osoby, zmiana tego, co mówi się modelowi, i tryby
+wyświetlania inne niż inline. Serwery osiągane przez SSE nie dostają stron.
 
 ### Podłączenie serwera z poziomu Buildera { #connecting-one-from-the-builder }
 
