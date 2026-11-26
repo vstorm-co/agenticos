@@ -6898,8 +6898,8 @@ describe("useChat - receipt-backed queue actions", () => {
       false,
     );
 
-    act(() => result.current.sendMessage("active turn"));
-    receive("model_request_start", {});
+    // Follow an existing server run; a new prompt would wait behind this recovery read.
+    receive("turn_attached", { conversation_id: "c-1" });
     await act(async () => result.current.cancelQueued("cancel-during-recovery"));
     expect(result.current.queuedMessages).toEqual([]);
 
@@ -7533,12 +7533,14 @@ describe("useChat - receipt-backed queue actions", () => {
             previousC1Loads,
           ),
         );
-        await waitFor(() => expect(acceptanceResolvers).toHaveLength(2));
-        expect(acceptancePayloads[1]?.client_queue_id).toBe(clientQueueId);
-        expect(result.current.queuedMessages[0]).toMatchObject({
-          clientQueueId,
-          accepting: true,
+        await waitFor(() => {
+          expect(acceptanceResolvers).toHaveLength(2);
+          expect(result.current.queuedMessages[0]).toMatchObject({
+            clientQueueId,
+            accepting: true,
+          });
         });
+        expect(acceptancePayloads[1]?.client_queue_id).toBe(clientQueueId);
         expect(result.current.queuedMessages[0]?.acceptedQueueId).toBeUndefined();
 
         await act(async () =>
