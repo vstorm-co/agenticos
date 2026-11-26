@@ -387,7 +387,8 @@ class PromotionGateService:
         agent, environment, version = await self._target(ctx, agent_id, environment_id, version_id)
         gate = await self.check(ctx, agent=agent, environment=environment, version=version)
         due = _due(gate)
-        total = await self._price(ctx, agent, environment, version, due)
+        baseline = await self._serving_version(agent, environment)
+        total = await self._price(ctx, agent, version, due, baseline=baseline)
         return PromotionGateEstimate(total_usd=total, suite_ids=due)
 
     async def run(
@@ -398,6 +399,9 @@ class PromotionGateService:
 
         The guards priced against `quoted_usd` are the guards started: one reading of
         the gate decides both, so a guard that settles meanwhile is not started unpriced.
+        Each is held from its price to its start, and both read the version the
+        environment serves once, so neither an edit nor a promotion meanwhile makes the
+        run started dearer than the one priced.
 
         Raises:
             ConcurrentChangeError: The guards would now cost more than `quoted_usd`.
@@ -409,14 +413,16 @@ class PromotionGateService:
         )
         gate = await self.check(ctx, agent=agent, environment=environment, version=version)
         due = _due(gate)
+        for suite_id in sorted(due):
+            await eval_suite_repo.lock(self.db, suite_id, organization_id=ctx.organization_id)
+        baseline = await self._serving_version(agent, environment)
         if data.quoted_usd is not None:
-            total = await self._price(ctx, agent, environment, version, due)
+            total = await self._price(ctx, agent, version, due, baseline=baseline)
             if total > data.quoted_usd:
                 raise ConcurrentChangeError(
                     message="Running the guards now costs more than was quoted; estimate it again",
                     details={"estimate_usd": str(total), "quoted_usd": str(data.quoted_usd)},
                 )
-        baseline = await self._serving_version(agent, environment)
         suites = EvalSuiteService(self.db)
         started = []
         for suite_id in due:
@@ -445,15 +451,15 @@ class PromotionGateService:
         self,
         ctx: AuthContext,
         agent: Agent,
-        environment: AgentEnvironment,
         version: AgentVersion,
         due: list[UUID],
+        *,
+        baseline: int | None,
     ) -> Decimal:
-        """The most running these guards on the version would spend now."""
+        """The most running these guards on the version, beside `baseline`, would spend now."""
         from app.services.eval_suite import EvalSuiteService
 
         suites = EvalSuiteService(self.db)
-        baseline = await self._serving_version(agent, environment)
         total = Decimal(0)
         for suite_id in due:
             total += await suites.price_on_version(

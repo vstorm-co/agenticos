@@ -33,6 +33,7 @@ def suites(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
     monkeypatch.setattr("app.services.eval_suite.EvalSuiteService.price_on_version", price)
     monkeypatch.setattr("app.services.eval_suite.EvalSuiteService.run_on_version", start)
     monkeypatch.setattr("app.services.promotion_gate.PromotionGateRunRead", lambda **kwargs: kwargs)
+    monkeypatch.setattr("app.services.promotion_gate.eval_suite_repo.lock", AsyncMock())
     return SimpleNamespace(price=price, start=start)
 
 
@@ -76,6 +77,41 @@ async def test_the_guards_priced_are_the_guards_started_whatever_settles_meanwhi
     assert ran["started"] == [SUITE]
     assert [call.args[2] for call in suites.price.await_args_list] == [SUITE]
     assert [call.args[2] for call in suites.start.await_args_list] == [SUITE]
+
+
+@pytest.mark.security
+async def test_the_guards_are_held_from_their_price_to_their_start_on_one_baseline(
+    monkeypatch: pytest.MonkeyPatch, suites: SimpleNamespace
+) -> None:
+    """An edit to a guard, or a promotion, between the price and the start cannot make
+    the run started dearer than the one priced: the suites are held before they are
+    priced, and both read the environment's serving version once."""
+    first, second = sorted([SUITE, SETTLED_MEANWHILE])
+    events: list[tuple[str, uuid.UUID]] = []
+
+    async def lock(_db: object, suite_id: uuid.UUID, *, organization_id: uuid.UUID) -> object:
+        events.append(("lock", suite_id))
+        return SimpleNamespace(id=suite_id)
+
+    def priced(*args: Any, **kwargs: Any) -> Decimal:
+        events.append(("price", args[2]))
+        return Decimal("0.50")
+
+    monkeypatch.setattr("app.services.promotion_gate.eval_suite_repo.lock", lock)
+    suites.price.side_effect = priced
+    gate = _gate(monkeypatch, _reading(second, first), _reading())
+    serving = AsyncMock(return_value=6)
+    monkeypatch.setattr(gate, "_serving_version", serving)
+
+    await gate.run(CTX, uuid.uuid4(), uuid.uuid4(), _run(Decimal("1.00")))
+
+    assert events == [("lock", first), ("lock", second), ("price", second), ("price", first)]
+    serving.assert_awaited_once()
+    baselines = {
+        call.kwargs["baseline_version"]
+        for call in suites.price.await_args_list + suites.start.await_args_list
+    }
+    assert baselines == {6}
 
 
 async def test_an_unquoted_run_prices_nothing(
