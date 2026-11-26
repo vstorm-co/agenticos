@@ -1,6 +1,7 @@
 """Company/personal memory replay on the real ledger and queue."""
 
 import uuid
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -8,16 +9,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
-from app.core.memory_keys import organization_owner_key, person_owner_key
+from app.core.memory_keys import organization_owner_key, person_owner_key, room_owner_key
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
 from app.db.models.group import Group, GroupMember
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.memory import AgentMemoryFile
-from app.db.models.memory_claim import MemoryMailEvent
+from app.db.models.memory_claim import MemoryClaim, MemoryMailEvent
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
-from app.repositories import suggestion_repo
+from app.repositories import memory_claim, suggestion_repo
 from app.repositories.memory_claim import ClaimScope
 from app.schemas.memory import (
     MemoryClaimCorrect,
@@ -26,7 +27,7 @@ from app.schemas.memory import (
     MemoryNoteShare,
     MemoryObjectRef,
 )
-from app.services.memory import MemoryService, claims
+from app.services.memory import MemoryService, claims, runtime
 from app.services.memory.mail import MemoryMailService
 from app.services.portals.base import PolledEvent
 from app.worker.jobs import ApplyMemoryMail
@@ -232,7 +233,7 @@ async def _mail(db: AsyncSession, mode: str = "active"):
     db.add(grant)
     await db.flush()
     service = MemoryMailService(db)
-    result = await service.configure(
+    result = await MemoryService(db).configure_memory_mail(
         ctx,
         MemoryMailConfig(
             sender="desk@example.org",
@@ -308,8 +309,8 @@ async def test_gmail_deadline_change_is_single_and_revocable(db: AsyncSession) -
     assert (
         await claims.recall(db, organization_id=org.id, scopes=[share], query="XYZ deadline") == []
     )
-    await service.disable(ctx)
-    assert await service.configuration(ctx) is None
+    await MemoryService(db).disable_memory_mail(ctx)
+    assert await MemoryService(db).memory_mail(ctx) is None
     await service.apply(later)
 
 
@@ -471,3 +472,238 @@ async def test_gmail_backpressure_preserves_unadmitted_events(
     assert [item.value for item in shared.items] == ["2026-12-02"]
     detail = await MemoryService(db).shared_claim_detail(ctx, shared.items[0].id)
     assert [item.quote for item in detail.evidence] == ["Deadline: 2026-12-02"]
+
+
+async def test_reviewers_losing_edit_scope_stop_polling_admission_and_apply(
+    db: AsyncSession,
+) -> None:
+    org, owner, _, _, grant, service = await _mail(db)
+    event = _delivery("a", "Deadline: 2026-12-01")
+    assert (await service.admit(grant, (event,))).queued == 1
+
+    membership = await db.scalar(
+        select(OrganizationMember).where(
+            OrganizationMember.organization_id == org.id, OrganizationMember.user_id == owner.id
+        )
+    )
+    assert membership is not None
+    membership.role = "viewer"
+    await db.flush()
+
+    assert not await service.subscribed(grant, "gmail")
+    assert (await service.admit(grant, (_delivery("b", "Deadline: 2026-12-02"),))).queued == 0
+    queued = await _event(db, org, "a")
+    await service.apply(queued)
+    stored = await db.get(MemoryMailEvent, queued.event_id)
+    assert stored is not None and stored.state == "withheld"
+
+
+async def test_object_versions_use_stable_cursors_and_amend_legacy_rows(db: AsyncSession) -> None:
+    org, owner, _ = await _org(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    store = MemoryService(db)
+    key = person_owner_key(owner.id)
+    entity = await memory_claim.put_object(
+        db,
+        organization_id=org.id,
+        scope_key=key,
+        kind="company",
+        name="Atlas",
+        identity_key="name:atlas",
+    )
+    old_date = datetime(2020, 1, 1, tzinfo=UTC)
+    old = MemoryClaim(
+        organization_id=org.id,
+        scope_key=key,
+        object_id=entity.id,
+        subject="headcount",
+        statement="20 employees",
+        effective_from=old_date,
+        effective_to=old_date + timedelta(days=1),
+        observed_at=old_date + timedelta(days=1),
+    )
+    db.add(old)
+    await db.flush()
+    await memory_claim.set_status(db, old, "current")
+    latest = await store.correct_claim(
+        ctx, old.id, MemoryClaimCorrect(statement="22 employees", historical=True)
+    )
+    page = await store.object_timeline(
+        ctx,
+        library="personal",
+        object_id=entity.id,
+        as_of=None,
+        known_at=None,
+        cursor=None,
+        limit=1,
+    )
+    assert [case.id for case in page.items] == [latest.id] and page.next_cursor == latest.id
+    next_page = await store.object_timeline(
+        ctx,
+        library="personal",
+        object_id=entity.id,
+        as_of=None,
+        known_at=None,
+        cursor=page.next_cursor,
+        limit=1,
+    )
+    assert [case.id for case in next_page.items] == [old.id] and next_page.next_cursor is None
+    ago = await store.object_timeline(
+        ctx,
+        library="personal",
+        object_id=entity.id,
+        as_of=old_date,
+        known_at=old_date + timedelta(days=2),
+        cursor=None,
+        limit=5,
+    )
+    assert ago.items[0].statement == "20 employees"
+    none_found = await store.object_timeline(
+        ctx,
+        library="personal",
+        object_id=entity.id,
+        as_of=old_date,
+        known_at=old_date,
+        cursor=None,
+        limit=5,
+    )
+    assert none_found.items == []
+    with pytest.raises(BadRequestError):
+        await store.object_timeline(
+            ctx,
+            library="personal",
+            object_id=entity.id,
+            as_of=None,
+            known_at=old_date,
+            cursor=None,
+            limit=5,
+        )
+    with pytest.raises(BadRequestError):
+        await claims.remember(
+            db,
+            organization_id=org.id,
+            scope=ClaimScope(key),
+            statement="Invalid range",
+            effective_from=old_date,
+            effective_to=old_date,
+        )
+
+
+async def test_group_claim_recall_keeps_private_audience_boundaries(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    org, owner, reader = await _org(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    group = Group(organization_id=org.id, name="Sales")
+    db.add(group)
+    await db.flush()
+    membership = GroupMember(group_id=group.id, user_id=reader.id)
+    db.add(membership)
+    await db.flush()
+    personal_claim = await claims.remember(
+        db,
+        organization_id=org.id,
+        scope=ClaimScope(person_owner_key(owner.id)),
+        statement="Atlas handoff visibility",
+        effective_from=datetime(2020, 1, 1, tzinfo=UTC),
+    )
+    await MemoryService(db).publish_claim(
+        ctx,
+        personal_claim.claim.id,
+        MemoryClaimShare(group_id=group.id, confirmed=True),
+    )
+    with pytest.raises(NotFoundError):
+        await MemoryService(db).publish_claim(
+            ctx,
+            personal_claim.claim.id,
+            MemoryClaimShare(group_id=uuid.uuid4(), confirmed=True),
+        )
+
+    @asynccontextmanager
+    async def current_db():
+        yield db
+
+    monkeypatch.setattr(runtime, "get_db_context", current_db)
+    matching = await runtime.recall(
+        organization_id=org.id,
+        scopes=[ClaimScope(person_owner_key(reader.id))],
+        query="Atlas handoff",
+        as_of=datetime(2022, 1, 1, tzinfo=UTC),
+        known_at=datetime.now(UTC),
+        reading_member=reader.id,
+        include_groups=True,
+    )
+    assert [row.scope for row in matching] == ["group"]
+    assert not await runtime.recall(
+        organization_id=org.id,
+        scopes=[ClaimScope(room_owner_key("slack", "room"))],
+        query="Atlas handoff",
+    )
+    assert not await runtime.recall(
+        organization_id=org.id,
+        scopes=[ClaimScope(organization_owner_key(org.id))],
+        query="Atlas handoff",
+        reading_member=uuid.uuid4(),
+        include_groups=True,
+    )
+
+
+async def test_mail_rule_reconnect_removes_old_history_and_proofs(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.worker.tasks import memory_tasks
+
+    org, owner, reader, ctx, grant, service = await _mail(db)
+    viewer = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
+    data = MemoryMailConfig(
+        sender="desk@example.org",
+        subject="XYZ delivery deadline",
+        commitment="XYZ handoff",
+        mode="active",
+        notify=True,
+        confirmed=True,
+    )
+    with pytest.raises(AuthorizationError):
+        await service.configure(viewer, data)
+    with pytest.raises(BadRequestError):
+        await service.configure(
+            AuthContext(user_id=owner.id, organization_id=uuid.uuid4(), role="owner"), data
+        )
+
+    no_date = _delivery("no-date", "Deadline ASAP")
+    before = _delivery(
+        "before",
+        "Deadline: 2026-10-01",
+        received=datetime.now(UTC) - timedelta(days=1),
+    )
+    assert (await service.admit(grant, (no_date, before))).queued == 0
+    candidates = (
+        _delivery("a", "Deadline: 2026-12-01"),
+        _delivery("b", "Deadline: 2026-12-01"),
+        _delivery("c", "Deadline: cancelled"),
+    )
+    assert (await service.admit(grant, candidates)).queued == 3
+
+    @asynccontextmanager
+    async def current_db():
+        yield db
+
+    monkeypatch.setattr(memory_tasks, "get_db_context", current_db)
+    for key in ("a", "b", "c"):
+        await memory_tasks.apply_memory_mail(await _event(db, org, key))
+    found = await MemoryService(db).shared_claims(ctx, q="XYZ", limit=5, skip=0)
+    assert [item.statement for item in found.items] == ["XYZ handoff deadline cancelled"]
+    assert len(await suggestion_repo.list_open(db, organization_id=org.id, user_id=owner.id)) == 1
+
+    grant.authorization_generation = uuid.uuid4()
+    await db.flush()
+    replacement = await service.configure(ctx, data)
+    assert replacement.authorized and replacement.last_outcome is None
+    assert (
+        await db.scalar(select(MemoryMailEvent.id).where(MemoryMailEvent.organization_id == org.id))
+        is None
+    )
+    assert (await MemoryService(db).shared_claims(ctx, q="XYZ", limit=5, skip=0)).total == 0
+    assert not await suggestion_repo.list_open(db, organization_id=org.id, user_id=owner.id)

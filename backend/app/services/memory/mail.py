@@ -207,17 +207,41 @@ class MemoryMailService:
                 details={},
             )
 
+    async def _current_reviewer(self, source: MemoryMailSource) -> AuthContext | None:
+        if source.reviewer_id is None:
+            return None
+        reviewer = await member_context(
+            self.db,
+            organization_id=source.organization_id,
+            user_id=source.reviewer_id,
+        )
+        if (
+            reviewer is None
+            or not reviewer.has(Perm.CONNECTIONS_MANAGE)
+            or reviewer.scope_for(Perm.CONTEXT_EDIT) != Scope.ALL
+        ):
+            return None
+        return reviewer
+
     async def subscribed(self, grant: McpConnection, source: str) -> bool:
         if source != "gmail" or grant.organization_id is None:
             return False
         config = await memory_claim.mail_source(self.db, grant.organization_id)
-        return config is not None and _authorized(config, grant)
+        return (
+            config is not None
+            and _authorized(config, grant)
+            and await self._current_reviewer(config) is not None
+        )
 
     async def admit(self, grant: McpConnection, events: Sequence[PolledEvent]) -> MailAdmission:
         if grant.organization_id is None or not events:
             return MailAdmission(0)
         source = await memory_claim.mail_source(self.db, grant.organization_id, lock=True)
-        if source is None or not _authorized(source, grant):
+        if (
+            source is None
+            or not _authorized(source, grant)
+            or await self._current_reviewer(source) is None
+        ):
             return MailAdmission(0)
         start = datetime.combine(datetime.now(UTC).date(), time.min, tzinfo=UTC)
         remaining = MAX_DAILY_EVENTS - await memory_claim.mail_events_since(
@@ -280,20 +304,12 @@ class MemoryMailService:
         )
         if event is None or event.state != "queued":
             return
-        reviewer = (
-            None
-            if source.reviewer_id is None
-            else await member_context(
-                self.db, organization_id=payload.organization_id, user_id=source.reviewer_id
-            )
-        )
+        reviewer = await self._current_reviewer(source)
         if (
             grant is None
             or not _authorized(source, grant)
             or source.generation != event.generation
             or reviewer is None
-            or not reviewer.has(Perm.CONNECTIONS_MANAGE)
-            or reviewer.scope_for(Perm.CONTEXT_EDIT) != Scope.ALL
         ):
             event.state = "withheld"
             source.last_outcome = "withheld"
