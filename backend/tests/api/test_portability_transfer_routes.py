@@ -9,7 +9,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.api import deps
-from app.core.permissions import AuthContext
+from app.core.permissions import AuthContext, Perm
 from app.main import app
 from app.schemas.portability_operation import PortabilityOperationRead
 from app.services.portability import PortableTransferService
@@ -36,7 +36,7 @@ async def test_transfer_routes_preserve_tickets_streams_and_review_revisions() -
         expires_at=datetime.now(UTC) + timedelta(hours=24),
     )
     service = MagicMock(spec=PortableTransferService)
-    for name in ("start_export", "start_upload", "upload", "get", "apply"):
+    for name in ("start_export", "start_upload", "upload", "get", "apply", "cancel"):
         setattr(service, name, AsyncMock(return_value=row))
     service.download = AsyncMock(return_value=_bytes())
     app.dependency_overrides[deps.get_portable_transfer_service] = lambda: service
@@ -72,6 +72,9 @@ async def test_transfer_routes_preserve_tickets_streams_and_review_revisions() -
             assert downloaded.content == b"bundle"
             assert downloaded.headers["content-type"] == "application/zip"
             assert downloaded.headers["cache-control"] == "no-store"
+            cancelled = await client.delete(f"/api/v1/portability/{identity}")
+            assert cancelled.status_code == 204 and cancelled.content == b""
+            service.cancel.assert_awaited_once_with(ctx, identity)
             invalid = await client.post(
                 "/api/v1/portability/uploads",
                 json={
@@ -81,6 +84,31 @@ async def test_transfer_routes_preserve_tickets_streams_and_review_revisions() -
                 },
             )
             assert invalid.status_code == 422
+            workflow_key = AuthContext(
+                user_id=ctx.user_id,
+                organization_id=ctx.organization_id,
+                role="owner",
+                api_key_id=uuid4(),
+                key_scopes=frozenset({Perm.WORKFLOWS_CREATE}),
+            )
+            assert workflow_key.has(Perm.WORKFLOWS_CREATE)
+            assert not workflow_key.has(Perm.AGENTS_EDIT)
+            app.dependency_overrides[deps.get_auth_context] = lambda: workflow_key
+            workflow_export = await client.post(
+                "/api/v1/portability/exports",
+                json={
+                    "request_id": str(uuid4()),
+                    "root_kind": "workflow",
+                    "root_id": str(uuid4()),
+                    "resources": {},
+                },
+            )
+            workflow_upload = await client.post(
+                "/api/v1/portability/uploads",
+                json={"request_id": str(uuid4()), "filename": "workflow.zip", "size_bytes": 1},
+            )
+            assert workflow_export.status_code == 202
+            assert workflow_upload.status_code == 201
             viewer = AuthContext(
                 user_id=ctx.user_id, organization_id=ctx.organization_id, role="viewer"
             )

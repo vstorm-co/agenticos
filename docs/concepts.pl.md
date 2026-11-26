@@ -1,5 +1,5 @@
 ---
-source_sha: "610a5900fd15"
+source_sha: "54da4f204aeb"
 ---
 
 # Koncepcje { #concepts }
@@ -108,8 +108,15 @@ Pliki konfiguracji tekstowej mają limit 4 MiB. ZIP ma limit 512 MiB po przesła
 2 GiB po rozpakowaniu, manifest 4 MiB i limit 16 MiB na pojedynczy zasób tekstowy.
 Przygotowanie ZIP i zastosowanie zatwierdzonego mapowania wykonują trwałe zadania
 workera. Uploady, prywatne archiwa i dzienniki transferu wygasają po 24 godzinach;
-usuwa je worker. API pozwala ponownie odpytywać tę samą operację po przerwaniu.
-Ponowne otwarcie konsoli po przeładowaniu nie przywraca jej jeszcze automatycznie.
+usuwa je worker.
+
+Konsola przywraca ten sam transfer po przeładowaniu dla jego
+zalogowanego właściciela i organizacji. Wybierz ponownie oryginalny ZIP, aby
+rozpocząć przerwany upload od początku; deklarowany rozmiar pozostaje oddzielony
+od postępu. Porzucenie bezczynnego transferu od razu zwalnia miejsce w limicie
+i kieruje jego pliki do usunięcia przy sprzątaniu wygasłych operacji. Zadania
+w kolejce lub w toku muszą się zakończyć przed porzuceniem; zaimportowane zasoby
+pozostają dostępne.
 Import nie publikuje, nie uruchamia agenta ani płatnego indeksowania wiedzy.
 
 ## Wersja { #version }

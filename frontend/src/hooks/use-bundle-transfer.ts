@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   applyBundleTransfer,
+  cancelBundleTransfer,
   getBundleTransfer,
   startBundleExport,
   startBundleUpload,
@@ -64,6 +65,7 @@ export function useBundleTransfer(enabled: boolean, scope?: string) {
         : false,
   });
   const exportZip = useMutation({
+    onMutate: (): void => discard.reset(),
     mutationFn: (data: {
       rootId: string;
       resources: Record<string, string[]>;
@@ -73,6 +75,7 @@ export function useBundleTransfer(enabled: boolean, scope?: string) {
     onSuccess: remember,
   });
   const uploadZip = useMutation({
+    onMutate: (): void => discard.reset(),
     mutationFn: async (data: { file: File; requestId: string }) => {
       const previous = id ? await getBundleTransfer(id) : null;
       const ticket = previous ?? (await startBundleUpload(data.file, data.requestId));
@@ -83,6 +86,7 @@ export function useBundleTransfer(enabled: boolean, scope?: string) {
     onSuccess: remember,
   });
   const apply = useMutation({
+    onMutate: (): void => discard.reset(),
     mutationFn: (choices: Record<string, ImportChoice>) => {
       if (!id || !transfer.data) throw new Error(t("noReviewedTransfer"));
       return applyBundleTransfer(id, transfer.data.revision, choices);
@@ -91,12 +95,46 @@ export function useBundleTransfer(enabled: boolean, scope?: string) {
       await remember(row);
     },
   });
-  const reset = () => {
-    writeTransferSession(storageKey, null);
-    setSelected({ owner, id: null });
-    exportZip.reset();
-    uploadZip.reset();
-    apply.reset();
+  const discard = useMutation({
+    mutationFn: async (target: {
+      id: string | null;
+      owner: string;
+      storageKey: string | null;
+      org: string | null;
+      user: string | null;
+    }) => {
+      if (target.id) await cancelBundleTransfer(target.id);
+    },
+    onSuccess: async (_, target) => {
+      await client.cancelQueries({
+        queryKey: qk.portability.transfer(target.org, target.user, target.id),
+      });
+      if (readTransferSession(target.storageKey) === target.id)
+        writeTransferSession(target.storageKey, null);
+      if (
+        useOrgStore.getState().activeOrgId !== target.org ||
+        (useAuthStore.getState().user?.id ?? null) !== target.user ||
+        owner !== target.owner
+      )
+        return;
+      setSelected({ owner: target.owner, id: null });
+      exportZip.reset();
+      uploadZip.reset();
+      apply.reset();
+    },
+  });
+  const reset = async (): Promise<boolean> => {
+    const target = { id, owner, storageKey, org, user };
+    try {
+      await discard.mutateAsync(target);
+      return (
+        useOrgStore.getState().activeOrgId === target.org &&
+        (useAuthStore.getState().user?.id ?? null) === target.user
+      );
+    } catch {
+      // The mutation exposes this refusal; retain the ticket until cancellation succeeds.
+      return false;
+    }
   };
   const accepted = transfer.isFetchedAfterMount && !transfer.isError;
   const invalidatedReceipt = useRef<string | null>(null);
@@ -115,11 +153,12 @@ export function useBundleTransfer(enabled: boolean, scope?: string) {
     apply,
     reset,
     busy:
+      discard.isPending ||
       exportZip.isPending ||
       uploadZip.isPending ||
       apply.isPending ||
       transfer.isFetching ||
       (accepted && ["queued", "running"].includes(transfer.data?.status ?? "")),
-    error: transfer.error ?? exportZip.error ?? uploadZip.error ?? apply.error,
+    error: discard.error ?? transfer.error ?? exportZip.error ?? uploadZip.error ?? apply.error,
   };
 }

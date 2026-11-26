@@ -62,10 +62,11 @@ function ExportResourceContent({
     }
   }, [zip.transfer.data, downloadZip]);
   const busy = download.isPending || zip.busy || zipDownload.isPending;
-  const resetZip = () => {
-    zip.reset();
+  const resetZip = async (): Promise<boolean> => {
+    if (!(await zip.reset())) return false;
     zipDownload.reset();
     setRequestId(crypto.randomUUID());
+    return true;
   };
   const data = preview.data;
   const error = preview.error ?? download.error ?? zip.error ?? zipDownload.error;
@@ -133,8 +134,8 @@ function ExportResourceContent({
             <Select
               value={format}
               disabled={busy}
-              onValueChange={(value) => {
-                resetZip();
+              onValueChange={async (value) => {
+                if (!(await resetZip())) return;
                 setFormat(value === "zip" ? "zip" : value === "json" ? "json" : "yaml");
               }}
             >
@@ -165,8 +166,8 @@ function ExportResourceContent({
                     }
                   : undefined
               }
-              onInclude={(key, included) => {
-                resetZip();
+              onInclude={async (key, included) => {
+                if (!(await resetZip())) return;
                 setExcluded((previous) => {
                   const next = new Set(previous);
                   if (included) next.delete(key);
@@ -174,8 +175,8 @@ function ExportResourceContent({
                   return next;
                 });
               }}
-              onLayers={(key, selected) => {
-                resetZip();
+              onLayers={async (key, selected) => {
+                if (!(await resetZip())) return;
                 setLayersByKey((previous) => ({ ...previous, [key]: selected }));
               }}
             />

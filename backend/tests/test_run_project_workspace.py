@@ -1,5 +1,6 @@
 """Selecting a project changes files, never the caller's identity or conversation."""
 
+import json
 import posixpath
 import sys
 from collections.abc import AsyncGenerator
@@ -1345,3 +1346,16 @@ async def test_mount_origin_generation_race_refuses_command_without_inventing_an
     with pytest.raises(PermissionError, match="workspace changed"):
         await selector.run([sys.executable, "-c", "open('unexpected','w').write('no')"])
     assert selector.origins == {} and not (tmp_path / "unexpected").exists()
+
+
+async def test_nested_project_listing_paths_read_the_listed_file(setup: SimpleNamespace) -> None:
+    await setup.project.write_text("report.md", "root report")
+    await setup.project.write_text("docs/report.md", "nested report")
+    await setup.selector.select(uuid4())
+    listing = json.loads(await setup.selector.files("docs"))
+    assert listing["items"] == [
+        {"name": "report.md", "path": "docs/report.md", "type": "file", "size": 13}
+    ]
+    result = await setup.selector.read_file(listing["items"][0]["path"])
+    assert "nested report" in result
+    assert "root report" not in result

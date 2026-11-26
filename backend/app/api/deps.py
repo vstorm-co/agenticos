@@ -1511,6 +1511,20 @@ def require(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
     return dependency
 
 
+def require_any(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
+    """Admit a collection action shared by any listed resource creator."""
+
+    async def dependency(ctx: Auth) -> AuthContext:
+        if not any(ctx.has(perm) for perm in perms):
+            raise AuthorizationError(
+                message="Insufficient permissions",
+                details={"required_any": [perm.value for perm in perms]},
+            )
+        return ctx
+
+    return dependency
+
+
 def key_needs(perm: Perm) -> Callable[..., Awaitable[None]]:
     """Admit a key to a public route only when it was issued for `perm`.
 

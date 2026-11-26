@@ -5,6 +5,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { useBundleTransfer } from "./use-bundle-transfer";
 import {
   applyBundleTransfer,
+  cancelBundleTransfer,
   getBundleTransfer,
   startBundleExport,
   startBundleUpload,
@@ -14,6 +15,7 @@ import {
 
 vi.mock("@/lib/portability-api", () => ({
   applyBundleTransfer: vi.fn(),
+  cancelBundleTransfer: vi.fn(),
   getBundleTransfer: vi.fn(),
   startBundleExport: vi.fn(),
   startBundleUpload: vi.fn(),
@@ -28,6 +30,7 @@ const row = (status: TransferOperation["status"]): TransferOperation => ({
   revision: 1,
   completed_bytes: 0,
   total_bytes: 5,
+  upload_size_bytes: 5,
   expires_at: "2026-11-26T12:00:00Z",
   error_code: null,
   preview: null,
@@ -84,7 +87,7 @@ it("retries interrupted upload against the original ticket and can reset for a n
   vi.mocked(getBundleTransfer).mockResolvedValue(row("ready"));
   await act(() => result.current.uploadZip.mutateAsync(request));
   expect(uploadBundleFile).toHaveBeenCalledTimes(2);
-  act(() => result.current.reset());
+  await act(() => result.current.reset());
   expect(result.current.transfer.data).toBeUndefined();
 });
 
@@ -136,7 +139,7 @@ it("restores an owner-scoped operation without queuing work or exposing an unver
   expect(getBundleTransfer).toHaveBeenCalledTimes(1);
   expect(startBundleExport).not.toHaveBeenCalled();
   expect(startBundleUpload).not.toHaveBeenCalled();
-  act(() => result.current.reset());
+  await act(() => result.current.reset());
   expect(result.current.restoreFailed).toBe(false);
   useAuthStore.setState({ user: null });
   useOrgStore.setState({ activeOrgId: null });
@@ -224,4 +227,124 @@ it("refreshes imported dependencies after the worker receipt, not when applying 
   await act(() => result.current.transfer.refetch());
   await waitFor(() => expect(client.getQueryState(qk.kb.list())?.isInvalidated).toBe(true));
   expect(applyBundleTransfer).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a resumable journal until the server confirms explicit cancellation", async () => {
+  const { useAuthStore, useOrgStore } = await import("@/stores");
+  const { transferSessionKey, writeTransferSession } = await import("@/lib/transfer-session");
+  const id = "e62dfdb5-f6e6-4e00-b56c-df37f70f4a63";
+  useAuthStore.setState({
+    user: {
+      id: "cancel-user",
+      email: "owner@example.com",
+      is_active: true,
+      created_at: "2026-01-01",
+    },
+  });
+  useOrgStore.setState({ activeOrgId: "cancel-org" });
+  const key = transferSessionKey("cancel-org", "cancel-user", "import:agent");
+  writeTransferSession(key, id);
+  vi.mocked(getBundleTransfer).mockResolvedValue({
+    ...row("awaiting_upload"),
+    id,
+    total_bytes: 0,
+    upload_size_bytes: 5,
+  });
+  const pending = Promise.withResolvers<void>();
+  vi.mocked(cancelBundleTransfer).mockReturnValue(pending.promise);
+  const { result } = renderHook(() => useBundleTransfer(true, "import:agent"), {
+    wrapper: Wrapper,
+  });
+  await waitFor(() => expect(result.current.transfer.data?.id).toBe(id));
+  const completed = Promise.withResolvers<boolean>();
+  act(() => {
+    void result.current.reset().then(completed.resolve);
+  });
+  await waitFor(() => expect(cancelBundleTransfer).toHaveBeenCalledWith(id));
+  expect(result.current.busy).toBe(true);
+  expect(sessionStorage.getItem(key ?? "")).toBe(id);
+  expect(result.current.transfer.data?.id).toBe(id);
+  await act(async () => {
+    pending.resolve();
+    expect(await completed.promise).toBe(true);
+  });
+  expect(result.current.transfer.data).toBeUndefined();
+  expect(sessionStorage.getItem(key ?? "")).toBeNull();
+  useAuthStore.setState({ user: null });
+  useOrgStore.setState({ activeOrgId: null });
+  sessionStorage.clear();
+});
+
+it("retains the journal and exposes cancellation refusal instead of admitting another upload", async () => {
+  vi.mocked(startBundleUpload).mockResolvedValue(row("awaiting_upload"));
+  vi.mocked(getBundleTransfer).mockResolvedValue(row("awaiting_upload"));
+  vi.mocked(uploadBundleFile).mockRejectedValue(new Error("Upload interrupted"));
+  const { result } = renderHook(() => useBundleTransfer(true), { wrapper: Wrapper });
+  await act(async () => {
+    await expect(
+      result.current.uploadZip.mutateAsync({
+        file: new File(["bytes"], "bundle.zip"),
+        requestId: "first",
+      }),
+    ).rejects.toThrow("Upload interrupted");
+  });
+  await waitFor(() => expect(result.current.transfer.data?.id).toBe("id"));
+  vi.mocked(cancelBundleTransfer).mockRejectedValue(new Error("Transfer is running"));
+  await act(async () => expect(await result.current.reset()).toBe(false));
+  expect(result.current.transfer.data?.id).toBe("id");
+  await waitFor(() => expect(result.current.error?.message).toBe("Transfer is running"));
+  expect(startBundleUpload).toHaveBeenCalledTimes(1);
+  vi.mocked(uploadBundleFile).mockResolvedValue(row("review"));
+  await act(() =>
+    result.current.uploadZip.mutateAsync({
+      file: new File(["bytes"], "bundle.zip"),
+      requestId: "first",
+    }),
+  );
+  expect(result.current.error).toBeNull();
+});
+
+it("a late cancellation only clears its original owner scope after an organization switch", async () => {
+  const { useAuthStore, useOrgStore } = await import("@/stores");
+  const { transferSessionKey, writeTransferSession } = await import("@/lib/transfer-session");
+  const first = "e62dfdb5-f6e6-4e00-b56c-df37f70f4a63",
+    second = "f62dfdb5-f6e6-4e00-b56c-df37f70f4a63";
+  useAuthStore.setState({
+    user: {
+      id: "cancel-user",
+      email: "owner@example.com",
+      is_active: true,
+      created_at: "2026-01-01",
+    },
+  });
+  useOrgStore.setState({ activeOrgId: "first-org" });
+  const firstKey = transferSessionKey("first-org", "cancel-user", "import:agent"),
+    secondKey = transferSessionKey("second-org", "cancel-user", "import:agent");
+  writeTransferSession(firstKey, first);
+  writeTransferSession(secondKey, second);
+  vi.mocked(getBundleTransfer).mockImplementation(async (id) => ({ ...row("review"), id }));
+  const pending = Promise.withResolvers<void>();
+  vi.mocked(cancelBundleTransfer).mockReturnValue(pending.promise);
+  const { result } = renderHook(() => useBundleTransfer(true, "import:agent"), {
+    wrapper: Wrapper,
+  });
+  await waitFor(() => expect(result.current.transfer.data?.id).toBe(first));
+  const completed = Promise.withResolvers<boolean>();
+  act(() => {
+    void result.current.reset().then(completed.resolve);
+  });
+  await waitFor(() => expect(cancelBundleTransfer).toHaveBeenCalledWith(first));
+  act(() => useOrgStore.setState({ activeOrgId: "second-org" }));
+  await waitFor(() => expect(result.current.transfer.data?.id).toBe(second));
+  await act(async () => {
+    pending.resolve();
+    expect(await completed.promise).toBe(false);
+  });
+  expect(result.current.transfer.data?.id).toBe(second);
+  expect(sessionStorage.getItem(secondKey ?? "")).toBe(second);
+  expect(sessionStorage.getItem(firstKey ?? "")).toBeNull();
+  expect(cancelBundleTransfer).toHaveBeenCalledTimes(1);
+  useAuthStore.setState({ user: null });
+  useOrgStore.setState({ activeOrgId: null });
+  sessionStorage.clear();
 });

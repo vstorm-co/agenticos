@@ -70,6 +70,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Resume ZIP uploads using their declared size and discard idle transfer journals when closing or changing a bundle, so abandoned reviews immediately release the open-transfer limit. Workflow-only API keys can start workflow transfers.
+- Preserve nested paths in Project file listings and load Event-source subscriber details only when opened.
+
 - Record binary Project inputs inspected through the agent transfer tool, so resumed runs can publish a revised file while still rejecting intervening changes.
 
 - Improve session reads and lists require `runs:view` after agent visibility checks, including reads by session ID. Stopping work without that permission returns only the session ID and status; cached session details are cleared.
@@ -148,8 +151,9 @@ Two things are versioned separately from this file and worth knowing about:
   or backfilled. Updated built-in AgenticOS and Architect templates add Projects
   through the normal template refresh, preserving local model choices.
 - `select_project_workspace` now selects file context only. Use
-  `select_execution_target` to change command execution explicitly; no files are
-  mounted or synchronized between targets. New turns in existing project chats now
+  `select_execution_target` to change command execution explicitly. Switching
+  targets does not copy or synchronize files; supported private agent executors
+  independently expose the selected Project through the live `PROJECT_DIR` mount. New turns in existing project chats now
   default to the agent executor; deliberately saved Project pins remain in force.
   Use advanced settings to pin Project when the previous default is required.
   `transfer_project_file` explicitly copies one file of up to 8 MiB between the

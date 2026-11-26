@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import StreamingResponse
 
-from app.api.deps import Auth, PortableTransferSvc, require
+from app.api.deps import Auth, PortableTransferSvc, require_any
 from app.core.permissions import Perm
 from app.schemas.portability_operation import (
     BundleApplyCreate,
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/portability", tags=["Portability"])
     "/exports",
     response_model=PortabilityOperationRead,
     status_code=status.HTTP_202_ACCEPTED,
-    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+    dependencies=[Depends(require_any(Perm.AGENTS_EDIT, Perm.WORKFLOWS_CREATE))],
 )
 async def start_export(data: BundleExportStart, service: PortableTransferSvc, ctx: Auth) -> Any:
     """Queue a ZIP export. The same request ID replays the same transfer."""
@@ -33,7 +33,7 @@ async def start_export(data: BundleExportStart, service: PortableTransferSvc, ct
     "/uploads",
     response_model=PortabilityOperationRead,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require(Perm.AGENTS_EDIT))],
+    dependencies=[Depends(require_any(Perm.AGENTS_EDIT, Perm.WORKFLOWS_CREATE))],
 )
 async def start_upload(data: BundleUploadStart, service: PortableTransferSvc, ctx: Auth) -> Any:
     """Reserve an expiring, owner-scoped upload before sending its bytes."""
@@ -52,6 +52,12 @@ async def upload_bundle(
 async def get_transfer(operation_id: UUID, service: PortableTransferSvc, ctx: Auth) -> Any:
     """Read progress or refresh destination availability for an uploaded bundle."""
     return await service.get(ctx, operation_id)
+
+
+@router.delete("/{operation_id}", response_model=None, status_code=status.HTTP_204_NO_CONTENT)
+async def cancel_transfer(operation_id: UUID, service: PortableTransferSvc, ctx: Auth) -> Any:
+    """Discard an idle ticket; running transfers conflict and imported resources remain."""
+    await service.cancel(ctx, operation_id)
 
 
 @router.post(

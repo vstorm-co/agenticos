@@ -58,6 +58,9 @@ class PortabilityOperationRead(BaseSchema):
     revision: int
     completed_bytes: int
     total_bytes: int
+    upload_size_bytes: int | None = Field(
+        default=None, description="Declared ZIP upload size, independent of transfer progress"
+    )
     expires_at: datetime
     error_code: str | None = None
     preview: BundlePreview | None = None

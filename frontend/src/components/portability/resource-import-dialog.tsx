@@ -112,12 +112,12 @@ function ImportResourceContent({
             !destinationParent(resource.kind, resource.source_parent_id))))
     );
   });
-  const close = (next: boolean) => {
-    if (busy) return;
+  const close = async (next: boolean): Promise<boolean> => {
+    if (busy) return false;
     if (!next) {
+      if (!(await zip.reset())) return false;
       setText("");
       setZipFile(null);
-      zip.reset();
       reviewedZip.current = null;
       setFileName(null);
       setDocument(null);
@@ -130,23 +130,25 @@ function ImportResourceContent({
       setOperationId(crypto.randomUUID());
     }
     onOpenChange(next);
+    return true;
   };
   const readFile = async (file: File) => {
-    preview.reset();
-    apply.reset();
+    const isZip = file.name.toLowerCase().endsWith(".zip");
+    if (file.size > (isZip ? 512 : 4) * 1024 * 1024) {
+      setProblem(t(isZip ? "zipTooLarge" : "fileTooLarge"));
+      return;
+    }
     const resumable =
       file.name.toLowerCase().endsWith(".zip") &&
       zip.transfer.data?.status === "awaiting_upload" &&
-      zip.transfer.data.total_bytes === file.size &&
+      zip.transfer.data.upload_size_bytes === file.size &&
       (!zipFile || zipFile.name === file.name);
-    if (!resumable) zip.reset();
+    if (!resumable && !(await zip.reset())) return;
+    preview.reset();
+    apply.reset();
     reviewedZip.current = null;
     setOperationId(crypto.randomUUID());
     if (file.name.toLowerCase().endsWith(".zip")) {
-      if (file.size > 512 * 1024 * 1024) {
-        setProblem(t("zipTooLarge"));
-        return;
-      }
       setZipFile(file);
       setFileName(file.name);
       setText("");
@@ -154,10 +156,6 @@ function ImportResourceContent({
       return;
     }
     setZipFile(null);
-    if (file.size > 4 * 1024 * 1024) {
-      setProblem(t("fileTooLarge"));
-      return;
-    }
     try {
       setText(await file.text());
       setFileName(file.name);
@@ -203,7 +201,7 @@ function ImportResourceContent({
       ? getErrorMessage(preview.error ?? apply.error ?? zip.error, tErrors, t("operationError"))
       : null);
   return (
-    <Dialog open={open} onOpenChange={close}>
+    <Dialog open={open} onOpenChange={(next) => void close(next)}>
       <DialogContent className={`${DIALOG_FORM} ${DIALOG_COLUMN}`}>
         <DialogHeader>
           <DialogTitle>
@@ -284,7 +282,13 @@ function ImportResourceContent({
                 }}
               />
               {onLegacy && (
-                <Button variant="ghost" disabled={busy} onClick={onLegacy}>
+                <Button
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (await zip.reset()) onLegacy();
+                  }}
+                >
                   {t("importLegacy")}
                 </Button>
               )}
@@ -293,8 +297,8 @@ function ImportResourceContent({
                 id={`${id}-text`}
                 value={text}
                 disabled={busy}
-                onChange={(value) => {
-                  zip.reset();
+                onChange={async (value) => {
+                  if (!(await zip.reset())) return;
                   preview.reset();
                   apply.reset();
                   reviewedZip.current = null;
@@ -325,8 +329,8 @@ function ImportResourceContent({
             zip.transfer.data?.status === "expired") && (
             <Button
               variant="outline"
-              onClick={() => {
-                zip.reset();
+              onClick={async () => {
+                if (!(await zip.reset())) return;
                 preview.reset();
                 apply.reset();
                 setProblem(null);
@@ -353,13 +357,13 @@ function ImportResourceContent({
         <DialogFooter>
           {receipt ? (
             <Button
-              onClick={() => {
+              onClick={async () => {
                 const target = Object.values(receipt.roots)[0];
                 if (!target) {
                   setProblem(t("missingRoot"));
                   return;
                 }
-                close(false);
+                if (!(await close(false))) return;
                 router.push(
                   rootKind === "agent"
                     ? ROUTES.AGENT_DETAIL(target)
@@ -375,15 +379,15 @@ function ImportResourceContent({
               <Button
                 variant="outline"
                 disabled={busy}
-                onClick={() => {
+                onClick={async () => {
                   if (document) {
+                    if (!(await zip.reset())) return;
                     setDocument(null);
                     setDocumentTransferId(null);
-                    zip.reset();
                     reviewedZip.current = null;
                     setOperationId(crypto.randomUUID());
                     apply.reset();
-                  } else close(false);
+                  } else await close(false);
                 }}
               >
                 {document && <ArrowLeft className="size-4" />}

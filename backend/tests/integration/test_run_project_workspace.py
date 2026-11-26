@@ -179,7 +179,8 @@ async def test_project_staged_uploads_are_visible_and_final_close_preserves_late
     assert "before tools" in await selector.read_file("existing.md")
     await selector.write_file("existing.md", "edited by project tool")
     await selector.write_file("later.md", "added by project tool")
-    assert await service.close(staged) is None
+    failure = await service.close(staged)
+    assert failure is None
     await db.commit()
     assert "edited by project tool" in await selector.read_file("existing.md")
     assert "added by project tool" in await selector.read_file("later.md")

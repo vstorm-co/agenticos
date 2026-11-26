@@ -1,5 +1,5 @@
 ---
-source_sha: "610a5900fd15"
+source_sha: "54da4f204aeb"
 ---
 
 # Conceptos { #concepts }
@@ -114,8 +114,15 @@ comprimidos, 2 GiB descomprimidos, un manifiesto de 4 MiB y 16 MiB por recurso d
 texto. La preparación del ZIP y la aplicación revisada se ejecutan como trabajos
 duraderos del worker. Las cargas, los archivos privados y los registros de
 transferencia caducan a las 24 horas; el worker los elimina. La API permite
-consultar la misma operación después de una interrupción. Al recargar, la consola
-todavía no restaura esa operación automáticamente. Importar nunca publica,
+consultar la misma operación después de una interrupción.
+
+La consola restaura
+el mismo traslado al recargar para su propietario conectado y organización.
+Selecciona el ZIP original de nuevo para reiniciar una carga interrumpida; el
+tamaño declarado se conserva separado del progreso. Descartar un traslado
+inactivo libera inmediatamente su plaza y deja sus archivos para la limpieza
+de operaciones caducadas. Los trabajos en cola o en ejecución deben terminar
+primero; los recursos ya importados permanecen disponibles. Importar nunca publica,
 ejecuta un agente ni inicia una indexación de conocimiento de pago.
 
 ## Versión { #version }

@@ -9,6 +9,7 @@ import {
   uploadBundleFile,
   getBundleTransfer,
   applyBundleTransfer,
+  cancelBundleTransfer,
   importResourceBundle,
   listImportDestinations,
   previewResourceExport,
@@ -17,7 +18,7 @@ import {
 import type { ResourceBundle } from "./portability-api";
 
 vi.mock("./api-client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), raw: vi.fn() },
+  apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), raw: vi.fn() },
 }));
 vi.mock("./file-access", () => ({ saveBlob: vi.fn() }));
 
@@ -168,4 +169,12 @@ it("uses workflow bundle endpoints while retaining the existing agent HTTP paths
     "/portability/exports",
     expect.objectContaining({ root_kind: "workflow" }),
   );
+});
+
+it("cancels the authenticated transfer journal without applying or rolling back resources", async () => {
+  vi.mocked(apiClient.delete).mockResolvedValue(undefined);
+  await expect(cancelBundleTransfer("transfer")).resolves.toBeUndefined();
+  expect(apiClient.delete).toHaveBeenCalledWith("/portability/transfer");
+  vi.mocked(apiClient.delete).mockRejectedValue(new Error("Transfer is running"));
+  await expect(cancelBundleTransfer("transfer")).rejects.toThrow("Transfer is running");
 });

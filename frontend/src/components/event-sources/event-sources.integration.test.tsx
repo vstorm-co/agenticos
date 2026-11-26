@@ -287,6 +287,7 @@ describe("event source management", () => {
       { id: "4", kind: "routine", target_id: "r4", name: "Private workflow", is_active: true },
     ];
     render(<SourceManager />, { wrapper });
+    await userEvent.click(await screen.findByRole("button", { name: "Subscribers" }));
     expect(await screen.findByText("Private routine")).toBeVisible();
     expect(screen.getByText("Private workflow")).toBeVisible();
     expect(screen.getByText("Routine · Paused")).toBeVisible();
@@ -298,8 +299,13 @@ describe("event source management", () => {
       { id: "sub1", kind: "routine", target_id: "r1", name: "Triage", is_active: true },
     ];
     render(<SourceManager />, { wrapper });
-    expect(await screen.findByText(/Triage/)).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "More actions for Issues" }));
+    await userEvent.click(await screen.findByRole("button", { name: "More actions for Issues" }));
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "Delete source" })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      ),
+    );
     expect(screen.getByRole("menuitem", { name: "Delete source" })).toHaveAttribute(
       "aria-disabled",
       "true",
@@ -341,8 +347,13 @@ describe("event source management", () => {
     });
     render(<SourceManager />, { wrapper });
 
-    await screen.findByText("No subscribers");
-    await user.click(screen.getByRole("button", { name: "More actions for Issues" }));
+    await user.click(await screen.findByRole("button", { name: "More actions for Issues" }));
+    await waitFor(() =>
+      expect(screen.getByRole("menuitem", { name: "Delete source" })).not.toHaveAttribute(
+        "aria-disabled",
+        "true",
+      ),
+    );
     const deletion = screen.getByRole("menuitem", { name: "Delete source" });
     await user.click(deletion);
     expect(apiClient.delete).not.toHaveBeenCalled();
@@ -600,3 +611,46 @@ it("requires another compatible Vault selection after changing authentication me
     "Webhook signing key",
   );
 });
+
+it("loads subscriber usage only for explicitly opened row details or actions", async () => {
+  items = [source, { ...source, id: "s2", name: "Second source" }];
+  render(<SourceManager />, { wrapper });
+  await screen.findByRole("heading", { name: "Second source" });
+  const usageRequests = () =>
+    vi.mocked(apiClient.get).mock.calls.filter(([path]) => path.endsWith("/usage"));
+  expect(usageRequests()).toHaveLength(0);
+  const user = userEvent.setup();
+  const [details] = screen.getAllByRole("button", { name: "Subscribers" });
+  if (!details) throw new Error("Expected a subscriber details button");
+  await user.click(details);
+  await screen.findByText("No subscribers");
+  expect(usageRequests().map(([path]) => path)).toEqual(["/event-sources/s1/usage"]);
+  await user.keyboard("{Escape}");
+  await user.click(screen.getByRole("button", { name: "More actions for Second source" }));
+  await waitFor(() => expect(usageRequests()).toHaveLength(2));
+  expect(usageRequests().map(([path]) => path)).toEqual([
+    "/event-sources/s1/usage",
+    "/event-sources/s2/usage",
+  ]);
+});
+
+it.each(["Subscribers", "More actions for Issues"])(
+  "reports usage failure after opening %s without enabling deletion",
+  async (label) => {
+    const get = vi.mocked(apiClient.get).getMockImplementation();
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path.endsWith("/usage")) throw new Error("Usage unavailable");
+      return get?.(path, options);
+    });
+    render(<SourceManager />, { wrapper });
+    await userEvent.click(await screen.findByRole("button", { name: label }));
+    expect(await screen.findByText("Subscribers could not be loaded.")).toBeVisible();
+    if (label.startsWith("More")) {
+      expect(screen.getByRole("menuitem", { name: "Delete source" })).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
+    }
+    expect(apiClient.delete).not.toHaveBeenCalled();
+  },
+);

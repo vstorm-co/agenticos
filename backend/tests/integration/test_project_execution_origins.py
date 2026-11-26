@@ -43,7 +43,8 @@ async def _agent_files(
     assert opened is not None and opened.row_id is not None
     await opened.workspace.write_text("same.txt", "agent bytes")
     await opened.workspace.write_text("agent-only.txt", "only in agent workspace")
-    assert await service.close(opened) is None
+    failure = await service.close(opened)
+    assert failure is None
     return opened
 
 

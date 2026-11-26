@@ -103,8 +103,13 @@ Text configuration files are limited to 4 MiB. ZIP uploads are limited to 512 Mi
 2 GiB expanded, with a 4 MiB manifest and a 16 MiB limit per text asset. ZIP
 preparation and reviewed application run as durable worker jobs. Uploads, private
 archives and transfer journals expire after 24 hours; a worker removes them.
-The transfer API can poll the same operation after interruption. Reopening the
-console after a reload does not yet restore that operation automatically.
+
+The console restores the same transfer after a reload for its signed-in owner
+and organization. Select the original ZIP again to restart an interrupted upload;
+the declared upload size is kept separately from progress. Discarding an idle
+transfer immediately frees its open-transfer slot and schedules its files for
+expiry cleanup. Queued or running work must finish before it can be discarded;
+already imported resources remain available.
 Imports never publish, run an agent or start paid knowledge indexing.
 
 ## Version

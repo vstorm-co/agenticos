@@ -102,6 +102,14 @@ async def test_zip_export_import_and_replay_preserve_large_context_without_publi
         await service.get(source, uploaded.id)
     with pytest.raises(NotFoundError):
         await service.download(target, started.id)
+    await service.cancel(source, uploaded.id)
+    assert (await service.get(target, uploaded.id)).status == "ready"
+    await service.cancel(target, uploaded.id)
+    await service.sweep()
+    assert await operations.get_for_worker(db, uploaded.id) is None
+    retained = await AgentRegistryService(db).get(target, copied.id)
+    assert retained.id == copied.id and retained.current_version_id is None
+    assert (await ContextService(db).get(target, spec.context_ids[0])).content == content
 
 
 async def test_transfer_admission_size_conflicts_and_expiry_are_explicit(
@@ -125,8 +133,23 @@ async def test_transfer_admission_size_conflicts_and_expiry_are_explicit(
     await service.start_upload(owner, request.model_copy(update={"request_id": uuid4()}))
     with pytest.raises(ConflictError, match="open transfers"):
         await service.start_upload(owner, request.model_copy(update={"request_id": uuid4()}))
+    await service.cancel(owner, operation.id)
+    await service.cancel(owner, operation.id)
+    assert (
+        await operations.count_open(
+            db,
+            organization_id=owner.organization_id,
+            user_id=owner.subject_id,
+            now=datetime.now(UTC),
+        )
+        == 2
+    )
+    replacement = await service.start_upload(
+        owner, request.model_copy(update={"request_id": uuid4()})
+    )
+    assert replacement.upload_size_bytes == 3 and replacement.total_bytes == 0
     row = await operations.get_for_worker(db, operation.id)
-    assert row is not None
+    assert row is not None and row.status == "expired" and row.revision == 2
     row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
     await operations.save(db, row)
     with pytest.raises(ConflictError, match="expired"):

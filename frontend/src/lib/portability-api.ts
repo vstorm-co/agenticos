@@ -136,6 +136,7 @@ export interface TransferOperation {
   revision: number;
   completed_bytes: number;
   total_bytes: number;
+  upload_size_bytes: number | null;
   expires_at: string;
   error_code: string | null;
   preview: BundlePreview | null;
@@ -168,6 +169,8 @@ export const uploadBundleFile = (id: string, file: File) =>
 
 export const getBundleTransfer = (id: string, signal?: AbortSignal) =>
   apiClient.get<TransferOperation>(`/portability/${id}`, { signal });
+
+export const cancelBundleTransfer = (id: string) => apiClient.delete<void>(`/portability/${id}`);
 
 export const applyBundleTransfer = (
   id: string,

@@ -18,7 +18,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext
 from app.db.models.portability_operation import PortabilityOperation
-from app.schemas.portability_operation import BundleExportStart
+from app.schemas.portability_operation import BundleExportStart, BundleUploadStart
 from app.services.file_storage import LocalFileStorage
 from app.services.portability import transfers
 from app.worker.jobs import PortableTransferPayload
@@ -278,3 +278,88 @@ async def test_worker_adapters_commit_claim_before_running_and_skip_stale_work(
     service.settle.assert_awaited_once_with(payload)
     await portability_tasks.sweep_transfers()
     service.sweep.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "state", ["awaiting_upload", "review", "needs_bindings", "ready", "failed"]
+)
+async def test_discarding_idle_ticket_expires_it_without_deleting_imported_resources(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, state: str
+) -> None:
+    ctx = _actor()
+    row = _row(ctx)
+    row.status = state
+    result = {"kept": "receipt"}
+    row.result = result
+    saved = AsyncMock()
+    monkeypatch.setattr(transfers.operations, "get", AsyncMock(return_value=row))
+    monkeypatch.setattr(transfers.operations, "save", saved)
+    service = transfers.PortableTransferService(mock_db_session, storage=LocalFileStorage(tmp_path))
+    before = datetime.now(UTC)
+    await service.cancel(ctx, row.id)
+    assert row.status == "expired" and row.revision == 2
+    assert before <= row.expires_at <= datetime.now(UTC)
+    assert row.result == result
+    await service.cancel(ctx, row.id)
+    assert row.revision == 2 and saved.await_count == 1
+
+
+@pytest.mark.parametrize("state", ["queued", "running"])
+async def test_discard_refuses_active_worker_without_changing_its_lease(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, state: str
+) -> None:
+    ctx = _actor()
+    row = _row(ctx)
+    row.status = state
+    expires_at = row.expires_at
+    monkeypatch.setattr(transfers.operations, "get", AsyncMock(return_value=row))
+    service = transfers.PortableTransferService(mock_db_session, storage=LocalFileStorage(tmp_path))
+    with pytest.raises(ConflictError, match="finish"):
+        await service.cancel(ctx, row.id)
+    assert row.status == state and row.revision == 1 and row.expires_at == expires_at
+
+
+@pytest.mark.security
+async def test_discard_is_scoped_and_checks_auth_method_even_after_expiry(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    ctx = _actor()
+    row = _row(ctx)
+    lookup = AsyncMock(return_value=None)
+    monkeypatch.setattr(transfers.operations, "get", lookup)
+    service = transfers.PortableTransferService(mock_db_session, storage=LocalFileStorage(tmp_path))
+    await service.cancel(ctx, row.id)
+    assert lookup.await_args.kwargs == {
+        "organization_id": ctx.organization_id,
+        "user_id": ctx.subject_id,
+        "for_update": True,
+    }
+    lookup.return_value = row
+    row.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    row.api_key_id = uuid4()
+    with pytest.raises(AuthorizationError, match="sign-in method"):
+        await service.cancel(ctx, row.id)
+    row.api_key_id = None
+    await service.cancel(ctx, row.id)
+    assert row.revision == 1
+    viewer = AuthContext(user_id=ctx.user_id, organization_id=ctx.organization_id, role="viewer")
+    with pytest.raises(AuthorizationError):
+        await service.cancel(viewer, row.id)
+
+
+async def test_restored_upload_exposes_declared_size_before_any_bytes_arrive(
+    mock_db_session: AsyncMock, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    ctx = _actor()
+    row = _row(ctx)
+    row.status = "awaiting_upload"
+    row.request = BundleUploadStart(
+        request_id=row.request_id, filename="bundle.zip", size_bytes=1234
+    ).model_dump(mode="json")
+    monkeypatch.setattr(transfers.operations, "get", AsyncMock(return_value=row))
+    service = transfers.PortableTransferService(mock_db_session, storage=LocalFileStorage(tmp_path))
+    restored = await service.get(ctx, row.id)
+    assert restored.upload_size_bytes == 1234
+    assert restored.completed_bytes == restored.total_bytes == 0
+    row.direction = "export"
+    assert (await service.get(ctx, row.id)).upload_size_bytes is None

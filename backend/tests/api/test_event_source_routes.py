@@ -87,7 +87,8 @@ async def test_source_routes_use_consistent_response_shapes(wired):
     assert (await client.post(base + "/listen")).json()["listener_id"] == "listener-id"
     samples.listen.assert_awaited_once_with(CTX, source.id)
     assert (await client.get(base + "/listen/a-token")).json()["state"] == "expired"
-    assert (await client.delete(base)).status_code == 204
+    deleted = await client.delete(base)
+    assert deleted.status_code == 204
     service.delete.assert_awaited_once_with(CTX, source.id)
 
 

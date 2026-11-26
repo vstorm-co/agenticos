@@ -20,6 +20,7 @@ vi.mock("@/lib/portability-api", () => ({
   uploadBundleFile: vi.fn(),
   getBundleTransfer: vi.fn(),
   applyBundleTransfer: vi.fn(),
+  cancelBundleTransfer: vi.fn(),
   listImportDestinations: vi.fn(),
 }));
 const push = vi.fn();
@@ -160,6 +161,7 @@ it("selects ZIP document layers without exporting indexes, credentials or chunk 
     revision: 1,
     completed_bytes: 0,
     total_bytes: 0,
+    upload_size_bytes: null,
     expires_at: "2026-11-26",
     error_code: null,
     preview: null,
@@ -284,6 +286,7 @@ it("switches an interrupted ZIP upload to a fresh inline import without applying
     revision: 1,
     completed_bytes: 0,
     total_bytes: 5,
+    upload_size_bytes: 5,
     expires_at: "2026-11-26",
     error_code: null,
     preview: null,
@@ -334,6 +337,7 @@ it("refuses to apply a reviewed ZIP after access is revoked and resets its stale
       revision: 1,
       completed_bytes: 5,
       total_bytes: 5,
+      upload_size_bytes: 5,
       expires_at: "2026-11-26",
       error_code: null,
       preview,
@@ -379,6 +383,7 @@ it.each([true, false])(
       revision: 2,
       completed_bytes: 5,
       total_bytes: 5,
+      upload_size_bytes: 5,
       expires_at: "2026-11-26",
       error_code: null,
       preview: withPreview ? preview : null,
@@ -434,6 +439,7 @@ it("keeps a running export open and offers an explicit fresh start after failure
     revision: 1,
     completed_bytes: 0,
     total_bytes: 5,
+    upload_size_bytes: 5,
     expires_at: "2026-11-26",
     error_code: "transfer_failed",
     preview: null,
@@ -477,3 +483,232 @@ it("keeps selected export content while expanding from the dialog controls", asy
   await userEvent.click(screen.getByRole("button", { name: "Exit full screen" }));
   expect(definition).not.toBeChecked();
 });
+
+it("reselects an interrupted ZIP using declared upload size while byte progress is still zero", async () => {
+  const { transferSessionKey, writeTransferSession } = await import("@/lib/transfer-session");
+  const id = "e62dfdb5-f6e6-4e00-b56c-df37f70f4a63";
+  useAuthStore.setState({
+    user: { id: "owner", email: "owner@example.com", is_active: true, created_at: "2026-01-01" },
+  });
+  useOrgStore.setState({ activeOrgId: "org" });
+  writeTransferSession(transferSessionKey("org", "owner", "import:workflow"), id);
+  const ticket: TransferOperation = {
+    id,
+    request_id: "original-request",
+    direction: "import",
+    phase: "prepare",
+    status: "awaiting_upload",
+    revision: 1,
+    completed_bytes: 0,
+    total_bytes: 0,
+    upload_size_bytes: 5,
+    expires_at: "2026-11-26",
+    error_code: null,
+    preview: null,
+    receipt: null,
+    can_download: false,
+  };
+  vi.mocked(api.getBundleTransfer).mockResolvedValue(ticket);
+  vi.mocked(api.uploadBundleFile).mockResolvedValue({ ...ticket, status: "review", preview });
+  render(<ImportResourceDialog rootKind="workflow" open onOpenChange={vi.fn()} />, {
+    wrapper: Wrapper,
+  });
+  await screen.findByText(/The upload was interrupted/);
+  const file = new File(["bytes"], "original.zip", { type: "application/zip" });
+  fireEvent.change(
+    screen.getByLabelText("Choose a ZIP, YAML or JSON file", { selector: "input" }),
+    { target: { files: [file] } },
+  );
+  await screen.findByText("original.zip");
+  fireEvent.change(
+    screen.getByLabelText("Choose a ZIP, YAML or JSON file", { selector: "input" }),
+    { target: { files: [file] } },
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Review dependencies" }));
+  await screen.findByRole("group", { name: "Sales review" });
+  expect(api.uploadBundleFile).toHaveBeenCalledWith(id, file);
+  expect(api.startBundleUpload).not.toHaveBeenCalled();
+  expect(api.cancelBundleTransfer).not.toHaveBeenCalled();
+});
+
+it("waits for server cancellation before closing a review and keeps it open on refusal", async () => {
+  const { transferSessionKey, writeTransferSession } = await import("@/lib/transfer-session");
+  const id = "e62dfdb5-f6e6-4e00-b56c-df37f70f4a63";
+  useAuthStore.setState({
+    user: { id: "owner", email: "owner@example.com", is_active: true, created_at: "2026-01-01" },
+  });
+  useOrgStore.setState({ activeOrgId: "org" });
+  const key = transferSessionKey("org", "owner", "import:workflow");
+  writeTransferSession(key, id);
+  vi.mocked(api.getBundleTransfer).mockResolvedValue({
+    id,
+    request_id: "request",
+    direction: "import",
+    phase: "prepare",
+    status: "review",
+    revision: 1,
+    completed_bytes: 5,
+    total_bytes: 5,
+    upload_size_bytes: 5,
+    expires_at: "2026-11-26",
+    error_code: null,
+    preview,
+    receipt: null,
+    can_download: false,
+  });
+  vi.mocked(api.cancelBundleTransfer).mockRejectedValue(new Error("Cancellation refused"));
+  const onOpenChange = vi.fn();
+  render(<ImportResourceDialog rootKind="workflow" open onOpenChange={onOpenChange} />, {
+    wrapper: Wrapper,
+  });
+  await screen.findByRole("group", { name: "Sales review" });
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  await waitFor(() => expect(api.cancelBundleTransfer).toHaveBeenCalledWith(id));
+  expect(await screen.findByRole("alert")).toBeVisible();
+  expect(screen.getByRole("group", { name: "Sales review" })).toBeVisible();
+  expect(sessionStorage.getItem(key ?? "")).toBe(id);
+  expect(onOpenChange).not.toHaveBeenCalled();
+  vi.mocked(api.cancelBundleTransfer).mockResolvedValue();
+  await userEvent.click(screen.getByRole("button", { name: "Back" }));
+  await screen.findByRole("button", { name: "Choose a ZIP, YAML or JSON file" });
+  expect(sessionStorage.getItem(key ?? "")).toBeNull();
+});
+
+it.each(["format", "include", "layers"] as const)(
+  "keeps export %s selections when cancellation is refused",
+  async (action) => {
+    const ticket: TransferOperation = {
+      id: "e62dfdb5-f6e6-4e00-b56c-df37f70f4a63",
+      request_id: "request",
+      direction: "export",
+      phase: "prepare",
+      status: "ready",
+      revision: 1,
+      completed_bytes: 5,
+      total_bytes: 5,
+      upload_size_bytes: null,
+      expires_at: "2026-11-26",
+      error_code: null,
+      preview: null,
+      receipt: null,
+      can_download: false,
+    };
+    vi.mocked(api.startBundleExport).mockResolvedValue(ticket);
+    vi.mocked(api.getBundleTransfer).mockResolvedValue(ticket);
+    render(
+      <ExportResourceDialog
+        resourceId="workflow-id"
+        rootKind="workflow"
+        open
+        onOpenChange={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+    await screen.findByText("Policy documents");
+    await userEvent.click(screen.getByRole("combobox", { name: "File format" }));
+    await userEvent.click(await screen.findByRole("option", { name: "ZIP · includes files" }));
+    await userEvent.click(screen.getByRole("button", { name: "Download" }));
+    await waitFor(() =>
+      expect(api.getBundleTransfer).toHaveBeenCalledWith(ticket.id, expect.any(AbortSignal)),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "File format" })).toBeEnabled(),
+    );
+    vi.mocked(api.cancelBundleTransfer).mockRejectedValue(new Error("Cancellation refused"));
+    if (action === "format") {
+      await userEvent.click(screen.getByRole("combobox", { name: "File format" }));
+      await userEvent.click(await screen.findByRole("option", { name: "JSON" }));
+    } else
+      await userEvent.click(
+        screen.getByRole("checkbox", {
+          name: action === "include" ? /^Policy documents/ : "Original documents",
+        }),
+      );
+    await waitFor(() => expect(api.cancelBundleTransfer).toHaveBeenCalledWith(ticket.id));
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "File format" })).toHaveTextContent(
+      "ZIP · includes files",
+    );
+    expect(screen.getByRole("checkbox", { name: /^Policy documents/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Original documents" })).not.toBeChecked();
+  },
+);
+
+it.each(["close", "file", "text", "restart", "openDraft", "legacy"] as const)(
+  "retains the import journal after refused %s cancellation",
+  async (action) => {
+    const { transferSessionKey, writeTransferSession } = await import("@/lib/transfer-session");
+    const id = "e62dfdb5-f6e6-4e00-b56c-df37f70f4a63";
+    useAuthStore.setState({
+      user: { id: "owner", email: "owner@example.com", is_active: true, created_at: "2026-01-01" },
+    });
+    useOrgStore.setState({ activeOrgId: "org" });
+    const key = transferSessionKey("org", "owner", "import:workflow");
+    writeTransferSession(key, id);
+    const ticket: TransferOperation = {
+      id,
+      request_id: "request",
+      direction: "import",
+      phase: "prepare",
+      status:
+        action === "restart" ? "failed" : action === "openDraft" ? "ready" : "awaiting_upload",
+      revision: 1,
+      completed_bytes: 0,
+      total_bytes: 0,
+      upload_size_bytes: 5,
+      expires_at: "2026-11-26",
+      error_code: null,
+      preview: null,
+      receipt:
+        action === "openDraft"
+          ? { roots: { "workflow/root": "created" }, created: {}, reused: {}, skipped: [] }
+          : null,
+      can_download: false,
+    };
+    vi.mocked(api.getBundleTransfer).mockResolvedValue(ticket);
+    vi.mocked(api.cancelBundleTransfer).mockRejectedValue(new Error("Cancellation refused"));
+    const close = vi.fn(),
+      legacy = vi.fn();
+    render(
+      <ImportResourceDialog rootKind="workflow" open onOpenChange={close} onLegacy={legacy} />,
+      { wrapper: Wrapper },
+    );
+    if (action === "restart") await screen.findByRole("button", { name: "Start a new transfer" });
+    else if (action === "openDraft") await screen.findByRole("button", { name: "Open draft" });
+    else await screen.findByText(/The upload was interrupted/);
+    if (action === "text")
+      fireEvent.change(screen.getByRole("textbox", { name: "Or paste the configuration" }), {
+        target: { value: "replacement" },
+      });
+    else if (action === "file")
+      fireEvent.change(
+        screen.getByLabelText("Choose a ZIP, YAML or JSON file", { selector: "input" }),
+        { target: { files: [new File(["replacement"], "different.zip")] } },
+      );
+    else if (action === "close")
+      await userEvent.click(screen.getByText("Close", { selector: "button" }));
+    else
+      await userEvent.click(
+        screen.getByRole("button", {
+          name:
+            action === "restart"
+              ? "Start a new transfer"
+              : action === "openDraft"
+                ? "Open draft"
+                : action === "legacy"
+                  ? "Import an older workflow file"
+                  : "Close",
+        }),
+      );
+    await waitFor(() => expect(api.cancelBundleTransfer).toHaveBeenCalledWith(id));
+    await waitFor(() => expect(screen.getAllByRole("alert").length).toBeGreaterThan(0));
+    expect(sessionStorage.getItem(key ?? "")).toBe(id);
+    expect(close).not.toHaveBeenCalled();
+    expect(legacy).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    if (action === "text")
+      expect(screen.getByRole("textbox", { name: "Or paste the configuration" })).toHaveValue("");
+    if (action === "file")
+      expect(screen.getByRole("button", { name: "Choose a ZIP, YAML or JSON file" })).toBeVisible();
+  },
+);

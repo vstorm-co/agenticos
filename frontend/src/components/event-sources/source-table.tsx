@@ -23,6 +23,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Skeleton,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   type Column,
 } from "@/components/ui";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -165,7 +168,23 @@ export function SourceTable({
 
 function SourceSubscribers({ source }: { source: EventSource }) {
   const t = useTranslations("eventSources");
-  const usage = useEventSourceUsage(source.id);
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm">
+          {t("subscribers")}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent aria-label={t("subscribers")} className="max-h-80 overflow-y-auto">
+        <SourceSubscriberDetails sourceId={source.id} />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function SourceSubscriberDetails({ sourceId }: { sourceId: string }) {
+  const t = useTranslations("eventSources");
+  const usage = useEventSourceUsage(sourceId);
   if (usage.error) return <p className="text-destructive-ink text-xs">{t("usageError")}</p>;
   if (!usage.data) return <Skeleton className="h-4 w-20" />;
   return (
@@ -191,11 +210,9 @@ function SourceSubscribers({ source }: { source: EventSource }) {
 function SourceActions({ source, onEdit }: { source: EventSource; onEdit: () => void }) {
   const t = useTranslations("eventSources");
   const common = useTranslations("common");
-  const usage = useEventSourceUsage(source.id);
   const writes = useEventSourceWrites();
   const [replacing, setReplacing] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const hasSubscribers = !!usage.data?.total;
 
   return (
     <div className="flex items-center justify-end gap-1">
@@ -227,32 +244,12 @@ function SourceActions({ source, onEdit }: { source: EventSource; onEdit: () => 
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            disabled={writes.update.isPending}
-            title={source.is_active ? t("pauseHelp") : undefined}
-            onSelect={() =>
-              writes.update.mutate({ id: source.id, input: { is_active: !source.is_active } })
-            }
-          >
-            {source.is_active ? <Pause className="size-4" /> : <Play className="size-4" />}
-            {t(source.is_active ? "pause" : "resume")}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setReplacing(true)}>
-            <KeyRound className="size-4" />
-            {t("replaceCredentials")}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            disabled={!usage.data || hasSubscribers || writes.remove.isPending}
-            onSelect={() => setDeleting(true)}
-          >
-            <Trash2 className="size-4" />
-            {t("delete")}
-          </DropdownMenuItem>
-          {hasSubscribers && (
-            <p className="text-muted-foreground max-w-56 px-2 pb-1 text-xs">{t("deleteBlocked")}</p>
-          )}
+          <SourceActionItems
+            source={source}
+            writes={writes}
+            onReplace={() => setReplacing(true)}
+            onDelete={() => setDeleting(true)}
+          />
         </DropdownMenuContent>
       </DropdownMenu>
       {replacing && (
@@ -320,5 +317,54 @@ function ReplaceCredentialsDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SourceActionItems({
+  source,
+  writes,
+  onReplace,
+  onDelete,
+}: {
+  source: EventSource;
+  writes: ReturnType<typeof useEventSourceWrites>;
+  onReplace: () => void;
+  onDelete: () => void;
+}) {
+  const t = useTranslations("eventSources");
+  const usage = useEventSourceUsage(source.id);
+  const hasSubscribers = !!usage.data?.total;
+  return (
+    <>
+      <DropdownMenuItem
+        disabled={writes.update.isPending}
+        title={source.is_active ? t("pauseHelp") : undefined}
+        onSelect={() =>
+          writes.update.mutate({ id: source.id, input: { is_active: !source.is_active } })
+        }
+      >
+        {source.is_active ? <Pause className="size-4" /> : <Play className="size-4" />}
+        {t(source.is_active ? "pause" : "resume")}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={onReplace}>
+        <KeyRound className="size-4" />
+        {t("replaceCredentials")}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        className="text-destructive focus:text-destructive"
+        disabled={!usage.data || hasSubscribers || writes.remove.isPending}
+        onSelect={onDelete}
+      >
+        <Trash2 className="size-4" />
+        {t("delete")}
+      </DropdownMenuItem>
+      {hasSubscribers && (
+        <p className="text-muted-foreground max-w-56 px-2 pb-1 text-xs">{t("deleteBlocked")}</p>
+      )}
+      {usage.error && (
+        <p className="text-destructive-ink max-w-56 px-2 pb-1 text-xs">{t("usageError")}</p>
+      )}
+    </>
   );
 }

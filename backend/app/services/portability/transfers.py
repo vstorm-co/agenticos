@@ -264,6 +264,31 @@ class PortableTransferService:
     async def get(self, ctx: AuthContext, identity: UUID) -> PortabilityOperationRead:
         return await self._read(ctx, await self._owned(ctx, identity))
 
+    async def cancel(self, ctx: AuthContext, identity: UUID) -> None:
+        """Expire an idle ticket; cleanup preserves already imported resources."""
+        self._require(ctx)
+        row = await operations.get(
+            self.db,
+            identity,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            for_update=True,
+        )
+        if row is None:
+            return
+        if row.api_key_id != ctx.api_key_id:
+            raise AuthorizationError(
+                message="Use the same sign-in method that started this transfer"
+            )
+        now = datetime.now(UTC)
+        if row.status == "expired" or row.expires_at <= now:
+            return
+        if row.status in ("queued", "running"):
+            raise ConflictError(message="Wait for this transfer to finish before discarding it")
+        row.status, row.expires_at = "expired", now
+        row.revision += 1
+        await operations.save(self.db, row)
+
     async def _read(self, ctx: AuthContext, row: PortabilityOperation) -> PortabilityOperationRead:
         preview = None
         if row.manifest is not None and row.direction == "import":
@@ -272,6 +297,9 @@ class PortableTransferService:
             )
         return PortabilityOperationRead.model_validate(row).model_copy(
             update={
+                "upload_size_bytes": BundleUploadStart.model_validate(row.request).size_bytes
+                if row.direction == "import"
+                else None,
                 "preview": preview,
                 "receipt": BundleImportRead.model_validate(row.result)
                 if row.result is not None

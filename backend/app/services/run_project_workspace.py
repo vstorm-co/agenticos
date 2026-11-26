@@ -552,6 +552,7 @@ class RunProjectWorkspace(Workspace):
                 "items": [
                     {
                         "name": str(entry["path"]).rsplit("/", 1)[-1],
+                        "path": str(entry["path"]),
                         "type": "directory" if entry.get("is_dir") else "file",
                         "size": entry.get("size"),
                     }
@@ -630,7 +631,7 @@ class RunProjectWorkspace(Workspace):
         if target == "agent":
             if self.project_context_observed and self.original_scope in ("agent", "channel"):
                 raise AuthorizationError(
-                    message="This agent executor is shared with a wider audience. Use an isolated agent workspace or the project's executor.",
+                    message="This agent executor is shared with a wider audience. Use an isolated agent workspace or call select_execution_target with target='project' for a command-capable project.",
                     details={},
                 )
             if not self.agent_execution_available:
@@ -960,7 +961,7 @@ class RunProjectWorkspace(Workspace):
         self._require_open()
         if self.project_context_observed and self.original_scope in ("agent", "channel"):
             raise WorkspaceUnavailableError(
-                "This agent workspace is shared with a wider audience. Use an isolated agent workspace or the project's executor."
+                "This agent workspace is shared with a wider audience. Use an isolated agent workspace or call select_execution_target with target='project' for a command-capable project."
             )
         if self.open_agent_executor is None:
             if self.original is None:
@@ -1053,7 +1054,7 @@ class RunProjectWorkspace(Workspace):
         if self.execution_target == "agent":
             if not self.agent_execution_available:
                 raise WorkspaceUnavailableError(
-                    "The agent workspace stores files only or is unavailable; select a command-capable project explicitly."
+                    "The agent workspace stores files only or is unavailable; call select_execution_target with target='project' for a command-capable project, or pin Project in advanced settings."
                 )
             if self.project_id is not None:
                 async with get_db_context() as db:

@@ -1,5 +1,5 @@
 ---
-source_sha: "610a5900fd15"
+source_sha: "54da4f204aeb"
 ---
 
 # Begriffe { #concepts }
@@ -115,9 +115,14 @@ Textkonfigurationen sind auf 4 MiB begrenzt. ZIP-Uploads erlauben 512 MiB,
 2 GiB entpackt, ein Manifest von 4 MiB und 16 MiB pro Textdatei. ZIP-Vorbereitung
 und geprüfter Import laufen als dauerhafte Worker-Jobs. Uploads, private Archive
 und Transferprotokolle laufen nach 24 Stunden ab und werden vom Worker entfernt.
-Die Transfer-API kann dieselbe Operation nach einer Unterbrechung erneut
-abfragen. Nach dem Neuladen stellt die Konsole sie noch nicht automatisch wieder
-her. Der Import veröffentlicht nichts, startet keinen Agenten und keine
+
+Die Konsole stellt denselben Transfer nach dem Neuladen für seinen angemeldeten
+Eigentümer und seine Organisation wieder her. Wählen Sie die ursprüngliche ZIP
+erneut, um einen unterbrochenen Upload von vorn zu beginnen; die angegebene
+Uploadgröße bleibt vom Fortschritt getrennt. Das Verwerfen eines inaktiven
+Transfers gibt sofort seinen Platz im Limit frei und lässt seine Dateien bei
+der Ablaufbereinigung entfernen. Eingereihte oder laufende Aufträge müssen
+zuerst enden; bereits importierte Ressourcen bleiben verfügbar. Der Import veröffentlicht nichts, startet keinen Agenten und keine
 kostenpflichtige Wissensindexierung.
 
 ## Version { #version }
