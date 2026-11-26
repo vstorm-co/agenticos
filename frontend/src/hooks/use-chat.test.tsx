@@ -44,7 +44,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.f
 // hook hands it and what it does with what comes back.
 const { keepOutbox, keptOutbox } = vi.hoisted(() => ({
   keepOutbox: vi.fn(() => Promise.resolve()),
-  keptOutbox: vi.fn((): Promise<unknown[]> => Promise.resolve([])),
+  keptOutbox: vi.fn((_conversationId: string | null): Promise<unknown[]> => Promise.resolve([])),
 }));
 vi.mock("@/lib/offline/device-cache", () => ({
   keepOutbox,
@@ -6172,6 +6172,13 @@ describe("useChat - receipt-backed queue actions", () => {
     get.mockReset();
     del.mockReset();
     get.mockImplementation(mockReceiptGetDefaults);
+    keptOutbox.mockReset();
+    keptOutbox.mockImplementation((_conversationId: string | null) => Promise.resolve([]));
+  });
+
+  afterEach(() => {
+    keptOutbox.mockReset();
+    keptOutbox.mockImplementation((_conversationId: string | null) => Promise.resolve([]));
   });
 
   function prepareConversation(agentId: string | null = "agent-1") {
@@ -6809,7 +6816,7 @@ describe("useChat - receipt-backed queue actions", () => {
     const acceptanceResolvers: Array<(receipt: unknown) => void> = [];
     const acceptancePayloads: Array<Record<string, unknown>> = [];
     const restoredOutbox: { row?: Record<string, unknown> } = {};
-    keptOutbox.mockImplementation((conversationId: string) =>
+    keptOutbox.mockImplementation((conversationId: string | null) =>
       Promise.resolve(conversationId === "c-1" && restoredOutbox.row ? [restoredOutbox.row] : []),
     );
     post.mockImplementation((url: string, payload?: Record<string, unknown>) => {
@@ -6859,8 +6866,8 @@ describe("useChat - receipt-backed queue actions", () => {
     expect(result.current.queuedMessages[0]).toMatchObject({
       clientQueueId,
       accepting: true,
-      acceptedQueueId: undefined,
     });
+    expect(result.current.queuedMessages[0]?.acceptedQueueId).toBeUndefined();
 
     await act(async () => acceptanceResolvers[1]!(acceptedReceipt(acceptancePayloads[1] ?? {})));
     await waitFor(() =>
