@@ -178,7 +178,13 @@ it("starts with every API provider, without subscriptions, a provider rail or a 
 it("uses a Vault account, searches the full catalog and saves only the personal chat choice", async () => {
   mount();
   await userEvent.click(await screen.findByRole("button", { name: "OpenRouter" }));
-  expect(await screen.findByText("Work account")).toBeVisible();
+  // Several connections never default: which one is billed is the person's choice.
+  await userEvent.click(await screen.findByRole("button", { name: /^Change/ }));
+  expect(screen.queryByText(/Using Vault key/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("combobox", { name: "Key" }));
+  await userEvent.click(screen.getByRole("option", { name: /Work account/ }));
+  expect(screen.getByText("Using Vault key: Work account")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Browse models" }));
   expect(screen.getByPlaceholderText("Search models…")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Add a key: OpenRouter" })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Browse models" })).not.toBeInTheDocument();
