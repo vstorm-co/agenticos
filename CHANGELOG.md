@@ -23,18 +23,44 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Require priceable usage for paid embeddings under active run caps and keyed custom endpoints under an organization cap. Missing usage is recorded as partial before stopping further batches/files without automatic job replay; uncapped and keyless endpoints retain vector compatibility. Refresh cached embedders when this payer policy changes.
 - Preserve input/vector pairing for indexed embedding responses: restore shuffled order, reject ambiguous indices, and retain array order for compatible endpoints that omit all indices.
-
 - Meter every keyed embedding Test call independently, refresh authority and target before each retry, retain known usage on failure or cancellation, and refuse unknown prices under dollar caps. Sub-microdollar receipts now retain precision instead of rounding each small call to zero. Embedding Tests show the maximum call count and provider-token/budget impact before starting.
-
 - Require connection access before testing a retained keyed embedding endpoint, including model-only and unchanged tests. Refuse Docling tests when a required Vault key was deleted instead of retrying without credentials.
 - Validate raw embedding responses before SDK coercion: every requested input needs a nonempty finite numeric vector of the configured width. Column and index precision bounds are checked, including half-precision indexes for wide vectors. Invalid responses stay controlled provider failures, with reported usage retained.
 - Keep Docling Test results bound to the address, credentials and ownership actually tested, including when a form changes while the request is still running.
-
 - Naming a keyed service connection for a knowledge base, a move or a Test needs `connections:view`, so a Member cannot spend a connection key that was never shared with them.
 - An upload or retry into an app-scoped knowledge base checks its Docling connection as the collection, so an organization's private connection cannot be reached through an upload override.
 - Retrying a failed document no longer removes another upload of the same file; it replaces only what its own failed attempt left.
 - An app-scoped knowledge base is checked as itself when it is created or edited: its parser connection and OCR server must be deployment-wide and it cannot use a LlamaParse key, because its syncs resolve them with no organization. Before, a connection only the creator's organization could see was accepted and every sync then failed to find it.
 
+### Changed
+
+- `POST /rag/documents/{id}/retry` now parses with the collection's current settings and accepts an optional `ingestion_override` body; with no body the file keeps the changes it was uploaded with. A retry no longer replaces another document of the same file, even after an upload with `replace=true`.
+- The knowledge base header's **Parse options** is now **Settings** and opens the collection's own settings; one-off settings for the next uploads moved to **Upload with different settings…** on the **Upload** button, and the banner's **Clear** is now **Revert**.
+- A `.docx` is now read by the collection's parser when it reads Word (LiteParse, LlamaParse, Docling), and otherwise by the built-in Word reader, which now keeps headings and tables as markdown in document order instead of dropping tables; `.txt` and `.md` still use the built-in text reader. The ML document analysis and recognition services follow the same rule, and now recognise a scanned `.docx`. A `.docx`, `.pptx` or `.xlsx` over the chat archive limits is refused at parse time under every parser, so a very large `.pptx` or `.xlsx` that LiteParse or LlamaParse used to read is now refused.
+- A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. The Integrations tab on the Knowledge bases page shows each connection's API style and key, and local services are now called service connections.
+
+### Upgrading
+
+- A keyed custom embedding endpoint under an organization USD cap must use a catalog-priced model and report valid token usage. Fix its reporting/model or intentionally remove that cap before retrying a policy-refused ingest/search. Ingestion and sync still admit whole work windows; already admitted work may overshoot, and unknown provider fees remain partial.
+- Migration `0367_embedding_probe_spend_precision.py` (revision `0367_embedding_probe_spend`) widens ingestion and diagnostic receipts to 12 fractional digits, preserving the previous integer range. Historically rounded receipts cannot be reconstructed or repriced. Downgrade refuses if it would discard fractional financial data.
+- `/api/v1/local-services` is now `/api/v1/service-connections`, with no alias. Update scripts and API clients.
+- Migration `0365_service_connections.py` renames `local_services` and adds `secret_id` and `requires_key`; no data is rewritten.
+- Migration `0366_docling_parser.py` widens the service connection kind to include `document_parser` and adds `rag_documents.parser_task`. Downgrading is refused while a document parser connection exists.
+- A LlamaParse collection now uploads new `.docx` files to LlamaParse.
+- A LiteParse collection now needs LibreOffice to read `.docx`. The backend image ships it; a host that runs the backend outside the image must install it.
+
+### Added
+
+- Preview a role’s navigation, dashboard cards, catalog restrictions and product prompts together, without impersonating a member or loading private widget data.
+- Embed a knowledge base through any OpenAI-compatible endpoint your organization registers, with an optional Vault key: pick **Custom (OpenAI-compatible)**, a service connection and a typed model, then **Test** before creating. Test before saving a change to a knowledge base's embeddings or to a connection's address or key; the Test re-embeds stored chunks and compares them with the vectors already indexed.
+- Knowledge base search marks where a result matches the query: the exact phrase when it appears, otherwise the query's words.
+- Retry a failed document from the documents list (the icon beside **Failed**). A retry reads with the collection's settings as they are now, plus any changes pending for the next uploads.
+- A deployment admin can create a deployment-wide knowledge base, searchable by every organization, from **Create knowledge base**.
+- Parse a knowledge base's documents through your own Docling Serve, registered as a service connection with an optional Vault key. A **Test** checks the address and key without converting anything. Chunks keep their pages, and a conversion that is still running is collected by Retry instead of being submitted again.
+
+## [1.95.0] - 2026-11-26
+
+### Fixed
 
 - Resume a live eval comparison after returning to the tab when its last poll failed, while keeping normal focus reads disabled.
 
@@ -59,12 +85,6 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
-- `POST /rag/documents/{id}/retry` now parses with the collection's current settings and accepts an optional `ingestion_override` body; with no body the file keeps the changes it was uploaded with. A retry no longer replaces another document of the same file, even after an upload with `replace=true`.
-- The knowledge base header's **Parse options** is now **Settings** and opens the collection's own settings; one-off settings for the next uploads moved to **Upload with different settings…** on the **Upload** button, and the banner's **Clear** is now **Revert**.
-- A `.docx` is now read by the collection's parser when it reads Word (LiteParse, LlamaParse, Docling), and otherwise by the built-in Word reader, which now keeps headings and tables as markdown in document order instead of dropping tables; `.txt` and `.md` still use the built-in text reader. The ML document analysis and recognition services follow the same rule, and now recognise a scanned `.docx`. A `.docx`, `.pptx` or `.xlsx` over the chat archive limits is refused at parse time under every parser, so a very large `.pptx` or `.xlsx` that LiteParse or LlamaParse used to read is now refused.
-- A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. The Integrations tab on the Knowledge bases page shows each connection's API style and key, and local services are now called service connections.
-
-
 - The judge prompt fences the case and the answer and ends on the rule that they are data; its version moves to 5. Scores graded with the earlier prompt are no longer reused as cached baselines or compared with new ones, so the first eval run or Improve session after the upgrade grades its answers from scratch, and grading an older eval score again asks to run the eval again.
 - Secret redaction recognises more shapes: passwords in URLs, keys in query strings and form bodies, Basic and opaque Bearer authorization, and more provider key prefixes. Live chats with `redact_secrets_*` on may mask more than before.
 - A person's read of an eval run compares it again under the organization's comparison limit. A single run read returns 429 while another comparison runs; run lists and the Builder's model gate show the verdict they have.
@@ -86,30 +106,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
-- A keyed custom embedding endpoint under an organization USD cap must use a catalog-priced model and report valid token usage. Fix its reporting/model or intentionally remove that cap before retrying a policy-refused ingest/search. Ingestion and sync still admit whole work windows; already admitted work may overshoot, and unknown provider fees remain partial.
-
-- Migration `0367_embedding_probe_spend_precision.py` (revision `0367_embedding_probe_spend`) widens ingestion and diagnostic receipts to 12 fractional digits, preserving the previous integer range. Historically rounded receipts cannot be reconstructed or repriced. Downgrade refuses if it would discard fractional financial data.
-
-- `/api/v1/local-services` is now `/api/v1/service-connections`, with no alias. Update scripts and API clients.
-- Migration `0365_service_connections.py` renames `local_services` and adds `secret_id` and `requires_key`; no data is rewritten.
-- Migration `0366_docling_parser.py` widens the service connection kind to include `document_parser` and adds `rag_documents.parser_task`. Downgrading is refused while a document parser connection exists.
-- A LlamaParse collection now uploads new `.docx` files to LlamaParse.
-- A LiteParse collection now needs LibreOffice to read `.docx`. The backend image ships it; a host that runs the backend outside the image must install it.
-
 - Migration `0374_case_from_conversation` preserves conversation privacy and conservatively protects every legacy synthetic revision without a surviving document reference, including historical revisions. Readers without `runs:view` see unavailable or unverified source material; permitted readers retain all data. Known document-only, manual and imported cases are unchanged.
 - Stop old API and workers before migration `0374_case_from_conversation`, then start only updated code. Old writers do not preserve the privacy flag; mixed-version writes during this upgrade are unsupported. The managed deployer stops these processes before migration.
 - Dataset imports past 10 MB or 10,000 rows are now refused. A deployment that imports larger files raises `DATASET_IMPORT_MAX_BYTES` or `DATASET_IMPORT_MAX_ROWS` before upgrading.
-
-### Added
-
-- Preview a role’s navigation, dashboard cards, catalog restrictions and product prompts together, without impersonating a member or loading private widget data.
-
-- Embed a knowledge base through any OpenAI-compatible endpoint your organization registers, with an optional Vault key: pick **Custom (OpenAI-compatible)**, a service connection and a typed model, then **Test** before creating. Test before saving a change to a knowledge base's embeddings or to a connection's address or key; the Test re-embeds stored chunks and compares them with the vectors already indexed.
-- Knowledge base search marks where a result matches the query: the exact phrase when it appears, otherwise the query's words.
-- Retry a failed document from the documents list (the icon beside **Failed**). A retry reads with the collection's settings as they are now, plus any changes pending for the next uploads.
-- A deployment admin can create a deployment-wide knowledge base, searchable by every organization, from **Create knowledge base**.
-- Parse a knowledge base's documents through your own Docling Serve, registered as a service connection with an optional Vault key. A **Test** checks the address and key without converting anything. Chunks keep their pages, and a conversion that is still running is collected by Retry instead of being submitted again.
-
 
 ## [1.94.0] - 2026-11-26
 
@@ -23094,7 +23093,8 @@ installed hook did nothing.
   codebase has diverged from the generator past the point where a 3-way merge
   helps.
 
-[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...HEAD
+[Unreleased]: https://github.com/vstorm-co/agenticos/compare/v1.95.0...HEAD
+[1.95.0]: https://github.com/vstorm-co/agenticos/compare/v1.94.0...v1.95.0
 [1.94.0]: https://github.com/vstorm-co/agenticos/compare/v1.93.0...v1.94.0
 [1.93.0]: https://github.com/vstorm-co/agenticos/compare/v1.92.0...v1.93.0
 [1.92.0]: https://github.com/vstorm-co/agenticos/compare/v1.91.0...v1.92.0
