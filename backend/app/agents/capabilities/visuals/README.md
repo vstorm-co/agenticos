@@ -74,7 +74,10 @@ dialogs; each list has at most ten entries. A timeout or missing renderer is
 explicit, and `preview_screenshot: false` keeps diagnostics for text-only models.
 
 The renderer admits at most 2,048 browser events per preview and queues at most
-256. Admission stops before enqueueing an excess event. Overflow aborts the
-render, cancels its tasks, drops queued payloads and disposes the context; the
-tool returns the limit message without an image. Draining the queue does not
-reset the total budget, and later renders have independent counters.
+256. ASCII JSON event payloads are limited to 64 KiB each and 1 MiB cumulatively.
+Admission stops before enqueueing an excess event. Overflow aborts the render,
+cancels its tasks, drops queued payloads and disposes the context; the tool
+returns the limit message without an image. Draining the queue does not reset
+the totals, and later renders have independent counters. The CDP transport caps
+incoming messages at 4 MiB before JSON parsing, including screenshot replies;
+PDFs arrive in 64 KiB chunks. Replies do not consume the event allowance.

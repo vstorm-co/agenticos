@@ -866,9 +866,15 @@ pixels tall; a longer page says how tall it is. A page still running after 15
 seconds is reported as such, without a picture.
 
 Each render admits at most 2,048 browser events, with at most 256 waiting to be
-processed, including requests and console messages. Exceeding either limit
-aborts the render, disposes its browser context and returns no screenshot or
-PDF. The error asks you to reduce repeated logging or requests before retrying.
+processed, including requests and console messages. Each event's ASCII-encoded
+JSON payload is limited to 64 KiB, with a total of 1 MiB per render, including
+already processed events. Exceeding a limit aborts the render, disposes its
+browser context and returns no screenshot or PDF. Reduce repeated or large
+log messages and requests before retrying.
+
+The browser connection also limits incoming messages to 4 MiB. Screenshot
+replies and streamed PDF chunks use this transport limit separately from the
+event allowance.
 
 The data is read as the person the run is for, exactly as the console would
 read it for them, and counts against that person's data allowance. In a group chat

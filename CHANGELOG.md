@@ -26,6 +26,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Open chat visuals in a resizable side panel with Preview and Code views, preserving interactive state through expansion and closing.
 - Download SVG visuals as sharp PNG images from chat or full screen, with local conversion, preparation feedback and a retryable error message.
 
+### Fixed
+
+- Limit preview memory use from oversized console output by bounding browser messages and cumulative event payloads.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added

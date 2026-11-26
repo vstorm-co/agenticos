@@ -1,5 +1,5 @@
 ---
-source_sha: "6aaffd461f61"
+source_sha: "efadd9573dca"
 ---
 
 # Aplikacje { #artifacts }
@@ -895,10 +895,15 @@ Obraz ma najwyżej 2400 pikseli wysokości; dłuższa strona mówi, jak jest wys
 Strona, która po 15 sekundach nadal działa, jest tak zgłaszana, bez obrazu.
 
 Każdy render przyjmuje najwyżej 2048 zdarzeń przeglądarki, z których najwyżej
-256 może czekać na przetworzenie, w tym żądań i komunikatów konsoli.
-Przekroczenie któregokolwiek limitu przerywa render, usuwa kontekst przeglądarki
-i nie zwraca zrzutu ekranu ani PDF. Komunikat prosi o ograniczenie powtarzanych
-logów lub żądań przed ponowną próbą.
+256 może czekać na przetworzenie, w tym żądań i komunikatów konsoli. Dane JSON
+każdego zdarzenia po zakodowaniu w ASCII mogą zajmować do 64 KiB, a łącznie
+najwyżej 1 MiB na render, wliczając już przetworzone zdarzenia. Przekroczenie
+limitu przerywa render, usuwa kontekst przeglądarki i nie zwraca zrzutu ekranu
+ani PDF. Przed ponowną próbą ogranicz powtarzane lub duże logi i żądania.
+
+Połączenie z przeglądarką ogranicza też wiadomości przychodzące do 4 MiB.
+Odpowiedzi ze zrzutami ekranu i fragmenty strumienia PDF podlegają temu limitowi
+transportu, niezależnie od limitu zdarzeń.
 
 Dane są czytane jako osoba, dla której działa run, dokładnie tak, jak konsola
 czytałaby je dla niej, i wliczają się do jej limitu odczytów danych. W czacie

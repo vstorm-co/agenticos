@@ -1,5 +1,5 @@
 ---
-source_sha: "6aaffd461f61"
+source_sha: "efadd9573dca"
 ---
 
 # Aplicaciones { #artifacts }
@@ -900,10 +900,15 @@ página más larga dice cuánto mide. Si sigue ejecutándose a los 15 segundos, 
 notifica así, sin imagen.
 
 Cada render admite como máximo 2048 eventos del navegador, incluidas peticiones
-y mensajes de consola, con un máximo de 256 pendientes de procesar. Superar
-cualquiera de los límites detiene el render, elimina su contexto del navegador
-y no devuelve captura ni PDF. El error pide reducir los mensajes o las
-peticiones repetidos antes de reintentar.
+y mensajes de consola, con un máximo de 256 pendientes de procesar. El contenido
+JSON de cada evento codificado en ASCII se limita a 64 KiB, con un total de
+1 MiB por render, incluidos los eventos ya procesados. Superar un límite detiene
+el render, elimina su contexto del navegador y no devuelve captura ni PDF.
+Reduce los mensajes y las peticiones repetidos o grandes antes de reintentar.
+
+La conexión con el navegador también limita los mensajes entrantes a 4 MiB.
+Las respuestas con capturas y los fragmentos de PDF transmitidos usan este límite
+de transporte por separado del cupo de eventos.
 
 Los datos se leen como la persona por la que actúa el run, exactamente como la
 consola los leería para ella, y cuentan contra su cupo de lecturas de datos. En un chat

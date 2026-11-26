@@ -46,6 +46,7 @@ from typing import Any, Literal, Protocol
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
+from websockets.exceptions import ConnectionClosed
 
 from app.agents.capabilities.browser_use._endpoint import version_url, websocket_url
 from app.core.config import settings
@@ -87,6 +88,11 @@ MAX_NOTES = 10
 MAX_EVENTS = 2048
 MAX_PENDING_EVENTS = 256
 """Per render: total admitted CDP events and events waiting for the pump."""
+MAX_EVENT_BYTES = 64 * 1024
+MAX_TOTAL_EVENT_BYTES = 1024 * 1024
+"""ASCII JSON payload budgets, checked before retaining an event in the queue."""
+MAX_CDP_MESSAGE_BYTES = 4 * 1024 * 1024
+"""Transport ceiling, including JPEG replies; PDFs arrive in 64 KiB chunks."""
 _NOTE_CHARS = 300
 
 NOT_CONFIGURED = "ARTIFACT_RENDER_CDP_URL is not set, so this deployment has no page renderer."
@@ -325,6 +331,7 @@ class _Render:
             MAX_PENDING_EVENTS
         )
         self.admitted_events = 0
+        self.admitted_bytes = 0
         self.overflow: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         self.frames: list[tuple[str | None, int]] = []
         """The default execution context of every frame but the host's, newest last."""
@@ -344,8 +351,13 @@ class _Render:
             finished, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             if self.overflow.done():
                 raise ExternalServiceError(
-                    message="The preview exceeded its browser-event limit. Reduce repeated logging or requests and try again.",
-                    details={"max_events": MAX_EVENTS, "max_pending_events": MAX_PENDING_EVENTS},
+                    message="The preview exceeded its browser-event limit. Reduce logging or request sizes and try again.",
+                    details={
+                        "max_events": MAX_EVENTS,
+                        "max_pending_events": MAX_PENDING_EVENTS,
+                        "max_event_bytes": MAX_EVENT_BYTES,
+                        "max_total_event_bytes": MAX_TOTAL_EVENT_BYTES,
+                    },
                 )
             for task in finished:
                 task.result()
@@ -363,8 +375,22 @@ class _Render:
             if self.admitted_events >= MAX_EVENTS or self.heard.full():
                 self.overflow.set_result(None)
                 return
+            # ASCII JSON conservatively charges escaped Unicode too. Iterate so
+            # an oversized payload is rejected without joining its encoded parts.
+            event_bytes = 0
+            for part in json.JSONEncoder(ensure_ascii=True, separators=(",", ":")).iterencode(
+                params
+            ):
+                event_bytes += len(part)
+                if (
+                    event_bytes > MAX_EVENT_BYTES
+                    or self.admitted_bytes + event_bytes > MAX_TOTAL_EVENT_BYTES
+                ):
+                    self.overflow.set_result(None)
+                    return
             self.heard.put_nowait((method, params, session_id))
             self.admitted_events += 1
+            self.admitted_bytes += event_bytes
 
         return heard
 
@@ -870,7 +896,7 @@ class _CdpUseConnection:
             return await self._client.send_raw(method, params, session_id)
         # `cdp-use` raises `RuntimeError` with the browser's error, and
         # `ConnectionError` for every command pending when the socket closed.
-        except (RuntimeError, ConnectionError) as failed:
+        except (RuntimeError, ConnectionError, ConnectionClosed) as failed:
             raise CdpError(method) from failed
 
     def on(self, method: str, handler: CdpHandler) -> None:
@@ -942,7 +968,7 @@ async def _connect(endpoint: str) -> CdpConnection:
     except ImportError as missing:
         raise ConfigurationError(message=NO_EXTRA) from missing
     try:
-        client = CDPClient(await _socket(endpoint))
+        client = CDPClient(await _socket(endpoint), max_ws_frame_size=MAX_CDP_MESSAGE_BYTES)
         await client.start()
     # Refused, timed out, not a browser, a handshake that failed: every way is the
     # same answer, and the exception - which names the address - goes to the log.

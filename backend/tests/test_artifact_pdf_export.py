@@ -79,15 +79,27 @@ async def test_real_pdf_uses_a_separate_context_and_closes_the_stream(
 
 
 @pytest.mark.security
+@pytest.mark.parametrize("overflow", ["count", "bytes"])
 async def test_event_overflow_aborts_a_pdf_and_disposes_the_context(
+    overflow: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(renderer.settings, "ARTIFACT_RENDER_CDP_URL", "http://renderer:9222")
-    monkeypatch.setattr(renderer, "MAX_PENDING_EVENTS", 3)
     browser = PrintBrowser(pdf())
-    browser.events.extend(
-        ("Runtime.consoleAPICalled", {"type": "warning"}, "PAGE") for _ in range(10)
-    )
+    if overflow == "count":
+        monkeypatch.setattr(renderer, "MAX_PENDING_EVENTS", 3)
+        browser.events.extend(
+            ("Runtime.consoleAPICalled", {"type": "warning"}, "PAGE") for _ in range(10)
+        )
+    else:
+        monkeypatch.setattr(renderer, "MAX_EVENT_BYTES", 256)
+        browser.events.append(
+            (
+                "Runtime.consoleAPICalled",
+                {"type": "warning", "args": [{"value": "x" * 1024}]},
+                "PAGE",
+            )
+        )
 
     with pytest.raises(ExternalServiceError, match="browser-event limit"):
         await renderer.render(

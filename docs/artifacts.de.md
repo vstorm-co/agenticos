@@ -1,5 +1,5 @@
 ---
-source_sha: "6aaffd461f61"
+source_sha: "efadd9573dca"
 ---
 
 # Apps { #artifacts }
@@ -991,11 +991,16 @@ hoch; eine längere Seite sagt, wie hoch sie ist. Eine Seite, die nach 15 Sekund
 noch läuft, wird als solche gemeldet, ohne Bild.
 
 Jeder Render lässt höchstens 2.048 Browser-Ereignisse zu, darunter Anfragen und
-Konsolenmeldungen; höchstens 256 dürfen auf Verarbeitung warten. Wird einer
-dieser Grenzwerte überschritten, bricht der Renderer ab, verwirft den
-Browserkontext und liefert weder Screenshot noch PDF. Die Fehlermeldung fordert
-dazu auf, wiederholte Protokollausgaben oder Anfragen vor einem neuen Versuch zu
-reduzieren.
+Konsolenmeldungen; höchstens 256 dürfen auf Verarbeitung warten. Die in ASCII
+kodierte JSON-Nutzlast eines Ereignisses darf höchstens 64 KiB umfassen,
+insgesamt höchstens 1 MiB pro Render, einschließlich bereits verarbeiteter
+Ereignisse. Wird ein Grenzwert überschritten, bricht der Renderer ab, verwirft
+den Browserkontext und liefert weder Screenshot noch PDF. Reduziere vor einem
+neuen Versuch wiederholte oder große Protokollmeldungen und Anfragen.
+
+Die Browser-Verbindung begrenzt eingehende Nachrichten außerdem auf 4 MiB.
+Screenshot-Antworten und gestreamte PDF-Blöcke unterliegen dieser Transportgrenze,
+unabhängig vom Ereigniskontingent.
 
 Die Daten werden als die Person gelesen, für die der Run handelt, genau so, wie
 die Konsole sie für sie lesen würde, und zählen gegen deren Kontingent für
