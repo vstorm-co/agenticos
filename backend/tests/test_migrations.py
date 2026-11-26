@@ -2239,7 +2239,7 @@ def test_published_thread_chain_preserves_saved_profiles_and_matches_models(prev
         assert upgraded.returncode == 0, upgraded.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0365_merge_t3_v1930"
+                "0366_merge_t3_thread_context"
             ]
             row = connection.execute(
                 text(
@@ -2325,7 +2325,16 @@ class TestRoomThreadMigration:
         receipts = script.get_revision("0356_trigger_webhook_receipts")
         assert receipts is not None
         assert receipts.down_revision == "0355_magic_link_claims"
-        assert script.get_heads() == ["0365_merge_t3_v1930"]
+        context = script.get_revision("0358_room_thread_context")
+        assert context is not None
+        assert context.down_revision == "0356_trigger_webhook_receipts"
+        thread_context_merge = script.get_revision("0366_merge_t3_thread_context")
+        assert thread_context_merge is not None
+        assert thread_context_merge.down_revision == (
+            "0365_merge_t3_v1930",
+            "0358_room_thread_context",
+        )
+        assert script.get_heads() == ["0366_merge_t3_thread_context"]
 
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
@@ -2353,7 +2362,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0365_merge_t3_v1930"]
+                ).all() == ["0366_merge_t3_thread_context"]
                 rows = connection.execute(
                     text(
                         "SELECT id,reply_to_message_id,thread_root_message_id FROM messages "
@@ -2455,7 +2464,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0365_merge_t3_v1930"]
+                ).all() == ["0366_merge_t3_thread_context"]
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -2658,7 +2667,7 @@ class TestRoomThreadMigration:
         assert resumed.returncode == 0, resumed.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0365_merge_t3_v1930"
+                "0366_merge_t3_thread_context"
             ]
             assert connection.execute(
                 text("SELECT content, thread_root_message_id FROM messages WHERE id = :id"),
@@ -3612,7 +3621,7 @@ def test_personal_work_context_upgrades_a_database_at_the_t3_head() -> None:
         assert "personal_context_cache" in inspector.get_table_names()
         with engine.begin() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0365_merge_t3_v1930"
+                "0366_merge_t3_thread_context"
             ]
             assert (
                 connection.scalar(

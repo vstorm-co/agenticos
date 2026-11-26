@@ -1,5 +1,5 @@
 ---
-source_sha: "28f4ce4b74d9"
+source_sha: "048047129382"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -799,6 +799,8 @@ powiadomić, albo agenta, aby poprosić o jego odpowiedź. Załączniki do wiado
 pokoju, reakcje emoji, obserwowanie wątków i wskaźniki nieprzeczytanych wiadomości
 korzystają z tej samej zapisanej transkrypcji. Zobacz [pokoje zespołu](projects.md#team-rooms),
 aby poznać członkostwo, odpowiadających i działanie wątków.
+
+**Wybierz kontekst (Select context)** tworzy wątek z wybranego zakresu wiadomości. Wątek trzyma kontekst osobno od odpowiedzi i umożliwia przenoszenie, zwracanie lub edycję zakresu. Możesz też odwołać się do zgodnej rozmowy źródłowej. Zasady wyboru i dostępu opisuje [wybrany kontekst wątku](projects.md#selected-thread-context).
 
 Widoki przeglądarki i komputera pozostają oddzielne. Panele są początkowo zamknięte;
 zamknięty panel pozostaje zamknięty także po nadejściu nowych wyników narzędzi. Na

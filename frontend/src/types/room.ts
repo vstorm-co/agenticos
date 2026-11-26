@@ -2,6 +2,7 @@ import type { ConversationMessage } from "./conversation";
 import type { MessageReply } from "./chat";
 import type { RawMessage } from "@/lib/conversation-to-chat";
 import type { FileUploadResponse } from "@/lib/file-api";
+import type { RoomThreadContextRead } from "./room-thread-context";
 
 export type RoomRequestStatus =
   | "queued"
@@ -101,6 +102,9 @@ export interface RoomThreadPage {
   can_manage?: boolean;
   following?: boolean;
   unread?: number;
+  /** Included snapshot context, separate from the root and actual replies. */
+  context?: RoomThreadContextRead | null;
+  context_messages?: RawMessage[];
 }
 
 /** A browser draft and its frozen, possibly committed submission. Never persisted. */

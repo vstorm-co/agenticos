@@ -301,6 +301,18 @@ class ConversationTaskService:
                 or root is None
             ):
                 raise NotFoundError(message="The task's source subthread is no longer writable")
+            from app.services.room_thread import RoomThreadService
+            from app.services.room_thread_context_read import RoomThreadContextReadService
+
+            await RoomThreadService(self.db).assert_replyable(
+                task.source_conversation_id, scope.thread_root_message_id
+            )
+            await RoomThreadContextReadService(self.db).assert_history(
+                destination=conversation,
+                root_message_id=scope.thread_root_message_id,
+                actor=ctx,
+                responder_agent_id=task.source_agent_id,
+            )
         return ctx, scope.thread_root_message_id
 
     async def list_for_member(

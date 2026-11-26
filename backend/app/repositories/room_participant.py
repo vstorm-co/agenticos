@@ -238,6 +238,7 @@ async def public_directory(
     user_id: UUID,
     skip: int,
     limit: int,
+    excluded_conversation_ids: Collection[UUID] = frozenset(),
 ) -> tuple[list[Conversation], int]:
     """Page public non-project rooms this user has not joined."""
     joined = (
@@ -255,6 +256,7 @@ async def public_directory(
         Conversation.project_id.is_(None),
         Conversation.origin.is_(None),
         Conversation.is_archived.is_(False),
+        Conversation.id.not_in(excluded_conversation_ids),
         ~joined,
     )
     total = await db.scalar(select(func.count(Conversation.id)).where(*filters)) or 0

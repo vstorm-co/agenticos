@@ -138,6 +138,10 @@ async def test_a_thread_opened_by_its_link_carries_its_drawings(mock_redis: Magi
     try:
         with (
             patch(
+                "app.services.conversation_share.conversation_repo.has_imported_thread_context",
+                new=AsyncMock(return_value=False),
+            ),
+            patch(
                 "app.services.conversation_share.conversation_share_repo.get_by_token",
                 new=AsyncMock(return_value=share),
             ),

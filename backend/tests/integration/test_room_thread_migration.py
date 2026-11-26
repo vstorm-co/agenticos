@@ -17,22 +17,31 @@ from tests.integration.test_room_submissions import seed
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
-_PATH = Path(__file__).parents[2] / "alembic" / "versions" / "0352_room_thread_state.py"
-_SPEC = importlib.util.spec_from_file_location("room_thread_migration", _PATH)
-assert _SPEC is not None and _SPEC.loader is not None
-_MIGRATION = importlib.util.module_from_spec(_SPEC)
-_SPEC.loader.exec_module(_MIGRATION)
+
+def _revision(filename):
+    path = Path(__file__).parents[2] / "alembic" / "versions" / filename
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
-def migrate(connection, direction):
+_MIGRATION = _revision("0352_room_thread_state.py")
+# A later revision that adds columns to `room_threads`: rebuilding the table has to
+# take it off first and put it back after, or the model's schema is not restored.
+_CONTEXT = _revision("0358_room_thread_context.py")
+
+
+def migrate(connection, direction, revision=_MIGRATION):
     ctx = MigrationContext.configure(connection, opts={"target_metadata": Base.metadata})
     with ctx.begin_transaction(), Operations.context(ctx):
-        getattr(_MIGRATION, direction)()
+        getattr(revision, direction)()
 
 
-async def step(connection, direction):
+async def step(connection, direction, revision=_MIGRATION):
     await connection.commit()
-    await connection.run_sync(lambda sync: migrate(sync, direction))
+    await connection.run_sync(lambda sync: migrate(sync, direction, revision))
 
 
 def schema(connection):
@@ -64,6 +73,7 @@ async def test_room_thread_revision_round_trips_the_model_schema(engine):
         assert RoomThreadFollow.__tablename__ in Base.metadata.tables
         assert RoomThreadRead.__tablename__ in Base.metadata.tables
         try:
+            await step(connection, "downgrade", _CONTEXT)
             await step(connection, "downgrade")
             assert not await connection.run_sync(
                 lambda sync: any(
@@ -72,11 +82,20 @@ async def test_room_thread_revision_round_trips_the_model_schema(engine):
                 )
             )
             await step(connection, "upgrade")
+            await step(connection, "upgrade", _CONTEXT)
             assert await connection.run_sync(schema) == expected
+            await step(connection, "downgrade", _CONTEXT)
             await step(connection, "downgrade")
         finally:
             if not await connection.run_sync(lambda sync: inspect(sync).has_table("room_threads")):
                 await step(connection, "upgrade")
+            if not await connection.run_sync(
+                lambda sync: any(
+                    column["name"] == "context_revision"
+                    for column in inspect(sync).get_columns("room_threads")
+                )
+            ):
+                await step(connection, "upgrade", _CONTEXT)
 
 
 @pytest.mark.parametrize("evidence", ["thread", "follow", "read"])

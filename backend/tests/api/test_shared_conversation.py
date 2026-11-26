@@ -71,6 +71,10 @@ async def test_a_share_link_opens_the_conversation_without_echoing_its_token(
 ):
     share, conv = _share(), _conversation()
     with (
+        patch(
+            f"{MODULE}.conversation_repo.has_imported_thread_context",
+            AsyncMock(return_value=False),
+        ),
         patch(f"{MODULE}.conversation_share_repo.get_by_token", AsyncMock(return_value=share)),
         patch(f"{MODULE}.conversation_repo.get_conversation_by_id", AsyncMock(return_value=conv)),
         patch(
