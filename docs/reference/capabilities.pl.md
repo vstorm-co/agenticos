@@ -1,5 +1,5 @@
 ---
-source_sha: "48eead872cf1"
+source_sha: "4a9eb6a24e5b"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -468,11 +468,43 @@ wynika po stronie serwera z tego, kto usłyszy odpowiedź, a nigdy z modelu — 
   twórca](../concepts.md#unless-its-creator-lets-it-run-as-them): harmonogram
   czyta wtedy i zapisuje magazyn twórcy, a zdarzenie tylko go czyta.
 
-Nie ma magazynu obejmującego całą organizację. Taki istniał i został usunięty:
-był drugim mechanizmem dla tego, co robią już [pliki kontekstu](../context.md) —
-stałej wiedzy, którą pisze człowiek i wiąże z agentami — a jedno zadanie z dwoma
-mechanizmami to sposób, w jaki oba zaczynają się nie zgadzać. Pamięć jest tym,
-czego nauczył się _agent_; wszystko, co pisze człowiek, należy do kontekstu.
+[Pliki kontekstu](../context.md) służą do pisania stałych instrukcji. Agent
+przechowuje notatki robocze w zakresie osoby lub pokoju. Osoba z uprawnieniem
+`context:edit` dla całej organizacji może w ustawieniach udostępnić sprawdzoną
+kopię własnej notatki lub twierdzenia organizacji albo grupie.
+
+### Obiekty biznesowe i historia { #memory-business-objects }
+
+W **Settings → Memory** są widoki Osobista i Organizacyjna, a w każdym Memories
+i Notes. W Memories filtruj obiekty według typu: osoba, firma lub klient,
+projekt biznesowy albo zobowiązanie. Projekt biznesowy ma własną tożsamość i
+może istnieć bez przestrzeni w module Projects. Bieżące członkostwo w grupach
+wyznacza widoczność publikacji grupowych. Udostępniasz sprawdzoną wersję notatki.
+Usunięcie osobistego źródła usuwa udostępnione kopie notatki.
+
+Do jawnego polecenia służy `remember`, a do notatek roboczych agenta
+`write_memory`. Opcjonalny `object_ref` wskazuje obiekt biznesowy, a `value`
+przechowuje typowaną wartość prostą. `recall(as_of=…)` podaje stan na datę,
+a `known_at` ogranicza wiedzę do chwili przed późniejszą korektą. Przedziały
+są półotwarte. Wpis bez daty początku można znaleźć w aktualnym wyszukiwaniu.
+Odczyt historyczny wymaga daty obserwacji. Otwórz zamknięty przedział na osi czasu osobistego obiektu i wybierz korektę, aby poprawić wpis z zachowaniem wcześniejszego stanu wiedzy. Historia zmian stanu zaczyna się
+w nowym schemacie. Istniejące wpisy i ich identyfikatory pozostają dostępne.
+
+### Pamięć z Gmaila { #memory-gmail }
+
+Podłącz firmowy portal Gmail. Operator z `connections:manage` i uprawnieniem
+`context:edit` dla całej organizacji zatwierdza regułę w **Settings → Memory →
+Organizacyjna → Pamięć z Gmaila**. Podaje uwierzytelnionego nadawcę, dokładny
+temat i nazwę zobowiązania. Wiadomość zawiera jeden wiersz
+`Deadline: YYYY-MM-DD` albo `Deadline: cancelled`.
+
+Podgląd rejestruje dopasowane zdarzenie i jego stan. Tryb aktywny zapisuje
+termin i dowód na wspólnej osi czasu zobowiązania. Opcja informowania w Inbox
+wysyła zatwierdzającemu jedną kartę, gdy zmieni się dotychczasowy termin.
+Reguła działa bez wywołania modelu. Worker przed zapisem ponownie sprawdza
+autoryzację skrzynki i prawa zatwierdzającego. Dzienny limit zatrzymuje kursor,
+aby ponowić odczyt oczekujących zdarzeń. Usunięcie reguły usuwa jej wpisy,
+zdarzenia w kolejce i karty Inbox.
 
 Jeden przełącznik, **Allow personal memory**, znosi magazyn osobowy w całości ze
 względu na zgodność albo prywatność; notatki prowadzone na czatach grupowych

@@ -15,21 +15,25 @@ import {
   DialogFooter,
 } from "@/components/ui";
 import { DIALOG_WIDE, DIALOG_COLUMN, DIALOG_BODY } from "@/lib/dialog-sizes";
-import type { MemoryClaim, DecisionEpisode } from "@/lib/memory-api";
+import { shareMemoryClaim, type MemoryClaim, type DecisionEpisode } from "@/lib/memory-api";
 import type { AgentUsage } from "@/types/agents";
 import { DecisionEvidence } from "./decision-evidence";
 import { ClaimEditor } from "./claim-editor";
 import { MemoryAgentAvatar } from "./memory-agent-avatar";
+import { ClaimSources } from "./memory-object-library";
+import { MemoryPublication } from "./memory-publication";
 
 export function ClaimDetail({
   claim,
   agent,
+  canShare,
   onClose,
   correct,
   retract,
 }: {
   claim: MemoryClaim;
   agent?: AgentUsage;
+  canShare?: boolean;
   onClose: () => void;
   correct: (
     id: string,
@@ -45,7 +49,10 @@ export function ClaimDetail({
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
-  const live = claim.status === "current" || claim.status === "disputed";
+  const [openedAt] = useState(() => Date.now());
+  const live =
+    (claim.status === "current" || claim.status === "disputed") &&
+    (claim.effective_to === null || new Date(claim.effective_to).getTime() > openedAt);
   return (
     <Dialog
       open
@@ -115,7 +122,10 @@ export function ClaimDetail({
                     {t("effectiveFrom")}
                   </dt>
                   <dd>
-                    {format.dateTime(new Date(claim.effective_from), { dateStyle: "medium" })}
+                    {format.dateTime(new Date(claim.effective_from), {
+                      dateStyle: "medium",
+                      timeZone: "UTC",
+                    })}
                   </dd>
                 </div>
               )}
@@ -126,10 +136,14 @@ export function ClaimDetail({
               )}
             </dl>
           </section>
+          {!editing && <ClaimSources claimId={claim.id} library="personal" />}
           {claim.episode && !editing && <DecisionEvidence claim={claim} />}
         </div>
         {live && !editing && (
           <DialogFooter>
+            {canShare && (
+              <MemoryPublication publish={(group) => shareMemoryClaim(claim.id, group)} />
+            )}
             <Button variant="secondary" onClick={() => setEditing(true)}>
               <Pencil className="size-4" aria-hidden />
               {t("correct")}

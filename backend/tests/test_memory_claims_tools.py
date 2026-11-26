@@ -463,3 +463,32 @@ async def test_recalled_decisions_include_evidence_without_injecting_unbounded_h
     answer = await _tools().recall(_ctx(_deps()), "supplier")
     assert "[disputed]" in answer and "Decision evidence:" in answer
     assert "Supplier late" in answer and "Confirmed delivery" in answer
+
+
+async def test_typed_claim_and_dated_recall_are_passed_to_the_ledger(ledger) -> None:
+    from dataclasses import replace
+
+    from app.schemas.memory import MemoryObjectRef
+
+    object_id = uuid4()
+    ledger["remember"].return_value = (replace(_view(), object_id=object_id), True, False)
+    tools = _tools()
+    ctx = _ctx(_deps())
+    ref = MemoryObjectRef(kind="company", name="Acme")
+    assert "later than" in await tools.remember(ctx, "Acme count", effective_to="2020-07-01")
+    saved = await tools.remember(
+        ctx,
+        "Acme has 20 employees",
+        object_ref=ref,
+        value=20,
+        effective_from="2020-07-01",
+        effective_to="2020-07-02",
+    )
+    assert f"object {object_id}" in saved
+    assert ledger["remember"].await_args.kwargs["object_ref"] == ref
+    assert ledger["remember"].await_args.kwargs["value"] == 20
+    assert "ISO date" in await tools.recall(ctx, "Acme", known_at="yesterday")
+    assert "ISO date" in await tools.recall(ctx, "Acme", as_of="a long time ago")
+    await tools.recall(ctx, "Acme", as_of="2020-07-01", known_at="2026-11-15")
+    assert ledger["recall"].await_args.kwargs["as_of"] == datetime(2020, 7, 1, tzinfo=UTC)
+    assert ledger["recall"].await_args.kwargs["known_at"] == datetime(2026, 11, 15, tzinfo=UTC)

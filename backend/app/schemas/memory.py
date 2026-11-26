@@ -11,10 +11,18 @@ Corrections preserve the original agent-write timestamp and are audited separate
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, ConfigDict, Field
+from pydantic import (
+    AwareDatetime,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictInt,
+    StrictStr,
+    StringConstraints,
+)
 
 from app.schemas.base import BaseSchema
 from app.schemas.decision_episode import DecisionEpisode
@@ -74,6 +82,16 @@ class MemoryNoteEdit(BaseSchema):
     expected_updated_at: AwareDatetime | None
 
 
+MemoryValue = StrictStr | StrictInt | StrictBool
+
+
+class MemoryClaimEvidenceRead(BaseSchema):
+    kind: Literal["message", "gmail"]
+    source_id: str
+    quote: str
+    occurred_at: datetime
+
+
 class MemoryClaimRead(BaseSchema):
     """One recorded claim as its subject sees it: what it says, whose it is, where it came from."""
 
@@ -82,11 +100,13 @@ class MemoryClaimRead(BaseSchema):
     id: UUID
     agent_id: UUID | None = None
     agent_name: str | None = None
-    scope: Literal["profile", "agent"] = "agent"
+    scope: Literal["profile", "agent", "organization", "group"] = "agent"
     """`profile` serves every agent acting for the person; `agent` is one agent's relationship."""
 
     subject: str | None = None
+    object_id: UUID | None = None
     statement: str
+    value: MemoryValue | None = None
     kind: str
     origin: Literal["agent", "person", "consolidation"]
     status: Literal["current", "disputed", "superseded", "merged", "retracted"]
@@ -106,6 +126,7 @@ class MemoryClaimList(BaseSchema):
 class MemoryClaimDetail(MemoryClaimRead):
     """A claim with the claims it was drawn from and the one it replaced."""
 
+    evidence: list[MemoryClaimEvidenceRead] = Field(default_factory=list)
     sources: list[MemoryClaimRead] = Field(default_factory=list)
     withheld: int = 0
     """Sources the reader may not see; counted so the ancestry is never silently shorter."""
@@ -114,8 +135,90 @@ class MemoryClaimDetail(MemoryClaimRead):
 
 
 class MemoryClaimCorrect(BaseSchema):
-    """A person's correction: the new statement, and when it began to hold."""
+    """Replace a current claim or amend the exact interval of a historical observation."""
 
     statement: str = Field(min_length=1, max_length=600)
     effective_from: AwareDatetime | None = None
     episode: DecisionEpisode | None = None
+    historical: bool = False
+
+
+MemoryObjectKind = Literal["person", "company", "project", "commitment"]
+MemoryLibrary = Literal["personal", "organization"]
+
+
+class MemoryObjectRef(BaseSchema):
+    """A named business object. An external key is qualified by its source."""
+
+    model_config = ConfigDict(extra="forbid")
+    kind: MemoryObjectKind
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)]
+    external_key: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=260)]
+        | None
+    ) = None
+
+
+class MemoryObjectRead(BaseSchema):
+    id: UUID
+    kind: MemoryObjectKind
+    name: str
+
+
+class MemoryObjectPage(BaseSchema):
+    items: list[MemoryObjectRead]
+    next_cursor: UUID | None = None
+
+
+class MemoryObjectTimeline(BaseSchema):
+    object: MemoryObjectRead
+    items: list[MemoryClaimRead]
+    next_cursor: UUID | None = None
+
+
+class MemoryClaimShare(BaseSchema):
+    """Publish one reviewed claim to the organization or one of its groups."""
+
+    group_id: UUID | None = None
+    confirmed: Literal[True]
+
+
+class MemoryNoteShare(MemoryClaimShare):
+    expected_updated_at: AwareDatetime | None
+
+
+class SharedMemoryNoteRead(BaseSchema):
+    id: UUID
+    name: str
+    content: str
+
+
+class SharedMemoryNotePage(BaseSchema):
+    items: list[SharedMemoryNoteRead]
+    next_cursor: UUID | None = None
+
+
+class MemoryMailConfig(BaseSchema):
+    """Gmail admission and Inbox controls reviewed by an organization operator."""
+
+    model_config = ConfigDict(extra="forbid")
+    sender: Annotated[
+        str, StringConstraints(strip_whitespace=True, pattern=r"^[^\s@]+@[^\s@]+$", max_length=254)
+    ]
+    subject: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    commitment: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)
+    ]
+    mode: Literal["shadow", "active"]
+    notify: bool = False
+    confirmed: Literal[True]
+
+
+class MemoryMailSourceRead(BaseSchema):
+    sender: str
+    subject: str
+    commitment: str
+    mode: str
+    notify: bool
+    last_outcome: str | None = None
+    authorized: bool

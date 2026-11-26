@@ -39,6 +39,7 @@ from app.db.models.memory_claim import MemoryClaim
 from app.repositories import memory_claim as claim_repo
 from app.repositories.memory_claim import ClaimScope
 from app.schemas.decision_episode import DecisionEpisode
+from app.schemas.memory import MemoryObjectRef, MemoryValue
 
 MAX_STATEMENT = 600
 PROFILE_CLAIMS = 20
@@ -130,6 +131,11 @@ async def remember(
     effective_from: datetime | None = None,
     episode: DecisionEpisode | None = None,
     corrects: bool = False,
+    effective_to: datetime | None = None,
+    object_ref: MemoryObjectRef | None = None,
+    object_id: UUID | None = None,
+    mail_event_id: UUID | None = None,
+    value: MemoryValue | None = None,
 ) -> Remembered:
     """Record one claim in `scope`, applying the precedence rules above.
 
@@ -141,21 +147,86 @@ async def remember(
     if episode is not None and kind != "decision":
         raise BadRequestError(message="Structured episodes belong to decision claims")
     await _hold_scope(db, organization_id=organization_id, scope_key=scope.scope_key)
+    if effective_to is not None and (effective_from is None or effective_to <= effective_from):
+        raise BadRequestError(message="Memory validity must have a start before its end")
+    if object_ref is not None:
+        identity_key = (
+            f"external:{object_ref.external_key}"
+            if object_ref.external_key is not None
+            else f"name:{' '.join(object_ref.name.casefold().split())}"
+        )
+        entity = await claim_repo.put_object(
+            db,
+            organization_id=organization_id,
+            scope_key=scope.scope_key,
+            kind=object_ref.kind,
+            name=object_ref.name,
+            identity_key=identity_key,
+        )
+        object_id = entity.id
     episode_data = None if episode is None else episode.model_dump(mode="json")
     statement = statement.strip()[:MAX_STATEMENT]
     topic = normalise_subject(subject)
+    if object_id is not None:
+        topic = topic or "description"
     live = (
         await claim_repo.about_subject(
-            db, organization_id=organization_id, scope=scope, subject=topic
+            db,
+            organization_id=organization_id,
+            scope=scope,
+            subject=topic,
+            object_id=object_id,
+            statuses=("current", "disputed", "superseded")
+            if effective_from is not None
+            else ("current", "disputed"),
         )
         if topic is not None
-        else await claim_repo.without_subject(db, organization_id=organization_id, scope=scope)
+        else await claim_repo.without_subject(
+            db, organization_id=organization_id, scope=scope, object_id=object_id
+        )
     )
+    now = datetime.now(UTC)
     for existing in live:
-        if _same(existing.statement, statement) and existing.episode == episode_data:
+        same_period = (
+            existing.effective_from == effective_from
+            and (effective_to is None or existing.effective_to == effective_to)
+            and (effective_from is not None or existing.effective_to is None)
+        )
+        if (
+            same_period
+            and (
+                existing.effective_to is None
+                or existing.effective_from is None
+                or existing.effective_to > existing.effective_from
+            )
+            and _same(existing.statement, statement)
+            and existing.episode == episode_data
+            and type(existing.value) is type(value)
+            and existing.value == value
+        ):
             return Remembered(existing, created=False, disputed=existing.status == "disputed")
 
-    now = datetime.now(UTC)
+    # A late observation starts a historical segment up to the next known boundary.
+    # Explicit intervals can express isolated reports and must not fill missing years.
+    if effective_from is not None and not corrects and effective_to is None:
+        future_starts = [
+            item.effective_from
+            for item in live
+            if item.effective_from is not None and item.effective_from > effective_from
+        ]
+        effective_to = min(future_starts, default=None)
+    boundary = effective_from or now
+    live = [
+        item
+        for item in live
+        if item.status in ("current", "disputed")
+        and (item.effective_to is None or item.effective_to > boundary)
+        and (
+            effective_to is None
+            or item.effective_from is None
+            or item.effective_from < effective_to
+        )
+    ]
     supersedes_live = corrects or origin == "person"
     if supersedes_live and any(
         (item.origin == "person" or item.supersedes_id is not None)
@@ -177,8 +248,7 @@ async def remember(
                 if effective_from is not None and effective_from > now:
                     # Dated for later: the old claim stays true until then, so it is closed
                     # at that date and keeps its status; the new one waits for its date.
-                    old.effective_to = effective_from
-                    db.add(old)
+                    await claim_repo.set_status(db, old, old.status, effective_to=effective_from)
                 else:
                     await claim_repo.set_status(
                         db, old, "superseded", effective_to=effective_from or now
@@ -197,6 +267,9 @@ async def remember(
         scope_key=scope.scope_key,
         agent_id=scope.agent_id,
         subject=topic,
+        object_id=object_id,
+        mail_event_id=mail_event_id,
+        value=value,
         statement=statement,
         kind=kind,
         origin=origin,
@@ -206,6 +279,7 @@ async def remember(
         source_run_id=run_id,
         observed_at=now,
         effective_from=effective_from,
+        effective_to=effective_to,
         supersedes_id=supersedes.id if supersedes else None,
         episode=episode_data,
     )
@@ -244,6 +318,8 @@ async def correct(
         scope=ClaimScope(claim.scope_key, claim.agent_id),
         statement=statement,
         subject=subject,
+        object_id=claim.object_id,
+        mail_event_id=claim.mail_event_id if origin == "agent" else None,
         kind=claim.kind,
         origin=origin,
         corrects=True,
@@ -261,6 +337,52 @@ async def correct(
         ),
     )
     return result.claim
+
+
+async def amend_observation(
+    db: AsyncSession,
+    *,
+    claim: MemoryClaim,
+    statement: str,
+    author_user_id: UUID,
+    episode: DecisionEpisode | None = None,
+) -> MemoryClaim:
+    """Correct one closed interval without changing any later interval on the same subject."""
+    await _hold_scope(db, organization_id=claim.organization_id, scope_key=claim.scope_key)
+    row = await claim_repo.get(db, organization_id=claim.organization_id, claim_id=claim.id)
+    now = datetime.now(UTC)
+    if (
+        row is None
+        or row.status not in ("current", "disputed", "superseded")
+        or row.effective_from is None
+        or row.effective_to is None
+        or not row.effective_from < row.effective_to <= now
+    ):
+        raise ConflictError(message="Choose a dated observation with a completed interval")
+    if episode is not None and row.kind != "decision":
+        raise BadRequestError(message="Structured episodes belong to decision claims")
+    start, end = row.effective_from, row.effective_to
+    await claim_repo.set_status(db, row, "superseded", effective_to=start)
+    fixed = await claim_repo.create(
+        db,
+        organization_id=row.organization_id,
+        scope_key=row.scope_key,
+        agent_id=row.agent_id,
+        statement=statement.strip(),
+        object_id=row.object_id,
+        subject=row.subject,
+        kind=row.kind,
+        status="current",
+        origin="person",
+        author_user_id=author_user_id,
+        observed_at=now,
+        effective_from=start,
+        effective_to=end,
+        supersedes_id=row.id,
+        episode=episode.model_dump(mode="json") if episode is not None else row.episode,
+    )
+    await claim_repo.bump_revision(db, organization_id=row.organization_id, scope_key=row.scope_key)
+    return fixed
 
 
 async def retract(db: AsyncSession, *, claim: MemoryClaim) -> None:
@@ -325,6 +447,24 @@ async def share(
     if {key for key in refreshed_ancestry - ancestry if is_person_key(key)}:
         raise ConflictError(message="The claim ancestry changed; retry sharing")
     claim = current
+    target_object_id: UUID | None = None
+    if claim.object_id is not None:
+        entity = await claim_repo.get_object(
+            db,
+            organization_id=claim.organization_id,
+            object_id=claim.object_id,
+            scope_keys=[claim.scope_key],
+        )
+        if entity is not None:
+            target_entity = await claim_repo.put_object(
+                db,
+                organization_id=claim.organization_id,
+                scope_key=to.scope_key,
+                kind=entity.kind,
+                name=entity.name,
+                identity_key=entity.identity_key,
+            )
+            target_object_id = target_entity.id
     result = await remember(
         db,
         organization_id=claim.organization_id,
@@ -334,8 +474,13 @@ async def share(
         if claim.episode is not None
         else None,
         subject=claim.subject,
+        object_id=target_object_id,
         kind=claim.kind,
         origin="person",
+        effective_from=claim.effective_from,
+        effective_to=claim.effective_to,
+        mail_event_id=claim.mail_event_id,
+        value=claim.value,
         author_user_id=author_user_id,
         conversation_id=conversation_id,
     )
@@ -426,22 +571,22 @@ async def recall(
     scopes: Sequence[ClaimScope],
     query: str,
     limit: int = 8,
+    as_of: datetime | None = None,
+    known_at: datetime | None = None,
 ) -> list[MemoryClaim]:
-    """The live claims that best match `query`, by how many of its words they contain.
-
-    Plain substring matching on purpose: recall must not need a model call on every
-    lookup, and the claims are short, curated sentences.
-    """
-    terms = [term for term in re.findall(r"\w+", query.casefold()) if len(term) >= 3][:8]
-    rows = await claim_repo.search(
-        db, organization_id=organization_id, scopes=scopes, terms=terms, limit=limit
+    """Best matches in the caller's scope, either current or explicitly historical."""
+    terms = list(
+        dict.fromkeys(term for term in re.findall(r"[^\W_]+", query.casefold()) if len(term) >= 3)
+    )[:8]
+    return await claim_repo.search(
+        db,
+        organization_id=organization_id,
+        scopes=scopes,
+        terms=terms,
+        limit=limit,
+        as_of=as_of,
+        known_at=known_at,
     )
-
-    def score(claim: MemoryClaim) -> tuple[int, int]:
-        text = f"{claim.subject or ''} {claim.statement}".casefold()
-        return (sum(term in text for term in terms), 1 if claim.status == "current" else 0)
-
-    return sorted(rows, key=score, reverse=True)[:limit]
 
 
 @dataclass(frozen=True)
@@ -484,7 +629,14 @@ async def consolidate(db: AsyncSession, *, organization_id: UUID, scope_key: str
         )
     groups: dict[tuple[UUID | None, str], list[MemoryClaim]] = {}
     for claim in candidates:
-        if claim.subject is not None and claim.origin != "consolidation" and claim.episode is None:
+        if (
+            claim.subject is not None
+            and claim.origin != "consolidation"
+            and claim.episode is None
+            and claim.object_id is None
+            and claim.effective_from is None
+            and claim.effective_to is None
+        ):
             groups.setdefault((claim.agent_id, claim.subject), []).append(claim)
     for (agent_id, subject), claims in groups.items():
         people = [claim for claim in claims if claim.origin == "person"]

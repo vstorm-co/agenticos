@@ -25,6 +25,7 @@ from app.agents.memory_scope import claim_write_scope, memory_owner_key, readabl
 from app.core.memory_keys import INDEX_NAME as _INDEX_NAME
 from app.repositories.memory_claim import ClaimScope
 from app.schemas.decision_episode import DecisionEpisode
+from app.schemas.memory import MemoryObjectRef, MemoryValue
 from app.services import memory as memory_store
 from app.services.memory._runtime import ClaimView, ShareRefused
 
@@ -315,11 +316,15 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         profile: bool = False,
         effective_from: str | None = None,
         episode: DecisionEpisode | None = None,
+        object_ref: MemoryObjectRef | None = None,
+        effective_to: str | None = None,
+        value: MemoryValue | None = None,
     ) -> str:
         """Record one durable fact, preference or decision, with where it came from.
 
-        Use it for something a person told you or decided that a later conversation
-        should rely on, in one plain sentence. It is saved where this conversation
+        Use it when the person asks you to remember a fact or an object. Write your
+        own useful working notes with write_memory. After the conversation, memory
+        maintenance can capture other supported facts. It is saved where this conversation
         belongs: a private chat's claim is that person's, a group chat's is the
         chat's. Set `profile` for a general fact or preference every agent working
         for the person may use ("prefers short answers"); leave it off for case
@@ -337,6 +342,12 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             kind: `fact`, `preference` or `decision`.
             profile: True for a general fact or preference about the person.
             effective_from: ISO date from which it holds, for example `2026-11-03`.
+            effective_to: Optional exclusive end date. Use an explicit interval for a
+                dated observation such as a headcount report. Leave uncertain dates empty.
+            object_ref: Optional person, company, business project or commitment and name.
+                A business project can exist without a Projects workspace. Supply an
+                external key only when the person provided one for this identity.
+            value: Optional exact numeric, Boolean or text value for the named property.
             episode: For a decision only: observed situation, chosen action, alternatives,
                 expected and actual outcomes, and any correction. Do not invent outcomes.
                 Keep case evidence in this agent or room; never set profile for an episode.
@@ -365,6 +376,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         start = _parse_date(effective_from)
         if effective_from and start is None:
             return "effective_from must be an ISO date such as 2026-11-03."
+        end = _parse_date(effective_to)
+        if effective_to is not None and (start is None or end is None or end <= start):
+            return "effective_to must be an ISO date later than effective_from."
         author = UUID(str(audience.user_id)) if audience.user_id else None
         try:
             saved = await memory_store.runtime.remember(
@@ -377,7 +391,10 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 conversation_id=deps.conversation_id,
                 run_id=deps.run_id,
                 effective_from=start,
-                **({"episode": episode} if episode is not None else {}),
+                effective_to=end,
+                object_ref=object_ref,
+                value=value,
+                episode=episode,
             )
         except memory_store.ErasedDuringRun:
             return _ERASED
@@ -389,13 +406,22 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 f"Kept aside as disputed (claim {claim.id}): it contradicts something already "
                 "recorded on that subject. Do not treat it as established; ask the person."
             )
+        if claim.object_id is not None:
+            action = "Recorded" if created else "Already recorded"
+            return f"{action} (claim {claim.id}, object {claim.object_id}, scope {claim.scope})."
         return (
             f"Recorded (claim {claim.id})."
             if created
             else f"Already recorded (claim {claim.id}); nothing changed."
         )
 
-    async def recall(self, ctx: RunContext[AgentDeps], query: str) -> str:
+    async def recall(
+        self,
+        ctx: RunContext[AgentDeps],
+        query: str,
+        as_of: str | None = None,
+        known_at: str | None = None,
+    ) -> str:
         """Find recorded facts, preferences and decisions relevant to a question.
 
         Searches what you are allowed to know here - this conversation's claims, the
@@ -406,6 +432,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
 
         Args:
             query: A few words about what you want to know.
+            as_of: Optional ISO effective date. Use it for questions about the past.
+            known_at: Optional ISO knowledge cutoff, in addition to as_of. Use it
+                when asked what was known before a later correction.
 
         Returns:
             Matching claims, one per line with their id, scope and when they began to
@@ -414,8 +443,24 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         scopes = await self._claim_scopes(ctx)
         if isinstance(scopes, str):
             return scopes
+        when = _parse_date(as_of)
+        cutoff = _parse_date(known_at)
+        if (as_of is not None and when is None) or (
+            known_at is not None and (when is None or cutoff is None)
+        ):
+            return "Use an ISO date for as_of, and optionally a knowledge cutoff known_at."
+        audience = ctx.deps.audience
+        reader = audience.user_id if audience is not None and audience.private else None
         found = await memory_store.runtime.recall(
-            organization_id=_organization(ctx), scopes=scopes, query=query
+            organization_id=_organization(ctx),
+            scopes=scopes,
+            query=query,
+            as_of=when,
+            known_at=cutoff,
+            reading_member=reader,
+            include_groups=reader is not None
+            and audience is not None
+            and not audience.shared_transcript,
         )
         if not found:
             return "Nothing recorded matches."
@@ -550,4 +595,7 @@ def _line(claim: ClaimView) -> str:
     details = ""
     if claim.episode is not None:
         details = " · Decision evidence: " + claim.episode.model_dump_json(exclude_none=True)[:1200]
-    return f"- {claim.statement}{since} [{claim.scope}]{mark} id={claim.id}{details}"
+    object_context = f" object={claim.object_id}" if claim.object_id else ""
+    return (
+        f"- {claim.statement}{since} [{claim.scope}]{mark} id={claim.id}{object_context}{details}"
+    )

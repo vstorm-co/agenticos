@@ -86,7 +86,7 @@ from app.services.virtual_tables.facade import VirtualTableService
 DATASETS = Path(__file__).resolve().parent / "datasets"
 Suite = Literal["memory", "briefing", "agenticos"]
 SUITES: tuple[Suite, ...] = ("memory", "briefing", "agenticos")
-CASE_COUNTS: dict[Suite, int] = {"memory": 50, "briefing": 50, "agenticos": 122}
+CASE_COUNTS: dict[Suite, int] = {"memory": 53, "briefing": 53, "agenticos": 127}
 CHANNEL_REPLAYS = {
     "mattermost-room-recall": RunSurface.MATTERMOST,
     "slack-room-recall": RunSurface.SLACK,
@@ -137,6 +137,7 @@ def message(role: Literal["user", "assistant"], content: str) -> CaseMessage:
 def tool_name(name: str) -> str:
     if name in {
         "remember",
+        "recall",
         "correct_memory",
         "share_memory",
         "write_memory",
@@ -720,6 +721,12 @@ def memory_errors(scenario: Scenario, found: extraction._Extraction) -> list[str
         errors.append("missing expected claim or duplicate claims")
     elif scenario.operation == "update" and matching[0].subject not in scenario.state:
         errors.append("correction did not reuse the existing subject")
+    if scenario.id == "memory-evidence-exact" and (
+        len(found.claims) != 1
+        or "Ada approved" not in found.claims[0].evidence
+        or "50k" in found.claims[0].statement
+    ):
+        errors.append("the evidence must cite Ada's approval without adding the unverified budget")
     return errors
 
 

@@ -147,8 +147,10 @@ async def _run(
     portal_key: str = "google",
     agent_places: dict[str, datetime] | None = None,
     workflow_places: dict[str, datetime] | None = None,
+    memory: MagicMock | None = None,
 ):
     """The flow, with its three services and its dispatcher swapped out."""
+    from app.services.memory.mail import MemoryMailService
     from app.worker.tasks import trigger_tasks
 
     connections, triggers = _service(
@@ -160,7 +162,7 @@ async def _run(
     )
     _queueing(triggers, recorder, dispatch)
 
-    session = MagicMock()
+    session = MagicMock(scalar=AsyncMock(return_value=None))
 
     class _Ctx:
         async def __aenter__(self):
@@ -175,6 +177,10 @@ async def _run(
     with (
         patch.object(trigger_tasks, "get_worker_db_context", lambda: _Ctx()),
         patch.object(trigger_tasks, "_ensure_trigger_dedupe", already_configured),
+        patch(
+            "app.services.memory.mail.MemoryMailService",
+            side_effect=lambda db: memory or MemoryMailService(db),
+        ),
         patch("app.services.mcp_connection.McpConnectionService", return_value=connections),
         patch("app.services.agent_trigger.AgentTriggerService", return_value=triggers),
         patch(
@@ -186,6 +192,25 @@ async def _run(
 
 
 class TestTheOrderOfWork:
+    async def test_memory_backpressure_keeps_the_cursor(self):
+        from app.services.memory.mail import MailAdmission
+
+        recorder = _Recorder()
+        memory = MagicMock(
+            subscribed=AsyncMock(return_value=True),
+            admit=AsyncMock(return_value=MailAdmission(1, complete=False)),
+        )
+        events = (_event(),)
+        await _run(
+            recorder,
+            read=PolledEvents(events=events, cursor={"history_id": "600"}),
+            decisions=[],
+            memory=memory,
+        )
+        memory.admit.assert_awaited_once()
+        assert memory.admit.await_args.args[1] == events
+        assert recorder.steps == ["poll", "match:gmail:1", "workflows:gmail:1"]
+
     async def test_the_cursor_advances_after_the_fires_are_queued(self):
         """Fires and cursor are one transaction, and the cursor is written last.
 
@@ -459,7 +484,7 @@ class TestOneMailboxIsOneTenant:
         triggers.prepare_polled_fires = AsyncMock(return_value=[])
         triggers.polled_places = AsyncMock(return_value={})
 
-        session = MagicMock()
+        session = MagicMock(scalar=AsyncMock(return_value=None))
 
         class _Ctx:
             async def __aenter__(self):
@@ -504,7 +529,7 @@ class TestWhichGrantsAreRead:
 
         connections = MagicMock()
         connections.portal_poll_candidates = AsyncMock(return_value=[])
-        session = MagicMock()
+        session = MagicMock(scalar=AsyncMock(return_value=None))
 
         class _Ctx:
             async def __aenter__(self):

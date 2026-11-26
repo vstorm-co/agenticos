@@ -394,6 +394,13 @@ class ExtractMemory(Payload):
         return self
 
 
+class ApplyMemoryMail(Payload):
+    """One admitted Gmail event; content and authority are reloaded by the worker."""
+
+    organization_id: UUID
+    event_id: UUID
+
+
 class LookThroughWatch(Payload):
     """One person's watch over one of their connections, due for a look (#2301)."""
 
@@ -770,6 +777,14 @@ EXTRACT_MEMORY = Task(
     timeout=timedelta(minutes=5),
     priority=Priority.BULK,
 )
+APPLY_MEMORY_MAIL = Task(
+    kind="apply-memory-mail",
+    payload_type=ApplyMemoryMail,
+    pool=Pool.AGENT,
+    max_attempts=3,
+    timeout=timedelta(minutes=1),
+    priority=Priority.BULK,
+)
 # One attempt, like the nightly look: a model call on the person's limit, and the
 # watch's next look is the retry.
 LOOK_THROUGH_WATCH = Task(
@@ -1066,6 +1081,7 @@ TASKS: dict[str, TaskKind] = {
         WORKFLOW_DISPATCH_NODE,
         THINK_FOR_PERSON,
         EXTRACT_MEMORY,
+        APPLY_MEMORY_MAIL,
         LOOK_THROUGH_WATCH,
         BRIEF_PERSON,
         INSTALL_ROLE_PACK,

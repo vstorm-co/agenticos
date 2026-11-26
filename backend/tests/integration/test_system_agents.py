@@ -378,6 +378,7 @@ async def test_a_finished_chat_is_read_once_into_claims_in_its_own_scope(
                 statement="The Acme renewal is due in March",
                 evidence="The Acme renewal is due in March",
                 subject="acme",
+                object_ref={"kind": "company", "name": "Acme", "external_key": "untrusted"},
             ),
         ],
     )
@@ -409,6 +410,13 @@ async def test_a_finished_chat_is_read_once_into_claims_in_its_own_scope(
     assert by_text["Prefers short answers"].agent_id is None
     assert by_text["The Acme renewal is due in March"].agent_id == agent.id
     assert all(claim.source_run_id == run.id and claim.origin == "agent" for claim in claims)
+    linked = by_text["The Acme renewal is due in March"]
+    assert linked.object_id is not None
+    from app.services.memory import MemoryService
+
+    detail = await MemoryService(db).claim_detail(ctx, linked.id)
+    assert [evidence.quote for evidence in detail.evidence] == ["The Acme renewal is due in March"]
+    assert detail.evidence[0].source_id == human[1]["source_id"]
 
 
 @pytest.mark.parametrize(

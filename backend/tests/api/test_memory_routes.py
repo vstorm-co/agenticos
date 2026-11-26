@@ -299,3 +299,109 @@ async def test_personal_note_correction_keeps_revision_and_content() -> None:
     assert response.status_code == 200
     assert edit.await_args.args[2].content == "Corrected"
     assert edit.await_args.args[2].expected_updated_at is None
+
+
+async def test_company_library_object_routes_validate_dates_before_reading() -> None:
+    from app.schemas.memory import MemoryObjectPage, MemoryObjectRead, MemoryObjectTimeline
+
+    object_id = uuid4()
+    project = MemoryObjectRead(id=object_id, kind="project", name="XYZ")
+    listed = AsyncMock(return_value=MemoryObjectPage(items=[project]))
+    timeline = AsyncMock(return_value=MemoryObjectTimeline(object=project, items=[]))
+    with (
+        patch("app.services.memory.MemoryService.objects", new=listed),
+        patch("app.services.memory.MemoryService.object_timeline", new=timeline),
+    ):
+        async with _client() as client:
+            page = await client.get(f"{ROOT}/objects?library=organization&kind=project")
+            historical = await client.get(
+                f"{ROOT}/objects/{object_id}?as_of=2020-01-01T00%3A00%3A00Z"
+            )
+            refused = await client.get(f"{ROOT}/objects/{object_id}?as_of=2020-01-01")
+    assert page.status_code == historical.status_code == 200
+    assert refused.status_code == 422
+    assert listed.await_args.kwargs["library"] == "organization"
+    timeline.assert_awaited_once()
+    assert timeline.await_args.kwargs["object_id"] == object_id
+
+
+async def test_shared_claim_and_note_routes_require_confirmation_on_writes() -> None:
+    from app.schemas.memory import SharedMemoryNotePage, SharedMemoryNoteRead
+
+    note = SharedMemoryNoteRead(id=NOTE, name="XYZ", content="Reviewed note")
+    claims = MemoryClaimList(items=[MemoryClaimRead(**_CLAIM)], total=1)
+    with (
+        patch(
+            "app.services.memory.MemoryService.shared_claims", new=AsyncMock(return_value=claims)
+        ),
+        patch(
+            "app.services.memory.MemoryService.shared_claim_detail",
+            new=AsyncMock(return_value=MemoryClaimDetail(**_CLAIM)),
+        ),
+        patch(
+            "app.services.memory.MemoryService.shared_notes",
+            new=AsyncMock(return_value=SharedMemoryNotePage(items=[note])),
+        ),
+        patch(
+            "app.services.memory.MemoryService.publish_claim",
+            new=AsyncMock(return_value=claims.items[0]),
+        ) as share,
+        patch(
+            "app.services.memory.MemoryService.publish_note", new=AsyncMock(return_value=note)
+        ) as share_note,
+    ):
+        async with _client() as client:
+            assert (await client.get(f"{ROOT}/claims/shared")).status_code == 200
+            assert (await client.get(f"{ROOT}/claims/shared/{_CLAIM_ID}")).status_code == 200
+            assert (await client.get(f"{ROOT}/notes/shared")).status_code == 200
+            assert (
+                await client.post(
+                    f"{ROOT}/claims/mine/{_CLAIM_ID}/share", json={"confirmed": False}
+                )
+            ).status_code == 422
+            assert (
+                await client.post(f"{ROOT}/claims/mine/{_CLAIM_ID}/share", json={"confirmed": True})
+            ).status_code == 200
+            assert (
+                await client.post(
+                    f"{ROOT}/mine/{NOTE}/share",
+                    json={"confirmed": True, "expected_updated_at": None},
+                )
+            ).status_code == 200
+    share.assert_awaited_once()
+    share_note.assert_awaited_once()
+
+
+async def test_memory_mail_rule_lifecycle() -> None:
+    from app.schemas.memory import MemoryMailSourceRead
+
+    state = MemoryMailSourceRead(
+        sender="desk@example.org",
+        subject="XYZ",
+        commitment="Handoff",
+        mode="shadow",
+        notify=False,
+        authorized=True,
+    )
+    with (
+        patch("app.services.memory.MemoryService.memory_mail", new=AsyncMock(return_value=state)),
+        patch(
+            "app.services.memory.MemoryService.configure_memory_mail",
+            new=AsyncMock(return_value=state),
+        ) as configure,
+        patch("app.services.memory.MemoryService.disable_memory_mail", new=AsyncMock()) as disable,
+    ):
+        async with _client() as client:
+            url = f"{ROOT}/sources/gmail"
+            assert (await client.get(url)).json()["mode"] == "shadow"
+            invalid = {
+                "sender": state.sender,
+                "subject": state.subject,
+                "commitment": state.commitment,
+                "mode": state.mode,
+            }
+            assert (await client.put(url, json=invalid)).status_code == 422
+            assert (await client.put(url, json={**invalid, "confirmed": True})).status_code == 200
+            assert (await client.delete(url)).status_code == 204
+    configure.assert_awaited_once()
+    disable.assert_awaited_once()

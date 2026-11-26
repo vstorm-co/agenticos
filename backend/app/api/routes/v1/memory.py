@@ -24,6 +24,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
+from pydantic import AwareDatetime
 
 from app.api.deps import Auth, MemorySvc
 from app.schemas.dataset import DatasetCaseRead
@@ -33,14 +34,132 @@ from app.schemas.memory import (
     MemoryClaimDetail,
     MemoryClaimList,
     MemoryClaimRead,
+    MemoryClaimShare,
     MemoryErasureResult,
+    MemoryLibrary,
+    MemoryMailConfig,
+    MemoryMailSourceRead,
     MemoryNoteEdit,
     MemoryNoteList,
     MemoryNoteRead,
+    MemoryNoteShare,
     MemoryNoteUpdate,
+    MemoryObjectKind,
+    MemoryObjectPage,
+    MemoryObjectTimeline,
+    SharedMemoryNotePage,
+    SharedMemoryNoteRead,
 )
 
 router = APIRouter()
+
+
+@router.get("/sources/gmail", response_model=MemoryMailSourceRead | None)
+async def memory_mail_source(service: MemorySvc, ctx: Auth) -> Any:
+    """Show the operator's reviewed Gmail admission rule."""
+    return await service.memory_mail(ctx)
+
+
+@router.put("/sources/gmail", response_model=MemoryMailSourceRead)
+async def configure_memory_mail(
+    data: MemoryMailConfig,
+    service: MemorySvc,
+    ctx: Auth,
+) -> Any:
+    """Authorize a narrow Gmail deadline rule for this organization."""
+    return await service.configure_memory_mail(ctx, data)
+
+
+@router.delete("/sources/gmail", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
+async def disable_memory_mail(service: MemorySvc, ctx: Auth) -> None:
+    """Remove the Gmail rule, queued evidence, derived claims and Inbox items."""
+    await service.disable_memory_mail(ctx)
+
+
+@router.get("/objects", response_model=MemoryObjectPage)
+async def memory_objects(
+    service: MemorySvc,
+    ctx: Auth,
+    library: MemoryLibrary = Query("personal"),
+    kind: MemoryObjectKind | None = Query(None),
+    q: str = Query("", max_length=160),
+    cursor: UUID | None = Query(None),
+    limit: int = Query(30, ge=1, le=100),
+) -> Any:
+    """Browse business objects in the caller's personal or shared library."""
+    return await service.objects(ctx, library=library, kind=kind, q=q, cursor=cursor, limit=limit)
+
+
+@router.get("/objects/{object_id}", response_model=MemoryObjectTimeline)
+async def memory_object_timeline(
+    object_id: UUID,
+    service: MemorySvc,
+    ctx: Auth,
+    library: MemoryLibrary = Query("personal"),
+    as_of: AwareDatetime | None = Query(None),
+    known_at: AwareDatetime | None = Query(None),
+    cursor: UUID | None = Query(None),
+    limit: int = Query(30, ge=1, le=100),
+) -> Any:
+    """Read an object's history or the claims valid at an effective and knowledge time."""
+    return await service.object_timeline(
+        ctx,
+        library=library,
+        object_id=object_id,
+        as_of=as_of,
+        known_at=known_at,
+        cursor=cursor,
+        limit=limit,
+    )
+
+
+@router.post("/claims/mine/{claim_id}/share", response_model=MemoryClaimRead)
+async def publish_memory_claim(
+    claim_id: UUID, data: MemoryClaimShare, service: MemorySvc, ctx: Auth
+) -> Any:
+    """Publish an explicitly confirmed personal claim to an authorized audience."""
+    return await service.publish_claim(ctx, claim_id, data)
+
+
+@router.get("/claims/shared", response_model=MemoryClaimList)
+async def shared_memory_claims(
+    service: MemorySvc,
+    ctx: Auth,
+    q: str = Query("", max_length=200),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(30, ge=1, le=100),
+) -> Any:
+    """Read current claims shared with this member's organization or groups."""
+    return await service.shared_claims(ctx, q=q, skip=skip, limit=limit)
+
+
+@router.get("/claims/shared/{claim_id}", response_model=MemoryClaimDetail)
+async def shared_memory_claim(
+    claim_id: UUID,
+    service: MemorySvc,
+    ctx: Auth,
+) -> Any:
+    """Read one shared claim and any ancestry available to the member."""
+    return await service.shared_claim_detail(ctx, claim_id)
+
+
+@router.get("/notes/shared", response_model=SharedMemoryNotePage)
+async def shared_memory_notes(
+    service: MemorySvc,
+    ctx: Auth,
+    cursor: UUID | None = Query(None),
+    limit: int = Query(30, ge=1, le=100),
+) -> Any:
+    """Read notes explicitly published to this member's organization or groups."""
+    return await service.shared_notes(ctx, cursor=cursor, limit=limit)
+
+
+@router.post("/mine/{note_id}/share", response_model=SharedMemoryNoteRead)
+async def publish_memory_note(
+    note_id: UUID, data: MemoryNoteShare, service: MemorySvc, ctx: Auth
+) -> Any:
+    """Publish an explicitly reviewed version of a personal note."""
+    return await service.publish_note(ctx, note_id, data)
 
 
 @router.get("/mine", response_model=MemoryNoteList)

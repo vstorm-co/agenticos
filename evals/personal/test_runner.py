@@ -528,6 +528,7 @@ class BackgroundTests(unittest.IsolatedAsyncioTestCase):
                     "kind": "fact",
                     "profile": False,
                     "episode": None,
+                    "object_ref": None,
                 },
             ],
         )

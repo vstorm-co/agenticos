@@ -6,10 +6,12 @@ import type { MemoryClaim, DecisionEpisode } from "@/lib/memory-api";
 
 export function ClaimEditor({
   claim,
+  historical = false,
   onCancel,
   onSave,
 }: {
   claim: MemoryClaim;
+  historical?: boolean;
   onCancel: () => void;
   onSave: (
     statement: string,
@@ -51,14 +53,16 @@ export function ClaimEditor({
         </FormField>
       ) : null}
       <div className="flex flex-wrap items-center gap-2">
-        <FormField label={t("effectiveFrom")} htmlFor={`${id}-from`}>
-          <Input
-            id={`${id}-from`}
-            type="date"
-            value={from}
-            onChange={(event) => setFrom(event.target.value)}
-          />
-        </FormField>
+        {!historical && (
+          <FormField label={t("effectiveFrom")} htmlFor={`${id}-from`}>
+            <Input
+              id={`${id}-from`}
+              type="date"
+              value={from}
+              onChange={(event) => setFrom(event.target.value)}
+            />
+          </FormField>
+        )}
         <div className="ml-auto flex gap-2">
           <Button variant="outline" size="sm" onClick={onCancel} disabled={pending}>
             {t("cancel")}

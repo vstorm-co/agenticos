@@ -19,6 +19,15 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Browse personal and organization memory, publish a reviewed claim or note to a group or organization, and inspect typed business objects with evidence and date-aware recall.
+- Opt in to Gmail maintenance for authenticated deadline updates, with preview and one Inbox finding per change.
+
+### Fixed
+
+- Preserve validity dates when publishing memories and rank relevant memories before limiting the result set.
+
 ## [1.93.0] - 2026-11-24
 
 ### Added

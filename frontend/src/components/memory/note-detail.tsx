@@ -19,13 +19,15 @@ import { FileEditor } from "@/components/files/file-editor";
 import { DIALOG_WIDE, DIALOG_COLUMN, DIALOG_BODY } from "@/lib/dialog-sizes";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
-import type { MemoryNote } from "@/lib/memory-api";
+import { shareMemoryNote, type MemoryNote } from "@/lib/memory-api";
 import type { AgentUsage } from "@/types/agents";
 import { MemoryAgentAvatar } from "./memory-agent-avatar";
+import { MemoryPublication } from "./memory-publication";
 
 export function NoteDetail({
   note,
   agent,
+  canShare,
   onClose,
   setActive,
   remove,
@@ -33,6 +35,7 @@ export function NoteDetail({
 }: {
   note: MemoryNote;
   agent?: AgentUsage;
+  canShare?: boolean;
   onClose: () => void;
   setActive: (id: string, active: boolean) => Promise<boolean>;
   remove: (id: string) => Promise<boolean>;
@@ -103,6 +106,9 @@ export function NoteDetail({
           </div>
           <DialogFooter className="flex-wrap sm:justify-between">
             <div className="flex flex-wrap gap-2">
+              {canShare && !dirty && !note.deactivated_at && (
+                <MemoryPublication publish={(group) => shareMemoryNote(note, group)} />
+              )}
               <Button
                 variant="ghost"
                 disabled={busy}

@@ -1,5 +1,5 @@
 ---
-source_sha: "48eead872cf1"
+source_sha: "4a9eb6a24e5b"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -478,12 +478,44 @@ herramienta recibe un ámbito y no hay nada que el agent pueda confundir.
   [se ejecute como su creador](../concepts.md#unless-its-creator-lets-it-run-as-them):
   un horario lee y escribe entonces el almacén del creador, y un evento solo lo lee.
 
-No hay un almacén para toda la organización. Existió uno y se retiró: era un
-segundo mecanismo para lo que ya hacen los [archivos de contexto](../context.md)
-— conocimiento permanente que una persona escribe y vincula a agents — y un solo
-trabajo con dos mecanismos es la forma en que los dos acaban contradiciéndose. La
-memoria es lo que aprendió el _agent_; lo que escribe una persona va en el
-contexto.
+Los [archivos de contexto](../context.md) contienen instrucciones permanentes.
+Los agentes guardan sus notas de trabajo en el espacio personal o del chat.
+Quien tenga `context:edit` en toda la organización puede publicar desde los
+ajustes una copia revisada de una nota o un claim propio para un grupo o para
+la organización.
+
+### Objetos de negocio e historial { #memory-business-objects }
+
+**Settings → Memory** tiene vistas personal y de organización, ambas con
+Memories y Notes. En Memories se puede filtrar por persona, empresa o cliente,
+proyecto de negocio y compromiso. Un proyecto de negocio tiene identidad propia
+y puede existir sin un espacio en Projects. Las publicaciones de un grupo son
+visibles para sus miembros actuales. Al compartir se guarda una versión revisada
+de la nota. Al eliminar la fuente personal se eliminan sus notas publicadas.
+
+Usa `remember` para una petición explícita y `write_memory` para las notas de
+trabajo del agente. `object_ref` indica un objeto y `value` un valor simple
+con tipo. `recall(as_of=…)` consulta la validez en una fecha y `known_at`
+limita el conocimiento anterior a una corrección. Los intervalos excluyen su
+fecha final. Los registros sin fecha inicial siguen en la búsqueda actual. Una
+consulta histórica requiere una observación fechada. Corrige un intervalo cerrado desde el historial personal para conservar el estado de conocimiento anterior. Los cambios de estado se
+registran desde el nuevo esquema. Los registros existentes conservan sus IDs.
+
+### Mantenimiento de Gmail { #memory-gmail }
+
+Conecta un portal Gmail de empresa. Un operador con `connections:manage` y
+`context:edit` para toda la organización puede revisar una regla en **Settings →
+Memory → Organization → Gmail maintenance**. Indica un remitente autenticado,
+un asunto exacto y un compromiso. El correo debe contener una sola línea
+`Deadline: YYYY-MM-DD` o `Deadline: cancelled`.
+
+La vista previa recoge las coincidencias y su estado. El modo activo guarda el
+plazo y su evidencia en el historial compartido. Si las notificaciones están
+activas, el revisor recibe un aviso en Inbox cuando cambia un plazo existente.
+La regla funciona sin un modelo. Antes de guardar, el worker vuelve a comprobar
+la autorización del buzón y del revisor. El límite diario conserva el cursor
+para poder reintentar los eventos pendientes. Eliminar la regla borra sus
+eventos, registros y avisos.
 
 Un interruptor, **Allow personal memory**, elimina por completo el almacén por
 persona, por motivos de cumplimiento o de privacidad; las notas guardadas en chats

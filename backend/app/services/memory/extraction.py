@@ -51,6 +51,7 @@ from app.repositories import (
     memory_claim as claim_repo,
 )
 from app.schemas.decision_episode import DecisionEpisode
+from app.schemas.memory import MemoryObjectRef
 from app.services.access import member_context
 from app.services.background_jobs import enqueue
 from app.services.memory import _claims
@@ -105,7 +106,10 @@ Return an empty list when no claim qualifies.
    the entity: team membership and the user's role on that team have different subjects.
    Combine related details only when they describe the same attribute and one quote
    supports the whole statement.
-4. Mark profile true for general facts and preferences useful across agents. Keep
+4. When the speaker explicitly names a person, company, business project or
+   commitment, use object_ref with its literal name and type. Never invent an
+   external key or merge similar names. Use a separate subject for each property.
+5. Mark profile true for general facts and preferences useful across agents. Keep
    project details and episodes in the source relationship or room. Add episode fields
    only when directly supported. Exclude tentative and superseded statements.
 """
@@ -118,6 +122,7 @@ class _Extracted(BaseModel):
     kind: Literal["fact", "preference", "decision"] = "fact"
     profile: bool = False
     episode: DecisionEpisode | None = None
+    object_ref: MemoryObjectRef | None = None
 
 
 class _Extraction(BaseModel):
@@ -496,8 +501,22 @@ async def extract(
         return 0
     recorded = 0
     for item in found.claims:
-        if not quote_supported(item.evidence, utterances):
+        quote = item.evidence.strip()
+        if len(quote) < 4:
             continue
+        proof = next(
+            (turn for turn in reversed(turns) if turn["role"] == "user" and quote in turn["text"]),
+            None,
+        )
+        if proof is None:
+            continue
+        entity = item.object_ref
+        if entity is not None:
+            entity = (
+                entity.model_copy(update={"external_key": None})
+                if entity.name.casefold() in quote.casefold()
+                else None
+            )
         scope = claim_write_scope(
             audience,
             agent_id=run.agent_id,
@@ -517,7 +536,17 @@ async def extract(
             conversation_id=run.conversation_id,
             run_id=run.id,
             episode=item.episode,
+            object_ref=entity,
         )
+        source_id = proof.get("source_id", "")
+        if source_id.startswith("message:"):
+            await claim_repo.add_message_evidence(
+                db,
+                claim_id=result.claim.id,
+                message_id=UUID(source_id.removeprefix("message:")),
+                quote=quote,
+                occurred_at=datetime.fromisoformat(proof["occurred_at"]),
+            )
         recorded += int(result.created)
     await db.commit()
     return recorded

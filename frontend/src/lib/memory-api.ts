@@ -104,8 +104,10 @@ export interface MemoryClaim {
   agent_id: string | null;
   agent_name: string | null;
   /** `profile` serves every agent acting for the person; `agent` is one agent's relationship. */
-  scope: "profile" | "agent";
+  scope: "profile" | "agent" | "organization" | "group";
   subject: string | null;
+  object_id?: string | null;
+  value?: string | number | boolean | null;
   statement: string;
   kind: string;
   origin: "agent" | "person" | "consolidation";
@@ -164,4 +166,129 @@ export async function correctClaim(
 /** Take a claim out of use. It and everything it came from stay in the history. */
 export async function retractClaim(id: string): Promise<MemoryClaim> {
   return apiClient.post<MemoryClaim>(`${ROOT}/claims/mine/${id}/retract`, {});
+}
+
+export type MemoryLibrary = "personal" | "organization";
+export type MemoryObjectKind = "person" | "company" | "project" | "commitment";
+
+export interface MemoryObject {
+  id: string;
+  kind: MemoryObjectKind;
+  name: string;
+}
+
+export interface MemoryCursorPage<T> {
+  items: T[];
+  next_cursor: string | null;
+}
+
+export interface MemoryTimeline extends MemoryCursorPage<MemoryClaim> {
+  object: MemoryObject;
+}
+
+export interface MemoryClaimDetail extends MemoryClaim {
+  evidence: Array<{
+    kind: "message" | "gmail";
+    source_id: string;
+    quote: string;
+    occurred_at: string;
+  }>;
+  sources: MemoryClaim[];
+  superseded: MemoryClaim | null;
+  withheld: number;
+}
+
+export interface SharedMemoryNote {
+  id: string;
+  name: string;
+  content: string;
+}
+
+export function getMemoryObjects(
+  library: MemoryLibrary,
+  q: string,
+  kind: MemoryObjectKind | "all",
+  cursor: string | null,
+) {
+  const query = new URLSearchParams({ library, q });
+  if (kind !== "all") query.set("kind", kind);
+  if (cursor) query.set("cursor", cursor);
+  return apiClient.get<MemoryCursorPage<MemoryObject>>(`${ROOT}/objects?${query}`);
+}
+
+export function getMemoryTimeline(
+  library: MemoryLibrary,
+  objectId: string,
+  asOf: string,
+  knownAt: string,
+  cursor: string | null,
+) {
+  const query = new URLSearchParams({ library });
+  if (asOf) query.set("as_of", `${asOf}T00:00:00Z`);
+  if (asOf && knownAt) query.set("known_at", `${knownAt}T23:59:59.999999Z`);
+  if (cursor) query.set("cursor", cursor);
+  return apiClient.get<MemoryTimeline>(`${ROOT}/objects/${objectId}?${query}`);
+}
+
+export function getMemoryClaimDetail(library: MemoryLibrary, id: string) {
+  const location = library === "personal" ? "mine" : "shared";
+  return apiClient.get<MemoryClaimDetail>(`${ROOT}/claims/${location}/${id}`);
+}
+
+export function getSharedClaims(q: string, skip: number) {
+  const query = new URLSearchParams({ q, skip: String(skip) });
+  return apiClient.get<MemoryClaimPage>(`${ROOT}/claims/shared?${query}`);
+}
+
+export function getSharedNotes(cursor: string | null) {
+  const query = new URLSearchParams(cursor ? { cursor } : {});
+  return apiClient.get<MemoryCursorPage<SharedMemoryNote>>(`${ROOT}/notes/shared?${query}`);
+}
+
+export function shareMemoryClaim(id: string, groupId: string | null) {
+  return apiClient.post<MemoryClaim>(`${ROOT}/claims/mine/${id}/share`, {
+    confirmed: true,
+    group_id: groupId,
+  });
+}
+
+export function shareMemoryNote(note: MemoryNote, groupId: string | null) {
+  return apiClient.post<SharedMemoryNote>(`${ROOT}/mine/${note.id}/share`, {
+    confirmed: true,
+    group_id: groupId,
+    expected_updated_at: note.updated_at,
+  });
+}
+
+export interface MemoryMailRule {
+  sender: string;
+  subject: string;
+  commitment: string;
+  mode: "shadow" | "active";
+  notify: boolean;
+}
+
+export interface MemoryMailState extends MemoryMailRule {
+  authorized: boolean;
+  last_outcome: "daily_limit" | "withheld" | "shadow" | "late" | "unchanged" | "applied" | null;
+}
+
+export function getMemoryMailRule() {
+  return apiClient.get<MemoryMailState | null>(`${ROOT}/sources/gmail`);
+}
+
+export function saveMemoryMailRule(rule: MemoryMailRule) {
+  return apiClient.put<MemoryMailState>(`${ROOT}/sources/gmail`, { ...rule, confirmed: true });
+}
+
+export function removeMemoryMailRule() {
+  return apiClient.delete(`${ROOT}/sources/gmail`);
+}
+
+export function amendHistoricalClaim(id: string, statement: string, episode?: DecisionEpisode) {
+  return apiClient.post<MemoryClaim>(`${ROOT}/claims/mine/${id}/correct`, {
+    statement,
+    episode,
+    historical: true,
+  });
 }

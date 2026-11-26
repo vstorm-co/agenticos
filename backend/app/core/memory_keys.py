@@ -28,11 +28,13 @@ and `app.agents.memory_scope` turns that into the one store this run may touch.
 from uuid import UUID
 
 __all__ = [
+    "GROUP_PREFIX",
     "INDEX_NAME",
     "ORGANIZATION_PREFIX",
     "PERSON_PREFIX",
     "PROJECT_PREFIX",
     "ROOM_PREFIX",
+    "group_owner_key",
     "is_person_key",
     "organization_owner_key",
     "person_owner_key",
@@ -57,6 +59,7 @@ PERSON_PREFIX = "person:"
 ROOM_PREFIX = "room:"
 PROJECT_PREFIX = "project:"
 ORGANIZATION_PREFIX = "org:"
+GROUP_PREFIX = "group:"
 
 
 def person_owner_key(user_id: UUID | str) -> str:
@@ -105,3 +108,8 @@ def organization_owner_key(organization_id: UUID | str) -> str:
     (`share_memory`): it is never a union of what individuals told their agents.
     """
     return f"{ORGANIZATION_PREFIX}{organization_id}"
+
+
+def group_owner_key(group_id: UUID) -> str:
+    """A shared ledger limited to the current members of one group."""
+    return f"{GROUP_PREFIX}{group_id}"

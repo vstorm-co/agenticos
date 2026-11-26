@@ -1,12 +1,12 @@
 # AgenticOS local evaluations
 
-The three suites contain **222 synthetic multi-turn conversations** in [datasets/](datasets/). Run them from the CLI with the repository's locked dependencies. The runner creates no entries in the platform's Datasets or Evals views.
+The three suites contain **233 synthetic multi-turn conversations** in [datasets/](datasets/). Run them from the CLI with the repository's locked dependencies. The runner creates no entries in the platform's Datasets or Evals views.
 
 | Suite | Cases | Path exercised |
 | --- | ---: | --- |
-| AgenticOS | 122 | Published shipped starter, conversation history, scope, tool routing and arguments, answers |
-| Memory | 50 | Production extraction model, durable facts, corrections, provenance, duplicate intent |
-| Briefing and suggestions | 50 | Production nightly reading model, recurring intent, connected sources and existing or dismissed proposals |
+| AgenticOS | 127 | Published shipped starter, conversation history, scope, tool routing and arguments, answers |
+| Memory | 53 | Production extraction model, durable facts, corrections, provenance, duplicate intent |
+| Briefing and suggestions | 53 | Production nightly reading model, recurring intent, connected sources and existing or dismissed proposals |
 
 The background suites exercise their production instructions and output schemas using synthetic packets. Database-level tests separately cover persistence, supersession and scope, and morning inbox delivery. The morning delivery pass does not call a model.
 
@@ -145,7 +145,7 @@ From the repository root, after inspecting the deterministic report, keep the `r
 ```sh
 uv run --directory backend --env-file ../evals/personal/.env sh -c '
   exec python ../evals/personal/run.py --judge-model "$AGENTICOS_EVAL_JUDGE_MODEL" \
-    --judge-report "$1" --limit 122
+    --judge-report "$1" --limit 127
 ' sh "../$report" > "${report%.jsonl}-judge.jsonl"
 ```
 
@@ -175,7 +175,7 @@ Thirty-two cases are marked `holdout`. Their labels remain useful for reporting,
 
 These are desired-behavior fixtures, not another 51 successes for the older
 `NightlyReading` schema. Their references and counter-examples need semantic
-review. The existing 222-case corpus and its scores remain separate. The packets
+review. The existing 233-case corpus and its scores remain separate. The packets
 use the platform's `DatasetCaseContent` JSONL format, so the normal Dataset import
 and evaluation path can consume them. `run.py` remains the older narrow-contract
 replay. `context_run.py` compares that reader with the production context pipeline
@@ -227,6 +227,33 @@ reaches it; one admitted request can exceed the remaining amount. Missing cost
 information stops the replay. Preserve failed attempts when calculating total
 spend. A model judge is an aid to review, not a human usefulness rating. Report
 technical failures separately, and do not merge these scores with the original
-222-case corpus.
+233-case corpus.
 
 Temporal-context regressions include Polish and German scheduling answers in words and a message timestamp with unselected time options. Extraction and verification receive original event timestamps, local UTC offsets and linked structured questions/answers. The model interprets scheduling intent; code validates source identities, exact citations and access rather than parsing natural-language weekdays or hours. Memory maintenance retains source timestamps and distinguishes native questions from submitted human answers.
+
+## Company memory replay
+
+The three datasets now include explicit client/project saves, date-aware recall,
+approval, exact attribution and recurring deadline controls. The context packets
+cover date and knowledge cutoffs and ambiguous or inaccessible evidence.
+
+List the database-backed cases without connecting to anything:
+
+```bash
+cd backend
+uv run python ../evals/personal/memory_replay.py --list
+```
+
+With the test PostgreSQL instance running, use the same command without `--list`.
+Set `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_PASSWORD` to
+the test connection. For one slice add `--case memory-headcount-as-of`. The
+runner creates and drops a separate database. It uses synthetic portal deliveries
+and does not invoke models. It checks stored values and intervals, exact-shape
+input, visibility, replay and Inbox delivery in the same production data path.
+
+For paid comparisons, freeze the dataset and baseline SHA, record per-case
+evidence, answers and abstentions, and keep the answering model and read budget
+constant for the current and candidate AgenticOS, raw retrieval, Mem0 OSS and
+Hindsight. Include ingest, answering and grading costs alongside latency and
+quality. Keep reviewed regression cases out of the newly sampled holdout and do
+a small accounting pass before running the full LongMemEval-S cohort.

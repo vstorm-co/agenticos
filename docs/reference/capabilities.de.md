@@ -1,5 +1,5 @@
 ---
-source_sha: "48eead872cf1"
+source_sha: "4a9eb6a24e5b"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -489,12 +489,46 @@ Agent falsch machen könnte.
   laufen](../concepts.md#unless-its-creator-lets-it-run-as-them): Ein Zeitplan liest
   und schreibt dann den Speicher des Erstellers, ein Ereignis liest ihn nur.
 
-Es gibt keinen organisationsweiten Speicher. Es gab einen, und er wurde entfernt:
-Er war ein zweiter Mechanismus für das, was [Kontextdateien](../context.md) bereits
-leisten — ständiges Wissen, das eine Person verfasst und an Agents bindet —, und
-eine Aufgabe mit zwei Mechanismen ist der Weg, auf dem die beiden sich
-widersprechen. Gedächtnis ist das, was der _Agent_ gelernt hat; alles, was ein
-Mensch schreibt, gehört in den Kontext.
+[Kontextdateien](../context.md) enthalten verfasste Anweisungen. Agents speichern
+Arbeitsnotizen im persönlichen Speicher oder im Chatraum. Mit organisationsweitem
+`context:edit` lassen sich geprüfte Kopien von persönlichen Notizen oder Claims
+in den Einstellungen mit der Organisation oder einer Gruppe teilen.
+
+### Geschäftsobjekte und Verlauf { #memory-business-objects }
+
+**Settings → Memory** bietet eine persönliche und eine Organisationsansicht,
+jeweils mit Memories und Notes. In Memories lassen sich Personen, Firmen und
+Kunden, Geschäftsprojekte und Zusagen filtern. Ein Geschäftsprojekt hat eine
+eigene Identität und kann ohne Workspace in Projects bestehen. Gruppenfreigaben
+richten sich nach der aktuellen Mitgliedschaft. Eine Freigabe speichert die
+geprüfte Notizversion. Beim Löschen der persönlichen Quelle entfallen auch
+die veröffentlichten Notizkopien.
+
+`remember` verarbeitet explizite Anfragen. `write_memory` hält Arbeitsnotizen
+des Agents fest. `object_ref` benennt optional ein Geschäftsobjekt und
+`value` einen typisierten Wert. `recall(as_of=…)` liest den Stand zu einem
+Datum. `known_at` beschränkt ihn auf den Wissensstand vor einer späteren
+Korrektur. Zeitintervalle schließen ihr Ende aus. Einträge ohne Startdatum
+bleiben in der aktuellen Suche sichtbar. Der historische Abruf benötigt eine
+datierte Beobachtung. Eine Korrektur auf der persönlichen Zeitachse ändert das abgeschlossene Intervall und erhält den früheren Wissensstand. Zustandsänderungen werden ab dem neuen Schema erfasst.
+Bestehende Einträge behalten ihre IDs.
+
+### Gmail-Pflege { #memory-gmail }
+
+Verbinde ein Gmail-Portal des Unternehmens. Berechtigte mit
+`connections:manage` und organisationsweitem `context:edit` prüfen die Regel
+unter **Settings → Memory → Organisation → Gmail-Pflege**. Sie wählen einen
+authentifizierten Absender, einen exakten Betreff und den Namen der Zusage. Die
+E-Mail enthält genau eine Zeile `Deadline: YYYY-MM-DD` oder
+`Deadline: cancelled`.
+
+Die Vorschau erfasst passende Ereignisse. Im aktiven Modus erscheinen Termin
+und Beleg auf der gemeinsamen Zeitachse. Bei aktivierter Benachrichtigung
+erhält die prüfende Person bei einer Terminänderung einen Posteingangseintrag.
+Die Regel ruft kein Modell auf. Der Worker prüft vor dem Speichern erneut die
+Postfachautorisierung und die Befugnisse der prüfenden Person. Wird das
+Tageslimit erreicht, bleibt der Postfachcursor stehen. Das Entfernen der Regel
+löscht ihre Daten, wartende Ereignisse und Posteingangseinträge.
 
 Ein Schalter, **Allow personal memory**, streicht den personenbezogenen Speicher
 vollständig, aus Compliance- oder Datenschutzgründen; die in Gruppenchats

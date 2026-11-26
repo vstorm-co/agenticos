@@ -33,8 +33,15 @@ from app.core.exceptions import (
     ConflictError,
     NotFoundError,
 )
-from app.core.memory_keys import INDEX_NAME, person_owner_key
-from app.core.permissions import AuthContext, Perm
+from app.core.memory_keys import (
+    GROUP_PREFIX,
+    INDEX_NAME,
+    ORGANIZATION_PREFIX,
+    group_owner_key,
+    organization_owner_key,
+    person_owner_key,
+)
+from app.core.permissions import AuthContext, Perm, Scope
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFile
@@ -42,6 +49,7 @@ from app.db.models.memory_claim import MemoryClaim
 from app.repositories import (
     agent_repo,
     audit_log_repo,
+    group_repo,
     memory_claim,
     memory_repo,
     organization_repo,
@@ -52,16 +60,29 @@ from app.schemas.decision_episode import DecisionEpisode, ImproveCaseReview
 from app.schemas.memory import (
     MemoryClaimCorrect,
     MemoryClaimDetail,
+    MemoryClaimEvidenceRead,
     MemoryClaimList,
     MemoryClaimRead,
+    MemoryClaimShare,
     MemoryErasureResult,
+    MemoryLibrary,
+    MemoryMailConfig,
+    MemoryMailSourceRead,
     MemoryNoteEdit,
     MemoryNoteList,
     MemoryNoteRead,
+    MemoryNoteShare,
+    MemoryObjectKind,
+    MemoryObjectPage,
+    MemoryObjectRead,
+    MemoryObjectTimeline,
+    SharedMemoryNotePage,
+    SharedMemoryNoteRead,
 )
 from app.services.access import AGENT, resolve_access
 from app.services.dataset import DatasetService
 from app.services.memory import _claims
+from app.services.memory.mail import MemoryMailService
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +91,22 @@ _ALL_STATUSES = ("current", "disputed", "superseded", "merged", "retracted")
 
 
 def _claim_read(row: MemoryClaim, names: dict[UUID, str]) -> MemoryClaimRead:
+    scope: Literal["profile", "agent", "organization", "group"]
+    if row.scope_key.startswith(ORGANIZATION_PREFIX):
+        scope = "organization"
+    elif row.scope_key.startswith(GROUP_PREFIX):
+        scope = "group"
+    else:
+        scope = "profile" if row.agent_id is None else "agent"
     return MemoryClaimRead(
         id=row.id,
+        object_id=row.object_id,
         agent_id=row.agent_id,
         agent_name=names.get(row.agent_id) if row.agent_id else None,
-        scope="profile" if row.agent_id is None else "agent",
+        scope=scope,
         subject=row.subject,
         statement=row.statement,
+        value=row.value,
         kind=row.kind,
         origin=row.origin,  # ty: ignore[invalid-argument-type]
         status=row.status,  # ty: ignore[invalid-argument-type]
@@ -84,7 +114,7 @@ def _claim_read(row: MemoryClaim, names: dict[UUID, str]) -> MemoryClaimRead:
         effective_from=row.effective_from,
         effective_to=row.effective_to,
         supersedes_id=row.supersedes_id,
-        derived_from_count=len(row.derived_from or []),
+        derived_from_count=0 if scope in ("organization", "group") else len(row.derived_from or []),
         episode=DecisionEpisode.model_validate(row.episode) if row.episode is not None else None,
     )
 
@@ -141,6 +171,239 @@ class MemoryService:
         names = await self._agent_names({row.agent_id for row in rows if row.agent_id})
         return MemoryClaimList(items=[_claim_read(row, names) for row in rows], total=total)
 
+    async def memory_mail(self, ctx: AuthContext) -> MemoryMailSourceRead | None:
+        return await MemoryMailService(self.db).configuration(ctx)
+
+    async def configure_memory_mail(
+        self, ctx: AuthContext, data: MemoryMailConfig
+    ) -> MemoryMailSourceRead:
+        return await MemoryMailService(self.db).configure(ctx, data)
+
+    async def disable_memory_mail(self, ctx: AuthContext) -> None:
+        await MemoryMailService(self.db).disable(ctx)
+
+    async def _library_keys(self, ctx: AuthContext, library: MemoryLibrary) -> list[str]:
+        if ctx.subject_is_publisher_fallback or ctx.key_scopes is not None:
+            raise AuthorizationError(message="The memory library requires a member session")
+        if library == "personal":
+            return [person_owner_key(ctx.subject_id)]
+        if not ctx.has(Perm.CONTEXT_VIEW):
+            raise AuthorizationError(message="Reading shared memory requires context:view")
+        memberships = await group_repo.list_memberships_in_org(
+            self.db, organization_id=ctx.organization_id, user_id=ctx.subject_id
+        )
+        return [
+            organization_owner_key(ctx.organization_id),
+            *(group_owner_key(membership.group_id) for membership in memberships),
+        ]
+
+    async def objects(
+        self,
+        ctx: AuthContext,
+        *,
+        library: MemoryLibrary,
+        kind: MemoryObjectKind | None,
+        q: str,
+        cursor: UUID | None,
+        limit: int,
+    ) -> MemoryObjectPage:
+        keys = await self._library_keys(ctx, library)
+        rows = await memory_claim.list_objects(
+            self.db,
+            organization_id=ctx.organization_id,
+            scope_keys=keys,
+            kind=kind,
+            q=q.strip(),
+            cursor=cursor,
+            limit=limit + 1,
+        )
+        return MemoryObjectPage(
+            items=[
+                MemoryObjectRead.model_validate(row, from_attributes=True) for row in rows[:limit]
+            ],
+            next_cursor=rows[limit - 1].id if len(rows) > limit else None,
+        )
+
+    async def object_timeline(
+        self,
+        ctx: AuthContext,
+        *,
+        library: MemoryLibrary,
+        object_id: UUID,
+        as_of: datetime | None,
+        known_at: datetime | None,
+        cursor: UUID | None,
+        limit: int,
+    ) -> MemoryObjectTimeline:
+        keys = await self._library_keys(ctx, library)
+        if known_at is not None and as_of is None:
+            raise BadRequestError(message="Choose an effective date before setting known_at")
+        entity = await memory_claim.get_object(
+            self.db, organization_id=ctx.organization_id, object_id=object_id, scope_keys=keys
+        )
+        if entity is None:
+            raise NotFoundError(message="Memory object not found")
+        rows = await memory_claim.object_claims(
+            self.db,
+            organization_id=ctx.organization_id,
+            scope_key=entity.scope_key,
+            object_id=entity.id,
+            as_of=as_of,
+            known_at=known_at,
+            cursor=cursor,
+            limit=limit + 1,
+        )
+        page = rows[:limit]
+        states = (
+            await memory_claim.states_known_at(self.db, rows=page, known_at=known_at)
+            if known_at is not None
+            else {}
+        )
+        return MemoryObjectTimeline(
+            object=MemoryObjectRead.model_validate(entity, from_attributes=True),
+            items=[
+                _claim_read(row, {}).model_copy(
+                    update={
+                        "status": state.status,
+                        "effective_to": state.effective_to,
+                    }
+                )
+                if (state := states.get(row.id)) is not None
+                else _claim_read(row, {})
+                for row in page
+            ],
+            next_cursor=rows[limit - 1].id if len(rows) > limit else None,
+        )
+
+    async def _publication_target(self, ctx: AuthContext, group_id: UUID | None) -> str:
+        await self._library_keys(ctx, "personal")
+        if ctx.scope_for(Perm.CONTEXT_EDIT) != Scope.ALL:
+            raise AuthorizationError(message="Publishing shared memory requires context:edit")
+        if group_id is None:
+            return organization_owner_key(ctx.organization_id)
+        group = await group_repo.get(
+            self.db, organization_id=ctx.organization_id, group_id=group_id, for_update=True
+        )
+        if group is None:
+            raise NotFoundError(message="Group not found")
+        return group_owner_key(group.id)
+
+    async def publish_claim(
+        self, ctx: AuthContext, claim_id: UUID, data: MemoryClaimShare
+    ) -> MemoryClaimRead:
+        target = await self._publication_target(ctx, data.group_id)
+        source = await self._own_live_claim(ctx, claim_id)
+        claim = await _claims.share(
+            self.db,
+            claim=source,
+            to=memory_claim.ClaimScope(target),
+            author_user_id=ctx.subject_id,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.claim.shared",
+            target_type="memory_claim",
+            target_id=str(claim.id),
+            details={"target": target},
+        )
+        return _claim_read(claim, {})
+
+    async def publish_note(
+        self, ctx: AuthContext, note_id: UUID, data: MemoryNoteShare
+    ) -> SharedMemoryNoteRead:
+        target = await self._publication_target(ctx, data.group_id)
+        await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, ctx.subject_id)
+        note = await self._own_note(ctx, note_id)
+        if note.deactivated_at is not None or note.updated_at != data.expected_updated_at:
+            raise ConflictError(message="The note changed. Open it again before sharing.")
+        shared = await memory_claim.publish_note(
+            self.db,
+            organization_id=ctx.organization_id,
+            source_id=note.id,
+            scope_key=target,
+            name=note.name,
+            content=note.content,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.note.shared",
+            target_type="memory_file",
+            target_id=str(shared.id),
+            details={"target": target},
+        )
+        return SharedMemoryNoteRead.model_validate(shared, from_attributes=True)
+
+    async def shared_notes(
+        self,
+        ctx: AuthContext,
+        *,
+        cursor: UUID | None,
+        limit: int,
+    ) -> SharedMemoryNotePage:
+        keys = await self._library_keys(ctx, "organization")
+        rows = await memory_claim.shared_notes(
+            self.db, organization_id=ctx.organization_id, keys=keys, cursor=cursor, limit=limit + 1
+        )
+        return SharedMemoryNotePage(
+            items=[
+                SharedMemoryNoteRead.model_validate(row, from_attributes=True)
+                for row in rows[:limit]
+            ],
+            next_cursor=rows[limit - 1].id if len(rows) > limit else None,
+        )
+
+    async def shared_claims(
+        self, ctx: AuthContext, *, q: str, limit: int, skip: int
+    ) -> MemoryClaimList:
+        keys = await self._library_keys(ctx, "organization")
+        rows, total = await memory_claim.list_for_owner(
+            self.db,
+            organization_id=ctx.organization_id,
+            scope_key=keys,
+            statuses=_LIVE_STATUSES,
+            in_effect=True,
+            q=q.strip(),
+            skip=skip,
+            limit=limit,
+        )
+        return MemoryClaimList(items=[_claim_read(row, {}) for row in rows], total=total)
+
+    async def shared_claim_detail(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaimDetail:
+        keys = await self._library_keys(ctx, "organization")
+        claim = await memory_claim.get(
+            self.db, organization_id=ctx.organization_id, claim_id=claim_id
+        )
+        if claim is None or claim.scope_key not in keys:
+            raise NotFoundError(message="Memory claim not found")
+        found = await _claims.provenance(self.db, claim=claim, readable_keys=keys)
+        return MemoryClaimDetail(
+            **_claim_read(claim, {}).model_dump(),
+            evidence=await self._mail_evidence(claim),
+            sources=[_claim_read(row, {}) for row in found.sources],
+            superseded=_claim_read(found.superseded, {}) if found.superseded else None,
+        )
+
+    async def _mail_evidence(self, claim: MemoryClaim) -> list[MemoryClaimEvidenceRead]:
+        if claim.mail_event_id is None:
+            return []
+        event = await memory_claim.mail_event(
+            self.db, organization_id=claim.organization_id, event_id=claim.mail_event_id
+        )
+        if event is None:
+            return []
+        return [
+            MemoryClaimEvidenceRead(
+                kind="gmail",
+                source_id=event.delivery_id,
+                quote=event.quote,
+                occurred_at=event.received_at,
+            )
+        ]
+
     async def claim_detail(self, ctx: AuthContext, claim_id: UUID) -> MemoryClaimDetail:
         """One of the caller's claims with its ancestry, filtered to what they may read.
 
@@ -154,6 +417,15 @@ class MemoryService:
         names = await self._agent_names({item.agent_id for item in related if item.agent_id})
         return MemoryClaimDetail(
             **_claim_read(row, names).model_dump(),
+            evidence=[
+                MemoryClaimEvidenceRead(
+                    kind="message",
+                    source_id=f"message:{item.message_id}",
+                    quote=item.quote,
+                    occurred_at=item.occurred_at,
+                )
+                for item in await memory_claim.message_evidence(self.db, row.id)
+            ],
             sources=[_claim_read(item, names) for item in found.sources],
             withheld=found.withheld,
             superseded=_claim_read(found.superseded, names) if found.superseded else None,
@@ -197,15 +469,28 @@ class MemoryService:
         self, ctx: AuthContext, claim_id: UUID, data: MemoryClaimCorrect
     ) -> MemoryClaimRead:
         """Replace one of the caller's claims with their own words, keeping its history."""
-        row = await self._own_live_claim(ctx, claim_id)
-        fixed = await _claims.correct(
-            self.db,
-            claim=row,
-            statement=data.statement,
-            author_user_id=ctx.subject_id,
-            effective_from=data.effective_from,
-            episode=data.episode,
-        )
+        if data.historical:
+            await self._library_keys(ctx, "personal")
+            if data.effective_from is not None:
+                raise BadRequestError(message="Historical corrections keep the original interval")
+            row = await self._own_claim(ctx, claim_id)
+            fixed = await _claims.amend_observation(
+                self.db,
+                claim=row,
+                statement=data.statement,
+                author_user_id=ctx.subject_id,
+                episode=data.episode,
+            )
+        else:
+            row = await self._own_live_claim(ctx, claim_id)
+            fixed = await _claims.correct(
+                self.db,
+                claim=row,
+                statement=data.statement,
+                author_user_id=ctx.subject_id,
+                effective_from=data.effective_from,
+                episode=data.episode,
+            )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

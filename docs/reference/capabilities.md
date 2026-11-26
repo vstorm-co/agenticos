@@ -445,11 +445,43 @@ there is nothing for the agent to get wrong.
   creator](../concepts.md#unless-its-creator-lets-it-run-as-them): a schedule then
   reads and writes the creator's store, and an event only reads it.
 
-There is no organisation-wide store. One existed and was removed: it was a second
-mechanism for what [context files](../context.md) already do — standing knowledge
-a person authors and binds to agents — and one job with two mechanisms is how the
-two disagree. Memory is what the *agent* learned; anything a human writes belongs
-in context.
+Use [context files](../context.md) for authored standing instructions. Agents keep
+their working notes in the person or room store. A member with organization-wide
+`context:edit` can publish a reviewed copy of a personal note or claim to the
+organization or one of its groups from Settings.
+
+### Business objects and history { #memory-business-objects }
+
+**Settings → Memory** has Personal and Organization views. Each contains Memories
+and Notes. In Memories, filter Objects by person, company/client, business project
+or commitment. Business projects have their own identity and may exist without a
+workspace in Projects. The current member's group memberships determine which
+group publications are visible. Publishing a note takes a snapshot at the
+reviewed revision. Deleting the personal source removes its published notes.
+
+Use `remember` on an explicit request and `write_memory` for the agent's working
+notes. An optional `object_ref` names a business object, and `value` carries an
+exact scalar property. Use `recall(as_of=…)` for validity on a date and
+`known_at` to cut off knowledge before a later correction. Explicit time ranges
+are half-open. A claim with no start date remains available in current search.
+Historical queries need a dated observation. Open a completed interval in a personal object's timeline and use **Correct** to revise that interval while preserving the earlier knowledge snapshot. History of status changes starts
+with the new schema. Existing claims and their IDs remain available.
+
+### Gmail maintenance { #memory-gmail }
+
+Connect a company Gmail portal first. An operator with `connections:manage` and
+organization-wide `context:edit` can review a rule under **Settings → Memory →
+Organization → Gmail maintenance**. Set an authenticated sender, an exact
+subject and a commitment name. One message must have a single line in the form
+`Deadline: YYYY-MM-DD` or `Deadline: cancelled`.
+
+Preview mode records a matching event and its status. Active mode records the
+deadline and its evidence in the shared commitment timeline. **Notify me** sends
+one Inbox finding to the reviewer for a change to an existing deadline. No model
+is called for this rule. The worker rechecks the portal's authorization
+generation and the reviewer's current authority before writing. The daily
+admission limit holds the mailbox cursor so unread events can be retried. Remove
+the rule to discard its queued events, saved claims and Inbox findings.
 
 One switch, **Allow personal memory**, drops the per-person store entirely for
 compliance or privacy; the notes kept in group chats stay.

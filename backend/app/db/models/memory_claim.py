@@ -22,7 +22,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, text
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -32,6 +32,33 @@ from app.db.base import Base, TimestampMixin
 CLAIM_KINDS = ("fact", "preference", "decision")
 CLAIM_ORIGINS = ("agent", "person", "consolidation")
 CLAIM_STATUSES = ("current", "disputed", "superseded", "merged", "retracted")
+
+
+class MemoryObject(Base, TimestampMixin):
+    """A business identity in one tenant and audience, independent of workspaces."""
+
+    __tablename__ = "memory_objects"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id",
+            "scope_key",
+            "kind",
+            "identity_key",
+            name="uq_memory_objects_identity",
+        ),
+        Index("ix_memory_objects_browse", "organization_id", "scope_key", "kind", "id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    scope_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    identity_key: Mapped[str] = mapped_column(String(300), nullable=False)
 
 
 class MemoryClaim(Base, TimestampMixin):
@@ -54,8 +81,18 @@ class MemoryClaim(Base, TimestampMixin):
     )
     """Set for the person-agent relationship; null for a claim every agent in the scope may use."""
 
+    object_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("memory_objects.id", ondelete="SET NULL"), nullable=True
+    )
+
+    mail_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("memory_mail_events.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+
     subject: Mapped[str | None] = mapped_column(String(120), nullable=True)
     """A normalised topic (`invoice_owner`): claims sharing one in a scope are about the same thing."""
+
+    value: Mapped[str | int | bool | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
 
     statement: Mapped[str] = mapped_column(Text, nullable=False)
     kind: Mapped[str] = mapped_column(String(24), nullable=False, default="fact")
@@ -93,6 +130,7 @@ class MemoryClaim(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_memory_claims_scope", "organization_id", "scope_key", "status"),
         Index("ix_memory_claims_agent", "agent_id"),
+        Index("ix_memory_claims_object", "object_id", "observed_at", "id"),
         Index(
             "uq_memory_claims_consolidation",
             "organization_id",
@@ -105,6 +143,57 @@ class MemoryClaim(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<MemoryClaim({self.scope_key}, {self.subject}, {self.status})>"
+
+
+class MemoryClaimEvidence(Base):
+    """An exact user excerpt from an authenticated source of one claim."""
+
+    __tablename__ = "memory_claim_evidence"
+
+    claim_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("memory_claims.id", ondelete="CASCADE"), primary_key=True
+    )
+    message_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("messages.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    quote: Mapped[str] = mapped_column(String(300))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class SharedMemoryNote(Base, TimestampMixin):
+    """An explicit publication of one version of a personal note."""
+
+    __tablename__ = "shared_memory_notes"
+    __table_args__ = (
+        UniqueConstraint("source_id", "scope_key", name="uq_shared_memory_note_source"),
+        Index("ix_shared_memory_notes_scope", "organization_id", "scope_key", "id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("agent_memory_files.id", ondelete="CASCADE"), nullable=False
+    )
+    scope_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class MemoryClaimRevision(Base):
+    """The status and end of validity as known from a specific instant."""
+
+    __tablename__ = "memory_claim_revisions"
+
+    claim_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("memory_claims.id", ondelete="CASCADE"), primary_key=True
+    )
+    known_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class MemoryScopeState(Base):
@@ -127,3 +216,57 @@ class MemoryScopeState(Base):
         nullable=False, default=0, server_default="0"
     )
     consolidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MemoryMailSource(Base, TimestampMixin):
+    """A reviewed, narrow rule on the organization's Gmail portal."""
+
+    __tablename__ = "memory_mail_sources"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), primary_key=True
+    )
+    grant_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("mcp_connections.id", ondelete="SET NULL"), nullable=True
+    )
+    authorization_generation: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True))
+    generation: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), default=uuid.uuid4)
+    reviewer_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    sender: Mapped[str] = mapped_column(String(254))
+    subject: Mapped[str] = mapped_column(String(200))
+    commitment: Mapped[str] = mapped_column(String(160))
+    mode: Mapped[str] = mapped_column(String(12))
+    notify: Mapped[bool]
+    admitted_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_outcome: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class MemoryMailEvent(Base):
+    """The minimum evidence extracted from one authenticated matched message."""
+
+    __tablename__ = "memory_mail_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id", "grant_id", "delivery_id", name="uq_memory_mail_events_delivery"
+        ),
+        Index("ix_memory_mail_events_date", "organization_id", "admitted_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("memory_mail_sources.organization_id", ondelete="CASCADE")
+    )
+    grant_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True))
+    generation: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True))
+    delivery_id: Mapped[str] = mapped_column(String(200))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    admitted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    quote: Mapped[str] = mapped_column(String(64))
+    deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    state: Mapped[str] = mapped_column(String(20))

@@ -10,7 +10,7 @@ asked for, this module says whether the run's person may have it.
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from uuid import UUID
 
@@ -22,6 +22,7 @@ from app.core.exceptions import ConflictError
 from app.core.memory_keys import (
     ORGANIZATION_PREFIX,
     PROJECT_PREFIX,
+    group_owner_key,
     organization_owner_key,
     project_owner_key,
 )
@@ -30,9 +31,11 @@ from app.db.models.conversation import Conversation
 from app.db.models.memory_claim import MemoryClaim
 from app.db.models.project import Project
 from app.db.session import get_db_context
+from app.repositories import group_repo
 from app.repositories import memory_claim as claim_repo
 from app.repositories.memory_claim import ClaimScope
 from app.schemas.decision_episode import DecisionEpisode
+from app.schemas.memory import MemoryObjectRef, MemoryValue
 from app.services.access import PROJECT, acting_member, resolve_access
 from app.services.memory import _claims
 from app.services.memory._native import person_still_exists, refuse_if_erased_during_run
@@ -52,6 +55,8 @@ class ClaimView:
     effective_from: datetime | None
     observed_at: datetime
     episode: DecisionEpisode | None = None
+    object_id: UUID | None = None
+    effective_to: datetime | None = None
 
 
 def _view(claim: MemoryClaim) -> ClaimView:
@@ -60,6 +65,8 @@ def _view(claim: MemoryClaim) -> ClaimView:
         scope = "profile" if claim.agent_id is None else "this agent"
     return ClaimView(
         id=claim.id,
+        object_id=claim.object_id,
+        effective_to=claim.effective_to,
         statement=claim.statement,
         subject=claim.subject,
         kind=claim.kind,
@@ -96,6 +103,9 @@ async def remember(
     run_id: UUID | None,
     effective_from: datetime | None,
     episode: DecisionEpisode | None = None,
+    effective_to: datetime | None = None,
+    object_ref: MemoryObjectRef | None = None,
+    value: MemoryValue | None = None,
 ) -> tuple[ClaimView, bool, bool] | None:
     """Record a claim. `None` when its person is gone; else (claim, created, disputed).
 
@@ -120,17 +130,59 @@ async def remember(
             conversation_id=conversation_id,
             run_id=run_id,
             effective_from=effective_from,
+            effective_to=effective_to,
+            object_ref=object_ref,
+            value=value,
             episode=episode,
         )
         return _view(result.claim), result.created, result.disputed
 
 
 async def recall(
-    *, organization_id: UUID, scopes: Sequence[ClaimScope], query: str
+    *,
+    organization_id: UUID,
+    scopes: Sequence[ClaimScope],
+    query: str,
+    as_of: datetime | None = None,
+    known_at: datetime | None = None,
+    reading_member: UUID | None = None,
+    include_groups: bool = False,
 ) -> list[ClaimView]:
     async with get_db_context() as db:
-        rows = await _claims.recall(db, organization_id=organization_id, scopes=scopes, query=query)
-        return [_view(row) for row in rows]
+        allowed = list(scopes)
+        if reading_member is not None:
+            member = await acting_member(db, organization_id, str(reading_member))
+            if member is None:
+                return []
+            if not member.has(Perm.CONTEXT_VIEW):
+                allowed = [
+                    scope
+                    for scope in allowed
+                    if not scope.scope_key.startswith(ORGANIZATION_PREFIX)
+                ]
+            elif include_groups:
+                memberships = await group_repo.list_memberships_in_org(
+                    db, organization_id=organization_id, user_id=reading_member
+                )
+                allowed.extend(ClaimScope(group_owner_key(row.group_id)) for row in memberships)
+        rows = await _claims.recall(
+            db,
+            organization_id=organization_id,
+            scopes=allowed,
+            query=query,
+            as_of=as_of,
+            known_at=known_at,
+        )
+        views = [_view(row) for row in rows]
+        if known_at is None:
+            return views
+        states = await claim_repo.states_known_at(db, rows=rows, known_at=known_at)
+        return [
+            replace(view, status=state.status, effective_to=state.effective_to)
+            if (state := states.get(view.id)) is not None
+            else view
+            for view in views
+        ]
 
 
 async def profile_block(*, organization_id: UUID, scopes: Sequence[ClaimScope]) -> str:
