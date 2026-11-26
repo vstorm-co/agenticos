@@ -1333,6 +1333,10 @@ async def _prompt(
             f"<still_failing>\n{chr(10).join(failures) or 'None of the scored questions.'}\n"
             "</still_failing>\n</version>"
         )
+    if note:
+        screened = redact_secrets(note)
+        if screened.action == "replace":
+            note = str(screened.replacement)
     return (
         "You are improving an AI agent's instructions. Below are its best versions of the "
         "instructions so far, each with its score - the share of required checks its answers "
@@ -1346,7 +1350,7 @@ async def _prompt(
         f"\n\n{chr(10).join(blocks)}"
         + (
             "\n\n# What the person who asked for this attempt wants you to keep in mind\n"
-            f"<note>\n{redact_secrets(note).replacement or note}\n</note>\n{_NOTE_RULE}"
+            f"<note>\n{note}\n</note>\n{_NOTE_RULE}"
             if note
             else ""
         )
