@@ -650,6 +650,18 @@ class RAGDocumentService:
 
             await queue_external_state_cleanup(self.db, storage_paths, [])
 
+    async def record_parser_task(
+        self, doc_id: str, parser_task: dict[str, object] | None, *, attempt: int
+    ) -> bool:
+        """Keep, or with `None` clear, the remote parse this attempt is waiting on.
+
+        Returns False when the row is gone or a later retry superseded `attempt`;
+        the parse carries on, and its settlement is fenced by the same attempt.
+        """
+        return await rag_document_repo.set_parser_task(
+            self.db, UUID(doc_id), parser_task=parser_task, expected_attempt=attempt
+        )
+
     async def fail_ingestion(self, doc_id: str, error_message: str, *, attempt: int) -> None:
         """Mark a document ingestion as failed.
 

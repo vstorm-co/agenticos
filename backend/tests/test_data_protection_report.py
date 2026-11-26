@@ -138,6 +138,25 @@ class TestWhatItReports:
             "provider API",
         ]
 
+    async def test_docling_collection_reported_as_sending_documents(self) -> None:
+        db = _db(
+            [
+                (
+                    "scans",
+                    "openai",
+                    "text-embedding-3-small",
+                    None,
+                    {"pdf_parser": "docling", "docling_connection_id": str(uuid.uuid4())},
+                ),
+                ("bare", "openai", "text-embedding-3-small", None, {"pdf_parser": "docling"}),
+            ]
+        )
+
+        section = await _collections(db)
+
+        assert [row[5] for row in section.rows] == ["yes", "no"]
+        assert "Docling connection" in section.note
+
     async def test_service_connections_label_a_deployment_wide_row(self) -> None:
         db = _db(
             [

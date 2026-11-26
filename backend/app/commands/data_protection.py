@@ -388,7 +388,11 @@ async def _collections(db: AsyncSession) -> Section:
         parser = str(config.get("pdf_parser", "pymupdf"))
         # LlamaParse sends the whole document to LlamaCloud, and only a
         # collection naming its own vault key can: there is no deployment key.
-        off_site = parser == "llamaparse" and config.get("llamaparse_secret_id") is not None
+        # Docling sends it to the collection's own connection, which may be
+        # inside the network but is still another service holding the text.
+        off_site = (parser == "llamaparse" and config.get("llamaparse_secret_id") is not None) or (
+            parser == "docling" and config.get("docling_connection_id") is not None
+        )
         rows.append(
             [
                 name,
@@ -404,7 +408,8 @@ async def _collections(db: AsyncSession) -> Section:
         note=(
             "Every chunk of every document and every retrieval query reaches the "
             "embedding provider named here. An off-site parse sends the whole "
-            "document."
+            "document: to LlamaParse's cloud, or to the collection's Docling "
+            "connection, which may be inside your network."
         ),
         headers=(
             "Collection",

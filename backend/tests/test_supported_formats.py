@@ -36,6 +36,7 @@ from app.services.rag.config import (
     RAGSettings,
     get_supported_formats,
 )
+from app.services.rag.docling import DoclingParser
 from app.services.rag.documents import (
     DocumentProcessor,
     LiteParseParser,
@@ -57,6 +58,7 @@ PARSER_CLASSES: dict[str, type] = {
     "pymupdf": PyMuPDFParser,
     "liteparse": LiteParseParser,
     "llamaparse": LlamaParseParser,
+    "docling": DoclingParser,
 }
 
 

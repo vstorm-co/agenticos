@@ -196,3 +196,61 @@ async def test_a_failed_collection_sync_closes_its_log_only_on_the_last_attempt(
         await rag_tasks.sync_collection(job)
 
     assert close.await_count == int(closed)
+
+
+async def test_the_run_binds_the_parser_task_store_and_ends_a_docling_refusal() -> None:
+    from collections.abc import AsyncIterator
+    from pathlib import Path
+
+    from app.db.models.rag_document import DocumentStatus
+    from app.services.rag.docling import DoclingRefused
+    from app.services.rag.ingestion import IngestionService
+    from app.worker.attempt import Attempt, running
+
+    job = _document()
+    refusal = "Docling could not read pages 2."
+    processor = MagicMock(process_file=AsyncMock(side_effect=DoclingRefused(refusal)))
+    build = AsyncMock(return_value=processor)
+    documents = MagicMock(
+        get_document=AsyncMock(
+            return_value=MagicMock(
+                organization_id=None,
+                ingestion_config={},
+                knowledge_base_id=None,
+                status=DocumentStatus.PROCESSING,
+            )
+        )
+    )
+
+    @asynccontextmanager
+    async def ingestion_service(*, processor: Any, **_: Any) -> AsyncIterator[IngestionService]:
+        yield IngestionService(processor=processor, vector_store=MagicMock())
+
+    with (
+        patch.object(rag_tasks, "get_worker_db_context", new=_db),
+        patch.object(rag_tasks, "_ingestion_service", new=ingestion_service),
+        patch.object(rag_tasks, "_record_embedding_spend", new=AsyncMock()),
+        patch.object(rag_tasks, "IngestionConfigService") as config_service,
+        patch.object(rag_tasks, "_fail_document", new=AsyncMock()) as fail,
+        patch("app.services.rag_document.RAGDocumentService", return_value=documents),
+        patch.object(rag_tasks.rag_scratch, "parse_source") as source,
+    ):
+        config_service.return_value.build_processor = build
+
+        @asynccontextmanager
+        async def parse_source(path: Path, **_: Any) -> AsyncIterator[Path]:
+            yield path
+
+        source.side_effect = parse_source
+        with running(Attempt(number=1, of=2)):
+            outcome = await rag_tasks._run_ingestion(
+                str(job.rag_document_id), "docs", "media/a.pdf", "a.pdf", False, 2
+            )
+
+    store = build.await_args.kwargs["task_store"]
+    assert isinstance(store, rag_tasks._DocumentParserTasks)
+    assert (store._id, store._attempt) == (str(job.rag_document_id), 2)
+    assert outcome["status"] == "refused"
+    fail.assert_awaited_once()
+    assert fail.await_args.kwargs["final"] is True
+    assert fail.await_args.kwargs["error_message"] == refusal

@@ -6,6 +6,7 @@ from uuid import UUID
 
 from app.core.exceptions import AppException
 from app.db.vector_tables import VectorScope, VectorWriterKind
+from app.services.rag.docling import DoclingRefused
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.failures import IngestionStage, failure_summary
 from app.services.rag.models import Document, DocumentInfo, IngestionResult, IngestionStatus
@@ -178,6 +179,13 @@ class IngestionService:
         try:
             document: Document = await self.processor.process_file(filepath)
             document.metadata.rag_document_id = rag_document_id
+        except DoclingRefused as exc:
+            # Its own refusal: retrying the same file against the same server
+            # says the same thing, so the worker ends the document instead.
+            logger.warning("Docling refused %s", filepath.name)
+            return self._failed(
+                exc, stage=IngestionStage.PARSE, filename=filepath.name, refused=True
+            )
         except Exception as exc:
             logger.exception("Parsing failed for %s", filepath.name)
             return self._failed(exc, stage=IngestionStage.PARSE, filename=filepath.name)

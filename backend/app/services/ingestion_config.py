@@ -70,7 +70,7 @@ from app.services.rag.config import (
     PdfParser,
     RAGSettings,
 )
-from app.services.rag.docling import DoclingTarget
+from app.services.rag.docling import DoclingTarget, ParserTaskStore
 from app.services.rag.documents import DocumentProcessor
 from app.services.rag.image_describer import (
     IMAGE_DESCRIPTION_PROMPT,
@@ -680,7 +680,11 @@ class IngestionConfigService:
         )
 
     async def build_processor(
-        self, organization_id: UUID | None, config: IngestionConfig
+        self,
+        organization_id: UUID | None,
+        config: IngestionConfig,
+        *,
+        task_store: ParserTaskStore | None = None,
     ) -> DocumentProcessor:
         """The parser/chunker pair a document is about to be run through.
 
@@ -697,6 +701,7 @@ class IngestionConfigService:
                 docling=await self._docling_target(organization_id, config),
             ),
             image_describer=await self.build_describer(organization_id, config),
+            parser_task_store=task_store,
         )
 
     async def check_llamaparse_secret(

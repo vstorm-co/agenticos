@@ -759,10 +759,9 @@ def _docling_config(connection: uuid.UUID | None = None) -> IngestionConfig:
 
 
 class _RecordingProcessor:
-    """What `build_processor` hands the settings to, since the Docling parser itself
-    is not constructible from this module's tests."""
+    """Stands in for `DocumentProcessor` where a test reads only the settings it was given."""
 
-    def __init__(self, *, settings, image_describer) -> None:
+    def __init__(self, *, settings, image_describer, parser_task_store=None) -> None:
         self.settings = settings
 
 
@@ -982,6 +981,20 @@ class TestResolvingTheDoclingTarget:
         assert pdf.docling_api_key == "dl-secret-key"
         assert pdf.docling_base_url == _DOCLING_URL
         assert pdf.docling_connection_id == service.id
+
+    async def test_the_task_store_reaches_the_docling_parser(self) -> None:
+        """Built with the real processor and factory: dropping the store at any hop fails."""
+        from app.services.rag.docling import DoclingParser
+
+        marker = MagicMock()
+        service = _docling_service()
+        with patch(_VISIBLE, new=AsyncMock(return_value=service)):
+            processor = await IngestionConfigService(_db()).build_processor(
+                ORG, _docling_config(service.id), task_store=marker
+            )
+
+        assert isinstance(processor.pdf_parser, DoclingParser)
+        assert processor.pdf_parser.task_store is marker
 
     async def test_a_keyless_connection_resolves_without_touching_the_vault(self) -> None:
         with patch(_VAULT, new=AsyncMock()) as vault:

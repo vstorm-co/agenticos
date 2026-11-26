@@ -41,6 +41,8 @@ if TYPE_CHECKING:
     from pymupdf import Document as PDFDocument
     from pymupdf import Page as PDFPage
 
+    from app.services.rag.docling import ParserTaskStore
+
 
 logger = logging.getLogger(__name__)
 
@@ -607,7 +609,10 @@ class PdfParserFactory:
 
     @staticmethod
     def create(
-        parser_name: str, settings: RAGSettings | None = None, image_describer: Any = None
+        parser_name: str,
+        settings: RAGSettings | None = None,
+        image_describer: Any = None,
+        task_store: ParserTaskStore | None = None,
     ) -> BaseDocumentParser:
         if parser_name == "llamaparse":
             if not settings or not settings.pdf_parser.api_key:
@@ -630,6 +635,30 @@ class PdfParserFactory:
                 dpi=pdf.liteparse_dpi,
                 max_pages=pdf.liteparse_max_pages,
             )
+        if parser_name == "docling":
+            # Imported here: `docling` builds on this module's parser base class.
+            from app.services.rag.docling import DoclingOptions, DoclingParser, DoclingTarget
+
+            pdf = settings.pdf_parser if settings else PdfParser()
+            if settings is None or not pdf.docling_base_url:
+                raise ValueError("Docling needs the collection's connection, and none was resolved")
+            return DoclingParser(
+                target=DoclingTarget(
+                    connection_id=pdf.docling_connection_id,
+                    base_url=pdf.docling_base_url,
+                    api_key=pdf.docling_api_key or None,
+                ),
+                options=DoclingOptions(
+                    do_ocr=settings.enable_ocr,
+                    force_ocr=settings.enable_ocr and not pdf.liteparse_auto_ocr,
+                    ocr_languages=tuple(pdf.docling_ocr_languages),
+                    ocr_preset=pdf.docling_ocr_preset,
+                    table_mode=pdf.docling_table_mode,
+                    max_pages=pdf.liteparse_max_pages,
+                    timeout_seconds=pdf.liteparse_timeout_seconds,
+                ),
+                task_store=task_store,
+            )
         if parser_name == "pymupdf":
             return PyMuPDFParser(
                 enable_ocr=settings.enable_ocr if settings else False,
@@ -648,10 +677,15 @@ class DocumentProcessor:
     Supported file types:
     - TXT, MD: TextDocumentParser (built in)
     - everything else the chosen parser claims, DOCX included:
-      PdfParserFactory selects PyMuPDF, LlamaParse or LiteParse at runtime
+      PdfParserFactory selects PyMuPDF, LlamaParse, LiteParse or Docling at runtime
     """
 
-    def __init__(self, settings: RAGSettings, image_describer: BaseImageDescriber | None = None):
+    def __init__(
+        self,
+        settings: RAGSettings,
+        image_describer: BaseImageDescriber | None = None,
+        parser_task_store: ParserTaskStore | None = None,
+    ):
         """Initialize the document processor.
 
         Args:
@@ -663,6 +697,9 @@ class DocumentProcessor:
                 sealed for that collection's organization - neither of which
                 this class can see. See
                 :class:`app.services.ingestion_config.IngestionConfigService`.
+            parser_task_store: Where a parser that hands the file to a remote
+                service keeps the task it started, so a retry collects it
+                instead of submitting the file again. Only Docling uses it.
         """
         self.settings = settings
         self.splitter = self._create_splitter(settings)
@@ -673,6 +710,7 @@ class DocumentProcessor:
             parser_name=settings.pdf_parser.method,
             settings=settings,
             image_describer=self.image_describer,
+            task_store=parser_task_store,
         )
 
     @staticmethod

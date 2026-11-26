@@ -154,6 +154,7 @@ PARSER_FORMATS: dict[str, set[str]] = {
     "pymupdf": PYMUPDF_FORMATS,
     "liteparse": LITEPARSE_FORMATS,
     "llamaparse": LLAMAPARSE_FORMATS,
+    "docling": DOCLING_FORMATS,
 }
 
 

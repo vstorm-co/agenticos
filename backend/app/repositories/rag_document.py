@@ -377,6 +377,28 @@ async def update_status(
     return doc
 
 
+async def set_parser_task(
+    db: AsyncSession,
+    doc_id: UUID,
+    *,
+    parser_task: dict[str, object] | None,
+    expected_attempt: int,
+) -> bool:
+    """Keep (or clear) the remote parse a document waits on, for one attempt only.
+
+    A conditional `UPDATE ... WHERE ingestion_attempt = ...`, as `update_status`
+    does: an attempt a later retry superseded writes nothing. Returns whether a
+    row was written.
+    """
+    result = await db.execute(
+        sql_update(RAGDocument)
+        .where(RAGDocument.id == doc_id, RAGDocument.ingestion_attempt == expected_attempt)
+        .values(parser_task=parser_task)
+    )
+    await db.flush()
+    return bool(result.rowcount)  # ty: ignore[missing-attribute]
+
+
 async def get_superseded(
     db: AsyncSession,
     *,
