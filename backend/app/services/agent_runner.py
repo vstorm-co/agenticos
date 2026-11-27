@@ -9028,7 +9028,7 @@ class AgentRunnerService:
         """
         if (
             for_decision
-            and not ctx.has(Perm.APPROVALS_DECIDE)
+            and not may_decide_approval(ctx, run)
             and not answers_for(ctx, run.user_id)
         ):
             raise AuthorizationError(
