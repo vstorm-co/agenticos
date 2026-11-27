@@ -4,6 +4,14 @@ import {
   amendHistoricalClaim,
   correctClaim,
   getMemoryClaimDetail,
+  getMemoryInboxDecisions,
+  getMemoryInboxRule,
+  getMemoryObjectBackfill,
+  getMemoryObjectMerges,
+  mergeMemoryObject,
+  runMemoryObjectBackfill,
+  setMemoryInboxRule,
+  undoMemoryObjectMerge,
   getMemoryObjects,
   getMemoryTimeline,
   getSharedClaims,
@@ -24,7 +32,7 @@ import {
 import { apiClient } from "./api-client";
 
 vi.mock("./api-client", () => ({
-  apiClient: { get: vi.fn(), patch: vi.fn(), delete: vi.fn(), post: vi.fn() },
+  apiClient: { get: vi.fn(), patch: vi.fn(), delete: vi.fn(), post: vi.fn(), put: vi.fn() },
 }));
 
 const PAGE = { items: [], total: 0 };
@@ -213,5 +221,66 @@ it("reads shared pages and sends only explicitly reviewed publication and decisi
     dataset_id: "dataset-1",
     input: "Question",
     reference_answer: "Answer",
+  });
+});
+
+it("scopes merge candidates and mutations to the requested library and object", () => {
+  void getMemoryObjects("organization", "Atlas", "all", null, "primary");
+  void getMemoryObjectMerges("organization", "primary", null);
+  void getMemoryObjectMerges("personal", "primary", "alias-page");
+  void mergeMemoryObject("organization", "primary", "alias");
+  void undoMemoryObjectMerge("organization", "primary", "merge");
+  expect(apiClient.get).toHaveBeenNthCalledWith(
+    1,
+    "/memory/objects?library=organization&q=Atlas&merge_target=primary",
+  );
+  expect(apiClient.get).toHaveBeenNthCalledWith(
+    2,
+    "/memory/objects/primary/merges?library=organization",
+  );
+  expect(apiClient.get).toHaveBeenNthCalledWith(
+    3,
+    "/memory/objects/primary/merges?library=personal&cursor=alias-page",
+  );
+  expect(apiClient.post).toHaveBeenCalledWith(
+    "/memory/objects/primary/merges?library=organization",
+    {
+      source_id: "alias",
+      confirmed: true,
+    },
+  );
+  expect(apiClient.delete).toHaveBeenCalledWith(
+    "/memory/objects/primary/merges/merge?library=organization",
+  );
+});
+
+it("pins the Inbox rule version and explicitly distinguishes a backfill resume from restart", () => {
+  void getMemoryInboxRule();
+  void getMemoryInboxDecisions(4);
+  void setMemoryInboxRule({
+    version: 4,
+    mode: "shadow",
+    sources: ["gmail"],
+    recipient_ids: ["member"],
+    include_review: false,
+  });
+  void getMemoryObjectBackfill();
+  void runMemoryObjectBackfill(false);
+  void runMemoryObjectBackfill(true);
+  expect(apiClient.get).toHaveBeenNthCalledWith(1, "/memory/inbox-rule");
+  expect(apiClient.get).toHaveBeenNthCalledWith(2, "/memory/inbox-rule/decisions?version=4");
+  expect(apiClient.get).toHaveBeenNthCalledWith(3, "/memory/object-backfill");
+  expect(apiClient.put).toHaveBeenCalledWith("/memory/inbox-rule", {
+    expected_version: 4,
+    mode: "shadow",
+    sources: ["gmail"],
+    recipient_ids: ["member"],
+    include_review: false,
+  });
+  expect(apiClient.post).toHaveBeenNthCalledWith(1, "/memory/object-backfill/run", {
+    restart: false,
+  });
+  expect(apiClient.post).toHaveBeenNthCalledWith(2, "/memory/object-backfill/run", {
+    restart: true,
   });
 });

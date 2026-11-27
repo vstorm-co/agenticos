@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
+import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import type { MemoryClaim, MemoryNote } from "@/lib/memory-api";
 import { ClaimDetail } from "./claim-detail";
@@ -209,5 +210,46 @@ it("pages through note history before restoring", async () => {
     expect(await screen.findByRole("button", { name: "noteOlderVersions" })).toBeVisible();
   } finally {
     get.mockRestore();
+  }
+});
+
+it("reports refused note consent and restore without leaving the note", async () => {
+  const patch = vi.spyOn(apiClient, "patch").mockRejectedValue(new Error("stale consent"));
+  const post = vi.spyOn(apiClient, "post").mockRejectedValue(new Error("stale restore"));
+  const get = vi.spyOn(apiClient, "get").mockResolvedValue({
+    items: [
+      {
+        id: "older",
+        content: "Older note",
+        replaced_at: "2026-11-27T00:00:00Z",
+        changed_by: "person",
+      },
+    ],
+    total: 1,
+  });
+  const error = vi.spyOn(toast, "error").mockImplementation(() => "reported");
+  const close = vi.fn();
+  const noop = vi.fn();
+  try {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <NoteDetail note={note} onClose={close} update={noop} setActive={noop} remove={noop} />
+      </QueryClientProvider>,
+    );
+    const user = userEvent.setup();
+    const automatic = screen.getByRole("button", { name: "noteAutoUpdate", pressed: false });
+    await user.click(automatic);
+    await waitFor(() => expect(error).toHaveBeenCalledTimes(1));
+    expect(automatic).toHaveAttribute("aria-pressed", "false");
+    await user.click(screen.getByRole("button", { name: "noteHistory" }));
+    await user.click(await screen.findByText("noteRevisionLabel"));
+    await user.click(screen.getByRole("button", { name: "noteRestoreVersion" }));
+    await waitFor(() => expect(error).toHaveBeenCalledTimes(2));
+    expect(close).not.toHaveBeenCalled();
+  } finally {
+    patch.mockRestore();
+    post.mockRestore();
+    get.mockRestore();
+    error.mockRestore();
   }
 });
