@@ -416,7 +416,6 @@ CALLS: tuple[Call, ...] = (
     # opens any run, and the person who started one opens and retries that one
     # without it - the link in an expired-approval notice. The runner service decides;
     # `tests/test_own_run_open.py` proves the refusals.
-    Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
     Call("GET", "/runs/{run_id}/parked", Perm.APPROVALS_DECIDE),
     Call("POST", "/runs/{run_id}/resume", Perm.APPROVALS_DECIDE),
     Call("GET", "/approvals", Perm.APPROVALS_DECIDE),

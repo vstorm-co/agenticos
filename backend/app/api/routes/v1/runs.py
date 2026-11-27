@@ -512,6 +512,7 @@ async def get_run_manifest(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> 
 @router.get(
     "/runs/{run_id}/parked",
     response_model=list[ParkedCall],
+    dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
 )
 async def get_parked_calls(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> Any:
     """What this run is waiting on a decision for, right now.
@@ -543,6 +544,7 @@ async def get_parked_calls(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> 
 @router.post(
     "/runs/{run_id}/resume",
     response_model=AgentRunResult,
+    dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
 )
 async def resume_run(
     run_id: UUID,
