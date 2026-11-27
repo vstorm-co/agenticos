@@ -8,7 +8,7 @@
 
 ## Reporting a vulnerability
 
-Email: **kacper.wlodarczyk@vstorm.co** (or open a private security advisory on the repo). Please include:
+Report vulnerabilities through a [private security advisory](https://github.com/vstorm-co/agenticos/security/advisories/new). Do not post exploit details in public issues. Please include:
 
 - Affected version / commit
 - Steps to reproduce
@@ -56,6 +56,6 @@ the images ship and their licences are [Licences](docs/licenses.md).
 
 ## Known limitations
 
-- **No 2FA / MFA** out of the box.
-- **No SAML / OIDC** beyond Google OAuth. Enterprise SSO needs custom IdP integration.
+- **MFA:** no built-in second factor for local passwords. With generic OIDC SSO, enforce MFA at your identity provider.
+- **SSO:** generic OIDC discovery (authorization code with PKCE), Google OAuth, LDAP and Kerberos are supported. Native SAML and SCIM are not supported; see [Directory](docs/directory.md).
 - **No automatic PII redaction** in logs — be careful what you log.

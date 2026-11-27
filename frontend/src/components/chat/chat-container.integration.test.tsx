@@ -2383,3 +2383,71 @@ it("keeps the same composer when the first turn learns its new conversation id",
   expect(screen.queryByText("Checking conversation access…")).toBeNull();
   expect(screen.getByRole("textbox")).toBe(composer);
 });
+
+// The live environment is a private main-chat control, not a Builder/test tool.
+it.each([
+  { main: true, canRun: true, shown: true },
+  { main: true, canRun: false, shown: false },
+  { main: false, canRun: true, shown: false },
+])(
+  "gates manual environments for main=$main and can_run=$canRun",
+  async ({ main, canRun, shown }) => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation((url: string) =>
+      url === "/agents"
+        ? Promise.resolve({
+            items: [
+              {
+                id: "environment-agent",
+                slug: "environment-agent",
+                name: "Environment agent",
+                status: "published",
+                can_run: canRun,
+                published_capabilities: ["browser_use", "computer_use"],
+              },
+            ],
+            total: 1,
+          })
+        : base(url),
+    );
+    useAgentSelectionStore.setState({ selectedAgentId: "environment-agent" });
+    mount(undefined, main);
+    await waitFor(() => expect(get).toHaveBeenCalledWith("/agents", expect.anything()));
+    if (shown) {
+      expect(await screen.findByRole("button", { name: "Open workspace" })).toBeInTheDocument();
+    } else {
+      await waitFor(() => expect(screen.getByRole("textbox")).toBeInTheDocument());
+      expect(screen.queryByRole("button", { name: "Open workspace" })).not.toBeInTheDocument();
+    }
+    expect(vi.mocked(apiClient.post)).not.toHaveBeenCalled();
+    expect(
+      get.mock.calls.some(([url]) => typeof url === "string" && url.includes("/environments?")),
+    ).toBe(false);
+  },
+);
+
+it("opens only the rendered chat settings entry point from the slash command", async () => {
+  mount();
+  const hiddenTrigger = document.createElement("button");
+  hiddenTrigger.setAttribute("data-chat-settings-trigger", "");
+  const hiddenClick = vi.fn();
+  hiddenTrigger.addEventListener("click", hiddenClick);
+  document.body.prepend(hiddenTrigger);
+  try {
+    const triggers = document.querySelectorAll<HTMLButtonElement>("[data-chat-settings-trigger]");
+    const visible = [...triggers].find((trigger) => trigger !== hiddenTrigger);
+    if (!visible) throw new Error("Missing chat settings trigger");
+    const rect = new DOMRect(100, 10, 44, 44);
+    vi.spyOn(visible, "getClientRects").mockReturnValue(
+      Object.assign([rect], { item: (index: number) => (index === 0 ? rect : null) }),
+    );
+    const editor = screen.getByRole("textbox", { name: "Type a message..." });
+    await userEvent.type(editor, "/settings");
+    await userEvent.keyboard("{Enter}");
+    expect(visible).toHaveAttribute("data-state", "open");
+    expect(hiddenClick).not.toHaveBeenCalled();
+    expect(socket.send).not.toHaveBeenCalled();
+  } finally {
+    hiddenTrigger.remove();
+  }
+});

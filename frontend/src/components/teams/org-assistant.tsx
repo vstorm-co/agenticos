@@ -1,15 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { Bot } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { SetupIndicator } from "@/components/settings/setup-indicator";
 import { architectSetupHints } from "@/lib/setup-hints";
 import { ServiceCard } from "@/components/settings/service-card";
-import { Button, Switch } from "@/components/ui";
+import { Switch } from "@/components/ui";
 import { useAssistant, useUpdateAssistant } from "@/hooks/use-assistant";
-import { ROUTES } from "@/lib/constants";
 import { useOrgStore } from "@/stores";
 import type { AssistantState } from "@/types/assistant";
 
@@ -18,7 +16,7 @@ import type { AssistantState } from "@/types/assistant";
  *
  * Only what the organization decides about it as its assistant. The Architect is
  * an agent like any other, so its name, model and knowledge are edited in the
- * Builder, which the card links to rather than repeating.
+ * Builder; this card controls only organization availability.
  *
  * `/assistant` answers for the active organization, so the card is drawn only on
  * that organization's page - and only for somebody who may change it, like the
@@ -28,10 +26,10 @@ export function OrgAssistant({ orgId }: { orgId: string }) {
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const { assistant } = useAssistant();
   if (orgId !== activeOrgId || !assistant?.can_configure || !assistant.agent_id) return null;
-  return <AssistantCard assistant={assistant} agentId={assistant.agent_id} />;
+  return <AssistantCard assistant={assistant} />;
 }
 
-function AssistantCard({ assistant, agentId }: { assistant: AssistantState; agentId: string }) {
+function AssistantCard({ assistant }: { assistant: AssistantState }) {
   const t = useTranslations("orgAssistant");
   const update = useUpdateAssistant();
 
@@ -54,16 +52,6 @@ function AssistantCard({ assistant, agentId }: { assistant: AssistantState; agen
         {assistant.status === "needs_model" && (
           <p className="text-muted-foreground text-sm">{t("needsModel")}</p>
         )}
-        <div className="flex sm:justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-auto min-h-11 w-full whitespace-normal sm:min-h-9 sm:w-auto"
-            asChild
-          >
-            <Link href={ROUTES.AGENT_DETAIL(agentId)}>{t("openBuilder")}</Link>
-          </Button>
-        </div>
       </ServiceCard>
     </div>
   );

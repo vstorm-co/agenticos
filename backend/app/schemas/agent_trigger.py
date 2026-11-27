@@ -11,6 +11,7 @@ from pydantic import (
     AwareDatetime,
     ConfigDict,
     Field,
+    JsonValue,
     computed_field,
     field_validator,
     model_validator,
@@ -20,6 +21,7 @@ from app.core.config import settings
 from app.core.cron import cron_has_next
 from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource, TriggerDeliveryStatus
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.currency import MonetaryInputSchema
 from app.schemas.local_target import LocalTarget
 from app.schemas.routine_notifications import ExternalNotificationChannel
 from app.schemas.routine_sources import RoutineSourceMode
@@ -434,7 +436,7 @@ _EVENT_CONFIG_MODELS: dict[str, type[BaseSchema]] = {
 }
 
 
-class TriggerCreate(BaseSchema):
+class TriggerCreate(MonetaryInputSchema):
     """A new trigger for the agent named in the path - a schedule or an event.
 
     `trigger_type` defaults to `schedule`, which is one of two cadences:
@@ -492,6 +494,8 @@ class TriggerCreate(BaseSchema):
     monthly_budget_usd: Decimal | None = Field(
         default=None,
         gt=0,
+        max_digits=38,
+        decimal_places=6,
         description=(
             "What this routine's runs may cost in a calendar month. Once spent its fires are "
             "skipped - it shows as paused for its budget - and it starts again on the first. "
@@ -706,7 +710,7 @@ _UPDATE_NOT_NULLABLE = (
 )
 
 
-class TriggerUpdate(BaseSchema):
+class TriggerUpdate(MonetaryInputSchema):
     """Pause, resume, retime, rename, or reword a trigger. All fields optional.
 
     A schedule's cadence can change in place: a new interval, a new cron, or a
@@ -777,6 +781,8 @@ class TriggerUpdate(BaseSchema):
     monthly_budget_usd: Decimal | None = Field(
         default=None,
         gt=0,
+        max_digits=38,
+        decimal_places=6,
         description="This routine's own monthly limit; null removes it",
     )
     action_mode: Literal["agent", "manual", "per_tool"] | None = None
@@ -863,6 +869,8 @@ class TriggerFilteredEventRead(BaseSchema):
 
 
 class TriggerRead(BaseSchema, TimestampSchema):
+    monetary_terms: dict[str, JsonValue] = Field(default_factory=dict)
+
     one_shot: bool = False
 
     project_id: UUID | None = None

@@ -92,6 +92,63 @@ describe("one timeline for live frames and stored turns", () => {
     expect(message.toolCalls?.[0]?.status).toBe("completed");
     useChatStore.getState().clearMessages();
   });
+  it("folds intermediate browser narration with its work while preserving the final answer", () => {
+    const runs = runsOf([
+      { id: "intro", type: "text", content: "Opening the browser." },
+      part(tool("open", "completed", "browser_open")),
+      { id: "progress", type: "text", content: "Reading the page." },
+      part(tool("read", "completed", "browser_read")),
+      { id: "answer", type: "text", content: "The page is open." },
+    ]);
+    const groups = groupWorkParts(runs, { foldProgress: true });
+    expect(groups.map((group) => group.kind)).toEqual(["work", "visible"]);
+    expect(groups[0]?.kind === "work" && groups[0].runs).toEqual(runs.slice(0, 4));
+    expect(groups[1]).toEqual({ kind: "visible", run: runs[4] });
+  });
+  it("never folds questions, handoffs or their preceding explanation into later browser work", () => {
+    const question = part(tool("question", "awaiting_answer", "ask_user_question"));
+    const runs = runsOf([
+      part(tool("open", "completed", "browser_open")),
+      { id: "explain", type: "text", content: "Choose whether to continue." },
+      question,
+      { id: "steer", type: "steer", content: "Use the second tab." },
+      { id: "resume", type: "text", content: "Reading the second tab." },
+      part(tool("read", "completed", "browser_read")),
+      { id: "answer", type: "text", content: "Finished." },
+    ]);
+    const groups = groupWorkParts(runs, { foldProgress: true });
+    expect(groups.map((group) => group.kind)).toEqual([
+      "work",
+      "visible",
+      "visible",
+      "visible",
+      "work",
+      "visible",
+    ]);
+    expect(groups[4]?.kind === "work" && groups[4].runs).toEqual(runs.slice(4, 6));
+  });
+  it.each([false, true])(
+    "retains an answered question while browser activity frames coalesce (args: %s)",
+    (includeArgs) => {
+      const args = { questions: [{ header: "Continue", question: "Open the page?" }] };
+      const answered: ToolCall = {
+        ...tool("question", "completed", "ask_user_question"),
+        args,
+        result: { Continue: ["Yes"] },
+      };
+      const updated = mergeToolCall(answered, { result: {}, ...(includeArgs ? { args } : {}) });
+      expect(updated.result).toEqual({ Continue: ["Yes"] });
+      const groups = groupWorkParts(
+        runsOf([
+          part(tool("open", "completed", "browser_open")),
+          part(updated),
+          part(tool("read", "completed", "browser_read")),
+        ]),
+        { foldProgress: true },
+      );
+      expect(groups.map((group) => group.kind)).toEqual(["work", "visible", "work"]);
+    },
+  );
   it("keeps consecutive delegated questions in one receipt", () => {
     const runs = runsOf([
       { id: "q1", type: "ask_user", question: "Format?", answer: "List" },

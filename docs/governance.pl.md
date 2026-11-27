@@ -1,5 +1,5 @@
 ---
-source_sha: "822050191fb7"
+source_sha: "e027da438382"
 ---
 
 # Governance { #governance }
@@ -264,6 +264,8 @@ kolejnym żądaniu.
 
 ### Koszt, którego nie dało się zmierzyć, mówi o tym wprost { #a-cost-that-could-not-be-measured-says-so }
 
+Stav przyjmuje też kursy wdrożenia dla waluty rachunku, w tym EUR. Ustawiony kurs NOK ma pierwszeństwo przed opisanym poniżej starszym `STAV_NOK_PER_USD`. USD pozostaje walutą zapisu kosztu, a zużycie zachowuje faktyczną walutę rachunku i zastosowany kurs.
+
 Koszt naliczony przez Stav ma pierwszeństwo przed katalogiem: `usage.cost` z
 `cost_currency` lub nagłówki `x-stav-cost` i `x-stav-cost-currency`. Dotyczy to
 Chat Completions i Responses, także ze streamingiem. USD używane jest wprost;
@@ -271,8 +273,7 @@ NOK wymaga `STAV_NOK_PER_USD` ([konfiguracja](configuration.md)), utrzymywanego
 przez operatora. To NOK za dolara: wartość `10` dzieliłaby NOK przez 10;
 nie jest to rekomendacja bieżącego kursu. Kurs nie jest pobierany automatycznie.
 Usage zachowuje kwotę, walutę, kurs i koszt w USD, a ledger oznacza źródło jako
-raportowane przez dostawcę. Nieprawidłowa kwota, nieobsługiwana waluta lub brak
-przeliczenia pozostawiają wycenę z katalogu.
+raportowane przez dostawcę. Nieprawidłowy lub brakujący koszt dostawcy pozwala na wycenę z katalogu. Poprawny rachunek bez obsługiwanego kursu pozostaje niewyceniony: jego pierwotna kwota i waluta są zachowane, a run z limitem odmawia kolejnych żądań. Skonfigurowana własna wycena tokenów nadal ma pierwszeństwo.
 
 Bez użytecznego kosztu raportowanego przez dostawcę wycena korzysta z
 `genai-prices`. Pakiet nie zna każdego modelu. Gdy run trafia na taki, dla którego nie ma
@@ -1133,6 +1134,11 @@ to zapis tego, co zostało rozstrzygnięte, i niesie nazwisko decydenta oraz jeg
 notatkę, bo sam UUID nie jest śladem odpowiedzialności. Na rozstrzygniętym
 wierszu celowo nie ma żadnych kontrolek.
 
+Wywołujący bez `approvals:decide` widzi tylko własne wywołania platformy, które
+pytają za każdym razem i nadal czekają, gdy jest zalogowany jako on sam; `status`
+tego nie poszerza. Tak dociera do swojej osoby wywołanie z rutyny, które nie
+powstało w żadnej rozmowie.
+
 | Parametr |  |
 | --- | --- |
 | `status` | Powtarzalny. Brak oznacza oczekujące — kolejkę |
@@ -1422,6 +1428,8 @@ limitów w Builderze) narzędzia agenta są zwijane w jedno narzędzie `run_code
 model pisze krótki skrypt Pythona, który działa w sandboksie Monty i wywołuje
 narzędzia w pętlach i równolegle, do `max_tool_calls` na skrypt.
 
+Nieprawidłowe argumenty zwykłego wywołania narzędzia zużywają jego budżet ponowień SDK; domyślnie model ma jedną możliwość poprawienia argumentów, zanim kolejne błędne wywołanie zatrzyma run. Poprawne wywołanie resetuje budżet tego narzędzia. Wywołania wewnątrz skryptu zachowują politykę walidacji SDK i ograniczenie `max_tool_calls`. Skrypt nie może przechwycić wyczerpania budżetu ponowień osobnego agenta, aby dalej wykonywać narzędzia.
+
 Naraz działają najwyżej cztery wywołania skryptu, a reszta czeka, więc skrypt
 rozsyłający setki wywołań w sandboksie nie otworzy ich wszystkich jednocześnie.
 
@@ -1432,6 +1440,20 @@ zapisze interpreter, wyniki, manifest i licznik wywołań. Po decyzji dowolny wo
 może kontynuować skrypt bez nowej tury modelu i powtarzania zakończonych operacji.
 Odrzucenie zgody podnosi `RuntimeError` wewnątrz skryptu; kod narzędzia nie działa.
 Zgoda na samo `run_code` nie zatwierdza operacji wewnątrz skryptu.
+
+W ewaluacji, i w każdym innym runie w izolacji, `run_code` działa, a o każdym
+wywołaniu ze skryptu decydują osobno
+[zasady izolacji](environments.md#in-an-eval): odczyt własnych danych tego
+wdrożenia działa, a odczyt spoza wdrożenia albo zapis jest wstrzymywany i
+zapisywany z argumentami. Uruchomienie skryptu nie przepuszcza niczego, czego
+nie dostałoby bezpośrednie wywołanie.
+
+Każde wywołanie skryptu jest zachowywane z runem, pod skryptem: narzędzie,
+argumenty i wynik, do 100 wywołań i około 1 MB na skrypt. Ewaluacja ocenia te wywołania w
+miejsce skryptu i wymienia je pod nim
+([oczekiwane wywołania narzędzi](datasets.md#trajectory)). Nagranie runu
+odpowiada na każde z nich, gdy ewaluacja uruchamia skrypt ponownie, więc
+odtworzenie też je wymienia.
 
 Surowy stan interpretera ma limit 512 kB, a wszystkie checkpointy kodu jednego
 runu — łącznie 1 MB JSON. Atomowe rezerwacje w bazie ograniczają przechowywane
@@ -1488,6 +1510,19 @@ wygaśnięciami i tokenami z cache, których nie odczytano z powrotem, w wybrany
 oknie - to miara chybienia, a nie tego, co naliczono ponownie, bo prompt trzymany
 w cache może też skrócić kompakcja.
 Karty nie ma, dopóki każdy cache trzymał.
+
+### Waluta limitów { #limit-currency }
+
+Księgowanie i dotychczasowe pola API pozostają w USD. Konsola przelicza wpisaną kwotę według zapisanego kursu raportowania organizacji, a obok wartości USD wysyła pierwotną deklarację. Serwer sprawdza przeliczenie przy użyciu własnego kursu. Nieaktualny, niezgodny, nieobsługiwany lub niedostępny kurs nie pozwala zapisać limitu. Używaj dziesiętnych ciągów znaków, aby zachować dokładność danych wejściowych.
+
+Na przykład przy zapisanym kursie 4 PLN za USD polu `monthly_budget_usd: "25"` może towarzyszyć `monetary_inputs: {"monthly_budget_usd": {"amount": "100", "currency": "PLN"}}`. Jawny zapis USD ze starszego klienta zastępuje pierwotne warunki tylko tego pola. Niezwiązana poprawka je zachowuje. Klonowanie oraz obsługiwane eksporty i importy przenoszą zweryfikowane warunki historyczne bez przeszacowania limitu USD.
+
+Limity w walucie obcej są zaokrąglane do sześciu miejsc dziesiętnych USD; kwota, która stałaby się zerem, jest odrzucana. Starsze budżety agentów i progi kroków lub kryteriów oparte na float zachowują format i odrzucają niedokładnie reprezentowalne deklaracje. Kryterium kosztu datasetu pozostaje progiem oceny, nie zgodą na wydawanie pieniędzy. Zmiana waluty raportowania nie zmienia kosztów ani limitów porównywanych przy egzekwowaniu budżetu.
+
+Nowe powiadomienia budżetowe i okresowe raporty użycia zachowują kurs raportowy z chwili utworzenia. Ponowienia dostarczenia oraz odczyt z innej organizacji nie przeliczają kwot ponownie. Starsze oczekujące powiadomienia zachowują pierwotne wartości USD. Nowe wyniki kryteriów kosztowych zawierają ustrukturyzowane kwoty do prezentacji w walucie raportowej; starsze zapisane zdania kryteriów pozostają w pierwotnym brzmieniu USD.
+
+Miesięczne limity rutyn zachowują sześć miejsc dziesiętnych USD. Zapis z większą precyzją ułamkową jest odrzucany przed bazą. Powrót do poprzedniej kolumny rutyn z czterema miejscami jest blokowany, jeśli limit zostałby zaokrąglony lub przekroczył zakres.
+
 
 ## Zatwierdzenia { #approvals }
 
@@ -1661,11 +1696,11 @@ Wybory są zapisywane na serwerze. **Chat controls → Preferences → Zapamięt
 
 Kolejka akceptacji należy do organizacji, ale niektóre wywołania cytują to, co czyta osoba z runu - fakt, który udostępniłby `share_memory`. Ten cytat widzi tylko ktoś, kto może zobaczyć run: osoba, dla której działał, albo członek, który czyta wszystkie runy i może zobaczyć agenta. Pozostali widzą tool, odbiorców i informację, że treść jest ukryta. Wywołanie, które pyta za każdym razem, zatwierdzić może tylko ktoś, kto widzi to, co cytuje: każdy inny może je odrzucić, a jego zatwierdzenie zostaje odrzucone.
 
-Karta takiego wywołania mówi nazwami, co ono zrobi, odczytanymi jako osoba runu w chwili zaparkowania: agent, próba i jej werdykt, wersja, którą utworzy publikacja, dataset, na którym działa eval, i podana cena. Surowe argumenty zostają w Szczegółach, a wywołanie, którego rekordów osoba nie może odczytać, pokazuje tylko je.
-
 Wywołanie platformy, które pyta za każdym razem - zaakceptowanie ulepszenia, publikacja agenta, zaproszenie członka - działa z uprawnieniami platformy osoby, w której imieniu działa run. Dlatego zatwierdzić je może tylko ta osoba, zalogowana jako ona sama: nie inny członek z `approvals:decide`, nie klucz API, także jej własny, i nie administrator w trybie impersonacji. Każdy z `approvals:decide` może je nadal odrzucić. Osoba nie potrzebuje do tego żadnego uprawnienia poza tym, że jest tą osobą, więc Builder albo Member zatwierdza kartę Architekta we własnym czacie i tam wznawia run. Tylko ona może wznowić run po zatwierdzonym wywołaniu platformy.
 
-Na kanale, np. w Slacku czy Telegramie, osoba odpowiada w tym czacie, z konta czatu powiązanego z nią. Gdy run pyta jednocześnie o inne wywołania, osoba odpowiada tylko na swoje, a reszta czeka na kogoś z `approvals:decide`. Run idzie dalej, gdy każde wywołanie ma odpowiedź.
+Karta takiego wywołania mówi nazwami, co ono zrobi, odczytanymi jako osoba runu w chwili zaparkowania: agent, próba i jej werdykt, fork skilla albo agenci, których przeniesie zmiana skilla, dataset, na którym działa eval, i podana cena. Akceptacja dotyczy tylko próby nazwanej na karcie. Surowe argumenty zostają w Szczegółach, a wywołanie, którego rekordów osoba nie może odczytać, pokazuje tylko je.
+
+Na kanale, np. w Slacku czy Telegramie, osoba odpowiada w tym czacie, z konta czatu powiązanego z nią. Gdy run pyta jednocześnie o inne wywołania, osoba odpowiada tylko na swoje, a reszta czeka na kogoś z `approvals:decide`. Run idzie dalej, gdy każde wywołanie ma odpowiedź, jako ta osoba, niezależnie od tego, kto odpowiedział ostatni.
 
 Run bez osoby - gościa na widgecie albo stronie publicznej, niepowiązanego członka kanału albo osoby, którą usunięto - nie ma nikogo, czyja odpowiedź się liczy, więc jego wywołanie platformy czeka, aż wygaśnie; taki run w ogóle nie dostaje uprawnień platformy. Zmiana wdrożenia (`change_deployment`) wymaga obu reguł naraz: osoby runu, która jest też administratorem aplikacji. Architekt każdej innej osoby go nie zmieni.
 
@@ -2145,12 +2180,17 @@ Dlatego odbiorcy są dzieleni według uprawnienia, a nie przycinani do niego:
 | Odbiorca ma | Dostaje |
 | --- | --- |
 | `approvals:decide` | prośbę, z linkiem do kolejki |
-| nic, ale jest osobą runu, a wśród wywołań jest jej własne wywołanie platformy, które zawsze pyta | prośbę, z linkiem do rozmowy, w której padło pytanie, dopóki to wywołanie czeka |
+| nic, ale jest osobą, dla której działa run, a wśród wywołań jest jej własne wywołanie platformy, które pyta za każdym razem | prośbę, z linkiem do rozmowy, w której o nie poproszono, albo do jej Inboxa, gdy run nie powstał w żadnej rozmowie, dopóki to wywołanie czeka |
 | cokolwiek mniej | _fakt_: run jest wstrzymany, a nie przewrócony, odpowiedzieć musi ktoś, kto może decydować o zatwierdzeniach, i nic się od niego nie wymaga |
 
 Przycięcie zamiast tego zostawiłoby jedyną osobę, która na pewno czeka na ten run
 — osobę, która go uruchomiła — bez żadnej informacji o tym, dlaczego się
 zatrzymał.
+
+Osoba, dla której działa run, dostaje prośbę o swoje wywołanie platformy także
+wtedy, gdy alert zatwierdzeń agenta jej nie obejmuje albo jest wyłączony: nikt
+inny nie może go zatwierdzić. Bez `approvals:decide` jej Inbox i `GET /approvals`
+pokazują takie wywołania - jej własne i nic więcej.
 
 Drugi e-mail nie niesie **żadnego linku**, i to jest celowe, a nie
 niedokończone. To, że `agents:view` jest uprawnieniem roli, nie czyni

@@ -52,7 +52,7 @@ export function RecordSortPopover({
         <Button
           variant={isDefault ? "outline" : "secondary"}
           size="sm"
-          className="gap-2"
+          className="touch:min-h-11 touch:min-w-11 gap-2 max-sm:size-11 max-sm:px-0"
           data-tour="table-sort"
           aria-label={
             !isDefault && current
@@ -64,9 +64,9 @@ export function RecordSortPopover({
           }
         >
           <ArrowDownUp className="size-4" />
-          {t("title")}
+          <span className="max-sm:sr-only">{t("title")}</span>
           {!isDefault && current && (
-            <span className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
+            <span className="text-muted-foreground hidden min-w-0 items-center gap-1 text-xs sm:flex">
               <span className="max-w-28 truncate">{label(current)}</span>
               <Direction aria-hidden="true" className="size-3 shrink-0" />
             </span>

@@ -9,6 +9,7 @@ import { ROUTES } from "@/lib/constants";
 import { Perm } from "@/types/permissions";
 import type { StorableSecretKind } from "@/types/secrets";
 import { useTranslations } from "next-intl";
+import { fieldProblems, getErrorMessage } from "@/lib/api-error";
 
 interface InlineSecretProps {
   /** What shape the caller needs. Almost always `api_key`. */
@@ -85,6 +86,7 @@ export function InlineSecret({
   disabled,
 }: InlineSecretProps) {
   const t = useTranslations("vault");
+  const tErrors = useTranslations("errors");
   const { create } = useSecrets();
   const { can } = usePermissions();
   const fieldId = useId();
@@ -96,6 +98,11 @@ export function InlineSecret({
   const [name, setName] = useState(suggestedName);
   const [value, setValue] = useState("");
   const [revealed, setRevealed] = useState(false);
+  // A refusal said under the key, where the fix is typed: the vault checks the
+  // value (a key too short to be whole, say), and a silent Save looks broken.
+  const refusal = create.error
+    ? (fieldProblems(create.error)[0]?.message ?? getErrorMessage(create.error, tErrors))
+    : null;
 
   // Before the button, not on it: a disabled control still says "you could do
   // this", and the answer here is that somebody else has to. Said rather than
@@ -173,8 +180,12 @@ export function InlineSecret({
               ref={focusKey}
               type={revealed ? "text" : "password"}
               value={value}
-              onChange={(event) => setValue(event.target.value)}
+              onChange={(event) => {
+                setValue(event.target.value);
+                if (create.error) create.reset();
+              }}
               placeholder={t("pasteHere")}
+              aria-invalid={refusal !== null}
               autoComplete="off"
               className="pr-10 font-mono"
             />
@@ -191,6 +202,7 @@ export function InlineSecret({
               {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
+          {refusal && <p className="text-destructive text-xs">{refusal}</p>}
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={`${fieldId}-name`} className="text-xs">

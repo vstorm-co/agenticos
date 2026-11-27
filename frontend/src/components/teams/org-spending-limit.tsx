@@ -1,11 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
-import { SettingsSection } from "@/components/settings/settings-section";
-import { Button, Input } from "@/components/ui";
+import { CurrencyOrganizationSwitch } from "@/components/money/currency-organization-switch";
+import { useTenantId } from "@/hooks/use-organizations";
+import { canonicalUsd } from "@/lib/money";
+import { useMoney } from "@/components/providers/currency-provider";
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useLocale } from "next-intl";
+import { ServiceCard } from "@/components/settings/service-card";
+import { Button } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { useOrganizations, usePermissions, useSpend } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
@@ -20,9 +27,7 @@ const FIELD = "monthly_budget_usd";
 
 /** How the stored cap is shown in the input. An empty box means no ceiling. */
 function asInputValue(limit: string | null): string {
-  // Through `Number`: the API serializes the Decimal column as "100.000000",
-  // and the box read back six zeros nobody typed (#2075).
-  return limit === null ? "" : String(Number(limit));
+  return canonicalUsd(limit);
 }
 
 /**
@@ -40,6 +45,19 @@ function asInputValue(limit: string | null): string {
  */
 export function OrgSpendingLimit({ org }: { org: Organization }) {
   const { can } = usePermissions();
+  const tenant = useTenantId();
+  const t = useTranslations("teams");
+  if (tenant !== org.id)
+    return (
+      <ServiceCard
+        icon={Wallet}
+        action={null}
+        title={t("monthlySpendingLimit")}
+        description={t("ceilingWhatEveryAgent")}
+      >
+        <CurrencyOrganizationSwitch organizationId={org.id} />
+      </ServiceCard>
+    );
   // The form is a separate component so that its queries are not merely
   // ignored for someone without the permission - they are never issued. A
   // hook above this branch would still fetch, and `/spend` answers the same
@@ -49,6 +67,10 @@ export function OrgSpendingLimit({ org }: { org: Organization }) {
 }
 
 function SpendingLimitForm({ org }: { org: Organization }) {
+  const money = useMoney();
+  const locale = useLocale();
+  const tm = useTranslations("currencies");
+  const monetary = useMonetaryInputs(`${org.id}|${org.monthly_budget_usd}`);
   const tErrors = useTranslations("errors");
   const t = useTranslations("teams");
   const tc = useTranslations("common");
@@ -67,22 +89,22 @@ function SpendingLimitForm({ org }: { org: Organization }) {
   }
 
   const trimmed = value.trim();
-  const parsed = trimmed === "" ? null : Number(trimmed);
-  const changed = trimmed !== asInputValue(org.monthly_budget_usd);
-  const monthToDate = Number(spend?.month_to_date_usd ?? 0);
+  const parsed = trimmed === "" ? null : trimmed;
+  const changed = trimmed !== asInputValue(org.monthly_budget_usd) || monetary.has(FIELD);
 
   const handleSave = async (): Promise<boolean> => {
     // `null` is a real value here - it is how the ceiling is lifted - so the
     // only thing to reject locally is a box holding something that is not a
     // number. Everything else is the server's call.
-    if (parsed !== null && !Number.isFinite(parsed)) {
+    if (parsed !== null && !money.plan(money.inputValue(parsed))) {
       setError(t("enterAmountDollarsLeave"));
       return false;
     }
     setSaving(true);
     try {
-      await setMonthlyBudget(org.id, parsed);
+      await setMonthlyBudget(org.id, parsed, monetary.payload({}).monetary_inputs);
       setError(null);
+      monetary.reset();
       toast.success(parsed === null ? t("monthlyLimitRemoved") : t("monthlyLimitUpdated"));
       return true;
     } catch (failure) {
@@ -99,27 +121,33 @@ function SpendingLimitForm({ org }: { org: Organization }) {
     dirty: changed,
     save: handleSave,
     discard: () => {
+      monetary.reset();
       setValue(asInputValue(org.monthly_budget_usd));
       setError(null);
     },
   });
 
   return (
-    <SettingsSection
+    <ServiceCard
+      icon={Wallet}
+      action={null}
       title={t("monthlySpendingLimit")}
       description={t("ceilingWhatEveryAgent") + t("monthNextAgentS") + t("emptyNoLimit")}
     >
       <div className="grid grid-cols-1 items-start gap-3 sm:flex sm:flex-wrap">
-        <FormField label={t("limitUsd")} htmlFor="org-monthly-budget" error={error}>
-          <Input
+        <FormField
+          label={tm("limitLabel", { currency: money.currency ?? "—" })}
+          htmlFor="org-monthly-budget"
+          error={error}
+        >
+          <MonetaryInput
             id="org-monthly-budget"
-            type="number"
-            min="0"
-            step="1"
+            monetary={monetary}
+            field={FIELD}
             value={value}
             disabled={saving}
-            onChange={(event) => {
-              setValue(event.target.value);
+            onValueChange={(value) => {
+              setValue(value);
               setError(null);
             }}
             placeholder={t("noLimit")}
@@ -133,12 +161,12 @@ function SpendingLimitForm({ org }: { org: Organization }) {
       </div>
       <p className="text-muted-foreground mt-3 text-xs">
         {org.monthly_budget_usd === null
-          ? t("spentNoLimit", { spent: monthToDate.toFixed(2) })
-          : t("spentOfLimit", {
-              spent: monthToDate.toFixed(2),
-              limit: Number(org.monthly_budget_usd).toFixed(2),
+          ? tm("spentNoLimit", { spent: money.format(spend?.month_to_date_usd, locale) })
+          : tm("spentOfLimit", {
+              spent: money.format(spend?.month_to_date_usd, locale),
+              limit: money.format(org.monthly_budget_usd, locale),
             })}
       </p>
-    </SettingsSection>
+    </ServiceCard>
   );
 }

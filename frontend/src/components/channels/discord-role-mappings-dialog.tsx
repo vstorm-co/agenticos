@@ -85,9 +85,8 @@ export function DiscordRoleMappingsDialog({
                 )}
                 {mayDelete(mapping) && (
                   <Button
-                    variant="ghost"
+                    variant="destructive-ghost"
                     size="sm"
-                    className="text-muted-foreground hover:text-destructive"
                     onClick={() => setDeleting(mapping)}
                     aria-label={t("deleteNamed", { role: mapping.discord_role_name })}
                   >

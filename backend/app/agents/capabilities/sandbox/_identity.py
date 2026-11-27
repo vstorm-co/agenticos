@@ -27,6 +27,8 @@ share. A direct message has its own chat id either way, so "each person gets
 their own in DMs" needs no extra rule.
 """
 
+RetainedSessionScope = Literal["conversation", "user", "agent"]
+
 BackendKind = Literal["state", "service"]
 
 _BACKEND_LETTER: dict[str, str] = {"state": "d", "service": "x"}
@@ -161,9 +163,57 @@ def scope_key(
             have - `conversation` on a stateless API call, `user` on an
             anonymous surface.
     """
+    _validate_namespace(identity, scope)
+    return _compose_key(identity, scope, backend, _subject(identity, scope), connection_id, runtime)
+
+
+def retained_scope_key(
+    identity: WorkspaceIdentity,
+    scope: RetainedSessionScope,
+    backend: BackendKind,
+    connection_id: UUID | None = None,
+    runtime: str | None = None,
+) -> str:
+    """Canonical persistent identity after an app-owned manual admission.
+
+    This is not run admission. Callers must validate the owned environment first;
+    generic scope_key intentionally keeps requiring an actual run identity.
+    """
+    _validate_namespace(identity, scope)
+    if scope not in ("conversation", "user", "agent"):
+        raise WorkspaceScopeUnavailable("A manual environment needs a persistent workspace scope.")
+    if (
+        identity.run_id is not None
+        or identity.agent_id is None
+        or identity.conversation_id is None
+        or identity.user_id is None
+    ):
+        raise WorkspaceScopeUnavailable(
+            "A manual workspace needs its agent, owner and conversation, without a run."
+        )
+    return _compose_key(
+        identity,
+        scope,
+        backend,
+        _persistent_subject(identity, scope, identity.agent_id),
+        connection_id,
+        runtime,
+    )
+
+
+def _validate_namespace(identity: WorkspaceIdentity, scope: SessionScope) -> None:
     if identity.namespace is not None and scope != "user":
         raise WorkspaceScopeUnavailable("A private namespace requires a user-scoped workspace.")
-    subject = _subject(identity, scope)
+
+
+def _compose_key(
+    identity: WorkspaceIdentity,
+    scope: SessionScope,
+    backend: BackendKind,
+    subject: str,
+    connection_id: UUID | None,
+    runtime: str | None,
+) -> str:
     host = "" if connection_id is None else f"-{connection_id.hex[:8]}"
     image = "" if runtime is None else f"-{hashlib.sha256(runtime.encode()).hexdigest()[:6]}"
     key = (
@@ -190,15 +240,6 @@ def _subject(identity: WorkspaceIdentity, scope: SessionScope) -> str:
         )
     if scope == "run":
         return identity.run_id.hex
-    if scope == "agent":
-        return agent_id.hex
-    if scope == "conversation":
-        if identity.conversation_id is None:
-            raise WorkspaceScopeUnavailable(
-                "This run has no conversation, so a conversation-scoped workspace "
-                "has nothing to attach to."
-            )
-        return identity.conversation_id.hex
     if scope == "channel":
         if identity.channel_key is None:
             raise WorkspaceScopeUnavailable(
@@ -209,6 +250,21 @@ def _subject(identity: WorkspaceIdentity, scope: SessionScope) -> str:
         # two different jobs, and one reading the other's files is not something
         # anybody asked for by putting both in the same room.
         return f"{agent_id.hex[:8]}{_digest(identity.channel_key)}"
+    return _persistent_subject(identity, scope, agent_id)
+
+
+def _persistent_subject(
+    identity: WorkspaceIdentity, scope: RetainedSessionScope, agent_id: UUID
+) -> str:
+    if scope == "agent":
+        return agent_id.hex
+    if scope == "conversation":
+        if identity.conversation_id is None:
+            raise WorkspaceScopeUnavailable(
+                "This run has no conversation, so a conversation-scoped workspace "
+                "has nothing to attach to."
+            )
+        return identity.conversation_id.hex
     if identity.user_id is None:
         raise WorkspaceScopeUnavailable(
             "This run has no signed-in user, so a user-scoped workspace has nothing to attach to."

@@ -36,7 +36,7 @@ export function PlanStrip({ plan, live }: { plan: PlanProgress | null; live: boo
   return (
     <div
       data-tour="chat-plan"
-      className="border-border bg-card mb-2 overflow-hidden rounded-xl border"
+      className="chat-composer-width border-border bg-card mb-2 overflow-hidden rounded-xl border"
     >
       <button
         type="button"

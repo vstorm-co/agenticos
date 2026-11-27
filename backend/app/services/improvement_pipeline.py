@@ -7,7 +7,7 @@ transition without repeating a model call. Only an explicit human finish accepts
 
 import hashlib
 import json
-from collections.abc import AsyncGenerator, Mapping, Sequence
+from collections.abc import AsyncGenerator, Collection, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
@@ -40,6 +40,7 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.core.field_errors import field_details, refused_field
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.authoring import (
@@ -90,6 +91,7 @@ from app.repositories import (
     background_job as background_job_repo,
 )
 from app.repositories.agent_run import RunFilter
+from app.repositories.monetary import set_terms as set_monetary_terms
 from app.schemas.authoring import AuthoringStart, HunkDecision, HunkRead, ProposalCheck
 from app.schemas.change_event import ChangeEvent
 from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
@@ -147,10 +149,11 @@ from app.schemas.notification import CriterionSources
 from app.schemas.scoring import DatasetScoring
 from app.services import authoring_fields, authoring_hunks, change_feed
 from app.services import improvement_states as rules
-from app.services.access import SKILL, accessible_ids, member_context
+from app.services.access import DATASET, SKILL, accessible_ids, member_context
 from app.services.agent_registry import AgentRegistryService
 from app.services.api_key import job_context
-from app.services.authoring import AuthoringService
+from app.services.authoring import AuthoringService, refuse_never_accepted
+from app.services.authoring_config import published_spec
 from app.services.authoring_evidence import MAX_EVIDENCE_RUNS, EvidencePack, PackedRun
 from app.services.background_jobs import enqueue
 from app.services.collection_access import readable_kb, writable_kb
@@ -165,6 +168,7 @@ from app.services.improvement_data import (
     drawn_holdout,
     holdout_count,
     input_hash,
+    quotes_a_question,
     split_seed,
 )
 from app.services.improvement_search import (
@@ -182,6 +186,7 @@ from app.services.improvement_states import (
 )
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.model_outputs import model_outputs
+from app.services.monetary import MonetaryService
 from app.services.notifications import NotificationService
 from app.services.step_failure import failure_code
 from app.worker.jobs import (
@@ -301,52 +306,40 @@ def blocked_next_step(
 
 @dataclass(frozen=True)
 class EarlierAttempt:
-    """What one measured attempt of a session changed, and what its check found.
+    """What one measured attempt of a session found, as the next attempt may read it.
+
+    Never what it changed. Every attempt keeps its own questions aside, drawn
+    afresh, so the questions an earlier change was written to fix may be the ones
+    the next attempt is measured on; its text would carry them into the next
+    proposal. Its verdict and counts carry nothing of any question.
 
     Attributes:
         number: The attempt's number in its session.
         verdict: The check's verdict on it.
-        changes: Each change it made, as the helper would read it.
         held_out: How many held-out questions the check measured.
         fixed: Held-out questions confirmed fixed - a count, never which.
         broken: Held-out questions confirmed broken - a count, never which.
-        criteria: The criteria that moved on the questions it learned from.
+        criteria: The criteria that moved, counted only on the questions the
+            *next* attempt learns from; `None` when its check graded none of them.
     """
 
     number: int
     verdict: ImprovementVerdict
-    changes: tuple[str, ...]
     held_out: int
     fixed: int
     broken: int
-    criteria: tuple[CriterionMoveRead, ...]
+    criteria: tuple[CriterionMoveRead, ...] | None
 
 
-def _change_excerpt(text: str | None) -> str | None:
-    """Clip a value before adding its structural delimiters to the prompt."""
-    if text is None or len(text) <= 700:
-        return text
-    return text[:350] + "\n[... change excerpt clipped ...]\n" + text[-350:]
+def result_hash(attempt: ImprovementIteration) -> str:
+    """A fingerprint of an attempt's verdict and detail as stored, whoever reads it.
 
-
-def _change_text(hunk: SpecProposalHunk) -> str:
-    """A bounded description that keeps old and new excerpts separately labeled."""
-    if hunk.kind in (HunkKind.INSTRUCTIONS.value, HunkKind.SKILL_BODY.value):
-        replaced = hunk.edited_text if hunk.edited_text is not None else hunk.new_text
-        where = "the instructions" if hunk.kind == HunkKind.INSTRUCTIONS.value else "a skill's body"
-        return (
-            f"In {where}, replaced:\n<old>\n{_change_excerpt(hunk.old_text)}\n</old>\n"
-            f"with:\n<new>\n{_change_excerpt(replaced)}\n</new>"
-        )
-    if hunk.kind == HunkKind.SPEC_FIELD.value:
-        return f"{hunk.op} {hunk.path}: {_change_excerpt(json.dumps(hunk.new_value))}"
-    if hunk.kind == HunkKind.TOOL_OVERRIDE.value:
-        return (
-            f"Tool {hunk.capability_id}/{hunk.tool_id}: "
-            f"name {_change_excerpt(hunk.new_name)!r}, "
-            f"description {_change_excerpt(hunk.new_description)!r}"
-        )
-    return f"{hunk.kind}: {_change_excerpt(hunk.new_text or hunk.new_description or '')}"
+    A person's review of a case judges the attempt again in place, keeping its
+    number and its candidate, so these alone do not say what was measured.
+    """
+    measured = {"verdict": attempt.verdict, "detail": attempt.verdict_detail}
+    canonical = json.dumps(measured, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 class ImprovementPipelineService:
@@ -807,6 +800,19 @@ class ImprovementPipelineService:
                 budget_usd=data.budget_usd,
                 max_iterations=data.max_iterations,
             )
+            terms = await MonetaryService(self.db).terms(
+                ctx.organization_id,
+                values={
+                    "budget_usd": data.budget_usd,
+                    **(
+                        {"search.budget_usd": data.search.budget_usd}
+                        if data.search is not None
+                        else {}
+                    ),
+                },
+                inputs=data.monetary_inputs,
+            )
+            await set_monetary_terms(self.db, run, terms=terms, fields=frozenset(terms))
             await improvement_repo.update_run(
                 self.db,
                 run=run,
@@ -1276,6 +1282,7 @@ class ImprovementPipelineService:
                 self.db, agent_id=run.agent_id, organization_id=run.organization_id
             )
             result.next_version = 1 if latest is None else latest.version + 1
+            result.unmeasured_draft_edits = await self._unmeasured_draft_edits(run)
             suites = await EvalSuiteService(self.db).list_for_agent(ctx, run.agent_id)
             result.offer_automatic_check = not suites.items
         result.can_restart = await self._may_continue(ctx, run)
@@ -1299,7 +1306,12 @@ class ImprovementPipelineService:
         result.spent_usd = await improvement_repo.spent(
             self.db, run.id, organization_id=run.organization_id
         )
-        result.iterations = [ImprovementIterationRead.model_validate(item) for item in iterations]
+        result.iterations = [
+            ImprovementIterationRead.model_validate(item).model_copy(
+                update={"result_hash": result_hash(item)}
+            )
+            for item in iterations
+        ]
         searched = [
             (attempt, row)
             for attempt, row in zip(result.iterations, iterations, strict=True)
@@ -1417,13 +1429,18 @@ class ImprovementPipelineService:
         return None if counted is None else CheckAnswers(**counted._asdict())
 
     async def earlier_attempts(
-        self, ctx: AuthContext, run_id: UUID, *, before: int
+        self,
+        ctx: AuthContext,
+        run_id: UUID,
+        *,
+        before: int,
+        learns_from: Collection[UUID] | None,
     ) -> list[EarlierAttempt]:
         """The measured attempts numbered below `before`, for the helper writing the next one.
 
-        Every attempt changes the same draft, so the next one needs to know what the
-        others tried and how it went. Held-out questions stay counts; only the
-        questions an attempt learned from say which criteria moved.
+        Each attempt's verdict and held-out counts, and the criteria its check moved
+        on `learns_from` - the questions the next attempt learns from - and on no
+        others: an earlier attempt's training questions may be held out now.
         """
         iterations = await improvement_repo.list_iterations(
             self.db, organization_id=ctx.organization_id, run_id=run_id
@@ -1436,41 +1453,40 @@ class ImprovementPipelineService:
                 or iteration.batch_id is None
             ):
                 continue
-            hunks = await authoring_repo.list_hunks(
-                self.db, organization_id=ctx.organization_id, batch_id=iteration.batch_id
-            )
-            included = iteration.included_hunk_ids
-            criteria: tuple[CriterionMoveRead, ...] = ()
-            if iteration.eval_run_ids:
-                try:
-                    comparison = await self.evals.compare(
-                        ctx, iteration.eval_run_ids[-1], training_only=True
-                    )
-                except NotFoundError:
-                    comparison = None
-                if comparison is not None and comparison.verdict != "invalid":
-                    criteria = tuple(
-                        move
-                        for move in comparison.criteria
-                        if move.fixed_confirmed or move.broken_confirmed
-                    )
             detail = iteration.verdict_detail or {}
             attempts.append(
                 EarlierAttempt(
                     number=iteration.number,
                     verdict=ImprovementVerdict(iteration.verdict),
-                    changes=tuple(
-                        _change_text(hunk)
-                        for hunk in hunks
-                        if included is None or hunk.id in included
-                    ),
                     held_out=detail.get("held_out") or 0,
                     fixed=detail.get("fixed") or 0,
                     broken=detail.get("broken") or 0,
-                    criteria=criteria,
+                    criteria=await self._moved_within(ctx, iteration, learns_from),
                 )
             )
         return attempts
+
+    async def _moved_within(
+        self,
+        ctx: AuthContext,
+        iteration: ImprovementIteration,
+        learns_from: Collection[UUID] | None,
+    ) -> tuple[CriterionMoveRead, ...] | None:
+        """The criteria an attempt's check moved on these questions, or `None` if it graded
+        none of them."""
+        if not iteration.eval_run_ids or not learns_from:
+            return None
+        try:
+            comparison = await self.evals.compare(
+                ctx, iteration.eval_run_ids[-1], training_only=True, within=learns_from
+            )
+        except NotFoundError:
+            return None
+        if comparison.verdict == "invalid" or not any(move.graded for move in comparison.criteria):
+            return None
+        return tuple(
+            move for move in comparison.criteria if move.fixed_confirmed or move.broken_confirmed
+        )
 
     async def _checked(
         self, ctx: AuthContext, run: ImprovementRun, iterations: list[ImprovementIteration]
@@ -1574,6 +1590,21 @@ class ImprovementPipelineService:
                 message="Wait for this session's checks to finish, or stop the session"
             )
         selected, hunks = await self._measured_selection(run)
+        if (
+            selected.number != data.attempt
+            or selected.candidate_spec_hash != data.candidate_spec_hash
+            or result_hash(selected) != data.result_hash
+        ):
+            raise ConcurrentChangeError(
+                message=(
+                    "The attempt waiting to be accepted, or its result, changed since you "
+                    "reviewed it. Refresh the session and review it again."
+                ),
+                details={"attempt": selected.number, "reviewed_attempt": data.attempt},
+            )
+        for hunk in hunks:
+            if hunk.status == HunkStatus.PENDING:
+                refuse_never_accepted(hunk)
         agent = await self.authoring._editable(ctx, agent_id)
         projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), hunks
@@ -1584,7 +1615,20 @@ class ImprovementPipelineService:
             != selected.candidate_spec_hash
         ):
             raise ConcurrentChangeError(
-                message="The selected changes differ from the checked candidate; check them again"
+                message=(
+                    "The draft changed since this attempt was measured. Refresh the session "
+                    "and check the changes again before accepting them."
+                )
+            )
+        if (
+            data.publish
+            and not data.publish_unmeasured_edits
+            and await self._unmeasured_draft_edits(run)
+        ):
+            raise refused_field(
+                "publish_unmeasured_edits",
+                "The draft held edits before this session started, which it did not measure. "
+                "Confirm them to publish, or keep the changes as a draft.",
             )
         for hunk in hunks:
             if hunk.status == HunkStatus.PENDING:
@@ -1648,6 +1692,21 @@ class ImprovementPipelineService:
             session=await self._read(ctx, run),
             version_id=None if version is None else version.id,
             version=None if version is None else version.version,
+        )
+
+    async def _unmeasured_draft_edits(self, run: ImprovementRun) -> bool:
+        """Whether the draft differed from its published base when the session started.
+
+        Such edits are in both sides of every check, so they were never measured as a
+        change, and publishing the accepted attempt releases them with it.
+        """
+        if run.base_version_id is None:
+            return True
+        base = await agent_repo.get_version(
+            self.db, run.base_version_id, organization_id=run.organization_id
+        )
+        return base is None or spec_hash(AgentSpec.model_validate(base.spec)) != (
+            run.base_draft_hash
         )
 
     @staticmethod
@@ -2110,6 +2169,14 @@ class ImprovementPipelineService:
         existing = await self._row(ctx, agent_id, run_id, lock=True)
         if Status(existing.status).active:
             return await self._read(ctx, existing)
+        terms = await MonetaryService(self.db).terms(
+            ctx.organization_id,
+            values={"budget_usd": data.budget_usd}
+            if data.budget_usd != existing.budget_usd or data.monetary_inputs
+            else {},
+            inputs=data.monetary_inputs,
+            previous=existing.monetary_terms,
+        )
         plan = await self._continuation_plan(ctx, agent_id, run_id, data)
         run, iteration, quote = plan.session, plan.iteration, plan.quote
         if data.candidate_hash != quote.candidate_hash or data.estimate_usd != quote.total_usd:
@@ -2122,6 +2189,13 @@ class ImprovementPipelineService:
             )
         if data.note is not None and quote.mode != "next_round":
             raise refused_field("note", "A note goes only with Try again")
+        if data.note is not None and quotes_a_question(
+            data.note,
+            await self._questions_of(
+                ctx, run, await self._kept_aside(run, quote.number, plan.measurable)
+            ),
+        ):
+            raise refused_field("note", "The note quotes a question this attempt is measured on")
         stage = self._continued_stage(run, quote.mode)
         if quote.mode == "next_round":
             following = await improvement_repo.get_iteration(
@@ -2151,6 +2225,7 @@ class ImprovementPipelineService:
                 iteration=iteration,
                 values={"classify_job_id" if stage == Stage.CLASSIFYING else "draft_job_id": None},
             )
+        await set_monetary_terms(self.db, run, terms=terms, fields=frozenset({"budget_usd"}))
         await improvement_repo.update_run(
             self.db,
             run=run,
@@ -2456,7 +2531,12 @@ class ImprovementPipelineService:
             await self._move(run, rules.Transition(Status.STALE, stage, StopReason.STALE))
 
     async def _settle_decisions(self, run: ImprovementRun) -> None:
-        """Observe human decisions without acquiring an agent lock after the parent lock."""
+        """Observe human decisions without acquiring an agent lock after the parent lock.
+
+        A session kept as a draft moves only when a person decides again: a publish of
+        what it measured, an undo that puts a change back in front of them - while no
+        other session is open on the agent - or dismissing every change it kept.
+        """
         rounds = await improvement_repo.list_iterations(
             self.db, organization_id=run.organization_id, run_id=run.id
         )
@@ -2474,7 +2554,8 @@ class ImprovementPipelineService:
             # Exposing another of its own rounds is not a person's decision.
             if current is not None and current.improvement_run_id == run.id:
                 return
-        if batch is None or batch.status == BatchStatus.SUPERSEDED:
+        kept = run.status == Status.ACCEPTED
+        if batch is None or (batch.status == BatchStatus.SUPERSEDED and not kept):
             status = Status.REJECTED
         else:
             hunks = await authoring_repo.list_hunks(
@@ -2487,7 +2568,18 @@ class ImprovementPipelineService:
             ]
             accepted = any(h.status == HunkStatus.ACCEPTED for h in hunks)
             pending = any(h.status == HunkStatus.PENDING for h in hunks)
-            if batch.status == BatchStatus.PUBLISHED:
+            if batch.status == BatchStatus.SUPERSEDED:
+                # A kept draft's changes stay in the draft whatever replaced its batch:
+                # only a publish of what it measured, or a draft put back to the
+                # published version, still moves it.
+                published = await self._measured_version(run, selected, hunks)
+                if published:
+                    status = Status.PUBLISHED
+                elif await self._draft_is_published(run):
+                    status = Status.REJECTED
+                else:
+                    return
+            elif batch.status == BatchStatus.PUBLISHED:
                 status = Status.PUBLISHED if accepted else Status.REJECTED
                 if accepted:
                     published = await self._measured_version(run, selected, hunks)
@@ -2495,6 +2587,14 @@ class ImprovementPipelineService:
                 status = Status.READY
             else:
                 status = Status.ACCEPTED if accepted else Status.REJECTED
+        if (
+            kept
+            and status == Status.READY
+            and await improvement_repo.get_open(
+                self.db, organization_id=run.organization_id, agent_id=run.agent_id
+            )
+        ):
+            return
         if run.status != status:
             self._allow(run, status)
             await improvement_repo.update_run(
@@ -2510,15 +2610,41 @@ class ImprovementPipelineService:
         selected: ImprovementIteration,
         hunks: list[SpecProposalHunk],
     ) -> dict[str, UUID | int]:
-        """The agent's newest version, when it is the candidate this session measured."""
+        """The newest version published since the session started that is the candidate it
+        measured, or nothing when none is.
+
+        A sweep may come after more than one publish, so every version newer than the
+        session's base is looked at, newest first.
+        """
+        for version in await agent_repo.list_versions_after(
+            self.db,
+            agent_id=run.agent_id,
+            organization_id=run.organization_id,
+            version_id=run.base_version_id,
+        ):
+            spec, skills = authoring_hunks.as_measured(
+                AgentSpec.model_validate(version.spec), hunks
+            )
+            if spec_hash(spec, skills) == selected.candidate_spec_hash:
+                return {"published_version_id": version.id, "published_version": version.version}
+        return {}
+
+    async def _draft_is_published(self, run: ImprovementRun) -> bool:
+        """Whether the draft is the session's base version again, as discarding it leaves it.
+
+        Only while nothing was published since the base: a later publish that took the
+        kept changes with other edits also leaves the draft equal to its version.
+        """
+        agent = await agent_repo.get(self.db, run.agent_id, organization_id=run.organization_id)
         version = await agent_repo.newest_version(
             self.db, agent_id=run.agent_id, organization_id=run.organization_id
         )
-        assert version is not None, "a batch is closed as published by a publish"
-        spec, skills = authoring_hunks.as_measured(AgentSpec.model_validate(version.spec), hunks)
-        if spec_hash(spec, skills) != selected.candidate_spec_hash:
-            return {}
-        return {"published_version_id": version.id, "published_version": version.version}
+        return (
+            agent is not None
+            and version is not None
+            and version.id == run.base_version_id
+            and AgentSpec.model_validate(agent.draft_spec) == AgentSpec.model_validate(version.spec)
+        )
 
     async def _audit(
         self,
@@ -3188,11 +3314,20 @@ class ImprovementPipelineService:
         if filter_policy:
             # The same policy as interactive authoring runs again at this boundary,
             # including historical or manually inserted proposal rows.
+            published = await published_spec(
+                self.db, agent_id=agent.id, organization_id=run.organization_id
+            )
             for hunk in pending:
+                if holds_refused(
+                    [hunk.new_text, hunk.edited_text, hunk.new_name, hunk.new_description]
+                ):
+                    dropped.append(hunk.id)
+                    reasons.append({"hunk_id": str(hunk.id), "reason": "hidden_characters"})
+                    continue
                 if hunk.kind != HunkKind.SPEC_FIELD.value:
                     continue
                 staged = authoring_fields.stage(
-                    draft, hunk.path or "", hunk.op or "", hunk.new_value
+                    draft, hunk.path or "", hunk.op or "", hunk.new_value, published=published
                 )
                 if isinstance(staged, str):
                     dropped.append(hunk.id)
@@ -3398,6 +3533,48 @@ class ImprovementPipelineService:
             ),
             attempt_holdout=iteration.holdout_case_ids,
         )
+
+    async def _kept_aside(
+        self, run: ImprovementRun, number: int, measurable: set[UUID]
+    ) -> list[UUID]:
+        """The questions attempt `number` keeps aside: its stored draw, or the draw it will
+        get, from the same seed `_draw_split` takes."""
+        drawn = await improvement_repo.get_iteration(
+            self.db, organization_id=run.organization_id, run_id=run.id, number=number
+        )
+        if drawn is not None and drawn.holdout_case_ids is not None:
+            return list(drawn.holdout_case_ids)
+        share, cases = await self._split_cases(run)
+        return drawn_holdout(
+            cases, share=share, seed=split_seed(run.id, number), measurable=measurable
+        )
+
+    async def _questions_of(
+        self, ctx: AuthContext, run: ImprovementRun, case_ids: Collection[UUID]
+    ) -> list[str]:
+        """The pinned questions of these cases, as an attempt asks them, when the caller may
+        read the dataset; none otherwise, since refusing a note would confirm a guess."""
+        if not case_ids:
+            return []
+        dataset = await dataset_repo.get(
+            self.db, run.dataset_id, organization_id=run.organization_id
+        )
+        if dataset is None or not await accessible_ids(
+            self.db, ctx, [dataset], Perm.DATASETS_VIEW, resource_type=DATASET
+        ):
+            return []
+        version = await dataset_repo.get_version(
+            self.db, run.dataset_id, run.dataset_version, organization_id=run.organization_id
+        )
+        assert version is not None, "the session pins a version that exists"
+        wanted = set(case_ids)
+        return [
+            case.input
+            for case in await dataset_repo.list_cases(
+                self.db, version.id, organization_id=run.organization_id, limit=None
+            )
+            if case.case_id in wanted
+        ]
 
     async def _split_cases(self, run: ImprovementRun) -> tuple[Decimal, list[UUID]]:
         """The share the session started with, and the pinned questions an attempt draws from."""

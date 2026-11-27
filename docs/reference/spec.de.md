@@ -1,5 +1,5 @@
 ---
-source_sha: "0ed38379a333"
+source_sha: "844c384e6bc4"
 ---
 
 # Der Agent-Spec { #the-agent-spec }
@@ -22,7 +22,9 @@ Kanal), oder mit einer der eigenen
 `variables` des Agents. `time_zone` bestimmt, welche Uhr `{{current_time}}` liest.
 Die Veröffentlichung lehnt einen Namen ab, der keines von beiden ist.
 
-`{{language}}` ist die gespeicherte Kontosprache der Person, für die der Run ausgeführt wird, als Sprachname (English, Polish, German, Turkish, French, Dutch oder Brazilian Portuguese). Ohne Person oder unterstützte Präferenz gilt English; unbeaufsichtigte Runs übernehmen nicht die Sprache der veröffentlichenden Person. Agenten erhalten diese Präferenz auch im Personenbriefing: Kurze oder mehrdeutige Begrüßungen ändern sie nicht; eine ausdrückliche Bitte um eine andere Sprache hat Vorrang.
+`{{language}}` ist die gespeicherte Kontosprache der Person, für die der Run ausgeführt wird, als Sprachname (English, Polish, German, Turkish, French, Dutch oder Brazilian Portuguese). Ohne Person oder unterstützte Präferenz gilt English; unbeaufsichtigte Runs übernehmen nicht die Sprache der veröffentlichenden Person.
+
+Das Personenbriefing behandelt den Wert als Rückfall: Ausdrückliche Sprachvorgaben des Agenten und Benutzerwünsche behalten ihre Anweisungspriorität. Ansonsten folgt die Antwort der aktuellen Nachricht, bei Mehrdeutigkeit der bisherigen Gesprächssprache und erst danach der Kontopräferenz. Zitierte Quellen und Werkzeugausgaben legen die Antwortsprache nicht fest. Veröffentlichte Anweisungen bleiben unverändert: Prüfen und veröffentlichen Sie eine ältere AgenticOS-Kopie neu, die die Kontosprache ausdrücklich vorschreibt, wenn Sie diese gesprächsbezogene Vorgabe wünschen. Bewusste feste Sprachvorgaben anderer Agenten bleiben erhalten.
 
 ::: app.agents.spec.PromptVariableSpec
 

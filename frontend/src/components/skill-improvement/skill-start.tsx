@@ -1,5 +1,9 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { Sparkles, MessageSquare } from "lucide-react";
 import { SectionCard } from "@/components/settings/settings-section";
 import { EmptyState } from "@/components/states";
@@ -8,10 +12,10 @@ import Link from "next/link";
 import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useLocale, useTranslations } from "next-intl";
 
-import { limitText, limitValue, sessionLimit, usd } from "@/components/evals/format";
+import { limitValue, sessionLimit } from "@/components/evals/format";
 import { EvidenceOnly, evidenceOnlyDataset } from "@/components/improvement/evidence-only";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Button, Input, Label } from "@/components/ui";
+import { Button, Label } from "@/components/ui";
 import { useSkillImprovements } from "@/hooks/use-skill-improvement";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
@@ -32,6 +36,8 @@ export function SkillStart({
   /** An agent's session that handed its problems with this skill over. */
   fromRun?: string | null;
 }) {
+  const monetary = useMonetaryInputs();
+  const money = useMoney();
   const t = useTranslations("skillImprovement.start");
   const setup = useTranslations("improvementSetup");
   const tErrors = useTranslations("errors");
@@ -54,7 +60,7 @@ export function SkillStart({
     price()
       .then((value) => {
         setQuote(value);
-        setLimit(limitText(sessionLimit(value), locale));
+        setLimit(sessionLimit(value));
       })
       .catch((failure: unknown) => {
         setEvidence(evidenceOnlyDataset(failure));
@@ -95,7 +101,9 @@ export function SkillStart({
     ) {
       setRefusal(null);
       try {
-        const session = await start.mutateAsync(limitValue(limit));
+        const session = await start.mutateAsync(
+          monetary.payload({ budget_usd: limitValue(limit) }),
+        );
         router.push(`${ROUTES.SKILL_DETAIL(skillId)}/improve/${session.id}`);
       } catch (failure) {
         setRefusal(getErrorMessage(failure, tErrors));
@@ -134,27 +142,30 @@ export function SkillStart({
           <p className="text-sm font-medium">{setup("costs")}</p>
           <p className="text-muted-foreground text-sm leading-relaxed">
             {t("price", {
-              cost: usd(quote.total_usd, locale),
-              perRound: usd(quote.per_round_usd, locale),
+              cost: money.cost(quote.total_usd, locale),
+              perRound: money.cost(quote.per_round_usd, locale),
               rounds: quote.max_iterations,
-              limit: usd(typed > 0 ? String(typed) : sessionLimit(quote), locale),
+              limit: money.cost(typed > 0 ? limit : sessionLimit(quote), locale),
             })}
           </p>
           <div className="max-w-xs space-y-1.5">
-            <Label htmlFor="skill-improvement-limit">{t("limit")}</Label>
-            <Input
+            <Label htmlFor="skill-improvement-limit">
+              {t("limit", { currency: money.currency ?? "—" })}
+            </Label>
+            <MonetaryInput
               id="skill-improvement-limit"
-              inputMode="decimal"
+              monetary={monetary}
+              field="budget_usd"
               disabled={start.isPending}
               value={limit}
-              onChange={(event) => setLimit(event.target.value)}
+              onValueChange={setLimit}
             />
             <p className="text-muted-foreground text-xs">{t("limitHint")}</p>
           </div>
         </div>
         {belowEstimate && (
           <p role="alert" className="text-sm">
-            {t("belowEstimate", { cost: usd(quote.total_usd, locale) })}
+            {t("belowEstimate", { cost: money.cost(quote.total_usd, locale) })}
           </p>
         )}
         {!quote.affordable && quote.reason === null && (

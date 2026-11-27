@@ -50,6 +50,7 @@ describe("CreateKBDialog", () => {
               provider: "openrouter",
               name: "OpenRouter",
               keyless: false,
+              any_model: false,
               models: [{ model: "text-embedding-3-large", dim: 3072 }],
             },
           ],
@@ -115,6 +116,64 @@ describe("CreateKBDialog", () => {
     expect(posted().ingestion_config).toMatchObject({ pdf_parser: "liteparse" });
   });
 
+  it("offers Docling as a fourth choice and opens the details for its connection", async () => {
+    await userEvent.type(screen.getByLabelText("Name"), "Handbook");
+
+    await userEvent.click(screen.getByRole("radio", { name: /Docling/ }));
+
+    expect(screen.getByRole("button", { name: "Chunking, OCR and images" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByLabelText("Docling connection")).toBeVisible();
+    // No connection is chosen yet, and the server refuses without one.
+    expect(create()).toBeDisabled();
+  });
+
+  it("enables Create once a Docling connection is chosen", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/me/permissions")
+        return { organization_id: "org-1", role: "member", is_app_admin: false, permissions: [] };
+      if (path === "/service-connections")
+        return {
+          items: [
+            {
+              id: "d-1",
+              organization_id: "org-1",
+              kind: "document_parser",
+              provider: "docling",
+              name: "Docling box",
+              base_url: "http://docling:5001",
+              is_active: true,
+              secret_id: null,
+              requires_key: false,
+              created_at: "",
+              updated_at: null,
+            },
+          ],
+          total: 1,
+        };
+      return { items: [], total: 0 };
+    });
+    await userEvent.type(screen.getByLabelText("Name"), "Handbook");
+    await userEvent.click(screen.getByRole("radio", { name: /Docling/ }));
+    expect(create()).toBeDisabled();
+
+    await userEvent.click(screen.getByLabelText("Docling connection"));
+    await userEvent.click(await screen.findByRole("option", { name: /Docling box/ }));
+
+    expect(create()).toBeEnabled();
+  });
+
+  it("holds Create while a refused language is typed and not yet added", async () => {
+    await userEvent.type(screen.getByLabelText("Name"), "Handbook");
+    await userEvent.click(screen.getByRole("radio", { name: /Docling/ }));
+    // The connection is irrelevant to this rule; the draft alone must block.
+    await userEvent.type(screen.getByLabelText("OCR languages"), "deu");
+
+    expect(create()).toBeDisabled();
+  });
+
   it("unfolds the details itself when the parser picked needs something there", async () => {
     // LlamaParse needs a key, and a required field behind a closed fold is a
     // Create button that stays grey for no reason anybody can see.
@@ -127,6 +186,19 @@ describe("CreateKBDialog", () => {
       "true",
     );
   });
+
+  it.each([/LlamaParse/, /Docling/])(
+    "lets the details be folded away again under %s",
+    async (parser) => {
+      await userEvent.click(screen.getByRole("radio", { name: parser }));
+      const fold = screen.getByRole("button", { name: "Chunking, OCR and images" });
+      expect(fold).toHaveAttribute("aria-expanded", "true");
+
+      await userEvent.click(fold);
+
+      expect(fold).toHaveAttribute("aria-expanded", "false");
+    },
+  );
 
   it("keeps the description folded under More options, and sends it", async () => {
     expect(screen.queryByLabelText("Description (optional)")).toBeNull();
@@ -232,5 +304,70 @@ describe("CreateKBDialog", () => {
     await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
     expect(screen.getByLabelText("Name")).toHaveValue("Handbook");
     expect(screen.getByLabelText("Chunk size")).toHaveValue(1024);
+  });
+});
+
+describe("a deployment-wide collection", () => {
+  function serve(isAppAdmin: boolean) {
+    vi.clearAllMocks();
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path === "/rag/embedding-models")
+        return {
+          providers: [
+            {
+              provider: "ollama",
+              name: "Ollama",
+              keyless: true,
+              any_model: false,
+              models: [{ model: "nomic-embed-text", dim: 768 }],
+            },
+          ],
+        };
+      if (path === "/me/permissions")
+        return {
+          organization_id: "org-1",
+          role: "owner",
+          is_app_admin: isAppAdmin,
+          permissions: [],
+        };
+      return { items: [], total: 0 };
+    });
+    render(<CreateKBDialog open onOpenChange={vi.fn()} />, { wrapper });
+  }
+
+  it("is offered to a deployment admin, and replaces the audience choice", async () => {
+    serve(true);
+    const choice = await screen.findByRole("checkbox", {
+      name: /Every organization \(deployment-wide\)/,
+    });
+    expect(screen.getByRole("radio", { name: /Everyone/i })).toBeInTheDocument();
+
+    await userEvent.click(choice);
+
+    expect(choice).toBeChecked();
+    expect(screen.queryByRole("radio", { name: /Everyone/i })).toBeNull();
+  });
+
+  it("creates an app-scoped collection with no audience, then starts the next one afresh", async () => {
+    serve(true);
+    vi.mocked(apiClient.post).mockResolvedValue({ id: "kb-9", name: "App docs" });
+    const choice = await screen.findByRole("checkbox", { name: /Every organization/ });
+    await userEvent.click(choice);
+    await userEvent.type(screen.getByLabelText("Name"), "App docs");
+
+    await userEvent.click(create());
+
+    await waitFor(() => expect(apiClient.post).toHaveBeenCalled());
+    expect(posted()).toMatchObject({ scope: "app", group_ids: [], user_ids: [] });
+    // The next collection is not deployment-wide just because the last one was.
+    await waitFor(() => expect(choice).not.toBeChecked());
+  });
+
+  it("is not offered to anyone else", async () => {
+    serve(false);
+    await screen.findByLabelText("Name");
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/permissions"));
+
+    expect(screen.queryByRole("checkbox", { name: /Every organization/ })).toBeNull();
   });
 });

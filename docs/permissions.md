@@ -103,6 +103,9 @@ permission to do so. Anybody else holding `approvals:decide` may reject it, and 
 API key or an impersonated session may not approve it. The queue marks such a call
 with who may approve it.
 
+Without `approvals:decide`, the queue lists only the person's own such calls, which their Inbox shows too, so a routine's call reaches
+them though it was asked in no conversation.
+
 `promotions:override` promotes a version onto an
 [environment its eval suites guard](environments.md#guarding-a-promotion-with-evals)
 although they have not passed on it, and changes which suites guard one. Owners

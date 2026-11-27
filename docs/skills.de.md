@@ -1,5 +1,5 @@
 ---
-source_sha: "4f9850e16b2b"
+source_sha: "6dc0fb368481"
 ---
 
 # Skills { #skills }
@@ -55,6 +55,43 @@ kein Pull Request, kein Entwickler.
 
 Im Agent Builder öffnet **Skills → New skill** die Erstellung direkt im Fähigkeitspanel. Beim Speichern entsteht ein Bibliothekseintrag, der dem aktuellen Entwurf zugeordnet wird; zugleich wird die Fähigkeit Skills aktiviert. Das Veröffentlichen bleibt ein eigener Schritt. Die Aktion erfordert Bearbeitungsrechte für den Agenten und Skills.
 
+## Ein vollständiges Skill-Paket importieren { #importing-a-package }
+
+Wähle unter **Skills → Paket importieren** einen Ordner oder ein ZIP mit einer `SKILL.md` im Wurzelverzeichnis, optional in einem umschließenden Ordner. Die Vorschau zeigt Name, Beschreibung, Ressourcenpfade, Binär-/Textformate und Bytezahlen. Der Import erstellt einen privaten Skill mit vollständiger unveränderlicher erster Version. Bestehende Namen werden abgelehnt, nicht überschrieben. Die Vorschau schreibt keine Daten; der Import prüft die Originalbytes und den Vorschau-Fingerabdruck erneut.
+
+Skripte, Dokumente, Bilder und binäre Vorlagen werden nur gespeichert. Der Import führt keine Skripte oder Tests aus und lädt oder installiert keine Abhängigkeiten. Grenzen: 8 MiB pro Datei, 32 MiB pro Paket, 1.024 Einträge; ZIP auch nach Entpackung. Traversal, absolute Pfade, Links, Spezialdateien, Duplikate und verschlüsselte oder nicht unterstützte Archive werden abgelehnt.
+
+`name`, `description` und Anweisungen werden Skill-Felder; weiterer Frontmatter bleibt versionierte, inaktive JSON-Metadaten. Die kanonische sichere YAML-Ausgabe erhält keine Kommentare oder Formatierung. Unsichere Tags, Aliase, doppelte oder nicht textuelle Schlüssel, Nicht-JSON-Werte und übermäßige Verschachtelung sind unzulässig. `allowed-tools` verleiht weder Werkzeuge noch Ausnahmen von Freigaben.
+
+Binärressourcen behalten exakte Bytes und Hashes durch Versionen, Pins, Wiederherstellung und portable Pakete. Öffne eine Binärressource zum Herunterladen; Base64 wird nie als bearbeitbarer Text angezeigt. Versionsdownloads prüfen den Zugriff auf die ausgewählte unveränderliche Version. Ein Workspace erhält deren Dateien als Bytes neben `SKILL.md`; fehlende erforderliche Ressourcen lassen die Vorbereitung scheitern. Spätere Skriptausführung benötigt separat konfigurierte Werkzeuge und Berechtigungen. Textvorschläge behalten Binärdateien; Änderungen erfolgen durch expliziten Upload.
+
+Forks und Checks behalten Frontmatter. Catch-up verbindet getrennte Änderungen, lehnt aber widersprüchliche Änderungen desselben Metadatenschlüssels ab. Löse sie vor einem erneuten Versuch ausdrücklich auf. Ein Downgrade verweigert das Verwerfen binärer Dateien oder erhaltener Metadaten.
+
+## Einen Skill in der Bibliothek finden { #finding-a-skill }
+
+**Skills** öffnet sich standardmäßig als einfaches Raster mit Seiten, **Ohne Abschnitte**.
+**Anordnen nach** neben der Suche organisiert die Bibliothek optional:
+
+| Anordnen nach | Abschnitte |
+|---|---|
+| **Nach Agent** | Einer je Agent, dessen veröffentlichte Version einen Skill nutzt, dann **Nur im Entwurf** und **Von keinem Agenten genutzt, den Sie sehen** |
+| **Nach Herkunft** | **Organisation**, **Privat**, **Mitgeliefert · Plattform** für die Skills, mit denen jede Organisation beginnt, dann einer je Branche der [Gallery](#the-gallery-seventy-more-and-none-of-them-arrive-uninvited) |
+| **Nach Kategorie** | Einer je Kategorie, `Security` und `security` zusammen, dann **Ohne Kategorie** |
+| **Ohne Abschnitte** (Standard) | Das einfache Raster mit Seiten |
+
+Ein Skill, den mehrere Agents nutzen, steht unter jedem von ihnen. Jeder Abschnitt
+zeigt seine Anzahl und seine ersten Karten, lässt sich zuklappen und blättert mit
+**Alle anzeigen** durch den Rest. Suche und Filter schränken jeden Abschnitt ein,
+und die Wahl bleibt in der Adresse, sodass eine geordnete Ansicht ein Link ist, den
+man weitergeben kann.
+
+Die Anordnung ändert nichts am Zugriff. Ein Abschnitt enthält nur Skills, die Sie
+schon sehen, und ein Agent, den Sie nicht öffnen können, ist nie ein Abschnitt:
+Seine Skills gelten als nicht genutzt. Skills aus der Gallery werden am Namen
+erkannt, wie das Abzeichen **built-in**. Über die API liefert
+`GET /api/v1/skills/sections?arrange=agent` die Abschnitte mit ihren Anzahlen, und
+`GET /api/v1/skills?section=<key>` blättert durch einen davon.
+
 ## Die Form { #the-shape }
 
 ```markdown
@@ -94,7 +131,8 @@ relevante Unterhaltung lädt.
 
 `category` ist einer von zwanzig Vorschlägen (`support`, `engineering`,
 `finance`, `legal`, `security`, `marketing`, …) und steuert den Filter in der
-Skill-Liste. Auf das, was der Agent sieht, hat sie keine Wirkung — das Modell
+Skill-Liste, der wie die Kategorie-Abschnitte Groß- und Kleinschreibung nicht
+unterscheidet. Auf das, was der Agent sieht, hat sie keine Wirkung — das Modell
 wählt über `description`, nie über die Kategorie.
 
 Lange Textressourcen werden seitenweise gelesen, damit nicht jedes Modell-Request das ganze Handbuch enthält: standardmäßig 8.000, höchstens 20.000 Zeichen. Übergib `args` mit `offset` und `limit` an `read_skill_resource`; die Antwort nennt den nächsten Offset. Lies nur relevante Bereiche und verwende bereits geladenes Material erneut.
@@ -740,7 +778,10 @@ an Agentenentwürfe binden sowie Skills lesen, bearbeiten und Textressourcen
 hinzufügen. Context verwendet `inject` für ständige Prompt-Inhalte und `link` zum
 Lesen bei Bedarf. Änderungen einer gebundenen Datei gelten beim nächsten Lauf;
 eine geänderte Entwurfsbindung muss veröffentlicht werden. Berechtigungen und
-Freigaben gelten weiterhin.
+Freigaben gelten weiterhin. Einen Skill bearbeiten, ihm eine Ressource hinzufügen
+und eine Context-Datei bearbeiten fragt immer zuerst die Person: Jeder Agent auf
+der Linie des Skills oder mit der gebundenen Datei liest die Änderung beim
+nächsten Lauf.
 
 Der Dokument-Skill enthält LaTeX-Ausgangsdateien und ein Build-/Render-Verfahren.
 HTML-Apps und Browserfolien sind keine kompilierten PDFs oder editierbaren PPTX.
@@ -951,12 +992,18 @@ aus, als die Person, die es erneut versucht, sobald das behoben ist. Ein Schritt
 über dem Ausgabenlimit hält bei seinem Budget an. Keiner wird von selbst erneut
 gestellt.
 
+Eine vorgeschlagene Änderung der Beschreibung des Skills zeigt die alte und die
+neue Beschreibung, wie eine Änderung seines Textes. Eine Änderung ohne Text zum
+Anzeigen wird weggelassen, und eine gewählte wird vor der Prüfung abgelehnt.
+
 Eine Sitzung, die aus dem Improve eines Agents geöffnet wird, beginnt mit den
 Problemen, die diese Sitzung gemeldet hat. Nur ein Problem, das eine Zeile des
 Skills mit dem falschen Wert oder der falschen Regel zitiert, nimmt die
 Kriterien des Agents mit; schweigt der Skill nur, ist das Problem ein Rat, und
 der Agent bleibt an diese Kriterien gebunden - siehe [Wenn der Fehler in einem
-Skill liegt](authoring.md#when-the-fault-is-in-a-skill).
+Skill liegt](authoring.md#when-the-fault-is-in-a-skill). Ein Problem, das eine
+Antwort zitiert, die die Prüfung dieser Session bewertet, wird nicht übergeben,
+sondern gezählt.
 
 Was eine Sitzung schreibt - Titel und Zusammenfassung jedes Problems und den
 vorgeschlagenen Text -, stammt aus allen Antworten, die die Person lesen konnte, als
@@ -1019,6 +1066,12 @@ Was Annehmen anbietet, folgt aus dem Ergebnis:
   **Testfragen hinzufügen** daneben schreibt die eigenen Fragen des Skills aus
   Antworten, in denen Agents ihn geladen haben, damit sie beim nächsten Mal
   geprüft werden können.
+
+Jede Entscheidung nennt die Prüfung, die die Person angesehen hat - ihre
+`check_id` und ihren `result_hash` oder, bei der Rückkehr zu main, die der Prüfung
+von main allein - und wird mit `409` abgelehnt, wenn die Sitzung ein anderes
+Ergebnis hat oder eine neue Bewertung eines Falls es geändert hat: Lesen Sie die
+Sitzung erneut und sehen Sie es an.
 
 Bekommt die Linie nach der Prüfung eine neue Version oder ändern sich ihre
 Agents, gilt das Ergebnis nicht mehr und bietet statt des Anwendens **Erneut

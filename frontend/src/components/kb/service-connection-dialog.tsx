@@ -1,0 +1,558 @@
+"use client";
+
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useTranslations } from "next-intl";
+import { Check, FlaskConical, Loader2 } from "lucide-react";
+
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  FormField,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Switch,
+} from "@/components/ui";
+import { ProbeResult } from "@/components/kb/probe-result";
+import { ProbeTestButton, WhyDisabled } from "@/components/kb/probe-test-button";
+import { ServiceConnectionIcon } from "@/components/kb/service-connection-icon";
+import { UnverifiedSaveDialog } from "@/components/kb/unverified-save-dialog";
+import { InlineSecret } from "@/components/vault/inline-secret";
+import { ProviderRow } from "@/components/vault/provider-row";
+import { useSecrets } from "@/hooks";
+import { useProbeGate } from "@/hooks/use-probe-gate";
+import { getErrorMessage, submitFailure } from "@/lib/api-error";
+import { DIALOG_FORM } from "@/lib/dialog-sizes";
+import { qk } from "@/lib/query-keys";
+import {
+  estimateConnectionProbe,
+  isKeyedStyle,
+  KEY_PURPOSE_BY_STYLE,
+  probeConnection,
+  SERVICE_CONNECTION_STYLES,
+  testServiceConnection,
+  type ServiceConnectionTestResult,
+  type ServiceConnectionInput,
+  type ServiceConnectionKind,
+  type ServiceConnectionPatch,
+  type ServiceConnectionRecord,
+  type ServiceConnectionStyle,
+} from "@/lib/service-connections-api";
+
+interface ServiceConnectionDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Whether the caller may register for the whole deployment - the app admin. */
+  canRegisterDeploymentWide: boolean;
+  /** The row being edited. Absent when registering a new one. */
+  connection?: ServiceConnectionRecord;
+  /** What a new row starts as, for a picker that already knows what it needs. */
+  defaults?: { kind: ServiceConnectionKind; style: ServiceConnectionStyle };
+  onCreate: (input: ServiceConnectionInput) => Promise<unknown>;
+  onUpdate: (id: string, patch: ServiceConnectionPatch) => Promise<unknown>;
+}
+
+const FIRST_STYLE: Readonly<Record<ServiceConnectionKind, ServiceConnectionStyle>> = {
+  embedding: "ollama",
+  ocr: "liteparse",
+  document_parser: "docling",
+};
+
+const STYLE_LABELS: Readonly<Record<ServiceConnectionStyle, string>> = {
+  ollama: "apiStyleOllama",
+  openai_compatible: "apiStyleOpenAICompatible",
+  liteparse: "apiStyleLiteparse",
+  docling: "apiStyleDocling",
+};
+
+const ADDRESS_EXAMPLES: Readonly<Record<ServiceConnectionStyle, string>> = {
+  ollama: "ollamaAddressExample",
+  openai_compatible: "openaiCompatibleAddressExample",
+  liteparse: "ocrAddressExample",
+  docling: "doclingAddressExample",
+};
+
+/** The sentence a Docling test earns, by outcome. */
+const DOCLING_TEST_MESSAGES: Readonly<Record<ServiceConnectionTestResult["outcome"], string>> = {
+  ok: "doclingTestOk",
+  key_refused: "doclingTestKeyRefused",
+  key_required: "doclingTestKeyRequired",
+  unreachable: "doclingTestUnreachable",
+  not_docling: "doclingTestNotDocling",
+};
+
+/**
+ * Register or edit one connection. The kind and the API style are chosen when it
+ * is registered and fixed after: they decide how every collection on it talks to
+ * the server, so a change would be a different connection.
+ *
+ * Editing an embedding connection's address or key can move the vector space of
+ * every collection on it. Save therefore waits for a test of exactly those
+ * values - or for a confirmed save without one.
+ */
+export function ServiceConnectionDialog({
+  open,
+  onOpenChange,
+  canRegisterDeploymentWide,
+  connection,
+  defaults,
+  onCreate,
+  onUpdate,
+}: ServiceConnectionDialogProps) {
+  const t = useTranslations("kb");
+  const tErrors = useTranslations("errors");
+  const { secrets } = useSecrets();
+  const editing = connection !== undefined;
+  const [name, setName] = useState(connection?.name ?? "");
+  const [kind, setKind] = useState<ServiceConnectionKind>(
+    connection?.kind ?? defaults?.kind ?? "embedding",
+  );
+  const [style, setStyle] = useState<ServiceConnectionStyle>(
+    connection?.provider ?? defaults?.style ?? FIRST_STYLE.embedding,
+  );
+  const [baseUrl, setBaseUrl] = useState(connection?.base_url ?? "");
+  const [secretId, setSecretId] = useState<string | null>(connection?.secret_id ?? null);
+  const [deploymentWide, setDeploymentWide] = useState(false);
+  const [active, setActive] = useState(connection?.is_active ?? true);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
+
+  const deploymentOwned = editing ? connection.organization_id === null : deploymentWide;
+  const keyed = isKeyedStyle(style) && !deploymentOwned;
+  const keyPurpose = isKeyedStyle(style) ? KEY_PURPOSE_BY_STYLE[style] : null;
+  const keys = secrets.filter((secret) => secret.purpose === keyPurpose);
+  const [testing, setTesting] = useState(false);
+  const [tested, setTested] = useState<{
+    values: string;
+    result: ServiceConnectionTestResult;
+  } | null>(null);
+  const testValues = JSON.stringify({
+    kind,
+    provider: style,
+    base_url: baseUrl.trim(),
+    secret_id: keyed ? secretId : null,
+    service_id: connection?.id ?? null,
+    deployment_owned: deploymentOwned,
+  });
+  const testResult = tested?.values === testValues ? tested.result : null;
+  const setTestResult = (result: ServiceConnectionTestResult | null) =>
+    setTested(result === null ? null : { values: testValues, result });
+
+  const trimmedUrl = baseUrl.trim();
+  const addressChanged = editing && trimmedUrl !== connection.base_url;
+  const keyChanged = editing && keyed && secretId !== null && secretId !== connection.secret_id;
+  // Only an embedding connection can move a vector space; renaming or pausing
+  // one, or editing an OCR address, asks for no test.
+  const needsTest = editing && kind === "embedding" && (addressChanged || keyChanged);
+
+  const gate = useProbeGate({ base_url: trimmedUrl, secret_id: secretId });
+  const { data: estimate, error: estimateError } = useQuery({
+    queryKey: qk.serviceConnections.probeEstimate(connection?.id ?? ""),
+    queryFn: () => estimateConnectionProbe(connection?.id ?? ""),
+    enabled: open && needsTest,
+  });
+
+  const close = () => {
+    if (!editing) {
+      setName("");
+      setKind(defaults?.kind ?? "embedding");
+      setStyle(defaults?.style ?? FIRST_STYLE.embedding);
+      setBaseUrl("");
+      setSecretId(null);
+      setDeploymentWide(false);
+    }
+    setErrors({});
+    setTestResult(null);
+    onOpenChange(false);
+  };
+
+  const fail = (error: unknown) => {
+    const failure = submitFailure(
+      error,
+      {
+        fields: ["name", "base_url", "kind", "provider", "secret_id", "probe_token", "service_id"],
+      },
+      tErrors,
+    );
+    // A Test names `service_id` when the refusal is about the stored key it reused;
+    // the key picker is the control that answers it.
+    const { service_id: storedKey, ...fields } = failure.fields;
+    setErrors(storedKey === undefined ? fields : { ...fields, secret_id: storedKey });
+    if (failure.toast) toast.error(failure.toast);
+  };
+
+  // What a Docling test tried is what it reports on; any edit to it clears the report.
+  const runConnectionTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      setTestResult(
+        await testServiceConnection({
+          kind,
+          provider: style,
+          base_url: trimmedUrl,
+          ...(keyed && secretId !== null && secretId !== connection?.secret_id
+            ? { secret_id: secretId }
+            : {}),
+          ...(connection ? { service_id: connection.id } : {}),
+        }),
+      );
+    } catch (error) {
+      fail(error);
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const runTest = async () => {
+    if (!connection) return;
+    setErrors({});
+    try {
+      await gate.test(() =>
+        probeConnection(connection.id, {
+          ...(addressChanged ? { base_url: trimmedUrl } : {}),
+          ...(keyChanged && secretId !== null ? { secret_id: secretId } : {}),
+        }),
+      );
+    } catch (error) {
+      fail(error);
+    }
+  };
+
+  const changes = (): ServiceConnectionPatch => ({
+    ...(connection && active !== connection.is_active ? { is_active: active } : {}),
+    ...(connection && name.trim() !== connection.name ? { name: name.trim() } : {}),
+    ...(addressChanged ? { base_url: trimmedUrl } : {}),
+    ...(keyChanged && secretId !== null ? { secret_id: secretId } : {}),
+  });
+
+  const submit = async (extra: ServiceConnectionPatch = {}) => {
+    setSaving(true);
+    try {
+      if (connection) {
+        await onUpdate(connection.id, { ...changes(), ...extra });
+      } else {
+        await onCreate({
+          name: name.trim(),
+          kind,
+          provider: style,
+          base_url: trimmedUrl,
+          ...(deploymentWide ? { deployment_wide: true } : {}),
+          ...(keyed && secretId !== null ? { secret_id: secretId } : {}),
+        });
+      }
+      close();
+    } catch (error) {
+      fail(error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const unchanged = editing && Object.keys(changes()).length === 0;
+  const blocked = needsTest && gate.token === null;
+  // What the disabled Save or Register says on hover; an unchanged form needs no reason.
+  const submitBlockedBy =
+    name.trim() === "" || trimmedUrl === ""
+      ? t("blockedMissingSettings")
+      : unchanged
+        ? null
+        : blocked
+          ? t("blockedRunTest")
+          : null;
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
+      <DialogContent className={DIALOG_FORM}>
+        <DialogHeader>
+          <DialogTitle>{editing ? t("editServer") : t("addServer")}</DialogTitle>
+          <DialogDescription>{t("serviceConnectionsHint")}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <FormField label={t("name")} htmlFor="service-connection-name" error={errors.name}>
+            <Input
+              id="service-connection-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </FormField>
+          <div className="space-y-1.5">
+            <Label htmlFor="service-connection-kind">{t("serviceConnectionKind")}</Label>
+            <Select
+              value={kind}
+              disabled={editing || defaults !== undefined}
+              onValueChange={(next) => {
+                const nextKind = next as ServiceConnectionKind;
+                setKind(nextKind);
+                setStyle(FIRST_STYLE[nextKind]);
+                setSecretId(null);
+              }}
+            >
+              <SelectTrigger id="service-connection-kind" aria-invalid={errors.kind !== undefined}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="embedding">
+                  <span className="flex items-center gap-2">
+                    <ServiceConnectionIcon kind="embedding" className="h-4 w-4" />
+                    {t("embeddingServer")}
+                  </span>
+                </SelectItem>
+                <SelectItem value="ocr">
+                  <span className="flex items-center gap-2">
+                    <ServiceConnectionIcon kind="ocr" className="h-4 w-4" />
+                    {t("ocrServer")}
+                  </span>
+                </SelectItem>
+                <SelectItem value="document_parser">
+                  <span className="flex items-center gap-2">
+                    <ServiceConnectionIcon kind="document_parser" className="h-4 w-4" />
+                    {t("documentParserServer")}
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            {errors.kind && <p className="text-destructive text-xs">{errors.kind}</p>}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="service-connection-style">{t("apiStyle")}</Label>
+            <Select
+              value={style}
+              disabled={editing || defaults !== undefined}
+              onValueChange={(next) => {
+                setStyle(next as ServiceConnectionStyle);
+                setSecretId(null);
+              }}
+            >
+              <SelectTrigger
+                id="service-connection-style"
+                aria-invalid={errors.provider !== undefined}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SERVICE_CONNECTION_STYLES[kind].map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {t(STYLE_LABELS[option])}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.provider && <p className="text-destructive text-xs">{errors.provider}</p>}
+          </div>
+          <FormField
+            label={t("address")}
+            htmlFor="service-connection-url"
+            description={t("addressHint")}
+            error={errors.base_url}
+          >
+            <Input
+              id="service-connection-url"
+              value={baseUrl}
+              onChange={(e) => {
+                setBaseUrl(e.target.value);
+                setTestResult(null);
+              }}
+              placeholder={t(ADDRESS_EXAMPLES[style])}
+            />
+          </FormField>
+          {isKeyedStyle(style) &&
+            (keyed ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="service-connection-key">{t("connectionKey")}</Label>
+                <Select
+                  value={secretId ?? ""}
+                  onValueChange={(next) => {
+                    setSecretId(next);
+                    setTestResult(null);
+                  }}
+                >
+                  <SelectTrigger
+                    id="service-connection-key"
+                    aria-invalid={errors.secret_id !== undefined}
+                  >
+                    <SelectValue placeholder={t("chooseKey")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {keys.map((secret) => (
+                      <SelectItem key={secret.id} value={secret.id} textValue={secret.name}>
+                        <ProviderRow provider={style} name={secret.name} hint={secret.hint} />
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-muted-foreground text-xs">{t("connectionKeyHint")}</p>
+                {errors.secret_id && <p className="text-destructive text-xs">{errors.secret_id}</p>}
+                <InlineSecret
+                  kind="api_key"
+                  purpose={KEY_PURPOSE_BY_STYLE[style]}
+                  suggestedName={
+                    style === "docling"
+                      ? t("apiStyleDocling")
+                      : t("embeddingsKeyName", { provider: t("apiStyleOpenAICompatible") })
+                  }
+                  onCreated={(id) => {
+                    setSecretId(id);
+                    setTestResult(null);
+                  }}
+                />
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-xs">{t("deploymentWideKeyless")}</p>
+            ))}
+          {editing && (
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="service-connection-active">{t("connectionActive")}</Label>
+              <Switch
+                id="service-connection-active"
+                checked={active}
+                onCheckedChange={setActive}
+                disabled={saving}
+              />
+            </div>
+          )}
+          {!editing && canRegisterDeploymentWide && (
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <Label htmlFor="service-connection-deployment-wide">{t("deploymentWide")}</Label>
+                <p className="text-muted-foreground mt-0.5 text-xs">{t("deploymentWideHint")}</p>
+              </div>
+              <Switch
+                id="service-connection-deployment-wide"
+                checked={deploymentWide}
+                onCheckedChange={(next) => {
+                  setDeploymentWide(next);
+                  if (next) setSecretId(null);
+                  // Who owns it decides whether a key goes with the Test, so a
+                  // passing Test no longer describes what would be registered.
+                  setTestResult(null);
+                }}
+              />
+            </div>
+          )}
+          {kind === "document_parser" && testResult && (
+            <p
+              role="status"
+              className={
+                testResult.outcome === "ok"
+                  ? "rounded-lg border p-3 text-sm"
+                  : "border-destructive/50 text-destructive rounded-lg border p-3 text-sm"
+              }
+            >
+              {t(DOCLING_TEST_MESSAGES[testResult.outcome], { version: testResult.version ?? "" })}
+            </p>
+          )}
+          {needsTest && (
+            <div className="space-y-2">
+              {gate.result && <ProbeResult result={gate.result} />}
+              {gate.status === "failed" && (
+                <p className="text-muted-foreground text-xs">{t("probeFailedAdvice")}</p>
+              )}
+              {errors.probe_token && (
+                <p className="text-destructive text-xs">{errors.probe_token}</p>
+              )}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          {kind === "document_parser" && (
+            <div className="mr-auto">
+              {/* Informative only: a parser change moves no vector space, so a
+                  failed or skipped test never holds Register or Save back. */}
+              {/* "Tested" holds only while nothing it tried has changed: every edit
+                  to the address, key or kind clears `testResult`. */}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving || testing || trimmedUrl === ""}
+                onClick={runConnectionTest}
+              >
+                {testing ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                ) : testResult?.outcome === "ok" ? (
+                  <Check className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                ) : (
+                  <FlaskConical className="size-4" aria-hidden />
+                )}
+                {testing
+                  ? t("testingSettings")
+                  : testResult?.outcome === "ok"
+                    ? t("tested")
+                    : t("testConnection")}
+              </Button>
+            </div>
+          )}
+          {needsTest && (
+            <div className="mr-auto flex flex-wrap items-center gap-2">
+              <ProbeTestButton
+                status={gate.status}
+                disabled={saving || estimate === undefined}
+                onClick={runTest}
+              />
+              {estimate ? (
+                <span className="text-muted-foreground text-xs">
+                  {t("testCost", { count: estimate.max_calls })}
+                </span>
+              ) : estimateError ? (
+                <span className="text-destructive text-xs">
+                  {getErrorMessage(estimateError, tErrors, t("testCostUnavailable"))}
+                </span>
+              ) : null}
+            </div>
+          )}
+          <Button type="button" variant="outline" onClick={close}>
+            {t("cancel")}
+          </Button>
+          {needsTest && gate.token === null && (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={saving || name.trim() === "" || trimmedUrl === ""}
+              onClick={() => setConfirming(true)}
+            >
+              {t("saveWithoutTest")}
+            </Button>
+          )}
+          <WhyDisabled reason={saving ? null : submitBlockedBy}>
+            <Button
+              type="button"
+              onClick={() =>
+                submit(needsTest && gate.token !== null ? { probe_token: gate.token } : {})
+              }
+              disabled={saving || blocked || unchanged || name.trim() === "" || trimmedUrl === ""}
+            >
+              {editing
+                ? saving
+                  ? t("saving")
+                  : t("save")
+                : saving
+                  ? t("registering")
+                  : t("register")}
+            </Button>
+          </WhyDisabled>
+        </DialogFooter>
+        <UnverifiedSaveDialog
+          open={confirming}
+          onOpenChange={setConfirming}
+          affected={estimate?.knowledge_bases ?? 0}
+          onConfirm={() => {
+            setConfirming(false);
+            void submit({ unverified: true });
+          }}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}

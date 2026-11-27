@@ -22,8 +22,8 @@ vi.mock("@/hooks/use-permissions", () => ({
 }));
 
 vi.mock("@/components/authoring/skill-check-button", () => ({
-  ContextCheckButton: ({ proposalId }: { proposalId: string }) => (
-    <button>{`check ${proposalId}`}</button>
+  ContextCheckButton: ({ proposalId, disabled }: { proposalId: string; disabled?: boolean }) => (
+    <button disabled={disabled}>{`check ${proposalId}`}</button>
   ),
 }));
 vi.mock("@/hooks/use-authoring", () => ({ useContextAuthoringWatch: state.watch }));
@@ -134,6 +134,17 @@ describe("ProposedContextChanges", () => {
     expect(screen.getByRole("button", { name: "Discard the change to house-style" })).toBeEnabled();
     await userEvent.click(screen.getByRole("button", { name: "Show what changes in house-style" }));
     expect(screen.getByText(/edit the file by hand/)).toBeVisible();
+  });
+
+  it("will neither apply nor check a change quoting a credential, and says why", () => {
+    state.changes = [contextChange({ contains_credential: true })];
+    render(<ProposedContextChanges canEdit />);
+    expect(
+      screen.getByText(/quotes a credential, so it can't be applied or checked/),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Apply the change to house-style" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "check change-1" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Discard the change to house-style" })).toBeEnabled();
   });
 
   it("holds both decisions while one is on its way", () => {

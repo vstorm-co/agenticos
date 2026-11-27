@@ -34,8 +34,10 @@ export function ViewSettingsPopover({
   onChange,
   onToggle,
   actions,
+  controls,
 }: {
   actions?: ReactNode;
+  controls?: ReactNode;
   columns: ColumnDef[];
   visible: string[] | null;
   display: TableDisplay;
@@ -78,7 +80,7 @@ export function ViewSettingsPopover({
         <Button
           variant="outline"
           size="sm"
-          className="gap-2 max-sm:px-3"
+          className="touch:min-h-11 touch:min-w-11 gap-2 max-sm:size-11 max-sm:px-0"
           data-tour="table-view-settings"
         >
           <Settings2 className="size-4" />
@@ -89,6 +91,7 @@ export function ViewSettingsPopover({
         align="end"
         className="flex max-h-[var(--radix-popover-content-available-height)] w-96 max-w-[calc(100vw-2rem)] flex-col p-0"
       >
+        {controls && <div className="border-border border-b p-4 sm:hidden">{controls}</div>}
         <div className="border-border shrink-0 border-b p-4">
           <h3 className="text-sm font-semibold">{t("title")}</h3>
           <p className="text-muted-foreground mt-1 text-xs">{t("description")}</p>

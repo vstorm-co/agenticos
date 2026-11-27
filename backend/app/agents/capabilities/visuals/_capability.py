@@ -58,6 +58,7 @@ class Visuals(AbstractCapability[AgentDeps]):
 
     web_reach: tuple[WebReach, ...] = ()
     """Where the agent's web readers may go, and so where a picture may come from."""
+    screenshot: bool = True
 
     _tools: VisualsToolset = field(init=False, repr=False)
     _toolset: AbstractToolset[Any] | None = field(
@@ -66,7 +67,7 @@ class Visuals(AbstractCapability[AgentDeps]):
     _listed: dict[UUID, str] = field(default_factory=dict, init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        self._tools = VisualsToolset(web_reach=self.web_reach)
+        self._tools = VisualsToolset(web_reach=self.web_reach, screenshot=self.screenshot)
 
     def get_toolset(self) -> AbstractToolset[Any]:
         if self._toolset is None:

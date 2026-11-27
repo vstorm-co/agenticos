@@ -7,6 +7,7 @@ from app.api.routes.v1 import (
     api_keys,
     assistant,
     browse_live,
+    conversation_environments,
     change_events,
     device_hub,
     event_sources,
@@ -31,7 +32,7 @@ from app.api.routes.v1 import me_onboarding
 from app.api.routes.v1 import me_suggestions
 from app.api.routes.v1 import me_watches
 from app.api.routes.v1 import org_mcp_connections
-from app.api.routes.v1 import local_services
+from app.api.routes.v1 import service_connections
 from app.api.routes.v1 import ml as ml_services
 from app.api.routes.v1 import sandbox_connections
 from app.api.routes.v1 import agent
@@ -272,7 +273,9 @@ v1_router.include_router(
 v1_router.include_router(
     sandbox_connections.router, prefix="/sandbox-connections", tags=["sandbox-connections"]
 )
-v1_router.include_router(local_services.router, prefix="/local-services", tags=["local-services"])
+v1_router.include_router(
+    service_connections.router, prefix="/service-connections", tags=["service-connections"]
+)
 v1_router.include_router(
     agent_workspaces.router, prefix="/sandbox-workspaces", tags=["sandbox-workspaces"]
 )
@@ -297,6 +300,7 @@ v1_router.include_router(workflow_run_socket.router, tags=["workflow-runs"])
 v1_router.include_router(change_events.router, tags=["change-events"])
 v1_router.include_router(device_hub.router, tags=["devices"])
 v1_router.include_router(browse_live.router, tags=["browse-live"])
+v1_router.include_router(conversation_environments.router, tags=["conversation-environments"])
 
 v1_router.include_router(rag.router, prefix="/rag", tags=["rag"])
 

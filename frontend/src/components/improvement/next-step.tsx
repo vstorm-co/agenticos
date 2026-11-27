@@ -1,10 +1,14 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { Button, Input, Label } from "@/components/ui";
-import { limitText, limitValue, usd } from "@/components/evals/format";
+import { Button, Label } from "@/components/ui";
+import { limitValue } from "@/components/evals/format";
 import { useImprovement } from "@/hooks/use-improvements";
 import { mayContinue, subjectOf } from "@/lib/improvement-subject";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
@@ -50,14 +54,16 @@ export function NextStep({
   body?: Record<string, unknown>;
   onStarted: () => void;
 }) {
-  const t = useTranslations("improvement.nextUp");
+  const monetary = useMonetaryInputs();
+  const money = useMoney();
   const tLimit = useTranslations("improvement");
+  const t = useTranslations("improvement.nextUp");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const readOnly = useReadOnly();
   const actions = useImprovement(subjectOf(session), session.id);
   const stop = stopOf(session);
-  const [budget, setBudget] = useState(() => limitText(session.budget_usd, locale));
+  const [budget, setBudget] = useState(() => session.budget_usd);
   const [asked, setAsked] = useState(session.budget_usd);
   const [quote, setQuote] = useState<{ key: string; value: ContinuationEstimate } | null>(null);
   // A skill's line can get a newer version under a stop; the step is then priced on it.
@@ -118,7 +124,11 @@ export function NextStep({
   async function start(value: ContinuationEstimate) {
     setSaid(null);
     try {
-      await actions.continueSession.mutateAsync({ ...value, body });
+      const payload = monetary.payload(body ?? {});
+      await actions.continueSession.mutateAsync({
+        ...value,
+        ...(Object.keys(payload).length ? { body: payload } : {}),
+      });
       setMoved(null);
       setStuck(false);
       onStarted();
@@ -157,20 +167,23 @@ export function NextStep({
       {moved && priced && (
         <p role="alert" className="text-warning-ink text-sm">
           {t(moved === "line" ? "lineMoved" : "priceMoved", {
-            cost: usd(priced.total_usd, locale),
+            cost: money.cost(priced.total_usd, locale),
           })}
         </p>
       )}
       {priced && !priced.affordable && (
         <div className="max-w-sm space-y-2">
           <p className="text-sm">{t("overLimit")}</p>
-          <Label htmlFor="next-step-budget">{tLimit("budget")}</Label>
+          <Label htmlFor="next-step-budget">
+            {tLimit("budget", { currency: money.currency ?? "—" })}
+          </Label>
           <div className="flex gap-2">
-            <Input
+            <MonetaryInput
               id="next-step-budget"
-              inputMode="decimal"
+              monetary={monetary}
+              field="budget_usd"
               value={budget}
-              onChange={(event) => setBudget(event.target.value)}
+              onValueChange={setBudget}
             />
             <Button
               variant="outline"
@@ -192,13 +205,13 @@ export function NextStep({
         onClick={() => priced && void start(priced)}
       >
         {priced
-          ? t(`go.${stop}`, { cost: usd(priced.total_usd, locale) })
+          ? t(`go.${stop}`, { cost: money.cost(priced.total_usd, locale) })
           : t(`goUnpriced.${stop}`)}
         <ArrowRight className="h-4 w-4" aria-hidden />
       </Button>
       {priced?.expected_usd && Number(priced.expected_usd) < Number(priced.total_usd) && (
         <p className="text-muted-foreground text-xs">
-          {t("likely", { cost: usd(priced.expected_usd, locale) })}
+          {t("likely", { cost: money.cost(priced.expected_usd, locale) })}
         </p>
       )}
       {evidence ? (

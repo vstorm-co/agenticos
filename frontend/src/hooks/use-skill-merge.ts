@@ -1,5 +1,7 @@
 "use client";
 
+import type { CurrencyAmount } from "@/lib/money";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { qk } from "@/lib/query-keys";
@@ -21,7 +23,12 @@ export function useSkillMergeStart(skillId: string, forkId: string, kind: MergeK
   const queryClient = useQueryClient();
   const estimate = useMutation({ mutationFn: () => estimateSkillMerge(skillId, forkId, kind) });
   const start = useMutation({
-    mutationFn: (budgetUsd: string) => startSkillMerge(skillId, forkId, kind, budgetUsd),
+    mutationFn: (
+      value: string | { budget_usd: string; monetary_inputs?: Record<string, CurrencyAmount> },
+    ) =>
+      typeof value === "string"
+        ? startSkillMerge(skillId, forkId, kind, value)
+        : startSkillMerge(skillId, forkId, kind, value.budget_usd, value.monetary_inputs),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
   });
   return { estimate, start };
@@ -76,14 +83,24 @@ export function useSkillMerge(
 /** Return a catch-up's fork agents to main, which accepts the session. */
 export function useReturnToMain(skillId: string, sessionId: string) {
   const queryClient = useQueryClient();
+  const settle = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),
+      queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
+    ]);
   return useMutation({
-    mutationFn: (acknowledgeUnknown: boolean) =>
-      returnSkillImprovementToMain(skillId, sessionId, acknowledgeUnknown),
-    onSuccess: () =>
-      Promise.all([
-        queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),
-        queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
-      ]),
+    mutationFn: ({
+      checkId,
+      resultHash,
+      acknowledgeUnknown,
+    }: {
+      checkId: string;
+      resultHash: string;
+      acknowledgeUnknown: boolean;
+    }) =>
+      returnSkillImprovementToMain(skillId, sessionId, { checkId, resultHash }, acknowledgeUnknown),
+    onSuccess: settle,
+    onError: settle,
   });
 }
 

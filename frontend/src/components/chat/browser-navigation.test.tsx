@@ -86,3 +86,11 @@ it.each([
   fireEvent.submit(input.closest("form")!);
   expect(send).toHaveBeenCalledWith({ type: "navigate", url: expected });
 });
+
+it("keeps navigation read-only when no live command transport is available", () => {
+  render(<BrowserNavigation url="https://example.test" holding />);
+  const input = screen.getByRole("textbox", { name: "Website address" });
+  expect(input).toHaveAttribute("readonly");
+  expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Go" })).not.toBeInTheDocument();
+});

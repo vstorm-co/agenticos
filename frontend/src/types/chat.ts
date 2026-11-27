@@ -409,6 +409,8 @@ export interface BrowserFrame {
     | "browser_control_error";
   /** Which `browse_web` call this belongs to; one turn can browse twice. */
   call_id: string;
+  /** The actual retained target, when this activity adopted an owned environment. */
+  environment_id?: string | null;
   step: number;
   url?: string | null;
   title?: string | null;
@@ -546,6 +548,8 @@ export interface ActionRequest {
   content_hidden?: boolean;
   /** Only a person's answer could let the call run; with `content_hidden`, only Reject is offered. */
   always_asks?: boolean;
+  /** One of the platform's own tools, as the platform binding marked it - never by its name. */
+  platform_call?: boolean;
   /** Whether this person may answer the call at all: `approvals:decide`, or it is their own platform call. */
   may_decide?: boolean;
   /** Whether an approval from this person would be accepted. */

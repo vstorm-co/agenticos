@@ -35,6 +35,7 @@ import pytest
 from app.agents.capabilities.budget import BudgetScope
 from app.agents.spec import AgentSpec, AlertAudience, AlertSpec, NotificationSpec
 from app.core.config import settings
+from app.core.currency import ReportingQuote
 from app.db.models.notification import NotificationEventType
 from app.services.email.templates import render_email
 from app.services.notification_center import (
@@ -68,6 +69,7 @@ def _run(
     run.organization_id = org_id or uuid.uuid4()
     run.user_id = user_id
     run.cost_usd = Decimal(cost)
+    run.cost_is_partial = False
     run.initiated_by_publisher_fallback = initiated_by_publisher_fallback
     run.channel_identity_id = channel_identity_id
     run.exposure_id = exposure_id
@@ -84,7 +86,7 @@ def _approvals(*tool_ids: str) -> list[MagicMock]:
         approval.account = None
         approval.tool_id = tool_id
         approval.always_asks = tool_id.startswith("agenticos_")
-        approval.context = {"platform_tool": "true"} if approval.always_asks else None
+        approval.platform_call = tool_id.startswith("agenticos_")
         approvals.append(approval)
     return approvals
 
@@ -130,6 +132,15 @@ def written(monkeypatch) -> _Written:
     recorder = _Written()
     monkeypatch.setattr(NotificationCenterService, "write", recorder)
     return recorder
+
+
+@pytest.fixture(autouse=True)
+def _reporting_snapshot():
+    with patch(
+        "app.services.currency.CurrencyService.reporting_quote",
+        new=AsyncMock(return_value=ReportingQuote()),
+    ):
+        yield
 
 
 @pytest.fixture(autouse=True)
@@ -719,14 +730,14 @@ class TestApprovalRequested:
         [
             (("agenticos_accept_improvement", "send_email"), True, True),
             (("send_email",), True, False),
-            (("agenticos_accept_improvement",), False, False),
+            (("agenticos_accept_improvement",), False, True),
         ],
     )
     async def test_the_runs_person_gets_their_own_notice_beside_their_own_platform_call(
         self, written, tools: tuple[str, ...], in_a_conversation: bool, named: bool
     ):
         """Their notice opens the conversation the call was asked in, where its card comes
-        back; everyone else's opens the queue."""
+        back, or their Inbox for a run asked in none; everyone else's opens the queue."""
         person, admin = uuid.uuid4(), uuid.uuid4()
         run = _run(user_id=person)
         run.conversation_id = uuid.uuid4() if in_a_conversation else None
@@ -747,16 +758,60 @@ class TestApprovalRequested:
         own, queue = by_recipient[(person,)], by_recipient[(admin,)]
         assert own["render_context"][APPROVABLE_BY] == str(person)
         assert own["render_context"][APPROVABLE_CALLS] == [str(approvals[0].id)]
-        assert f"/chat?id={run.conversation_id}" in own["context_url"]
-        assert f"/chat?id={run.conversation_id}" in own["render_context"]["approvals_url"]
+        where = f"/chat?id={run.conversation_id}" if in_a_conversation else "/inbox"
+        assert where in own["context_url"]
+        assert where in own["render_context"]["approvals_url"]
         assert APPROVABLE_BY not in queue["render_context"]
         assert "tab=approvals" in queue["context_url"]
 
     @pytest.mark.anyio
     @pytest.mark.security
-    async def test_the_only_recipient_gets_one_personal_notice_without_a_queue_duplicate(
-        self, written
+    @pytest.mark.parametrize(
+        "alert",
+        [AlertSpec(enabled=False), AlertSpec(to=[AlertAudience.ADMINS])],
+        ids=["switched-off", "admins-only"],
+    )
+    async def test_the_runs_person_is_told_of_their_platform_call_whatever_the_alert_names(
+        self, written, alert: AlertSpec
     ):
+        """Nobody else may approve it, so an audience leaving them out would leave it unseen."""
+        person = uuid.uuid4()
+        run = _run(user_id=person)
+        run.conversation_id = uuid.uuid4()
+        approvals = _approvals("agenticos_publish_agent")
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(person)),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run, agent=_agent(), spec=_spec(approvals=alert), approvals=approvals
+            )
+
+        [call] = written.calls
+        assert call["recipients"] == [person]
+        assert call["render_context"][APPROVABLE_CALLS] == [str(approvals[0].id)]
+        assert f"/chat?id={run.conversation_id}" in call["context_url"]
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_runs_person_who_left_is_not_told_of_their_platform_call(self, written):
+        run = _run(user_id=uuid.uuid4())
+        run.conversation_id = uuid.uuid4()
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run,
+                agent=_agent(),
+                spec=_spec(approvals=AlertSpec(enabled=False)),
+                approvals=_approvals("agenticos_publish_agent"),
+            )
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_a_person_who_is_the_whole_audience_gets_only_their_own_notice(self, written):
         person = uuid.uuid4()
         run = _run(user_id=person)
         run.conversation_id = uuid.uuid4()
@@ -2636,3 +2691,57 @@ async def test_department_warning_keeps_a_sub_cent_limit() -> None:
         await service.department_budget_warnings(_run())
     assert write.await_args.kwargs["render_context"]["limit"] == "0.0005"
     assert write.await_args.kwargs["render_context"]["share"] == 80
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+async def test_budget_delivery_and_console_numbers_share_the_same_retained_quote(written):
+    owner_id = uuid.uuid4()
+    snapshot = ReportingQuote(currency="PLN", units_per_usd="4")
+    with (
+        patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+        patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(owner_id)),
+        patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+        patch(
+            "app.services.currency.CurrencyService.reporting_quote",
+            new=AsyncMock(return_value=snapshot),
+        ),
+    ):
+        await NotificationService(MagicMock()).budget_exceeded(
+            _run(cost="2"),
+            agent=_agent(owner_user_id=owner_id),
+            spec=_spec(),
+            reason="Original accounting reason",
+            scope=BudgetScope.AGENT,
+            limit_usd=Decimal("25"),
+            spent_usd=Decimal("26"),
+        )
+    call = written.calls[0]
+    assert "PLN 104.00 spent; PLN 100.00 limit" in call["summary"]
+    context = call["render_context"]
+    assert context["reporting_quote"] == {"currency": "PLN", "units_per_usd": "4"}
+    assert context["limit_usd"] == "25" and context["spent_usd"] == "26"
+    assert context["reported_spent"] == "PLN 8.00"
+    _, html, text = render_email("budget_exceeded", context)
+    assert "PLN 8.00" in text and "PLN 100.00" in text
+    assert "PLN 8.00" in html and "$8.00" not in text
+
+
+@pytest.mark.anyio
+async def test_unpriced_run_notice_does_not_present_its_known_floor_as_a_complete_bill(written):
+    owner_id = uuid.uuid4()
+    run = _run(cost="0")
+    run.cost_is_partial = True
+    with (
+        patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+        patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(owner_id)),
+        patch(f"{MODULE}.organization_repo.get_by_id", new=AsyncMock(return_value=None)),
+    ):
+        await NotificationService(MagicMock()).budget_exceeded(
+            run,
+            agent=_agent(owner_user_id=owner_id),
+            spec=_spec(),
+            reason="A provider bill could not be converted",
+            scope=BudgetScope.AGENT,
+        )
+    assert written.calls[0]["render_context"]["reported_spent"] == "USD amount unavailable"

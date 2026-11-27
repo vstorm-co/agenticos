@@ -30,6 +30,7 @@ export const SESSION: Improvement = {
       batch_id: "b1",
       eval_run_ids: ["er1"],
       candidate_spec_hash: "hash",
+      result_hash: "result",
       attribution_eval_run_ids: {},
       dropped_hunk_ids: [],
       dropped: [],

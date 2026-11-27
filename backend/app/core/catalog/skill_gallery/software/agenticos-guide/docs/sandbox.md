@@ -81,10 +81,10 @@ using different files. A helper restart makes old NFS handles stale and stops th
 agent until explicit filesystem recovery; it does not start an empty replacement.
 
 Native project storage requires durable extended attributes and atomic hard links;
-verified Linux storage and the database-backed state provider are supported. macOS
-bind mounts can refuse the native requirements. Symlinks and ownership changes are
-not supported. See [Projects](projects.md#what-an-agent-gets-in-a-project) for live
-lease access and the optional explicit project executor.
+verified Linux storage and the database-backed state provider are supported. macOS bind
+mounts can refuse the native requirements. Symlinks and ownership changes are not
+supported. See [Projects](projects.md#what-an-agent-gets-in-a-project) for live lease
+access and the optional explicit project executor.
 
 ### The service and the backend move together
 
@@ -809,3 +809,26 @@ reap.
 The `state` backend counts files and empty directories against its storage ceiling, including the final concurrent merge. If individually accepted snapshots cannot fit together, the shared document stays unchanged and the later snapshot is committed as a recovery copy in **Documents**. The run records a failure with the recovery workspace ID; a project mutation returns a conflict instead of success. Project copies require both view and use access. A source foreign key removes each copy when its source is deleted, including concurrent erasure. Lowering the setting below an existing document still allows that document to shrink.
 
 The workbench briefing tells agents that commands run under POSIX `/bin/sh`, not Bash. For example, `mkdir -p sources inbox notes` creates three folders; `{sources,inbox,notes}` is not expanded by this shell. The active executor keeps its own working folder. With live project access, `PROJECT_DIR` points at `/project/<lease UUID>`; use that path for shared project files. The user home (`~`) is outside those files. Each command starts a new process, so shell variables and changes of directory do not carry into the next call. Agents are instructed to inspect failures and verify files before reporting success.
+
+## Browser and desktop conversation lifetimes { #conversation-environments }
+
+`browser_use` and `computer_use` configure `session_lifetime` (`run` or `conversation`) and `session_idle_seconds` (60–86400). Missing fields in existing stored bindings retain `run`; publishing an old spec does not silently enable longer billing. New console bindings explicitly select `conversation` with 900 seconds, and authors can change that choice. The deployment's `CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS` caps the effective idle period, shown in the panel. `CONVERSATION_ENVIRONMENTS_PER_USER` bounds each person's outstanding environments, including known remote resources awaiting cleanup.
+
+Retention applies to ordinary, authenticated private web chat. API, channel, eval and paired-device behavior keeps its existing contract. No resource starts before explicit **Open** or the first actual tool use. A manually prepared environment is adopted only under current owner, membership, agent-run and connection authority. Shared writable chat access does not grant another person's private browser. Instructions-only republishing can reuse an unchanged binding's exact target; changed connection, credential, project generation or execution target requires a new environment. A project desktop must use the selected authorized executor and its actual working directory, never a fabricated run or an expired project-files lease.
+
+Each live remote browser keeps a continuously attached CDP owner enforcing the request policy, even when every panel and agent observer detaches. Its isolated context uses Chromium `disposeOnDetach`: loss of the owning API/worker process or transport ends that browser rather than leaving page JavaScript running without the egress guard. After restart the system reports the original target as expired; it never creates a replacement from a saved URL or cookies. Desktop reuse likewise verifies the original provider reference and directory before attaching. A separate E2B desktop remains a separate screen, not a claim to be the shell workspace.
+
+Physical driver leases serialize manual and agent input, including private views sharing an executor or remote computer. Heartbeats protect active work; lost authority or a stale token blocks further input. Explicit End revokes admission before durable cleanup runs. Idle sweeps and cleanup jobs retain sealed provider handles after parent deletion and retry failed disposal. Before downgrading `0376_conversation_environments.py`, end environments and drain cleanup; the migration refuses to discard a live resource journal.
+
+Browser contexts are isolated per owner and conversation. A desktop follows its configured workspace or project scope: an agent-scoped or otherwise shared executor has a shared physical GUI. The driver lease serializes control; it does not make that shared desktop private. An owner-only menu protects who can attach this chat's view, not the screen content of a deliberately shared executor.
+
+Taking control, actual manual input and giving control back count as activity. Passive frames and human-control heartbeats do not extend the idle deadline; an active agent driver protects ongoing work. Legacy run-mode browsing without a manually prepared target keeps its existing per-turn browser and URL/cookie checkpoint behavior. A manually prepared run-mode target instead preserves its exact live DOM until a run that uses it ends.
+
+An authorized browser viewer fits an idle page to the actual panel width, height and pixel density. A short exclusive physical driver lease protects each fit, without granting human input or extending idle expiry. While an agent or another viewer controls the page, fitting waits for an authoritative idle state; the image keeps its proportions in the meantime. Physical desktop screens are not resized. The toolbar names who controls the view and shows text actions for taking over and handing control back.
+
+A retained sandbox desktop requires a conversation-, user-, agent- or project-scoped container-backed executor. Existing run-lifetime desktops using ephemeral run/channel executors keep their original per-run factory and cannot be opened manually between runs. End and idle expiry close the owned view and control session; they do not destroy a shared daemon or workspace container, whose lifecycle follows its own configuration. Owned browser contexts and separate E2B desktops are disposed.
+
+A retained private Docker desktop can keep a separate [Project files
+path](projects.md#what-an-agent-gets-in-a-project) after its agent run ends. The first
+actual Project tool may prepare that desktop. Its file requests never extend idle
+expiry; ending the environment revokes the path.

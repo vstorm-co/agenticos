@@ -63,8 +63,11 @@ from app.repositories import (
     organization_secret_repo,
     system_agent_repo,
 )
+from app.schemas.currency import CurrencyContext
 from app.schemas.model_profile import ModelProfileUpdate, NativeRuntimeAvailability
+from app.schemas.token_pricing import TokenPricing
 from app.services.access import AGENT, SECRET, accessible_ids, resolve_access
+from app.services.currency import CurrencyService
 from app.services.model_catalog import CUSTOM_LISTINGS, CatalogModel, models_for
 from app.services.model_outputs import model_outputs, not_chat_refusal
 from app.services.openai_codex import VaultCodexCredentials
@@ -326,6 +329,9 @@ class ModelProfileService:
     async def list_profiles(self, ctx: AuthContext) -> list[ModelProfile]:
         return await credential_repo.list_profiles(self.db, organization_id=ctx.organization_id)
 
+    async def currency_context(self, ctx: AuthContext) -> CurrencyContext:
+        return await CurrencyService(self.db).context(ctx.organization_id)
+
     async def create_profile(
         self,
         ctx: AuthContext,
@@ -339,6 +345,7 @@ class ModelProfileService:
         region: ModelRegion | None = None,
         params: dict | None = None,
         fallback_profile_ids: list[UUID] | None = None,
+        custom_pricing: TokenPricing | None = None,
     ) -> ModelProfile:
         """Define a selectable model.
 
@@ -359,6 +366,7 @@ class ModelProfileService:
         the platform to fall back on.
 
         Raises:
+            AuthorizationError: If custom prices are supplied without budgets:manage.
             BadRequestError: If the key is not this organization's, is not one the
                 caller can see in the vault, or is for a
                 different provider than the profile claims - a mismatch that
@@ -371,6 +379,11 @@ class ModelProfileService:
                 by this name, so a duplicate is an agent nobody can point at
                 the model they meant.
         """
+        if custom_pricing is not None and not ctx.has(Perm.BUDGETS_MANAGE):
+            raise AuthorizationError(
+                message="Changing model prices requires budgets:manage",
+                details={"permission": Perm.BUDGETS_MANAGE.value},
+            )
         spec = get_provider(provider)
         _validate_model_id(provider, model)
         if base_url is not None:
@@ -392,6 +405,9 @@ class ModelProfileService:
             )
         await self._check_label_free(ctx, label)
         if secret_id is not None:
+            if custom_pricing is not None:
+                # Keep the validated credential stable until the approval commits.
+                await hold_subject(self.db, LockScope.MODEL_PRICING_PER_SECRET, secret_id)
             await self._check_key(ctx, secret_id, provider=provider)
         listed = await self._listed_model(ctx, provider, model, base_url, secret_id, api=api)
         if not api_given and spec.api_from_model and listed is not None:
@@ -413,6 +429,9 @@ class ModelProfileService:
             fallback_profile_ids=[str(pid) for pid in (fallback_profile_ids or [])],
             context_length=listed.context_length if listed is not None else None,
             runs_without_key=secret_id is None,
+            custom_pricing=custom_pricing.model_dump(mode="json")
+            if custom_pricing is not None
+            else None,
         )
         await record_audit(
             self.db,
@@ -543,7 +562,16 @@ class ModelProfileService:
                 not this organization's, not the caller's to see, or for another
                 provider.
             AlreadyExistsError: If the new label is taken.
+            AuthorizationError: If prices are changed or reset, or a profile with custom
+                prices is moved to a different key, endpoint or raw request settings,
+                without budgets:manage.
         """
+        can_manage_budgets = ctx.has(Perm.BUDGETS_MANAGE)
+        if "custom_pricing" in changes.model_fields_set and not can_manage_budgets:
+            raise AuthorizationError(
+                message="Changing model prices requires budgets:manage",
+                details={"permission": Perm.BUDGETS_MANAGE.value},
+            )
         profile = await self._get_profile(ctx, profile_id)
         spec = get_provider(profile.provider)
         sent = changes.model_fields_set
@@ -589,6 +617,12 @@ class ModelProfileService:
             "runs_without_key": secret_id is None
             and ("secret_id" in sent or profile.runs_without_key),
         }
+        if "custom_pricing" in sent:
+            wanted["custom_pricing"] = (
+                changes.custom_pricing.model_dump(mode="json")
+                if changes.custom_pricing is not None
+                else None
+            )
         if changes.label is not None:
             wanted["label"] = changes.label
         if changes.params is not None:
@@ -599,11 +633,34 @@ class ModelProfileService:
         if not update_data:
             return profile
 
+        if (
+            not can_manage_budgets
+            and profile.custom_pricing is not None
+            and (
+                update_data.keys() & {"secret_id", "base_url", "runs_without_key"}
+                or (
+                    changes.params is not None
+                    and any(
+                        profile.params.get(setting) != changes.params.get(setting)
+                        for setting in ("extra_body", "extra_headers")
+                    )
+                )
+            )
+        ):
+            raise AuthorizationError(
+                message="Changing the connection for a custom-priced model requires budgets:manage",
+                details={"permission": Perm.BUDGETS_MANAGE.value},
+            )
+
         if changes.label is not None and "label" in update_data:
             await self._check_label_free(ctx, changes.label)
+        if secret_id is not None and (
+            changes.custom_pricing is not None
+            or ("secret_id" in update_data and profile.custom_pricing is not None)
+        ):
+            await hold_subject(self.db, LockScope.MODEL_PRICING_PER_SECRET, secret_id)
         if secret_id is not None and ("secret_id" in update_data or "base_url" in update_data):
             await self._check_key(ctx, secret_id, provider=profile.provider)
-
         updated = await credential_repo.update_profile(
             self.db, organization_id=ctx.organization_id, profile=profile, update_data=update_data
         )
@@ -741,6 +798,14 @@ class ModelProfileService:
         The endpoint is what tells them apart: without one there is nowhere to send
         the request, and the honest answer is the same refusal as before.
         """
+        pricing = (
+            TokenPricing.model_validate(profile.custom_pricing)
+            if profile.custom_pricing is not None
+            else None
+        )
+        exchange_rates = await CurrencyService(self.db).rates_for(
+            pricing, include_provider_rates=profile.provider == "stav"
+        )
         if profile.secret_id is None:
             if not lacks_key(
                 profile.provider,
@@ -750,6 +815,9 @@ class ModelProfileService:
             ):
                 return ResolvedCredential(
                     provider=profile.provider,
+                    custom_pricing=pricing,
+                    exchange_rates=dict(exchange_rates),
+                    profile_id=profile.id,
                     secret=NoSecret(),
                     base_url=profile.base_url,
                     api=_stored_api(profile.api),
@@ -778,6 +846,9 @@ class ModelProfileService:
         )
         return ResolvedCredential(
             provider=profile.provider,
+            custom_pricing=pricing,
+            exchange_rates=dict(exchange_rates),
+            profile_id=profile.id,
             secret=value,
             credential_id=secret.id,
             authorization_generation=secret.authorization_generation,

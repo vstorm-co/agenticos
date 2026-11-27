@@ -297,7 +297,7 @@ export function WatchRow({
           </ActionTooltip>
           <ActionTooltip label={t("removeLabel", { title: watch.title })}>
             <Button
-              variant="ghost"
+              variant="destructive-ghost"
               size="icon"
               onClick={onRemove}
               aria-label={t("removeLabel", { title: watch.title })}

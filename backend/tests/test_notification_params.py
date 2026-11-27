@@ -259,3 +259,32 @@ def test_worded_budget_rows_do_not_expose_legacy_budget_params(wording: str):
     )
     assert degraded.params is None
     assert degraded.wording_params is None
+
+
+def test_notice_quote_is_typed_retained_and_removed_from_a_redacted_summary() -> None:
+    from app.core.currency import ReportingQuote
+
+    row = _row(
+        NotificationEventType.BUDGET_EXCEEDED,
+        {
+            "reporting_quote": {"currency": "PLN", "units_per_usd": "4"},
+            "agent_name": "Agent",
+            "scope": "agent",
+            "limit_usd": "25",
+            "spent_usd": "26",
+        },
+    )
+    read = NotificationRead.from_row(row, strip_context_url=False)
+    assert read.reporting_quote == ReportingQuote(currency="PLN", units_per_usd="4")
+    assert read.model_dump(mode="json")["reporting_quote"] == {
+        "currency": "PLN",
+        "units_per_usd": "4",
+    }
+    assert (
+        NotificationRead.from_row(
+            row, strip_context_url=True, summary_override="Attention needed"
+        ).reporting_quote
+        is None
+    )
+    legacy = _row(NotificationEventType.BUDGET_EXCEEDED, None)
+    assert NotificationRead.from_row(legacy, strip_context_url=False).reporting_quote is None

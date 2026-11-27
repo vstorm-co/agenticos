@@ -157,7 +157,7 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
     async def _describe(
         ctx: RunContext[AgentDeps],
         tool_def: ToolDefinition,
-        describe: BoundDescriber | None,
+        describe: BoundDescriber,
         args: dict[str, Any],
     ) -> dict[str, str] | None:
         """The call's ids as names for the person deciding, or `None`.
@@ -166,13 +166,9 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
         must not stop the call from being asked about - a call nobody can be asked
         about is refused, which would make a broken lookup a broken tool.
         """
-        platform = (
-            tool_def.capability_id is None and (tool_def.metadata or {}).get(PLATFORM_TOOL) is True
-        )
-        context = {"platform_tool": "true"} if platform else {}
         try:
             async with asyncio.timeout(DESCRIBE_TIMEOUT_SECONDS):
-                described = await describe(ctx.deps, args) if describe is not None else None
+                described = await describe(ctx.deps, args)
         except Exception:
             logger.warning(
                 "Could not describe %s for approval on run %s; parking it without context",
@@ -180,8 +176,8 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
                 ctx.deps.run_id,
                 exc_info=True,
             )
-            return context or None
-        return {**(described or {}), **context} or None
+            return None
+        return described or None
 
     async def _always_asks(
         self, ctx: RunContext[AgentDeps], tool_def: ToolDefinition, args: dict[str, Any]
@@ -317,13 +313,13 @@ class ApprovalGate(AbstractCapability[AgentDeps]):
                 # tool can be given an account by metadata.
                 account=(tool_def.metadata or {}).get(ACCOUNT) if capability_id is None else None,
                 capability_tool_id=self.tool_ids.get(tool_def.name) if owned else None,
+                platform_call=not owned and (tool_def.metadata or {}).get(PLATFORM_TOOL) is True,
                 # Handed over unawaited: the channel runs it only for a call it is
                 # about to record, never for one a resumed run already decided.
                 describe=(
-                    partial(self._describe, ctx, tool_def, describer, args)
-                    if describer is not None
-                    or (not owned and (tool_def.metadata or {}).get(PLATFORM_TOOL) is True)
-                    else None
+                    None
+                    if describer is None
+                    else partial(self._describe, ctx, tool_def, describer, args)
                 ),
             )
         )

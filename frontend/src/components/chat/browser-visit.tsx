@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { LinkFavicon } from "./link-favicon";
 
 const surface =
-  "group border-border/70 bg-background hover:border-foreground/20 hover:bg-muted/40 focus-visible:ring-ring flex w-full max-w-sm min-w-0 flex-col gap-2 rounded-xl border p-3 text-left outline-none transition-colors focus-visible:ring-2";
+  "group text-muted-foreground hover:text-foreground hover:bg-muted/40 focus-visible:ring-ring touch:min-h-11 inline-flex w-fit max-w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs outline-none transition-colors focus-visible:ring-2";
 
 /** A visited page keeps its identity in the transcript, even after its live view closes. */
 export function BrowserVisit({
@@ -25,26 +25,24 @@ export function BrowserVisit({
   const PanelIcon = expanded ? Minimize2 : Maximize2;
   const content = (
     <>
-      <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-xs">
-        {url ? (
-          <LinkFavicon key={url} url={url} className="size-5" />
-        ) : (
-          <Globe className="size-5" aria-hidden />
-        )}
-        <span className="min-w-0 flex-1 truncate">{host || t("browserHeading")}</span>
-        {onOpen ? (
-          <PanelIcon
-            className="size-3.5 shrink-0 opacity-50 transition-opacity group-hover:opacity-100"
-            aria-hidden
-          />
-        ) : url ? (
-          <ArrowUpRight
-            className="size-3.5 shrink-0 opacity-50 transition-opacity group-hover:opacity-100"
-            aria-hidden
-          />
-        ) : null}
-      </span>
-      <span className="text-foreground line-clamp-2 text-sm leading-snug font-medium">{label}</span>
+      {url ? (
+        <LinkFavicon key={url} url={url} className="size-4 shrink-0" />
+      ) : (
+        <Globe className="size-4 shrink-0" aria-hidden />
+      )}
+      <span className="min-w-0 truncate font-medium">{label}</span>
+      {title && host && title !== host && <span className="hidden truncate sm:inline">{host}</span>}
+      {onOpen ? (
+        <PanelIcon
+          className="size-3.5 shrink-0 opacity-50 transition-opacity group-hover:opacity-100"
+          aria-hidden
+        />
+      ) : url ? (
+        <ArrowUpRight
+          className="size-3.5 shrink-0 opacity-50 transition-opacity group-hover:opacity-100"
+          aria-hidden
+        />
+      ) : null}
     </>
   );
   if (onOpen)

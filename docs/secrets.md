@@ -195,6 +195,14 @@ deleted key leaves its profiles marked `missing_key` until they get another,
 including one in front of a gateway. Only a profile saved with no key on purpose
 keeps running without one ([A profile without a key](models.md#a-profile-without-a-key)).
 
+**Service connections.** An embedding connection of the OpenAI-compatible style may name a
+Vault key, an API key whose purpose is `openai_compatible`. Only an organization-owned connection can
+hold one; a deployment-wide connection is keyless. Binding a key is lending it, as for a model
+profile: choosing it, at creation and on every key change, needs `secrets:view` on that key. A deleted
+key leaves the connection refusing by name instead of sending requests without it, and the key's value
+is never in the connection's row, its API responses or its audit entries. Rotating the value in place
+does not retest the connection.
+
 **Speech to text.** An API key whose purpose is the provider, named by id next to
 the provider and model wherever speech to text is set up: the organization's
 default, an agent's override and a channel bot's own pair. Nothing looks a key
@@ -285,6 +293,7 @@ own key for:
 | Exa | `web_research` |
 | Logfire | Per-agent [observability](reference/spec.md#observability) — traces to a project of its own |
 | LlamaParse | PDF parsing, billed to the organization's own key |
+| Docling Serve (purpose `docling`) | Document parsing on a Docling Serve the organization hosts; the key is optional, belongs to an organization-owned connection and is sent as `X-Api-Key` |
 | ElevenLabs | [`text_to_speech`](reference/capabilities.md#text-to-speech) — speech in the voices on the organization's ElevenLabs account |
 | BytePlus ModelArk | [`video_generation`](reference/capabilities.md#video-generation) — ByteDance's Seedance video models |
 
@@ -324,6 +333,9 @@ Scopes differ by role — an Owner edits any secret in the organization, a Membe
 edits only their own. A secret can also be shared to a specific member or agent
 with a resource grant, which widens access to that one row without promoting
 anybody. See [Permissions](permissions.md).
+
+Rotating a vault credential used by a model profile with custom prices also
+requires `budgets:manage`.
 
 ## Operations
 

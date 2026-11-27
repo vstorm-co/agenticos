@@ -14,6 +14,7 @@ from app.agents.capabilities.computer_use._backends import (
     Computer,
     ComputerError,
     ComputerFactory,
+    ComputerFactoryDecorator,
     DaemonComputer,
     LocalComputer,
     check_daemon_url,
@@ -78,6 +79,10 @@ class ComputerUse(AbstractCapability[AgentDepsT]):
     factory: ComputerFactory | None = field(default=None, repr=False, compare=False)
     """The seam a test replaces; `None` reaches the configured backend."""
 
+    factory_decorator: ComputerFactoryDecorator | None = field(
+        default=None, repr=False, compare=False
+    )
+
     _toolset: AbstractToolset[Any] | None = field(
         default=None, init=False, repr=False, compare=False
     )
@@ -139,5 +144,18 @@ class ComputerUse(AbstractCapability[AgentDepsT]):
     def get_toolset(self) -> AbstractToolset[Any]:
         """The toolset providing `computer_screenshot` and `computer_act` (built once, then reused)."""
         if self._toolset is None:
-            self._toolset = build_toolset(self.factory or self._open, self.policy)
+            factory = self.factory or self._open
+            if self.factory_decorator is not None:
+                original = factory
+                remote = self.factory_decorator.wrap(original)
+
+                async def selected(workspace: Workspace) -> Computer:
+                    # A paired folder can select the local screen under auto
+                    # without a separate local_computer_session resource.
+                    if self._on_persons_computer(workspace):
+                        return await original(workspace)
+                    return await remote(workspace)
+
+                factory = selected
+            self._toolset = build_toolset(factory, self.policy)
         return self._toolset

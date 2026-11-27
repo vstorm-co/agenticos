@@ -32,7 +32,13 @@ async def test_a_projected_body_is_priced_as_additional_input_on_its_actual_mode
             uuid4(): SkillBody(name="procedure", description="Procedure", content="A" * 2000)
         },
     )
-    resolve = AsyncMock(return_value=SimpleNamespace(model="priced-model", provider="openai"))
+    resolve = AsyncMock(
+        return_value=SimpleNamespace(
+            model="priced-model",
+            provider="openai",
+            credential=SimpleNamespace(custom_pricing=None, exchange_rates={"USD": Decimal(1)}),
+        )
+    )
     with (
         patch.object(service.models, "resolve", resolve),
         patch("app.services.eval_run.price_request", return_value=0.002) as price,

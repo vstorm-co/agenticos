@@ -16,6 +16,7 @@ from app.api.deps import (
 from app.api.public_api import PUBLIC
 from app.api.routes.v1._stored_bytes import stored_image_response
 from app.core.permissions import Perm
+from app.schemas.currency import CurrencyContext
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -61,6 +62,14 @@ async def get_organization(
 ) -> Any:
     """Get a single organization the current user is a member of."""
     return await service.read_for_user(org_id, ctx.subject_id)
+
+
+@router.get("/{org_id}/currency", response_model=CurrencyContext, dependencies=[PUBLIC])
+async def get_organization_currency(
+    org_id: UUID, service: OrganizationSvc, ctx: PathOrgAuth
+) -> Any:
+    """Read the tenant's effective currency and deployment-configured manual rates."""
+    return await service.currency_context(org_id, ctx.subject_id)
 
 
 @router.patch("/{org_id}", response_model=OrganizationRead, dependencies=[PUBLIC, _SETTINGS])

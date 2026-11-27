@@ -1,4 +1,4 @@
-<!-- source_sha: 471d6c338ae3 -->
+<!-- source_sha: 91ef88072269 -->
 
 # Seguridad
 
@@ -11,7 +11,7 @@
 
 ## Informar de una vulnerabilidad
 
-Correo: **kacper.wlodarczyk@vstorm.co** (o abre un aviso de seguridad privado en el repositorio). Incluye, por favor:
+Informe de vulnerabilidades mediante un [aviso de seguridad privado](https://github.com/vstorm-co/agenticos/security/advisories/new). No publique detalles del exploit en issues públicos. Incluya:
 
 - La versión / el commit afectados
 - Los pasos para reproducirlo
@@ -65,6 +65,6 @@ componentes que envían las imágenes y sus licencias, en
 
 ## Limitaciones conocidas
 
-- **Sin 2FA / MFA** de serie.
-- **Sin SAML / OIDC** más allá del OAuth de Google. Un SSO de empresa necesita una integración a medida con el IdP.
+- **MFA:** las contraseñas locales no incluyen un segundo factor integrado. Con SSO OIDC genérico, exija MFA en su proveedor de identidad.
+- **SSO:** se admiten discovery OIDC genérico (authorization code con PKCE), Google OAuth, LDAP y Kerberos. No se admiten SAML ni SCIM nativos; consulte [Directory](docs/directory.es.md).
 - **Sin redacción automática de PII** en los logs — ten cuidado con lo que registras.

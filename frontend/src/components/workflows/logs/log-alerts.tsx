@@ -198,7 +198,7 @@ function RuleRow({
             <Pencil className="h-3.5 w-3.5" />
           </Button>
           <Button
-            variant="ghost"
+            variant="destructive-ghost"
             size="icon"
             className="h-7 w-7"
             aria-label={t("alertDeleteNamed", { name: rule.name })}

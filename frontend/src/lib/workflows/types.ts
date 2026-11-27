@@ -395,9 +395,9 @@ export interface WorkflowSettings {
   /** How many of its runs may be under way at once; no limit when null. */
   max_concurrent_runs: number | null;
   /** The most one run may spend, in US dollars; no limit when null. */
-  run_budget_usd: number | null;
+  run_budget_usd: string | number | null;
   /** The most its runs may spend in a calendar month, UTC; no limit when null. */
-  monthly_budget_usd: number | null;
+  monthly_budget_usd: string | number | null;
 }
 
 /** The settings as the workflow holds them. Mirrors `StoredWorkflowSettings`. */
@@ -466,7 +466,11 @@ export interface ReplyMailboxSelection {
 export interface WorkflowCreate {
   template_id?: "publicApi" | "markdownNotes" | "awaitReply";
   reply_mailbox?: ReplyMailboxSelection;
-  reply_draft?: { model_profile_id: string; max_cost_usd: number };
+  reply_draft?: {
+    model_profile_id: string;
+    max_cost_usd: string | number;
+    monetary_inputs?: Record<string, import("@/lib/money").CurrencyAmount>;
+  };
   name: string;
   description?: string | null;
   visibility?: "org" | "private" | "team";

@@ -116,3 +116,10 @@ describe("Button component", () => {
     expect(capture).toHaveBeenCalledOnce();
   });
 });
+
+it("keeps quiet destructive actions red before hover without changing button geometry", () => {
+  render(<Button variant="destructive-ghost" size="icon" aria-label="Delete item" />);
+  const button = screen.getByRole("button", { name: "Delete item" });
+  expect(button).toHaveClass("text-destructive-ink", "hover:bg-destructive/10", "h-10", "w-10");
+  expect(button).not.toHaveClass("text-foreground", "text-muted-foreground");
+});

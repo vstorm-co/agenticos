@@ -1006,6 +1006,7 @@
     "notAChatModelHint": "{model} ist kein Chat-Modell - es dient der Sprachausgabe, Transkription, Bildern oder Embeddings, und ein Agent kann nicht darauf laufen. Wählen Sie vor dem Veröffentlichen ein Chat-Modell.",
     "modelHasNoKeyHint": "Der Schlüssel dieses Modells wurde aus dem Vault gelöscht, daher kann nichts darauf laufen. Geben Sie ihm im Modellbereich einen Schlüssel oder wählen Sie ein anderes Modell.",
     "updateModel": "Modell aktualisieren",
+    "pricedModelConnectionLocked": "Wer Schlüssel oder Endpunkt eines Modells mit eigenen Preisen ändern möchte, braucht die Berechtigung zur Budgetverwaltung.",
     "updateModelHint": "Speichert den neuen Schlüssel, Endpunkt oder die API für {label}. Alles, was dieses Modell nutzt, wechselt mit: jeder Agent und jede Sammlung oder geplante Arbeit darauf. Um diese unverändert zu lassen, wählen Sie „Nennen Sie ihn anders“ und fügen Sie ein eigenes Modell hinzu.",
     "notAChatModelRefused": "{model} ist kein Chat-Modell - ein Agent kann nicht darauf laufen. Wählen Sie ein Chat-Modell.",
     "secretForDifferentService": "Der Schlüssel „{name}“ ist für einen anderen Dienst bestimmt. Wählen Sie einen Schlüssel für diese Konfiguration.",
@@ -2092,6 +2093,8 @@
       "reviseVisual": "Hat ein Visual überarbeitet",
       "readingVisual": "Liest ein Visual",
       "readVisual": "Hat ein Visual gelesen",
+      "previewingVisual": "Visualisierung wird geprüft",
+      "previewVisual": "Visualisierung prüfen",
       "workingInText": "Arbeitet im Textmodus daran",
       "workedInText": "Im Textmodus bearbeitet",
       "workflowsListing": "Prüft, welche Workflows er starten kann",
@@ -2197,10 +2200,10 @@
       "runningAcpAgent": "Externer ACP-Agent",
       "inspectAcpAgent": "ACP-Modellauswahl lesen",
       "readingAcpModels": "ACP-Modellauswahl wird gelesen",
-      "approveAcceptImprovement": "Versuch {attempt} für {agent} übernehmen ({verdict, select, better {besser} criteria_better {besser nach Kriterien} no_change {keine Änderung} criteria_worse {schlechter nach Kriterien} regression {schlechter} inconclusive {nicht eindeutig} other {nicht gemessen}}) {publish, select, yes {und als v{version} veröffentlichen} other {als Entwurf}}",
-      "approvePublishAgent": "{agent} als v{version} veröffentlichen",
-      "approveChangeSkillVersion": "{state, select, main {{agent} auf die Hauptlinie von {skill} setzen} pinned {{agent} an {skill} v{version} heften} other {{agent} auf einen Fork von {skill} setzen}}",
-      "approveAcceptSkillImprovement": "{outcome, select, apply {Die verbesserte Skill {skill} anwenden} apply_and_pin {Die verbesserte Skill {skill} anwenden und die Agenten anheften, denen sie schaden würde} fork_for_helped {Einen Fork von {skill} für die Agenten anlegen, denen sie half} catch_up {Den Fork von {skill} auf den Stand von main bringen} other {Den Fork von {skill} zu main zurückführen}}",
+      "approveAcceptImprovement": "Versuch {attempt} für {agent} übernehmen ({verdict, select, better {besser} criteria_better {besser nach Kriterien} no_change {keine Änderung} criteria_worse {schlechter nach Kriterien} regression {schlechter} inconclusive {nicht eindeutig} other {nicht gemessen}}) {publish, select, yes {und veröffentlichen} other {als Entwurf}}",
+      "approvePublishAgent": "{agent} veröffentlichen",
+      "approveChangeSkillVersion": "{state, select, main {{agent} auf die Hauptlinie von {skill} setzen} pinned {{agent} an {skill} v{version} heften} other {{agent} auf den Fork {fork} von {skill} setzen}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {Die verbesserte Skill {skill} anwenden} apply_and_pin {Die verbesserte Skill {skill} anwenden und die Agenten anheften, denen sie schaden würde} fork_for_helped {Einen Fork von {skill} für die Agenten anlegen, denen sie half} fork_for_chosen {Einen Fork von {skill} anlegen für: {agents}} catch_up {Den Fork von {skill} auf den Stand von main bringen} other {Den Fork von {skill} zu main zurückführen}}",
       "approveStartEvalRun": "{agent} mit dem Dataset {dataset} v{version} testen",
       "selectingProjectContext": "Projektkontext auswählen…",
       "selectedProjectContext": "Projektkontext ausgewählt",
@@ -2228,9 +2231,9 @@
       "percent": "{percent} %",
       "sandboxMemory": "Sandbox-Speicher",
       "storedOf": "{used} von {limit} gespeichert",
-      "threadTotal": "${cost}",
+      "threadTotal": "{cost}",
       "threadTotalDetail": "{input, number} ein · {output, number} aus, über diese Unterhaltung abgerechnet",
-      "threadTotalPartial": "≥ ${cost}",
+      "threadTotalPartial": "≥ {cost}",
       "threadTotalPartialDetail": "{input, number} ein · {output, number} aus, über diese Unterhaltung abgerechnet - eine Untergrenze: Für ein Modell darin gab es keinen Preis",
       "unmeasured": "in Nutzung - dieser Host hat keine Zahl gemeldet",
       "workspace": "Workspace",
@@ -2346,6 +2349,19 @@
     "hints": {
       "shortcuts": "Schreibe deinem Agenten. <key>/</key> Befehle · <key>@</key> Ressourcen"
     },
+    "workspace": {
+      "title": "Arbeitsbereich",
+      "visuals": "Visuals",
+      "browser": "Browser",
+      "files": "Dateien",
+      "resize": "Breite des Arbeitsbereichs ändern",
+      "expand": "Arbeitsbereich vergrößern",
+      "dock": "Arbeitsbereich andocken",
+      "allFiles": "Zurück zu allen Dateien",
+      "close": "Workspace schließen",
+      "desktop": "Desktop",
+      "open": "Workspace öffnen"
+    },
     "visuals": {
       "drawing": "Zeichnet…",
       "revising": "Überarbeitet…",
@@ -2359,6 +2375,10 @@
       "zoomReset": "Zoom zurücksetzen",
       "zoomLevel": "{zoom, number, percent}",
       "download": "Herunterladen",
+      "downloadSvg": "SVG — Vektordatei",
+      "downloadPng": "PNG — Bild für Präsentationen",
+      "preparingPng": "PNG wird vorbereitet…",
+      "pngDownloadFailed": "Die PNG-Datei konnte nicht heruntergeladen werden. Versuchen Sie es erneut.",
       "copyImage": "Als Bild kopieren",
       "imageCopied": "Bild kopiert",
       "copyImageFailed": "Das Bild konnte nicht kopiert werden",
@@ -2387,7 +2407,15 @@
       "followUpAsks": "Das Visual möchte dies als Ihre Nachricht senden:",
       "followUpSend": "Senden",
       "followUpEdit": "Bearbeiten",
-      "followUpDismiss": "Verwerfen"
+      "followUpDismiss": "Verwerfen",
+      "openWorkspace": "Seitenbereich öffnen",
+      "dockWorkspace": "Zurück zum Seitenbereich",
+      "closeWorkspace": "Visualisierung schließen",
+      "workspaceTitle": "Visualisierung: {title}",
+      "workspaceViews": "Ansichten der Visualisierung",
+      "resizeWorkspace": "Breite des Visualisierungsbereichs ändern",
+      "previewTab": "Vorschau",
+      "codeTab": "Code"
     },
     "dictation": {
       "cancel": "Diktat abbrechen",
@@ -2777,7 +2805,71 @@
     "routineContinueChat": "In neuem Chat fortfahren",
     "approvalOthersWait": "Ihre Antwort gilt nur für Ihre eigenen Plattformaufrufe. Die anderen warten auf jemanden, der über Freigaben entscheiden darf.",
     "approvalNeedsItsPerson": "Freigeben kann das nur die Person, für die dieser Run handelt. Sie können es ablehnen.",
-    "approvalNeedsItsAdminPerson": "Nur die Person, für die dieser Run handelt, angemeldet als Anwendungsadministrator, kann dies freigeben. Du kannst es ablehnen."
+    "approvalNeedsItsAdminPerson": "Nur die Person, für die dieser Run handelt, angemeldet als Anwendungsadministrator, kann dies freigeben. Du kannst es ablehnen.",
+    "environmentView": {
+      "agentDriving": "Der Agent verwendet diese Umgebung. Warte, bis die Steuerung verfügbar ist.",
+      "humanDriving": "Eine Person steuert diese Umgebung.",
+      "canTakeOver": "Du schaust zu. Übernimm die Steuerung, um zu interagieren.",
+      "watchOnly": "Nur Ansicht.",
+      "refresh": "Verfügbarkeit prüfen",
+      "end": "Umgebung beenden",
+      "start": "Umgebung öffnen",
+      "startNew": "Neue Umgebung öffnen",
+      "retry": "Ansicht neu verbinden",
+      "confirmTitle": "Diese Umgebung beenden?",
+      "confirmDescription": "Das Schließen des Panels erhält die Umgebung. Beenden gibt die Sitzung frei; nicht gespeicherter Seitenzustand kann verloren gehen.",
+      "failure": {
+        "start": "Die Umgebung konnte nicht geöffnet werden. Prüfe die Verfügbarkeit und versuche es erneut.",
+        "end": "Die Umgebung konnte nicht beendet werden. Sie läuft möglicherweise noch.",
+        "state": "Bereitschaft konnte nicht aktualisiert werden. Prüfe die Verfügbarkeit, bevor du fortfährst.",
+        "refresh": "Die Verfügbarkeit konnte nicht geprüft werden. Versuche es erneut."
+      },
+      "phase": {
+        "expired": {
+          "title": "Umgebung beendet",
+          "description": "Öffne eine neue Umgebung, um fortzufahren."
+        },
+        "failed": {
+          "title": "Umgebung nicht verfügbar",
+          "description": "Prüfe die Verfügbarkeit oder versuche ausdrücklich, sie erneut zu öffnen."
+        },
+        "notStarted": {
+          "title": "Umgebung nicht gestartet",
+          "description": "Öffne diese Umgebung bei Bedarf. Es wird kein Agentenlauf gestartet."
+        },
+        "starting": {
+          "title": "Umgebung wird vorbereitet",
+          "description": "Du kannst das Panel verlassen und später zurückkehren."
+        },
+        "forbidden": {
+          "title": "Kein Zugriff",
+          "description": "Dein Zugriff hat sich geändert. Prüfe die Verfügbarkeit für die aktuellen Berechtigungen."
+        },
+        "malformed": {
+          "title": "Live-Ansicht konnte nicht überprüft werden",
+          "description": "Der Stream wurde gestoppt. Verbinde dich für eine neue Live-Ansicht erneut."
+        },
+        "disconnected": {
+          "title": "Live-Ansicht getrennt",
+          "description": "Verbinde dich erneut, um dieselbe Umgebung weiter zu beobachten."
+        },
+        "connecting": {
+          "title": "Live-Ansicht wird verbunden",
+          "description": "Warten auf den aktuellen Bildschirm der Umgebung."
+        }
+      },
+      "browserTitle": "Browser",
+      "desktopTitle": "Desktop",
+      "loadFailed": "Die Umgebung konnte nicht geladen werden. Versuche es erneut.",
+      "loading": "Umgebung wird geladen…",
+      "runLifetime": "Wird nach einem Agent-Run geschlossen, der diese Umgebung verwendet.",
+      "idleMinutes": "Bei Inaktivität bis zu {minutes, plural, one {# Minute} other {# Minuten}} verfügbar.",
+      "idleSeconds": "Bei Inaktivität bis zu {seconds, plural, one {# Sekunde} other {# Sekunden}} verfügbar.",
+      "options": "Umgebungsoptionen",
+      "lifetime": "Wann sie geschlossen wird",
+      "checked": "Verfügbarkeit geprüft: {status}.",
+      "ready": "Bereit"
+    }
   },
   "approvalFeedback": {
     "savedApproval": "Bereits genehmigt: {action}",
@@ -4198,7 +4290,7 @@
     "adding": "Wird hinzugefügt …",
     "appliesEachFileYou": "Das gilt für jede Datei, die Sie als Nächstes hinzufügen, und wird auf ihr vermerkt. Die Collection behält ihre eigenen Einstellungen – jeder spätere Upload greift wieder darauf zurück.",
     "applyChanges": "{count, plural, =1 {1 Änderung übernehmen} other {# Änderungen übernehmen}}",
-    "builtInReadersRegardless": "Text-, Markdown- und Word-Dateien nutzen die eingebauten Leser, was auch immer gewählt ist.",
+    "builtInReadersRegardless": "Text- und Markdown-Dateien nutzen den eingebauten Leser, welcher Parser auch gewählt ist.",
     "cancel": "Abbrechen",
     "cancel2": "Abbrechen",
     "cancel3": "Abbrechen",
@@ -4265,7 +4357,7 @@
     "knowledgeBasesAlreadyUsing": "Wissensdatenbanken, die sie bereits nutzen, behalten ihre eigene Kopie – dies entfernt nur die, von der nichts synchronisiert.",
     "leaveEmptyAutoGenerate": "Leer lassen für automatische Erzeugung",
     "leftAloneCollectionInherits": "Unberührt erbt diese Collection die Standardwerte, mit denen das Deployment konfiguriert ist. Die Werte unten sind die der Plattform; einen davon zu ändern sendet sie alle, und sie werden zu denen dieser Collection, bis sie jemand bearbeitet.",
-    "liteparseReadsTextLayer": "LiteParse liest zuerst die Textebene und führt OCR auf einer Seite nur aus, wenn dort nichts steht. OCR bestimmt die Kosten eines Parse, und die meisten Dokumente entstehen digital. Schalten Sie dies aus, um jede Seite unabhängig davon per OCR zu lesen.",
+    "liteparseReadsTextLayer": "Zuerst die Textebene: Eine Seite wird nur per OCR gelesen, wenn dort nichts steht. OCR bestimmt die Kosten eines Parse, und die meisten Dokumente entstehen digital. Schalten Sie dies aus, um jede Seite per OCR zu lesen.",
     "llamaparseKey": "LlamaParse-Schlüssel",
     "llamaparseTier": "LlamaParse-Stufe",
     "loadingModels": "Modelle werden geladen …",
@@ -4273,7 +4365,7 @@
     "maximumPages": "Höchstzahl Seiten",
     "model": "Modell",
     "model2": "Modell",
-    "modelIsFixed": "Modell, festgelegt durch die bereits gespeicherten Vektoren",
+    "modelIsFixed": "Modell, festgelegt durch die bereits gespeicherten Vektoren. Ein Wechsel wird dagegen getestet.",
     "modelsUnreadable": "Die Providerliste konnte nicht gelesen werden, es lässt sich also weder ein Provider noch ein Schlüssel wählen. Diese Collection zu erstellen wird abgelehnt, bis das geht.",
     "name": "Name",
     "nameCopy": "Name für die Kopie",
@@ -4297,7 +4389,10 @@
     "overlapRepeats": "benachbarte Chunks wiederholen ihre Überlappung, Randtext erscheint also zweimal",
     "pageNumber": "Seite {number}",
     "pageParsedNothingReadable": "Diese Seite wurde zu nichts Lesbarem geparst – vermutlich ein unlesbarer Scan.",
-    "pagePictureTextCarries": "Eine Seite, die ein Bild von Text ist, trägt keinen Text zum Extrahieren. PyMuPDF übergibt eine solche Seite dem Bildmodell; LiteParse führt seine eigene OCR aus.",
+    "scannedPagesDocling": "Eine Seite oder ein Bild, die ein Bild von Text sind, enthalten keinen Text zum Extrahieren. Docling liest sie mit seiner eigenen OCR; ist dies aus, hat ein hochgeladenes Bild nichts zu indexieren.",
+    "scannedPagesLiteparse": "Eine Seite, die ein Bild von Text ist, enthält keinen Text zum Extrahieren. LiteParse liest sie mit seiner eigenen OCR.",
+    "scannedPagesLlamaparse": "LlamaParse liest gescannte Seiten selbst, unabhängig von dieser Einstellung.",
+    "scannedPagesPymupdf": "Eine Seite, die ein Bild von Text ist, enthält keinen Text zum Extrahieren. PyMuPDF übergibt eine solche Seite dem Bildmodell.",
     "nextUploadsTitle": "Wie die nächsten Uploads gelesen und abgelegt werden",
     "parseTimeoutSeconds": "Parse-Timeout (Sekunden)",
     "parsed": "Geparst",
@@ -4318,15 +4413,15 @@
     "problemWholeBetween": "Eine ganze Zahl zwischen {min} und {max}.",
     "productDocs": "Produktdokumentation",
     "prompt": "Prompt",
-    "providerMoveKeepsTheIndex": "Dasselbe Modell, von woanders bereitgestellt, ist dasselbe Modell, bereits Indexiertes ändert sich also nicht – die nächste Anfrage geht einfach an den neuen Provider, auf dem neuen Schlüssel.",
+    "providerMoveKeepsTheIndex": "Ein Wechsel wird gegen bereits gespeicherte Chunks getestet: Liefert der neue Provider dieselben Vektoren, ändert sich nichts am bereits Indexierten – die nächste Anfrage geht einfach an den neuen Provider.",
     "readAsImages": "Als Bilder lesen",
-    "readScannedPages": "Gescannte Seiten lesen",
+    "readScannedPages": "Gescannte Seiten lesen (OCR)",
     "reasoning": "Reasoning",
     "remove": "Entfernen",
     "removeNamed": "{name} entfernen?",
     "integrationActions": "Aktionen",
     "integrationDetails": "Verbindung / Zeitplan",
-    "integrationsDescription": "Wiederverwendbare Quellen versorgen deine Wissensbasen. Lokale Dienste übernehmen Embeddings und OCR im eigenen Netzwerk.",
+    "integrationsDescription": "Wiederverwendbare Quellen versorgen deine Wissensbasen. Dienstverbindungen sind die Embedding- und OCR-Endpunkte, die deine Collections nutzen.",
     "integrationsEmpty": "Noch keine Integrationen",
     "integrationsCount": "{count, plural, one {# Integration} other {# Integrationen}}",
     "reusableIntegrations": "Integrationen",
@@ -4360,11 +4455,12 @@
     "endpointModelsUnconfirmed": "Dieser Endpoint konnte nicht gefragt werden, welche Modelle er bereitstellt, daher werden alle OpenRouter-Modelle aufgeführt. Ein Modell, das er nicht bereitstellt, schlägt beim ersten Upload fehl.",
     "endpointServesNoModel": "Dieser Endpoint stellt keines der Embedding-Modelle bereit, die AgenticOS anbietet. Lassen Sie den Endpoint leer oder wählen Sie einen anderen Provider.",
     "endpointLacksCollectionModel": "Dieser Endpoint stellt {model} nicht bereit, das Modell, mit dem die Vektoren dieser Collection erstellt wurden. Lassen Sie den Endpoint leer oder wählen Sie einen, der es bereitstellt.",
-    "localServicesHint": "Server im eigenen Netz des Deployments – ein Ollama, das einbettet, ein OCR-Sidecar für LiteParse – einmal registriert und pro Collection gewählt. Nichts, was an einen davon geht, verlässt das Deployment.",
+    "connectionActive": "Aktiv",
+    "serviceConnectionsHint": "Einmal registrierte, pro Collection gewählte Endpunkte: ein Ollama, das einbettet, ein OpenAI-kompatibles Gateway mit seinem Vault-Schlüssel, ein OCR-Sidecar für LiteParse.",
     "addServer": "Server hinzufügen",
-    "failedLoadLocalServices": "Lokale Dienste konnten nicht geladen werden",
-    "localServiceKind": "Art",
-    "embeddingServer": "Embedding-Server (Ollama)",
+    "failedLoadServiceConnections": "Dienstverbindungen konnten nicht geladen werden",
+    "serviceConnectionKind": "Art",
+    "embeddingServer": "Embedding-Server",
     "ocrServer": "OCR-Server (LiteParse)",
     "address": "Adresse",
     "addressHint": "Die Wurzel, unter der der Dienst antwortet. Die OpenAI-kompatible Wurzel von Ollama endet auf /v1; die eines OCR-Servers ist seine Basis.",
@@ -4391,7 +4487,75 @@
     "embeddingEndpoint": "Endpunkt",
     "embeddingEndpointHint": "Leer lassen für die globale OpenRouter-API oder eine regionale URL wie https://eu.openrouter.ai/api/v1 eingeben. EU-Routing erfordert einen passenden OpenRouter-Tarif; ZDR wird separat bei OpenRouter konfiguriert.",
     "noConnectorsAvailable": "Keine Quell-Konnektoren verfügbar. Ein Administrator kann einen Konnektor für diese Installation aktivieren.",
-    "parsedSnapshotOnly": "Importierter geparster Text. Die Originaldatei wurde nicht beigefügt."
+    "parsedSnapshotOnly": "Importierter geparster Text. Die Originaldatei wurde nicht beigefügt.",
+    "apiStyle": "API-Stil",
+    "apiStyleOllama": "Ollama",
+    "apiStyleOpenAICompatible": "OpenAI-kompatibel",
+    "apiStyleLiteparse": "LiteParse",
+    "apiStyleDocling": "Docling Serve",
+    "doclingAddressExample": "http://docling:5001",
+    "documentParserServer": "Dokumentenparser (Docling)",
+    "testConnection": "Verbindung testen",
+    "doclingTestOk": "Docling Serve {version} hat geantwortet.",
+    "doclingTestKeyRefused": "Docling Serve hat den Schlüssel abgelehnt.",
+    "doclingTestKeyRequired": "Dieser Docling Serve verlangt einen Schlüssel. Wählen Sie oben einen aus.",
+    "doclingTestUnreachable": "Unter dieser Adresse antwortet nichts.",
+    "doclingTestNotDocling": "Es hat etwas geantwortet, aber es ist kein Docling Serve.",
+    "parserDocling": "Docling",
+    "parserDoclingHint": "Ihr eigener Docling Serve. Behält Layout, Tabellen und Seiten.",
+    "doclingConnection": "Docling-Verbindung",
+    "doclingConnectionHint": "Der Docling Serve, über den diese Sammlung konvertiert. Er gehört der Sammlung: Ein Upload kann keinen anderen wählen.",
+    "doclingLanguages": "OCR-Sprachen",
+    "doclingLanguagesHint": "Zweibuchstabige Codes wie „de“ oder „en“, bis zu {max}. Leer lassen für den Standard von Docling. Mit Enter hinzufügen.",
+    "doclingLanguagePlaceholder": "de, en",
+    "doclingLanguageInvalid": "Sprachcodes haben zwei Buchstaben, etwa „de“ oder „en“.",
+    "removeLanguage": "{code} entfernen",
+    "doclingPreset": "OCR-Preset",
+    "doclingPresetHint": "Welche OCR-Engine Docling nutzt: auto, easyocr, rapidocr oder tesseract. Es funktionieren nur Engines, die auf Ihrem Docling Serve installiert sind.",
+    "tableMode": "Tabellenmodus",
+    "tableModeAccurate": "Genau",
+    "tableModeAccurateHint": "Langsamer, bildet komplexe Tabellen treuer ab.",
+    "tableModeFast": "Schnell",
+    "tableModeFastHint": "Schneller, mit einfacherer Tabellenrekonstruktion.",
+    "whereDoclingStops": "Wo Docling aufhört. Das begrenzt die Kosten eines Dokuments – das Zeitlimit begrenzt nur das Warten.",
+    "howLongDoclingMay": "Wie lange die Plattform bei einem Dokument auf Docling wartet. Sie hört nach 3000 Sekunden auf zu warten, auch wenn ein höherer Wert gesetzt ist, damit die Ablehnung vor dem Limit des Jobs kommt; Docling selbst wird nicht angehalten.",
+    "problemDoclingLanguages": "OCR-Sprachen sind zweibuchstabige Codes, höchstens {max}.",
+    "problemDoclingPreset": "Das OCR-Preset besteht aus Kleinbuchstaben, Ziffern, „-“ und „_“, bis zu 64 Zeichen.",
+    "connectionKey": "Vault-Schlüssel",
+    "connectionKeyHint": "Wird mit jeder Anfrage gesendet. Wähle einen Schlüssel aus dem Vault deiner Organisation oder füge hier einen hinzu.",
+    "connectionHasKey": "Vault-Schlüssel",
+    "deploymentWideKeyless": "Eine deploymentweite Verbindung kann keinen Schlüssel halten. Registriere eine Organisationsverbindung, um einen zu verwenden.",
+    "editServer": "Server bearbeiten",
+    "testSettings": "Testen",
+    "testingSettings": "Wird getestet …",
+    "testCost": "{count, plural, =0 {Keine Embedding-Aufrufe} one {Bis zu # Embedding-Aufruf} other {Bis zu # Embedding-Aufrufe}}. Kann Provider-Token verbrauchen; Aufrufe mit Schlüssel zählen zum Monatsbudget der Organisation.",
+    "probePassed": "{count, plural, =0 {Noch nichts gespeichert, also kann nichts brechen} one {# Wissensbasis behält ihre Vektoren} other {# Wissensbasen behalten ihre Vektoren}}",
+    "probeOutcome": {
+      "passed": "Bestanden",
+      "no_chunks": "Noch nichts gespeichert, also kann nichts brechen",
+      "unreachable": "Der Endpunkt war nicht erreichbar",
+      "key_refused": "Der Endpunkt hat den Schlüssel abgelehnt",
+      "model_unknown": "Der Endpunkt kennt dieses Modell nicht oder lieferte keinen Vektor",
+      "wrong_width": "Der Endpunkt antwortet mit einer anderen Vektorbreite",
+      "vectors_differ": "Der Endpunkt liefert andere Vektoren als die gespeicherten"
+    },
+    "probeFailedAdvice": "Erstelle für diese Einstellungen eine neue Wissensbasis.",
+    "saveWithoutTest": "Ohne Test speichern",
+    "unverifiedTitle": "Ohne Test speichern?",
+    "unverifiedBody": "Die Suche bricht, wenn der neue Endpunkt ein anderes Modell bereitstellt, und ab jetzt aufgenommene Dokumente erhalten Vektoren vom neuen Endpunkt.",
+    "unverifiedConfirm": "Trotzdem speichern",
+    "unverifiedAffected": "{count, plural, one {# Wissensbasis ist betroffen.} other {# Wissensbasen sind betroffen.}}",
+    "openaiCompatibleAddressExample": "https://gateway.example.com/v1",
+    "customModel": "Modell",
+    "customModelHint": "Der Modellname genau so, wie der Endpunkt ihn erwartet.",
+    "measuredWidth": "{dim, plural, one {Gemessene Breite: # Dimension} other {Gemessene Breite: # Dimensionen}}",
+    "modelTestedAgainstStored": "Modell, mit dem die gespeicherten Vektoren erzeugt wurden. Ein anderes Modell ist erlaubt, wird aber gegen die gespeicherten Chunks getestet.",
+    "testCostUnavailable": "Wie viele Proben der Test macht, ließ sich nicht lesen.",
+    "tested": "Getestet",
+    "blockedMissingSettings": "Fülle zuerst die fehlenden Einstellungen aus.",
+    "blockedRunTest": "Führe zuerst den Test aus; Speichern wird frei, sobald er besteht.",
+    "deploymentWideCollection": "Jede Organisation (deploymentweit)",
+    "deploymentWideCollectionHint": "Gehört dem Deployment, nicht einer Organisation: Jede Organisation kann sie durchsuchen. Sie kann nur deploymentweite Verbindungen und Provider ohne Schlüssel nutzen, keine Vault-Schlüssel."
   },
   "knowledgeBases": {
     "active": "Aktiv",
@@ -4466,7 +4630,17 @@
       "download": "Desktop-App herunterladen",
       "dismiss": "In 14 Tagen erinnern"
     },
-    "signInAgain": "Erneut anmelden"
+    "signInAgain": "Erneut anmelden",
+    "sidebarPromotions": {
+      "title": "Erste Schritte",
+      "carousel": "Karussell",
+      "slide": "Folie",
+      "position": "{current} von {total}",
+      "previous": "Vorherige Karte",
+      "next": "Nächste Karte",
+      "pause": "Rotation pausieren",
+      "resume": "Rotation fortsetzen"
+    }
   },
   "legal": {
     "acceptAll": "Alle akzeptieren",
@@ -4787,8 +4961,8 @@
     "cardYoursAndOrganizations": "Ihres und das der Organisation",
     "accountActions": "Mehr für {name}",
     "watch": "Beobachten",
-    "trustReadOnlyHints": "Evals Tools aufrufen lassen, die dieser Server als nur lesend markiert",
-    "trustReadOnlyHintsHint": "Evals halten jeden Aufruf eines Produktionsservers an, solange Sie ihm nicht vertrauen: Die Markierung „nur lesend“ ist die eigene Angabe des Servers. {count, plural, =0 {Kein Tool hier beansprucht sie.} =1 {1 Tool hier beansprucht sie.} other {# Tools hier beanspruchen sie.}}",
+    "trustReadOnlyHints": "Evals Tools aufrufen lassen, die dieser Server als nur lesend und geschlossen (closed-world) markiert",
+    "trustReadOnlyHintsHint": "Evals halten jeden Aufruf eines Produktionsservers an, solange Sie ihm nicht vertrauen, und führen dann nur Tools aus, die er als nur lesend und geschlossen (closed-world) markiert – sie erreichen nichts außer diesem Server. Beide Markierungen sind die eigene Angabe des Servers. {count, plural, =0 {Kein Tool hier gibt an, nur zu lesen.} =1 {1 Tool hier gibt an, nur zu lesen.} other {# Tools hier geben an, nur zu lesen.}}",
     "googleOAuthClientRequired": "Google benötigt vor dem Verbinden eine Client-ID und ein Client-Secret aus Google Cloud.",
     "googleOAuthSetupGuide": "Google-Einrichtungsanleitung öffnen",
     "oauthRequiredClient": "OAuth-Client in Google Cloud",
@@ -5377,7 +5551,7 @@
       },
       "org-assistant": {
         "title": "Der AI Architect",
-        "body": "Schalten Sie den Assistenten der Organisation ein oder aus und legen Sie seine Begrüßung fest. Name, Modell und Wissen bearbeiten Sie im Agent Builder, wie bei jedem Agent."
+        "body": "Schalte den AI Architect für die Organisation ein oder aus. Modell, Anweisungen und Wissen bearbeitest du wie bei anderen Agenten unter Agents."
       },
       "org-members": {
         "title": "Wer dabei ist",
@@ -5511,9 +5685,9 @@
         "title": "Mit einer Vorlage beginnen",
         "body": "Achtundzwanzig fertige Agents nach Branche. Beim Installieren entsteht ein Entwurf, dessen Skills bereits gebunden sind."
       },
-      "knowledge-local-services": {
-        "title": "Lokale Dienste",
-        "body": "Server in Ihrem eigenen Netz: Registrieren Sie ein Ollama, das ohne Schlüssel einbettet, oder einen OCR-Server für LiteParse, und wählen Sie pro Collection einen – so kann eine Wissensdatenbank vollständig auf Ihrer eigenen Hardware bleiben."
+      "knowledge-service-connections": {
+        "title": "Dienstverbindungen",
+        "body": "Dienstverbindungen: Embedding- und OCR-Endpunkte – ein Ollama, ein OpenAI-kompatibles Gateway mit seinem Vault-Schlüssel, ein OCR-Server – einmal registriert und pro Collection gewählt."
       },
       "artifacts-list": {
         "title": "Veröffentlichte Seiten",
@@ -5704,6 +5878,10 @@
         "title": "Nach Abteilung",
         "body": "Schränken Sie die Liste auf das ein, was eine Gruppe bekommen hat. Eine Gruppe entscheidet, wen etwas erreicht, und gruppiert damit auch die Liste."
       },
+      "skills-arrange": {
+        "title": "Bibliothek anordnen",
+        "body": "Zeigen Sie Skills nach dem Agenten, der sie nutzt, nach Herkunft oder nach Kategorie. Die Anordnung ändert nichts daran, wer einen Skill sieht."
+      },
       "context-groups": {
         "title": "Nach Abteilung",
         "body": "Schränken Sie die Liste auf das ein, was eine Gruppe bekommen hat. Eine Gruppe entscheidet, wen etwas erreicht, und gruppiert damit auch die Liste."
@@ -5743,6 +5921,14 @@
       "chat-visual": {
         "title": "Zeichnungen",
         "body": "Ein Agent mit Visuals zeichnet hier Diagramme, Erklärungen und 3D-Szenen, live während er sie schreibt. Öffnen Sie eine im Vollbild, laden Sie sie herunter, fragen Sie danach oder speichern Sie sie als App mit einem Link zum Teilen."
+      },
+      "chat-workspace-tabs": {
+        "title": "Ein Arbeitsbereich neben deinem Chat",
+        "body": "Wechsle hier zwischen Visualisierungen, Browser und Dateien. Die ausgewählte Seite und Datei bleiben beim Wechsel der Tabs geöffnet. Vergrößere den Arbeitsbereich oder schließe ihn, um zum Gespräch zurückzukehren."
+      },
+      "chat-visual-workspace": {
+        "title": "Eine Seite neben dem Chat",
+        "body": "Öffnen Sie eine Visualisierung im verstellbaren Seitenbereich und nutzen Sie sie während des Chats. Wechseln Sie zwischen Vorschau und Code, öffnen Sie das Vollbild oder schließen Sie den Bereich, ohne die Steuerelemente zurückzusetzen."
       },
       "chat-voice-call": {
         "title": "Mit dem Agent sprechen",
@@ -6078,11 +6264,11 @@
       },
       "project-tracking": {
         "title": "Projekt im Blick behalten",
-        "body": "Prüfen Sie einen veröffentlichten Quellagenten und seine Konten und veröffentlichen Sie anschließend ausdrücklich einen privaten Projektbegleiter mit Aufgabentabelle und normaler Projektroutine."
+        "body": "Öffnen Sie Optionen der Aufgabentabelle neben Aufgabentabelle und wählen Sie Aufgaben automatisch aktualisieren. Prüfen Sie den veröffentlichten Quellagenten und seine Konten, bevor Sie ausdrücklich einen privaten Tracker zur geplanten Aktualisierung derselben Tabelle veröffentlichen."
       },
       "flow-project-tracker-create": {
         "title": "Projektbegleiter einrichten?",
-        "body": "Prüfen Sie einen bearbeitbaren veröffentlichten Agenten und seine Konten und veröffentlichen Sie dann ausdrücklich einen privaten Projektbegleiter mit Aufgabentabelle und geplanten Prüfungen."
+        "body": "Öffnen Sie Optionen der Aufgabentabelle und wählen Sie Aufgaben automatisch aktualisieren. Prüfen Sie einen bearbeitbaren veröffentlichten Agenten und seine Konten und veröffentlichen Sie dann ausdrücklich einen privaten Tracker mit geplanten Prüfungen der Projekttabelle."
       },
       "channels-phone": {
         "title": "Telefonrouting einrichten",
@@ -6335,6 +6521,14 @@
       "project-resources": {
         "title": "Zusammengehörige Ressourcen bündeln",
         "body": "Verknüpfe vorhandene Agenten, Workflows, Apps und Tabellen, ohne ihre Berechtigungen zu ändern. Öffne sie hier oder wähle einen verknüpften Workflow als Einstiegspunkt des Projekts."
+      },
+      "skills-import": {
+        "title": "Paket importieren",
+        "body": "Wähle einen Skill-Ordner oder ein ZIP mit SKILL.md. Dateien und Metadaten bleiben erhalten. Der Import führt keine Skripte, Tests oder Installationen aus."
+      },
+      "chat-environments": {
+        "title": "Live-Umgebung öffnen",
+        "body": "Browser oder Desktop im Workspace-Menü auswählen und die Umgebung öffnen. Du kannst sie vor einer Anfrage an den Agent nutzen. Das Schließen des Panels behält die Sitzung; Umgebung beenden gibt sie frei."
       }
     },
     "chooseLanguage": "Sprache",
@@ -6751,7 +6945,7 @@
       "mcpServersDescription": "Externe Tools, die dieser Agent aufrufen darf, aus <servers>dem Katalog</servers>. Binden Sie einen Server an das Konto der Organisation, das für alle antwortet, oder an das eigene Konto jeder Person, das sie selbst verbindet. Die Verbindung eines Mitglieds wird nie direkt gebunden – ein Agent, den alle ausführen, kann nicht davon abhängen, wessen Credential dahintersteht.",
       "model": "Modell",
       "modelSettings": "Modelleinstellungen",
-      "monthlyUsd": "Monatlich (USD)",
+      "monthlyUsd": "Monatlich ({currency})",
       "monthlyUsdHint": "Runs stoppen, sobald dieser Agent in einem Kalendermonat so viel ausgegeben hat. Leer lässt nur das Limit der Organisation gelten.",
       "moreActions": "Weitere Aktionen",
       "n100Default": "100 (Standard)",
@@ -7063,7 +7257,6 @@
       "bases": "Datenbanken",
       "chooseFiles": "Dateien wählen",
       "chunkCount": "{count, plural, =1 {1 Chunk} other {# Chunks}}",
-      "clear": "Leeren",
       "collectionItselfUnchanged": "Die Collection selbst bleibt unverändert.",
       "configureConnectorsAtWorkspace": "Konfigurieren Sie Konnektoren auf Organisationsebene, um aus externen Quellen zu synchronisieren.",
       "connect": "Verbinden",
@@ -7116,9 +7309,8 @@
       "nothingHasBeenUploaded": "Hier wurde noch nichts hochgeladen.",
       "openCollection": "{name} öffnen",
       "overridden": "überschrieben",
-      "parseOptions": "Parse-Optionen",
       "parsedWith": "Geparst mit",
-      "parsedWithOverrides": "Die nächsten Dateien, die Sie hinzufügen, werden mit <strong>{count, plural, =1 {1 Abweichung} other {# Abweichungen}}</strong> von den Einstellungen dieser Collection geparst und sagen das auch.",
+      "parsedWithOverrides": "Die nächsten Dateien, die Sie hinzufügen, und gescheiterte Dateien, die Sie erneut versuchen, werden mit <strong>{count, plural, =1 {1 Abweichung} other {# Abweichungen}}</strong> von den Einstellungen dieser Collection geparst und sagen das auch.",
       "previewFile": "Datei ansehen",
       "previewFile2": "Datei ansehen",
       "processing": "Wird verarbeitet …",
@@ -7163,7 +7355,12 @@
       "retryDocument": "Wiederholen",
       "indexDocumentNamed": "{name} indexieren",
       "retryDocumentNamed": "{name} erneut versuchen",
-      "indexDocumentHint": "Verwendet die Einstellungen dieser Wissensbasis und kann Anbieterkosten verursachen."
+      "indexDocumentHint": "Indexiert das Original mit den aktuellen Wissensbasis-Einstellungen und ausstehenden Upload-Änderungen. Provider-Kosten können anfallen.",
+      "revertPendingChanges": "Zurücksetzen",
+      "settings": "Einstellungen",
+      "uploadOptions": "Upload-Optionen",
+      "uploadWithDifferentSettings": "Mit anderen Einstellungen hochladen…",
+      "retryDocumentHint": "Wiederholt mit den aktuellen Wissensbasis-Einstellungen und ausstehenden Upload-Änderungen. Provider-Kosten können anfallen."
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "Der Katalog ist ins Backend kompiliert, und niemand hat einen eigenen Server hinzugefügt. Eine leere Liste hier heißt, dass dieses Deployment keinen mitliefert.",
@@ -7908,6 +8105,13 @@
     },
     "skills": {
       "allCategories": "Alle Kategorien",
+      "arrange": {
+        "agent": "Nach Agent",
+        "origin": "Nach Herkunft",
+        "category": "Nach Kategorie",
+        "none": "Ohne Abschnitte"
+      },
+      "arrangeBy": "Anordnen nach",
       "askAdministratorAccessSkills": "Bitten Sie einen Administrator um Zugriff auf die Skills.",
       "categoryCount": "{count, plural, =1 {1 Kategorie} other {# Kategorien}}",
       "clearFilter": "Filter zurücksetzen",
@@ -7922,6 +8126,17 @@
       "nobodyHasWrittenSkill": "Noch hat niemand einen Skill für diese Organisation geschrieben.",
       "recentlyUpdated": "Kürzlich aktualisiert",
       "searchSkills": "Skills suchen …",
+      "section": {
+        "drafted": "Nur im Entwurf",
+        "unused": "Von keinem Agenten genutzt, den Sie sehen",
+        "org": "Organisation",
+        "private": "Privat",
+        "platform": "Mitgeliefert · Plattform",
+        "gallery": "Mitgeliefert · {industry}",
+        "uncategorized": "Ohne Kategorie"
+      },
+      "showAll": "{count, plural, =1 {1 anzeigen} other {Alle # anzeigen}}",
+      "showFewer": "Weniger anzeigen",
       "skillCount": "{count, plural, =1 {1 Skill} other {# Skills}}",
       "skillKnowHowWritten": "Ein Skill ist Know-how, einmal geschrieben und von jedem Agent geteilt, der es braucht – wie Rückerstattungen gehandhabt werden, was der Hausstil ist. Bearbeiten Sie ihn hier, und jeder daran gebundene Agent ist beim nächsten Run auf dem Stand.",
       "skills": "Skills",
@@ -8780,9 +8995,9 @@
       "settingsLimitsHint": "Was seine Läufe gleichzeitig tun und ausgeben dürfen. Jeder Schritt behält seine eigenen Grenzen - darunter die Kostenobergrenze eines Agentenschritts -, und diese gelten darüber.",
       "settingsConcurrent": "Gleichzeitig laufende Läufe",
       "settingsConcurrentHint": "Ein Start darüber hinaus wird abgelehnt, bis einer endet: Der Absender eines Webhooks wird um einen erneuten Versuch gebeten, ein Zeitplan wartet auf seinen nächsten Takt, und eine Tabelle oder ein Postfach versucht es erneut.",
-      "settingsRunBudget": "Höchstens, was ein Lauf ausgeben darf (USD)",
+      "settingsRunBudget": "Höchstens, was ein Lauf ausgeben darf ({currency})",
       "settingsRunBudgetHint": "Ein Lauf, der es erreicht, hält vor seinem nächsten Schritt an, als außerhalb des Budgets.",
-      "settingsMonthlyBudget": "Höchstens, was seine Läufe im Monat ausgeben dürfen (USD)",
+      "settingsMonthlyBudget": "Höchstens, was seine Läufe im Monat ausgeben dürfen ({currency})",
       "settingsMonthlyBudgetHint": "Über den Kalendermonat in UTC gezählt, Testläufe eingeschlossen. Ist es erreicht, startet kein Lauf, bis der Monat wechselt oder das Budget erhöht wird.",
       "settingsNoLimit": "Keine Grenze",
       "stats": {
@@ -8983,7 +9198,7 @@
       "accessHint": "Zugangsregeln, Startorganisation und Nutzungslimits festlegen.",
       "notices": "Mitteilungen & Wartungsmodus",
       "noticesHint": "Eine Ankündigung anzeigen oder den Wartungsbildschirm einrichten.",
-      "services": "Sprache und Mobilgerät",
+      "services": "Dienste und Kosten",
       "servicesHint": "Audioaufzeichnung und Push-Benachrichtigungen für die mobile App.",
       "operations": "Updates & Diagnose",
       "operationsHint": "Anwendungsupdates und Bereitstellungsdiagnose."
@@ -9871,7 +10086,25 @@
       "testOptional": "Vor dem Anwenden testen (optional)",
       "hiddenAgents": "{count, plural, one {# weiterer Agent} other {# weitere Agenten}}",
       "testOptionalShort": "Test (optional)",
-      "compareShort": "Änderungen"
+      "compareShort": "Änderungen",
+      "quotesCredential": "Diese Änderung zitiert ein Credential und kann weder übernommen noch getestet werden. Verwerfen Sie sie und nehmen Sie die Änderung von Hand vor."
+    },
+    "package": {
+      "title": "Paket importieren",
+      "description": "Wähle einen Skill-Ordner oder ein ZIP mit SKILL.md. Dateien und Metadaten bleiben erhalten. Der Import führt keine Skripte, Tests oder Installationen aus.",
+      "directory": "Ordner wählen",
+      "zip": "ZIP wählen",
+      "limits": "8 MiB pro Datei · 32 MiB pro Paket · 1.024 Dateien.",
+      "reading": "Paket wird gelesen…",
+      "summary": "{count} Ressourcendateien · {size}",
+      "private": "Erstellt einen privaten Skill mit einer vollständigen ersten Version. Vorhandene Skills werden nicht überschrieben.",
+      "apply": "Skill importieren",
+      "cancel": "Abbrechen",
+      "imported": "Skill importiert",
+      "binary": "Binär",
+      "text": "Text",
+      "download": "Datei herunterladen",
+      "binaryHelp": "Binärdateien bleiben unverändert. Lade die Datei herunter oder ersetze sie durch einen Upload."
     }
   },
   "states": {
@@ -9902,7 +10135,7 @@
     "emailAddress": "E-Mail-Adresse",
     "emptyMeansUnlimited": "Leer bedeutet unbegrenzt.",
     "emptyNoLimit": "für kein Limit.",
-    "enterAmountDollarsLeave": "Geben Sie einen Betrag in Dollar ein oder lassen Sie das Feld leer für kein Limit.",
+    "enterAmountDollarsLeave": "Geben Sie einen gültigen Betrag ein oder lassen Sie das Feld für kein Limit leer.",
     "howManyPeople": "Wie viele Personen",
     "inviteEmailed": "An {email} gesendet. Der Link unten ist Ihre eigene Kopie, falls sie nicht ankommt.",
     "inviteLinkLabel": "Einladungslink",
@@ -9913,7 +10146,6 @@
     "inviteWithLink": "Mit einem Link einladen",
     "joinAs": "Beitreten als",
     "joined": "Beigetreten",
-    "limitUsd": "Limit (USD)",
     "manageOrganizations": "Organisationen verwalten",
     "member": "Mitglied",
     "monthlyLimitRemoved": "Monatslimit entfernt",
@@ -10026,7 +10258,7 @@
       "model": "Modell",
       "modelHint": "Nur für Verbesserungsvorschläge aus Gesprächen. Überwachung verwendet das Modell des gewählten Agenten.",
       "modelRequired": "Wählen Sie das Modell, bevor Sie es einschalten.",
-      "label": "Limit pro Person (USD im Monat)",
+      "label": "Limit pro Person ({currency} im Monat)",
       "days": "Tage",
       "timing": "Wann",
       "timingFixed": "Zu einer festen Stunde",
@@ -10037,7 +10269,7 @@
       "save": "Speichern",
       "saved": "Hintergrundeinstellungen gespeichert",
       "off": "Hintergrundfunktionen sind ausgeschaltet",
-      "invalid": "Geben Sie einen Betrag in Dollar ein, 0 oder mehr.",
+      "invalid": "Geben Sie einen nicht negativen Betrag ein.",
       "welcome": "Willkommensnachricht in Chat-Apps",
       "welcomeHint": "Ein neues Mitglied erhält eine Direktnachricht von Ihren Slack-, Teams- und Mattermost-Bots.",
       "welcomeText": "Nachricht",
@@ -10060,7 +10292,7 @@
       "enabled": "Diese Rolle ausführen",
       "model": "Modell",
       "modelHint": "Gewählt, nie voreingestellt: Die Rolle gibt Geld aus, das niemand im Moment angefordert hat.",
-      "budget": "Monatsbudget (USD)",
+      "budget": "Monatsbudget ({currency})",
       "noBudget": "Keine eigene Obergrenze",
       "invalid": "Geben Sie eine Zahl von 0 aufwärts ein.",
       "modelRequired": "Wählen Sie das Modell dieser Rolle, bevor Sie sie einschalten.",
@@ -10631,7 +10863,7 @@
     "noTimeZones": "Keine Zeitzonen gefunden. Versuche eine andere Stadt.",
     "templatesUnavailable": "Keine Vorlagen verfügbar. Du kannst eine eigene Nachricht schreiben.",
     "templatesLoadFailed": "Vorlagen konnten nicht geladen werden. Du kannst trotzdem eine eigene Nachricht schreiben.",
-    "budgetLabel": "Monatsbudget (USD, optional)",
+    "budgetLabel": "Monatsbudget ({currency}, optional)",
     "budgetCreatorOnly": "Nur die Person, die diese Routine angelegt hat, kann ihr Limit anheben oder entfernen, solange sie als diese Person läuft.",
     "budgetHint": "Was diese Routine pro Monat ausgeben darf. Ist es aufgebraucht, pausiert sie und startet am Ersten neu. Es verengt die Limits des Agenten und der Organisation, hebt sie nie an.",
     "budgetPlaceholder": "Kein eigenes Limit",
@@ -11284,6 +11516,14 @@
           "description": "Mit einem Computer verbinden, auf dem computerd läuft. Unten seine genehmigte Adresse und den Zugriffstoken auswählen.",
           "summary": "Dein eigener Computer mit computerd."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Dieser Run"
+        },
+        "conversation": {
+          "label": "Dieses Gespräch"
+        }
       }
     },
     "browser_use": {
@@ -11307,6 +11547,14 @@
           "label": "Dieser Computer (Desktop-App)",
           "summary": "Ein privater Browser auf deinem Computer.",
           "description": "Erfordert eine gekoppelte Desktop-App und die Auswahl des lokalen Browsers in diesem Chat. Deine persönliche Browsersitzung wird nicht geteilt."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Dieser Run"
+        },
+        "conversation": {
+          "label": "Dieses Gespräch"
         }
       }
     },
@@ -11374,7 +11622,8 @@
         "completed": "Ihr Test ist abgeschlossen.",
         "failed": "Ihr Test konnte nicht abgeschlossen werden.",
         "cancelled": "Ihr Test wurde abgebrochen.",
-        "budget_exceeded": "Ihr Test wurde am Budget angehalten."
+        "budget_exceeded": "Ihr Test wurde am Budget angehalten.",
+        "quote": "Ihr Test wurde bei dem von Ihnen akzeptierten Preis angehalten."
       },
       "questions": {
         "ready": "Ihre Testfragen sind geschrieben und warten auf Ihre Prüfung.",
@@ -13251,7 +13500,7 @@
     "addToGroupNothing": "Es gibt nichts, was Sie mit dieser Gruppe teilen können - alles, was Sie bearbeiten dürfen, ist schon hier.",
     "addToGroupLevel": "Sie dürfen",
     "addToGroupShare": "{count, plural, =0 {Teilen} =1 {1 teilen} other {# teilen}}",
-    "monthlyBudget": "Monatliches Budget (USD)",
+    "monthlyBudget": "Monatliches Budget ({currency})",
     "monthlyBudgetHint": "Runs, die Mitglieder dieser Abteilung starten, stoppen, sobald es erreicht ist. Die Leitung und die Administratoren werden bei 80 % benachrichtigt.",
     "noBudget": "Kein Limit",
     "thisMonth": "Dieser Monat",
@@ -13927,6 +14176,12 @@
     "chipGroupsMore": "{names} +{count}"
   },
   "capabilityConfig": {
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Dem Modell ein Bild der Visualisierung zeigen",
+        "description": "Bei der Vorschau einer Visualisierung einen Screenshot zurückgeben. Für Modelle ohne Bilderkennung deaktivieren; der Renderbericht wird weiterhin zurückgegeben."
+      }
+    },
     "browser_use": {
       "cdp_url": {
         "title": "DevTools-Endpunkt",
@@ -13987,6 +14242,14 @@
       "prefer_native_browser": {
         "title": "Nativen lokalen Browser verwenden",
         "description": "Einen eingebetteten nativen Tab für lokales DOM-Browsing verwenden. Für isolierte Chromium-Kompatibilität deaktivieren. Vision sowie Sprach- und Zeitzonenüberschreibungen verwenden Chromium."
+      },
+      "session_lifetime": {
+        "title": "Sitzungsdauer",
+        "description": "Im privaten Webchat die von der Anwendung verwaltete entfernte Umgebung nach einem Run schließen, der sie verwendet, oder zwischen Nachrichten behalten. Gekoppelte lokale Geräte und andere Oberflächen behalten ihr bisheriges Sitzungsverhalten."
+      },
+      "session_idle_seconds": {
+        "title": "Inaktivitätslimit (Sekunden)",
+        "description": "Die von der Anwendung verwaltete entfernte Webchat-Umgebung nach dieser Inaktivität beenden, begrenzt durch die Bereitstellungsrichtlinie. Bloßes Zuschauen verlängert die Sitzung nicht; das Schließen des Panels trennt nur die Ansicht."
       }
     },
     "channel_tools": {
@@ -14517,6 +14780,14 @@
       "preview": {
         "title": "Live-Vorschau",
         "description": "Den Desktop live im Chat zeigen, während der Agent damit arbeitet."
+      },
+      "session_lifetime": {
+        "title": "Sitzungsdauer",
+        "description": "Im privaten Webchat die von der Anwendung verwaltete entfernte Umgebung nach einem Run schließen, der sie verwendet, oder zwischen Nachrichten behalten. Gekoppelte lokale Geräte und andere Oberflächen behalten ihr bisheriges Sitzungsverhalten."
+      },
+      "session_idle_seconds": {
+        "title": "Inaktivitätslimit (Sekunden)",
+        "description": "Die von der Anwendung verwaltete entfernte Webchat-Umgebung nach dieser Inaktivität beenden, begrenzt durch die Bereitstellungsrichtlinie. Bloßes Zuschauen verlängert die Sitzung nicht; das Schließen des Panels trennt nur die Ansicht."
       }
     },
     "phone_calls": {
@@ -14670,7 +14941,14 @@
     "nativeTake": "Übernehmen",
     "nativeCloseTab": "Tab schließen",
     "nativeViewport": "Native Browserseite",
-    "nativeDesktopOnly": "Dieser Tab ist in der gekoppelten Desktop-App geöffnet. Verwende dort den nativen Browser."
+    "nativeDesktopOnly": "Dieser Tab ist in der gekoppelten Desktop-App geöffnet. Verwende dort den nativen Browser.",
+    "youControl": "Du steuerst",
+    "agentControls": "Agent steuert",
+    "otherViewerControls": "Andere Person steuert",
+    "viewOnly": "Nur ansehen",
+    "takingOverShort": "Übernahme…",
+    "openPages": "Geöffnete Browserseiten",
+    "untitledPage": "Unbenannte Seite"
   },
   "remoteAgents": {
     "optionalSettings": "Authentifizierung und Kennung (optional)",
@@ -14860,8 +15138,9 @@
       "sharedWorkspace": "Gemeinsame Projektumgebung"
     },
     "tracking": {
-      "title": "Automatische Projektverfolgung",
-      "description": "Erstellen Sie eine Aufgabentabelle mit gespeicherten Ansichten und veröffentlichen Sie eine private Kopie eines ausgewählten Agenten als geplanten Projektbegleiter.",
+      "options": "Optionen der Aufgabentabelle",
+      "title": "Aufgaben automatisch aktualisieren",
+      "description": "Erstelle einen Agent und eine geplante Routine, die den Fortschritt anhand freigegebener Quellen prüfen und die gemeinsame Aufgabentabelle des Projekts aktualisieren. Du kannst dieselbe Tabelle auch selbst bearbeiten.",
       "audience": "Die Routine handelt in Ihrem Namen und schreibt Berichte in das gemeinsame Projektgespräch. Der Quellagent bleibt unverändert.",
       "baseAgent": "Bearbeitbarer Quellagent",
       "chooseAgent": "Veröffentlichten Agenten wählen",
@@ -15300,7 +15579,8 @@
         "judgeGradedTwice": "Der Bewerter hat dieses Kriterium mehr als einmal bewertet, daher zählt keine der Bewertungen.",
         "judgeUngraded": "Der Bewerter hat für dieses Kriterium keine Note auf der Skala vergeben.",
         "judgeReasonEcho": "Der Bewerter hat das Kriterium wiederholt, statt zu sagen, warum die Antwort es erfüllt.",
-        "judgeCounterUnsupported": "Der Bewerter hat die Antwort als anders als das Gegenbeispiel bestanden, obwohl die Antwort es wiederholt oder der Bewerter nur zitiert hat, was beide sagen."
+        "judgeCounterUnsupported": "Der Bewerter hat die Antwort als anders als das Gegenbeispiel bestanden, obwohl die Antwort es wiederholt oder der Bewerter nur zitiert hat, was beide sagen.",
+        "scriptCallsNotKept": "Ein Skript im Code-Modus hat mehr Aufrufe gemacht, als sein Run behalten hat, daher wurden seine Tool-Aufrufe nicht bewertet."
       },
       "scoreRun": "Gegen einen Fall bewerten",
       "scoreRunBody": "Alle im Dataset konfigurierten Bewertungen auf die Antwort dieses Runs anwenden. Das Ergebnis wird im Dataset gespeichert.",
@@ -16519,7 +16799,7 @@
         "efficiencyHint": "Optionale Grenzen gegenüber der Baseline. Leer wird nichts geprüft.",
         "costRise": "Kosten pro bestandenem Fall dürfen steigen um (%)",
         "p95Rise": "p95-Latenz darf steigen um (%)",
-        "maxRunUsd": "Lauf überspringen, wenn die Gesamtschätzung über ($) liegt",
+        "maxRunUsd": "Lauf überspringen, wenn die Gesamtschätzung über ({currency}) liegt",
         "maxRunUsdHint": "Enthält Wiederholungen und die vorherige Version. Die tatsächlichen Kosten können abweichen; ein laufender Test wird nicht gestoppt.",
         "description": "Notiz",
         "estimateRun": "Ein Lauf: etwa {amount} für {count, plural, =1 {1 Fall} other {# Fälle}}.",
@@ -16654,12 +16934,14 @@
       "dismissAll": "Alle verwerfen",
       "verifyReport": "Was der Assistent zu Ihren Änderungen sagt",
       "skillCreated": "Skill {name} erstellt und zum Entwurf hinzugefügt",
-      "working": "Lese die Runs…"
+      "working": "Lese die Runs…",
+      "checkQuotesCredential": "Ein Vorschlag zitiert ein Credential, daher lassen sich diese Vorschläge nicht prüfen. Entfernen Sie das Credential beim Bearbeiten, wo das geht, oder verwerfen Sie diesen Vorschlag."
     },
     "suggestion": {
       "tool": "Tool {tool}",
       "instructions": "Anweisungen",
       "fromVerify": "Aus der Prüfung Ihrer Änderungen",
+      "reworded": "Im Schritt Änderungen umformuliert",
       "status": {
         "accepted": "In den Entwurf übernommen",
         "dismissed": "Verworfen"
@@ -16671,7 +16953,10 @@
       "accept": "Annehmen",
       "edit": "Bearbeiten",
       "dismiss": "Verwerfen",
-      "undo": "Rückgängig"
+      "undo": "Rückgängig",
+      "quotesCredential": "Dieser Vorschlag zitiert ein Credential und kann so nicht übernommen werden. Entfernen Sie das Credential beim Bearbeiten oder verwerfen Sie den Vorschlag.",
+      "quotesCredentialDismiss": "Dieser Vorschlag zitiert ein Credential und kann nicht übernommen werden. Verwerfen Sie ihn und nehmen Sie die Änderung von Hand vor.",
+      "quotesCredentialReadOnly": "Dieser Vorschlag enthält Zugangsdaten und kann so nicht angenommen werden."
     },
     "field": {
       "editLabel": "Dein Wert",
@@ -16829,7 +17114,8 @@
       "liveHint": "Anwenden wirkt sofort: Jeder Agent, der die Datei liest, liest den neuen Inhalt beim nächsten Run.",
       "expects": "Erwartet: {effect}",
       "applied": "Änderung an {name} angewendet",
-      "discarded": "Änderung an {name} verworfen"
+      "discarded": "Änderung an {name} verworfen",
+      "quotesCredential": "Diese Änderung zitiert ein Credential und kann weder übernommen noch geprüft werden. Verwerfen Sie sie und nehmen Sie die Änderung von Hand vor."
     },
     "describe": {
       "open": "Mit {name} erstellen"
@@ -16854,6 +17140,7 @@
         "no_change": "Sie ändert nichts",
         "unknown_tool": "Der Agent hat kein solches Tool",
         "invalid_tool_change": "Ein Tool-Name oder eine Beschreibung, die der Agent nicht verwenden kann",
+        "hidden_characters": "Sein Text enthält Zeichen, die ein Mensch nicht sehen kann",
         "not_a_target": "Nichts, was der Assistent ändern darf",
         "operation": "Keine Änderung, die diese Einstellung erlaubt",
         "loosens_approval": "Sie würde die Freigabe lockern",
@@ -16861,6 +17148,7 @@
         "unknown_capability": "Keine solche Capability",
         "invalid_config": "Ihre Einstellungen sind ungültig",
         "does_not_apply": "Sie passt nicht zum Entwurf",
+        "reaches_network": "Sie fügt eine Capability hinzu, die über dieses Deployment hinausreicht. Fügen Sie sie im Builder hinzu, wo ihre Grenzen festgelegt werden",
         "not_grantable": "Sie fügt etwas hinzu, das die anfragende Person nicht gewähren darf",
         "dismissed_before": "Jemand hat sie schon verworfen",
         "unsupported": "Sagt, die Änderung sei belegt, ohne einen prüfbaren Beleg",
@@ -17031,6 +17319,9 @@
     "gapsLabel": "{count, plural, =1 {1 offene Wissenslücke} other {# offene Wissenslücken}}"
   },
   "improvement": {
+    "acceptChanged": "Der Versuch, den Sie annehmen wollten, hat sich geändert, seit Sie ihn angesehen haben. Die Sitzung wurde aktualisiert; sehen Sie ihn erneut an.",
+    "unmeasuredEdits": "Der Entwurf enthielt Änderungen von vor dem Start dieser Sitzung. Die Veröffentlichung gibt auch sie frei, und keine Prüfung hat sie gemessen.",
+    "publishUnmeasuredEdits": "Diese Änderungen ebenfalls veröffentlichen",
     "attributionUnconfirmed": "Änderung {number}: Das Ergebnis ist nicht bestätigt.",
     "includeInTest": "Im Test berücksichtigen",
     "includeChange": "Änderung {number} im Test berücksichtigen",
@@ -17085,7 +17376,7 @@
     "estimating": "Zeit und Kosten werden geschätzt…",
     "sessionQuote": "Bis zu {cost} (Schätzung), um {answers, plural, one {# ausgewähltes Quellbeispiel} other {# ausgewählte Quellbeispiele}} zu sortieren. Jeder Versuch danach dauert etwa {minutes, plural, one {# Minute} other {# Minuten}} und kostet ungefähr {perRound}; er wird erneut bepreist, bevor Sie ihn drücken, und das Limit von {limit} gilt für die ganze Sitzung.",
     "evidence": "Auf Grundlage von {count, plural, one {# Antwort} other {# Antworten}} mit Feedback.",
-    "budget": "Ausgabenlimit der Sitzung (USD)",
+    "budget": "Ausgabenlimit der Sitzung ({currency})",
     "start": "Verbesserung starten",
     "working": "In Bearbeitung…",
     "loading": "Ergebnis wird geladen…",
@@ -17682,7 +17973,7 @@
       "search": "Varianten suchen",
       "searchHint": "Der Helfer schreibt viele Fassungen der Anweisungen und bewertet jede an den Trainingsfragen. Die beste kommt zu den Änderungen und wird dann wie jeder Versuch geprüft.",
       "tooFew": "Die Suche braucht mindestens {needed} Trainingsfragen; dieses Dataset hat {count, plural, =0 {keine} =1 {eine} other {#}}. Fügen Sie Fragen hinzu oder verbessern Sie Schritt für Schritt.",
-      "budget": "Budget der Suche (USD)",
+      "budget": "Suchbudget ({currency})",
       "budgetHint": "Die Suche endet, sobald die nächste Variante nicht mehr passt. Sie kann das Budget höchstens um die eine gerade bewertete Variante überschreiten.",
       "gradingModel": "Modell, das die Varianten bewertet",
       "datasetJudge": "Das Modell des Bewerters im Dataset",
@@ -17732,7 +18023,9 @@
       "invalid": "Der Test konnte die Versionen nicht zuverlässig vergleichen. Prüfen Sie ihn zuerst.",
       "noExamples": "Es gibt keine geänderten Antworten. Öffnen Sie den vollständigen Test für alle Fragen."
     },
-    "permissionRuns": "Eine Improve-Sitzung zu lesen braucht runs:view, das diese Rolle nicht hat. Bitten Sie einen Owner der Organisation um Zugriff."
+    "permissionRuns": "Eine Improve-Sitzung zu lesen braucht runs:view, das diese Rolle nicht hat. Bitten Sie einen Owner der Organisation um Zugriff.",
+    "changeQuotesCredential": "Diese Änderung zitiert ein Credential und kann weder getestet noch übernommen werden. Lassen Sie sie weg.",
+    "selectionQuotesCredential": "Eine gewählte Änderung zitiert ein Credential. Lassen Sie sie weg, um die übrigen zu testen."
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",
@@ -17826,8 +18119,8 @@
     "calls_per_hour": "Anrufe in der letzten Stunde",
     "calls_per_day": "Anrufe in den letzten 24 Stunden",
     "max_concurrent": "Gleichzeitige Anrufe",
-    "daily_budget_usd": "Tägliches Telefonbudget (USD)",
-    "price_per_minute_usd": "Konservativer Preis pro Verbindung/Minute (USD)",
+    "daily_budget_usd": "Tägliches Telefonbudget ({currency})",
+    "price_per_minute_usd": "Konservativer Preis je Abschnitt und Minute",
     "costHint": "Berücksichtige einen Puffer für Twilio-Gebühren und Ziele. Volle Minuten und mögliche Weiterleitungen werden vor dem Wählen reserviert. Modellbudgets gelten separat; Schätzungen sind keine Rechnung.",
     "transferTargets": "Erlaubte Weiterleitungskontakte",
     "saveRouting": "Telefonrouting speichern",
@@ -18091,6 +18384,8 @@
     "connectAnother": "Konto hinzufügen",
     "disconnect": "Trennen",
     "loadFailed": "Ihre Abonnement-Konten konnten nicht geladen werden",
+    "disabledTitle": "Abonnements sind hier nicht aktiviert",
+    "disabledDescription": "Für diese Installation ist kein Abonnement-Gateway konfiguriert. Bitten Sie die Administration, es zu aktivieren, bevor Sie ein persönliches Abonnement verbinden.",
     "retry": "Erneut versuchen",
     "dialogTitle": "{name} verbinden",
     "deviceHelp": "Öffnen Sie die Anmeldeseite, geben Sie diesen Code ein und bestätigen Sie. Dieses Fenster schließt sich von selbst.",
@@ -18434,7 +18729,7 @@
       "budgetTitle": "Welches Monatslimit passt für Sie?",
       "budgetGuide": "Sie kontrollieren die KI-Nutzung. Wählen Sie einen Startbetrag oder bewegen Sie den Regler. Gespeichert wird erst beim Weitergehen.",
       "unlimited": "Ohne Limit",
-      "budgetSlider": "Monatsbudget in US-Dollar",
+      "budgetSlider": "Regler für das Monatsbudget ({currency})",
       "budgetInvalid": "Wähle einen positiven Betrag oder kein Limit.",
       "budgetHint": "Begrenzt die erfasste KI-Nutzung der Agenten in der Organisation. Kein Abo und kein Guthaben. Der Anbieter rechnet separat ab.",
       "workspaceReadyTitle": "Bereit für die erste Aufgabe",
@@ -18546,6 +18841,46 @@
       "workflowBody": "Verknüpfe Werkzeuge mit benannten Funktionen und rufe sie aus Python auf. Jede Aktion behält ihre Berechtigungen, Freigaben und Ausführungsprotokolle.",
       "organizationTitle": "Organisationsvorgaben festlegen",
       "organizationBody": "Konfiguriere Navigation, Kataloge, Dashboard und Hinweise je Rolle sowie die Kostensichtbarkeit. Mitglieder können erlaubte Optionen persönlich anpassen."
+    },
+    "scopes": {
+      "progress": "Einrichtungsfortschritt",
+      "stages": "Einrichtungsschritte",
+      "position": "Phase {current} von {total}",
+      "completed": "Abgeschlossen",
+      "saveFailed": "Dein Einrichtungsfortschritt konnte nicht gespeichert werden. Versuche diesen Schritt erneut.",
+      "allDoneTitle": "Die Einrichtung ist abgeschlossen",
+      "allDoneHint": "Die gemeinsame Einrichtung ist abgeschlossen und dein persönlicher Fortschritt bleibt erhalten. Überprüfe eine Phase oder öffne die App.",
+      "openApp": "App öffnen",
+      "workspaceTitle": "Organisation erstellen oder auswählen",
+      "workspaceHint": "Die Bereitstellung ist eingerichtet. Wähle einen Unternehmensbereich für die gemeinsamen Standardwerte und fahre dann mit deiner persönlichen Einrichtung fort.",
+      "loadFailed": "Einrichtung konnte nicht geladen werden",
+      "deployment": {
+        "title": "Bereitstellung einrichten",
+        "hint": "Gilt für diese gesamte Bereitstellung. Ein Anwendungsadministrator schließt diese Phase einmal ab.",
+        "short": "Installation"
+      },
+      "organization": {
+        "title": "Organisation einrichten",
+        "hint": "Gilt für diese Organisation. Eine berechtigte Person schließt diese Phase für das Team ab.",
+        "short": "Organisation"
+      },
+      "personal": {
+        "title": "Deine persönliche Einrichtung",
+        "hint": "Dein Profil, deine Verbindungen und Einstellungen. Dieser Fortschritt gehört dir.",
+        "short": "Persönlich"
+      },
+      "modelsShared": "Optionaler gemeinsamer Anbieterzugriff gehört mit Organisationssichtbarkeit in den Vault. Dieser Schritt ändert nicht deine persönliche Modellauswahl.",
+      "toolsShared": "Optionaler gemeinsamer Werkzeugzugriff verwendet MCP-Verbindungen der Organisation. Verbinde private Konten später in deiner persönlichen Einrichtung.",
+      "openVault": "Vault öffnen",
+      "openConnections": "MCP-Verbindungen öffnen",
+      "returnToSetup": "Die Seite wird in einem neuen Tab geöffnet. Kehre danach zu dieser Einrichtung zurück.",
+      "resourcesPermission": "Deine Berechtigungen erlauben das Anzeigen dieser gemeinsamen Ressourcen nicht. Du kannst fortfahren; eine berechtigte Person kann sie später einrichten.",
+      "sharedReview": "Diese gemeinsame Phase ist abgeschlossen. Dein geöffnetes Formular bleibt zur Überprüfung verfügbar. Fahre fort, wenn du es verlassen möchtest.",
+      "continueReview": "Zur nächsten Phase",
+      "stageCompleted": "{stage} — Abgeschlossen",
+      "continueShort": "Weiter",
+      "skipShort": "Überspringen",
+      "finishShort": "Fertig"
     }
   },
   "skillImprovement": {
@@ -18675,7 +19010,7 @@
       "continue": "Fortsetzen",
       "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diese Linie.} other {# weitere Agents, die Sie nicht sehen, nutzen diese Linie.}}",
       "price": "Bis zu {cost} (Schätzung) bis zum ersten Vorschlag; jeder weitere Versuch etwa {perRound}, höchstens {rounds, plural, =1 {1 Versuch} other {# Versuche}}. Das Limit von {limit} deckelt die ganze Sitzung.",
-      "limit": "Ausgabenlimit für die ganze Sitzung (USD)",
+      "limit": "Ausgabenlimit für die gesamte Sitzung ({currency})",
       "limitHint": "Ausgefüllt für den ersten Vorschlag und jeden Versuch, den die Sitzung machen kann. Senke es, um früher aufzuhören; die Sitzung hält vor einem Schritt an, der es überschreiten würde.",
       "belowEstimate": "Das Limit liegt unter dem, was die Sitzung bis zum ersten Vorschlag kostet, {cost}. Erhöhe es mindestens auf diesen Betrag.",
       "unaffordable": "Das Budget der Organisation deckt das nicht.",
@@ -18688,8 +19023,9 @@
     "understand": {
       "title": "Verstehen",
       "loading": "Lese, was schiefging…",
-      "summary": "{count, plural, =0 {Kein Problem mit dem Skill gefunden} =1 {1 Problem mit dem Skill} other {# Probleme mit dem Skill}}{elsewhere, plural, =0 {} other {, # Antworten mit dem Problem anderswo}}{fine, plural, =0 {} other {, # in Ordnung}}.",
+      "summary": "{count, plural, =0 {Kein Problem mit dem Skill gefunden} =1 {1 Problem mit dem Skill} other {# Probleme mit dem Skill}}{elsewhere, plural, =0 {} =1 {, 1 Antwort mit dem Problem anderswo} other {, # Antworten mit dem Problem anderswo}}{fine, plural, =0 {} =1 {, 1 in Ordnung} other {, # in Ordnung}}.",
       "usageUnknown": "{count, plural, =1 {1 Antwort stammt aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und wird nicht gezählt.} other {# Antworten stammen aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und werden nicht gezählt.}}",
+      "seedWithheld": "{count, plural, =1 {1 aus der Sitzung des Agents übergebenes Problem wird ausgelassen: Es zitiert eine Antwort auf eine Frage, die die Prüfung dieses Skills bewertet.} other {# aus der Sitzung des Agents übergebene Probleme werden ausgelassen: Sie zitieren Antworten auf Fragen, die die Prüfung dieses Skills bewertet.}}",
       "agent": "{name} ({runs})",
       "occursIn": "In {runs, plural, =1 {1 Antwort} other {# Antworten}}, bei {agents}{hidden, plural, =0 {} =1 { und 1 Agent, den Sie nicht sehen} other { und # Agents, die Sie nicht sehen}}.",
       "hiddenExamples": "{count, plural, =1 {+1 verborgenes Beispiel} other {+# verborgene Beispiele}}"
@@ -18799,7 +19135,7 @@
       "agents": "{count, plural, =0 {Kein Agent, den Sie sehen, liest diese Linie.} =1 {1 Agent prüft das Ergebnis.} other {# Agents prüfen das Ergebnis.}}",
       "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diese Linie.} other {# weitere Agents, die Sie nicht sehen, nutzen diese Linie.}}",
       "price": "Die Textvorschläge für die Konflikte kosten etwa {cost}. Die Prüfung wird bei Changes bepreist.",
-      "limit": "Ausgabenlimit für die Sitzung (USD)",
+      "limit": "Ausgabenlimit für die Sitzung ({currency})",
       "limitHint": "Sie können es bei Changes erhöhen, wenn die Prüfung bepreist ist.",
       "unaffordable": "Das Budget der Organisation deckt das nicht.",
       "start": {
@@ -21963,6 +22299,22 @@
       "preview": "Nur Vorschau der Anordnung. Daten und Berechtigungen werden beim Öffnen für jede Person aufgelöst.",
       "empty": "Dieser Rollenstandard enthält bewusst keine Karten.",
       "discard": "Änderungen verwerfen"
+    },
+    "rolePreview": {
+      "open": "Konsolenvorschau öffnen",
+      "hint": "Rollenvorgaben vor persönlichen Einstellungen. Die Navigation nutzt Ihren Entwurf; Dashboard, Kataloge und Hinweise nutzen gespeicherte Einstellungen. Platzhalter laden keine privaten Daten.",
+      "navigation": "Navigation",
+      "dashboard": "Dashboard",
+      "catalogs": "Kataloge",
+      "emptyDashboard": "Keine Dashboard-Karten werden angezeigt.",
+      "emptyNavigation": "Keine Einträge der Hauptnavigation werden angezeigt.",
+      "wholeCatalog": "Alle durch bestehende Berechtigungen erlaubten Einträge",
+      "approvedLimit": "{count, plural, =0 {Keine Einträge} one {Bis zu # genehmigter Eintrag} other {Bis zu # genehmigte Einträge}}",
+      "mcp_galleryAvailable": "Nur von der Organisation verbundene Server",
+      "skill_galleryAvailable": "Nur sichtbare installierte Skills",
+      "shown": "Sichtbar",
+      "hidden": "Ausgeblendet",
+      "unavailable": "Mit diesen Berechtigungen nicht verfügbar"
     }
   },
   "modelSources": {
@@ -22014,6 +22366,49 @@
     "inProgress": "In Bearbeitung",
     "unknown": "Nicht verfügbar",
     "otherStep": "Einrichtung"
+  },
+  "modelPricing": {
+    "title": "Preise",
+    "automaticAvailable": "Unverbindliche automatische Preise in USD pro Million Tokens. Der tatsächliche Preis kann von Nutzungsstufen oder den gemeldeten Anbietergebühren abhängen.",
+    "automaticUnavailable": "Automatische Tokenpreise sind nicht verfügbar. Vom Anbieter gemeldete Kosten können nach einer Anfrage erfasst werden.",
+    "input": "Eingabetokens",
+    "output": "Ausgabetokens",
+    "cache_read": "Cache-Lesetokens",
+    "cache_write": "Cache-Schreibtokens",
+    "cacheDefault": "Leer lassen, um den Eingabepreis zu verwenden.",
+    "overrideCurrency": "Eigene Preise verwenden (pro Million Tokens)",
+    "currency": "Preiswährung"
+  },
+  "currencies": {
+    "title": "Währungen und Wechselkurse",
+    "manualRates": "Geben Sie Währungseinheiten pro 1 USD ein. Die Kurse werden manuell gepflegt; gespeicherte Kosten behalten den bei ihrer Entstehung verwendeten Kurs.",
+    "deploymentDefault": "Standardwährung der Organisation",
+    "rate": "{currency} pro USD",
+    "remove": "{currency} entfernen",
+    "code": "Währungscode",
+    "newRate": "Einheiten pro USD",
+    "add": "Währung hinzufügen",
+    "reset": "Umgebungsstandards verwenden",
+    "organization": "Organisationswährung",
+    "organizationHint": "Übernehmen Sie den Bereitstellungsstandard oder wählen Sie eine Berichtswährung. Bestehende Preise und Limits behalten ihre ursprünglichen Einheiten.",
+    "inherit": "Übernehmen ({currency})",
+    "rateUnavailable": "{currency} (Wechselkurs nicht verfügbar)",
+    "loadFailed": "Währungseinstellungen konnten nicht geladen werden",
+    "retry": "Erneut versuchen",
+    "saveFailed": "Die Währung konnte nicht gespeichert werden",
+    "amountInvalid": "Geben Sie einen gültigen, nicht negativen Betrag in der Berichtswährung ein.",
+    "budgetLabel": "Budget ({currency})",
+    "limitLabel": "Limit ({currency})",
+    "perMinuteLabel": "Preis pro Minute ({currency})",
+    "quoteHint": "Berichtskurs: 1 USD = {rate} {currency}. Er bleibt bis zur Änderung der Währungspräferenz fest; neue Modellkosten verwenden die aktuellen Preiskurse.",
+    "spentOfLimit": "Diesen Monat {spent} von {limit} ausgegeben.",
+    "spentNoLimit": "Diesen Monat {spent} ausgegeben. Kein Limit.",
+    "amountPositive": "Geben Sie einen positiven Betrag ein.",
+    "amountMaximum": "Geben Sie höchstens {amount} {currency} ein.",
+    "switchOrganizationHint": "Wechseln Sie zu dieser Organisation, bevor Sie deren Limits ändern. Berechtigungen, Ausgaben und Berichtskurs müssen zur gleichen Organisation gehören.",
+    "switchOrganization": "Zu dieser Organisation wechseln",
+    "criterionLimit": "Kosten ≤ {amount}",
+    "criterionObserved": "Gemessen: {amount}; Grenze: {limit}."
   },
   "portability": {
     "exportTitle": "Agent exportieren",
@@ -22142,6 +22537,7 @@
       "context_gone": "Die Kontextdatei gibt es nicht mehr.",
       "no_edit_context": "Wer dies gestartet hat, darf die Kontextdatei nicht mehr bearbeiten.",
       "unknown_skill_use": "Von keinem Run in diesem Zeitraum ist bekannt, dass er den Skill verwendet hat. {runs, plural, one {# negativ bewerteter oder fehlgeschlagener Run stammt aus der Zeit, bevor Verwendungen erfasst wurden, daher ist unbekannt, ob er den Skill verwendet hat.} other {# negativ bewertete oder fehlgeschlagene Runs stammen aus der Zeit, bevor Verwendungen erfasst wurden, daher ist unbekannt, ob sie ihn verwendet haben.}}",
+      "hidden_characters": "Der vorgeschlagene Text enthält Zeichen, die man nicht sehen kann, deshalb wurde er nicht gespeichert. Fragen Sie erneut.",
       "no_evidence": "Noch nichts, woraus sich lernen lässt: Kein Run in diesem Zeitraum wurde bewertet oder ist fehlgeschlagen. Erweitern Sie den Zeitraum oder kommen Sie wieder, wenn Antworten bewertet wurden.",
       "key_revoked": "Der API-Schlüssel, mit dem dies gestartet wurde, wurde widerrufen oder existiert nicht mehr, daher wurde es angehalten.",
       "not_a_member": "Wer dies gestartet hat, ist kein Mitglied mehr.",

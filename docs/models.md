@@ -407,6 +407,10 @@ For a **Z.AI GLM Coding Plan**, select **Z.AI** and explicitly set **Endpoint** 
 
 A plan key is not interchangeable with the vendor's metered API key. Some vendors restrict plan keys to coding tools; using one from an agent platform is your decision and may limit or suspend the plan. AgenticOS budgets treat this usage as unpriced subscription use.
 
+**OpenCode Go sessions.** AgenticOS sends `x-opencode-session` and its own `agenticos/<version>` user agent on Go model requests. A published agent uses its stable agent ID within the conversation, so renaming it does not change the session. Inline and dynamic specialists use separate parent-and-name scopes; reviewers have their own scope. Without a conversation the run ID is used; models built outside a run keep one generated session across their fallback chain. Explicit `extra_headers` still override either header.
+
+OpenCode Go is intended for typical coding-agent traffic. These routing headers do not change the subscription's permitted use; configuring a Go profile does not make it unrestricted general-purpose inference.
+
 **More OpenAI-compatible accounts.** Nous Portal, Inception, Cline, Chutes and Synthetic take the key from that service's own console. An empty Endpoint uses its default below, and the model list comes from the key's catalog. Nous Portal, Chutes and Synthetic subscriptions are treated as unpriced; Cline credits and Inception usage are priced only where AgenticOS knows the model's price.
 
 | Provider | Default endpoint |
@@ -422,6 +426,8 @@ A plan key is not interchangeable with the vendor's metered API key. Some vendor
 Choose the vault key and confirm the destination before loading models. A custom catalog uses that key and endpoint only; an unavailable listing leaves the model field editable rather than substituting the general API catalog. AgenticOS budget estimates do not measure your remaining subscription allowance.
 
 ### Subscription accounts { #subscription-accounts }
+
+If the deployment has no subscription gateway configured, **Settings → Subscriptions** explains that subscriptions are not enabled instead of showing a blank page. **Retry** refreshes availability after an administrator configures the gateway; it does not start a provider sign-in. Failed reads show an error with a retry action.
 
 In the agent editor and chat model picker, start with **Your subscriptions**, choose a familiar provider such as **Claude Code (Pro, Max)** or **ChatGPT (Codex)**, then **Connect**. Sign-in opens in place and returns to the model picker; the list comes from that vendor's connected accounts, not a guess based on model names. Unavailable accounts offer **Reconnect**. You can still manage and disconnect accounts under **Settings → Subscriptions**. Organization API keys are a separate group; manually configured gateways and endpoints are under **Advanced / custom endpoint**. Existing `subscription_accounts` and `cliproxyapi` profiles keep their API IDs.
 
@@ -541,6 +547,12 @@ profile with an endpoint: a key filed under a vendor names that vendor.
 **Load models** reads the list from the same endpoint, with the same key, so
 the dropdown offers what your server actually serves. The model id stays free
 text: a server that publishes no list can still be used by typing the id.
+
+**Embeddings through the same gateway.** A gateway reached by a `openai_compatible` chat profile can
+embed too: register it under Knowledge → Integrations as a **service connection** with API style
+*OpenAI-compatible* and choose the same vault key (its purpose is `openai_compatible`). The collection
+then uses the **Custom (OpenAI-compatible)** embedding provider with a model you type, after a Test
+against its stored chunks. See [File processing](file-processing.md#a-custom-openai-compatible-endpoint-and-the-test).
 
 ### When the credential is not an API key
 
@@ -821,13 +833,49 @@ home for them, which means two things worth knowing:
   `claude-sonnet-5-5` does.
 - Updating prices is a dependency bump.
 
-!!! warning "A keyless provider records no spend"
+You can override automatic token prices in a model profile's **Pricing** section.
+Set input and output rates per million tokens in the selected currency (USD by default); cache read and write rates
+are optional and inherit the input rate when empty. An explicit zero is a price.
+The API exposes the same document as `custom_pricing`; omit it to keep the saved
+setting on update, or send `null` to restore automatic pricing.
 
-    Spend is attributed to the [vault secret](secrets.md) the run resolved to, and
-    a keyless provider has none to attribute it to.
+Changing or restoring prices requires `budgets:manage`, in addition to model connection management. That permission also applies when changing the key, endpoint, `extra_body` or `extra_headers` of a profile with custom prices: raw request settings can change which model runs or which account pays. Other generation settings, such as temperature, retain their existing permissions.
+
+Subscription profiles support the same optional token prices; these measure budget usage, not subscription allowance. Original provider bills remain available in usage metadata when custom rates override accounting.
+
+Custom rates take precedence over catalog prices and provider-reported bills.
+They follow the profile that actually answers, including fallbacks, delegates
+and models without a key. Cache tokens are charged once, using normalized usage.
+Estimates use the profile's rates when they would otherwise use catalog prices;
+estimates based on historical runs remain based on those recorded costs.
+
+Changing a price affects newly resolved usage without rewriting historical run
+or message costs. Invalid token counts or omitted usage remain partially priced;
+known subtotals are retained, and an active dollar budget refuses further requests
+after incomplete custom-priced usage. Automatic mode
+preserves the existing catalog and provider-bill resolution. The form shows
+indicative base-tier catalog rates where available; a provider's actual bill is
+known only after the request. Custom prices do not configure realtime voice or
+unit-priced image, audio and video generation.
+
+A keyless model's priced requests count toward organization spending and budgets.
+They have no [vault secret](secrets.md) to attribute a key-level report to.
 
 Cost is checked *before* each model request and recorded even when the run fails.
 See [Budgets](governance.md#budgets).
+
+Custom pricing carries a `currency` code, independently of the organization and
+UI language. Deployment administrators configure manual rates in **Currencies and
+exchange rates** under administration settings. Rates are currency units per USD:
+with EUR at `0.9`, a `9 EUR` cost records `10 USD`. Usage retains the original
+amount, currency and applied rate; later changes do not rewrite that USD cost.
+Zero costs record as `0 USD` even if the currency's rate is unavailable. A
+spending cap requires a configured exchange rate before inference if any of the
+profile's token prices can incur a charge, including cache reads and writes.
+
+Workflow statistics, dashboard spending, run history, conversation costs and budget headroom use the organization's persisted reporting quote. It is captured at organization creation, an explicit currency preference/default change, or migration/startup reconciliation. Pricing-rate edits do not refresh it. An explicit currency preference change changes displayed equivalents, never stored USD receipts or limits. Missing reporting quotes stay visibly unknown.
+
+Limit forms use that same quote. Original configured amount, currency and quote are retained beside the accounting USD limit; unrelated edits preserve them. Workflow caps, Improve budgets and cost-check criteria retain their existing enforcement semantics. Legacy agent specs still carry a float-valued USD budget and refuse a declared amount that cannot be represented exactly at that boundary. See [limit currency](governance.md#limit-currency) for the API contract.
 
 ### A delegation resolves its own profile
 

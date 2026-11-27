@@ -31,6 +31,7 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
 )
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm
 from app.core.redaction import holds_credential
 from app.db.models.context import ContextFile, ContextMode
@@ -53,6 +54,16 @@ logger = logging.getLogger(__name__)
 
 _PRODUCT_CONTEXT = "agenticos-product-map"
 _PRODUCT_CONTEXT_DESCRIPTION = "Choose the right AgenticOS feature for a task."
+
+CONTEXT_HIDES_TEXT = (
+    "This change holds characters a person cannot see, so it is neither checked nor "
+    "applied. Discard it, or edit the file by hand."
+)
+
+
+def context_hides_text(proposal: ContextProposal) -> bool:
+    """Whether a proposed context file change holds a character a person cannot see."""
+    return holds_refused([proposal.description, proposal.content])
 
 
 def context_quotes_credential(proposal: ContextProposal) -> bool:
@@ -311,6 +322,11 @@ class ContextProposalService:
             raise BadRequestError(
                 message="This change quotes a credential; discard it and edit the file by hand",
                 details={"proposal_id": proposal.id},
+            )
+        if context_hides_text(proposal):
+            raise BadRequestError(
+                message=CONTEXT_HIDES_TEXT,
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
             )
         # Locking re-reads the row into `file`: an edit committed meanwhile is seen.
         await context_repo.lock(self.db, file.id, organization_id=ctx.organization_id)

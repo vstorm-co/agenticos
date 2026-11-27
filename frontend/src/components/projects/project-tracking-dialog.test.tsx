@@ -216,3 +216,16 @@ it("closes an unsubmitted tracker with Escape", async () => {
   await userEvent.keyboard("{Escape}");
   expect(close).toHaveBeenCalledOnce();
 });
+
+it("leaves scrollable padding around focused fields without discarding their edits", async () => {
+  mount();
+  const name = screen.getByRole("textbox", { name: "New tracker agent" });
+  const body = name.closest(".overflow-y-auto");
+  expect(body).toHaveClass("pl-1", "pr-4", "py-1", "-ml-1", "-mr-4");
+  await userEvent.click(name);
+  await userEvent.clear(name);
+  await userEvent.type(name, "Unsent tracking draft");
+  expect(name).toHaveFocus();
+  expect(name).toHaveValue("Unsent tracking draft");
+  expect(save).not.toHaveBeenCalled();
+});

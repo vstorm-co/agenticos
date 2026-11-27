@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { FileViewer } from "@/components/files";
 import { useFilePreviewStore } from "@/stores";
 import { attachmentAccess } from "@/lib/file-api";
+import { useChatWorkspace } from "./chat-workspace-context";
 
 /**
  * The attachment selected in the chat, opened.
@@ -29,6 +30,7 @@ import { attachmentAccess } from "@/lib/file-api";
  * passed the files it happened to be holding.
  */
 export function FilePreviewDialog() {
+  const workspace = useChatWorkspace();
   const files = useFilePreviewStore((state) => state.available);
   const openId = useFilePreviewStore((state) => state.openId);
   const select = useFilePreviewStore((state) => state.select);
@@ -41,7 +43,7 @@ export function FilePreviewDialog() {
   // out the same array, but a caller re-rendering its list hands out new objects.
   const access = useMemo(() => (file === null ? null : attachmentAccess(file)), [file]);
 
-  if (file === null || access === null) return null;
+  if (workspace?.shared || file === null || access === null) return null;
 
   return (
     <FileViewer

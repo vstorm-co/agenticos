@@ -1,10 +1,11 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useState } from "react";
 import { FilePen, ListChecks, Target } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, Checkbox } from "@/components/ui";
-import { usd } from "@/components/evals/format";
 import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements";
 import { subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage } from "@/lib/api-error";
@@ -33,6 +34,7 @@ export function ChangeSelection({
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
+  const money = useMoney();
   const actions = useImprovement(subjectOf(session), session.id);
   const { evidence } = useImprovementEvidence(subjectOf(session), { sessionId: session.id });
   const sources = Object.fromEntries((evidence?.items ?? []).map((item) => [item.run_id, item]));
@@ -49,6 +51,9 @@ export function ChangeSelection({
     !readOnly &&
     session.can_restart !== false &&
     (session.status === "ready" || session.status === "stopped");
+  const quotingCredential = hunks.some(
+    (hunk) => hunk.contains_credential && included.includes(hunk.id),
+  );
   async function act(action: () => Promise<void>) {
     setError(null);
     try {
@@ -79,7 +84,11 @@ export function ChangeSelection({
             <label className="flex items-center gap-2 text-sm">
               <Checkbox
                 checked={included.includes(hunk.id)}
-                disabled={!canSelect || actions.checkSelection.isPending}
+                disabled={
+                  !canSelect ||
+                  actions.checkSelection.isPending ||
+                  (Boolean(hunk.contains_credential) && !included.includes(hunk.id))
+                }
                 aria-label={t("includeChange", { number: index + 1 })}
                 onCheckedChange={(checked) =>
                   onChange(
@@ -91,6 +100,11 @@ export function ChangeSelection({
               />
               {t("includeInTest")}
             </label>
+          )}
+          {hunk.status === "pending" && hunk.contains_credential && (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              {t("changeQuotesCredential")}
+            </p>
           )}
           <MeasuredChange hunk={hunk} sources={sources} />
           {hunk.expected_effect && (
@@ -111,11 +125,13 @@ export function ChangeSelection({
         <div className="space-y-3 rounded-xl border p-4">
           <p className="text-muted-foreground text-sm">{t("selectionBody")}</p>
           {included.length === 0 && <p className="text-sm">{t("selectSomeChanges")}</p>}
+          {quotingCredential && <p className="text-sm">{t("selectionQuotesCredential")}</p>}
           <Button
             className="h-auto min-h-9 text-left whitespace-normal"
             variant="outline"
             disabled={
               !included.length ||
+              quotingCredential ||
               actions.estimateSelection.isPending ||
               actions.checkSelection.isPending
             }
@@ -138,12 +154,14 @@ export function ChangeSelection({
               <p className="text-sm">
                 {t("selectionQuote", {
                   count: quote.suggestions,
-                  cost: usd(quote.total_usd, locale),
+                  cost: money.cost(quote.total_usd, locale),
                 })}
               </p>
               <Button
                 className="h-auto min-h-9 text-left whitespace-normal"
-                disabled={!quote.affordable || actions.checkSelection.isPending}
+                disabled={
+                  !quote.affordable || quotingCredential || actions.checkSelection.isPending
+                }
                 onClick={() =>
                   void act(async () => {
                     await actions.checkSelection.mutateAsync({

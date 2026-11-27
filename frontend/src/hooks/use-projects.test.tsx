@@ -215,6 +215,7 @@ it("queues a sandbox transfer and reports a refused transfer without dropping th
 });
 
 it("observes the chat list cache, including zero, without fetching or polling", async () => {
+  const errors = vi.spyOn(console, "error");
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { result, rerender } = renderHook(({ id }) => useProjectChatCount(id), {
     initialProps: { id: "p-1" },
@@ -246,6 +247,30 @@ it("observes the chat list cache, including zero, without fetching or polling", 
   await act(() => client.invalidateQueries({ queryKey: qk.conversations.inProject("p-1") }));
   rerender({ id: "p-2" });
   expect(result.current).toBeUndefined();
+  expect(errors).not.toHaveBeenCalled();
+  errors.mockRestore();
   expect(api.listProjectChats).not.toHaveBeenCalled();
+  client.clear();
+});
+
+it("keeps the active chat list fetching when its count observes the same query", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  vi.mocked(api.listProjectChats).mockResolvedValue({ items: [], total: 1 });
+  const { result, unmount } = renderHook(
+    () => ({ count: useProjectChatCount("p-1"), list: useProjectChats("p-1") }),
+    {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    },
+  );
+  await waitFor(() => expect(result.current.count).toBe(1));
+  expect(result.current.list.total).toBe(1);
+  vi.mocked(api.listProjectChats).mockResolvedValue({ items: [], total: 3 });
+  await act(() => client.invalidateQueries({ queryKey: qk.conversations.inProject("p-1") }));
+  await waitFor(() => expect(result.current.count).toBe(3));
+  expect(result.current.list.total).toBe(3);
+  expect(api.listProjectChats).toHaveBeenCalledTimes(2);
+  unmount();
   client.clear();
 });

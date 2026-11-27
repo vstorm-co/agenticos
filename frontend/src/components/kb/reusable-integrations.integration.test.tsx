@@ -11,6 +11,11 @@ import { DEFAULT_INGESTION_CONFIG } from "@/lib/ingestion-config";
 import type { SyncSourceRead } from "@/lib/rag-api";
 import type { KnowledgeBase } from "@/types";
 import type { OrgRole } from "@/types/organization";
+import type {
+  ServiceConnectionKind,
+  ServiceConnectionRecord,
+  ServiceConnectionStyle,
+} from "@/lib/service-connections-api";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -75,7 +80,7 @@ function serve(
   role: OrgRole,
   sources: SyncSourceRead[],
   connectorsAvailable = true,
-  localServices = false,
+  serviceConnections: boolean | ServiceConnectionRecord[] = false,
 ) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/me/permissions")
@@ -90,24 +95,32 @@ function serve(
             ? [{ permission: "connections:manage", scope: "all" }]
             : [],
       };
-    if (path === "/local-services")
+    if (path === "/service-connections")
       return {
-        items: localServices
-          ? [
-              {
-                id: "local-1",
-                organization_id: ORG_ID,
-                kind: "embedding",
-                provider: "ollama",
-                name: "Office embeddings",
-                base_url: "http://ollama:11434/v1",
-                is_active: true,
-                created_at: "2026-07-01T00:00:00Z",
-                updated_at: null,
-              },
-            ]
-          : [],
-        total: localServices ? 1 : 0,
+        items: Array.isArray(serviceConnections)
+          ? serviceConnections
+          : serviceConnections
+            ? [
+                {
+                  id: "local-1",
+                  organization_id: ORG_ID,
+                  kind: "embedding",
+                  provider: "ollama",
+                  name: "Office embeddings",
+                  base_url: "http://ollama:11434/v1",
+                  is_active: true,
+                  secret_id: null,
+                  requires_key: false,
+                  created_at: "2026-07-01T00:00:00Z",
+                  updated_at: null,
+                },
+              ]
+            : [],
+        total: Array.isArray(serviceConnections)
+          ? serviceConnections.length
+          : serviceConnections
+            ? 1
+            : 0,
       };
     if (path === `/orgs/${ORG_ID}/integrations`) return { items: sources, total: sources.length };
     if (path === `/orgs/${ORG_ID}/integrations/connectors`)
@@ -143,6 +156,38 @@ describe("KnowledgeIntegrations", () => {
     ).not.toBeInTheDocument();
   });
 
+  it.each([
+    ["embedding", "ollama", "Embedding server"],
+    ["ocr", "liteparse", "OCR server (LiteParse)"],
+    ["document_parser", "docling", "Document parser (Docling)"],
+  ] satisfies [ServiceConnectionKind, ServiceConnectionStyle, string][])(
+    "labels %s by its own service kind",
+    async (kind, provider, label) => {
+      const service: ServiceConnectionRecord = {
+        id: "kind-fixture",
+        name: "Review service",
+        kind,
+        provider,
+        organization_id: ORG_ID,
+        base_url: "http://service:5001",
+        secret_id: null,
+        requires_key: false,
+        is_active: true,
+        created_at: "2026-11-26T12:00:00Z",
+        updated_at: null,
+      };
+      serve("owner", [], true, [service]);
+      render(<KnowledgeIntegrations targets={TARGETS} />, { wrapper });
+      const name = await screen.findByText("Review service");
+      const row = name.closest("tr");
+      if (!row) throw new Error("Missing service row");
+      expect(within(row).getByText(label)).toBeVisible();
+      if (kind === "document_parser") {
+        expect(within(row).queryByText("OCR server (LiteParse)")).not.toBeInTheDocument();
+      }
+    },
+  );
+
   it("shows sources and local services in one table with distinct actions", async () => {
     serve("owner", [UNASSIGNED], true, true);
     render(<KnowledgeIntegrations targets={TARGETS} />, { wrapper });
@@ -151,9 +196,9 @@ describe("KnowledgeIntegrations", () => {
     expect(screen.getAllByRole("table")).toHaveLength(1);
     expect(within(table).getByText("Handbook drive")).toBeVisible();
     expect(within(table).getByText("Google Drive")).toBeVisible();
-    expect(within(table).getByText("Embedding server (Ollama)")).toBeVisible();
+    expect(within(table).getByText("Embedding server")).toBeVisible();
     const serviceRow = screen.getByText("Office embeddings").closest("tr");
-    if (!serviceRow) throw new Error("Missing local service row");
+    if (!serviceRow) throw new Error("Missing service connection row");
     expect(
       within(serviceRow).queryByRole("button", { name: "Use in knowledge base" }),
     ).not.toBeInTheDocument();

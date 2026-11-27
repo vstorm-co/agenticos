@@ -1,7 +1,10 @@
 "use client";
 import { useTranslations } from "next-intl";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
-import { Input, Label } from "@/components/ui";
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMoney } from "@/components/providers/currency-provider";
+import type { MonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { Label } from "@/components/ui";
 import { useModelProviders } from "@/hooks/use-model-providers";
 import { cn } from "@/lib/utils";
 import type { ImprovementMode } from "@/types/improvement";
@@ -15,6 +18,7 @@ export const MIN_SEARCH_QUESTIONS = 10;
  * offered only when the dataset has enough training questions to score on.
  */
 export function StartMode({
+  monetary,
   mode,
   onModeChange,
   trainQuestions,
@@ -23,6 +27,7 @@ export function StartMode({
   gradingModelId,
   onGradingModelChange,
 }: {
+  monetary: MonetaryInputs;
   mode: ImprovementMode;
   onModeChange: (mode: ImprovementMode) => void;
   trainQuestions: number | null;
@@ -31,6 +36,7 @@ export function StartMode({
   gradingModelId: string | null;
   onGradingModelChange: (id: string | null) => void;
 }) {
+  const money = useMoney();
   const t = useTranslations("improvement.startSearch");
   const { profiles, profilesStatus } = useModelProviders();
   const tooFew = trainQuestions !== null && trainQuestions < MIN_SEARCH_QUESTIONS;
@@ -82,12 +88,15 @@ export function StartMode({
       {mode === "search" && (
         <div className="space-y-4 rounded-lg border p-3">
           <div className="space-y-1.5">
-            <Label htmlFor="improvement-search-budget">{t("budget")}</Label>
-            <Input
+            <Label htmlFor="improvement-search-budget">
+              {t("budget", { currency: money.currency ?? "—" })}
+            </Label>
+            <MonetaryInput
               id="improvement-search-budget"
-              inputMode="decimal"
+              monetary={monetary}
+              field="search.budget_usd"
               value={budget}
-              onChange={(event) => onBudgetChange(event.target.value)}
+              onValueChange={onBudgetChange}
             />
             <p className="text-muted-foreground text-xs">{t("budgetHint")}</p>
           </div>

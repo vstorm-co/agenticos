@@ -43,6 +43,7 @@ class LockScope(IntEnum):
     MCP_OAUTH_CLIENTS_PER_ORG = 39
     #: Resumable transfers serialize request replay and open-operation ceilings.
     PORTABILITY_PER_OWNER = 40
+    CONVERSATION_ENVIRONMENT = 42
     ORGANIZATIONS_PER_USER = 1
     #: How many agents one organization may hold.
     AGENTS_PER_ORGANIZATION = 2
@@ -153,6 +154,8 @@ class LockScope(IntEnum):
     #: Starting a check of one skill by hand: two starts at once would both find no
     #: check of the same text running and pay for it twice.
     SKILL_CHECK_STARTS_PER_SKILL = 37
+    #: A custom-priced profile's approval and replacement of the credential it uses.
+    MODEL_PRICING_PER_SECRET = 41
 
 
 def _key(subject: UUID) -> int:

@@ -162,3 +162,29 @@ it("keeps status and body actions independent from the disclosure", async () => 
   await userEvent.keyboard("{Enter}");
   expect(screen.getByRole("button", { name: "Save draft" })).toBeVisible();
 });
+
+it("supports Admin heading hierarchy and compact responsive actions without a second focus boundary", async () => {
+  const action = vi.fn();
+  render(
+    <ServiceCard
+      title="Deployment access"
+      description="Account policy"
+      icon={Brain}
+      headingLevel={3}
+      responsiveAction
+      action={<button onClick={action}>Choose audience</button>}
+    />,
+  );
+  const heading = screen.getByRole("heading", { name: "Deployment access", level: 3 });
+  const control = screen.getByRole("button", { name: "Choose audience" });
+  expect(heading).not.toContainElement(control);
+  expect(control.closest('[data-slot="service-action"]')).toHaveClass(
+    "basis-full",
+    "justify-end",
+    "max-w-full",
+  );
+  control.focus();
+  await userEvent.keyboard("{Enter}");
+  expect(action).toHaveBeenCalledOnce();
+  expect(screen.queryByRole("button", { name: "Deployment access" })).toBeNull();
+});

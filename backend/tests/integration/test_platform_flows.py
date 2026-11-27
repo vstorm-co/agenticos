@@ -2001,26 +2001,26 @@ class TestTheEmbeddingModelACollectionWasBuiltWith:
         assert document.embedding_model == collection.embedding_model
 
     async def test_an_update_cannot_change_it(self, db) -> None:
-        """There is no field for it on the update schema, and no back door.
+        """A model the provider does not serve at the collection's width is refused.
 
-        Asserted through the schema a client actually posts to rather than by
-        reading the model definition: a field added later "for completeness"
-        would pass a test that only looked at the service.
+        `embedding_model` is on the update schema since a custom endpoint takes a
+        typed model, so the guard is the refusal, not a missing field. Asserted
+        through the schema a client actually posts to, against a real row.
         """
         tenant = await _tenant(db, name="Persistent")
         collection = await _collection_with(db, tenant, name="persistent", config=IngestionConfig())
         built_with = collection.embedding_model
 
-        await KnowledgeBaseService(db).update(
-            collection.id,
-            KnowledgeBaseUpdate.model_validate(
-                {"name": "renamed", "embedding_model": "voyage-3", "embedding_dim": 1024}
-            ),
-            ctx=tenant.ctx,
-        )
+        with pytest.raises(BadRequestError, match="does not serve 'voyage-3'"):
+            await KnowledgeBaseService(db).update(
+                collection.id,
+                KnowledgeBaseUpdate.model_validate(
+                    {"name": "renamed", "embedding_model": "voyage-3", "embedding_dim": 1024}
+                ),
+                ctx=tenant.ctx,
+            )
 
         await db.refresh(collection)
-        assert collection.name == "renamed"
         assert collection.embedding_model == built_with
 
     async def test_changing_the_configuration_leaves_indexed_documents_alone(

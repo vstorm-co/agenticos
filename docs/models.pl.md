@@ -1,5 +1,5 @@
 ---
-source_sha: "b4f01f7af48e"
+source_sha: "459407421009"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -419,6 +419,10 @@ Dla **Z.AI GLM Coding Plan** wybierz **Z.AI** i ustaw **Endpoint** na `https://a
 
 Klucz planu nie jest zamienny z kluczem zwykłego API rozliczanego według użycia. Niektórzy dostawcy ograniczają klucze planów do narzędzi programistycznych; użycie ich z platformy agentów to Twoja decyzja i może skutkować ograniczeniem lub zawieszeniem planu. Budżety AgenticOS traktują to zużycie jako niewycenione użycie subskrypcji.
 
+**Sesje OpenCode Go.** AgenticOS wysyła `x-opencode-session` i własny user agent `agenticos/<version>` w żądaniach modeli Go. Opublikowany agent używa trwałego ID w obrębie rozmowy, więc zmiana nazwy nie zmienia sesji. Specjaliści inline i dynamiczni mają osobne zakresy rodzica i nazwy; reviewerzy mają własny zakres. Bez rozmowy używamy ID uruchomienia; modele budowane poza uruchomieniem zachowują jedną wygenerowaną sesję w całym łańcuchu fallbacków. Jawne `extra_headers` nadal nadpisują oba nagłówki.
+
+OpenCode Go jest przeznaczone do typowego ruchu agentów programistycznych. Nagłówki routingu nie zmieniają dozwolonego użycia subskrypcji; konfiguracja profilu Go nie daje nieograniczonego API ogólnego przeznaczenia.
+
 **Kolejne konta zgodne z OpenAI.** Nous Portal, Inception, Cline, Chutes i Synthetic przyjmują klucz z konsoli danej usługi. Puste pole Endpoint używa domyślnego adresu poniżej, a lista modeli pochodzi z katalogu klucza. Subskrypcje Nous Portal, Chutes i Synthetic są traktowane jako niewyceniane; kredyty Cline i użycie Inception są wyceniane tylko tam, gdzie AgenticOS zna cenę modelu.
 
 | Provider | Domyślny endpoint |
@@ -436,6 +440,8 @@ Scope obejmuje także identyfikator członkostwa: ponowne dołączenie tworzy no
 Przed wczytaniem modeli wybierz klucz z sejfu i potwierdź adres docelowy. Własny katalog korzysta tylko z tego klucza i endpointu; brak listy pozwala wpisać model ręcznie, bez zastępowania jej katalogiem zwykłego API. Szacunki budżetu AgenticOS nie określają pozostałego limitu subskrypcji.
 
 ### Konta subskrypcyjne { #subscription-accounts }
+
+Jeśli instalacja nie ma skonfigurowanej bramy subskrypcji, **Ustawienia → Subskrypcje** wyjaśniają, że subskrypcje nie są włączone, zamiast pokazywać pustą stronę. **Ponów** odświeża dostępność po konfiguracji bramy przez administratora; nie rozpoczyna logowania u dostawcy. Nieudany odczyt pokazuje błąd z możliwością ponowienia.
 
 W edytorze agenta i selektorze modeli czatu zacznij od **Twoje subskrypcje**, wybierz rozpoznawalnego dostawcę, np. **Claude Code (Pro, Max)** lub **ChatGPT (Codex)**, i kliknij **Połącz**. Logowanie otwiera się w tym miejscu i wraca do selektora; lista modeli pochodzi z połączonych kont wybranego dostawcy, bez zgadywania na podstawie nazw modeli. Niedostępne konta oferują ponowne logowanie. Kontami możesz zarządzać i rozłączać je w **Ustawienia → Subskrypcje**. Klucze API organizacji mają osobną grupę; ręcznie konfigurowane gatewaye i endpointy znajdziesz w **Zaawansowane / własny endpoint**. Dotychczasowe profile `subscription_accounts` i `cliproxyapi` zachowują swoje identyfikatory API.
 
@@ -554,6 +560,12 @@ zapisany pod nazwą dostawcy mówi o tym dostawcy.
 lista w polu oferuje to, co Twój serwer faktycznie udostępnia. Identyfikator
 modelu pozostaje wolnym tekstem: serwer, który nie publikuje listy, nadal da
 się użyć, wpisując identyfikator ręcznie.
+
+**Embeddingi przez ten sam gateway.** Gateway osiągany przez profil czatu `openai_compatible` może też
+embedować: zarejestruj go w Knowledge → Integrations jako **połączenie usługi** ze stylem API
+*OpenAI-compatible* i wybierz ten sam klucz z vaultu (jego przeznaczenie to `openai_compatible`). Kolekcja
+używa wtedy providera embeddingów **Custom (OpenAI-compatible)** z modelem, który wpisujesz, po Teście
+na jej zapisanych chunkach. Zobacz [Przetwarzanie plików](file-processing.md#a-custom-openai-compatible-endpoint-and-the-test).
 
 ### Kiedy poświadczeniem nie jest klucz API { #when-the-credential-is-not-an-api-key }
 
@@ -846,14 +858,49 @@ do domu, co oznacza dwie rzeczy warte wiedzenia:
   z Anthropic.
 - Aktualizacja cen to podbicie zależności.
 
-!!! warning "Provider bez klucza nie zapisuje żadnego wydatku"
+W sekcji **Cennik** profilu modelu możesz zastąpić automatyczne ceny tokenów.
+Ustaw stawki wejścia i wyjścia za milion tokenów w wybranej walucie (domyślnie USD). Stawki odczytu i zapisu
+cache są opcjonalne; puste dziedziczą cenę wejścia. Jawne zero jest ceną.
+API udostępnia ten sam dokument jako `custom_pricing`: pominięcie przy aktualizacji
+zachowuje ustawienie, a `null` przywraca wycenę automatyczną.
 
-    Wydatek przypisywany jest [sekretowi w vault](secrets.md), do którego run się
-    rozwiązał, a provider bez klucza nie ma żadnego, któremu można by go
-    przypisać.
+Zmiana cen lub przywrócenie cen automatycznych wymaga `budgets:manage` oraz uprawnienia do zarządzania połączeniami modeli. To uprawnienie jest też wymagane przy zmianie klucza, endpointu, `extra_body` lub `extra_headers` profilu z własnymi cenami: surowe ustawienia żądania mogą podmienić model lub konto obciążane kosztami. Pozostałe ustawienia generowania, np. temperatura, zachowują dotychczasowe uprawnienia.
+
+Profile subskrypcji obsługują te same opcjonalne ceny tokenów: służą do rozliczania budżetu, a nie limitu subskrypcji. Gdy własne ceny zastępują koszt w rozliczeniach, pierwotny rachunek dostawcy pozostaje w metadanych użycia.
+
+Własne stawki mają pierwszeństwo przed katalogiem i rachunkiem dostawcy.
+Podążają za profilem, który faktycznie odpowiada, również w fallbackach,
+delegacjach i modelach bez klucza. Tokeny cache są rozliczane raz, według
+znormalizowanego zużycia. Estymacje korzystają ze stawek profilu tam, gdzie
+wcześniej używały katalogu. Estymacje historyczne nadal używają zapisanych kosztów.
+
+Zmiana ceny obejmuje nowo rozwiązywane użycie i nie nadpisuje historycznych
+kosztów wykonań ani wiadomości. Błędne liczniki tokenów lub brak danych o zużyciu
+oznaczają częściową wycenę. Znana część kosztów pozostaje zapisana, a aktywny budżet
+w dolarach blokuje dalsze żądania po niepełnym użyciu wycenianym własnymi stawkami.
+Tryb automatyczny zachowuje dotychczasowy katalog i rachunki dostawcy.
+Formularz pokazuje orientacyjne stawki podstawowego progu, jeśli są dostępne;
+faktyczny rachunek dostawcy jest znany po żądaniu. Własny cennik nie konfiguruje
+głosu realtime ani generowania obrazów, audio i wideo rozliczanego jednostkowo.
+
+Wycenione żądania modelu bez klucza wliczają się do wydatków i budżetów organizacji.
+Nie mają [sekretu w vault](secrets.md) do przypisania w raporcie według klucza.
 
 Koszt sprawdzany jest *przed* każdym żądaniem do modelu i zapisywany nawet wtedy,
 gdy run się nie powiedzie. Zobacz [Budżety](governance.md#budgets).
+
+Własny cennik zawiera kod `currency`, niezależny od organizacji i języka interfejsu.
+Administrator wdrożenia ustawia ręczne kursy w sekcji **Waluty i kursy wymiany**
+ustawień administracyjnych. Kurs oznacza jednostki waluty za USD: przy EUR równym
+`0.9` koszt `9 EUR` zapisuje się jako `10 USD`. Zużycie zachowuje pierwotną kwotę,
+walutę i zastosowany kurs; późniejsze zmiany nie nadpisują kosztu w USD. Koszt
+zerowy jest zapisywany jako `0 USD` nawet bez kursu. Jeśli obowiązuje limit
+wydatków, przed inferencją wymagany jest kurs wymiany, gdy dowolna stawka
+profilu może naliczyć opłatę za tokeny. Dotyczy to też odczytów i zapisów cache.
+
+Statystyki workflow, wydatki na pulpicie, historia uruchomień, koszty rozmów i pozostały budżet używają zapisanego kursu raportowania organizacji. Kurs jest ustalany przy tworzeniu organizacji, jawnej zmianie preferowanej lub domyślnej waluty oraz uzgodnieniu po migracji lub uruchomieniu. Zmiana kursów cenowych go nie odświeża. Jawna zmiana preferowanej waluty zmienia wyświetlane odpowiedniki, lecz nie zapisane koszty ani limity USD. Brak kursu raportowania pozostaje widoczny jako nieznana kwota.
+
+Formularze limitów używają tego samego kursu. Pierwotna kwota, waluta i kurs są zachowywane obok limitu księgowego USD; niezwiązane zmiany ich nie zastępują. Limity workflow, budżety Improve i kryteria kosztu zachowują dotychczasową semantykę. Starszy format agenta nadal przechowuje budżet USD jako float i odrzuca deklarację, której nie da się na tej granicy przedstawić dokładnie. Kontrakt API opisuje [waluta limitów](governance.md#limit-currency).
 
 ### Delegacja rozwiązuje własny profil { #a-delegation-resolves-its-own-profile }
 

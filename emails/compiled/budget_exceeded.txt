@@ -4,7 +4,7 @@ Subject: [[agent_name]] stopped on its budget
 
 [[reason]]
 
-The run spent $[[spent]] before it was stopped. Nothing was charged past the
+The run spent [[reported_spent]] before it was stopped. Nothing was charged past the
 limit - enforcement happens before each model request, not after.
 
 Raise the limit on the agent, or leave it and the agent resumes when the period

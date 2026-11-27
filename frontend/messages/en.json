@@ -1006,6 +1006,7 @@
     "notAChatModelHint": "{model} is not a chat model - it is for text to speech, transcription, images or embeddings, and an agent cannot run on it. Choose a chat model before publishing.",
     "modelHasNoKeyHint": "This model's key was deleted from the vault, so nothing can run on it. Give it a key in the model panel, or choose another model.",
     "updateModel": "Update model",
+    "pricedModelConnectionLocked": "Changing the key or endpoint for a model with custom prices requires budgeting permission.",
     "updateModelHint": "Saves the new key, endpoint or API on {label}. Everything that uses this model switches with it: every agent, and any collection or scheduled work on it. To leave those as they are, choose “Name it something else” and add a separate model.",
     "notAChatModelRefused": "{model} is not a chat model - an agent cannot run on it. Choose a chat model.",
     "secretForDifferentService": "Key \"{name}\" is for a different service. Choose a key for this configuration.",
@@ -2092,6 +2093,8 @@
       "reviseVisual": "Revised a visual",
       "readingVisual": "Reading a visual",
       "readVisual": "Read a visual",
+      "previewingVisual": "Previewing a visual",
+      "previewVisual": "Preview a visual",
       "workingInText": "Working on it in text",
       "workedInText": "Worked on it in text",
       "workflowsListing": "Checking which workflows it can start",
@@ -2197,10 +2200,10 @@
       "runningAcpAgent": "External ACP agent",
       "inspectAcpAgent": "Read ACP model choices",
       "readingAcpModels": "Reading ACP model choices",
-      "approveAcceptImprovement": "Accept attempt {attempt} for {agent} ({verdict, select, better {better} criteria_better {better on criteria} no_change {no change} criteria_worse {worse on criteria} regression {worse} inconclusive {inconclusive} other {not measured}}) {publish, select, yes {and publish it as v{version}} other {as a draft}}",
-      "approvePublishAgent": "Publish {agent} as v{version}",
-      "approveChangeSkillVersion": "{state, select, main {Move {agent} to the main line of {skill}} pinned {Pin {agent} to {skill} v{version}} other {Move {agent} to a fork of {skill}}}",
-      "approveAcceptSkillImprovement": "{outcome, select, apply {Apply the improved skill {skill}} apply_and_pin {Apply the improved skill {skill} and pin the agents it would hurt} fork_for_helped {Fork {skill} for the agents it helped} catch_up {Catch the fork of {skill} up with main} other {Return the fork of {skill} to main}}",
+      "approveAcceptImprovement": "Accept attempt {attempt} for {agent} ({verdict, select, better {better} criteria_better {better on criteria} no_change {no change} criteria_worse {worse on criteria} regression {worse} inconclusive {inconclusive} other {not measured}}) {publish, select, yes {and publish it} other {as a draft}}",
+      "approvePublishAgent": "Publish {agent}",
+      "approveChangeSkillVersion": "{state, select, main {Move {agent} to the main line of {skill}} pinned {Pin {agent} to {skill} v{version}} other {Move {agent} to the fork {fork} of {skill}}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {Apply the improved skill {skill}} apply_and_pin {Apply the improved skill {skill} and pin the agents it would hurt} fork_for_helped {Fork {skill} for the agents it helped} fork_for_chosen {Fork {skill} for {agents}} catch_up {Catch the fork of {skill} up with main} other {Return the fork of {skill} to main}}",
       "approveStartEvalRun": "Test {agent} on the dataset {dataset} v{version}",
       "selectingProjectContext": "Selecting project context…",
       "selectedProjectContext": "Project context selected",
@@ -2228,9 +2231,9 @@
       "percent": "{percent}%",
       "sandboxMemory": "Sandbox memory",
       "storedOf": "{used} of {limit} stored",
-      "threadTotal": "${cost}",
+      "threadTotal": "{cost}",
       "threadTotalDetail": "{input, number} in · {output, number} out billed across this conversation",
-      "threadTotalPartial": "≥ ${cost}",
+      "threadTotalPartial": "≥ {cost}",
       "threadTotalPartialDetail": "{input, number} in · {output, number} out billed across this conversation - a floor: some model in it had no price",
       "unmeasured": "in use - this host did not report a number",
       "workspace": "Workspace",
@@ -2346,6 +2349,19 @@
     "hints": {
       "shortcuts": "Message your agent. <key>/</key> commands · <key>@</key> resources"
     },
+    "workspace": {
+      "title": "Workspace",
+      "visuals": "Visuals",
+      "browser": "Browser",
+      "files": "Files",
+      "resize": "Resize workspace",
+      "expand": "Expand workspace",
+      "dock": "Dock workspace",
+      "allFiles": "Back to all files",
+      "close": "Close workspace",
+      "desktop": "Desktop",
+      "open": "Open workspace"
+    },
     "visuals": {
       "drawing": "Drawing…",
       "revising": "Revising…",
@@ -2359,6 +2375,10 @@
       "zoomReset": "Reset zoom",
       "zoomLevel": "{zoom, number, percent}",
       "download": "Download",
+      "downloadSvg": "SVG — vector file",
+      "downloadPng": "PNG — image for slides",
+      "preparingPng": "Preparing PNG…",
+      "pngDownloadFailed": "The PNG could not be downloaded. Try again.",
       "copyImage": "Copy as image",
       "imageCopied": "Image copied",
       "copyImageFailed": "The image could not be copied",
@@ -2387,7 +2407,15 @@
       "followUpAsks": "The drawing asks to send this as your message:",
       "followUpSend": "Send",
       "followUpEdit": "Edit",
-      "followUpDismiss": "Dismiss"
+      "followUpDismiss": "Dismiss",
+      "openWorkspace": "Open side panel",
+      "dockWorkspace": "Return to side panel",
+      "closeWorkspace": "Close visual",
+      "workspaceTitle": "Visual: {title}",
+      "workspaceViews": "Visual views",
+      "resizeWorkspace": "Resize visual panel",
+      "previewTab": "Preview",
+      "codeTab": "Code"
     },
     "dictation": {
       "cancel": "Cancel dictation",
@@ -2777,7 +2805,71 @@
     "routineContinueChat": "Continue in a new chat",
     "approvalOthersWait": "Your answer covers only your own platform calls. The others wait for somebody who can decide approvals.",
     "approvalNeedsItsPerson": "Only the person this run acts for can approve this. You can reject it.",
-    "approvalNeedsItsAdminPerson": "Only the person this run acts for, signed in as an application administrator, can approve this. You can reject it."
+    "approvalNeedsItsAdminPerson": "Only the person this run acts for, signed in as an application administrator, can approve this. You can reject it.",
+    "environmentView": {
+      "agentDriving": "The agent is using this environment. Wait for control to become available.",
+      "humanDriving": "A person is controlling this environment.",
+      "canTakeOver": "You are watching. Take control to interact.",
+      "watchOnly": "Viewing only.",
+      "refresh": "Check availability",
+      "end": "End environment",
+      "start": "Open environment",
+      "startNew": "Open new environment",
+      "retry": "Reconnect view",
+      "confirmTitle": "End this environment?",
+      "confirmDescription": "Closing the panel keeps this environment available. Ending it releases its session; unsaved page state may be lost.",
+      "failure": {
+        "start": "Could not open the environment. Check availability and try again.",
+        "end": "Could not end the environment. It may still be running.",
+        "state": "Could not update readiness. Check availability before continuing.",
+        "refresh": "Could not check availability. Try again."
+      },
+      "phase": {
+        "expired": {
+          "title": "Environment ended",
+          "description": "Open a new environment to continue."
+        },
+        "failed": {
+          "title": "Environment unavailable",
+          "description": "Check availability or explicitly try opening it again."
+        },
+        "notStarted": {
+          "title": "Environment not started",
+          "description": "Open this environment when you need it. No agent run is started."
+        },
+        "starting": {
+          "title": "Preparing environment",
+          "description": "You can leave this panel and return when it is ready."
+        },
+        "forbidden": {
+          "title": "Access unavailable",
+          "description": "Your access changed. Check availability to get the current permissions."
+        },
+        "malformed": {
+          "title": "Live view could not be verified",
+          "description": "The stream was stopped. Reconnect to request a fresh live view."
+        },
+        "disconnected": {
+          "title": "Live view disconnected",
+          "description": "Reconnect to keep watching the same environment."
+        },
+        "connecting": {
+          "title": "Connecting live view",
+          "description": "Waiting for the environment’s current screen."
+        }
+      },
+      "browserTitle": "Browser",
+      "desktopTitle": "Desktop",
+      "loadFailed": "Could not load the environment. Try again.",
+      "loading": "Loading environment…",
+      "runLifetime": "Closes after an agent run that uses this environment.",
+      "idleMinutes": "Retained for up to {minutes, plural, one {# minute} other {# minutes}} of inactivity.",
+      "idleSeconds": "Retained for up to {seconds, plural, one {# second} other {# seconds}} of inactivity.",
+      "options": "Environment options",
+      "lifetime": "When it closes",
+      "checked": "Availability checked: {status}.",
+      "ready": "Ready"
+    }
   },
   "approvalFeedback": {
     "savedApproval": "Already approved: {action}",
@@ -4198,7 +4290,7 @@
     "adding": "Adding…",
     "appliesEachFileYou": "This applies to each file you add next and is recorded on it. The collection keeps its own settings - every later upload goes back to them.",
     "applyChanges": "{count, plural, =1 {Apply 1 change} other {Apply # changes}}",
-    "builtInReadersRegardless": "Text, Markdown and Word files use the built-in readers whichever is chosen.",
+    "builtInReadersRegardless": "Text and Markdown files use the built-in reader whichever parser is chosen.",
     "cancel": "Cancel",
     "cancel2": "Cancel",
     "cancel3": "Cancel",
@@ -4265,7 +4357,7 @@
     "knowledgeBasesAlreadyUsing": "Knowledge bases already using it keep their own copy - this only removes the one nothing is syncing from.",
     "leaveEmptyAutoGenerate": "Leave empty to auto-generate",
     "leftAloneCollectionInherits": "Left alone, this collection inherits whatever defaults the deployment is configured with. The values below are the platform's; changing any one of them sends all of them, and they become this collection's until somebody edits them.",
-    "liteparseReadsTextLayer": "LiteParse reads the text layer first and OCRs a page only when there is nothing there. OCR dominates the cost of a parse, and most documents are born digital. Turn this off to OCR every page regardless.",
+    "liteparseReadsTextLayer": "With the text layer first, a page is OCRed only when there is nothing there. OCR dominates the cost of a parse, and most documents are born digital. Turn this off to OCR every page regardless.",
     "llamaparseKey": "LlamaParse key",
     "llamaparseTier": "LlamaParse tier",
     "loadingModels": "Loading models…",
@@ -4273,7 +4365,7 @@
     "maximumPages": "Maximum pages",
     "model": "Model",
     "model2": "Model",
-    "modelIsFixed": "Model, fixed by the vectors already stored",
+    "modelIsFixed": "Model, fixed by the vectors already stored. A move is tested against them.",
     "modelsUnreadable": "The list of providers could not be read, so no provider or key can be chosen. Creating this collection will be refused until it can.",
     "name": "Name",
     "nameCopy": "Name for the copy",
@@ -4297,7 +4389,10 @@
     "overlapRepeats": "adjacent chunks repeat their overlap, so boundary text appears twice",
     "pageNumber": "Page {number}",
     "pageParsedNothingReadable": "This page parsed to nothing readable - likely an unreadable scan.",
-    "pagePictureTextCarries": "A page that is a picture of text carries no text to extract. PyMuPDF hands such a page to the image model; LiteParse runs its own OCR.",
+    "scannedPagesDocling": "A page or image that is a picture of text has no text to extract. Docling reads it with its own OCR; with this off, an image upload has nothing to index.",
+    "scannedPagesLiteparse": "A page that is a picture of text has no text to extract. LiteParse reads it with its own OCR.",
+    "scannedPagesLlamaparse": "LlamaParse reads scanned pages itself, whatever this is set to.",
+    "scannedPagesPymupdf": "A page that is a picture of text has no text to extract. PyMuPDF hands such a page to the image model.",
     "nextUploadsTitle": "How the next uploads are read and filed",
     "parseTimeoutSeconds": "Parse timeout (seconds)",
     "parsed": "Parsed",
@@ -4318,15 +4413,15 @@
     "problemWholeBetween": "A whole number between {min} and {max}.",
     "productDocs": "Product docs",
     "prompt": "Prompt",
-    "providerMoveKeepsTheIndex": "The same model served from somewhere else is the same model, so nothing already indexed changes - the next request just goes to the new provider, on the new key.",
+    "providerMoveKeepsTheIndex": "A move is tested against chunks already stored: if the new provider returns the same vectors, nothing already indexed changes - the next request just goes to the new provider.",
     "readAsImages": "Read as images",
-    "readScannedPages": "Read scanned pages",
+    "readScannedPages": "Read scanned pages (OCR)",
     "reasoning": "Reasoning",
     "remove": "Remove",
     "removeNamed": "Remove {name}?",
     "integrationActions": "Actions",
     "integrationDetails": "Connection / schedule",
-    "integrationsDescription": "Reusable sources feed your knowledge bases. Local services provide embedding and OCR processing on your own network.",
+    "integrationsDescription": "Reusable sources feed your knowledge bases. Service connections are the embedding and OCR endpoints your collections use.",
     "integrationsEmpty": "No integrations yet",
     "integrationsCount": "{count, plural, one {# integration} other {# integrations}}",
     "reusableIntegrations": "Integrations",
@@ -4360,11 +4455,12 @@
     "endpointModelsUnconfirmed": "This endpoint could not be asked which models it serves, so every OpenRouter model is listed. A model it does not serve will fail on the first upload.",
     "endpointServesNoModel": "This endpoint serves none of the embedding models AgenticOS offers. Leave the endpoint empty, or choose another provider.",
     "endpointLacksCollectionModel": "This endpoint does not serve {model}, the model this collection's vectors were made with. Leave the endpoint empty, or choose one that serves it.",
-    "localServicesHint": "Servers on the deployment's own network - an Ollama that embeds, an OCR sidecar for LiteParse - registered once and chosen per collection. Nothing sent to one leaves the deployment.",
+    "connectionActive": "Active",
+    "serviceConnectionsHint": "Endpoints registered once and chosen per collection: an Ollama that embeds, an OpenAI-compatible gateway with its Vault key, an OCR sidecar for LiteParse.",
     "addServer": "Add server",
-    "failedLoadLocalServices": "Failed to load local services",
-    "localServiceKind": "Kind",
-    "embeddingServer": "Embedding server (Ollama)",
+    "failedLoadServiceConnections": "Failed to load service connections",
+    "serviceConnectionKind": "Kind",
+    "embeddingServer": "Embedding server",
     "ocrServer": "OCR server (LiteParse)",
     "address": "Address",
     "addressHint": "The root the service answers on. Ollama's OpenAI-compatible root ends in /v1; an OCR server's is its base.",
@@ -4391,7 +4487,75 @@
     "embeddingEndpoint": "Endpoint",
     "embeddingEndpointHint": "Leave empty for the global OpenRouter API, or enter a regional URL such as https://eu.openrouter.ai/api/v1. EU routing requires an eligible OpenRouter plan; ZDR is configured separately on OpenRouter.",
     "noConnectorsAvailable": "No source connectors are available. An administrator can enable a connector for this deployment.",
-    "parsedSnapshotOnly": "Imported parsed text. The original file was not included."
+    "parsedSnapshotOnly": "Imported parsed text. The original file was not included.",
+    "apiStyle": "API style",
+    "apiStyleOllama": "Ollama",
+    "apiStyleOpenAICompatible": "OpenAI-compatible",
+    "apiStyleLiteparse": "LiteParse",
+    "apiStyleDocling": "Docling Serve",
+    "doclingAddressExample": "http://docling:5001",
+    "documentParserServer": "Document parser (Docling)",
+    "testConnection": "Test connection",
+    "doclingTestOk": "Docling Serve {version} answered.",
+    "doclingTestKeyRefused": "Docling Serve refused the key.",
+    "doclingTestKeyRequired": "This Docling Serve requires a key. Choose one above.",
+    "doclingTestUnreachable": "Nothing answered at this address.",
+    "doclingTestNotDocling": "Something answered, but it is not Docling Serve.",
+    "parserDocling": "Docling",
+    "parserDoclingHint": "Your own Docling Serve. Keeps layout, tables and pages.",
+    "doclingConnection": "Docling connection",
+    "doclingConnectionHint": "The Docling Serve this collection converts through. It is the collection's own: an upload cannot choose another.",
+    "doclingLanguages": "OCR languages",
+    "doclingLanguagesHint": "Two-letter codes such as “de” or “en”, up to {max}. Leave empty to use Docling's default. Press Enter to add one.",
+    "doclingLanguagePlaceholder": "de, en",
+    "doclingLanguageInvalid": "Language codes are two letters, such as “de” or “en”.",
+    "removeLanguage": "Remove {code}",
+    "doclingPreset": "OCR preset",
+    "doclingPresetHint": "Which OCR engine Docling uses: auto, easyocr, rapidocr or tesseract. Only engines installed on your Docling Serve work.",
+    "tableMode": "Table mode",
+    "tableModeAccurate": "Accurate",
+    "tableModeAccurateHint": "Slower, follows complex tables more faithfully.",
+    "tableModeFast": "Fast",
+    "tableModeFastHint": "Quicker, with simpler table reconstruction.",
+    "whereDoclingStops": "Where Docling stops. This is what bounds the cost of one document - the timeout only bounds the wait.",
+    "howLongDoclingMay": "How long the platform waits for Docling on one document. It stops waiting after 3000 seconds even if a higher value is set, so the refusal arrives before the job's own limit; Docling itself is not stopped.",
+    "problemDoclingLanguages": "OCR languages are two-letter codes, at most {max} of them.",
+    "problemDoclingPreset": "The OCR preset is lower-case letters, digits, “-” and “_”, up to 64 characters.",
+    "connectionKey": "Vault key",
+    "connectionKeyHint": "Sent with every request. Choose a key from your organization's vault, or add one here.",
+    "connectionHasKey": "Vault key",
+    "deploymentWideKeyless": "A deployment-wide connection cannot hold a key. Register an organization connection to use one.",
+    "editServer": "Edit server",
+    "testSettings": "Test",
+    "testingSettings": "Testing…",
+    "testCost": "{count, plural, =0 {No embedding calls} one {Up to # embedding call} other {Up to # embedding calls}}. May use provider tokens; keyed calls count toward the organization's monthly budget.",
+    "probePassed": "{count, plural, =0 {Nothing stored yet, so nothing can break} one {# knowledge base keeps its vectors} other {# knowledge bases keep their vectors}}",
+    "probeOutcome": {
+      "passed": "Passed",
+      "no_chunks": "Nothing stored yet, so nothing can break",
+      "unreachable": "The endpoint could not be reached",
+      "key_refused": "The endpoint refused the key",
+      "model_unknown": "The endpoint does not know this model or returned no vector",
+      "wrong_width": "The endpoint answers at a different vector width",
+      "vectors_differ": "The endpoint returns different vectors than the ones stored"
+    },
+    "probeFailedAdvice": "Create a new knowledge base for these settings.",
+    "saveWithoutTest": "Save without testing",
+    "unverifiedTitle": "Save without testing?",
+    "unverifiedBody": "Retrieval breaks if the new endpoint serves a different model, and documents ingested from now on get vectors from the new endpoint.",
+    "unverifiedConfirm": "Save anyway",
+    "unverifiedAffected": "{count, plural, one {# knowledge base is affected.} other {# knowledge bases are affected.}}",
+    "openaiCompatibleAddressExample": "https://gateway.example.com/v1",
+    "customModel": "Model",
+    "customModelHint": "The model name exactly as the endpoint expects it.",
+    "measuredWidth": "{dim, plural, one {Measured width: # dimension} other {Measured width: # dimensions}}",
+    "modelTestedAgainstStored": "Model the stored vectors were made with. A different model is allowed but is tested against the stored chunks.",
+    "testCostUnavailable": "Could not read how many probes the test makes.",
+    "tested": "Tested",
+    "blockedMissingSettings": "Fill in the missing settings first.",
+    "blockedRunTest": "Run the test first; saving unlocks once it passes.",
+    "deploymentWideCollection": "Every organization (deployment-wide)",
+    "deploymentWideCollectionHint": "Belongs to the deployment, not to an organization: every organization can search it. It can only use deployment-wide connections and keyless providers, and no Vault keys."
   },
   "knowledgeBases": {
     "active": "Active",
@@ -4466,7 +4630,17 @@
       "download": "Get the desktop app",
       "dismiss": "Remind me in 14 days"
     },
-    "signInAgain": "Sign in again"
+    "signInAgain": "Sign in again",
+    "sidebarPromotions": {
+      "title": "Getting started",
+      "carousel": "carousel",
+      "slide": "slide",
+      "position": "{current} of {total}",
+      "previous": "Previous card",
+      "next": "Next card",
+      "pause": "Pause rotation",
+      "resume": "Resume rotation"
+    }
   },
   "legal": {
     "acceptAll": "Accept all",
@@ -4905,8 +5079,8 @@
     "cardYoursAndOrganizations": "Yours and the organization's",
     "accountActions": "More for {name}",
     "watch": "Watch",
-    "trustReadOnlyHints": "Let evals call tools this server marks read-only",
-    "trustReadOnlyHintsHint": "Evals hold every call to a production server unless you trust it: the read-only mark is the server's own claim. {count, plural, =0 {No tool here claims it.} =1 {1 tool here claims it.} other {# tools here claim it.}}",
+    "trustReadOnlyHints": "Let evals call tools this server marks read-only and closed-world",
+    "trustReadOnlyHintsHint": "Evals hold every call to a production server unless you trust it, and then run only the tools it marks both read-only and closed-world - reaching nothing but this server. Both marks are the server's own claim. {count, plural, =0 {No tool here claims to be read-only.} =1 {1 tool here claims to be read-only.} other {# tools here claim to be read-only.}}",
     "googleOAuthClientRequired": "Google requires a Client ID and client secret from Google Cloud before you can connect.",
     "googleOAuthSetupGuide": "Open Google setup guide",
     "oauthRequiredClient": "Google Cloud OAuth client",
@@ -5498,7 +5672,7 @@
       },
       "org-assistant": {
         "title": "The AI Architect",
-        "body": "Switch the organization's assistant on or off and set how it greets people. Its name, model and knowledge are edited in the Agent Builder, like any agent's."
+        "body": "Switch the organization's AI Architect on or off. Edit its model, instructions and knowledge from Agents, like any other agent."
       },
       "org-members": {
         "title": "Who's in it",
@@ -5632,9 +5806,9 @@
         "title": "Start from a template",
         "body": "Twenty-eight ready-made agents by industry. Installing one creates a draft with its skills already bound."
       },
-      "knowledge-local-services": {
-        "title": "Local services",
-        "body": "Servers on your own network: register an Ollama to embed with no key, or an OCR server for LiteParse, and pick one per collection - so a knowledge base can stay entirely on your hardware."
+      "knowledge-service-connections": {
+        "title": "Service connections",
+        "body": "Service connections: embedding and OCR endpoints - an Ollama, an OpenAI-compatible gateway with its Vault key, an OCR server - registered once and chosen per collection."
       },
       "artifacts-list": {
         "title": "Published pages",
@@ -5825,6 +5999,10 @@
         "title": "By department",
         "body": "Narrow the list to what one group was given. A group is who something reaches, so it is also how the list is grouped."
       },
+      "skills-arrange": {
+        "title": "Arrange the library",
+        "body": "See skills by the agent that uses them, by where they came from or by category. Arranging changes nothing about who can see a skill."
+      },
       "context-groups": {
         "title": "By department",
         "body": "Narrow the list to what one group was given. A group is who something reaches, so it is also how the list is grouped."
@@ -5864,6 +6042,14 @@
       "chat-visual": {
         "title": "Drawings",
         "body": "An agent with Visuals draws diagrams, explainers and 3D scenes here, live while it writes them. Open one full screen, download it, ask about it, or save it as an app with a link you can share."
+      },
+      "chat-workspace-tabs": {
+        "title": "One workspace beside your chat",
+        "body": "Switch between Visuals, Browser and Files here. Your selected page and file stay open when you change tabs. Expand the workspace for more room or close it to return to the conversation."
+      },
+      "chat-visual-workspace": {
+        "title": "A page beside your chat",
+        "body": "Open a visual in the resizable side panel to keep chatting while you use it. Switch between Preview and Code, expand it, or close the panel without resetting its controls."
       },
       "chat-voice-call": {
         "title": "Talk to the agent",
@@ -6199,11 +6385,11 @@
       },
       "project-tracking": {
         "title": "Keep project on track",
-        "body": "Review a published source agent and its accounts, then explicitly publish a private tracker with a task table and an ordinary project routine."
+        "body": "Open Task table options beside Task table, then choose Automate task updates. Review a published source agent and its accounts before explicitly publishing a private tracker that updates the same task table on a schedule."
       },
       "flow-project-tracker-create": {
         "title": "Set up a project tracker?",
-        "body": "Review an editable published agent and its accounts, then explicitly publish a private tracker with a task table and scheduled checks."
+        "body": "Open Task table options, then choose Automate task updates. Review an editable published agent and its accounts, then explicitly publish a private tracker with scheduled checks of this project’s task table."
       },
       "channels-phone": {
         "title": "Set up telephone routing",
@@ -6456,6 +6642,14 @@
       "project-resources": {
         "title": "Keep related resources together",
         "body": "Link existing agents, workflows, Apps and tables without changing their permissions. Open them from here, or choose a linked workflow as the project's entrypoint."
+      },
+      "skills-import": {
+        "title": "Import package",
+        "body": "Choose a skill folder or ZIP with SKILL.md. Files and frontmatter are preserved. Import never runs scripts, tests or dependency installation."
+      },
+      "chat-environments": {
+        "title": "Open a live environment",
+        "body": "Open Browser or Desktop from the workspace menu, then choose Open environment. You can use it before asking the agent. Closing the panel keeps the session; End environment releases it."
       }
     },
     "chooseLanguage": "Language",
@@ -7002,9 +7196,9 @@
       "settingsLimitsHint": "What its runs may do at once and spend. Each step keeps its own limits - an agent step's cost ceiling among them - and these hold above them.",
       "settingsConcurrent": "Runs under way at once",
       "settingsConcurrentHint": "A start past it is refused until one ends: a webhook's sender is told to retry, a schedule waits for its next tick, and a table or a mailbox tries again.",
-      "settingsRunBudget": "Most one run may spend (USD)",
+      "settingsRunBudget": "Most one run may spend ({currency})",
       "settingsRunBudgetHint": "A run that reaches it stops before its next step, as out of budget.",
-      "settingsMonthlyBudget": "Most its runs may spend a month (USD)",
+      "settingsMonthlyBudget": "Most its runs may spend a month ({currency})",
       "settingsMonthlyBudgetHint": "Counted over the calendar month in UTC, test runs included. Once reached, no run starts until the month turns or the budget is raised.",
       "settingsNoLimit": "No limit",
       "stats": {
@@ -7481,7 +7675,7 @@
       "mcpServersDescription": "External tools this agent may call, from <servers>the catalog</servers>. Bind a server to the organization's account, which answers for everybody, or to each person's own account, which they connect themselves. A member's connection is never bound directly - an agent everyone runs cannot depend on whose credential is behind it.",
       "model": "Model",
       "modelSettings": "Model settings",
-      "monthlyUsd": "Monthly (USD)",
+      "monthlyUsd": "Monthly ({currency})",
       "monthlyUsdHint": "Runs stop once this agent spends this much in a calendar month. Blank leaves only the organization's limit.",
       "moreActions": "More actions",
       "n100Default": "100 (default)",
@@ -7793,7 +7987,6 @@
       "bases": "Bases",
       "chooseFiles": "Choose files",
       "chunkCount": "{count, plural, =1 {1 chunk} other {# chunks}}",
-      "clear": "Clear",
       "collectionItselfUnchanged": "The collection itself is unchanged.",
       "configureConnectorsAtWorkspace": "Configure connectors at the organization level to start syncing from external sources.",
       "connect": "Connect",
@@ -7846,9 +8039,8 @@
       "nothingHasBeenUploaded": "Nothing has been uploaded here yet.",
       "openCollection": "Open {name}",
       "overridden": "overridden",
-      "parseOptions": "Parse options",
       "parsedWith": "Parsed with",
-      "parsedWithOverrides": "The next files you add are parsed with <strong>{count, plural, =1 {1 change} other {# changes}}</strong> from this collection's settings, and will say so.",
+      "parsedWithOverrides": "The next files you add, and failed files you retry, are parsed with <strong>{count, plural, =1 {1 change} other {# changes}}</strong> from this collection's settings, and will say so.",
       "previewFile": "Preview file",
       "previewFile2": "Preview file",
       "processing": "Processing…",
@@ -7893,7 +8085,12 @@
       "retryDocument": "Retry",
       "indexDocumentNamed": "Index {name}",
       "retryDocumentNamed": "Retry {name}",
-      "indexDocumentHint": "Uses this knowledge base's settings and may incur provider costs."
+      "indexDocumentHint": "Indexes this original with the current knowledge-base settings and pending upload changes. Provider costs may apply.",
+      "revertPendingChanges": "Revert",
+      "settings": "Settings",
+      "uploadOptions": "Upload options",
+      "uploadWithDifferentSettings": "Upload with different settings…",
+      "retryDocumentHint": "Retries with the current knowledge-base settings and pending upload changes. Provider costs may apply."
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "The catalog is compiled into the backend, and nobody has added a server of their own. An empty list here means this deployment ships none.",
@@ -8638,6 +8835,13 @@
     },
     "skills": {
       "allCategories": "All categories",
+      "arrange": {
+        "agent": "By agent",
+        "origin": "By origin",
+        "category": "By category",
+        "none": "No sections"
+      },
+      "arrangeBy": "Arrange by",
       "askAdministratorAccessSkills": "Ask an administrator for access to skills.",
       "categoryCount": "{count, plural, =1 {1 category} other {# categories}}",
       "clearFilter": "Clear filter",
@@ -8652,6 +8856,17 @@
       "nobodyHasWrittenSkill": "Nobody has written a skill for this organization yet.",
       "recentlyUpdated": "Recently updated",
       "searchSkills": "Search skills…",
+      "section": {
+        "drafted": "Drafted only",
+        "unused": "Not used by an agent you can see",
+        "org": "Organization",
+        "private": "Private",
+        "platform": "Built-in · Platform",
+        "gallery": "Built-in · {industry}",
+        "uncategorized": "Uncategorized"
+      },
+      "showAll": "{count, plural, =1 {Show 1} other {Show all #}}",
+      "showFewer": "Show fewer",
       "skillCount": "{count, plural, =1 {1 skill} other {# skills}}",
       "skillKnowHowWritten": "A skill is know-how written once and shared by every agent that needs it - how refunds are handled, what the house style is. Edit it here and each agent bound to it is current on its next run.",
       "skills": "Skills",
@@ -9104,7 +9319,7 @@
       "accessHint": "Control who can join, their starting organization and usage limits.",
       "notices": "Announcements & maintenance",
       "noticesHint": "Share a notice or configure the maintenance screen.",
-      "services": "Voice & mobile",
+      "services": "Services & costs",
       "servicesHint": "Audio recording preferences and push notifications for the mobile app.",
       "operations": "Updates & diagnostics",
       "operationsHint": "Application updates and deployment diagnostics."
@@ -9992,7 +10207,25 @@
       "testOptional": "Test before applying (optional)",
       "hiddenAgents": "{count, plural, one {# other agent} other {# other agents}}",
       "testOptionalShort": "Test (optional)",
-      "compareShort": "Changes"
+      "compareShort": "Changes",
+      "quotesCredential": "This change quotes a credential, so it can't be applied or tested. Discard it and make the change by hand."
+    },
+    "package": {
+      "title": "Import package",
+      "description": "Choose a skill folder or ZIP with SKILL.md. Files and frontmatter are preserved. Import never runs scripts, tests or dependency installation.",
+      "directory": "Choose folder",
+      "zip": "Choose ZIP",
+      "limits": "8 MiB per file · 32 MiB per package · 1,024 files.",
+      "reading": "Reading package…",
+      "summary": "{count} resource files · {size}",
+      "private": "Creates a private skill with a complete first version. Existing skills are never overwritten.",
+      "apply": "Import skill",
+      "cancel": "Cancel",
+      "imported": "Skill imported",
+      "binary": "Binary",
+      "text": "Text",
+      "download": "Download file",
+      "binaryHelp": "Binary files are preserved exactly. Download this file or replace it with an upload."
     }
   },
   "states": {
@@ -10023,7 +10256,7 @@
     "emailAddress": "Email address",
     "emptyMeansUnlimited": "Empty means unlimited.",
     "emptyNoLimit": "empty for no limit.",
-    "enterAmountDollarsLeave": "Enter an amount in dollars, or leave it empty for no limit.",
+    "enterAmountDollarsLeave": "Enter a valid amount, or leave it empty for no limit.",
     "howManyPeople": "How many people",
     "inviteEmailed": "Emailed to {email}. The link below is your own copy, in case it does not arrive.",
     "inviteLinkLabel": "Invitation link",
@@ -10034,7 +10267,6 @@
     "inviteWithLink": "Invite with a link",
     "joinAs": "Join as",
     "joined": "Joined",
-    "limitUsd": "Limit (USD)",
     "manageOrganizations": "Manage organizations",
     "member": "Member",
     "monthlyLimitRemoved": "Monthly limit removed",
@@ -10146,7 +10378,7 @@
       "model": "Model",
       "modelHint": "Used only to suggest improvements from conversations. Monitoring uses each selected agent’s model.",
       "modelRequired": "Choose the model it runs on before turning it on.",
-      "label": "Limit per person (USD a month)",
+      "label": "Limit per person ({currency} a month)",
       "days": "Days",
       "timing": "When",
       "timingFixed": "At a set hour",
@@ -10157,7 +10389,7 @@
       "save": "Save",
       "saved": "Background settings saved",
       "off": "Background features are off",
-      "invalid": "Enter an amount in dollars, 0 or more.",
+      "invalid": "Enter a non-negative amount.",
       "welcome": "Welcome message in chat apps",
       "welcomeHint": "A new member gets a direct message from your Slack, Teams and Mattermost bots.",
       "welcomeText": "Message",
@@ -10180,7 +10412,7 @@
       "enabled": "Run this role",
       "model": "Model",
       "modelHint": "Chosen, never defaulted: the role spends money nobody asked for in the moment.",
-      "budget": "Monthly budget (USD)",
+      "budget": "Monthly budget ({currency})",
       "noBudget": "No cap of its own",
       "invalid": "Enter a number of zero or more.",
       "modelRequired": "Choose the model this role runs on before turning it on.",
@@ -10751,7 +10983,7 @@
       "revoke": "Revoke",
       "waitingDevice": "Waiting for computer ({count})"
     },
-    "budgetLabel": "Monthly budget (USD, optional)",
+    "budgetLabel": "Monthly budget ({currency}, optional)",
     "budgetCreatorOnly": "Only the person who made this routine can raise or remove its limit while it runs as them.",
     "budgetHint": "What this routine may spend a month. Once spent it pauses and starts again on the first. It narrows the agent's and the organization's limits, never lifts them.",
     "budgetPlaceholder": "No limit of its own",
@@ -11598,6 +11830,14 @@
           "description": "Start a separate E2B desktop for this run. Select the organization's E2B key below; no Sandbox connection is needed.",
           "summary": "An isolated desktop hosted by E2B."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "This run"
+        },
+        "conversation": {
+          "label": "This conversation"
+        }
       }
     },
     "browser_use": {
@@ -11621,6 +11861,14 @@
           "label": "This computer (desktop app)",
           "summary": "A private browser on your paired computer.",
           "description": "Requires a paired desktop app and Local browser selected in this chat. Your personal browser session is not shared."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "This run"
+        },
+        "conversation": {
+          "label": "This conversation"
         }
       }
     },
@@ -11688,7 +11936,8 @@
         "completed": "Your test finished.",
         "failed": "Your test could not finish.",
         "cancelled": "Your test was cancelled.",
-        "budget_exceeded": "Your test stopped at its budget."
+        "budget_exceeded": "Your test stopped at its budget.",
+        "quote": "Your test stopped at the price you accepted."
       },
       "questions": {
         "ready": "Your test questions are written and wait for your review.",
@@ -13565,7 +13814,7 @@
     "addToGroupNothing": "There is nothing you can share with this group - everything you may edit is already here.",
     "addToGroupLevel": "They can",
     "addToGroupShare": "{count, plural, =0 {Share} =1 {Share 1} other {Share #}}",
-    "monthlyBudget": "Monthly budget (USD)",
+    "monthlyBudget": "Monthly budget ({currency})",
     "monthlyBudgetHint": "Runs started by this department's members stop when it is reached. Its lead and the administrators hear at 80%.",
     "noBudget": "No limit",
     "thisMonth": "This month",
@@ -14241,6 +14490,12 @@
     "chipGroupsMore": "{names} +{count}"
   },
   "capabilityConfig": {
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Show the model a visual's picture",
+        "description": "Return a screenshot when the agent previews a visual. Turn off for a model that cannot read images; rendering diagnostics still come back."
+      }
+    },
     "browser_use": {
       "cdp_url": {
         "title": "DevTools endpoint",
@@ -14301,6 +14556,14 @@
       "prefer_native_browser": {
         "title": "Use the native local browser",
         "description": "Use an embedded native tab for local DOM browsing. Disable for isolated Chromium compatibility. Vision and language/time-zone overrides use Chromium."
+      },
+      "session_lifetime": {
+        "title": "Session lifetime",
+        "description": "In private web chat, close the app-owned remote environment after a run that uses it, or keep it between turns. Paired local devices and other surfaces keep their existing session behavior."
+      },
+      "session_idle_seconds": {
+        "title": "Idle timeout (seconds)",
+        "description": "End an app-owned remote web-chat environment after this much inactivity, capped by deployment policy. Passive viewing does not extend it; closing the panel only detaches its view."
       }
     },
     "channel_tools": {
@@ -14831,6 +15094,14 @@
       "preview": {
         "title": "Live preview",
         "description": "Show the desktop live in the chat while the agent works it."
+      },
+      "session_lifetime": {
+        "title": "Session lifetime",
+        "description": "In private web chat, close the app-owned remote environment after a run that uses it, or keep it between turns. Paired local devices and other surfaces keep their existing session behavior."
+      },
+      "session_idle_seconds": {
+        "title": "Idle timeout (seconds)",
+        "description": "End an app-owned remote web-chat environment after this much inactivity, capped by deployment policy. Passive viewing does not extend it; closing the panel only detaches its view."
       }
     },
     "phone_calls": {
@@ -14984,7 +15255,14 @@
     "nativeTake": "Take over",
     "nativeCloseTab": "Close tab",
     "nativeViewport": "Native browser page",
-    "nativeDesktopOnly": "This tab is open in the paired desktop app. Continue there to use its native browser."
+    "nativeDesktopOnly": "This tab is open in the paired desktop app. Continue there to use its native browser.",
+    "youControl": "You control",
+    "agentControls": "Agent controls",
+    "otherViewerControls": "Another viewer controls",
+    "viewOnly": "View only",
+    "takingOverShort": "Taking over…",
+    "openPages": "Open browser pages",
+    "untitledPage": "Untitled page"
   },
   "remoteAgents": {
     "optionalSettings": "Authentication and handle (optional)",
@@ -15174,8 +15452,9 @@
       "sharedWorkspace": "Shared project workspace"
     },
     "tracking": {
-      "title": "Automatic project tracking",
-      "description": "Create a task table with saved views and publish a private copy of a selected agent as its scheduled tracker.",
+      "options": "Task table options",
+      "title": "Automate task updates",
+      "description": "Create an agent and a scheduled routine that check progress using sources you approve and update this project’s shared task table. You can also edit the same table yourself.",
       "audience": "The routine acts as you and writes its reports in this project’s shared conversation. The source agent remains unchanged.",
       "baseAgent": "Source agent you can edit",
       "chooseAgent": "Choose a published agent",
@@ -15614,7 +15893,8 @@
         "judgeGradedTwice": "The judge graded this criterion more than once, so neither grade counts.",
         "judgeUngraded": "The judge gave no grade on the scale for this criterion.",
         "judgeReasonEcho": "The judge restated the criterion instead of saying why the answer meets it.",
-        "judgeCounterUnsupported": "The judge passed the answer as unlike the counter-example, though the answer repeats it or the judge quoted only what the two share."
+        "judgeCounterUnsupported": "The judge passed the answer as unlike the counter-example, though the answer repeats it or the judge quoted only what the two share.",
+        "scriptCallsNotKept": "A code-mode script made more calls than its run kept, so its tool calls were not graded."
       },
       "scoreRun": "Score against a case",
       "scoreRunBody": "Run every scorer the dataset configures on this run's answer. The result is kept on the dataset.",
@@ -16833,7 +17113,7 @@
         "efficiencyHint": "Optional ceilings against the baseline. Left empty, nothing is checked.",
         "costRise": "Cost per passed case may rise by (%)",
         "p95Rise": "p95 latency may rise by (%)",
-        "maxRunUsd": "Skip a run whose full estimate is above ($)",
+        "maxRunUsd": "Skip a run whose full estimate is above ({currency})",
         "maxRunUsdHint": "Includes reruns and the previous version. The actual cost can differ; a running eval is not stopped by this cap.",
         "description": "Note",
         "estimateRun": "One run: about {amount} for {count, plural, =1 {1 case} other {# cases}}.",
@@ -16968,12 +17248,14 @@
       "dismissAll": "Dismiss all",
       "verifyReport": "What the assistant made of your edits",
       "skillCreated": "Skill {name} created and added to the draft",
-      "working": "Reading the runs…"
+      "working": "Reading the runs…",
+      "checkQuotesCredential": "A suggestion quotes a credential, so these suggestions can't be checked. Edit the credential out where you can, or dismiss that suggestion."
     },
     "suggestion": {
       "tool": "Tool {tool}",
       "instructions": "Instructions",
       "fromVerify": "From verifying your edits",
+      "reworded": "Reworded at the Changes step",
       "status": {
         "accepted": "Accepted into the draft",
         "dismissed": "Dismissed"
@@ -16985,7 +17267,10 @@
       "accept": "Accept",
       "edit": "Edit",
       "dismiss": "Dismiss",
-      "undo": "Undo"
+      "undo": "Undo",
+      "quotesCredential": "This suggestion quotes a credential, so it can't be accepted as written. Edit the credential out, or dismiss it.",
+      "quotesCredentialDismiss": "This suggestion quotes a credential, so it can't be accepted. Dismiss it and make the change by hand.",
+      "quotesCredentialReadOnly": "This suggestion quotes a credential and cannot be accepted as written."
     },
     "field": {
       "editLabel": "Your value",
@@ -17143,7 +17428,8 @@
       "liveHint": "Applying is live: every agent that reads the file reads the new body on its next run.",
       "expects": "Expected: {effect}",
       "applied": "Applied the change to {name}",
-      "discarded": "Discarded the change to {name}"
+      "discarded": "Discarded the change to {name}",
+      "quotesCredential": "This change quotes a credential, so it can't be applied or checked. Discard it and make the change by hand."
     },
     "describe": {
       "open": "Create with {name}"
@@ -17168,6 +17454,7 @@
         "no_change": "It changes nothing",
         "unknown_tool": "The agent has no such tool",
         "invalid_tool_change": "A tool name or description the agent cannot use",
+        "hidden_characters": "Its text holds characters a person cannot see",
         "not_a_target": "Not something the assistant may change",
         "operation": "Not a change that setting allows",
         "loosens_approval": "It would loosen approval",
@@ -17175,6 +17462,7 @@
         "unknown_capability": "No such capability",
         "invalid_config": "Its settings are not valid",
         "does_not_apply": "It does not fit the draft",
+        "reaches_network": "It adds a capability that reaches beyond this deployment. Add it in the Builder, where its limits are set",
         "not_grantable": "It adds something the person who asked may not grant",
         "dismissed_before": "Somebody dismissed it before",
         "unsupported": "Said the edit is supported, with no evidence that could be checked",
@@ -17345,6 +17633,9 @@
     "gapsLabel": "{count, plural, =1 {1 open knowledge gap} other {# open knowledge gaps}}"
   },
   "improvement": {
+    "acceptChanged": "The attempt you were about to accept changed since you reviewed it. The session was refreshed; review it again.",
+    "unmeasuredEdits": "The draft held edits before this session started. Publishing releases them too, and no check measured them.",
+    "publishUnmeasuredEdits": "Publish those edits as well",
     "attributionUnconfirmed": "Change {number}: the result is not confirmed.",
     "includeInTest": "Include in the test",
     "includeChange": "Include change {number} in the test",
@@ -17399,7 +17690,7 @@
     "estimating": "Estimating the time and cost…",
     "sessionQuote": "Up to {cost} (estimate) to sort {answers, plural, one {# selected source example} other {# selected source examples}}. Each attempt after that takes about {minutes, plural, one {# minute} other {# minutes}} and costs roughly {perRound}, priced again before you press it; the limit of {limit} caps the whole session.",
     "evidence": "Based on {count, plural, one {# answer} other {# answers}} with feedback.",
-    "budget": "Session spending limit (USD)",
+    "budget": "Session spending limit ({currency})",
     "start": "Start improving",
     "working": "Still working…",
     "loading": "Loading the result…",
@@ -17996,7 +18287,7 @@
       "search": "Search variants",
       "searchHint": "The helper writes many versions of the instructions and scores each on the training questions. The best one comes to Changes and is then checked like any attempt.",
       "tooFew": "Search needs at least {needed} training questions; this dataset has {count, plural, =0 {none} =1 {1} other {#}}. Add questions or improve step by step.",
-      "budget": "Search budget (USD)",
+      "budget": "Search budget ({currency})",
       "budgetHint": "The search stops once its next variant would not fit. It can go over by at most the one variant it is scoring.",
       "gradingModel": "Model that grades variants",
       "datasetJudge": "The dataset's judge model",
@@ -18046,7 +18337,9 @@
       "invalid": "The test could not reliably compare the versions. Review the test before drawing conclusions.",
       "noExamples": "There are no changed answers to show. Open the full test to see every question."
     },
-    "permissionRuns": "Reading an Improve session needs runs:view, which this role does not hold. Ask an organization owner for access."
+    "permissionRuns": "Reading an Improve session needs runs:view, which this role does not hold. Ask an organization owner for access.",
+    "changeQuotesCredential": "This change quotes a credential, so it can't be tested or applied. Leave it out.",
+    "selectionQuotesCredential": "A chosen change quotes a credential. Leave it out to test the others."
   },
   "unsaved": {
     "title": "You have unsaved changes",
@@ -18140,8 +18433,8 @@
     "calls_per_hour": "Calls per rolling hour",
     "calls_per_day": "Calls per rolling 24 hours",
     "max_concurrent": "Concurrent calls",
-    "daily_budget_usd": "Daily telephony budget (USD)",
-    "price_per_minute_usd": "Conservative rate per leg/minute (USD)",
+    "daily_budget_usd": "Daily telephony budget ({currency})",
+    "price_per_minute_usd": "Conservative rate per leg/minute",
     "costHint": "Include a margin for Twilio fees and destinations. Whole minutes and possible transfer legs are reserved before dialing. Model budgets apply separately; estimates are not an invoice.",
     "transferTargets": "Allowed transfer contacts",
     "saveRouting": "Save telephone routing",
@@ -18405,6 +18698,8 @@
     "connectAnother": "Add account",
     "disconnect": "Disconnect",
     "loadFailed": "Your subscription accounts could not be loaded",
+    "disabledTitle": "Subscriptions are not enabled here",
+    "disabledDescription": "This deployment has no subscription gateway configured. Ask your deployment administrator to enable it before connecting a personal subscription.",
     "retry": "Retry",
     "dialogTitle": "Connect {name}",
     "deviceHelp": "Open the sign-in page, enter this code and approve. This window finishes on its own.",
@@ -18748,7 +19043,7 @@
       "budgetTitle": "What's a comfortable monthly limit?",
       "budgetGuide": "You're in control of AI usage. Pick a starting amount or move the slider. I'll only save it when you continue.",
       "unlimited": "No limit",
-      "budgetSlider": "Monthly budget in US dollars",
+      "budgetSlider": "Monthly budget slider ({currency})",
       "budgetInvalid": "Choose a positive amount, or no limit.",
       "budgetHint": "This caps tracked AI usage across agents in this organization. It is not a subscription or prepaid credit. Provider billing is separate.",
       "workspaceReadyTitle": "Ready for your first task",
@@ -18860,6 +19155,46 @@
       "workflowBody": "Bind tools to named functions and call them from Python. Each action keeps its permissions, approvals and execution record.",
       "organizationTitle": "Set organization defaults",
       "organizationBody": "Configure navigation, catalogs, dashboard and notices for each role, and control cost visibility. Members can personalize what your policy allows."
+    },
+    "scopes": {
+      "progress": "Setup progress",
+      "stages": "Setup stages",
+      "position": "Stage {current} of {total}",
+      "completed": "Completed",
+      "saveFailed": "Your setup progress could not be saved. Try this step again.",
+      "allDoneTitle": "Setup is complete",
+      "allDoneHint": "Shared setup is finished and your personal progress is preserved. Review any stage or open the app.",
+      "openApp": "Open the app",
+      "workspaceTitle": "Create or choose an organization",
+      "workspaceHint": "Deployment setup is complete. Choose a company workspace for its shared defaults, then continue with your personal setup.",
+      "loadFailed": "Could not load setup",
+      "deployment": {
+        "title": "Set up the deployment",
+        "hint": "Shared across this deployment. An application administrator completes this stage once.",
+        "short": "Deployment"
+      },
+      "organization": {
+        "title": "Set up the organization",
+        "hint": "Shared across this organization. One authorized person completes this stage for the team.",
+        "short": "Organization"
+      },
+      "personal": {
+        "title": "Your personal setup",
+        "hint": "Your profile, connections and preferences. This progress belongs to you.",
+        "short": "Personal"
+      },
+      "modelsShared": "Optional shared provider access belongs in the Vault with organization visibility. This step does not change your personal model selection.",
+      "toolsShared": "Optional shared tool access uses organization-owned MCP connections. Connect private accounts later in your personal setup.",
+      "openVault": "Open the Vault",
+      "openConnections": "Open MCP connections",
+      "returnToSetup": "The page opens in a new tab. Return to this setup when you are finished.",
+      "resourcesPermission": "Your permissions do not include viewing these shared resources. You can continue; an authorized person can configure them later.",
+      "sharedReview": "This shared stage is complete. Your open form stays available for review. Continue when you are ready to leave it.",
+      "continueReview": "Continue to the next stage",
+      "stageCompleted": "{stage} — Completed",
+      "continueShort": "Continue",
+      "skipShort": "Skip",
+      "finishShort": "Finish"
     }
   },
   "skillImprovement": {
@@ -18989,7 +19324,7 @@
       "continue": "Continue it",
       "hidden": "{count, plural, =1 {1 more agent you can't see uses this line.} other {# more agents you can't see use this line.}}",
       "price": "Up to {cost} (estimate) to its first proposal; each attempt after it about {perRound}, up to {rounds, plural, =1 {1 attempt} other {# attempts}}. The limit of {limit} caps the whole session.",
-      "limit": "Spending limit for the whole session (USD)",
+      "limit": "Spending limit for the whole session ({currency})",
       "limitHint": "Filled in for the first proposal and every attempt it may make. Lower it to stop sooner; the session stops before a step that would go over it.",
       "belowEstimate": "The limit is below what the session costs to its first proposal, {cost}. Raise it to at least that.",
       "unaffordable": "The organization's budget does not cover this.",
@@ -19002,8 +19337,9 @@
     "understand": {
       "title": "Understand",
       "loading": "Reading what went wrong…",
-      "summary": "{count, plural, =0 {No problem with the skill found} =1 {1 problem with the skill} other {# problems with the skill}}{elsewhere, plural, =0 {} other {, # answers whose trouble lies elsewhere}}{fine, plural, =0 {} other {, # that were fine}}.",
+      "summary": "{count, plural, =0 {No problem with the skill found} =1 {1 problem with the skill} other {# problems with the skill}}{elsewhere, plural, =0 {} =1 {, 1 answer whose trouble lies elsewhere} other {, # answers whose trouble lies elsewhere}}{fine, plural, =0 {} =1 {, 1 that was fine} other {, # that were fine}}.",
       "usageUnknown": "{count, plural, =1 {1 answer is from before skill loads were recorded and is not counted.} other {# answers are from before skill loads were recorded and are not counted.}}",
+      "seedWithheld": "{count, plural, =1 {1 problem handed over from the agent's session is left out: it quotes an answer to a question this skill's check grades.} other {# problems handed over from the agent's session are left out: they quote answers to questions this skill's check grades.}}",
       "agent": "{name} ({runs})",
       "occursIn": "In {runs, plural, =1 {1 answer} other {# answers}}, at {agents}{hidden, plural, =0 {} =1 { and 1 agent you can't see} other { and # agents you can't see}}.",
       "hiddenExamples": "{count, plural, =1 {+1 hidden example} other {+# hidden examples}}"
@@ -19113,7 +19449,7 @@
       "agents": "{count, plural, =0 {No agent you can see reads this line.} =1 {1 agent checks the result.} other {# agents check the result.}}",
       "hidden": "{count, plural, =1 {1 more agent you cannot see reads this line.} other {# more agents you cannot see read this line.}}",
       "price": "Proposing the conflicts' texts costs about {cost}. The check is priced at Changes.",
-      "limit": "Spending limit for the session (USD)",
+      "limit": "Spending limit for the session ({currency})",
       "limitHint": "You can raise it at Changes, when the check is priced.",
       "unaffordable": "The organization's budget does not cover this.",
       "start": {
@@ -22277,6 +22613,22 @@
       "preview": "Arrangement preview only. Each person’s data and permissions are resolved when they open it.",
       "empty": "This role default intentionally has no cards.",
       "discard": "Discard changes"
+    },
+    "rolePreview": {
+      "open": "Open console preview",
+      "hint": "Role defaults before personal choices. Navigation uses your current draft; dashboard, galleries and prompts use saved settings. Widget placeholders load no private data.",
+      "navigation": "Navigation",
+      "dashboard": "Dashboard",
+      "catalogs": "Catalogs",
+      "emptyDashboard": "No dashboard cards are shown.",
+      "emptyNavigation": "No primary navigation entries are shown.",
+      "wholeCatalog": "All entries allowed by existing permissions",
+      "approvedLimit": "{count, plural, =0 {No entries} one {Up to # approved entry} other {Up to # approved entries}}",
+      "mcp_galleryAvailable": "Only organization-connected servers",
+      "skill_galleryAvailable": "Only visible installed skills",
+      "shown": "Shown",
+      "hidden": "Hidden",
+      "unavailable": "Unavailable for these permissions"
     }
   },
   "modelSources": {
@@ -22328,6 +22680,49 @@
     "inProgress": "In progress",
     "unknown": "Not available",
     "otherStep": "Setup"
+  },
+  "modelPricing": {
+    "title": "Pricing",
+    "automaticAvailable": "Indicative automatic rates in USD per million tokens. The actual rate may depend on usage tiers or a provider-reported bill.",
+    "automaticUnavailable": "Automatic token prices are unavailable. A provider-reported cost can still be recorded after a request.",
+    "input": "Input tokens",
+    "output": "Output tokens",
+    "cache_read": "Cache read tokens",
+    "cache_write": "Cache write tokens",
+    "cacheDefault": "Leave empty to use the input price.",
+    "overrideCurrency": "Use custom prices (per million tokens)",
+    "currency": "Pricing currency"
+  },
+  "currencies": {
+    "title": "Currencies and exchange rates",
+    "manualRates": "Enter currency units for 1 USD. Rates are manual; recorded costs keep the rate applied when they were incurred.",
+    "deploymentDefault": "Default organization currency",
+    "rate": "{currency} per USD",
+    "remove": "Remove {currency}",
+    "code": "Currency code",
+    "newRate": "Units per USD",
+    "add": "Add currency",
+    "reset": "Use environment defaults",
+    "organization": "Organization currency",
+    "organizationHint": "Inherit the deployment default or select a reporting currency. Existing prices and limits keep their original units.",
+    "inherit": "Inherit ({currency})",
+    "rateUnavailable": "{currency} (exchange rate unavailable)",
+    "loadFailed": "Currency settings could not be loaded",
+    "retry": "Retry",
+    "saveFailed": "The currency could not be saved",
+    "amountInvalid": "Enter a valid non-negative amount in the reporting currency.",
+    "budgetLabel": "Budget ({currency})",
+    "limitLabel": "Limit ({currency})",
+    "perMinuteLabel": "Price per minute ({currency})",
+    "quoteHint": "Reporting quote: 1 USD = {rate} {currency}. This quote stays fixed until the currency preference changes; new model bills use current pricing rates.",
+    "spentOfLimit": "Spent {spent} of {limit} this month.",
+    "spentNoLimit": "Spent {spent} this month. No limit.",
+    "amountPositive": "Enter an amount greater than zero.",
+    "amountMaximum": "Enter at most {amount} {currency}.",
+    "switchOrganizationHint": "Switch to this organization before editing its limits. Its permissions, spend and reporting quote must match.",
+    "switchOrganization": "Switch to this organization",
+    "criterionLimit": "Cost ≤ {amount}",
+    "criterionObserved": "Observed {amount}; limit {limit}."
   },
   "portability": {
     "exportTitle": "Export agent",
@@ -22456,6 +22851,7 @@
       "context_gone": "The context file is gone.",
       "no_edit_context": "Whoever started this may no longer edit the context file.",
       "unknown_skill_use": "No run in this window is known to have used the skill. {runs, plural, one {# rated-down or failed run is from before uses were recorded, so whether it used the skill is unknown.} other {# rated-down or failed runs are from before uses were recorded, so whether they used it is unknown.}}",
+      "hidden_characters": "The proposed text holds characters that cannot be seen, so it was not recorded. Ask again.",
       "no_evidence": "Nothing to learn from yet: no run in this window was rated or failed. Widen the window, or come back once people have rated some answers.",
       "key_revoked": "The API key that started this was revoked or no longer exists, so it was stopped.",
       "not_a_member": "Whoever started this is no longer a member.",

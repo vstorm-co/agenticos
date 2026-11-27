@@ -12,8 +12,9 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, JsonValue
 
+from app.core.hidden_text import Proposed
 from app.db.models.improvement import (
     DroppedHunk,
     ImprovementStage,
@@ -25,6 +26,7 @@ from app.db.models.skill_check import CheckMode, CheckOutcome
 from app.db.models.skill_improvement import SkillImprovementOutcome, SkillImprovementPurpose
 from app.schemas.authoring import EvidenceQuote
 from app.schemas.base import BaseSchema
+from app.schemas.currency import MonetaryInputSchema
 from app.schemas.improvement import (
     ContinuationConsent,
     ContinuationEstimate,
@@ -54,7 +56,7 @@ class SkillVersionRef(BaseSchema):
     number: int
 
 
-class SkillImprovementTarget(BaseSchema):
+class SkillImprovementTarget(MonetaryInputSchema):
     """Which line a session improves, and how far back it reads - estimating and starting alike."""
 
     fork_id: UUID | None = Field(
@@ -88,7 +90,7 @@ type MainAlone = Literal["off", "same", "checked"]
 asked for, not needed because the merge is main, or checked."""
 
 
-class SkillMergeStart(BaseSchema):
+class SkillMergeStart(MonetaryInputSchema):
     budget_usd: Decimal = Field(
         ge=0,
         max_digits=12,
@@ -184,6 +186,8 @@ class SkillImprovementIterationRead(BaseSchema):
 class SkillImprovementRead(BaseSchema):
     """One session on a skill line, as its wizard reads it."""
 
+    monetary_terms: dict[str, JsonValue] = Field(default_factory=dict)
+
     round_hint: Literal["no_change", "inconclusive"] | None = None
     next_step: Literal["propose", "check"] | None = Field(
         default=None,
@@ -237,6 +241,12 @@ class SkillImprovementRead(BaseSchema):
     applied_version_id: UUID | None
     agents: int = 0
     hidden_agents: int = 0
+    seed_withheld: int = Field(
+        default=0,
+        description="For a session started from an agent's Improve, how many of the problems "
+        "it found in the skill were left out because an answer they quote is to a "
+        "question the skill's check measures on",
+    )
     check: SkillCheckRead | None = Field(
         default=None,
         description="The current attempt's check across the line's agents, once it started",
@@ -318,7 +328,7 @@ class SkillImprovementProblems(BaseSchema):
     usage_unknown: int
 
 
-class SkillContinue(BaseSchema):
+class SkillContinue(MonetaryInputSchema):
     budget_usd: Decimal | None = Field(
         default=None,
         gt=0,
@@ -364,10 +374,24 @@ class SkillContinuationConsent(ContinuationConsent):
 
 class SkillImprovementApply(SkillCheckApply):
     confirmed: Literal[True]
+    check_id: UUID = Field(
+        description="The `check.id` of the result that was reviewed, from the session's read"
+    )
+    result_hash: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="The reviewed `check.result_hash`, from the session's read",
+    )
 
 
 class SkillImprovementReturn(BaseSchema):
     confirmed: Literal[True]
+    check_id: UUID = Field(
+        description="The `main_alone_check.id` that was reviewed, from the session's read"
+    )
+    result_hash: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="The reviewed `main_alone_check.result_hash`, from the session's read",
+    )
     acknowledge_unknown: bool = Field(
         default=False,
         description="Return the fork's agents although main alone could not be checked on "
@@ -377,6 +401,13 @@ class SkillImprovementReturn(BaseSchema):
 
 class SkillImprovementFork(SkillCheckFork):
     confirmed: Literal[True]
+    check_id: UUID = Field(
+        description="The `check.id` of the result that was reviewed, from the session's read"
+    )
+    result_hash: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="The reviewed `check.result_hash`, from the session's read",
+    )
 
 
 class SkillImprovementApplied(BaseSchema):
@@ -434,7 +465,7 @@ class SkillBodyEdit(BaseModel):
             "enough to occur only once. Empty to insert new text."
         )
     )
-    new_text: str = Field(description="What replaces it. Empty to delete the passage.")
+    new_text: Proposed = Field(description="What replaces it. Empty to delete the passage.")
     after: str = Field(
         default="",
         description=(
@@ -452,7 +483,7 @@ class SkillEdits(BaseModel):
     summary: str
     expected_effect: str
     edits: list[SkillBodyEdit] = Field(default_factory=list)
-    description: str | None = Field(
+    description: Proposed | None = Field(
         default=None,
         description=(
             "A new one-line description, only when the evidence shows agents opening the "
@@ -475,7 +506,7 @@ MERGE_ASK = (
 class MergeTexts(BaseModel):
     """The improver's combined text for each conflict of a merge, in the order asked."""
 
-    texts: list[str] = Field(
+    texts: list[Proposed] = Field(
         description="One text per numbered conflict, in order: the passage as it should "
         "read with both sides' changes kept"
     )

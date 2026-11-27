@@ -13,9 +13,11 @@ const NavigationSlots = createContext<Slots | undefined>(undefined);
 export function StartNavigation({
   children,
   onBack,
+  pending = false,
 }: {
   children: ReactNode;
   onBack?: () => void;
+  pending?: boolean;
 }) {
   const [back, setBack] = useState<HTMLDivElement | null>(null);
   const [forward, setForward] = useState<HTMLDivElement | null>(null);
@@ -23,10 +25,12 @@ export function StartNavigation({
     <NavigationSlots.Provider value={{ back, forward }}>
       {children}
       <footer className={styles.wizardNavigation} data-start-navigation>
-        <div ref={setBack} data-start-back>
-          {onBack && <StartBack onClick={onBack} />}
-        </div>
-        <div ref={setForward} className={styles.wizardForward} data-start-forward />
+        <fieldset disabled={pending} className="contents">
+          <div ref={setBack} data-start-back>
+            {onBack && <StartBack onClick={onBack} />}
+          </div>
+          <div ref={setForward} className={styles.wizardForward} data-start-forward />
+        </fieldset>
       </footer>
     </NavigationSlots.Provider>
   );

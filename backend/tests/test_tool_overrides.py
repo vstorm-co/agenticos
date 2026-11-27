@@ -441,11 +441,13 @@ class TestSkillsAreDeferredCapabilities:
             name="refunds",
             description="How refunds are handled.",
             content="Check the order date first.",
+            manifest_metadata={},
             resources=[
                 SimpleNamespace(
                     name="exceptions.md",
                     description="The three exceptions",
                     content="Wholesale, gift cards, damaged on arrival.",
+                    encoding="utf8",
                 )
             ],
         )

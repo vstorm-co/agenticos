@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "b3e1868645f3"
+source_sha: "98e84dfbc519"
 ---
 
 # Projekty { #projects }
@@ -19,6 +19,10 @@ klienta. Trzyma dwie rzeczy wspólne dla każdego czatu w nim rozpoczętego:
 Projekt ma też **domyślnego agenta**, z którym zaczyna się nowy czat w nim.
 W czacie projektu nadal może odpowiadać każdy agent; domyślny decyduje tylko o
 tym, z kim czat się zaczyna.
+
+## Tabela zadań i automatyczne śledzenie { #task-table-and-automatic-tracking }
+
+**Task table** bezpośrednio tworzy lub otwiera wspólną tabelę zadań projektu. Sąsiednie menu **Opcje tabeli zadań** zawiera **Automatyczne śledzenie projektu**: sprawdź agenta źródłowego i jego zasoby, a następnie jawnie opublikuj prywatnego trackera i uruchom jego cykliczną rutynę. Tracker używa tej samej tabeli projektu; samo otwarcie menu lub tabeli nie publikuje agenta ani nie uruchamia rutyny.
 
 ## Planowanie pracy ciągłej z Architectem { #planning-ongoing-work-with-architect }
 
@@ -130,6 +134,29 @@ są odmawiane. Restart eksportera unieważnia uchwyty NFS: wykonywanie zatrzymuj
 do jawnego odzyskania systemu plików sandboxa, z zachowaniem jego własnego workspace,
 bez podmiany na puste środowisko.
 
+Dla pulpitu Computer use zachowywanego w rozmowie, w prywatnym workspace Docker z
+montowaniem plików, GUI otrzymuje od pierwszego użycia osobną, niezmienną ścieżkę
+środowiska. Pierwsze rzeczywiste narzędzie plików lub poleceń projektu może przygotować
+pulpit; samo oglądanie czatu lub uruchomienie modelu tego nie robi. `PROJECT_DIR`
+wskazuje wtedy tę samą ścieżkę środowiska, zanim otworzy się aplikacja GUI uruchomiona z
+powłoki.
+
+Koniec runu cofa jego osobną dzierżawę, ale edytor otwarty w aktywnym pulpicie nadal
+może zapisywać przez ścieżkę środowiska. Każda operacja ponownie sprawdza właściciela,
+opublikowaną capability, konkretny executor, dostęp do projektu i jego generację. End,
+wygaśnięcie bezczynności lub cofnięcie uprawnień natychmiast blokuje tę ścieżkę. Ruch
+plików nie przedłuża czasu bezczynności. Inny projekt nie może zastąpić projektu
+przypisanego do ścieżki.
+
+Executory współdzielone dla agenta, użytkownika lub kanału nie otrzymują tego prywatnego
+montowania; bezpośrednie wykonanie w projekcie zachowuje jawne zasady współdzielenia.
+
+Migracja `0383_environment_project_files.py` dodaje osobnego właściciela; downgrade
+usuwa ścieżki środowisk bez zamiany na uprawnienia runu. Przed downgrade zakończ
+zachowane pulpity i poczekaj na zadania ich sprzątania; migracja odmawia, gdy pozostaje
+dziennik zasobu pulpitu. Po aktualizacji lub rollbacku otwórz pulpit ponownie zamiast
+przywracać starą ścieżkę.
+
 `transfer_project_file` pozostaje opcjonalną jawną kopią bajtów dla osobnego wyniku
 lub innego obsługiwanego magazynu. Obsługuje pliki binarne do 8 MiB i zwraca ścieżki,
 rozmiar oraz potwierdzenie SHA-256. Istniejący cel wymaga aktualnego `expected_sha256`.
@@ -180,6 +207,9 @@ do samych plików musi też zmieścić się w limicie dokumentu przechowywanego 
 Opis **Jak działają pliki i uruchamianie kodu w projekcie** objaśnia przechowywanie,
 współdzielenie i środowisko. Same pliki nie mają powłoki; kontekst i wykonanie są
 rozdzielone zgodnie z opisem wyżej.
+
+Otwarcie nowego zachowanego pulpitu projektu uruchamia nową sesję GUI, aby jej programy korzystały z nowej ścieżki projektu. Zapisz pracę przed End: ponowne otwarcie nie przywraca okien zakończonej sesji. Kontener obszaru roboczego i pliki projektu pozostają nienaruszone. Samo ukrycie widoku lub ponowne połączenie zachowuje bieżący pulpit.
+
 
 ## Pliki { #files }
 

@@ -139,3 +139,28 @@ class TestTheRefusal:
             await assert_organization_within_budget(MagicMock(), uuid.uuid4())
 
         runs.assert_not_called()
+
+
+async def test_organization_total_keeps_ingestion_fractional_precision_beside_large_receipts():
+    from app.services.spend import organization_spend_since
+
+    large = Decimal("90071992547409931234567890123456.000001")
+    with (
+        patch(
+            "app.services.spend.agent_run_repo.sum_cost_since", new=AsyncMock(return_value=large)
+        ),
+        patch(
+            "app.services.spend.ingestion_spend_repo.sum_cost_since",
+            new=AsyncMock(return_value=Decimal("0.000000000001")),
+        ),
+        patch(
+            "app.services.spend.retention_repo.sum_purged_cost_since",
+            new=AsyncMock(return_value=Decimal("0.000001")),
+        ),
+        patch(
+            "app.services.spend.workflow_run_repo.node_spend_since",
+            new=AsyncMock(return_value=Decimal("0.000002")),
+        ),
+    ):
+        total = await organization_spend_since(MagicMock(), uuid.uuid4(), month_start())
+    assert total == Decimal("90071992547409931234567890123456.000004000001")

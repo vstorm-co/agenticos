@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OrgProactivity } from "./org-proactivity";
 vi.mock("@/hooks/use-system-agents", () => ({ useSystemAgents: () => ({ roles: [] }) }));
+vi.mock("@/hooks/use-currencies", () => ({ useCurrencies: () => ({ data: undefined }) }));
 import type { ModelProfile } from "@/types/providers";
 import type { Organization } from "@/types";
 import { Perm, type Permission } from "@/types/permissions";
@@ -223,7 +224,7 @@ describe("OrgProactivity", () => {
     await userEvent.type(limit, "25");
     expect(screen.getByRole("status")).toHaveTextContent("You have unsaved changes");
     await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
-    expect(limit).toHaveValue(1);
+    expect(limit).toHaveValue("1");
     expect(screen.queryByText("You have unsaved changes")).toBeNull();
     expect(state.setProactivity).not.toHaveBeenCalled();
   });
@@ -454,7 +455,8 @@ describe("OrgProactivity", () => {
     expect(state.setProactivity).toHaveBeenCalledWith("o1", {
       proactive_enabled: true,
       proactive_model_profile_id: "mp-1",
-      proactive_limit_usd: 2,
+      proactive_limit_usd: "2",
+      monetary_inputs: { proactive_limit_usd: { amount: "2", currency: "USD" } },
       proactive_days: [1, 2, 3, 4, 6],
       proactive_hour: 5,
       proactive_timing: "fixed",
@@ -576,7 +578,7 @@ describe("OrgProactivity", () => {
     render(<OrgProactivity org={org(ON)} />);
     await userEvent.clear(screen.getByLabelText("Limit per person (USD a month)"));
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
-    expect(screen.getByText("Enter an amount in dollars, 0 or more.")).toBeVisible();
+    expect(screen.getByText("Enter a non-negative amount.")).toBeVisible();
 
     await userEvent.type(screen.getByLabelText("Limit per person (USD a month)"), "1");
     await userEvent.click(screen.getByRole("switch", { name: "Daily briefing & suggestions" }));

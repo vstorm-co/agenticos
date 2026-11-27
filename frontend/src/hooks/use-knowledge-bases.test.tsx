@@ -1449,3 +1449,18 @@ it("queues no document indexing without an open knowledge base", async () => {
   expect(toast.success).not.toHaveBeenCalled();
   expect(toast.error).not.toHaveBeenCalled();
 });
+
+it("retries with pending upload changes while invalidating the imported parsed snapshot", async () => {
+  serveDetail();
+  const { result } = renderHook(() => useKBDetail("kb-1"), { wrapper });
+  await waitFor(() => expect(result.current.kb?.id).toBe("kb-1"));
+  client.setQueryData(qk.kb.documentParsed("kb-1", "d-1"), { content: "old imported snapshot" });
+  await act(async () => {
+    await result.current.retryDocument("d-1", { ocr: true });
+  });
+  expect(apiClient.post).toHaveBeenCalledWith("/rag/documents/d-1/retry", {
+    ingestion_override: { ocr: true },
+  });
+  expect(client.getQueryData(qk.kb.documentParsed("kb-1", "d-1"))).toBeUndefined();
+  expect(toast.success).toHaveBeenCalledWith("Document indexing queued");
+});

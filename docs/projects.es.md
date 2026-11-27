@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "b3e1868645f3"
+source_sha: "98e84dfbc519"
 ---
 
 # Proyectos { #projects }
@@ -21,6 +21,10 @@ iniciado en él:
 Un proyecto tiene también un **agent predeterminado**, con el que empieza un chat
 nuevo en él. En un chat del proyecto puede responder cualquier agent; el
 predeterminado solo decide dónde empieza un chat.
+
+## Tabla de tareas y seguimiento automático { #task-table-and-automatic-tracking }
+
+**Task table** crea o abre directamente la tabla compartida de tareas del proyecto. El menú contiguo de opciones ofrece **Seguimiento automático del proyecto**: revisa el agente de origen y sus recursos y, después, publica expresamente un rastreador privado e inicia su rutina programada. El rastreador utiliza la misma tabla del proyecto; abrir el menú o la tabla no publica ningún agente ni inicia ninguna rutina.
 
 ## Planificar trabajo continuo con Architect { #planning-ongoing-work-with-architect }
 
@@ -134,6 +138,29 @@ propietario. Reiniciar el exportador invalida los handles NFS: la ejecución se 
 hasta recuperar explícitamente el sistema de archivos del sandbox, conservando su
 workspace propio sin sustituirlo silenciosamente por uno vacío.
 
+Para un escritorio de Computer use conservado por conversación en un workspace Docker
+privado con montaje, la interfaz recibe una ruta de entorno independiente e inmutable
+desde el primer uso. La primera herramienta real de archivos o ejecución del proyecto
+puede preparar el escritorio; ver el chat o iniciar un modelo no lo hace. `PROJECT_DIR`
+indica esa misma ruta antes de abrir una aplicación gráfica desde la shell.
+
+Terminar la ejecución revoca su concesión independiente, mientras un editor abierto en
+el escritorio activo puede seguir guardando mediante la ruta del entorno. Cada solicitud
+comprueba de nuevo el propietario actual, la capability publicada, el ejecutor exacto,
+el acceso al proyecto y su generación. End, la caducidad por inactividad o la revocación
+bloquean la ruta inmediatamente. El tráfico de archivos no amplía el plazo de
+inactividad. Otro proyecto no puede sustituir al proyecto de esa ruta.
+
+Los ejecutores compartidos por agente, usuario o canal no reciben este montaje privado;
+la ejecución directa del proyecto mantiene su política explícita de uso compartido.
+
+La migración `0383_environment_project_files.py` añade este propietario independiente;
+al revertirla se eliminan las rutas de entorno sin convertirlas en permisos de
+ejecución. Termina los escritorios conservados y espera a sus tareas de limpieza antes
+de revertir; la migración lo impide mientras quede un registro de recurso de escritorio.
+Vuelve a abrir el escritorio después de actualizar o revertir, en vez de reactivar su
+ruta anterior.
+
 `transfer_project_file` sigue disponible como copia explícita opcional de bytes para
 un resultado separado u otro destino compatible. Admite binarios de hasta 8 MiB y
 devuelve rutas, tamaño y recibo SHA-256. Un destino existente necesita su
@@ -189,6 +216,9 @@ archivos almacenados también debe respetar el límite de tamaño de la platafor
 La explicación junto al selector describe almacenamiento, uso compartido y ejecución.
 Los archivos almacenados no tienen shell; contexto y ejecución siguen separados
 como se describe arriba.
+
+Al abrir un nuevo escritorio de proyecto conservado se inicia una nueva sesión gráfica para que sus programas utilicen la nueva ruta del proyecto. Guarda el trabajo antes de End: volver a abrir no restaura las ventanas de la sesión finalizada. El contenedor del espacio de trabajo y los archivos del proyecto permanecen intactos. Ocultar la vista o reconectarse mantiene la sesión gráfica actual.
+
 
 ## Archivos { #files }
 

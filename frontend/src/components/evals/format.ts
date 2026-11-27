@@ -1,41 +1,6 @@
+import Decimal from "decimal.js";
+
 /** How an eval run's numbers read: money, shares and durations, in the reader's locale. */
-
-/**
- * A dollar amount from the decimal string the API sends; `null` reads as a dash.
- * An amount under a cent always shows four places, so two of them never read as
- * different precisions side by side.
- */
-export function usd(value: string | null, locale: string): string {
-  if (value === null) return "—";
-  const amount = Number(value);
-  const subCent = amount !== 0 && Math.abs(amount) < 0.01;
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: subCent ? 4 : 2,
-    maximumFractionDigits: Math.abs(amount) < 1 ? 4 : 2,
-  }).format(amount);
-}
-
-/**
- * An amount rounded up to whole cents. The product is trimmed first: 0.56 * 100 is
- * 56.00000000000001 in floating point, which would otherwise round up to 57 cents.
- */
-function centsUp(amount: number): number {
-  return Math.ceil(Number((amount * 100).toFixed(6))) / 100;
-}
-
-/**
- * A spending limit as a form field shows it: whole cents, rounded up so it never
- * shrinks, written the reader's way.
- */
-export function limitText(value: string, locale: string): string {
-  return new Intl.NumberFormat(locale, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-    useGrouping: false,
-  }).format(centsUp(Number(value)));
-}
 
 /**
  * The limit a new improvement session is offered: getting to its first stop, then
@@ -50,11 +15,11 @@ export function sessionLimit(quote: {
   max_iterations: number;
   search_usd?: string;
 }): string {
-  const whole =
-    Number(quote.total_usd) +
-    quote.max_iterations * Number(quote.per_round_usd) +
-    (quote.max_iterations - 1) * Number(quote.search_usd ?? 0);
-  return String(Math.max(0.01, centsUp(whole)));
+  const Money = Decimal.clone({ precision: 80, rounding: Decimal.ROUND_CEIL });
+  const whole = new Money(quote.total_usd)
+    .plus(new Money(quote.per_round_usd).mul(quote.max_iterations))
+    .plus(new Money(quote.search_usd ?? 0).mul(quote.max_iterations - 1));
+  return Money.max("0.01", whole.toDecimalPlaces(2)).toFixed();
 }
 
 /** What a person typed as a limit, as the plain decimal the API reads. */

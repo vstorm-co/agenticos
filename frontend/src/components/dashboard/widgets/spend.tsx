@@ -1,12 +1,14 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useLocale, useTranslations } from "next-intl";
 
 import { AnimatedAmount, DeltaChip, Figure } from "@/components/ui";
 
 import { useProviderCatalog, useSpend } from "@/hooks";
 import { ProviderIcon } from "@/components/vault/provider-icon";
-import { deltaPercent, formatUsd } from "../format";
+import { deltaPercent } from "../format";
 import { BarList } from "../primitives/bar-list";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
@@ -30,6 +32,7 @@ import { UsageBody } from "./usage-body";
 export function SpendWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.spend");
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   const { data: catalog } = useProviderCatalog();
   const providerNames = new Map((catalog?.items ?? []).map((entry) => [entry.id, entry.name]));
   const { spend } = useSpend();
@@ -52,7 +55,7 @@ export function SpendWidget({ title, hint, period, seeAll, options }: DashboardW
                 value={
                   <AnimatedAmount
                     value={cost?.period_usd}
-                    label={t("spentLabel", { amount: formatUsd(cost?.period_usd, locale) })}
+                    label={t("spentLabel", { amount: formatMoney(cost?.period_usd, locale) })}
                   />
                 }
                 unit={t("unit")}
@@ -72,18 +75,18 @@ export function SpendWidget({ title, hint, period, seeAll, options }: DashboardW
                   Number(cost?.eval_usd ?? 0) > 0 ||
                   Number(cost?.authoring_usd ?? 0) > 0
                     ? t("split", {
-                        models: formatUsd(cost?.model_usd, locale),
+                        models: formatMoney(cost?.model_usd, locale),
                         evals:
                           Number(cost?.eval_usd ?? 0) > 0
-                            ? formatUsd(cost?.eval_usd, locale)
+                            ? formatMoney(cost?.eval_usd, locale)
                             : "none",
                         improving:
                           Number(cost?.authoring_usd ?? 0) > 0
-                            ? formatUsd(cost?.authoring_usd, locale)
+                            ? formatMoney(cost?.authoring_usd, locale)
                             : "none",
                         ingestion:
                           Number(cost?.ingestion_usd ?? 0) > 0
-                            ? formatUsd(cost?.ingestion_usd, locale)
+                            ? formatMoney(cost?.ingestion_usd, locale)
                             : "none",
                       })
                     : undefined
@@ -98,7 +101,7 @@ export function SpendWidget({ title, hint, period, seeAll, options }: DashboardW
                       ? t("notRecorded")
                       : (providerNames.get(row.provider) ?? row.provider),
                   value: Number(row.cost_usd),
-                  display: formatUsd(row.cost_usd, locale),
+                  display: formatMoney(row.cost_usd, locale),
                   icon:
                     row.provider === null ? undefined : (
                       <ProviderIcon provider={row.provider} className="size-4" />
@@ -107,7 +110,7 @@ export function SpendWidget({ title, hint, period, seeAll, options }: DashboardW
               />
               {spend ? (
                 <p className="text-muted-foreground border-foreground/8 border-t pt-3 text-xs">
-                  {t("monthToDate", { amount: formatUsd(spend.month_to_date_usd, locale) })}
+                  {t("monthToDate", { amount: formatMoney(spend.month_to_date_usd, locale) })}
                 </p>
               ) : null}
             </div>

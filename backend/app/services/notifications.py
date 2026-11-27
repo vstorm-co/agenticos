@@ -59,6 +59,7 @@ from app.agents.capabilities.budget import BudgetScope
 from app.agents.spec import AgentSpec, AlertAudience, AlertSpec
 from app.core.background import spawn_after_commit
 from app.core.config import settings
+from app.core.currency import sum_usd
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus, ToolApproval
@@ -95,6 +96,7 @@ from app.schemas.eval_suite import EvalSuiteSummary, ThresholdReason
 from app.schemas.improvement import NextStepBlocked
 from app.schemas.notification import CriterionSources, MovedCriterion
 from app.services.channels.base import platform_name
+from app.services.currency import CurrencyService
 from app.services.notification_center import (
     APPROVABLE_BY,
     APPROVABLE_CALLS,
@@ -303,6 +305,15 @@ class NotificationService:
         if not recipients:
             return set()
 
+        quote = await CurrencyService(self.db).reporting_quote(run.organization_id)
+        budget_reason = (
+            f"{scope.value} budget exhausted "
+            f"({CurrencyService.amount(quote, spent_usd)} spent; "
+            f"{CurrencyService.amount(quote, limit_usd)} limit)."
+            if limit_usd is not None and spent_usd is not None
+            else reason
+        )
+        budget_summary = f"{agent.name} stopped: {budget_reason}"
         native_context: dict[str, str] = {}
         owner: UUID | None = None
         incident_reason: Literal["run", "check", "delivery"] = "run"
@@ -363,7 +374,7 @@ class NotificationService:
                         user_id=owner,
                         cause=cause,
                         observed_at=clock,
-                        summary=f"{agent.name} stopped: {reason}",
+                        summary=budget_summary,
                         run_id=run.id,
                     )
                     if occurrence is None:
@@ -384,11 +395,15 @@ class NotificationService:
         organization_name = organization.name if organization else "your organization"
         run_path = self._link(f"/agents/{agent.id}", run.organization_id)
         render_context = {
+            "reporting_quote": quote.model_dump(mode="json"),
             "agent_name": agent.name,
             **agent_face(agent),
             "org_name": organization_name,
-            "reason": reason,
+            "reason": budget_reason,
             "spent": f"{run.cost_usd:.2f}" if run.cost_usd is not None else "0.00",
+            "reported_spent": CurrencyService.amount(
+                quote, None if run.cost_is_partial else run.cost_usd
+            ),
             # The refusal's own numbers, which the console words in the reader's
             # language; `reason` above is the same sentence in English.
             **(
@@ -406,7 +421,7 @@ class NotificationService:
             recipients=list(recipients),
             event_type=NotificationEventType.BUDGET_EXCEEDED,
             occurrence_id=str(run.id),
-            summary=f"{agent.name} stopped: {reason}",
+            summary=budget_summary,
             context_url=run_path,
             render_context=render_context,
             organization_id=run.organization_id,
@@ -436,16 +451,18 @@ class NotificationService:
                 continue
             recipients = await self._department_audience(run.organization_id, [group.id])
             share = int(spent / group.monthly_budget_usd * 100)
+            quote = await CurrencyService(self.db).reporting_quote(run.organization_id)
             await self._center.write(
                 recipients=list(recipients),
                 event_type=NotificationEventType.BUDGET_WARNING,
                 occurrence_id=f"{group.id}:{month_start():%Y-%m}",
                 summary=(
                     f"{group.name} has used {share}% of its "
-                    f"${group.monthly_budget_usd:.2f} monthly budget."
+                    f"{CurrencyService.amount(quote, group.monthly_budget_usd)} monthly budget."
                 ),
                 context_url=self._link(f"/groups/{group.id}", run.organization_id),
                 render_context={
+                    "reporting_quote": quote.model_dump(mode="json"),
                     "group_name": group.name,
                     "spent": f"{spent:.2f}",
                     "limit": str(group.monthly_budget_usd),
@@ -496,7 +513,30 @@ class NotificationService:
             owner_user_id=agent.owner_user_id,
             initiator_user_id=run.user_id,
         )
-        if not recipients:
+        # Imported here: the approvals service reaches this module through its chat handback.
+        from app.services.approvals import runs_as_its_person
+
+        own = [
+            str(approval.id)
+            for approval in approvals
+            if runs_as_its_person(
+                always_asks=approval.always_asks, platform_call=approval.platform_call
+            )
+        ]
+        # Only the run's person may approve their platform call, so they are told of it
+        # whatever audience the agent's approval alert names, or none.
+        person = (
+            run.user_id
+            if own
+            and run.user_id is not None
+            and await member_repo.list_member_ids_for(
+                self.db, organization_id=run.organization_id, user_ids=[run.user_id]
+            )
+            else None
+        )
+        if person is not None:
+            recipients.discard(person)
+        elif not recipients:
             return
 
         # The queue, not the agent. This addressed `/agents/{id}` - the
@@ -523,34 +563,25 @@ class NotificationService:
             "approvals_url": absolute_context_url(approvals_path),
             "app_name": settings.PROJECT_NAME,
         }
-        # Imported here: the approvals service reaches this module through its chat handback.
-        from app.services.approvals import bound_platform_call
-
-        own = [
-            str(approval.id)
-            for approval in approvals
-            if bound_platform_call(
-                approval.tool_id, always_asks=approval.always_asks, context=approval.context
-            )
-        ]
         occurrence_id = hashlib.sha256(
             ":".join(sorted(str(approval.id) for approval in approvals)).encode()
         ).hexdigest()
-        person = run.user_id
-        if own and person is not None and person in recipients and run.conversation_id is not None:
-            # The run's person answers their own platform call in the conversation it
-            # was asked in, which brings its card back; the queue is not theirs to read.
-            recipients.discard(person)
-            chat_path = self._link(f"/chat?id={run.conversation_id}", run.organization_id)
+        if person is not None:
+            # In the conversation the call was asked in its card comes back; a run asked
+            # in none waits in their Inbox, which lists it with or without the permission.
+            own_path = self._link(
+                "/inbox" if run.conversation_id is None else f"/chat?id={run.conversation_id}",
+                run.organization_id,
+            )
             await self._center.write(
                 recipients=[person],
                 event_type=NotificationEventType.APPROVAL_REQUESTED,
                 occurrence_id=occurrence_id,
                 summary=summary,
-                context_url=chat_path,
+                context_url=own_path,
                 render_context={
                     **render_context,
-                    "approvals_url": absolute_context_url(chat_path),
+                    "approvals_url": absolute_context_url(own_path),
                     APPROVABLE_BY: str(person),
                     APPROVABLE_CALLS: own,
                 },
@@ -754,18 +785,21 @@ class NotificationService:
         )
         cause = f"routine:{routine_kind}:{routine_id}:budget:{period_start.date().isoformat()}"
         path = self._link("/routines", organization_id)
+        quote = await CurrencyService(self.db).reporting_quote(organization_id)
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.BUDGET_EXCEEDED,
             occurrence_id=f"{cause}:{limit.normalize()}",
             summary=(
                 f"{name or 'Your routine'} is waiting: {budget_name} of "
-                f"${limit:.2f} is used up (${spent:.2f} spent). {remedy} "
+                f"{CurrencyService.amount(quote, limit)} is used up "
+                f"({CurrencyService.amount(quote, spent)} spent). {remedy} "
                 "or wait for the next month to resume."
             ),
             context_url=path,
             render_context={
                 "wording": "routine_budget_paused",
+                "reporting_quote": quote.model_dump(mode="json"),
                 **({"routine_name": name} if name else {}),
                 "routine_budget_paused": True,
                 "routine_origin_id": str(routine_id),
@@ -1609,12 +1643,14 @@ class NotificationService:
             use_savepoint=True,
         )
 
-    async def eval_run_finished(self, run: EvalRun) -> None:
+    async def eval_run_finished(self, run: EvalRun, *, at_quote: bool = False) -> None:
         """Announce a terminal eval; only a manual check notifies its requester.
 
         Suite and improvement checks have their own terminal notification, so
         every child finishing must not produce another inbox entry. Answers,
-        grading notes and provider errors never enter this notice.
+        grading notes and provider errors never enter this notice. `at_quote` is a
+        run that stopped at the price it was started at rather than at a budget,
+        and its notice says so.
         """
         from app.services import change_feed
 
@@ -1653,7 +1689,12 @@ class NotificationService:
             event_type=NotificationEventType.EVAL_RUN_FINISHED,
             occurrence_id=run.id,
             status=run.status,
-            summary=_EVAL_SUMMARY.get(run.status, "Your test has ended."),
+            reason=_AT_QUOTE if at_quote else None,
+            summary=(
+                "Your test stopped at the price you accepted."
+                if at_quote
+                else _EVAL_SUMMARY.get(run.status, "Your test has ended.")
+            ),
             path=f"/agents/{run.agent_id}/evals/{run.id}",
         )
 
@@ -1683,6 +1724,7 @@ class NotificationService:
         status: str,
         summary: str,
         path: str,
+        reason: str | None = None,
     ) -> None:
         if user_id is None:
             return
@@ -1698,6 +1740,7 @@ class NotificationService:
             context_url=link,
             render_context={
                 "status": status,
+                **({} if reason is None else {"reason": reason}),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(link),
             },
@@ -2193,7 +2236,10 @@ class NotificationService:
         last_day = (window_start - timedelta(microseconds=1)).date()
         report_period = f"{since.date().isoformat()}..{last_day.isoformat()}"
         dashboard_path = self._link(f"/dashboard?view=org&period={report_period}", organization_id)
+        quote = await CurrencyService(self.db).reporting_quote(organization_id)
         render_context = {
+            "reporting_quote": quote.model_dump(mode="json"),
+            "reported_total": CurrencyService.amount(quote, total),
             "wording": "usage_report",
             "period": "week" if period == "weekly" else "month",
             "org_name": organization_name,
@@ -2275,12 +2321,15 @@ class NotificationService:
         organization = await organization_repo.get_by_id(self.db, agent.organization_id)
         organization_name = organization.name if organization else "your organization"
         dashboard_path = self._link(f"/agents/{agent.id}", agent.organization_id)
+        quote = await CurrencyService(self.db).reporting_quote(agent.organization_id)
         render_context = {
+            "reporting_quote": quote.model_dump(mode="json"),
+            "reported_total": CurrencyService.amount(quote, sum_usd(row[2] for row in mine)),
             "wording": "agent_usage_report",
             "agent_name": agent.name,
             "period": "week" if period == "weekly" else "month",
             "org_name": organization_name,
-            "total": f"{sum((row[2] for row in mine), Decimal(0)):.2f}",
+            "total": f"{sum_usd(row[2] for row in mine):.2f}",
             "runs": str(sum(row[3] for row in mine)),
             "agents": agent.name,
             "dashboard_url": absolute_context_url(dashboard_path),
@@ -2724,6 +2773,7 @@ def _reason_text(reason: ThresholdReason) -> str:
             return "the comparison is invalid"
 
 
+_AT_QUOTE = "quote"
 _EVAL_SUMMARY = {
     "completed": "Your test finished.",
     "failed": "Your test could not finish.",

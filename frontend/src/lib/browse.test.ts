@@ -20,6 +20,18 @@ function fold(...frames: BrowserFrame[]): Browse[] {
 }
 
 describe("applyBrowserFrame - one browse per call_id", () => {
+  it("keeps only validated owned identity and resets it for a new legacy opening", () => {
+    const ownedId = "22222222-2222-4222-8222-222222222222";
+    const owned = fold(frame({ kind: "browser_opened", environment_id: ownedId }));
+    expect(owned[0]?.environmentId).toBe(ownedId);
+    const legacy = applyBrowserFrame(owned, frame({ kind: "browser_opened" }));
+    expect(legacy[0]?.environmentId).toBeNull();
+    expect(
+      fold(frame({ kind: "browser_opened", environment_id: "not-an-environment" }))[0]
+        ?.environmentId,
+    ).toBeNull();
+  });
+
   it("opens a browse with its goal and its ceiling", () => {
     const [browse] = fold(
       frame({
@@ -455,4 +467,14 @@ it("does not invent a card when a new tab is refused or has not opened yet", () 
     },
   ];
   expect(turnBrowseVisits(calls, [])).toEqual([]);
+});
+
+it("clears a refused takeover after a later ownership acknowledgement succeeds", () => {
+  const [browse] = fold(
+    frame({ kind: "browser_opened" }),
+    frame({ kind: "browser_control_error", detail: "The environment is unavailable." }),
+    frame({ kind: "browser_held", by: "Ada", by_user_id: "u1" }),
+  );
+  expect(browse?.heldById).toBe("u1");
+  expect(browse?.controlError).toBeNull();
 });

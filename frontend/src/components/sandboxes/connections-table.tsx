@@ -168,7 +168,7 @@ export function ConnectionsTable({
                   <Pencil className="h-4 w-4" aria-hidden />
                 </Button>
                 <Button
-                  variant="ghost"
+                  variant="destructive-ghost"
                   size="icon"
                   onClick={() => onDelete(connection)}
                   aria-label={tc("deleteNamed", { name: connection.name })}

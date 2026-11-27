@@ -6,15 +6,17 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import AfterValidator, EmailStr, Field, field_validator
+from pydantic import AfterValidator, EmailStr, Field, JsonValue, field_validator
 
 from app.core.chat_costs import ChatCostVisibility
+from app.core.currency import CurrencyCode
 from app.core.permissions import OrgRoleName
 from app.db.models.organization import MembershipSourceLiteral, OnboardingStep, ProactiveTiming
 from app.db.models.watch import MIN_WATCH_MINUTES
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
 from app.schemas.console_presentation import ConsoleNotices, RoleConsoleChanges, StoredRoleConsole
+from app.schemas.currency import MonetaryInputSchema
 from app.schemas.user import UserRead
 
 _ID = UUID
@@ -52,7 +54,7 @@ class OrganizationCreate(BaseSchema):
         return v
 
 
-class OrganizationUpdate(BaseSchema):
+class OrganizationUpdate(MonetaryInputSchema):
     """A partial update to an organization's settings.
 
     `monthly_budget_usd` and `avatar_color` are the fields where omitting them
@@ -65,6 +67,10 @@ class OrganizationUpdate(BaseSchema):
     console_role_defaults: RoleConsoleChanges | None = None
     console_notices: ConsoleNotices | None = None
     chat_cost_visibility: ChatCostVisibility | None = None
+    currency: CurrencyCode | None = Field(
+        default=None,
+        description="Preferred reporting currency; null inherits the deployment default. Existing prices and limits keep their original units.",
+    )
     chat_home_defaults: ChatHomeOverrides | None = None
     onboarding_reminders: OnboardingReminderOverrides | None = None
     name: str | None = Field(default=None, min_length=2, max_length=128)
@@ -218,9 +224,12 @@ class OrganizationUpdate(BaseSchema):
 
 
 class OrganizationRead(BaseSchema, TimestampSchema):
+    monetary_terms: dict[str, JsonValue] = Field(default_factory=dict)
+
     console_role_defaults: dict[str, StoredRoleConsole] = Field(default_factory=dict)
     console_notices: ConsoleNotices = Field(default_factory=ConsoleNotices)
     chat_cost_visibility: ChatCostVisibility = ChatCostVisibility.EVERYONE
+    currency: CurrencyCode | None = None
     chat_home_defaults: ChatHomeOverrides | None = None
     onboarding_reminders: OnboardingReminderOverrides | None = None
     id: _ID

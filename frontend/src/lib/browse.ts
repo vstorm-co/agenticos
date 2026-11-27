@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { toolLookupName } from "@/lib/tool-identity";
 import type { BrowseOutcome, BrowserFrame, ToolCall } from "@/types/chat";
 
@@ -26,6 +27,7 @@ export const DESKTOP_TOOLS: ReadonlySet<string> = new Set(["computer_screenshot"
 /** One `browse_web` call, assembled from its frames. */
 export interface Browse {
   callId: string;
+  environmentId?: string | null;
   /** The run it belongs to, which addresses its live view; null before it is known. */
   runId?: string | null;
   /**
@@ -78,7 +80,9 @@ export interface Browse {
 }
 
 function opened(frame: BrowserFrame): Browse {
+  const environment = z.uuid().safeParse(frame.environment_id);
   return {
+    environmentId: environment.success ? environment.data : null,
     runId: frame.run_id ?? null,
     needs: null,
     heldBy: null,
@@ -143,6 +147,7 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
       return {
         ...browse,
         needs: null,
+        controlError: null,
         heldBy: frame.by ?? null,
         heldById: frame.by_user_id ?? null,
         pointer: null,

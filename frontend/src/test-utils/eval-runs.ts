@@ -174,6 +174,8 @@ export const ESTIMATE: EvalRunEstimate = {
   judge_model_profile_id: null,
   total_usd: "0.300000",
   rerun_ceiling_usd: "0.600000",
+  at_most_usd: "0.900000",
+  dataset_version: 3,
   expected_usd: "0.600000",
   agent_remaining_usd: "10",
   org_remaining_usd: "100",

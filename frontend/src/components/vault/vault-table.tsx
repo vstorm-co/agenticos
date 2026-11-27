@@ -219,19 +219,23 @@ export function VaultTable({
                 >
                   <Users className="size-4" />
                 </Button>
+                {row.secret.can_rotate !== false && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t(
+                      isChatGPTSignInKind(row.secret.kind)
+                        ? "chatgptReconnectNamed"
+                        : "rotateNamed",
+                      { name: row.name },
+                    )}
+                    onClick={() => onRotate(row.secret)}
+                  >
+                    <RotateCw className="size-4" />
+                  </Button>
+                )}
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label={t(
-                    isChatGPTSignInKind(row.secret.kind) ? "chatgptReconnectNamed" : "rotateNamed",
-                    { name: row.name },
-                  )}
-                  onClick={() => onRotate(row.secret)}
-                >
-                  <RotateCw className="size-4" />
-                </Button>
-                <Button
-                  variant="ghost"
+                  variant="destructive-ghost"
                   size="icon"
                   aria-label={tc("deleteNamed", { name: row.name })}
                   onClick={() => onDelete(row.secret)}

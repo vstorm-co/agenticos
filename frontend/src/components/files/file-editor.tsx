@@ -114,7 +114,7 @@ export function FileEditor({
         )}
         {onDelete && canEdit && (
           <Button
-            variant="ghost"
+            variant="destructive-ghost"
             size="icon"
             aria-label={tc("removeNamed", { name: called })}
             onClick={onDelete}

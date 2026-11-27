@@ -15,7 +15,9 @@ the platform knows (the date and time, who is signed in and their
 [groups](../departments.md), the organization, the agent, the channel) or one of the agent's own `variables`. `time_zone` decides
 which clock `{{current_time}}` reads. Publishing refuses a name that is neither.
 
-`{{language}}` is the run subject’s saved account language, written as a language name (English, Polish, German, Turkish, French, Dutch or Brazilian Portuguese). It defaults to English when the run has no person or supported preference; unattended runs do not borrow the publisher’s language. Agents also receive this preference in the person briefing: short or ambiguous greetings keep it, while an explicit request for another language takes precedence.
+`{{language}}` is the run subject’s saved account language, written as a language name (English, Polish, German, Turkish, French, Dutch or Brazilian Portuguese). It defaults to English when the run has no person or supported preference; unattended runs do not borrow the publisher’s language.
+
+The person briefing treats this value as a fallback: explicit agent language requirements and user requests retain their instruction priority; otherwise replies follow the current user message, then the established conversation language when the message is ambiguous, and only then the account preference. Quoted sources and tool output do not set the reply language. Published instructions remain immutable: review and republish an older AgenticOS copy that explicitly mandates the account language if you want this conversation-first default; keep deliberate fixed-language agent instructions unchanged.
 
 ::: app.agents.spec.PromptVariableSpec
 

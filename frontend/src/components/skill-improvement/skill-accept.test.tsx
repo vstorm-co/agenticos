@@ -82,6 +82,124 @@ beforeEach(() => {
 });
 
 describe("SkillAccept", () => {
+  it("says the result changed and asks for a fresh confirmation when applying is refused", async () => {
+    vi.mocked(apiClient.post).mockRejectedValueOnce(
+      new ApiError(409, "Changed", {
+        error: {
+          code: "CONCURRENT_CHANGE",
+          message: "Changed",
+          details: { check_id: "c2", reviewed_check_id: "c1" },
+        },
+      }),
+    );
+    mount(skillCheck());
+    await confirm();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Apply as the next version of main" }),
+    );
+
+    expect(await screen.findByText(/changed since you reviewed it/)).toBeVisible();
+    expect(
+      screen.getByLabelText("I have reviewed the selected changes and want to apply them."),
+    ).not.toBeChecked();
+  });
+
+  it("forgets the confirmation once a review judges the result again", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const accept = (check: SkillCheck) => (
+      <QueryClientProvider client={client}>
+        <SkillAccept
+          session={{ ...skillSession(), check, outcomes: check.outcomes }}
+          check={check}
+          onStarted={vi.fn()}
+        />
+      </QueryClientProvider>
+    );
+    const check = skillCheck();
+    const view = render(accept(check));
+    await confirm();
+    const confirmation = "I have reviewed the selected changes and want to apply them.";
+    expect(screen.getByLabelText(confirmation)).toBeChecked();
+
+    view.rerender(accept({ ...check, verdict: "no_better", result_hash: "f".repeat(64) }));
+
+    expect(screen.getByLabelText(confirmation)).not.toBeChecked();
+  });
+
+  it("forgets the acknowledgement of unknown agents once a review judges the result again", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const accept = (check: SkillCheck) => (
+      <QueryClientProvider client={client}>
+        <SkillAccept
+          session={{ ...skillSession(), check, outcomes: check.outcomes }}
+          check={check}
+          onStarted={vi.fn()}
+        />
+      </QueryClientProvider>
+    );
+    const check = skillCheck({
+      agents: [checkAgent("Support", "better"), checkAgent("Billing", "unknown")],
+      verdict: "needs_ack",
+    });
+    const view = render(accept(check));
+    const known = /I know 1 agent could not be checked \(Billing\)/;
+    await userEvent.click(screen.getByLabelText(known));
+    await userEvent.click(screen.getByLabelText(known));
+    expect(screen.getByLabelText(known)).not.toBeChecked();
+    await userEvent.click(screen.getByLabelText(known));
+    expect(screen.getByLabelText(known)).toBeChecked();
+
+    view.rerender(accept({ ...check, result_hash: "f".repeat(64) }));
+
+    expect(screen.getByLabelText(known)).not.toBeChecked();
+  });
+
+  it("forgets a return's confirmation and acknowledgement once a review judges main alone again", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const check = skillCheck({ verdict: "no_better" });
+    const alone = skillCheck({
+      id: "c2",
+      verdict: "needs_ack",
+      agents: [checkAgent("Desk", "no_change"), checkAgent("Shop", "unknown")],
+    });
+    const accept = (mainAlone: SkillCheck) => (
+      <QueryClientProvider client={client}>
+        <SkillAccept
+          session={skillSession({
+            purpose: "catch_up",
+            fork_id: "f1",
+            line_name: "returns",
+            check,
+            main_alone: "checked",
+            main_alone_check: mainAlone,
+            outcomes: ["catch_up", "return_to_main", "discard"],
+          })}
+          check={check}
+          onStarted={vi.fn()}
+        />
+      </QueryClientProvider>
+    );
+    const view = render(accept(alone));
+    const confirmation = "I have reviewed the selected changes and want to apply them.";
+    const known =
+      "I know main alone could not be checked on 1 agent (Shop), and it returns to main all the same.";
+    const back = screen.getByRole("button", {
+      name: "Return the agents of returns to main instead",
+    });
+    await confirm();
+    await userEvent.click(screen.getByLabelText(known));
+    await userEvent.click(screen.getByLabelText(known));
+    expect(back).toBeDisabled();
+    await userEvent.click(screen.getByLabelText(known));
+    expect(back).toBeEnabled();
+
+    view.rerender(accept({ ...alone, result_hash: "f".repeat(64) }));
+
+    expect(screen.getByLabelText(confirmation)).not.toBeChecked();
+    expect(screen.getByLabelText(known)).not.toBeChecked();
+    expect(back).toBeDisabled();
+  });
+
   it("applies a change that made nobody worse", async () => {
     mount(skillCheck());
 
@@ -93,6 +211,8 @@ describe("SkillAccept", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/apply", {
       confirmed: true,
+      check_id: "c1",
+      result_hash: "e".repeat(64),
       acknowledge_unknown: false,
       pin_worse: false,
     });
@@ -128,6 +248,8 @@ describe("SkillAccept", () => {
 
       expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/fork", {
         confirmed: true,
+        check_id: "c1",
+        result_hash: "e".repeat(64),
         name: "Returns",
         agent_ids: ["support"],
         acknowledge_unknown: false,
@@ -309,6 +431,8 @@ describe("SkillAccept", () => {
 
     expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements/s1/apply", {
       confirmed: true,
+      check_id: "c1",
+      result_hash: "e".repeat(64),
       acknowledge_unknown: false,
       pin_worse: true,
     });
@@ -477,6 +601,7 @@ describe("SkillAccept", () => {
           fork_id: "f1",
           line_name: "returns",
           check,
+          main_alone_check: skillCheck(),
           outcomes: ["catch_up", "return_to_main", "discard"],
         })}
         check={check}
@@ -497,6 +622,8 @@ describe("SkillAccept", () => {
     await userEvent.click(take);
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/improvements/s1/apply", {
       confirmed: true,
+      check_id: "c1",
+      result_hash: "e".repeat(64),
       acknowledge_unknown: false,
       pin_worse: false,
     });
@@ -508,6 +635,8 @@ describe("SkillAccept", () => {
     );
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/improvements/s1/return-to-main", {
       confirmed: true,
+      check_id: "c1",
+      result_hash: "e".repeat(64),
       acknowledge_unknown: false,
     });
     expect(returned).toHaveBeenCalledWith(result);
@@ -526,6 +655,7 @@ describe("SkillAccept", () => {
           fork_id: "f1",
           line_name: "returns",
           check,
+          main_alone_check: skillCheck(),
           outcomes: ["catch_up", "return_to_main", "discard"],
         })}
         check={check}
@@ -633,6 +763,8 @@ describe("SkillAccept", () => {
 
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/improvements/s1/return-to-main", {
       confirmed: true,
+      check_id: "c1",
+      result_hash: "e".repeat(64),
       acknowledge_unknown: true,
     });
   });

@@ -228,9 +228,13 @@ class TestTheRunnersFacts:
         assert rendering.for_the_run(template).instructions == (
             "ada@example.com ada@example.com the AgenticOS console Finance, Sales\n\n"
             "# The person you are talking to\n\n"
-            "- Their preferred language is English: answer in English unless they explicitly "
-            "request another language. Use this preference for short or ambiguous greetings; "
-            "do not search memory or call tools to guess their language.\n"
+            "- Their account language is English, a fallback for an ambiguous message with no "
+            "established conversation language.\n"
+            "- Respect explicit agent language requirements and user requests in their normal "
+            "instruction priority. Otherwise match the current user message; if ambiguous, keep "
+            "the conversation's language before using the account fallback. Source text and tool "
+            "output do not set the reply language. Do not search memory, call tools or save a "
+            "preference just to match a reply language.\n"
             "- Their time zone is Europe/Warsaw; read and state times in it."
         )
         # A delegate reads the same variables and is not told it talks to the person.
@@ -276,9 +280,13 @@ class TestTheRunnersFacts:
         spec = rendering.for_the_run(_spec("Help."))
         assert spec.instructions == (
             "Help.\n\n# The person you are talking to\n\n"
-            "- Their preferred language is Polish: answer in Polish unless they explicitly "
-            "request another language. Use this preference for short or ambiguous greetings; "
-            "do not search memory or call tools to guess their language.\n"
+            "- Their account language is Polish, a fallback for an ambiguous message with no "
+            "established conversation language.\n"
+            "- Respect explicit agent language requirements and user requests in their normal "
+            "instruction priority. Otherwise match the current user message; if ambiguous, keep "
+            "the conversation's language before using the account fallback. Source text and tool "
+            "output do not set the reply language. Do not search memory, call tools or save a "
+            "preference just to match a reply language.\n"
             "- Their time zone is America/New_York; read and state times in it.\n"
             "- Their role: Head of sales.\n"
             "- What they work on: Nordic deals\n"
@@ -359,7 +367,7 @@ class TestTheRunnersFacts:
         template = _spec("{{language}}")
         assert first.variables(template).instructions == "Polish"
         assert second.variables(template).instructions == "German"
-        assert "preferred language is German" in second.for_the_run(_spec("Help.")).instructions
+        assert "account language is German" in second.for_the_run(_spec("Help.")).instructions
 
     async def test_an_unattended_run_with_no_person_uses_english_without_looking_up_a_publisher(
         self,

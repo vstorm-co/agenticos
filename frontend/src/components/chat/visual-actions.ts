@@ -1,11 +1,17 @@
 import { saveBlob } from "@/lib/file-access";
-import { svgAspect, visualFilename, type VisualKind } from "@/lib/visuals";
+import { appName, svgAspect, visualFilename, type VisualKind } from "@/lib/visuals";
 
 const MEDIA: Record<VisualKind, string> = {
   svg: "image/svg+xml",
   html: "text/html",
   mermaid: "text/plain",
 };
+
+/** Resolve the initiating workspace on completion, including closes while an action waited. */
+export function visualToastOptions(workspace?: HTMLElement | null): { toasterId?: string } {
+  const id = workspace?.isConnected && workspace.hasAttribute("popover") ? workspace.id : undefined;
+  return id ? { toasterId: id } : {};
+}
 
 /**
  * What a downloaded page may do, opened from disk: what the chat's frame lets it.
@@ -147,7 +153,17 @@ const RASTER_WIDTH = 2000;
 export async function svgPng(svg: string, width: number): Promise<Blob> {
   const aspect = svgAspect(svg) ?? 0.75;
   const height = Math.round(width * aspect);
-  const sized = svg.replace(/<svg\b/i, `<svg width="${width}" height="${height}"`);
+  const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+  const root = parsed.documentElement;
+  if (parsed.getElementsByTagName("parsererror").length > 0 || root.localName !== "svg") {
+    // i18n-exempt: internal failure; the action supplies its translated error message.
+    throw new Error("The drawing is not a valid SVG.");
+  }
+  // Replace explicit dimensions: duplicate width/height attributes make an SVG undecodable.
+  root.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  root.setAttribute("width", String(width));
+  root.setAttribute("height", String(height));
+  const sized = new XMLSerializer().serializeToString(root);
   const url = URL.createObjectURL(new Blob([sized], { type: "image/svg+xml" }));
   try {
     const image = new Image();
@@ -167,6 +183,12 @@ export async function svgPng(svg: string, width: number): Promise<Blob> {
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+/** A sharp PNG download, using the same title and proportions as the source SVG. */
+export async function downloadSvgPng(title: string, svg: string): Promise<void> {
+  const png = await svgPng(svg, RASTER_WIDTH);
+  saveBlob(png, `${appName(title)}.png`);
 }
 
 /** An SVG drawing as a PNG on the clipboard, wide enough to paste sharp. */

@@ -30,6 +30,7 @@ export type CspDirective =
   | "worker-src"
   | "style-src"
   | "img-src"
+  | "media-src"
   | "frame-src"
   | "font-src"
   | "connect-src"
@@ -81,6 +82,8 @@ export function cspDirectives(
     // `https:` because a model provider's avatar and a connector's brand mark are
     // remote.
     "img-src": ["'self'", "blob:", "data:", "https:"],
+    // File previews play bytes already fetched through the authorized file API.
+    "media-src": ["'self'", "blob:"],
     // A document the viewer cannot render itself - a PDF, an HTML page - goes in
     // an iframe whose `src` is a blob URL minted from bytes this origin already
     // fetched. Deliberately not `data:`: a data URL in a frame is a document of

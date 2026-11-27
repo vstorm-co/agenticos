@@ -80,9 +80,9 @@ export function SyncSourceRow({
         )}
         {onDelete && (
           <Button
-            variant="ghost"
+            variant="destructive-ghost"
             size="sm"
-            className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+            className="h-8 w-8 p-0"
             onClick={onDelete}
             title={t("removeSource")}
             aria-label={t("removeSource2")}

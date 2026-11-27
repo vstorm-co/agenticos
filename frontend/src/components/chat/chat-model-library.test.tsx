@@ -35,7 +35,7 @@ it("opens search from the toolbar and Escape clears it and restores focus", asyn
   );
   const search = screen.getByRole("button", { name: "Search models…" });
   expect(search).toHaveAttribute("aria-expanded", "false");
-  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: "Search models…" })).not.toBeInTheDocument();
   expect(search.closest("[data-model-toolbar]")).toContainElement(
     screen.getByRole("button", { name: "Refresh models" }),
   );
@@ -43,16 +43,16 @@ it("opens search from the toolbar and Escape clears it and restores focus", asyn
   expect(screen.getByRole("tab", { name: "Key" })).toHaveAttribute("title", "person@example.com");
   search.focus();
   await userEvent.keyboard("{Enter}");
-  const input = screen.getByRole("combobox");
+  const input = screen.getByRole("combobox", { name: "Search models…" });
   expect(input).toHaveFocus();
   await userEvent.type(input, "missing");
   await userEvent.keyboard("{Escape}");
   expect(search).toHaveFocus();
   expect(search).toHaveAttribute("aria-expanded", "false");
-  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: "Search models…" })).not.toBeInTheDocument();
   expect(screen.getByRole("option", { name: "Claude" })).toBeVisible();
   await userEvent.click(search);
-  await userEvent.type(screen.getByRole("combobox"), "missing");
+  await userEvent.type(screen.getByRole("combobox", { name: "Search models…" }), "missing");
   await userEvent.click(search);
   expect(screen.getByRole("option", { name: "Claude" })).toBeVisible();
 });
@@ -70,11 +70,14 @@ it("searches model names, supports an unlisted model ID, and applies only on con
   expect(screen.getByRole("option", { name: "Claude" })).toBeVisible();
   expect(screen.queryByText("anthropic/claude")).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: "Search models…" }));
-  await userEvent.type(screen.getByRole("combobox"), "anthropic/claude");
+  await userEvent.type(
+    screen.getByRole("combobox", { name: "Search models…" }),
+    "anthropic/claude",
+  );
   await userEvent.click(screen.getByRole("option", { name: "Claude" }));
   expect(p.onModelChange).toHaveBeenCalledWith("anthropic/claude");
-  await userEvent.clear(screen.getByRole("combobox"));
-  await userEvent.type(screen.getByRole("combobox"), "other/new");
+  await userEvent.clear(screen.getByRole("combobox", { name: "Search models…" }));
+  await userEvent.type(screen.getByRole("combobox", { name: "Search models…" }), "other/new");
   expect(screen.queryByRole("option", { name: /Claude/ })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("option", { name: "Use model ID: other/new" }));
   expect(p.onModelChange).toHaveBeenLastCalledWith("other/new");
@@ -86,7 +89,7 @@ it("clears a search when changing provider and keeps credential forms in the pan
     <ChatModelLibrary {...p} credentialForm={<button>Add provider key</button>} />,
   );
   await userEvent.click(screen.getByRole("button", { name: "Search models…" }));
-  await userEvent.type(screen.getByRole("combobox"), "claude");
+  await userEvent.type(screen.getByRole("combobox", { name: "Search models…" }), "claude");
   await userEvent.click(screen.getByRole("button", { name: /Openai/ }));
   expect(p.onProviderChange).toHaveBeenCalledWith("openai");
   rerender(
@@ -96,12 +99,12 @@ it("clears a search when changing provider and keeps credential forms in the pan
       credentialForm={<button>Add provider key</button>}
     />,
   );
-  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: "Search models…" })).not.toBeInTheDocument();
   expect(screen.getByPlaceholderText("Search models…")).toHaveValue("");
   expect(screen.queryByRole("button", { name: "Add provider key" })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("tab", { name: "Key" }));
   expect(screen.getByRole("button", { name: "Add provider key" })).toBeVisible();
-  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: "Search models…" })).not.toBeInTheDocument();
 });
 
 it("keeps existing key selection in its own keyboard-accessible tab", async () => {
@@ -199,7 +202,7 @@ it("shows the complete catalog and places the selected model first", async () =>
   await userEvent.click(screen.getByRole("option", { name: "Model 140" }));
   expect(p.onModelChange).toHaveBeenCalledWith("vendor/model-140");
   await userEvent.click(screen.getByRole("button", { name: "Search models…" }));
-  await userEvent.type(screen.getByRole("combobox"), "Model 149");
+  await userEvent.type(screen.getByRole("combobox", { name: "Search models…" }), "Model 149");
   expect(screen.getAllByRole("option")).toHaveLength(1);
   expect(screen.getByText("1 model")).toBeInTheDocument();
 });
@@ -250,7 +253,20 @@ it("keeps loading feedback inside the list while search and provider tabs stay a
   expect(within(screen.getByRole("listbox")).getByRole("status")).toHaveTextContent(
     "Loading models",
   );
-  expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: "Search models…" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Search models…" })).toBeVisible();
   expect(screen.getByRole("tab", { name: "Models" })).toBeVisible();
+});
+
+it("offers a named single-column mobile provider selector without applying a model or changing drafts", async () => {
+  const p = props();
+  render(<ChatModelLibrary {...p} />);
+  const provider = screen.getByRole("combobox", { name: "Provider" });
+  expect(provider.closest("[data-chat-model-provider-select]")).toHaveClass("sm:hidden");
+  expect(provider).toHaveTextContent("OpenRouter");
+  expect(p.onProviderChange).not.toHaveBeenCalled();
+  await userEvent.click(provider);
+  await userEvent.click(screen.getByRole("option", { name: "openai" }));
+  expect(p.onProviderChange).toHaveBeenCalledExactlyOnceWith("openai");
+  expect(p.onModelChange).not.toHaveBeenCalled();
 });

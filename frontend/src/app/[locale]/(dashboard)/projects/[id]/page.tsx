@@ -90,10 +90,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 name={project.name}
                 canManage={project.can_edit}
               />
-              {project.can_use &&
-                !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
-                  <ProjectTrackingControl project={project} />
-                )}
             </>
           )
         }
@@ -102,7 +98,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <>
               {project.can_use &&
                 !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
-                  <TaskBoardButton scope="project" scopeId={project.id} />
+                  <ProjectTrackingControl
+                    project={project}
+                    primaryAction={<TaskBoardButton scope="project" scopeId={project.id} />}
+                  />
                 )}
               {project.can_use &&
                 !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
@@ -137,12 +136,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             aria-label={t("chats")}
             aria-describedby={project ? chatCountId : undefined}
           >
-            <MessageSquare className="mr-1.5 size-4 shrink-0" aria-hidden />
+            <MessageSquare className="size-4 shrink-0" aria-hidden />
             {t("chats")}
             {project && (
               <>
                 <span
-                  className="bg-muted text-muted-foreground ml-1.5 rounded-md px-1.5 py-0.5 text-xs tabular-nums"
+                  className="bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 text-xs tabular-nums"
                   aria-hidden
                 >
                   {chatCount}
@@ -154,19 +153,19 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             )}
           </TabsTrigger>
           <TabsTrigger disabled={isLoading} value="resources" data-tour="project-tab-resources">
-            <Layers className="mr-1.5 size-4 shrink-0" aria-hidden />
+            <Layers className="size-4 shrink-0" aria-hidden />
             {t("resources.title")}
           </TabsTrigger>
           <TabsTrigger disabled={isLoading} value="files">
-            <Files className="mr-1.5 size-4 shrink-0" aria-hidden />
+            <Files className="size-4 shrink-0" aria-hidden />
             {t("files")}
           </TabsTrigger>
           <TabsTrigger disabled={isLoading} value="apps">
-            <AppWindow className="mr-1.5 size-4 shrink-0" aria-hidden />
+            <AppWindow className="size-4 shrink-0" aria-hidden />
             {t("apps")}
           </TabsTrigger>
           <TabsTrigger disabled={isLoading} value="instructions">
-            <FileText className="mr-1.5 size-4 shrink-0" aria-hidden />
+            <FileText className="size-4 shrink-0" aria-hidden />
             {t("instructions")}
           </TabsTrigger>
         </TabsList>

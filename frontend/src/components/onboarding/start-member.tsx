@@ -13,6 +13,8 @@ import { AvatarFace } from "@/components/ui/avatar-face";
 import { Button } from "@/components/ui";
 import { ProfileIdentitySettings } from "@/components/settings/profile-identity-settings";
 import type { Onboarding } from "@/lib/onboarding-api";
+import { personalStartStep } from "@/lib/onboarding/scopes";
+import { StartScopeProgress } from "./start-scope-progress";
 import { StartActions, StartNavigation, StartNavigationScope } from "./start-navigation";
 import { StartLanguage } from "./start-language";
 import { StartCompanions } from "./start-companions";
@@ -59,7 +61,13 @@ const STEPS = [
 type Step = (typeof STEPS)[number];
 
 /** Members prepare their own profile and first task, never deployment or team policy. */
-export function StartMember({ data }: { data: Onboarding }) {
+export function StartMember({
+  data,
+  resumeStep,
+}: {
+  data: Onboarding;
+  resumeStep?: string | null;
+}) {
   const t = useTranslations("start.guided");
   const admin = useTranslations("start.administration");
   const { appName } = useBranding();
@@ -71,9 +79,9 @@ export function StartMember({ data }: { data: Onboarding }) {
   const stepLabel = (id: Step) =>
     id === "models" || id === "tools" ? experience(`${id}Title`) : t(`memberStep.${id}`);
   const initial =
-    search.get("workspace") === data.organization_id
-      ? steps.find((item) => `member.${item}` === search.get("start-step"))
-      : undefined;
+    (search.get("workspace") === data.organization_id
+      ? steps.find((item) => `member.${item}` === personalStartStep(search.get("start-step")))
+      : undefined) ?? steps.find((item) => `member.${item}` === resumeStep);
   const [step, setStep] = useState<Step>(initial ?? "welcome");
   useReportStartStep(`member.${step}`, data.organization_id, !data.completed);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
@@ -135,6 +143,7 @@ export function StartMember({ data }: { data: Onboarding }) {
           </div>
         </nav>
         <header className={styles.wizardHeader} data-start-header>
+          <StartScopeProgress />
           <div className={styles.wizardMeta}>
             <div className={styles.wizardScope}>
               <span>{data.organization_name}</span>

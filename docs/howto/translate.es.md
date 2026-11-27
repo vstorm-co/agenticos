@@ -1,5 +1,5 @@
 ---
-source_sha: "85e967e18444"
+source_sha: "d650d29f959a"
 ---
 
 # Traduce una página { #translate-a-page }
@@ -313,6 +313,13 @@ es justo para lo que está.
 
 **Cada archivo lleva una barra de idiomas** a sus tres traducciones, y las
 traducciones enlazan de vuelta. Actualiza los cuatro cuando se añada un idioma.
+
+Una traducción comunitaria puede cubrir solo el README. Regístrala en
+`ROOT_EXTRA_LOCALES` en `scripts/docs_i18n.py`; `README.tr.md` es el ejemplo
+turco. Se comprueban la huella, la estructura de secciones y los enlaces,
+sin añadir un idioma al sitio ni exigir políticas traducidas. Los enlaces
+a documentación siguen en inglés cuando no hay traducción; indícalo en
+el README. El sitio mantiene inglés, polaco, alemán y español.
 
 `CHANGELOG.md` no se traduce, por la razón por la que `release-notes.md` tampoco:
 es el historial de commits.

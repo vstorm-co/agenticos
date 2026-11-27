@@ -45,6 +45,7 @@ export type AuthoringFailure =
   | "context_gone"
   | "no_edit_context"
   | "unknown_skill_use"
+  | "hidden_characters"
   | "no_evidence"
   | "key_revoked"
   | "not_a_member"
@@ -127,6 +128,7 @@ export type Rejection =
   | "no_change"
   | "unknown_tool"
   | "invalid_tool_change"
+  | "hidden_characters"
   | "not_a_target"
   | "operation"
   | "loosens_approval"
@@ -134,6 +136,7 @@ export type Rejection =
   | "unknown_capability"
   | "invalid_config"
   | "does_not_apply"
+  | "reaches_network"
   | "not_grantable"
   | "dismissed_before"
   | "unsupported"
@@ -286,6 +289,8 @@ export interface Hunk {
   /** Pending: still fits the draft. Accepted: Undo still can. */
   applies: boolean;
   decided_at: string | null;
+  /** The text Accept would write quotes a credential: shown redacted, and Accept is refused. */
+  contains_credential?: boolean;
 }
 
 export interface SuggestionBatch {
@@ -359,6 +364,8 @@ export interface ContextChange {
   decided_at: string | null;
   /** The file changed since the proposal was written; Apply refuses it. */
   stale: boolean;
+  /** The proposed text quotes a credential: shown redacted, and Apply and Check refuse it. */
+  contains_credential?: boolean;
   rationale: string;
   evidence: EvidenceItem[];
   evidence_dropped: number;

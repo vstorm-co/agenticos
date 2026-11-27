@@ -41,6 +41,7 @@ from app.agents.browser_events import (
     BrowserControl,
     BrowserEvent,
     BrowserEventSink,
+    with_environment,
 )
 from app.agents.browser_sign_ins import SignIn
 from app.agents.capabilities.browser_use._decision import (
@@ -342,7 +343,7 @@ async def _drive(
         """Send one frame, and answer whether a surface received it."""
         if sink is None:
             return True
-        return await sink(event)
+        return await sink(with_environment(event, session.page))
 
     page = session.page
     snapshot = await page.snapshot()
@@ -844,7 +845,7 @@ async def held(
                             kept = await remember(page, command)
                         break
                     try:
-                        await _person_input(page, command)
+                        await person_input(page, command)
                         if command.type in {"navigate", "back", "forward", "reload"}:
                             url, title = await page.location()
                             await emit(
@@ -918,7 +919,7 @@ async def between_steps(
         if command.type == "take_over":
             return command, resized
         if command.type == "resize":
-            await _person_input(page, command)
+            await person_input(page, command)
             resized = True
     return None, resized
 
@@ -940,7 +941,7 @@ async def first_fit(
         await anyio.sleep(_FIT_POLL)
 
 
-async def _person_input(page: PageSession, command: BrowserCommand) -> None:
+async def person_input(page: PageSession, command: BrowserCommand) -> None:
     """Carry out one thing a person did in the tab they hold; drop one that says nothing."""
     if command.type == "click" and command.x is not None and command.y is not None:
         await page.click_at(command.x, command.y)

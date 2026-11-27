@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OrgSpendingLimit } from "./org-spending-limit";
+import { CurrencyProvider } from "@/components/providers/currency-provider";
+import type { CurrencyContext } from "@/lib/currency-api";
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
@@ -55,7 +57,7 @@ function org(overrides: Partial<Organization> = {}): Organization {
   };
 }
 
-function serve(role: OrgRole, monthToDate = "12.5") {
+function serve(role: OrgRole, monthToDate = "12.5", currency?: Promise<CurrencyContext>) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/me/permissions") {
       return {
@@ -67,19 +69,20 @@ function serve(role: OrgRole, monthToDate = "12.5") {
         permissions: role === "owner" ? [{ permission: "budgets:manage", scope: "all" }] : [],
       };
     }
+    if (path === "/providers/currencies" && currency) return currency;
     if (path === "/spend") return { period_days: 30, month_to_date_usd: monthToDate, by_agent: [] };
     if (path === "/orgs") return { items: [org()], total: 1 };
     throw new Error(`unexpected GET ${path}`);
   });
 }
 
-describe("OrgSpendingLimit", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
-    useOrgStore.setState({ activeOrgId: ORG_ID });
-  });
+beforeEach(() => {
+  vi.clearAllMocks();
+  useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
+  useOrgStore.setState({ activeOrgId: ORG_ID });
+});
 
+describe("OrgSpendingLimit", () => {
   it("keeps the pending cap when Save and leave is refused", async () => {
     serve("owner");
     vi.mocked(apiClient.patch).mockRejectedValue(new ApiError(409, "Changed elsewhere"));
@@ -90,10 +93,10 @@ describe("OrgSpendingLimit", () => {
     act(() => useUnsavedChangesStore.getState().leave(proceed));
     await act(() => useUnsavedChangesStore.getState().answer("save"));
     expect(proceed).not.toHaveBeenCalled();
-    expect(input).toHaveValue(500);
+    expect(input).toHaveValue("500");
     act(() => useUnsavedChangesStore.getState().leave(proceed));
     await act(() => useUnsavedChangesStore.getState().answer("discard"));
-    expect(input).toHaveValue(null);
+    expect(input).toHaveValue("");
     expect(proceed).toHaveBeenCalledOnce();
   });
 
@@ -108,7 +111,8 @@ describe("OrgSpendingLimit", () => {
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
-        monthly_budget_usd: 500,
+        monthly_budget_usd: "500",
+        monetary_inputs: { monthly_budget_usd: { amount: "500", currency: "USD" } },
       }),
     );
   });
@@ -141,7 +145,7 @@ describe("OrgSpendingLimit", () => {
     serve("owner", "12.5");
     render(<OrgSpendingLimit org={org({ monthly_budget_usd: "500" })} />, { wrapper });
 
-    expect(await screen.findByText("$12.50 of $500.00 spent this month.")).toBeInTheDocument();
+    expect(await screen.findByText("Spent $12.50 of $500.00 this month.")).toBeInTheDocument();
   });
 
   it("puts the server's refusal under the input rather than only in a toast", async () => {
@@ -174,6 +178,40 @@ describe("OrgSpendingLimit", () => {
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/permissions"));
     expect(screen.queryByText("Monthly spending limit")).not.toBeInTheDocument();
-    expect(apiClient.get).not.toHaveBeenCalledWith("/spend", expect.anything());
+    expect(vi.mocked(apiClient.get).mock.calls.some(([path]) => path === "/spend")).toBe(false);
   });
+
+  it("does not claim its existing 5 USD limit is uncapped while its reporting quote loads", async () => {
+    const currency = Promise.withResolvers<CurrencyContext>();
+    serve("owner", "0", currency.promise);
+    render(
+      <CurrencyProvider>
+        <OrgSpendingLimit org={org({ monthly_budget_usd: "5" })} />
+      </CurrencyProvider>,
+      { wrapper },
+    );
+    const input = await screen.findByLabelText("Limit (—)");
+    expect(input).toBeDisabled();
+    expect(input).toHaveAttribute("placeholder", "Loading...");
+    expect(input).not.toHaveAttribute("placeholder", "No limit");
+    await act(async () =>
+      currency.resolve({
+        currency: "PLN",
+        default_currency: "USD",
+        inherited: false,
+        reporting_units_per_usd: "4",
+        rates: { USD: "1", PLN: "9" },
+      }),
+    );
+    await waitFor(() => expect(screen.getByLabelText("Limit (PLN)")).toHaveValue("20"));
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+});
+
+it("does not load another organization's spend with the active organization's authority", () => {
+  serve("owner");
+  useOrgStore.setState({ activeOrgId: "another-org" });
+  render(<OrgSpendingLimit org={org()} />, { wrapper });
+  expect(screen.queryByLabelText("Limit (USD)")).toBeNull();
+  expect(vi.mocked(apiClient.get).mock.calls.some(([path]) => path === "/spend")).toBe(false);
 });

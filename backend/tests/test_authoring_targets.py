@@ -206,7 +206,7 @@ def test_a_configuration_is_a_target_only_where_the_capability_opts_in():
             "add",
             {"id": "web_fetch", "config": {"allowed_domains": ["example.com"]}},
         )
-        == "not_a_target"
+        == "reaches_network"
     )
     assert authoring_fields.standing_refusal("capabilities/web_fetch/config", "set", {}, {}) == (
         "not_a_target"
@@ -232,7 +232,8 @@ def test_subagents_are_never_added_or_reconfigured():
         "not_a_target"
     )
     assert (
-        authoring_fields.stage(spec, "capabilities", "add", {"id": "subagents"}) == "not_a_target"
+        authoring_fields.stage(spec, "capabilities", "add", {"id": "subagents"})
+        == "reaches_network"
     )
     assert authoring_fields.standing_refusal("capabilities/subagents/config", "set", {}, {}) == (
         "not_a_target"

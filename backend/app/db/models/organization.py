@@ -72,6 +72,14 @@ OnboardingStep = Literal[
     "member.tools",
     "member.task",
 ]
+OrganizationOnboardingStep = Literal[
+    "admin.workspace",
+    "admin.identity",
+    "admin.models",
+    "admin.tools",
+    "admin.team",
+    "admin.organization",
+]
 # When the nightly look runs: at a fixed hour, or before the person's working hours (#2301).
 ProactiveTiming = Literal["fixed", "before_work"]
 """The stored sources, as a type a schema can be written in.
@@ -94,6 +102,14 @@ class Organization(Base, TimestampMixin):
     """Organization - the primary multi-tenant unit. Every user gets a Personal org on signup."""
 
     __tablename__ = "organizations"
+
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    onboarding_current_step: Mapped[OrganizationOnboardingStep | None] = mapped_column(String(64))
+    onboarding_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    monetary_terms: Mapped[dict[str, JsonValue]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'")
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
@@ -118,7 +134,14 @@ class Organization(Base, TimestampMixin):
     # Numeric to the same scale as `agent_runs.cost_usd`: the cap is compared
     # against a sum of those, and a float would drift against the total the
     # Activity page shows.
-    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    reporting_quote: Mapped[dict[str, JsonValue]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=lambda: {"currency": "USD", "units_per_usd": "1"},
+        server_default=text('\'{"currency":"USD","units_per_usd":"1"}\''),
+    )
+    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(38, 6), nullable=True)
 
     # What the platform may spend on each person in a calendar month on work it
     # does on its own initiative - noticing a repeated request, writing their
@@ -126,7 +149,7 @@ class Organization(Base, TimestampMixin):
     # everybody's. Zero switches that work off; it is inside `monthly_budget_usd`,
     # never beside it.
     proactive_limit_usd: Mapped[Decimal] = mapped_column(
-        Numeric(12, 6), nullable=False, default=Decimal("1"), server_default=text("1")
+        Numeric(38, 6), nullable=False, default=Decimal("1"), server_default=text("1")
     )
     # Whether that work happens at all. Off until an organization turns it on:
     # it spends money nobody asked for in the moment, so it is a decision, made
@@ -266,6 +289,10 @@ class Organization(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "onboarding_current_step IS NULL OR onboarding_current_step IN ('admin.workspace', 'admin.identity', 'admin.models', 'admin.tools', 'admin.team', 'admin.organization')",
+            name="onboarding_step",
+        ),
         CheckConstraint(
             "chat_cost_visibility IS NULL OR chat_cost_visibility IN ('everyone', 'spend_privileged', 'nobody')",
             name="ck_organization_chat_cost_visibility",

@@ -51,6 +51,8 @@ export interface KnowledgeFinding {
  * skipped or could not run, so each cause reads - and is fixed - on its own.
  */
 export interface ScorerResult {
+  cost_limit_usd?: string | null;
+  cost_observed_usd?: string | null;
   scorer: ScorerKind;
   name: string;
   required: boolean;

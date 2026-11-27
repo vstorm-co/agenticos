@@ -61,18 +61,34 @@ async def get_many(
     return {agent.id: agent for agent in result.scalars().all()}
 
 
-async def drafts_mentioning(db: AsyncSession, needle: str, *, organization_id: UUID) -> list[Agent]:
-    """Live agents whose draft spec contains `needle` anywhere in its text.
+async def drafts_mentioning(
+    db: AsyncSession, needles: Collection[str], *, organization_id: UUID
+) -> list[Agent]:
+    """Live agents whose draft spec contains any of `needles` anywhere in its text.
 
     A cheap first pass for a caller that then parses each draft: an id bound by an
     inline specialist sits deep inside a capability's config, where no column or
     JSON path the query could name reaches it.
     """
+    if not needles:
+        return []
+    draft = cast(Agent.draft_spec, Text)
     result = await db.execute(
         select(Agent).where(
             Agent.organization_id == organization_id,
             Agent.status != AgentStatus.ARCHIVED.value,
-            cast(Agent.draft_spec, Text).contains(needle, autoescape=True),
+            or_(*(draft.contains(needle, autoescape=True) for needle in needles)),
+        )
+    )
+    return list(result.scalars().all())
+
+
+async def list_live(db: AsyncSession, *, organization_id: UUID) -> list[Agent]:
+    """Every agent of the organization that is not archived, drafts and all."""
+    result = await db.execute(
+        select(Agent).where(
+            Agent.organization_id == organization_id,
+            Agent.status != AgentStatus.ARCHIVED.value,
         )
     )
     return list(result.scalars().all())
@@ -924,6 +940,29 @@ async def list_versions(
         .offset(skip)
         .limit(limit)
     )
+    return list(result.scalars().all())
+
+
+async def list_versions_after(
+    db: AsyncSession, *, agent_id: UUID, organization_id: UUID, version_id: UUID | None
+) -> list[AgentVersion]:
+    """Every version published after `version_id`, newest first; all of them for `None`."""
+    statement = select(AgentVersion).where(
+        AgentVersion.agent_id == agent_id,
+        AgentVersion.organization_id == organization_id,
+    )
+    if version_id is not None:
+        after = (
+            select(AgentVersion.version)
+            .where(
+                AgentVersion.id == version_id,
+                AgentVersion.agent_id == agent_id,
+                AgentVersion.organization_id == organization_id,
+            )
+            .scalar_subquery()
+        )
+        statement = statement.where(AgentVersion.version > after)
+    result = await db.execute(statement.order_by(AgentVersion.version.desc()))
     return list(result.scalars().all())
 
 

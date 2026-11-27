@@ -66,6 +66,7 @@ interface CreateConversationResponse {
   created_at: string;
   updated_at: string;
   is_archived: boolean;
+  project_id?: string | null;
 }
 
 const PAGE_SIZE = 30;
@@ -423,12 +424,16 @@ export function useConversations(query: Partial<ConversationQuery> = {}, enabled
   }, [queryClient, listKey, params, appendPage, rememberHasMore]);
 
   const createConversation = useCallback(
-    async (title?: string): Promise<Conversation | null> => {
+    async (
+      title?: string,
+      options?: { projectId?: string | null },
+    ): Promise<Conversation | null> => {
       setLoading(true);
       setError(null);
       try {
         const response = await apiClient.post<CreateConversationResponse>("/conversations", {
           title,
+          ...(options?.projectId ? { project_id: options.projectId } : {}),
         });
         await invalidateLists();
         return {
@@ -437,6 +442,7 @@ export function useConversations(query: Partial<ConversationQuery> = {}, enabled
           created_at: response.created_at,
           updated_at: response.updated_at,
           is_archived: response.is_archived,
+          ...(response.project_id === undefined ? {} : { project_id: response.project_id }),
         };
       } catch (err) {
         const message = getErrorMessage(err, tErrors, t("failedCreateConversation"));

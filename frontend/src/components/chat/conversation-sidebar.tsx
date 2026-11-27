@@ -1080,24 +1080,31 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
   const [preferredCollapsed, setPreferredCollapsed] = useState(false);
   const sourcesOpen = useSourcesPanelStore((state) => state.isOpen);
   const filesOpen = useChatPanelStore((state) => state.filesOpen);
-  const panelOpen = sourcesOpen || filesOpen;
-  const [sourcesOverride, setSourcesOverride] = useState(false);
+  const browserOpen = useChatPanelStore((state) => state.browserOpen);
+  const panelOpen = sourcesOpen || filesOpen || browserOpen;
+  const [panelOverride, setPanelOverride] = useState(false);
   const [tight, setTight] = useState(false);
+  const [desktop, setDesktop] = useState(false);
   const sidebar = useRef<HTMLElement>(null);
-  if (useChanged(panelOpen)) setSourcesOverride(false);
+  const panelChanged = useChanged(panelOpen);
+  const browserChanged = useChanged(browserOpen);
+  if (panelChanged || browserChanged) setPanelOverride(false);
   useLayoutEffect(() => {
     const container = sidebar.current?.parentElement;
     if (!container) return;
     const measure = () => {
       const width = container.getBoundingClientRect().width;
-      setTight(window.innerWidth >= 768 && width > 0 && width < 1240);
+      const desktop = window.innerWidth >= 768;
+      setDesktop(desktop);
+      setTight(desktop && width > 0 && width < 1240);
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(container);
     return () => observer.disconnect();
   }, []);
-  const isCollapsed = preferredCollapsed || (panelOpen && tight && !sourcesOverride);
+  const needsRoom = (browserOpen && desktop) || ((sourcesOpen || filesOpen) && tight);
+  const isCollapsed = preferredCollapsed || (needsRoom && !panelOverride);
   const userId = useAuthStore((state) => state.user?.id);
   const grouped = useChatListPreferencesStore((state) =>
     userId ? (state.groupedByUser[userId] ?? true) : true,
@@ -1358,7 +1365,7 @@ export function ConversationSidebar({ className }: ConversationSidebarProps) {
           toolbar={toolbar(undefined, true)}
           onExpand={() => {
             setPreferredCollapsed(false);
-            setSourcesOverride(true);
+            setPanelOverride(true);
           }}
           className={className}
         />

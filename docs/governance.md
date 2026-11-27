@@ -248,6 +248,8 @@ cap stops the run on the request after it.
 
 ### A cost that could not be measured says so
 
+Stav also accepts deployment currency rates for its billed currency, including EUR. A configured NOK rate takes precedence over the legacy `STAV_NOK_PER_USD` fallback described below. USD remains the stored accounting currency; usage retains the actual billed currency and applied rate.
+
 Stav's billed cost takes precedence over the snapshot: `usage.cost` with
 `cost_currency`, or the `x-stav-cost` and `x-stav-cost-currency` headers. Both
 Chat Completions and Responses include streamed requests. USD is used directly;
@@ -255,8 +257,9 @@ NOK requires `STAV_NOK_PER_USD` ([configuration](configuration.md)), maintained
 by the operator. It is NOK per dollar: a value of `10` would divide NOK by 10,
 not a current exchange-rate recommendation. No rate is fetched automatically.
 Usage retains the billed amount, currency, rate and USD cost, and the ledger
-marks the source as provider-reported. Invalid costs, unsupported currencies or
-missing conversion leave the catalog fallback in place.
+marks the source as provider-reported.
+
+An invalid or absent provider cost permits the catalog fallback. A valid bill with a missing or unsupported currency rate remains unpriced: its original amount and currency are retained, and a capped run refuses further requests. A configured custom token-price override remains authoritative.
 
 Without a usable provider-reported cost, pricing falls back to `genai-prices`.
 It does not know every model. When a run reaches one it has no entry
@@ -1067,6 +1070,10 @@ is the queue somebody acts on; `?status=approved&status=rejected` is the record 
 what was decided, and it carries the decider's name and note because a bare UUID is
 not an accountability trail. There are deliberately no controls on a decided row.
 
+A caller without `approvals:decide` reads only their own platform calls that always
+ask and still wait, signed in as themselves; `status` does not widen that. A
+routine's call, asked in no conversation, reaches its person that way.
+
 | Parameter                    |                                                                                                                                                                                                                                                                                                                      |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `status`                     | Repeats. Absent means pending — the queue                                                                                                                                                                                                                                                                            |
@@ -1335,6 +1342,8 @@ agent's tools are folded into one `run_code` tool: the model writes a short Pyth
 script that runs in the Monty sandbox and calls the tools in loops and in
 parallel, up to `max_tool_calls` per script.
 
+Invalid arguments on an ordinary tool call consume its SDK retry budget; under the default limit the model gets one correction before repeated invalid calls stop the run. A successful call resets that tool’s budget. Calls inside a script retain the SDK’s raw-validation policy and `max_tool_calls` bound. An exhausted retry budget in a separate agent cannot be caught by a script to continue executing tools.
+
 At most four of a script's calls run at once, and the rest wait, so a script
 fanning out over hundreds of sandboxed calls cannot open them all together.
 
@@ -1345,6 +1354,20 @@ results, manifest and call counter. After the decision, any worker can continue
 the script without another model request or repeating completed operations.
 Rejecting the call raises a `RuntimeError` inside the script; its handler never
 runs. Approving `run_code` itself does not approve any nested operation.
+
+In an eval, and in every other isolated run, `run_code` runs, and each call the
+script makes is decided on its own by the
+[isolation rules](environments.md#in-an-eval): a read of this deployment's own
+data runs, a read from outside it or a write is held and recorded with its
+arguments. Running the script lets nothing through that a direct call would not
+get.
+
+Each call the script makes is kept with the run, under the script: its tool,
+arguments and result, up to 100 calls and
+about 1 MB a script. An eval grades those calls in
+the script's place and lists them under it
+([expected tool calls](datasets.md#trajectory)). A recording of the run answers
+each of them when an eval runs the script again, so the replay lists them too.
 
 The checkpoint is server-owned and bounded. A raw interpreter snapshot may be
 at most 512 kB; all code checkpoints in one run may occupy at most 1 MB of JSON.
@@ -1396,6 +1419,19 @@ not hold: a _Prompt cache_ card, one row per agent and model, with its busts,
 expiries and the cached tokens they did not read back over the window - a
 measure of the miss, not of what was billed again, since a compaction can also
 shrink the prompt the cache held. The card is not shown while every cache held.
+
+### Limit currency
+
+Accounting and existing API fields remain USD. The console converts a typed reporting-currency amount with the organization's frozen reporting quote, then sends the original declaration alongside the USD value. The server verifies that conversion against its own quote. A stale, mismatched, unsupported or unavailable quote cannot write a limit. Use decimal strings to preserve input precision.
+
+For example, with the reporting quote fixed at 4 PLN per USD, `monthly_budget_usd: "25"` can accompany `monetary_inputs: {"monthly_budget_usd": {"amount": "100", "currency": "PLN"}}`. An explicit legacy USD edit replaces only that field's original terms. An unrelated patch preserves them. Cloning and supported exports/imports retain validated historical terms without revaluing the USD limit.
+
+Foreign-currency limits round to six USD decimal places; amounts that would become zero are refused. Legacy float-valued agent specs and node/check thresholds keep their format and reject declarations that cannot be represented exactly there. A dataset cost criterion remains a pass/fail threshold, not spending authorization. Switching reporting currency never changes which costs or limits the enforcement compares.
+
+New budget and periodic usage notifications retain the reporting quote used when they were created. Delivery retries and viewing a notice from another organization do not revalue its amounts. Queued legacy notices retain their original USD values. New cost-check results carry structured monetary evidence for reporting-currency display; older stored criterion sentences retain their original USD wording.
+
+Routine monthly limits preserve six USD decimal places. Writes with extra fractional precision are refused before storage. Downgrading to the previous four-decimal routine column is blocked while a limit would be rounded or overflow.
+
 
 ## Approvals
 
@@ -1559,11 +1595,11 @@ Remembered choices are stored on the server. **Chat controls → Preferences →
 
 The approvals queue is the organization's, but some calls quote what their run's person reads - the fact `share_memory` would share. That quote reaches only somebody who may see the run: the person it ran for, or a member who reads every run and may view the agent. Everyone else sees the tool and the audience, and a note that the content is hidden. A call that asks every time is approved only by somebody who can read what it quotes: anyone else may reject it, and an approval from them is refused.
 
-The card of such a call says what it does in names, read as the run's person when it parks: the agent, the attempt and its verdict, the version a publish makes, the dataset an eval runs on, the price it was quoted at. The raw arguments stay under Details, and a call whose records the person cannot read shows only those.
-
 A platform call that always asks - accepting an improvement, publishing an agent, inviting a member - runs with the platform authority of the person its run acts for. So only that person, signed in as themselves, may approve it: not another member holding `approvals:decide`, not an API key, the person's own included, and not an administrator impersonating them. Anybody holding `approvals:decide` may still reject it. The person needs no permission beyond being that person, so a Builder or a Member approves the Architect's card in their own chat and continues the run there. Only they may continue a run past an approved platform call.
 
-On a channel such as Slack or Telegram, the person answers it in that chat, from the chat account linked to them. When the run asks about other calls at the same time, the person answers only their own, and the rest waits for somebody holding `approvals:decide`. The run continues once every call has an answer.
+The card of such a call says what it does in names, read as the run's person when it parks: the agent, the attempt and its verdict, the skill fork or the agents a skill change moves, the dataset an eval runs on, the price it was quoted at. An accepted attempt is held to the one the card named. The raw arguments stay under Details, and a call whose records the person cannot read shows only those.
+
+On a channel such as Slack or Telegram, the person answers it in that chat, from the chat account linked to them. When the run asks about other calls at the same time, the person answers only their own, and the rest waits for somebody holding `approvals:decide`. The run continues once every call has an answer, as that person, whoever answered last.
 
 A run with no person - a visitor's on a widget or a hosted page, an unlinked channel member's, or one whose starter was deleted - has nobody whose answer counts, so its platform call waits until it expires; such a run never holds platform authority in the first place. A deployment change (`change_deployment`) needs both rules at once: the run's own person, who must also be an application administrator. The Architect of anybody else cannot change it.
 
@@ -2014,11 +2050,16 @@ So the audience is split by the permission rather than trimmed to it:
 | Recipient holds | Gets |
 | --- | --- |
 | `approvals:decide` | the request, with the link to the queue |
-| nothing, but is the run's own person and the calls include their own platform call that always asks | the request, with a link to the conversation it was asked in, while that call waits |
+| nothing, but is the run's own person and the calls include their own platform call that always asks | the request, with a link to the conversation it was asked in, or to their Inbox for a run asked in none, while that call waits |
 | anything less | the _fact_: the run is held not failed, somebody who may decide approvals has to answer it, and nothing is asked of them |
 
 Trimming instead would leave the one person definitely waiting on the run - the
 person who started it - hearing nothing about why it stopped.
+
+The run's own person gets the request for their own platform call even where the
+agent's approval alert leaves them out or is switched off: nobody else may approve
+it. Without `approvals:decide`, their Inbox and `GET /approvals` list such calls -
+their own, and nothing else.
 
 The second email carries **no link**, and that is deliberate rather than
 unfinished. `agents:view` being a role permission does not make one agent

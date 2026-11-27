@@ -1,5 +1,5 @@
 ---
-source_sha: "4810cee98986"
+source_sha: "02102d3462c1"
 ---
 
 # Sandbox { #the-sandbox }
@@ -86,9 +86,9 @@ odzyskania systemu plików; nie uruchamia pustego zamiennika.
 
 Natywny magazyn projektu wymaga trwałych rozszerzonych atrybutów i atomowych twardych
 dowiązań; obsługiwane są zweryfikowany magazyn Linux oraz state w bazie. Bind mounty
-macOS mogą odmawiać wymagań natywnych. Dowiązania symboliczne i zmiany właściciela
-nie są obsługiwane. [Projekty](projects.md#what-an-agent-gets-in-a-project) opisują
-dostęp przez dzierżawę i opcjonalnego jawnego wykonawcę projektu.
+macOS mogą odmawiać wymagań natywnych. Dowiązania symboliczne i zmiany właściciela nie
+są obsługiwane. [Projekty](projects.md#what-an-agent-gets-in-a-project) opisują dostęp
+przez dzierżawę i opcjonalnego jawnego wykonawcę projektu.
 
 ### Usługa i backend zmieniają się razem { #the-service-and-the-backend-move-together }
 
@@ -840,3 +840,26 @@ ani sesji do sprzątania.
 Backend `state` wlicza pliki i puste katalogi do limitu przechowywania, również przy końcowym scalaniu równoległych zmian. Jeśli osobno zaakceptowane dokumenty nie mieszczą się razem, wspólny dokument pozostaje bez zmian, a późniejszy zapis trafia do kopii odzyskiwania w **Documents**. Run zapisuje błąd z identyfikatorem kopii; operacja na projekcie zwraca konflikt zamiast sukcesu. Kopie projektów wymagają uprawnień do przeglądania i używania projektu. Klucz obcy usuwa kopię wraz ze źródłem, także przy równoczesnym usuwaniu danych. Obniżenie limitu poniżej rozmiaru istniejącego dokumentu nadal pozwala go zmniejszać.
 
 Instrukcje workbench wyjaśniają agentom, że polecenia działają w POSIX `/bin/sh`, a nie w Bashu. Na przykład `mkdir -p sources inbox notes` tworzy trzy foldery; ta powłoka nie rozwija `{sources,inbox,notes}`. Aktywny wykonawca zachowuje własny katalog roboczy. Przy dostępie na żywo `PROJECT_DIR` wskazuje `/project/<UUID dzierżawy>`; używaj tej ścieżki dla wspólnych plików projektu. Katalog domowy (`~`) jest poza nimi. Każde polecenie uruchamia nowy proces, więc zmienne powłoki i zmiany katalogu nie przechodzą do kolejnego wywołania. Agent ma sprawdzać błędy i pliki przed zgłoszeniem powodzenia.
+
+## Czas życia przeglądarki i pulpitu w rozmowie { #conversation-environments }
+
+Uprawniony obserwator przeglądarki dopasowuje bezczynną stronę do faktycznej szerokości, wysokości i gęstości pikseli panelu. Każde dopasowanie chroni krótka, wyłączna dzierżawa sterownika fizycznego; nie przyznaje ona prawa do wpisywania danych ani nie przedłuża czasu bezczynności. Gdy steruje agent lub inny obserwator, dopasowanie czeka na potwierdzony stan bezczynności; obraz zachowuje w tym czasie proporcje. Fizyczny ekran pulpitu nie jest skalowany zdalnie. Pasek narzędzi wskazuje, kto steruje, i pokazuje tekstowe przyciski przejęcia oraz oddania kontroli.
+
+`browser_use` i `computer_use` konfigurują `session_lifetime` (`run` lub `conversation`) oraz `session_idle_seconds` (60–86400). Brak pól w istniejącym bindingu zachowuje `run`; publikacja starej specyfikacji nie włącza ukrytego dłuższego naliczania. Nowe bindingi w konsoli jawnie wybierają `conversation` i 900 sekund; autor może to zmienić. `CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS` ogranicza efektywny czas bezczynności widoczny w panelu. `CONVERSATION_ENVIRONMENTS_PER_USER` ogranicza liczbę środowisk osoby, wliczając znane zasoby czekające na sprzątanie.
+
+Retencja dotyczy zwykłego uwierzytelnionego prywatnego czatu webowego. API, kanały, evale i sparowane urządzenia zachowują dotychczasowy kontrakt. Zasób nie startuje przed jawnym **Open** lub pierwszym faktycznym użyciem narzędzia. Ręcznie przygotowane środowisko jest przejmowane po sprawdzeniu aktualnego właściciela, członkostwa, prawa do uruchamiania agenta i połączenia. Prawo zapisu we współdzielonym czacie nie daje dostępu do cudzej prywatnej przeglądarki. Zmiana samych instrukcji może zachować dokładnie ten sam zasób niezmienionego bindingu; zmiana połączenia, klucza, generacji projektu lub celu wykonania wymaga nowego środowiska. Pulpit projektu korzysta z wybranego uprawnionego executora i rzeczywistego katalogu, bez fikcyjnego runu ani wygasłej dzierżawy plików projektu.
+
+Każda żywa zdalna przeglądarka ma stale podłączonego właściciela CDP egzekwującego politykę żądań, również po odłączeniu wszystkich paneli i obserwatorów agenta. Izolowany kontekst używa Chromium `disposeOnDetach`: utrata procesu API/workera lub połączenia właściciela kończy przeglądarkę, zamiast pozostawiać JavaScript bez ochrony ruchu wychodzącego. Po restarcie oryginalna karta jest pokazywana jako wygasła; nie powstaje zastępstwo z zapisanego URL lub cookies. Ponowne użycie pulpitu sprawdza oryginalną referencję dostawcy i katalog. Osobny pulpit E2B nadal jest osobnym ekranem, a nie deklaracją wspólnego workspace powłoki.
+
+Dzierżawy fizycznego sterowania serializują wejście człowieka i agenta, także dla prywatnych podglądów tego samego executora lub zdalnego komputera. Heartbeaty chronią aktywną pracę; utrata uprawnień lub tokenu blokuje kolejne komendy. Jawne End unieważnia dostęp przed trwałym zadaniem sprzątania. Okresowe kontrole i zadania zachowują zaszyfrowane uchwyty po usunięciu obiektów nadrzędnych i ponawiają nieudane usuwanie. Przed cofnięciem `0376_conversation_environments.py` zakończ środowiska i opróżnij kolejkę sprzątania; migracja odmawia porzucenia żywego rejestru zasobów.
+
+Konteksty przeglądarki są izolowane dla właściciela i rozmowy. Pulpit ma zakres skonfigurowanego workspace lub projektu: executor o zakresie agenta albo inny współdzielony executor ma wspólny fizyczny interfejs. Dzierżawa serializuje sterowanie, ale nie zmienia wspólnego pulpitu w prywatny. Menu dostępne tylko właścicielowi ogranicza podłączenie podglądu czatu, a nie widoczność ekranu celowo współdzielonego executora.
+
+Przejęcie sterowania, faktyczne ręczne wejście i oddanie sterowania są aktywnością. Bierny podgląd i heartbeaty ręcznego sterowania nie przesuwają terminu bezczynności; aktywny sterujący agent chroni trwającą pracę. Starsze przeglądanie w trybie run bez ręcznie przygotowanej karty zachowuje dotychczasową przeglądarkę na turę i checkpoint adresów/cookies. Ręcznie przygotowana karta run zachowuje natomiast dokładnie swój żywy DOM do zakończenia runu, który jej używa.
+
+Pulpit zachowywany w sandboxie wymaga kontenerowego executora o zakresie konwersacji, użytkownika, agenta lub projektu. Istniejące pulpity o czasie życia jednego uruchomienia, korzystające z efemerycznych executorów run/channel, zachowują dotychczasową fabrykę uruchomienia i nie mogą być otwierane ręcznie między uruchomieniami. End i wygaśnięcie bezczynności zamykają własny widok oraz sesję sterowania; nie niszczą współdzielonego daemona ani kontenera workspace, których cykl życia zależy od osobnej konfiguracji. Własne konteksty przeglądarki i oddzielne pulpity E2B są usuwane.
+
+Zachowany prywatny pulpit Docker może utrzymywać osobną [ścieżkę plików
+projektu](projects.pl.md#what-an-agent-gets-in-a-project) po zakończeniu runu agenta.
+Pierwsze rzeczywiste narzędzie projektu może przygotować pulpit. Operacje na plikach nie
+przedłużają bezczynności; zakończenie środowiska cofa dostęp do ścieżki.

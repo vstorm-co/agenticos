@@ -1,5 +1,5 @@
 import type { Translate } from "@/lib/agent-step-captions";
-import { formatCostUsd } from "@/lib/utils";
+import { moneyForQuote } from "@/lib/money";
 
 /** The routine sentences the server names by code; any other keeps the English summary. */
 const ROUTINE_DETAILS = [
@@ -54,8 +54,7 @@ interface Reason {
 
 /** Dollars to the cent, or to the place spend is shown at when the cent would read as nothing. */
 export function usd(value: string): string {
-  const amount = Number(value);
-  return amount > 0 && amount < 0.01 ? formatCostUsd(amount) : `$${amount.toFixed(2)}`;
+  return moneyForQuote(null).cost(value, "en-US");
 }
 
 /** A row's value by name; the server serves a wording only with every value it requires. */
@@ -139,7 +138,11 @@ function logAlert(v: Values, t: Translate): string {
  * kept; `null` for a wording or a code this console does not know, which keeps the
  * English summary.
  */
-export function wordedSummary(params: Record<string, string>, t: Translate): string | null {
+export function wordedSummary(
+  params: Record<string, string>,
+  t: Translate,
+  amount: (value: string) => string = usd,
+): string | null {
   const v: Values = (key) => params[key] ?? "";
   switch (params.wording) {
     case "run_completed":
@@ -161,8 +164,8 @@ export function wordedSummary(params: Record<string, string>, t: Translate): str
         named: named(v("routine_name")),
         routine: v("routine_name"),
         kind: v("routine_kind"),
-        limit: usd(v("limit")),
-        spent: usd(v("spent")),
+        limit: amount(v("limit")),
+        spent: amount(v("spent")),
       });
     case "routine_blocked": {
       const code = v("routine_detail");

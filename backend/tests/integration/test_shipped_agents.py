@@ -10,6 +10,7 @@ from app.agents.spec import AgentSpec, BudgetSpec, CapabilityBindingSpec, Subage
 from app.core.permissions import AuthContext
 from app.db.models.agent import Agent
 from app.db.models.credential import ModelProfile
+from app.db.models.organization import Organization
 from app.repositories import agent_repo, skill_repo
 from app.schemas.skill import SkillUpdate
 from app.services.agent_defaults import STARTER, baseline
@@ -128,7 +129,10 @@ async def test_upgrade_delivers_new_skills_and_keeps_edits_and_retired_skills(
 
 
 @pytest.mark.security
-async def test_refresh_keeps_published_model_and_unpublished_budget(db: AsyncSession) -> None:
+@pytest.mark.parametrize("foreign_terms", [False, True])
+async def test_refresh_keeps_published_model_and_unpublished_budget(
+    db: AsyncSession, foreign_terms: bool
+) -> None:
     ctx = await _owner(db)
     await AssistantService(db).state(ctx)
     registry = AgentRegistryService(db)
@@ -146,7 +150,23 @@ async def test_refresh_keeps_published_model_and_unpublished_budget(db: AsyncSes
     old = AgentSpec.model_validate(agent.draft_spec).model_copy(
         update={"instructions": "Old shipped prompt", "model_profile_id": profile.id}
     )
+    if foreign_terms:
+        organization = await db.get(Organization, ctx.organization_id)
+        assert organization is not None
+        organization.reporting_quote = {"currency": "PLN", "units_per_usd": "4"}
+        old = old.model_copy(
+            update={
+                "budget": BudgetSpec(
+                    monthly_usd=20,
+                    monetary_inputs={"monthly_usd": {"amount": "80", "currency": "PLN"}},
+                )
+            }
+        )
     await registry.save_draft(ctx, agent.id, old)
+    if foreign_terms:
+        old = AgentSpec.model_validate(agent.draft_spec)
+        assert old.budget.monetary_terms["monthly_usd"].currency == "PLN"
+        organization.reporting_quote = {"currency": "EUR", "units_per_usd": "0.9"}
     await registry.publish(ctx, agent.id)
     await agent_repo.update(
         db,
@@ -167,9 +187,20 @@ async def test_refresh_keeps_published_model_and_unpublished_budget(db: AsyncSes
         ctx,
         agent.id,
         old.model_copy(
-            update={"budget": BudgetSpec(monthly_usd=3), "model_profile_id": pending_model.id}
+            update={
+                "budget": BudgetSpec(
+                    monthly_usd=3,
+                    monetary_inputs={"monthly_usd": {"amount": "2.7", "currency": "EUR"}}
+                    if foreign_terms
+                    else {},
+                ),
+                "model_profile_id": pending_model.id,
+            }
         ),
     )
+    pending_budget = AgentSpec.model_validate(agent.draft_spec).budget
+    if foreign_terms:
+        assert pending_budget.monetary_terms["monthly_usd"].currency == "EUR"
     await ShippedAgentService(db).refresh(ctx, agent, "general/platform-assistant")
     version = await agent_repo.get_version(
         db, agent.current_version_id, organization_id=ctx.organization_id
@@ -181,6 +212,7 @@ async def test_refresh_keeps_published_model_and_unpublished_budget(db: AsyncSes
     assert live.model_profile_id == profile.id
     assert draft.model_profile_id == pending_model.id
     assert draft.budget.monthly_usd == 3
+    assert draft.budget == pending_budget
     assert live.budget == old.budget
 
 

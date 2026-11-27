@@ -5,9 +5,13 @@ export type KBScope = "personal" | "org" | "app";
 /**
  * Which parser reads the PDFs put into a collection.
  *
- * PDFs only: txt, md and docx go through built-in readers whatever this says.
+ * Every format the chosen parser reads goes through it; only txt and md are always
+ * read by the built-in text reader.
  */
-export type PdfParser = "pymupdf" | "llamaparse" | "liteparse";
+export type PdfParser = "pymupdf" | "llamaparse" | "liteparse" | "docling";
+
+/** How closely Docling reconstructs tables: `fast` is quicker, `accurate` more faithful. */
+export type DoclingTableMode = "fast" | "accurate";
 
 /** LlamaParse's own quality/price ladder. Ignored by the other parsers. */
 export type LlamaParseTier = "fast" | "cost_effective" | "agentic" | "agentic_plus";
@@ -59,10 +63,21 @@ export interface IngestionConfig {
    */
   llamaparse_secret_id?: string | null;
   /**
-   * The OCR server LiteParse sends pages to - a local service of kind `ocr`.
+   * The OCR server LiteParse sends pages to - a service connection of kind `ocr`.
    * Null runs the Tesseract bundled with the worker.
    */
   ocr_endpoint_id?: string | null;
+  /**
+   * The Docling Serve this collection converts through - a service connection of
+   * kind `document_parser`. Required while the parser is Docling; collection-level
+   * only, like the OCR server, so an upload cannot change it.
+   */
+  docling_connection_id?: string | null;
+  /** Two-letter ISO 639-1 codes Docling's OCR reads, at most eight. Empty uses the engine's default. */
+  docling_ocr_languages: string[];
+  /** Docling's OCR engine preset: `auto`, `easyocr`, `rapidocr`, `tesseract`... */
+  docling_ocr_preset: string;
+  docling_table_mode: DoclingTableMode;
   /**
    * Whether LiteParse decides per document if OCR is worth running.
    *
@@ -75,7 +90,7 @@ export interface IngestionConfig {
   ocr_language: string;
   liteparse_output_format: LiteParseOutputFormat;
   liteparse_dpi: number;
-  /** Pages LiteParse reads before it stops - what actually bounds the cost. */
+  /** Pages LiteParse or Docling reads before it stops - what actually bounds the cost. */
   max_pages: number;
   parse_timeout_seconds: number;
   chunk_size: number;
@@ -138,8 +153,9 @@ export interface KnowledgeBase {
   embedding_provider: string;
   embedding_secret_id: string | null;
   /**
-   * The server a keyless provider is reached at - a local service of kind
-   * `embedding`. Null for a keyed provider, whose address is the vendor's.
+   * The connection a keyless or custom provider is reached at - a service
+   * connection of kind `embedding`. Null for a keyed catalog provider, whose
+   * address is the vendor's.
    */
   embedding_endpoint_id: string | null;
   embedding_base_url?: string | null;
@@ -200,9 +216,11 @@ export interface CreateKnowledgeBaseInput {
    * key to fall back to.
    */
   embedding_secret_id?: string;
-  /** The local service a keyless provider is reached at. Required for one. */
+  /** The service connection a keyless or custom provider is reached at. Required for one. */
   embedding_endpoint_id?: string;
   embedding_base_url?: string | null;
+  /** From a passing test of exactly these values. Required for a custom provider. */
+  probe_token?: string;
 }
 
 /**
@@ -216,6 +234,12 @@ export interface EmbeddingProviderInput {
   embedding_secret_id?: string;
   embedding_endpoint_id?: string;
   embedding_base_url?: string | null;
+  /** Only a custom provider may change the model. */
+  embedding_model?: string;
+  /** From a passing test of exactly these values. */
+  probe_token?: string;
+  /** Save without a test; the server audits it. */
+  unverified?: boolean;
 }
 
 /** One provider a collection can embed through, from `GET /rag/embedding-models`. */
@@ -229,6 +253,12 @@ export interface EmbeddingProvider {
    * app-scoped collection may embed through.
    */
   keyless: boolean;
+  /**
+   * Serves any model its endpoint names - a custom OpenAI-compatible gateway.
+   * It lists no models, the model is typed, and the endpoint is a service
+   * connection.
+   */
+  any_model: boolean;
 }
 
 export interface EmbeddingModels {
@@ -276,9 +306,11 @@ export interface KBDocument {
    * What actually read this document, rather than what the collection is
    * configured with today.
    *
-   * Recorded for the current ingestion attempt: changing collection settings
-   * does not reparse an existing document. Explicit indexing of an imported
-   * original starts a new attempt with the destination configuration. `null` on documents ingested before any of this
+   * Recorded for the current ingestion attempt. Uploads and retries use the
+   * collection's current settings plus pending upload changes, while explicit
+   * indexing of an imported original starts an attempt with the destination
+   * configuration. Changing settings alone never reparses an existing document.
+   * `null` on documents ingested before any of this
    * was recorded.
    */
   parser: string | null;

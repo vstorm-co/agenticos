@@ -11,10 +11,10 @@ import json
 import re
 import unicodedata
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID
 
 import regex
@@ -25,6 +25,7 @@ from pydantic import ValidationError as PydanticValidationError
 from referencing.exceptions import Unresolvable
 
 from app.agents.untrusted_text import fenced_section
+from app.db.models.conversation import ScriptCalls
 from app.schemas.scoring import (
     CHECK,
     CeilingCheck,
@@ -68,6 +69,57 @@ class ScoredCall:
     blocked: bool = False
 
 
+class CalledTool(Protocol):
+    """A call as a run recorded it: a transcript row, or one the runner has just collected."""
+
+    @property
+    def tool_call_id(self) -> str: ...
+
+    @property
+    def tool_name(self) -> str: ...
+
+    @property
+    def args(self) -> Mapping[str, Any]: ...
+
+    @property
+    def script_calls(self) -> ScriptCalls | None: ...
+
+
+def every_call_kept(calls: Sequence[CalledTool]) -> bool:
+    """Whether these calls are the whole trajectory: no script made more than its run kept."""
+    return not any(call.script_calls and call.script_calls["omitted"] for call in calls)
+
+
+def scored_calls(
+    calls: Sequence[CalledTool], *, blocked: Collection[str]
+) -> tuple[ScoredCall, ...]:
+    """The calls an answer is graded on: a code-mode script's own calls in its place.
+
+    The model calls one tool, `run_code`, and the script calls the agent's tools;
+    graded as the script, every `exact` trajectory of a code-mode agent would fail
+    on it. A script that called nothing is graded as itself. `blocked` names the
+    calls, the script's own included, an isolated run held back.
+    """
+    graded: list[ScoredCall] = []
+    for call in calls:
+        script = [] if call.script_calls is None else call.script_calls["calls"]
+        graded.extend(
+            ScoredCall(
+                tool=entry["tool_name"],
+                args=entry["args"],
+                blocked=entry["tool_call_id"] in blocked,
+            )
+            for entry in script
+        )
+        if not script:
+            graded.append(
+                ScoredCall(
+                    tool=call.tool_name, args=call.args, blocked=call.tool_call_id in blocked
+                )
+            )
+    return tuple(graded)
+
+
 @dataclass(frozen=True)
 class ScoredAnswer:
     """What a run produced, as the scorers read it.
@@ -79,6 +131,8 @@ class ScoredAnswer:
         latency_ms: How long it took, when it ended.
         run_id: The recorded run, when there is one.
         agent_id: The agent that answered, when it is known.
+        calls_kept: False when a code-mode script made more calls than its run kept,
+            so `calls` is not the whole trajectory.
     """
 
     text: str
@@ -87,6 +141,7 @@ class ScoredAnswer:
     latency_ms: int | None = None
     run_id: UUID | None = None
     agent_id: UUID | None = None
+    calls_kept: bool = True
 
 
 @dataclass(frozen=True)
@@ -244,9 +299,32 @@ def _length_check(check: LengthCheck, answer: ScoredAnswer, *, required: bool) -
 
 def _ceiling_check(check: CeilingCheck, answer: ScoredAnswer, *, required: bool) -> ScorerResult:
     if check.type == "max_cost_usd":
-        name, measured, unit = f"cost at most ${check.value:g}", answer.cost_usd, "$"
-    else:
-        name, measured, unit = f"latency at most {check.value:g} ms", answer.latency_ms, "ms"
+        name, measured = f"cost at most ${check.value:g}", answer.cost_usd
+        limit = Decimal(str(check.value))
+        if not limit.is_finite():
+            return ScorerResult(
+                scorer="check",
+                name=name,
+                required=required,
+                status="error",
+                reason="The cost threshold is not finite",
+                reason_code="invalid_check",
+            )
+        if measured is None:
+            return ScorerResult(
+                scorer="check",
+                name=name,
+                required=required,
+                status="error",
+                reason="The run did not record it",
+                reason_code="not_measured",
+                cost_limit_usd=limit,
+            )
+        result = _result(
+            name, passed=measured <= limit, reason=f"Took ${measured:.4f}", required=required
+        )
+        return result.model_copy(update={"cost_limit_usd": limit, "cost_observed_usd": measured})
+    name, measured = f"latency at most {check.value:g} ms", answer.latency_ms
     if measured is None:
         return ScorerResult(
             scorer="check",
@@ -256,9 +334,9 @@ def _ceiling_check(check: CeilingCheck, answer: ScoredAnswer, *, required: bool)
             reason="The run did not record it",
             reason_code="not_measured",
         )
-    shown = f"${float(measured):.4f}" if unit == "$" else f"{measured} ms"
-    passed = float(measured) <= check.value
-    return _result(name, passed=passed, reason=f"Took {shown}", required=required)
+    return _result(
+        name, passed=float(measured) <= check.value, reason=f"Took {measured} ms", required=required
+    )
 
 
 # A space before exactly three digits groups thousands. `,` and `.` stay as they are:
@@ -432,6 +510,7 @@ def score_trajectory(
     *,
     order_mode: str,
     required: bool,
+    complete: bool = True,
 ) -> ScorerResult | None:
     """The agent's calls against the expected ones, or nothing when none are expected.
 
@@ -439,9 +518,21 @@ def score_trajectory(
     they happened in the listed order, others allowed between. `exact`: exactly
     those calls in that order and nothing else. A call matches on its tool and on
     every argument the expectation names.
+
+    Calls that are not `complete` - a code-mode script made more than its run kept -
+    are not graded: any mode could pass or fail on the calls that were left out.
     """
     if not expected:
         return None
+    if not complete:
+        return ScorerResult(
+            scorer="trajectory",
+            name=f"tool calls ({order_mode})",
+            required=required,
+            status="skipped",
+            reason="A code-mode script made more calls than its run kept",
+            reason_code="script_calls_not_kept",
+        )
     pairing = _pair(expected, calls)
     missing = [item for i, item in enumerate(expected) if i not in pairing]
     used = set(pairing.values())

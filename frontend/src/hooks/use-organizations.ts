@@ -1,5 +1,7 @@
 "use client";
 
+import type { CurrencyAmount } from "@/lib/money";
+
 import { useCallback, useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -202,9 +204,14 @@ export function useOrganizations() {
    * "remove the limit".
    */
   const setMonthlyBudget = useCallback(
-    async (id: string, limitUsd: number | null): Promise<Organization> => {
+    async (
+      id: string,
+      limitUsd: string | number | null,
+      monetaryInputs?: Record<string, CurrencyAmount>,
+    ): Promise<Organization> => {
       const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
         monthly_budget_usd: limitUsd,
+        ...(monetaryInputs ? { monetary_inputs: monetaryInputs } : {}),
       });
       writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
       return updated;

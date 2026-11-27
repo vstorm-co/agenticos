@@ -89,6 +89,7 @@
     "sessionsCouldNotBeRead": "Não foi possível ler as sessões."
   },
   "agents": {
+    "pricedModelConnectionLocked": "Alterar a chave ou o endpoint de um modelo com preços personalizados exige permissão para gerenciar orçamentos.",
     "profileDefaults": "Padrões do modelo",
     "profileDefaultsHint": "Estes padrões se aplicam em todos os lugares onde este modelo salvo é usado. Agentes individuais podem substituí-los. Deixe os parâmetros não suportados nos padrões do provedor.",
     "profileThinkingOn": "Ativado · esforço do provedor",
@@ -2197,17 +2198,19 @@
       "runningAcpAgent": "Agente ACP externo",
       "inspectAcpAgent": "Ler opções de modelo ACP",
       "readingAcpModels": "Lendo opções de modelo ACP",
-      "approveAcceptImprovement": "Aceitar a tentativa {attempt} para {agent} ({verdict, select, better {melhor} criteria_better {melhor nos critérios} no_change {sem mudança} criteria_worse {pior nos critérios} regression {pior} inconclusive {inconclusiva} other {não medida}}) {publish, select, yes {e publicá-la como v{version}} other {como rascunho}}",
-      "approvePublishAgent": "Publicar {agent} como v{version}",
-      "approveChangeSkillVersion": "{state, select, main {Mover {agent} para a linha principal de {skill}} pinned {Fixar {agent} em {skill} v{version}} other {Mover {agent} para um fork de {skill}}}",
-      "approveAcceptSkillImprovement": "{outcome, select, apply {Aplicar o skill melhorado {skill}} apply_and_pin {Aplicar o skill melhorado {skill} e fixar os agents que ele prejudicaria} fork_for_helped {Criar um fork de {skill} para os agents que ele ajudou} catch_up {Atualizar o fork de {skill} com a main} other {Devolver o fork de {skill} à main}}",
+      "approveAcceptImprovement": "Aceitar a tentativa {attempt} para {agent} ({verdict, select, better {melhor} criteria_better {melhor nos critérios} no_change {sem mudança} criteria_worse {pior nos critérios} regression {pior} inconclusive {inconclusiva} other {não medida}}) {publish, select, yes {e publicá-la} other {como rascunho}}",
+      "approvePublishAgent": "Publicar {agent}",
+      "approveChangeSkillVersion": "{state, select, main {Mover {agent} para a linha principal de {skill}} pinned {Fixar {agent} em {skill} v{version}} other {Mover {agent} para o fork {fork} de {skill}}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {Aplicar o skill melhorado {skill}} apply_and_pin {Aplicar o skill melhorado {skill} e fixar os agents que ele prejudicaria} fork_for_helped {Criar um fork de {skill} para os agents que ele ajudou} fork_for_chosen {Criar um fork de {skill} para: {agents}} catch_up {Atualizar o fork de {skill} com a main} other {Devolver o fork de {skill} à main}}",
       "approveStartEvalRun": "Testar {agent} no dataset {dataset} v{version}",
       "selectingProjectContext": "Selecionando contexto do projeto…",
       "selectedProjectContext": "Contexto do projeto selecionado",
       "selectingExecutionTarget": "Selecionando destino dos comandos…",
       "selectedExecutionTarget": "Destino dos comandos selecionado",
       "transferringProjectFile": "A transferir ficheiro do projeto…",
-      "transferredProjectFile": "Ficheiro do projeto transferido"
+      "transferredProjectFile": "Ficheiro do projeto transferido",
+      "previewingVisual": "Visualizando um visual",
+      "previewVisual": "Visualizar um visual"
     },
     "turnWasStopped": "interrompido",
     "unfavourite": "Remover dos favoritos",
@@ -2387,7 +2390,19 @@
       "followUpAsks": "O desenho pede para enviar isto como sua mensagem:",
       "followUpSend": "Enviar",
       "followUpEdit": "Editar",
-      "followUpDismiss": "Dispensar"
+      "followUpDismiss": "Dispensar",
+      "downloadSvg": "SVG — arquivo vetorial",
+      "downloadPng": "PNG — imagem para apresentações",
+      "preparingPng": "Preparando PNG…",
+      "pngDownloadFailed": "Não foi possível baixar o PNG. Tente novamente.",
+      "openWorkspace": "Abrir painel lateral",
+      "dockWorkspace": "Voltar ao painel lateral",
+      "closeWorkspace": "Fechar visual",
+      "workspaceTitle": "Visual: {title}",
+      "workspaceViews": "Modos de exibição do visual",
+      "resizeWorkspace": "Redimensionar painel do visual",
+      "previewTab": "Prévia",
+      "codeTab": "Código"
     },
     "dictation": {
       "cancel": "Cancelar ditado",
@@ -2777,7 +2792,84 @@
     "routineContinueChat": "Continuar em um novo chat",
     "approvalOthersWait": "Sua resposta vale apenas para as suas próprias chamadas à plataforma. As outras aguardam alguém que possa decidir aprovações.",
     "approvalNeedsItsPerson": "Somente a pessoa em nome de quem esta execução age pode aprovar isto. Você pode rejeitar.",
-    "approvalNeedsItsAdminPerson": "Somente a pessoa em nome de quem esta execução atua, conectada como administradora da aplicação, pode aprovar. Você pode rejeitar."
+    "approvalNeedsItsAdminPerson": "Somente a pessoa em nome de quem esta execução atua, conectada como administradora da aplicação, pode aprovar. Você pode rejeitar.",
+    "workspace": {
+      "title": "Workspace",
+      "visuals": "Visuais",
+      "browser": "Navegador",
+      "files": "Arquivos",
+      "resize": "Redimensionar workspace",
+      "expand": "Expandir workspace",
+      "dock": "Acoplar workspace",
+      "allFiles": "Voltar para todos os arquivos",
+      "close": "Fechar workspace",
+      "desktop": "Ambiente de trabalho",
+      "open": "Abrir workspace"
+    },
+    "environmentView": {
+      "agentDriving": "O agente está a utilizar este ambiente. Aguarde até o controlo estar disponível.",
+      "humanDriving": "Uma pessoa está a controlar este ambiente.",
+      "canTakeOver": "Está a observar. Assuma o controlo para interagir.",
+      "watchOnly": "Apenas visualização.",
+      "refresh": "Verificar disponibilidade",
+      "end": "Terminar ambiente",
+      "start": "Abrir ambiente",
+      "startNew": "Abrir novo ambiente",
+      "retry": "Voltar a ligar a vista",
+      "confirmTitle": "Terminar este ambiente?",
+      "confirmDescription": "Fechar o painel mantém o ambiente disponível. Terminar liberta a sessão; o estado não guardado da página pode perder-se.",
+      "failure": {
+        "start": "Não foi possível abrir o ambiente. Verifique a disponibilidade e tente novamente.",
+        "end": "Não foi possível terminar o ambiente. Pode continuar em execução.",
+        "state": "Não foi possível atualizar a prontidão. Verifique a disponibilidade antes de continuar.",
+        "refresh": "Não foi possível verificar a disponibilidade. Tente novamente."
+      },
+      "phase": {
+        "expired": {
+          "title": "Ambiente terminado",
+          "description": "Abra um novo ambiente para continuar."
+        },
+        "failed": {
+          "title": "Ambiente indisponível",
+          "description": "Verifique a disponibilidade ou tente explicitamente abri-lo novamente."
+        },
+        "notStarted": {
+          "title": "Ambiente não iniciado",
+          "description": "Abra este ambiente quando precisar. Não é iniciada uma execução do agente."
+        },
+        "starting": {
+          "title": "A preparar ambiente",
+          "description": "Pode sair deste painel e regressar quando estiver pronto."
+        },
+        "forbidden": {
+          "title": "Acesso indisponível",
+          "description": "O seu acesso mudou. Verifique a disponibilidade para obter as permissões atuais."
+        },
+        "malformed": {
+          "title": "Não foi possível verificar a vista em direto",
+          "description": "A transmissão foi interrompida. Volte a ligar para obter uma nova vista em direto."
+        },
+        "disconnected": {
+          "title": "Vista em direto desligada",
+          "description": "Volte a ligar para continuar a observar o mesmo ambiente."
+        },
+        "connecting": {
+          "title": "A ligar a vista em direto",
+          "description": "A aguardar o ecrã atual do ambiente."
+        }
+      },
+      "browserTitle": "Navegador",
+      "desktopTitle": "Ambiente de trabalho",
+      "loadFailed": "Não foi possível carregar o ambiente. Tente novamente.",
+      "loading": "Carregando ambiente…",
+      "runLifetime": "Fecha após um run do agente que utiliza este ambiente.",
+      "idleMinutes": "Mantido por até {minutes, plural, one {# minuto} other {# minutos}} de inatividade.",
+      "idleSeconds": "Mantido por até {seconds, plural, one {# segundo} other {# segundos}} de inatividade.",
+      "options": "Opções do ambiente",
+      "lifetime": "Quando é fechado",
+      "checked": "Disponibilidade verificada: {status}.",
+      "ready": "Pronto"
+    }
   },
   "approvalFeedback": {
     "savedApproval": "Já aprovada: {action}",
@@ -4198,7 +4290,7 @@
     "adding": "Adicionando…",
     "appliesEachFileYou": "Isso se aplica a cada arquivo que você adicionar a seguir e fica registrado nele. A coleção mantém as próprias configurações - todo upload posterior segue essas configurações.",
     "applyChanges": "{count, plural, =1 {Aplicar 1 alteração} other {Aplicar # alterações}}",
-    "builtInReadersRegardless": "Arquivos de texto, Markdown e Word usam os leitores integrados, independentemente da opção escolhida.",
+    "builtInReadersRegardless": "Arquivos de texto e Markdown usam o leitor integrado, independentemente do analisador escolhido.",
     "cancel": "Cancelar",
     "cancel2": "Cancelar",
     "cancel3": "Cancelar",
@@ -4265,7 +4357,7 @@
     "knowledgeBasesAlreadyUsing": "As bases de conhecimento que já a usam mantêm a própria cópia - isto apenas remove aquela que nenhuma sincronização está usando.",
     "leaveEmptyAutoGenerate": "Deixe em branco para gerar automaticamente",
     "leftAloneCollectionInherits": "Sem alterações, esta coleção herda os padrões que a implantação estiver configurada para usar. Os valores abaixo são os da plataforma; alterar qualquer um deles envia todos, e eles passam a ser os desta coleção até alguém editá-los.",
-    "liteparseReadsTextLayer": "O LiteParse lê primeiro a camada de texto e aplica OCR em uma página somente quando não há nada nela. O OCR domina o custo de uma análise, e a maioria dos documentos é digital desde a origem. Desative para aplicar OCR em todas as páginas independentemente.",
+    "liteparseReadsTextLayer": "Primeiro a camada de texto: uma página só recebe OCR quando não há nada nela. O OCR domina o custo de uma análise, e a maioria dos documentos é digital desde a origem. Desative para aplicar OCR em todas as páginas.",
     "llamaparseKey": "Chave do LlamaParse",
     "llamaparseTier": "Plano do LlamaParse",
     "loadingModels": "Carregando modelos…",
@@ -4273,7 +4365,7 @@
     "maximumPages": "Máximo de páginas",
     "model": "Modelo",
     "model2": "Modelo",
-    "modelIsFixed": "Modelo, fixado pelos vetores já armazenados",
+    "modelIsFixed": "Modelo, fixado pelos vetores já guardados. Uma mudança é testada com eles.",
     "modelsUnreadable": "A lista de provedores não pôde ser lida, então nenhum provedor ou chave pode ser escolhido. A criação desta coleção será recusada até que isso seja resolvido.",
     "name": "Nome",
     "nameCopy": "Nome da cópia",
@@ -4297,7 +4389,10 @@
     "overlapRepeats": "trechos adjacentes repetem sua sobreposição, então o texto da fronteira aparece duas vezes",
     "pageNumber": "Página {number}",
     "pageParsedNothingReadable": "Esta página foi analisada sem nada legível - provavelmente um escaneamento ilegível.",
-    "pagePictureTextCarries": "Uma página que é uma imagem de texto não contém texto para extrair. O PyMuPDF envia essa página ao modelo de imagem; o LiteParse executa o próprio OCR.",
+    "scannedPagesDocling": "Uma página ou imagem que é uma imagem de texto não contém texto para extrair. O Docling lê-a com o seu próprio OCR; com isto desligado, uma imagem enviada não tem nada para indexar.",
+    "scannedPagesLiteparse": "Uma página que é uma imagem de texto não contém texto para extrair. O LiteParse lê-a com o seu próprio OCR.",
+    "scannedPagesLlamaparse": "O LlamaParse lê sozinho as páginas digitalizadas, seja qual for esta definição.",
+    "scannedPagesPymupdf": "Uma página que é uma imagem de texto não contém texto para extrair. O PyMuPDF envia essa página ao modelo de imagem.",
     "nextUploadsTitle": "Como os próximos uploads são lidos e organizados",
     "parseTimeoutSeconds": "Tempo limite da análise (segundos)",
     "parsed": "Processado",
@@ -4318,15 +4413,15 @@
     "problemWholeBetween": "Um número inteiro entre {min} e {max}.",
     "productDocs": "Documentação do produto",
     "prompt": "Prompt",
-    "providerMoveKeepsTheIndex": "O mesmo modelo servido de outro lugar continua sendo o mesmo modelo, então nada já indexado muda: a próxima requisição apenas vai para o novo provedor, com a nova chave.",
+    "providerMoveKeepsTheIndex": "Uma mudança é testada com fragmentos já guardados: se o novo fornecedor devolver os mesmos vetores, nada do que já está indexado muda – o pedido seguinte vai simplesmente para o novo fornecedor.",
     "readAsImages": "Ler como imagens",
-    "readScannedPages": "Ler páginas digitalizadas",
+    "readScannedPages": "Ler páginas digitalizadas (OCR)",
     "reasoning": "Raciocínio",
     "remove": "Remover",
     "removeNamed": "Remover {name}?",
     "integrationActions": "Ações",
     "integrationDetails": "Conexão / agendamento",
-    "integrationsDescription": "Fontes reutilizáveis alimentam suas bases de conhecimento. Serviços locais fornecem embeddings e processamento de OCR na sua própria rede.",
+    "integrationsDescription": "As fontes reutilizáveis alimentam as suas bases de conhecimento. As ligações de serviço são os pontos de acesso de embeddings e OCR que as suas coleções usam.",
     "integrationsEmpty": "Nenhuma integração ainda",
     "integrationsCount": "{count, plural, one {# integração} other {# integrações}}",
     "reusableIntegrations": "Integrações",
@@ -4360,11 +4455,12 @@
     "endpointModelsUnconfirmed": "Não foi possível consultar este endpoint sobre quais modelos ele serve, então todos os modelos do OpenRouter são listados. Um modelo que ele não serve vai falhar no primeiro upload.",
     "endpointServesNoModel": "Este endpoint não serve nenhum dos modelos de embedding oferecidos pelo AgenticOS. Deixe o endpoint vazio ou escolha outro provedor.",
     "endpointLacksCollectionModel": "Este endpoint não serve {model}, o modelo com que os vetores desta coleção foram gerados. Deixe o endpoint vazio ou escolha um que o sirva.",
-    "localServicesHint": "Servidores na própria rede da implantação - um Ollama que gera embeddings, um sidecar de OCR para o LiteParse - registrados uma vez e escolhidos por coleção. Nada enviado para eles sai da implantação.",
+    "connectionActive": "Ativo",
+    "serviceConnectionsHint": "Pontos de acesso registados uma vez e escolhidos por coleção: um Ollama que gera embeddings, um gateway compatível com OpenAI com a sua chave do cofre, um sidecar de OCR para o LiteParse.",
     "addServer": "Adicionar servidor",
-    "failedLoadLocalServices": "Falha ao carregar os serviços locais",
-    "localServiceKind": "Tipo",
-    "embeddingServer": "Servidor de embeddings (Ollama)",
+    "failedLoadServiceConnections": "Não foi possível carregar as ligações de serviço",
+    "serviceConnectionKind": "Tipo",
+    "embeddingServer": "Servidor de embeddings",
     "ocrServer": "Servidor de OCR (LiteParse)",
     "address": "Endereço",
     "addressHint": "A raiz em que o serviço responde. A raiz compatível com OpenAI do Ollama termina em /v1; a de um servidor de OCR é sua base.",
@@ -4391,7 +4487,75 @@
     "embeddingEndpoint": "Endpoint",
     "embeddingEndpointHint": "Deixe vazio para usar a API global do OpenRouter, ou informe uma URL regional como https://eu.openrouter.ai/api/v1. O roteamento na UE exige um plano elegível do OpenRouter; o ZDR é configurado separadamente no OpenRouter.",
     "noConnectorsAvailable": "Nenhum conector de fonte está disponível. Um administrador pode habilitar um conector para esta implantação.",
-    "parsedSnapshotOnly": "Texto analisado importado. O ficheiro original não foi incluído."
+    "parsedSnapshotOnly": "Texto analisado importado. O ficheiro original não foi incluído.",
+    "apiStyle": "Estilo de API",
+    "apiStyleOllama": "Ollama",
+    "apiStyleOpenAICompatible": "Compatível com OpenAI",
+    "apiStyleLiteparse": "LiteParse",
+    "apiStyleDocling": "Docling Serve",
+    "doclingAddressExample": "http://docling:5001",
+    "documentParserServer": "Analisador de documentos (Docling)",
+    "testConnection": "Testar a ligação",
+    "doclingTestOk": "O Docling Serve {version} respondeu.",
+    "doclingTestKeyRefused": "O Docling Serve recusou a chave.",
+    "doclingTestKeyRequired": "Este Docling Serve exige uma chave. Escolha uma acima.",
+    "doclingTestUnreachable": "Nada responde neste endereço.",
+    "doclingTestNotDocling": "Algo respondeu, mas não é um Docling Serve.",
+    "parserDocling": "Docling",
+    "parserDoclingHint": "O seu próprio Docling Serve. Mantém a disposição, as tabelas e as páginas.",
+    "doclingConnection": "Ligação ao Docling",
+    "doclingConnectionHint": "O Docling Serve pelo qual esta coleção converte. É da própria coleção: um carregamento não pode escolher outro.",
+    "doclingLanguages": "Idiomas de OCR",
+    "doclingLanguagesHint": "Códigos de duas letras, como “de” ou “en”, até {max}. Deixe vazio para usar o padrão do Docling. Enter para adicionar.",
+    "doclingLanguagePlaceholder": "de, en",
+    "doclingLanguageInvalid": "Os códigos de idioma têm duas letras, como “de” ou “en”.",
+    "removeLanguage": "Remover {code}",
+    "doclingPreset": "Predefinição de OCR",
+    "doclingPresetHint": "Que motor de OCR o Docling usa: auto, easyocr, rapidocr ou tesseract. Só funcionam os motores instalados no seu Docling Serve.",
+    "tableMode": "Modo de tabelas",
+    "tableModeAccurate": "Preciso",
+    "tableModeAccurateHint": "Mais lento, segue as tabelas complexas com mais fidelidade.",
+    "tableModeFast": "Rápido",
+    "tableModeFastHint": "Mais rápido, com reconstrução de tabelas mais simples.",
+    "whereDoclingStops": "Onde o Docling pára. É isto que limita o custo de um documento - o tempo limite só limita a espera.",
+    "howLongDoclingMay": "Quanto tempo a plataforma espera pelo Docling num documento. Deixa de esperar após 3000 segundos, mesmo com um valor mais alto, para que a recusa chegue antes do limite da própria tarefa; o próprio Docling não é parado.",
+    "problemDoclingLanguages": "Os idiomas de OCR são códigos de duas letras, no máximo {max}.",
+    "problemDoclingPreset": "A predefinição de OCR tem letras minúsculas, dígitos, “-” e “_”, até 64 carateres.",
+    "connectionKey": "Chave do cofre",
+    "connectionKeyHint": "Enviada com cada pedido. Escolha uma chave do cofre da sua organização ou adicione uma aqui.",
+    "connectionHasKey": "Chave do cofre",
+    "deploymentWideKeyless": "Uma ligação de toda a implementação não pode ter chave. Registe uma ligação da organização para usar uma.",
+    "editServer": "Editar servidor",
+    "testSettings": "Testar",
+    "testingSettings": "A testar…",
+    "testCost": "{count, plural, =0 {Nenhuma chamada de embedding} one {Até # chamada de embedding} other {Até # chamadas de embedding}}. Pode consumir tokens do provedor; chamadas com chave contam para o orçamento mensal da organização.",
+    "probePassed": "{count, plural, =0 {Ainda nada guardado, por isso nada pode quebrar} one {# base de conhecimento mantém os seus vetores} other {# bases de conhecimento mantêm os seus vetores}}",
+    "probeOutcome": {
+      "passed": "Aprovado",
+      "no_chunks": "Ainda nada guardado, por isso nada pode quebrar",
+      "unreachable": "Não foi possível contactar o ponto de acesso",
+      "key_refused": "O ponto de acesso recusou a chave",
+      "model_unknown": "O ponto de acesso não conhece este modelo ou não devolveu nenhum vetor",
+      "wrong_width": "O ponto de acesso responde com outra largura de vetor",
+      "vectors_differ": "O ponto de acesso devolve vetores diferentes dos guardados"
+    },
+    "probeFailedAdvice": "Crie uma nova base de conhecimento para estas definições.",
+    "saveWithoutTest": "Guardar sem testar",
+    "unverifiedTitle": "Guardar sem testar?",
+    "unverifiedBody": "A pesquisa quebra se o novo ponto de acesso servir outro modelo, e os documentos ingeridos a partir de agora recebem vetores do novo ponto de acesso.",
+    "unverifiedConfirm": "Guardar mesmo assim",
+    "unverifiedAffected": "{count, plural, one {# base de conhecimento é afetada.} other {# bases de conhecimento são afetadas.}}",
+    "openaiCompatibleAddressExample": "https://gateway.example.com/v1",
+    "customModel": "Modelo",
+    "customModelHint": "O nome do modelo exatamente como o ponto de acesso o espera.",
+    "measuredWidth": "{dim, plural, one {Largura medida: # dimensão} other {Largura medida: # dimensões}}",
+    "modelTestedAgainstStored": "Modelo com que os vetores guardados foram criados. Outro modelo é permitido, mas é testado com os fragmentos guardados.",
+    "testCostUnavailable": "Não foi possível ler quantas sondagens o teste faz.",
+    "tested": "Testado",
+    "blockedMissingSettings": "Preencha primeiro as definições em falta.",
+    "blockedRunTest": "Execute primeiro o teste; guardar fica disponível quando passar.",
+    "deploymentWideCollection": "Todas as organizações (todo o deployment)",
+    "deploymentWideCollectionHint": "Pertence ao deployment, não a uma organização: todas as organizações podem pesquisá-la. Só pode usar conexões de todo o deployment e providers sem chave, sem chaves do vault."
   },
   "knowledgeBases": {
     "active": "Ativa",
@@ -4466,7 +4630,17 @@
       "download": "Baixar o aplicativo de desktop",
       "dismiss": "Lembrar em 14 dias"
     },
-    "signInAgain": "Entrar novamente"
+    "signInAgain": "Entrar novamente",
+    "sidebarPromotions": {
+      "title": "Primeiros passos",
+      "carousel": "carrossel",
+      "slide": "diapositivo",
+      "position": "{current} de {total}",
+      "previous": "Cartão anterior",
+      "next": "Próximo cartão",
+      "pause": "Pausar rotação",
+      "resume": "Retomar rotação"
+    }
   },
   "legal": {
     "acceptAll": "Aceitar tudo",
@@ -4789,8 +4963,8 @@
     "cardYoursAndOrganizations": "Sua e da organização",
     "accountActions": "Mais para {name}",
     "watch": "Acompanhar",
-    "trustReadOnlyHints": "Permitir que avaliações chamem ferramentas que este servidor marca como somente leitura",
-    "trustReadOnlyHintsHint": "As avaliações bloqueiam cada chamada a um servidor de produção, a menos que você confie nele: a marca de somente leitura é uma declaração do próprio servidor. {count, plural, =0 {Nenhuma ferramenta aqui declara isso.} =1 {1 ferramenta aqui declara isso.} other {# ferramentas aqui declaram isso.}}",
+    "trustReadOnlyHints": "Permitir que avaliações chamem ferramentas que este servidor marca como somente leitura e de mundo fechado (closed-world)",
+    "trustReadOnlyHintsHint": "As avaliações bloqueiam cada chamada a um servidor de produção, a menos que você confie nele, e então executam só as ferramentas que ele marca como somente leitura e de mundo fechado (closed-world), ou seja, que não alcançam nada além deste servidor. As duas marcas são declarações do próprio servidor. {count, plural, =0 {Nenhuma ferramenta aqui declara ser somente leitura.} =1 {1 ferramenta aqui declara ser somente leitura.} other {# ferramentas aqui declaram ser somente leitura.}}",
     "googleOAuthClientRequired": "O Google exige um Client ID e um client secret do Google Cloud antes que você possa conectar.",
     "googleOAuthSetupGuide": "Abrir guia de configuração do Google",
     "oauthRequiredClient": "Cliente OAuth do Google Cloud",
@@ -5382,7 +5556,7 @@
       },
       "org-assistant": {
         "title": "O Arquiteto de IA",
-        "body": "Ative ou desative o assistente da organização e defina como ele cumprimenta as pessoas. Nome, modelo e conhecimento são editados no Construtor de agentes, como em qualquer agente."
+        "body": "Ative ou desative o AI Architect da organização. Edite o modelo, as instruções e o conhecimento em Agentes, como para qualquer outro agente."
       },
       "org-members": {
         "title": "Quem está aqui",
@@ -5516,9 +5690,9 @@
         "title": "Comece por um modelo",
         "body": "Vinte e oito agentes prontos, organizados por setor. Ao instalar um, é criado um rascunho com as habilidades já vinculadas."
       },
-      "knowledge-local-services": {
-        "title": "Serviços locais",
-        "body": "Servidores na sua própria rede: registre um Ollama para gerar embeddings sem chave, ou um servidor OCR para o LiteParse, e escolha um por coleção - assim, uma base de conhecimento pode ficar inteiramente no seu hardware."
+      "knowledge-service-connections": {
+        "title": "Ligações de serviço",
+        "body": "Ligações de serviço: pontos de acesso de embeddings e OCR – um Ollama, um gateway compatível com OpenAI com a sua chave do cofre, um servidor de OCR – registados uma vez e escolhidos por coleção."
       },
       "artifacts-list": {
         "title": "Páginas publicadas",
@@ -6079,11 +6253,11 @@
       },
       "project-tracking": {
         "title": "Mantenha o projeto em dia",
-        "body": "Revise um agente de origem publicado e suas contas e, em seguida, publique explicitamente um acompanhador privado com uma tabela de tarefas e uma rotina comum do projeto."
+        "body": "Abra Opções da tabela de tarefas junto de Tabela de tarefas e escolha Automatizar a atualização de tarefas. Reveja um agente de origem publicado e as suas contas antes de publicar explicitamente um acompanhador privado que atualiza a mesma tabela de forma programada."
       },
       "flow-project-tracker-create": {
         "title": "Configurar um acompanhador de projeto?",
-        "body": "Revise um agente publicado editável e suas contas e, em seguida, publique explicitamente um acompanhador privado com uma tabela de tarefas e verificações programadas."
+        "body": "Abra Opções da tabela de tarefas e escolha Automatizar a atualização de tarefas. Reveja um agente publicado editável e as suas contas e publique explicitamente um acompanhador privado com verificações programadas da tabela do projeto."
       },
       "channels-phone": {
         "title": "Configure o roteamento de telefone",
@@ -6340,6 +6514,26 @@
       "project-resources": {
         "title": "Reunir recursos relacionados",
         "body": "Associe agentes, workflows, Apps e tabelas existentes sem alterar as permissões. Abra-os aqui ou escolha um workflow associado como ponto de entrada do projeto."
+      },
+      "chat-workspace-tabs": {
+        "title": "Um workspace ao lado do seu chat",
+        "body": "Alterne entre Visuais, Navegador e Arquivos aqui. A página e o arquivo selecionados permanecem abertos quando você troca de aba. Expanda o workspace para ter mais espaço ou feche-o para voltar à conversa."
+      },
+      "chat-visual-workspace": {
+        "title": "Uma página ao lado do seu chat",
+        "body": "Abra um visual no painel lateral redimensionável para continuar conversando enquanto o utiliza. Alterne entre Prévia e Código, expanda ou feche o painel sem redefinir os controles."
+      },
+      "skills-arrange": {
+        "title": "Organizar a biblioteca",
+        "body": "Veja as skills pelo agente que as usa, pela origem ou pela categoria. Organizar não muda quem pode ver uma skill."
+      },
+      "skills-import": {
+        "title": "Importar pacote",
+        "body": "Escolha uma pasta de habilidade ou ZIP com SKILL.md. Ficheiros e metadados são preservados. A importação não executa scripts, testes ou instalações."
+      },
+      "chat-environments": {
+        "title": "Abrir ambiente",
+        "body": "Escolha Navegador ou Desktop no menu workspace e abra o ambiente. Você pode usá-lo antes de solicitar algo ao agente. Fechar o painel mantém a sessão; encerrar o ambiente a libera."
       }
     },
     "chooseLanguage": "Idioma",
@@ -6884,9 +7078,9 @@
       "settingsLimitsHint": "O que as execuções podem fazer e gastar ao mesmo tempo. Cada etapa mantém seus próprios limites, entre eles o teto de custo de uma etapa de agente, e estes valem acima deles.",
       "settingsConcurrent": "Execuções em andamento ao mesmo tempo",
       "settingsConcurrentHint": "Um início acima deste número é recusado até que uma termine: o remetente de um webhook é orientado a tentar novamente, um agendamento aguarda o próximo ciclo, e uma tabela ou caixa de e-mail tenta de novo.",
-      "settingsRunBudget": "Máximo que uma execução pode gastar (USD)",
+      "settingsRunBudget": "Máximo que uma execução pode gastar ({currency})",
       "settingsRunBudgetHint": "Uma execução que atingir esse valor para antes da próxima etapa, por falta de orçamento.",
-      "settingsMonthlyBudget": "Máximo que as execuções podem gastar por mês (USD)",
+      "settingsMonthlyBudget": "Máximo que as execuções podem gastar por mês ({currency})",
       "settingsMonthlyBudgetHint": "Contado no mês civil em UTC, incluindo execuções de teste. Ao ser atingido, nenhuma execução inicia até o mês virar ou o orçamento ser aumentado.",
       "settingsNoLimit": "Sem limite",
       "stats": {
@@ -7365,7 +7559,7 @@
       "mcpServersDescription": "Ferramentas externas que este agente pode chamar, do <servers>catálogo</servers>. Vincule um servidor à conta da organização, que responde por todos, ou à conta de cada pessoa, que ela mesma conecta. A conexão de um membro nunca é vinculada diretamente - um agente que todos executam não pode depender de quem está por trás da credencial.",
       "model": "Modelo",
       "modelSettings": "Configurações do modelo",
-      "monthlyUsd": "Mensal (USD)",
+      "monthlyUsd": "Mensal ({currency})",
       "monthlyUsdHint": "As execuções são interrompidas quando este agente gasta esse valor em um mês do calendário. Deixar em branco mantém apenas o limite da organização.",
       "moreActions": "Mais ações",
       "n100Default": "100 (padrão)",
@@ -7677,7 +7871,6 @@
       "bases": "Bases",
       "chooseFiles": "Escolher arquivos",
       "chunkCount": "{count, plural, =1 {1 fragmento} other {# fragmentos}}",
-      "clear": "Limpar",
       "collectionItselfUnchanged": "A coleção em si não foi alterada.",
       "configureConnectorsAtWorkspace": "Configure os conectores no nível da organização para começar a sincronizar de fontes externas.",
       "connect": "Conectar",
@@ -7730,9 +7923,8 @@
       "nothingHasBeenUploaded": "Nada foi enviado aqui ainda.",
       "openCollection": "Abrir {name}",
       "overridden": "substituído",
-      "parseOptions": "Opções de análise",
       "parsedWith": "Analisado com",
-      "parsedWithOverrides": "Os próximos arquivos que você adicionar serão analisados com <strong>{count, plural, =1 {1 alteração} other {# alterações}}</strong> das configurações desta coleção, e isso será indicado.",
+      "parsedWithOverrides": "Os próximos arquivos que você adicionar, e os arquivos com falha que tentar novamente, serão analisados com <strong>{count, plural, =1 {1 alteração} other {# alterações}}</strong> das configurações desta coleção, e isso será indicado.",
       "previewFile": "Visualizar arquivo",
       "previewFile2": "Visualizar arquivo",
       "processing": "Processando…",
@@ -7777,7 +7969,12 @@
       "retryDocument": "Tentar novamente",
       "indexDocumentNamed": "Indexar {name}",
       "retryDocumentNamed": "Tentar {name} novamente",
-      "indexDocumentHint": "Usa as definições desta base de conhecimento e pode gerar custos do fornecedor."
+      "indexDocumentHint": "Indexa este original com as configurações atuais da base de conhecimento e alterações pendentes de upload. Podem existir custos do provedor.",
+      "revertPendingChanges": "Reverter",
+      "settings": "Configurações",
+      "uploadOptions": "Opções de envio",
+      "uploadWithDifferentSettings": "Enviar com outras configurações…",
+      "retryDocumentHint": "Tenta novamente com as configurações atuais da base de conhecimento e alterações pendentes de upload. Podem existir custos do provedor."
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "O catálogo está compilado no backend, e ninguém adicionou um servidor próprio. Uma lista vazia aqui significa que esta implantação não inclui nenhum.",
@@ -8522,6 +8719,13 @@
     },
     "skills": {
       "allCategories": "Todas as categorias",
+      "arrange": {
+        "agent": "Por agente",
+        "origin": "Por origem",
+        "category": "Por categoria",
+        "none": "Sem seções"
+      },
+      "arrangeBy": "Organizar por",
       "askAdministratorAccessSkills": "Peça a um administrador acesso às skills.",
       "categoryCount": "{count, plural, =1 {1 categoria} other {# categorias}}",
       "clearFilter": "Limpar filtro",
@@ -8536,6 +8740,17 @@
       "nobodyHasWrittenSkill": "Ninguém escreveu uma skill para esta organização ainda.",
       "recentlyUpdated": "Atualizadas recentemente",
       "searchSkills": "Pesquisar skills…",
+      "section": {
+        "drafted": "Só em rascunho",
+        "unused": "Não usadas por um agente que você vê",
+        "org": "Organização",
+        "private": "Privadas",
+        "platform": "Integradas · Plataforma",
+        "gallery": "Integradas · {industry}",
+        "uncategorized": "Sem categoria"
+      },
+      "showAll": "{count, plural, =1 {Mostrar 1} other {Mostrar todas (#)}}",
+      "showFewer": "Mostrar menos",
       "skillCount": "{count, plural, =1 {1 skill} other {# skills}}",
       "skillKnowHowWritten": "Uma skill é um conhecimento escrito uma vez e compartilhado por todo agente que precisa dele, como o tratamento de reembolsos ou o padrão de estilo da casa. Edite-a aqui e cada agente vinculado a ela estará atualizado na próxima execução.",
       "skills": "Skills",
@@ -9876,7 +10091,25 @@
       "testOptional": "Testar antes de aplicar (opcional)",
       "hiddenAgents": "{count, plural, one {# outro agente} other {# outros agentes}}",
       "testOptionalShort": "Testar (opcional)",
-      "compareShort": "Mudanças"
+      "compareShort": "Mudanças",
+      "quotesCredential": "Esta alteração cita uma credencial, então não pode ser aplicada nem testada. Descarte-a e faça a alteração manualmente."
+    },
+    "package": {
+      "title": "Importar pacote",
+      "description": "Escolha uma pasta de habilidade ou ZIP com SKILL.md. Ficheiros e metadados são preservados. A importação não executa scripts, testes ou instalações.",
+      "directory": "Escolher pasta",
+      "zip": "Escolher ZIP",
+      "limits": "8 MiB por ficheiro · 32 MiB por pacote · 1.024 ficheiros.",
+      "reading": "A ler o pacote…",
+      "summary": "{count} ficheiros de recursos · {size}",
+      "private": "Cria uma habilidade privada com a primeira versão completa. As habilidades existentes não são substituídas.",
+      "apply": "Importar habilidade",
+      "cancel": "Cancelar",
+      "imported": "Habilidade importada",
+      "binary": "Binário",
+      "text": "Texto",
+      "download": "Descarregar ficheiro",
+      "binaryHelp": "Os ficheiros binários são preservados. Descarregue este ficheiro ou substitua-o por um envio."
     }
   },
   "states": {
@@ -9907,7 +10140,7 @@
     "emailAddress": "Endereço de e-mail",
     "emptyMeansUnlimited": "Vazio significa ilimitado.",
     "emptyNoLimit": "vazio para não ter limite.",
-    "enterAmountDollarsLeave": "Informe um valor em dólares, ou deixe vazio para não ter limite.",
+    "enterAmountDollarsLeave": "Insira um valor válido ou deixe em branco para não definir um limite.",
     "howManyPeople": "Quantas pessoas",
     "inviteEmailed": "E-mail enviado para {email}. O link abaixo é a sua cópia, caso não chegue.",
     "inviteLinkLabel": "Link de convite",
@@ -9918,7 +10151,6 @@
     "inviteWithLink": "Convidar com um link",
     "joinAs": "Entrar como",
     "joined": "Entrou",
-    "limitUsd": "Limite (USD)",
     "manageOrganizations": "Gerenciar organizações",
     "member": "Membro",
     "monthlyLimitRemoved": "Limite mensal removido",
@@ -10030,7 +10262,7 @@
       "model": "Modelo",
       "modelHint": "Usado apenas para sugerir melhorias a partir de conversas. O monitoramento usa o modelo de cada agente selecionado.",
       "modelRequired": "Escolha o modelo em que ele será executado antes de ativá-lo.",
-      "label": "Limite por pessoa (USD por mês)",
+      "label": "Limite por pessoa ({currency} por mês)",
       "days": "Dias",
       "timing": "Quando",
       "timingFixed": "Em um horário definido",
@@ -10041,7 +10273,7 @@
       "save": "Salvar",
       "saved": "Configurações de segundo plano salvas",
       "off": "Recursos em segundo plano estão desativados",
-      "invalid": "Informe um valor em dólares, igual a 0 ou maior.",
+      "invalid": "Insira um valor não negativo.",
       "welcome": "Mensagem de boas-vindas em aplicativos de chat",
       "welcomeHint": "Um novo membro recebe uma mensagem direta dos seus bots do Slack, Teams e Mattermost.",
       "welcomeText": "Mensagem",
@@ -10064,7 +10296,7 @@
       "enabled": "Executar este papel",
       "model": "Modelo",
       "modelHint": "Escolhido manualmente, nunca padrão: o papel gasta dinheiro que ninguém pediu naquele momento.",
-      "budget": "Orçamento mensal (USD)",
+      "budget": "Orçamento mensal ({currency})",
       "noBudget": "Sem limite próprio",
       "invalid": "Digite um número igual ou maior que zero.",
       "modelRequired": "Escolha o modelo que esta função usa antes de ativá-la.",
@@ -10633,7 +10865,7 @@
       "revoke": "Revogar",
       "waitingDevice": "Aguardando o computador ({count})"
     },
-    "budgetLabel": "Orçamento mensal (USD, opcional)",
+    "budgetLabel": "Orçamento mensal ({currency}, opcional)",
     "budgetCreatorOnly": "Somente quem criou esta rotina pode aumentar ou remover o limite dela enquanto ela roda como essa pessoa.",
     "budgetHint": "Quanto esta rotina pode gastar por mês. Ao atingir o limite, ela pausa e recomeça no dia 1. Ela apenas restringe os limites do agente e da organização, nunca os amplia.",
     "budgetPlaceholder": "Sem limite próprio",
@@ -11482,6 +11714,14 @@
           "description": "Inicie um desktop E2B separado para esta execução. Selecione abaixo a chave E2B da organização; não é necessária uma conexão Sandbox.",
           "summary": "Um desktop isolado hospedado pela E2B."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Este run"
+        },
+        "conversation": {
+          "label": "Esta conversa"
+        }
       }
     },
     "browser_use": {
@@ -11505,6 +11745,14 @@
           "label": "Este computador (aplicativo desktop)",
           "summary": "Um navegador privado no seu computador pareado.",
           "description": "Requer o aplicativo desktop pareado e o Navegador local selecionado neste chat. Sua sessão pessoal do navegador não é compartilhada."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Este run"
+        },
+        "conversation": {
+          "label": "Esta conversa"
         }
       }
     },
@@ -11572,7 +11820,8 @@
         "completed": "Seu teste foi concluído.",
         "failed": "Seu teste não pôde ser concluído.",
         "cancelled": "Seu teste foi cancelado.",
-        "budget_exceeded": "Seu teste parou ao atingir o orçamento."
+        "budget_exceeded": "Seu teste parou ao atingir o orçamento.",
+        "quote": "Seu teste parou ao atingir o preço que você aceitou."
       },
       "questions": {
         "ready": "Suas perguntas de teste foram escritas e aguardam sua revisão.",
@@ -13449,7 +13698,7 @@
     "addToGroupNothing": "Não há nada que você possa compartilhar com este grupo: tudo o que você pode editar já está aqui.",
     "addToGroupLevel": "Eles podem",
     "addToGroupShare": "{count, plural, =0 {Compartilhar} =1 {Compartilhar 1} other {Compartilhar #}}",
-    "monthlyBudget": "Orçamento mensal (USD)",
+    "monthlyBudget": "Orçamento mensal ({currency})",
     "monthlyBudgetHint": "As execuções iniciadas pelos membros deste departamento são interrompidas ao atingir o limite. O líder e os administradores são avisados em 80%.",
     "noBudget": "Sem limite",
     "thisMonth": "Este mês",
@@ -14185,6 +14434,14 @@
       "prefer_native_browser": {
         "title": "Usar o navegador local nativo",
         "description": "Usa uma aba nativa incorporada para navegação local por DOM. Desative para compatibilidade com o Chromium isolado. A visão e as substituições de idioma e fuso horário usam o Chromium."
+      },
+      "session_lifetime": {
+        "title": "Duração da sessão",
+        "description": "No chat web privado, fechar o ambiente remoto gerido pela aplicação após um run que o utilize, ou mantê-lo entre mensagens. Os dispositivos locais emparelhados e as outras interfaces mantêm o comportamento atual das sessões."
+      },
+      "session_idle_seconds": {
+        "title": "Limite de inatividade (segundos)",
+        "description": "Encerrar o ambiente remoto de chat gerido pela aplicação após esta inatividade, limitado pela política da implantação. Apenas observar não prolonga a sessão; fechar o painel só desliga a visualização."
       }
     },
     "channel_tools": {
@@ -14715,6 +14972,14 @@
       "preview": {
         "title": "Pré-visualização ao vivo",
         "description": "Mostra a área de trabalho ao vivo no chat enquanto o agente a opera."
+      },
+      "session_lifetime": {
+        "title": "Duração da sessão",
+        "description": "No chat web privado, fechar o ambiente remoto gerido pela aplicação após um run que o utilize, ou mantê-lo entre mensagens. Os dispositivos locais emparelhados e as outras interfaces mantêm o comportamento atual das sessões."
+      },
+      "session_idle_seconds": {
+        "title": "Limite de inatividade (segundos)",
+        "description": "Encerrar o ambiente remoto de chat gerido pela aplicação após esta inatividade, limitado pela política da implantação. Apenas observar não prolonga a sessão; fechar o painel só desliga a visualização."
       }
     },
     "phone_calls": {
@@ -14767,6 +15032,12 @@
       "platform_tools": {
         "title": "Encaminhar ferramentas da plataforma",
         "description": "Permite que este runtime nativo chame as ferramentas já admitidas nesta execução do AgenticOS. Permissões da plataforma, orçamentos, aprovações e a triagem de resultados continuam valendo. Exige o computador privado e aprovado do membro que inicia a tarefa."
+      }
+    },
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Mostrar ao modelo uma imagem do visual",
+        "description": "Retorne uma captura de tela quando o agent visualizar um visual. Desative para modelos que não leem imagens; os diagnósticos de renderização continuam disponíveis."
       }
     }
   },
@@ -14868,7 +15139,14 @@
     "nativeTake": "Assumir controle",
     "nativeCloseTab": "Fechar aba",
     "nativeViewport": "Página do navegador nativo",
-    "nativeDesktopOnly": "Esta aba está aberta no aplicativo de desktop pareado. Continue por lá para usar o navegador nativo."
+    "nativeDesktopOnly": "Esta aba está aberta no aplicativo de desktop pareado. Continue por lá para usar o navegador nativo.",
+    "youControl": "Você controla",
+    "agentControls": "O agente controla",
+    "otherViewerControls": "Outro usuário controla",
+    "viewOnly": "Somente visualização",
+    "takingOverShort": "Assumindo…",
+    "openPages": "Páginas abertas do navegador",
+    "untitledPage": "Página sem título"
   },
   "remoteAgents": {
     "optionalSettings": "Autenticação e identificador (opcional)",
@@ -15058,8 +15336,9 @@
       "sharedWorkspace": "Workspace compartilhado do projeto"
     },
     "tracking": {
-      "title": "Acompanhamento automático do projeto",
-      "description": "Crie uma tabela de tarefas com visualizações salvas e publique uma cópia privada de um agente selecionado como seu acompanhador agendado.",
+      "options": "Opções da tabela de tarefas",
+      "title": "Automatizar a atualização de tarefas",
+      "description": "Crie um agente e uma rotina agendada que verificam o progresso nas fontes aprovadas e atualizam a tabela de tarefas partilhada deste projeto. Também pode editar a mesma tabela manualmente.",
       "audience": "A rotina age em seu nome e grava seus relatórios na conversa compartilhada deste projeto. O agente de origem permanece inalterado.",
       "baseAgent": "Agente de origem que você pode editar",
       "chooseAgent": "Escolha um agente publicado",
@@ -15498,7 +15777,8 @@
         "judgeGradedTwice": "O juiz avaliou este critério mais de uma vez, então nenhuma das avaliações conta.",
         "judgeUngraded": "O juiz não deu nota na escala para este critério.",
         "judgeReasonEcho": "O juiz repetiu o critério em vez de explicar por que a resposta o atende.",
-        "judgeCounterUnsupported": "O juiz aprovou a resposta como diferente do contraexemplo, embora a resposta repita o contraexemplo ou o juiz tenha citado apenas o que os dois têm em comum."
+        "judgeCounterUnsupported": "O juiz aprovou a resposta como diferente do contraexemplo, embora a resposta repita o contraexemplo ou o juiz tenha citado apenas o que os dois têm em comum.",
+        "scriptCallsNotKept": "Um script no modo de código fez mais chamadas do que o run guardou, por isso as chamadas de ferramentas não foram avaliadas."
       },
       "scoreRun": "Avaliar em relação a um caso",
       "scoreRunBody": "Executa todos os avaliadores configurados no dataset sobre a resposta desta execução. O resultado é guardado no dataset.",
@@ -16717,7 +16997,7 @@
         "efficiencyHint": "Limites opcionais em relação à linha de base. Se deixados vazios, nada é verificado.",
         "costRise": "O custo por caso aprovado pode aumentar em (%)",
         "p95Rise": "A latência p95 pode aumentar em (%)",
-        "maxRunUsd": "Ignorar uma execução cuja estimativa total for acima de ($)",
+        "maxRunUsd": "Ignorar uma execução cuja estimativa total for acima de ({currency})",
         "maxRunUsdHint": "Inclui reexecuções e a versão anterior. O custo real pode ser diferente; uma avaliação em andamento não é interrompida por este limite.",
         "description": "Observação",
         "estimateRun": "Uma execução: cerca de {amount} para {count, plural, =1 {1 caso} other {# casos}}.",
@@ -16852,12 +17132,14 @@
       "dismissAll": "Descartar todas",
       "verifyReport": "O que o assistente concluiu sobre suas edições",
       "skillCreated": "Skill {name} criada e adicionada ao rascunho",
-      "working": "Lendo as execuções…"
+      "working": "Lendo as execuções…",
+      "checkQuotesCredential": "Uma sugestão cita uma credencial, então estas sugestões não podem ser verificadas. Remova a credencial editando-a quando possível ou descarte essa sugestão."
     },
     "suggestion": {
       "tool": "Ferramenta {tool}",
       "instructions": "Instruções",
       "fromVerify": "Da verificação das suas edições",
+      "reworded": "Reescrita na etapa Alterações",
       "status": {
         "accepted": "Aceita no rascunho",
         "dismissed": "Descartada"
@@ -16869,7 +17151,10 @@
       "accept": "Aceitar",
       "edit": "Editar",
       "dismiss": "Descartar",
-      "undo": "Desfazer"
+      "undo": "Desfazer",
+      "quotesCredential": "Esta sugestão cita uma credencial, então não pode ser aceita como está. Remova a credencial editando-a ou descarte a sugestão.",
+      "quotesCredentialDismiss": "Esta sugestão cita uma credencial, então não pode ser aceita. Descarte-a e faça a alteração manualmente.",
+      "quotesCredentialReadOnly": "Esta sugestão contém credenciais e não pode ser aceite como está."
     },
     "field": {
       "editLabel": "Seu valor",
@@ -17027,7 +17312,8 @@
       "liveHint": "Aplicar tem efeito imediato: todos os agentes que leem o arquivo usarão o novo conteúdo na próxima execução.",
       "expects": "Esperado: {effect}",
       "applied": "Alteração aplicada em {name}",
-      "discarded": "Alteração descartada em {name}"
+      "discarded": "Alteração descartada em {name}",
+      "quotesCredential": "Esta alteração cita uma credencial, então não pode ser aplicada nem verificada. Descarte-a e faça a alteração manualmente."
     },
     "describe": {
       "open": "Criar com {name}"
@@ -17052,6 +17338,7 @@
         "no_change": "Ela não altera nada",
         "unknown_tool": "O agente não tem essa ferramenta",
         "invalid_tool_change": "Um nome ou descrição de ferramenta que o agente não pode usar",
+        "hidden_characters": "O texto contém caracteres que uma pessoa não consegue ver",
         "not_a_target": "Algo que o assistente não pode alterar",
         "operation": "Não é uma alteração permitida para essa configuração",
         "loosens_approval": "Ela afrouxaria a aprovação",
@@ -17059,6 +17346,7 @@
         "unknown_capability": "Esta capacidade não existe",
         "invalid_config": "As configurações dela não são válidas",
         "does_not_apply": "Não se encaixa no rascunho",
+        "reaches_network": "Ela adiciona uma capability que vai além desta implantação. Adicione-a no Builder, onde se definem os limites dela",
         "not_grantable": "Ela adiciona algo que quem pediu não pode conceder",
         "dismissed_before": "Alguém a descartou antes",
         "unsupported": "Afirmou que a edição é respaldada, sem evidência verificável",
@@ -17229,6 +17517,9 @@
     "gapsLabel": "{count, plural, =1 {1 lacuna aberta na base de conhecimento} other {# lacunas abertas na base de conhecimento}}"
   },
   "improvement": {
+    "acceptChanged": "A tentativa que você ia aceitar mudou desde que a revisou. A sessão foi atualizada; revise-a novamente.",
+    "unmeasuredEdits": "O rascunho tinha edições anteriores ao início desta sessão. Publicar também as libera, e nenhuma verificação as mediu.",
+    "publishUnmeasuredEdits": "Publicar também essas edições",
     "attributionUnconfirmed": "Alteração {number}: o resultado não foi confirmado.",
     "includeInTest": "Incluir no teste",
     "includeChange": "Incluir a alteração {number} no teste",
@@ -17283,7 +17574,7 @@
     "estimating": "Estimando o tempo e o custo…",
     "sessionQuote": "Até {cost} (estimativa) para analisar {answers, plural, one {# exemplo de origem selecionado} other {# exemplos de origem selecionados}}. Cada tentativa depois disso leva cerca de {minutes, plural, one {# minuto} other {# minutos}} e custa aproximadamente {perRound}, com novo preço calculado antes de você pressioná-la; o limite de {limit} cobre a sessão inteira.",
     "evidence": "Com base em {count, plural, one {# resposta} other {# respostas}} com feedback.",
-    "budget": "Limite de gastos da sessão (USD)",
+    "budget": "Limite de despesas da sessão ({currency})",
     "start": "Começar a melhorar",
     "working": "Ainda trabalhando…",
     "loading": "Carregando o resultado…",
@@ -17880,7 +18171,7 @@
       "search": "Pesquisar variantes",
       "searchHint": "O assistente escreve muitas versões das instruções e pontua cada uma nas perguntas de treinamento. A melhor vai para Alterações e depois é verificada como qualquer tentativa.",
       "tooFew": "A pesquisa precisa de pelo menos {needed} perguntas de treinamento; este dataset tem {count, plural, =0 {nenhuma} =1 {1} other {#}}. Adicione perguntas ou melhore passo a passo.",
-      "budget": "Orçamento da pesquisa (USD)",
+      "budget": "Orçamento da pesquisa ({currency})",
       "budgetHint": "A pesquisa para quando a próxima variante não couber no orçamento. Ela pode ultrapassá-lo em no máximo a única variante que está pontuando.",
       "gradingModel": "Modelo que avalia as variantes",
       "datasetJudge": "O modelo avaliador do dataset",
@@ -17930,7 +18221,9 @@
       "invalid": "O teste não conseguiu comparar as versões de forma confiável. Revise o teste antes de tirar conclusões.",
       "noExamples": "Não há respostas alteradas para mostrar. Abra o teste completo para ver todas as perguntas."
     },
-    "permissionRuns": "Ler uma sessão do Improve requer runs:view, que esta função não tem. Peça acesso a um proprietário da organização."
+    "permissionRuns": "Ler uma sessão do Improve requer runs:view, que esta função não tem. Peça acesso a um proprietário da organização.",
+    "changeQuotesCredential": "Esta alteração cita uma credencial, então não pode ser testada nem aplicada. Deixe-a de fora.",
+    "selectionQuotesCredential": "Uma alteração escolhida cita uma credencial. Deixe-a de fora para testar as outras."
   },
   "unsaved": {
     "title": "Você tem alterações não salvas",
@@ -18024,8 +18317,8 @@
     "calls_per_hour": "Chamadas em cada período contínuo de 1 hora",
     "calls_per_day": "Chamadas em cada período contínuo de 24 horas",
     "max_concurrent": "Chamadas simultâneas",
-    "daily_budget_usd": "Orçamento diário de telefonia (USD)",
-    "price_per_minute_usd": "Tarifa conservadora por trecho/minuto (USD)",
+    "daily_budget_usd": "Orçamento diário de telefonia ({currency})",
+    "price_per_minute_usd": "Tarifa conservadora por segmento e minuto",
     "costHint": "Inclua uma margem para taxas da Twilio e destinos. Minutos inteiros e possíveis trechos de transferência são reservados antes da discagem. Orçamentos de modelo são aplicados separadamente; as estimativas não são uma fatura.",
     "transferTargets": "Contatos permitidos para transferência",
     "saveRouting": "Salvar roteamento telefônico",
@@ -18289,6 +18582,8 @@
     "connectAnother": "Adicionar conta",
     "disconnect": "Desconectar",
     "loadFailed": "Não foi possível carregar suas contas de assinatura",
+    "disabledTitle": "As subscrições não estão ativadas aqui",
+    "disabledDescription": "Esta instalação não tem uma gateway de subscrições configurada. Peça ao administrador para a ativar antes de ligar uma subscrição pessoal.",
     "retry": "Tentar novamente",
     "dialogTitle": "Conectar {name}",
     "deviceHelp": "Abra a página de login, insira este código e aprove. Esta janela será concluída automaticamente.",
@@ -18632,7 +18927,7 @@
       "budgetTitle": "Qual é um limite mensal confortável?",
       "budgetGuide": "Você controla o uso de IA. Escolha um valor inicial ou mova o controle deslizante. Só salvarei quando você continuar.",
       "unlimited": "Sem limite",
-      "budgetSlider": "Orçamento mensal em dólares americanos",
+      "budgetSlider": "Controle do orçamento mensal ({currency})",
       "budgetInvalid": "Escolha um valor positivo ou nenhum limite.",
       "budgetHint": "Isto limita o uso de IA monitorado entre os agentes desta organização. Não é uma assinatura nem crédito pré-pago. A cobrança do provedor é separada.",
       "workspaceReadyTitle": "Pronto para sua primeira tarefa",
@@ -18744,6 +19039,46 @@
       "workflowBody": "Associe ferramentas a funções com nome e invoque-as em Python. Cada ação mantém as suas permissões, aprovações e registo de execução.",
       "organizationTitle": "Definir padrões da organização",
       "organizationBody": "Configure navegação, catálogos, dashboard e avisos por função, além da visibilidade dos custos. Os membros podem personalizar as opções permitidas."
+    },
+    "scopes": {
+      "progress": "Progresso da configuração",
+      "stages": "Etapas da configuração",
+      "position": "Etapa {current} de {total}",
+      "completed": "Concluído",
+      "saveFailed": "Não foi possível guardar o progresso da configuração. Tenta novamente esta etapa.",
+      "allDoneTitle": "A configuração está concluída",
+      "allDoneHint": "A configuração partilhada está concluída e o teu progresso pessoal foi preservado. Revê qualquer etapa ou abre a aplicação.",
+      "openApp": "Abrir a aplicação",
+      "workspaceTitle": "Criar ou escolher uma organização",
+      "workspaceHint": "A instalação está configurada. Escolhe um espaço da empresa para as predefinições partilhadas e continua com a tua configuração pessoal.",
+      "loadFailed": "Não foi possível carregar a configuração",
+      "deployment": {
+        "title": "Configurar a instalação",
+        "hint": "Partilhado por toda esta instalação. Um administrador da aplicação conclui esta etapa uma única vez.",
+        "short": "Instalação"
+      },
+      "organization": {
+        "title": "Configurar a organização",
+        "hint": "Partilhado por esta organização. Uma pessoa autorizada conclui esta etapa para a equipa.",
+        "short": "Organização"
+      },
+      "personal": {
+        "title": "A tua configuração pessoal",
+        "hint": "O teu perfil, ligações e preferências. Este progresso pertence-te.",
+        "short": "Pessoal"
+      },
+      "modelsShared": "O acesso partilhado opcional aos fornecedores configura-se no Vault com visibilidade para a organização. Esta etapa não altera o teu modelo pessoal.",
+      "toolsShared": "O acesso partilhado opcional às ferramentas usa ligações MCP da organização. Liga as contas privadas mais tarde na tua configuração pessoal.",
+      "openVault": "Abrir o Vault",
+      "openConnections": "Abrir ligações MCP",
+      "returnToSetup": "A página abre num novo separador. Regressa a esta configuração quando terminares.",
+      "resourcesPermission": "As tuas permissões não permitem ver estes recursos partilhados. Podes continuar; uma pessoa autorizada pode configurá-los mais tarde.",
+      "sharedReview": "Esta etapa partilhada está concluída. O formulário aberto continua disponível para revisão. Continua quando quiseres sair dele.",
+      "continueReview": "Continuar para a próxima etapa",
+      "stageCompleted": "{stage} — Concluído",
+      "continueShort": "Continuar",
+      "skipShort": "Ignorar",
+      "finishShort": "Concluir"
     }
   },
   "skillImprovement": {
@@ -18873,7 +19208,7 @@
       "continue": "Continuar nela",
       "hidden": "{count, plural, =1 {Mais 1 agente que você não vê usa esta linha.} other {Mais # agentes que você não vê usam esta linha.}}",
       "price": "Até {cost} (estimativa) para a primeira proposta; cada tentativa depois dela custa cerca de {perRound}, até {rounds, plural, =1 {1 tentativa} other {# tentativas}}. O limite de {limit} cobre a sessão inteira.",
-      "limit": "Limite de gasto para a sessão inteira (USD)",
+      "limit": "Limite de despesas de toda a sessão ({currency})",
       "limitHint": "Preenchido para a primeira proposta e para cada tentativa que ela possa fazer. Reduza-o para parar mais cedo; a sessão para antes de uma etapa que o ultrapassaria.",
       "belowEstimate": "O limite está abaixo do custo da sessão até a primeira proposta, {cost}. Aumente-o para pelo menos esse valor.",
       "unaffordable": "O orçamento da organização não cobre isso.",
@@ -18886,8 +19221,9 @@
     "understand": {
       "title": "Entender",
       "loading": "Lendo o que deu errado…",
-      "summary": "{count, plural, =0 {Nenhum problema com a skill encontrado} =1 {1 problema com a skill} other {# problemas com a skill}}{elsewhere, plural, =0 {} other {, # respostas cujo problema está em outro lugar}}{fine, plural, =0 {} other {, # que estavam bem}}.",
+      "summary": "{count, plural, =0 {Nenhum problema com a skill encontrado} =1 {1 problema com a skill} other {# problemas com a skill}}{elsewhere, plural, =0 {} =1 {, 1 resposta cujo problema está em outro lugar} other {, # respostas cujo problema está em outro lugar}}{fine, plural, =0 {} =1 {, 1 que estava bem} other {, # que estavam bem}}.",
       "usageUnknown": "{count, plural, =1 {1 resposta é de antes de os carregamentos da skill serem registrados e não é contada.} other {# respostas são de antes de os carregamentos da skill serem registrados e não são contadas.}}",
+      "seedWithheld": "{count, plural, =1 {1 problema repassado pela sessão do agente foi deixado de fora: ele cita uma resposta a uma pergunta que a verificação desta skill avalia.} other {# problemas repassados pela sessão do agente foram deixados de fora: eles citam respostas a perguntas que a verificação desta skill avalia.}}",
       "agent": "{name} ({runs})",
       "occursIn": "Em {runs, plural, =1 {1 resposta} other {# respostas}}, em {agents}{hidden, plural, =0 {} =1 { e 1 agente que você não vê} other { e # agentes que você não vê}}.",
       "hiddenExamples": "{count, plural, =1 {+1 exemplo oculto} other {+# exemplos ocultos}}"
@@ -18997,7 +19333,7 @@
       "agents": "{count, plural, =0 {Nenhum agente que você pode ver lê esta linha.} =1 {1 agente verifica o resultado.} other {# agentes verificam o resultado.}}",
       "hidden": "{count, plural, =1 {Mais 1 agente que você não pode ver lê esta linha.} other {Mais # agentes que você não pode ver leem esta linha.}}",
       "price": "Propor os textos dos conflitos custa cerca de {cost}. A verificação tem preço em Alterações.",
-      "limit": "Limite de gastos da sessão (USD)",
+      "limit": "Limite de despesas da sessão ({currency})",
       "limitHint": "Você pode aumentá-lo em Alterações, quando a verificação tiver preço.",
       "unaffordable": "O orçamento da organização não cobre isto.",
       "start": {
@@ -22066,6 +22402,22 @@
       "preview": "Apenas prévia do layout. Os dados e as permissões são resolvidos para cada pessoa ao abrir.",
       "empty": "Este padrão da função intencionalmente não contém cartões.",
       "discard": "Descartar alterações"
+    },
+    "rolePreview": {
+      "open": "Abrir prévia do console",
+      "hint": "Padrões da função antes das escolhas pessoais. A navegação usa seu rascunho atual; dashboard, catálogos e avisos usam configurações salvas. Os cartões não carregam dados privados.",
+      "navigation": "Navegação",
+      "dashboard": "Dashboard",
+      "catalogs": "Catálogos",
+      "emptyDashboard": "Nenhum cartão do dashboard é exibido.",
+      "emptyNavigation": "Nenhuma entrada de navegação principal é exibida.",
+      "wholeCatalog": "Todas as entradas permitidas pelas permissões existentes",
+      "approvedLimit": "{count, plural, =0 {Nenhuma entrada} one {Até # entrada aprovada} other {Até # entradas aprovadas}}",
+      "mcp_galleryAvailable": "Somente servidores conectados pela organização",
+      "skill_galleryAvailable": "Somente Skills instalados visíveis",
+      "shown": "Visível",
+      "hidden": "Oculto",
+      "unavailable": "Indisponível com estas permissões"
     }
   },
   "modelSources": {
@@ -22117,6 +22469,49 @@
     "inProgress": "Em andamento",
     "unknown": "Não disponível",
     "otherStep": "Configuração"
+  },
+  "modelPricing": {
+    "title": "Preços",
+    "automaticAvailable": "Tarifas automáticas indicativas em USD por milhão de tokens. A tarifa real pode depender das faixas de uso ou do valor informado pelo provedor.",
+    "automaticUnavailable": "Os preços automáticos de tokens estão indisponíveis. O custo informado pelo provedor ainda pode ser registrado após uma solicitação.",
+    "input": "Tokens de entrada",
+    "output": "Tokens de saída",
+    "cache_read": "Tokens lidos do cache",
+    "cache_write": "Tokens gravados no cache",
+    "cacheDefault": "Deixe em branco para usar o preço de entrada.",
+    "overrideCurrency": "Usar preços personalizados (por milhão de tokens)",
+    "currency": "Moeda dos preços"
+  },
+  "currencies": {
+    "title": "Moedas e taxas de câmbio",
+    "manualRates": "Informe quantas unidades da moeda equivalem a 1 USD. As taxas são manuais. Os custos registrados mantêm a taxa aplicada quando foram gerados.",
+    "deploymentDefault": "Moeda padrão das organizações",
+    "rate": "{currency} por USD",
+    "remove": "Remover {currency}",
+    "code": "Código da moeda",
+    "newRate": "Unidades por USD",
+    "add": "Adicionar moeda",
+    "reset": "Usar os padrões do ambiente",
+    "organization": "Moeda da organização",
+    "organizationHint": "Herde o padrão da implantação ou selecione uma moeda para os relatórios. Os preços e limites existentes mantêm suas unidades originais.",
+    "inherit": "Herdar ({currency})",
+    "rateUnavailable": "{currency} (taxa de câmbio indisponível)",
+    "loadFailed": "Não foi possível carregar as configurações de moeda",
+    "retry": "Tentar novamente",
+    "saveFailed": "Não foi possível salvar a moeda",
+    "amountInvalid": "Introduza um valor válido e não negativo na moeda dos relatórios.",
+    "budgetLabel": "Orçamento ({currency})",
+    "limitLabel": "Limite ({currency})",
+    "perMinuteLabel": "Preço por minuto ({currency})",
+    "quoteHint": "Taxa dos relatórios: 1 USD = {rate} {currency}. Fica fixa até alterar a preferência de moeda; os novos custos dos modelos usam as taxas de preços atuais.",
+    "spentOfLimit": "Gasto este mês: {spent} de {limit}.",
+    "spentNoLimit": "Gasto este mês: {spent}. Sem limite.",
+    "amountPositive": "Insira um valor superior a zero.",
+    "amountMaximum": "Introduza no máximo {amount} {currency}.",
+    "switchOrganizationHint": "Mude para esta organização antes de alterar os limites. As permissões, despesas e taxa dos relatórios devem pertencer à mesma organização.",
+    "switchOrganization": "Mudar para esta organização",
+    "criterionLimit": "Custo ≤ {amount}",
+    "criterionObserved": "Observado: {amount}; limite: {limit}."
   },
   "portability": {
     "exportTitle": "Exportar agente",
@@ -22245,6 +22640,7 @@
       "context_gone": "O arquivo de contexto já não existe.",
       "no_edit_context": "Quem iniciou isto já não pode editar o arquivo de contexto.",
       "unknown_skill_use": "Não se sabe de nenhum run neste período que tenha usado o skill. {runs, plural, one {# run com avaliação negativa ou com falha é de antes de os usos serem registrados, por isso não se sabe se ele usou o skill.} other {# runs com avaliação negativa ou com falha são de antes de os usos serem registrados, por isso não se sabe se eles o usaram.}}",
+      "hidden_characters": "O texto proposto contém caracteres que não se veem, por isso não foi registado. Peça novamente.",
       "no_evidence": "Ainda não há nada com que aprender: nenhum run neste período foi avaliado ou falhou. Amplie o período ou volte quando algumas respostas tiverem sido avaliadas.",
       "key_revoked": "A chave de API que iniciou isto foi revogada ou já não existe, por isso foi interrompido.",
       "not_a_member": "Quem iniciou isto já não é membro.",

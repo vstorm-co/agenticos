@@ -1,5 +1,9 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -50,7 +54,7 @@ function numberOrNull(text: string): number | null {
 }
 
 /** A setting as its field shows it: empty for none. */
-function shown(value: number | null): string {
+function shown(value: string | number | null): string {
   return value === null ? "" : String(value);
 }
 
@@ -72,6 +76,8 @@ export function WorkflowSettingsForm({
   saving: boolean;
   onSave: (settings: WorkflowSettings) => void;
 }) {
+  const monetary = useMonetaryInputs(workflow.id);
+  const money = useMoney();
   const t = useTranslations("pages.workflows");
   const locale = useLocale();
   const { workflows } = useWorkflows();
@@ -101,16 +107,18 @@ export function WorkflowSettingsForm({
   const now = timeIn(zone, locale);
 
   const save = () =>
-    onSave({
-      timezone: zone,
-      default_deadline_seconds: minutes === null ? null : Math.round(minutes * 60),
-      error_workflow_id: errorWorkflow === NONE ? null : errorWorkflow,
-      run_retention_days: numberOrNull(retention),
-      keep_succeeded_runs: keepSucceeded,
-      max_concurrent_runs: numberOrNull(concurrent),
-      run_budget_usd: numberOrNull(runBudget),
-      monthly_budget_usd: numberOrNull(monthlyBudget),
-    });
+    onSave(
+      monetary.payload({
+        timezone: zone,
+        default_deadline_seconds: minutes === null ? null : Math.round(minutes * 60),
+        error_workflow_id: errorWorkflow === NONE ? null : errorWorkflow,
+        run_retention_days: numberOrNull(retention),
+        keep_succeeded_runs: keepSucceeded,
+        max_concurrent_runs: numberOrNull(concurrent),
+        run_budget_usd: runBudget.trim() || null,
+        monthly_budget_usd: monthlyBudget.trim() || null,
+      }),
+    );
 
   return (
     <form
@@ -255,34 +263,38 @@ export function WorkflowSettingsForm({
           </div>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="workflow-run-budget">{t("settingsRunBudget")}</Label>
-              <Input
+              <Label htmlFor="workflow-run-budget">
+                {t("settingsRunBudget", { currency: money.currency ?? "—" })}
+              </Label>
+              <MonetaryInput
                 id="workflow-run-budget"
-                type="number"
-                min={0.000001}
-                max={999_999}
-                step="any"
+                positive
+                maxUsd={999_999}
+                monetary={monetary}
+                field="run_budget_usd"
                 inputMode="decimal"
                 placeholder={t("settingsNoLimit")}
                 value={runBudget}
                 disabled={disabled}
-                onChange={(event) => setRunBudget(event.target.value)}
+                onValueChange={setRunBudget}
               />
               <p className="text-muted-foreground text-xs">{t("settingsRunBudgetHint")}</p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="workflow-monthly-budget">{t("settingsMonthlyBudget")}</Label>
-              <Input
+              <Label htmlFor="workflow-monthly-budget">
+                {t("settingsMonthlyBudget", { currency: money.currency ?? "—" })}
+              </Label>
+              <MonetaryInput
                 id="workflow-monthly-budget"
-                type="number"
-                min={0.000001}
-                max={999_999}
-                step="any"
+                positive
+                maxUsd={999_999}
+                monetary={monetary}
+                field="monthly_budget_usd"
                 inputMode="decimal"
                 placeholder={t("settingsNoLimit")}
                 value={monthlyBudget}
                 disabled={disabled}
-                onChange={(event) => setMonthlyBudget(event.target.value)}
+                onValueChange={setMonthlyBudget}
               />
               <p className="text-muted-foreground text-xs">{t("settingsMonthlyBudgetHint")}</p>
             </div>

@@ -1757,6 +1757,8 @@ async def test_after_an_incomparable_result_a_pair_runs_only_within_the_suites_c
     *_, third = await _results(db, suite.id)
     assert third.status == "passed" and third.eval_run_id is not None
     run = await service.evals.get(ctx, third.eval_run_id)
+    stored = await db.get(EvalRun, third.eval_run_id)
+    assert stored is not None and stored.quoted_usd == Decimal(ceiling)
     told = [n for n in await _notifications(db, ctx.user_id) if "Not compared" in n.summary]
     if paired:
         assert (run.paired, third.reason, told) == (True, None, [])
@@ -1900,12 +1902,14 @@ async def test_an_integrity_failure_other_than_a_taken_name_is_not_called_a_conf
     service = EvalSuiteService(db)
     suite = await service.create(ctx, agent.id, _suite_data(dataset))
     # Past the schema's own bound, so the table's CHECK is what refuses it.
-    negative = {"max_run_usd": Decimal("-1")}
+    outside_schema = {"max_run_usd": Decimal("0")}
 
     with pytest.raises(IntegrityError, match="ck_eval_suite_max_run_usd"):
-        await service.create(ctx, agent.id, _suite_data(dataset).model_copy(update=negative))
+        await service.create(ctx, agent.id, _suite_data(dataset).model_copy(update=outside_schema))
     with pytest.raises(IntegrityError, match="ck_eval_suite_max_run_usd"):
-        await service.update(ctx, agent.id, suite.id, EvalSuiteUpdate().model_copy(update=negative))
+        await service.update(
+            ctx, agent.id, suite.id, EvalSuiteUpdate().model_copy(update=outside_schema)
+        )
 
     assert [read.id for read in (await service.list_for_agent(ctx, agent.id)).items] == [suite.id]
     assert (await service.get(ctx, agent.id, suite.id)).max_run_usd is None
@@ -1946,6 +1950,28 @@ async def test_suite_cap_includes_confirming_reruns(db) -> None:
         await service.run_now(ctx, agent.id, suite.id)
     assert refused.value.details["reason"] == "over_cost_cap"
     assert not await _results(db, suite.id)
+
+
+@pytest.mark.security
+async def test_a_suite_run_by_hand_is_held_to_the_suites_ceiling_while_it_runs(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    capped = await _dataset(db, ctx)
+    uncapped = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    with_ceiling = await service.create(
+        ctx, agent.id, _suite_data(capped, max_run_usd=Decimal("5"))
+    )
+    without = await service.create(ctx, agent.id, _suite_data(uncapped))
+
+    held = await service.run_now(ctx, agent.id, with_ceiling.id)
+    free = await service.run_now(ctx, agent.id, without.id)
+
+    assert held.eval_run_id is not None and free.eval_run_id is not None
+    run = await db.get(EvalRun, held.eval_run_id)
+    assert run is not None and run.quoted_usd == Decimal("5")
+    run = await db.get(EvalRun, free.eval_run_id)
+    assert run is not None and run.quoted_usd is None
 
 
 async def test_first_suite_estimate_includes_the_only_published_version(db) -> None:

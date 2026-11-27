@@ -14,7 +14,7 @@ vi.mock("@/components/settings/console-navigation-dialog", () => ({
  * full: a long nav that scrolls the organization out of reach, or pushes
  * signing out past the bottom of the screen.
  */
-vi.mock("@/components/onboarding/onboarding-reminder", () => ({ OnboardingReminder: () => null }));
+vi.mock("./sidebar-promotions", () => ({ SidebarPromotions: () => null }));
 vi.mock("@/hooks/use-release-update", () => ({
   useReleaseUpdate: () => ({ data: { latest: null } }),
 }));

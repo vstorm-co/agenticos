@@ -1,5 +1,5 @@
 ---
-source_sha: "d9973864c59a"
+source_sha: "475e74d4c418"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -25,6 +25,8 @@ Agregaty użycia i wydatków dashboardu korzystają z tej samej odpowiedzi w pam
 Jeśli onboarding bieżącej organizacji nie został ukończony, **Dokończ konfigurację** prowadzi do jej konfiguracji z przewodnikiem. Zamknięcie przypomnienia odkłada je na obowiązujący okres 1, 3 lub 7 dni (domyślnie jeden dzień). Ukończenie i odroczenie są zapisane na serwerze dla twojego członkostwa; ładowanie lub błąd odczytu postępu nie oznacza konfiguracji jako nieukończonej.
 
 **Ustawienia → Profil** zawsze zachowują ręczny link do konfiguracji, również po wyłączeniu przypomnień. Przypomnienie ma wyraźną akcję i krótką animację ilustracji, która respektuje ograniczenie ruchu. Wracasz z własnej inicjatywy: przewodnik nie uruchamia się automatycznie. W tej samej przeglądarce link pamięta ostatni dozwolony krok dla tego konta i organizacji, bez zapisywania wartości formularza.
+
+Zaproszenie do aplikacji desktopowej ma taki sam styl karty jak konfiguracja w sidebarze. Gdy obie są dostępne, widoczna jest jedna karta, zmieniana co osiem sekund podczas wyświetlania. Dostępne są przyciski poprzedniej i następnej karty oraz pauzy. Najechanie zatrzymuje zmianę; fokus klawiatury wstrzymuje ją do wybrania wznowienia. Ograniczony ruch wyłącza automatyczną zmianę. Ukończenie, odroczenie, wykrywanie aplikacji natywnej i odrzucenie zaproszenia zachowują dotychczasowe zasady.
 
 Konfiguracja z przewodnikiem zapisuje bieżący krok i czas aktualizacji dla twojego członkostwa w organizacji. Tabela członków pokazuje stan nierozpoczęty, w trakcie lub ukończony wraz z czytelną nazwą kroku. Postęp dotyczy danego członkostwa; ukończenie konfiguracji w jednej organizacji nie oznacza ukończenia w pozostałych. Wcześniej zapisane ukończenie pozostaje ważne, ale zawartość profilu nigdy nie stanowi dowodu postępu ani ukończenia.
 
@@ -64,7 +66,7 @@ Przy tworzeniu projektu najpierw podajesz nazwę, miejsce pracy i odbiorców. **
 
 Organizacje mają wyszukiwanie po nazwie i slugu członkostwa, z liczbą wyników w tym samym pasku. Wyczyszczenie wyszukiwania przywraca pełną listę organizacji użytkownika.
 
-Karta AI Architect ma bezpośredni link do Buildera obok przełącznika, bez dodatkowego rozwijania. Pozostałe usługi AI zachowują rozwijane formularze, jeśli mają ustawienia do edycji.
+Karta AI Architect służy do włączania asystenta w organizacji i nie zawiera osobnego przycisku Agent Builder. Model, instrukcje i wiedzę nadal edytujesz w Agents. Ustawienia organizacji i wdrożenia używają wspólnych ramek kart, odstępów i widocznych opisów; przełączniki oraz kompaktowe selektory są po prawej. W wąskiej karcie większy selektor przechodzi do osobnego wiersza wyrównanego do prawej.
 
 Widok Me zaczyna się od karty podsumowania okresu, a następnie zwartego Briefingu z tytułami, źródłami i akcjami. Pełne opisy propozycji pozostają w Inbox.
 
@@ -124,13 +126,13 @@ Generowane portrety korzystają z ograniczonego zestawu kształtów Blobatar 2.7
 Ustawienia czatu pokazują Browser i Work on przed Permissions. Powiadomienia rozmowy
 i połączenia kont pozostają pod kontrolkami uprawnień.
 
-Ustawienia chatu mają stały nagłówek i przycisk zamknięcia nad przewijaną zawartością. Ikony informacji objaśniają model, Browser, Work on i tryby uprawnień; opis wybranego trybu pozostaje widoczny. W **Knowledge bases → Integrations** integracje i usługi lokalne mają zwarte panele dopasowane do zawartości, z objaśnieniami pod ikonami informacji.
+Ustawienia chatu mają stały nagłówek i przycisk zamknięcia nad przewijaną zawartością. Ikony informacji objaśniają model, Browser, Work on i tryby uprawnień; opis wybranego trybu pozostaje widoczny. W **Knowledge bases → Integrations** integracje i połączenia usług mają zwarte panele dopasowane do zawartości, z objaśnieniami pod ikonami informacji.
 
 Agenci rozmowy są uporządkowani według ostatniej wiadomości lub uruchomienia głównego agenta, od najnowszego. Zwinięty pasek chatu zachowuje pełny rozmiar avatarów, nakłada maksymalnie trzy i ukrywa starszych uczestników; pełna lista pozostaje dostępna w podpowiedzi.
 
 Gdy **Approve everything** jest niedostępne, ustawienia chatu rozróżniają brak uprawnienia do zatwierdzania i politykę organizacji wyłączającą stałą zgodę. Osoba z uprawnieniem do zatwierdzania otrzymuje odnośnik do **Budżetu i zatwierdzeń**, gdzie może jawnie zmienić tę politykę. Chat nie zmienia polityki organizacji automatycznie.
 
-Pole wiadomości pokazuje aktywny tryb zatwierdzania obok wyboru agenta. Kliknij etykietę, aby zmienić zapisany tryb przed wysłaniem. Obowiązują te same uprawnienia i polityka organizacji co w Chat controls. Automatycznie zatwierdzone wywołania zachowują zatwierdzone wpisy audytowe; tylko rzeczywiście oczekujące wywołania pokazują prośby o decyzję.
+W szerokim czacie pole wiadomości pokazuje aktywny tryb zatwierdzania obok wyboru agenta. Kliknij etykietę, aby zmienić zapisany tryb przed wysłaniem. Obowiązują te same uprawnienia i polityka organizacji co w Chat controls. Automatycznie zatwierdzone wywołania zachowują zatwierdzone wpisy audytowe; tylko rzeczywiście oczekujące wywołania pokazują prośby o decyzję.
 
 Na telefonie wyśrodkowane modale zachowują 12 px marginesu z każdej strony. Zwarte nagłówki mieszczą tytuł i akcje w jednym wierszu, gdy jest na to miejsce. Opis pliku Context rozwija się z paska edytora.
 
@@ -192,7 +194,7 @@ Załączniki pozostają wewnątrz pola wiadomości w jednym przewijanym wierszu.
 
 Nowy czat pokazuje pod polem wiadomości do czterech promptów bieżącego agenta, w dwóch kolumnach, gdy jest miejsce. Kliknięcie dodaje prompt do edytowalnego szkicu. Pisanie ukrywa propozycje bez przesuwania pola wiadomości; wyczyszczenie szkicu je przywraca. Fokus w pustym polu pozostawia widoczną stałą wskazówkę o komendach `/` i zasobach `@`. Zatwierdzenie znaku za pomocą IME nie wysyła wiadomości.
 
-Oś czasu pokazuje do dwóch pozycji z Inboxa, wliczając link do oczekujących zgód, i prowadzi do pełnego Inboxa. Ładowanie rezerwuje miejsce na podgląd. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
+Oś czasu pokazuje do dwóch pozycji z Inboxa, wliczając link do oczekujących zgód, i prowadzi do pełnego Inboxa. Osobę, której jedynymi zgodami są jej własne wywołania platformy, link do zgód prowadzi do Inboxa. Ładowanie rezerwuje miejsce na podgląd. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
 
 Główny czat ma szerokie pole wiadomości. Biblioteka modeli pokazuje najpierw podłączonych dostawców, z logotypami i nazwami od wielkiej litery, z jedną listą Models i osobną zakładką konta lub klucza. Kliknięcie modelu od razu go wybiera. Brakujące poświadczenia można dodać w formularzach Vaulta z poziomu wyboru modelu, również dla dostawców wymagających kilku pól; nadal obowiązują dotychczasowe uprawnienia i walidacja modeli. Mikrofon i przycisk wysyłania płynnie zmieniają stan podczas pisania.
 
@@ -216,7 +218,9 @@ W **Admin → Deployment → Tożsamość → Dostępność konsoli** operator w
 
 Użytkownik może zawęzić ten wybór w **Ustawienia → Profil → Moje menu**. Pusta lista celowo ukrywa wszystkie główne pozycje; wybór odziedziczony podąża za organizacją i deploymentem. Zmiany menu wymagają **Zapisu**, a opuszczenie strony z niezapisanym wyborem wyświetla ostrzeżenie. Ustawienia konta, przełączanie organizacji i dostęp administratora pozostają osiągalne. Ukrycie strony nie odbiera uprawnień: uprawniona osoba nadal otworzy jej URL. Zwykłe sprawdzenie uprawnień działa po filtrowaniu widoku.
 
-Podgląd roli pokazuje menu z uwzględnieniem uprawnień tej roli oraz administratora. Nie działa w imieniu innej osoby i nie wczytuje jej danych. **Podpowiedzi produktowe** osobno sterują zaproszeniem do aplikacji desktopowej i automatycznymi informacjami o wydaniach oraz instalacji na telefonie, na poziomie deploymentu, organizacji i członkostwa. Wybór osobisty nie omija nadrzędnych ograniczeń. Komunikaty o konserwacji, dostępności usługi i bezpieczeństwie działają jak dotychczas; ukrycie zaproszenia nie wyłącza zainstalowanej aplikacji.
+Podgląd roli pokazuje menu z uwzględnieniem uprawnień tej roli oraz administratora. **Otwórz podgląd konsoli** pokazuje również dostępne karty dashboardu, ograniczenia katalogów i widoczność komunikatów. Korzysta z bieżącego szkicu menu oraz zapisanych ustawień roli, przed osobistymi wyborami członka. Karty są zastępcze: podgląd nie działa w imieniu innej osoby i nie wczytuje jej prywatnych danych. Liczby w katalogach to górne granice przed sprawdzeniem połączonych serwerów, zainstalowanych Skills i uprawnień do zasobów, a nie aktualne sumy katalogów.
+
+**Podpowiedzi produktowe** osobno sterują zaproszeniem do aplikacji desktopowej i automatycznymi informacjami o wydaniach oraz instalacji na telefonie, na poziomie deploymentu, organizacji i członkostwa. Wybór osobisty nie omija nadrzędnych ograniczeń. Komunikaty o konserwacji, dostępności usługi i bezpieczeństwie działają jak dotychczas; ukrycie zaproszenia nie wyłącza zainstalowanej aplikacji.
 
 
 ### Katalogi i dashboardy ról { #console-catalogs }
@@ -772,6 +776,8 @@ Enter zaczyna nową linię, a załącznik i
 dyktowanie są pod jednym **+**. Pola nigdy nie są na tyle małe, żeby iOS je
 przybliżał.
 
+Konsola śledzi wysokość widocznego obszaru i jego przesunięcie w pionie. Po uzyskaniu lub utracie fokusu na ekranie dotykowym mierzy też przejście klawiatury przez maksymalnie sekundę, aby opóźnione zdarzenie nie wymagało wpisania znaku do ustawienia pola wiadomości. Powiększanie gestem zachowuje zwykłą nawigację po stronie.
+
 **Rysunki.** Agent z [Wizualizacjami](reference/capabilities.md#visuals) rysuje pod
 swoją wiadomością - diagram, explainer z suwakami, scenę 3D - a ty widzisz, jak powstaje
 w trakcie pisania; jego skrypty startują po zakończeniu. Panel pokazuje cały rysunek,
@@ -789,16 +795,22 @@ kopiuje zwykły tekst; kilka wariantów jednej wersji roboczej to zakładki w je
 karcie. Własne **Kopiuj** wiadomości obejmuje też jej wersje robocze.
 
 **Oglądanie przeglądania.** [Przeglądarka](reference/capabilities.md#browser-automation)
-otwiera się automatycznie w pełnym panelu obok przewijanej rozmowy.
-Na wąskim ekranie zajmuje cały widok. Po zamknięciu panelu zostaje w rozmowie
-mały przycisk do ponownego otwarcia. Karty odwiedzonych stron pokazują ikonę,
-domenę i tytuł, także po ponownym otwarciu rozmowy. Każda odpowiedź ma jeden
-kafelek na kartę przeglądarki; kliknięcia, ponowne odczyty i powroty aktualizują ten kafelek. Pasek kart w panelu
-przełącza strony. Po zakończeniu
-zostaje ostatni obraz. **Wznów sesję** prosi agenta o odtworzenie prywatnej sesji,
-dostępnej przez maksymalnie godzinę. Zdalne strony zamykają się po każdym runie;
-wznowienie wczytuje adresy, cookies i local storage, ale nie niezapisane formularze
-ani pamięć JavaScript. Agent odczytuje nowe numery elementów.
+otwiera pełny panel obok rozmowy, gdy jest na to miejsce. Na desktopie tymczasowo zwija listę rozmów;
+możesz ją ponownie rozwinąć, a zamknięcie Browser przywraca poprzedni układ.
+Na telefonie panel zajmuje cały ekran. Własna przeglądarka dopasowuje się do panelu,
+gdy nikt inny nią nie steruje. Podczas pracy agenta lub sterowania przez inną osobę
+obraz zachowuje proporcje.
+
+Każda odpowiedź zachowuje jeden mały link na kartę przeglądarki, z ikoną strony,
+tytułem i domeną. Nawigacja aktualizuje ten link zamiast dodawać kolejną kartę.
+Link otwiera ten sam panel. Zapowiedzi i kroki narzędzi są pod jednym rozwijanym
+wierszem pracy; końcowa odpowiedź i pytania pozostają widoczne.
+
+[Środowisko na czas rozmowy](sandbox.md#conversation-environments) zachowuje żywą
+stronę do **End** lub limitu bezczynności. Starszy tryb na czas runu zamyka stronę
+po jego zakończeniu. **Wznów sesję** może odtworzyć prywatny checkpoint przez maksymalnie
+godzinę: adresy, cookies i local storage, ale nie niezapisane formularze ani pamięć
+JavaScript. Agent odczytuje nowe numery elementów.
 
 **Przejmowanie przeglądania.** Gdy przeglądanie trwa, **Przejmij** w pasku przeglądarki
 zatrzymuje agenta po bieżącym kroku i oddaje ci stronę, w tym samym oknie: klikaj, pisz,
@@ -1115,7 +1127,7 @@ sesja otwiera kreator tylko do odczytu, z decyzją w ostatnim kroku; zobacz
 
 Szczegóły organizacji mają trzy zakładki: **Members**, **Budget and approvals** oraz **AI & services**. Members pozwala szukać po nazwie i e-mailu, filtrować role i sprawdzić ostatnie zapisane działanie w tym workspace. To działanie z audytu, nie wizyta ani logowanie; działania przez impersonację są pomijane, a brak historii pokazuje kreskę. **Edit workspace** otwiera okno nazwy, avatara i koloru z ochroną niezapisanych zmian. AI & services zawiera osobne karty funkcji bez nadrzędnych grup. Rozwijanie konfiguracji zachowuje szkice. Każda kontrolka zachowuje własne uprawnienia. Stare linki `?tab=profile` otwierają modal workspace, a `?tab=voice` i `?tab=proactivity` odpowiednie ustawienia w AI & services.
 
-Codzienny briefing i sugestie to jedna usługa, konfigurowana w jednym miejscu. Jej karta pokazuje też wydatki i ostatnie wykonania. Utrzymanie pamięci ma własny model i budżet oraz zaczyna jako wyłączone. Najpierw wybierz model, potem włącz usługę. AI Architect pokazuje przełącznik i bezpośredni link do Agent Buildera bez edytora powitania i dodatkowego rozwijania. Pozostałe usługi używają wspólnego nagłówka i układu ikon; rozwijają się tylko wtedy, gdy zawierają ustawienia do edycji.
+Codzienny briefing i sugestie to jedna usługa, konfigurowana w jednym miejscu. Jej karta pokazuje też wydatki i ostatnie wykonania. Utrzymanie pamięci ma własny model i budżet oraz zaczyna jako wyłączone. Najpierw wybierz model, potem włącz usługę. AI Architect zachowuje przełącznik dostępności, bez dodatkowego przycisku Buildera, edytora powitania i rozwijania. Pozostałe usługi używają wspólnego nagłówka i układu ikon; rozwijają się tylko wtedy, gdy zawierają ustawienia do edycji.
 
 Po zalogowaniu zaproszenia wysłane na e-mail konta pojawiają się także w konsoli i onboardingu, bez otwierania linku z wiadomości. Odbiorca wybiera organizację i jawnie przyjmuje zaproszenie; Później zostawia dostępny skrót Zaproszenia. Lista zawiera tylko aktualne zaproszenia na bieżący adres konta, bez linków współdzielonych i organizacji, do których użytkownik już należy. Przyjęcie przełącza organizację i otwiera jej powitanie. Serwer nie zwraca tokenu zaproszenia w tej skrzynce.
 
@@ -1131,10 +1143,11 @@ Konsola mówi po angielsku, polsku, niemiecku, turecku, francusku,
 niderlandzku i po portugalsku w odmianie brazylijskiej. Pierwsza karta przewodnika proponuje je wszystkie, a menu konta
 zmienia język w każdej chwili; wybór jest zapisywany na twoim
 koncie, więc konsola otwiera się w nim na każdym urządzeniu, na którym się
-logujesz. Możesz też poprosić agenta - "przełącz na angielski" - a strona zmieni
-się, gdy odpowie, bez przeładowania. Każdy agent odpowiada w nim, chyba że
-jawnie poprosisz o inny język. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
+logujesz. Możesz też jawnie poprosić agenta o zmianę języka interfejsu. Sama prośba
+o odpowiedź w innym języku nie zmienia tego ustawienia konta. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
 [tłumaczenia](howto/translate.md) - zostają angielskie w każdym języku.
+
+Odpowiedzi agenta respektują jawne wymagania językowe jego instrukcji i jawne prośby użytkownika zgodnie z ich priorytetem. W pozostałych przypadkach podążają za bieżącą wiadomością użytkownika, a przy wiadomości niejednoznacznej zachowują ustalony język rozmowy. Zapisany język konta jest rezerwą dla krótkiego lub niejednoznacznego powitania bez ustalonego języka rozmowy; nie zamienia jasnej polskiej prośby w angielską odpowiedź. Dokumenty źródłowe i wyniki narzędzi nie wybierają języka odpowiedzi.
 
 Ta sama karta pyta, czym się zajmujesz, a **Ustawienia → Profil (Settings →
 Profile)** trzymają resztę tego, co agenci o tobie wiedzą: twoją rolę, nad czym
@@ -1208,11 +1221,15 @@ Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybr
 
 ## Pierwsze zadanie { #your-first-task }
 
+Konfiguracja ma trzy niezależne zakresy w kolejności: **wdrożenie → organizacja → osobisty**. Postęp wdrożenia jest wspólny dla całej instancji i wymaga bieżących uprawnień administratora aplikacji. Postęp organizacji dotyczy wybranej organizacji i wymaga `org:settings`; jednokrotne ukończenie widzą wszyscy jej uprawnieni administratorzy. Postęp osobisty nadal należy do członkostwa. Administrator aplikacji może ukończyć konfigurację wdrożenia jeszcze przed powstaniem organizacji, a następnie utworzyć lub wybrać organizację. Wcześniejszy nieukończony zakres ma pierwszeństwo; ukończone można przejrzeć ponownie. Etapy prowadzą przez konfigurację, ale nie blokują ustawień, bezpieczeństwa, wylogowania ani pozostałych modułów.
+
+Każdy zakres zapisuje osobny czas ukończenia i ostatni odwiedzony ekran. Odwiedzenie ekranu nie dowodzi zapisania ustawień. Równoczesne ukończenia zachowują pierwszy zapis; późniejsza wizyta nie otwiera ukończenia na nowo. Osobiste odłożenie przypomnienia nie odkłada wspólnej konfiguracji innym administratorom. Aktualizacja wprowadza nieukończone etapy wdrożenia i organizacji także istniejącym administratorom; zachowuje wcześniejsze ukończenia osobiste i odłożenia. Sam zapis ukończenia nie wymaga agenta, wywołania dostawcy, zaproszenia ani opcjonalnej konfiguracji.
+
 W nowej organizacji domyślnie wybrany jest dostarczony **AgenticOS**, również przed publikacją, chyba że wybierzesz innego domyślnego agenta. Po pierwszej wiadomości może wyjaśnić konfigurację modelu i pokazać kartę ustawień bez wykonywania draftu ani wywoływania dostawcy AI. Odpowiedź i karta pozostają w historii czatu. Osoby z uprawnieniami konfiguracji otwierają ustawienia modelu agenta; pozostali członkowie widzą wskazówkę dotyczącą administratora i kontakt wsparcia instancji, jeśli został podany. Wybierz model, dodaj klucz, jeśli jest wymagany, i opublikuj agenta, aby uruchomić zwykłe odpowiedzi AI. Zwykłe drafty i zarchiwizowani agenci nadal nie mogą być wykonywani.
 
 Onboarding Studio przedstawia zainstalowanych AgenticOS i Architect. Jeśli dostarczony AgenticOS jest dostępnym draftem konfiguracyjnym, przycisk otwiera rozmowę o konfiguracji; publikacja i zwykłe wykonywanie agenta nadal wymagają dotychczasowych uprawnień. Uprawniona osoba może skonfigurować Architect, gdy brakuje mu modelu. Zwykłe drafty i niedostępni agenci nie stają się wykonywalni przez onboarding.
 
-Zamknięcie propozycji startowej odkłada ją na obowiązujący dla tego członkostwa okres 1, 3 lub 7 dni według czasu serwera. Może wrócić, jeśli konfiguracja pozostaje nieukończona, a przypomnienia są włączone. Po przejściu pytań **Zakończ konfigurację i otwórz aplikację** zapisuje ukończenie dla tego członkostwa. Opcjonalne pola, zaproszenia, model, agent ani run AI nie są wymagane. Ukończenie onboardingu i udane zadanie to osobne stany.
+Zamknięcie osobistej propozycji startowej odkłada ją na obowiązujący dla tego członkostwa okres 1, 3 lub 7 dni według czasu serwera. Może wrócić, jeśli konfiguracja pozostaje nieukończona, a przypomnienia są włączone. Po przejściu pytań **Zakończ konfigurację i otwórz aplikację** zapisuje ukończenie dla tego członkostwa. Opcjonalne pola, zaproszenia, model, agent ani run AI nie są wymagane. Ukończenie onboardingu i udane zadanie to osobne stany.
 
 Otwórz **Pierwsze kroki** z dashboardu, propozycji przy pierwszym użyciu lub pomocy
 strony. Na desktopie baner startowy czatu jest półprzezroczystą nakładką nad konsolą.
@@ -1225,7 +1242,7 @@ Start uwzględnia uprawnienia osoby i jej dotychczasową pracę:
 
 | Osoba                                                | Prowadzony start                                                                                  |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Administrator aplikacji                              | Utworzenie lub wybór firmy, tożsamość i zaproszenia, następnie zasady dołączania przyszłych kont. |
+| Administrator aplikacji                              | Najpierw wspólna konfiguracja wdrożenia, potem organizacji i preferencje osobiste. |
 | Administrator organizacji                            | Przygotowanie organizacji i jej limitu wydatków, bez ustawień wdrożenia.                          |
 | Nowe konto członka                                   | Powitanie, opcjonalny profil osobisty i kontekst pracy, potem pierwsze zadanie.                   |
 | Istniejące konto dołączające do kolejnej organizacji | Powitanie w tej organizacji, użycie zapisanego profilu lub jego świadomy przegląd.                |
@@ -1251,11 +1268,11 @@ zwinięte oraz zachowują swoje uprawnienia i sposób zapisu.
 Adres URL zachowuje krok, pytanie konfiguracji i organizację po odświeżeniu. Nie przechowuje
 niezapisanych zmian, nie nadaje dostępu i nie oznacza ukończenia. Zmiana organizacji
 lub odebranie uprawnień uniemożliwiają wznowienie uprzywilejowanego kroku. Zakończenie
-ostatniego etapu zapisuje ukończenie na członkostwie także przy pominięciu pól i AI.
+etapu osobistego zapisuje ukończenie na członkostwie także przy pominięciu pól i AI.
 
 Dawne ukończenie na koncie dotyczy członkostw istniejących do tego czasu. Późniejsze
 członkostwo ma osobny start. Własne rozmowy i ukończone przewodniki nadal chronią
-przed automatycznym powtarzaniem, a opublikowani agenci ukrywają zwykłe propozycje
+przed automatycznym powtarzaniem części osobistej, a opublikowani agenci ukrywają zwykłe propozycje
 startu. Linki po rejestracji i przyjęciu zaproszenia pokazują powitanie osobie bez
 własnej aktywności lub ukończenia także w organizacji z gotowymi agentami. Starsze
 i nieudane rozmowy liczą się jako aktywność bez udawania udanego runu. Ręczny start
@@ -1320,7 +1337,7 @@ Studio jest domyślne pod `/onboarding`; pozostałe układy pozostają dostępne
 
 Studio zachowuje położenie nagłówka i dolnych przycisków podczas zmiany kroku. Galeria avatarów ustawia podgląd na środku po przeciągnięciu lub użyciu strzałek; dopiero wybranie podglądu go zapisuje. Ograniczenie ruchu wyłącza sprężyste przejścia galerii i ruch kroków. Przypomnienie o niedokończonej konfiguracji pozostaje wyłącznie w pasku bocznym, bez drugiego banera nad obszarem pracy.
 
-Nowe konta otwierają `/onboarding` po rejestracji hasłem lub pierwszym logowaniu OAuth albo katalogowym, również przy rejestracji z zaproszenia. Język i wygląd poprzedzają konfigurację przestrzeni; tutaj można też sprawdzić i przyjąć zaproszenia. Dołączenie wymaga świadomego wyboru. Język zapisuje się na koncie i trafia do agentów przez `{{language}}` oraz briefing osoby. Jawna prośba o inny język ma pierwszeństwo.
+Nowe konta otwierają `/onboarding` po rejestracji hasłem lub pierwszym logowaniu OAuth albo katalogowym, również przy rejestracji z zaproszenia. Język i wygląd poprzedzają konfigurację przestrzeni; tutaj można też sprawdzić i przyjąć zaproszenia. Dołączenie wymaga świadomego wyboru. Język zapisuje się na koncie i trafia do agentów przez `{{language}}` oraz briefing osoby. To rezerwa przy wyborze języka odpowiedzi, a nie nakaz używania języka interfejsu w każdej wiadomości.
 
 Po subskrypcjach konfiguracja modelu pokazuje najpierw dostawcę, następnie połączenie i model. Subskrypcje osobiste pozostają w poprzednim kroku. Narzędzia zaczynają od sugerowanych usług; **Przeglądaj wszystkie usługi** otwiera pełny katalog MCP.
 
@@ -1330,3 +1347,30 @@ Gdy agent zadaje pytanie, karta i zwykły edytor pozostają widoczne razem. Edyt
 ## Płaska lista ostatnich chatów { #flat-recent-chat-list }
 
 Nagłówek Chatów oferuje **Ostatnią aktywność (płaską listę)**. Łączy chaty projektowe i zwykłe w jedną listę według ostatniej aktywności, bez nagłówków projektów, nieprzeczytanych i ulubionych. Ulubione zachowują gwiazdki, ale nie są przypinane ponad nowszą aktywnością. Paginacja korzysta z tej kolejności na serwerze, więc stare ulubione nie wypychają ostatnich chatów z pierwszej strony. Dotychczasowe filtry agenta, archiwum i API nadal działają. Wybór jest zapisywany w tej przeglądarce osobno dla każdego zalogowanego użytkownika; **Grupuj chaty według projektu** przywraca domyślny widok grupowany.
+
+## Żywa przeglądarka i pulpit { #live-environments }
+
+Pasek Browser ma jedną ikonę sterowania z podpowiedzią i stanem wciśnięcia. Sam podgląd nie dodaje widocznej etykiety statusu. Kompaktowe linki odwiedzonych stron zawijają się razem przy lewej krawędzi, a composer trzyma Workspace obok agenta zamiast rozsuwać te kontrolki na cały wiersz.
+
+We własnym prywatnym czacie **Workspace** otwiera ostatni dostępny panel jednym kliknięciem. Jeśli wcześniej nic nie wybrano, otwiera działający Browser lub Desktop, a w przeciwnym razie Files. Browser i Desktop są dostępne, gdy wybrany opublikowany agent ma daną capability, a Ty możesz go uruchamiać. Pusty czat projektu można najpierw utworzyć bez wiadomości i bez modelu. Otwarcie panelu nie tworzy środowiska; uruchamia je jawne **Open environment**. Sparowane lokalne urządzenia zachowują dotychczasowe sterowanie.
+
+Browser ma też wiersz rzeczywiście otwartych stron, oddzielny od widoków Workspace. Wybór strony zachowuje jej formularze i stan JavaScript. Lista zawiera do ośmiu żywych, zarejestrowanych kart należących do tej rozmowy; linki z historii i obce konteksty przeglądarki nie stają się zakładkami. Metadane stron odświeżają się w istniejącym strumieniu w ciągu pięciu sekund. Przełączenie bezczynnej strony nie wymaga Take over; sterowanie agenta lub dzierżawa wejścia innej osoby blokuje wybór. Obraz czeka na świeżą klatkę wybranej strony przed pokazaniem pikseli i przyjęciem komend.
+
+Kompaktowy pasek zakładek zbiera dostępne widoki nad obrazem środowiska. W menu **Opcje środowiska** znajdziesz zasady czasu życia, **Sprawdź dostępność** i **Zakończ środowisko**. Zakończenie wymaga potwierdzenia. Otwieranie i sprawdzanie pokazują postęp albo kontrolowaną odmowę. Ukryty panel zachowuje zamontowany widok i szkic adresu; podczas ponownego łączenia zapisany obraz pozostaje ukryty do uzyskania aktualnej gotowości.
+
+Ukrycie panelu, zmiana zakładki lub rozłączenie strumienia odłącza tylko ten podgląd. Środowisko o czasie życia run zamyka się po runie agenta, który faktycznie z niego korzystał; niezwiązana wiadomość nie zamyka nieużywanego środowiska otwartego ręcznie.
+
+W trybie rozmowy następna uprawniona tura prywatnego czatu przejmuje tę samą żywą kartę przeglądarki lub referencję pulpitu u dostawcy, wraz z niezapisanymi formularzami i stanem JavaScript. To nie jest nowa przeglądarka z przekopiowanymi adresami i cookies. Gdy oryginalny zasób lub jego właściciel przestaje istnieć, panel pokazuje wygaśnięcie zamiast obiecywać odtworzenie. Jeden fizyczny interfejs ma w danej chwili jednego sterującego; sterowanie agenta blokuje ręczne komendy do czasu zwolnienia. Wybrany cel wykonania agent/projekt jest przekazywany w odczycie, tworzeniu, zakończeniu i strumieniu, więc zmiana wyboru nie przedstawia starego środowiska jako nowego celu.
+
+Konfigurację i zachowanie przy awarii opisują [czasy życia sesji](sandbox.pl.md#conversation-environments).
+
+Konteksty przeglądarki są izolowane dla właściciela i rozmowy. Pulpit ma zakres skonfigurowanego workspace lub projektu: executor o zakresie agenta albo inny współdzielony executor ma wspólny fizyczny interfejs. Dzierżawa serializuje sterowanie, ale nie zmienia wspólnego pulpitu w prywatny. Menu dostępne tylko właścicielowi ogranicza podłączenie podglądu czatu, a nie widoczność ekranu celowo współdzielonego executora.
+
+Delegaci zachowują własne widoki aktywności przeglądarki i pulpitu. Delegat używający tego samego zdalnego pulpitu musi przejąć jego fizyczne sterowanie przed uruchomieniem lub obsługą ekranu; inny aktywny sterownik blokuje start. Niezależna przeglądarka delegata nigdy nie jest zastępowana zapisanym środowiskiem głównego agenta.
+
+
+## Kontrolki w wąskim czacie i na telefonie { #narrow-chat-controls }
+
+Na telefonie pływający przycisk **Chat controls** nad rozmową zawiera model, tryb zatwierdzania, użycie kontekstu i lokalne narzędzia. Pole wiadomości zachowuje załączniki, agenta, Workspace i Wyślij w jednym wierszu; szerszy czat zachowuje dolne kontrolki. Biblioteka modeli na telefonie umieszcza wybór dostawcy nad listą modeli, zostawiając pełną szerokość na ich nazwy.
+
+Na telefonie układy i dostosowanie dashboardu przechodzą do **Więcej akcji strony**. Wyszukiwanie w tabeli dzieli wiersz z kompaktowymi przyciskami filtrowania, sortowania i ustawień widoku; **Grupuj według** jest w ustawieniach widoku. Onboarding ma krótkie etykiety mobilne z pełnymi nazwami dostępnymi dla czytników ekranu. Modal śledzenia projektu zostawia miejsce wokół pól z fokusem, aby ich obrys pozostawał widoczny.

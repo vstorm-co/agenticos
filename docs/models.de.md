@@ -1,5 +1,5 @@
 ---
-source_sha: "b4f01f7af48e"
+source_sha: "459407421009"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -448,6 +448,10 @@ Für einen **Z.AI GLM Coding Plan** wähle **Z.AI** und setze **Endpoint** ausdr
 
 Ein Planschlüssel ist nicht mit dem nutzungsabhängigen API-Schlüssel des Anbieters austauschbar. Manche Anbieter beschränken Planschlüssel auf Coding-Tools; die Nutzung über eine Agentenplattform ist deine Entscheidung und kann den Plan einschränken oder sperren. AgenticOS-Budgets behandeln diese Nutzung als unbepreiste Abo-Nutzung.
 
+**OpenCode-Go-Sitzungen.** AgenticOS sendet `x-opencode-session` und den eigenen User-Agent `agenticos/<version>` bei Go-Modellanfragen. Ein veröffentlichter Agent nutzt seine stabile Agent-ID innerhalb der Unterhaltung; eine Umbenennung ändert die Sitzung nicht. Inline- und dynamische Spezialisten haben getrennte Eltern-und-Namens-Bereiche; Reviewer haben eigene Bereiche. Ohne Unterhaltung gilt die Run-ID; außerhalb eines Runs aufgebaute Modelle behalten eine generierte Sitzung über ihre Fallback-Kette. Explizite `extra_headers` überschreiben beide Header weiterhin.
+
+OpenCode Go ist für typische Coding-Agent-Anfragen vorgesehen. Diese Routing-Header ändern die erlaubte Nutzung des Abonnements nicht; ein Go-Profil ist keine uneingeschränkte Inferenz-API für allgemeine Zwecke.
+
 **Weitere OpenAI-kompatible Konten.** Nous Portal, Inception, Cline, Chutes und Synthetic nehmen den Schlüssel aus der Konsole des jeweiligen Dienstes. Ein leerer Endpoint verwendet die Standardadresse unten, und die Modellliste stammt aus dem Katalog des Schlüssels. Abos von Nous Portal, Chutes und Synthetic gelten als unbepreist; Cline-Guthaben und Inception-Nutzung werden nur bepreist, wo AgenticOS den Modellpreis kennt.
 
 | Provider | Standard-Endpunkt |
@@ -465,6 +469,8 @@ Der Scope enthält auch die Mitgliedschafts-ID: Ein erneuter Beitritt erzeugt ei
 Wähle den Vault-Schlüssel und bestätige das Ziel, bevor du Modelle lädst. Ein eigener Katalog verwendet nur diesen Schlüssel und Endpoint. Eine nicht verfügbare Liste lässt die manuelle Modelleingabe zu, statt den allgemeinen API-Katalog einzusetzen. Die Budgetschätzungen von AgenticOS messen nicht dein verbleibendes Abonnementkontingent.
 
 ### Abonnement-Konten { #subscription-accounts }
+
+Wenn für die Installation kein Abonnement-Gateway konfiguriert ist, erklärt **Einstellungen → Abonnements**, dass Abonnements nicht aktiviert sind, statt eine leere Seite anzuzeigen. **Erneut versuchen** aktualisiert die Verfügbarkeit nach der Einrichtung durch die Administration und startet keine Anbieteranmeldung. Fehlgeschlagene Abfragen zeigen einen Fehler mit Wiederholungsaktion.
 
 Beginne im Agenteneditor und in der Modellauswahl des Chats mit **Deine Abonnements**, wähle einen bekannten Anbieter wie **Claude Code (Pro, Max)** oder **ChatGPT (Codex)** und klicke auf **Verbinden**. Die Anmeldung öffnet sich direkt dort und führt zur Modellauswahl zurück. Die Liste stammt aus den verbundenen Konten dieses Anbieters, nicht aus Vermutungen anhand von Modellnamen. Nicht verfügbare Konten bieten eine erneute Anmeldung. Konten lassen sich unter **Einstellungen → Abonnements** verwalten und trennen. API-Schlüssel der Organisation bilden eine eigene Gruppe; manuell konfigurierte Gateways und Endpoints stehen unter **Erweitert / eigener Endpoint**. Bestehende Profile mit `subscription_accounts` und `cliproxyapi` behalten ihre API-IDs.
 
@@ -588,6 +594,12 @@ Anbieters spricht über diesen Anbieter.
 dass die Auswahl genau das anbietet, was Ihr Server ausliefert. Die Modell-ID
 bleibt Freitext: Ein Server ohne veröffentlichte Liste ist trotzdem benutzbar,
 wenn Sie die ID eintippen.
+
+**Embeddings über dasselbe Gateway.** Ein Gateway, das ein `openai_compatible`-Chatprofil erreicht, kann auch
+embedden: Registrieren Sie es unter Knowledge → Integrations als **Dienstverbindung** mit dem API-Stil
+*OpenAI-compatible* und wählen Sie denselben Vault-Schlüssel (sein Zweck ist `openai_compatible`). Die
+Collection nutzt dann den Embedding-Provider **Custom (OpenAI-compatible)** mit einem Model, das Sie
+eingeben, nach einem Test gegen ihre gespeicherten Chunks. Siehe [Dateiverarbeitung](file-processing.md#a-custom-openai-compatible-endpoint-and-the-test).
 
 ### Wenn die Zugangsdaten kein API-Key sind { #when-the-credential-is-not-an-api-key }
 
@@ -898,13 +910,51 @@ dafür zu Hause an, was zwei wissenswerte Dinge bedeutet:
   Anthropics `claude-sonnet-5-5` kostet.
 - Preise zu aktualisieren ist ein Abhängigkeits-Update.
 
-!!! warning "Ein Provider ohne Key erfasst keine Ausgaben"
+Im Abschnitt **Preise** eines Modellprofils können Sie automatische Tokenpreise
+überschreiben. Eingabe und Ausgabe werden pro Million Tokens in der gewählten Währung angegeben (standardmäßig USD).
+Cache-Lese- und Schreibpreise sind optional und übernehmen bei leerem Feld den
+Eingabepreis. Eine ausdrückliche Null ist ein Preis. Die API verwendet dafür
+`custom_pricing`: Auslassen beim Aktualisieren behält die Einstellung bei,
+`null` stellt die automatische Preisermittlung wieder her.
 
-    Ausgaben werden dem [Vault-Secret](secrets.md) zugerechnet, auf das der Run
-    aufgelöst hat, und ein Provider ohne Key hat keines, dem sie zuzurechnen wären.
+Das Ändern oder Zurücksetzen von Preisen erfordert neben der Verwaltung von Modellverbindungen auch `budgets:manage`. Diese Berechtigung gilt auch für Änderungen an Schlüssel, Endpunkt, `extra_body` oder `extra_headers` eines Profils mit eigenen Preisen: Rohe Anforderungseinstellungen können Modell oder zahlendes Konto wechseln. Andere Generierungseinstellungen wie die Temperatur behalten ihre bisherigen Berechtigungen.
+
+Abonnementprofile unterstützen dieselben optionalen Tokenpreise; diese messen den Budgetverbrauch, nicht das Abonnementkontingent. Wenn eigene Preise die Abrechnung ersetzen, bleiben die ursprünglichen Anbieterbeträge in den Nutzungsmetadaten erhalten.
+
+Eigene Preise haben Vorrang vor Katalogpreisen und Anbieterrechnungen.
+Es gelten die Preise des tatsächlich antwortenden Profils, auch bei Fallbacks,
+Delegationen und Modellen ohne Schlüssel. Normalisierte Cache-Tokens werden nur
+einmal berechnet. Schätzungen verwenden Profilpreise, wo sie sonst den Katalog
+verwenden würden; historische Schätzungen verwenden weiterhin gespeicherte Kosten.
+
+Preisänderungen gelten für neu aufgelöste Nutzung und ändern keine historischen
+Run- oder Nachrichtenkosten. Ungültige Tokenzahlen oder fehlende Nutzungsdaten
+bleiben teilweise bepreist. Bekannte Teilbeträge bleiben erhalten; nach unvollständiger
+Nutzung mit eigenen Preisen lehnt ein aktives Dollarbudget weitere Anfragen ab.
+Der automatische Modus behält Katalog und Anbieterrechnungen bei. Das Formular
+zeigt verfügbare Richtpreise der Basisstufe; die tatsächliche Anbieterrechnung
+ist erst nach der Anfrage bekannt. Eigene Preise konfigurieren weder Realtime-
+Sprachanrufe noch die nach Einheiten berechnete Bild-, Audio- und Videoerzeugung.
+
+Bepreiste Anfragen ohne Schlüssel zählen zu Ausgaben und Budgets der Organisation.
+Sie haben kein [Vault-Secret](secrets.md) für eine Zuordnung im Schlüsselbericht.
 
 Die Kosten werden *vor* jeder Modellanfrage geprüft und auch dann erfasst, wenn
 der Run fehlschlägt. Siehe [Budgets](governance.md#budgets).
+
+Eigene Preise enthalten einen `currency`-Code, unabhängig von Organisation und
+Oberflächensprache. Administratoren pflegen manuelle Kurse unter **Währungen und
+Wechselkurse**. Ein Kurs bedeutet Währungseinheiten pro USD: Bei EUR `0.9` werden
+`9 EUR` als `10 USD` erfasst. Die Nutzung behält ursprünglichen Betrag, Währung und
+angewendeten Kurs; spätere Änderungen überschreiben diese USD-Kosten nicht.
+Kosten von null werden auch ohne Wechselkurs als `0 USD` erfasst. Bei einem
+Ausgabenlimit ist vor der Inferenz ein Wechselkurs erforderlich, sobald einer
+der Tokenpreise des Profils Kosten verursachen kann. Das gilt auch für
+Lese- und Schreibzugriffe auf den Cache.
+
+Workflow-Statistiken, Dashboard-Ausgaben, Laufverlauf, Gesprächskosten und verbleibendes Budget verwenden den gespeicherten Berichtskurs der Organisation. Er wird bei der Organisationserstellung, einer ausdrücklichen Änderung der bevorzugten oder standardmäßigen Währung sowie beim Abgleich nach Migration oder Start festgelegt. Änderungen der Preiskurse erneuern ihn nicht. Ein ausdrücklicher Währungswechsel ändert angezeigte Gegenwerte, niemals gespeicherte USD-Belege oder Limits. Fehlende Berichtskurse bleiben sichtbar unbekannt.
+
+Limitformulare verwenden denselben Kurs. Ursprünglicher Betrag, Währung und Kurs bleiben neben dem USD-Buchungslimit erhalten; andere Änderungen ersetzen sie nicht. Workflow-Limits, Improve-Budgets und Kostenkriterien behalten ihre Durchsetzungsregeln. Ältere Agentenspezifikationen speichern ihr USD-Budget weiter als Float und lehnen einen deklarierten Betrag ab, der an dieser Grenze nicht exakt darstellbar ist. Der API-Vertrag steht unter [Limitwährung](governance.md#limit-currency).
 
 ### Eine Delegation löst ihr eigenes Profile auf { #a-delegation-resolves-its-own-profile }
 

@@ -12,16 +12,17 @@ import base64
 import json
 import sys
 import types
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from websockets.exceptions import ConnectionClosed
 
 from app.core.exceptions import ConfigurationError, ExternalServiceError
 from app.schemas.artifact import BindingData
 from app.services import artifact_render as renderer
-from app.services.artifact import content_address, content_security_policy
+from app.services.artifact import content_address, content_security_policy, tile_source
 from app.services.artifact_render import (
     CdpError,
     CdpPayload,
@@ -246,6 +247,45 @@ async def _render(browser: FakeBrowser, **overrides: Any) -> renderer.Rendered:
 
 
 class TestNothingReachesTheNetwork:
+    @pytest.mark.security
+    async def test_unbound_renders_never_forward_page_selected_map_tiles(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services import visual_render
+
+        address = f"{tile_source()}3/4/5"
+        browser = FakeBrowser(
+            events=[*_page_events(), ("Fetch.requestPaused", _paused("tile", address), "FRAME")]
+        )
+        proxy = AsyncMock(return_value=visual_render.Answer(body=b"tile", content_type="image/png"))
+        monkeypatch.setattr(visual_render, "answer", proxy)
+
+        drawn = await _render(browser, bindings=None)
+
+        assert browser.answered()["tile"] == "failRequest"
+        assert address in drawn.blocked
+        proxy.assert_not_awaited()
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("bindings", [{}, {"tickets": _binding()}])
+    async def test_live_data_renders_never_forward_page_selected_map_tiles(
+        self, bindings: dict[str, BindingData], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from app.services import visual_render
+
+        address = f"{tile_source()}3/4/5"
+        browser = FakeBrowser(
+            events=[*_page_events(), ("Fetch.requestPaused", _paused("tile", address), "FRAME")]
+        )
+        proxy = AsyncMock(return_value=visual_render.Answer(body=b"tile", content_type="image/png"))
+        monkeypatch.setattr(visual_render, "answer", proxy)
+
+        drawn = await _render(browser, bindings=bindings)
+
+        assert browser.answered()["tile"] == "failRequest"
+        assert address in drawn.blocked
+        proxy.assert_not_awaited()
+
     async def test_only_the_host_the_page_and_the_library_set_are_answered(self) -> None:
         browser = FakeBrowser()
         drawn = await _render(browser)
@@ -312,6 +352,42 @@ class TestNothingReachesTheNetwork:
 
 
 class TestTheRender:
+    @pytest.mark.parametrize(("appearance", "background"), [("light", "#fff"), ("dark", "#121212")])
+    async def test_transparent_previews_use_the_requested_canvas_appearance(
+        self, appearance: Literal["light", "dark"], background: str
+    ) -> None:
+        browser = FakeBrowser()
+        await _render(browser, appearance=appearance)
+        (host,) = [
+            params
+            for params, _ in browser.commands("Fetch.fulfillRequest")
+            if params and params["requestId"] == "shell"
+        ]
+        shell = base64.b64decode(host["body"]).decode()
+        assert f"background: {background};" in shell
+        assert "color-scheme:" not in shell
+        assert browser.commands("Emulation.setEmulatedMedia") == [
+            ({"features": [{"name": "prefers-color-scheme", "value": appearance}]}, "PAGE"),
+            ({"features": [{"name": "prefers-color-scheme", "value": appearance}]}, "FRAME"),
+        ]
+        commands = [(name, session) for name, _, session in browser.sent]
+        assert commands.index(("Emulation.setEmulatedMedia", "FRAME")) < commands.index(
+            ("Runtime.runIfWaitingForDebugger", "FRAME")
+        )
+
+    async def test_visual_previews_use_the_requested_width_and_color_scheme(self) -> None:
+        browser = FakeBrowser()
+        drawn = await _render(browser, width=390, appearance="dark")
+        assert drawn.width == 390
+        assert all(
+            params["width"] == 390
+            for params, _ in browser.commands("Emulation.setDeviceMetricsOverride")
+        )
+        assert browser.commands("Emulation.setEmulatedMedia") == [
+            ({"features": [{"name": "prefers-color-scheme", "value": "dark"}]}, "PAGE"),
+            ({"features": [{"name": "prefers-color-scheme", "value": "dark"}]}, "FRAME"),
+        ]
+
     async def test_it_reports_what_the_page_did(self) -> None:
         drawn = await _render(FakeBrowser())
         assert drawn.errors == [
@@ -403,6 +479,169 @@ class TestTheRender:
 
 
 class TestEveryRenderEnds:
+    @pytest.mark.security
+    @pytest.mark.parametrize("value", ["x" * 1024, "\U0001f34e" * 128])
+    async def test_one_oversized_console_event_aborts_before_diagnostics_or_capture(
+        self, value: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(renderer, "MAX_EVENT_BYTES", 256)
+        browser = FakeBrowser(
+            events=[
+                (
+                    "Runtime.consoleAPICalled",
+                    {"type": "warning", "args": [{"value": value}]},
+                    "PAGE",
+                ),
+                ("Page.loadEventFired", {}, "PAGE"),
+            ]
+        )
+        with (
+            patch.object(renderer._Render, "_console") as console,
+            pytest.raises(ExternalServiceError, match="browser-event limit") as refused,
+        ):
+            await _render(browser)
+
+        console.assert_not_called()
+        assert refused.value.details["max_event_bytes"] == 256
+        assert value not in refused.value.message
+        assert browser.commands("Page.captureScreenshot") == []
+        assert browser.closed and browser.commands("Target.disposeBrowserContext")
+
+    async def test_a_unicode_event_at_the_encoded_byte_limit_is_accepted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        payload = {"type": "warning", "args": [{"value": "\U0001f34e" * 30}]}
+        size = len(json.dumps(payload, ensure_ascii=True, separators=(",", ":")))
+        monkeypatch.setattr(renderer, "MAX_EVENT_BYTES", size)
+        monkeypatch.setattr(renderer, "MAX_TOTAL_EVENT_BYTES", size + 2)
+        browser = FakeBrowser(
+            events=[
+                ("Runtime.consoleAPICalled", payload, "PAGE"),
+                ("Page.loadEventFired", {}, "PAGE"),
+            ]
+        )
+        found = await _render(browser)
+        assert found.console == [f"warning: {'\U0001f34e' * 30}"]
+        assert found.image == b"jpeg-bytes"
+
+    async def test_large_screenshot_replies_are_not_charged_as_events(self) -> None:
+        browser = FakeBrowser(events=[("Page.loadEventFired", {}, "PAGE")])
+        image = b"x" * (2 * 1024 * 1024)
+        send = browser.send
+
+        async def capture(
+            method: str, params: CdpPayload | None = None, *, session_id: str | None = None
+        ) -> CdpPayload:
+            result = await send(method, params, session_id=session_id)
+            return (
+                {"data": base64.b64encode(image).decode()}
+                if method == "Page.captureScreenshot"
+                else result
+            )
+
+        with patch.object(browser, "send", capture):
+            found = await _render(browser)
+        assert found.image == image
+        assert browser.closed
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("hang_on", [None, "Fetch.fulfillRequest"])
+    async def test_a_console_burst_aborts_and_disposes_instead_of_growing_the_queue(
+        self, hang_on: str | None, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(renderer, "MAX_PENDING_EVENTS", 4)
+        monkeypatch.setattr(renderer, "DEADLINE_SECONDS", 1)
+        events = [
+            (
+                "Runtime.consoleAPICalled",
+                {"type": "warning", "args": [{"value": f"log {i}"}]},
+                "PAGE",
+            )
+            for i in range(10)
+        ]
+        browser = FakeBrowser(
+            events=[
+                ("Fetch.requestPaused", _paused("page", PAGE_URL), "PAGE"),
+                *events,
+                ("Page.loadEventFired", {}, "PAGE"),
+            ],
+            hang_on=hang_on,
+        )
+
+        with pytest.raises(ExternalServiceError, match="browser-event limit"):
+            await _render(browser)
+
+        assert browser.closed
+        assert browser.commands("Target.disposeBrowserContext") == [
+            ({"browserContextId": "CTX"}, None)
+        ]
+
+    @pytest.mark.security
+    @pytest.mark.parametrize("budget", ["events", "bytes"])
+    async def test_draining_browser_events_does_not_reset_the_total_budget(
+        self, budget: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        if budget == "events":
+            monkeypatch.setattr(renderer, "MAX_EVENTS", 4)
+        else:
+            payload = _paused("chain-0", "https://blocked.example/0")
+            size = len(json.dumps(payload, ensure_ascii=True, separators=(",", ":")))
+            monkeypatch.setattr(renderer, "MAX_TOTAL_EVENT_BYTES", 4 * size)
+        browser = FakeBrowser(
+            events=[
+                ("Fetch.requestPaused", _paused("chain-0", "https://blocked.example/0"), "PAGE")
+            ]
+        )
+        send = browser.send
+
+        async def following_request(
+            method: str, params: CdpPayload | None = None, *, session_id: str | None = None
+        ) -> CdpPayload:
+            result = await send(method, params, session_id=session_id)
+            if method == "Fetch.failRequest" and params:
+                index = int(str(params["requestId"]).removeprefix("chain-")) + 1
+                if index == 10:
+                    browser.handlers["Page.loadEventFired"]({}, "PAGE")
+                else:
+                    browser.handlers["Fetch.requestPaused"](
+                        _paused(f"chain-{index}", f"https://blocked.example/{index}"), "PAGE"
+                    )
+            return result
+
+        monkeypatch.setattr(browser, "send", following_request)
+
+        with pytest.raises(ExternalServiceError, match="browser-event limit"):
+            await _render(browser)
+
+        assert len(browser.commands("Fetch.failRequest")) == 4
+        assert browser.closed and browser.commands("Target.disposeBrowserContext")
+        healthy = FakeBrowser(events=[("Page.loadEventFired", {}, "PAGE")])
+        assert (await _render(healthy)).image == b"jpeg-bytes"
+
+    @pytest.mark.security
+    async def test_overflow_wins_even_when_the_screenshot_completes_at_the_same_time(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(renderer, "MAX_PENDING_EVENTS", 4)
+        browser = FakeBrowser(events=[("Page.loadEventFired", {}, "PAGE")])
+        send = browser.send
+
+        async def overflowing_capture(
+            method: str, params: CdpPayload | None = None, *, session_id: str | None = None
+        ) -> CdpPayload:
+            if method == "Page.captureScreenshot":
+                for _ in range(10):
+                    browser.handlers["Runtime.consoleAPICalled"]({"type": "warning"}, "PAGE")
+            return await send(method, params, session_id=session_id)
+
+        monkeypatch.setattr(browser, "send", overflowing_capture)
+
+        with pytest.raises(ExternalServiceError, match="browser-event limit"):
+            await _render(browser)
+
+        assert browser.commands("Page.captureScreenshot")
+        assert browser.closed and browser.commands("Target.disposeBrowserContext")
+
     async def test_a_page_that_never_loads_runs_into_the_deadline_and_is_disposed(
         self,
     ) -> None:
@@ -539,6 +778,7 @@ class _Client:
 
     def __init__(self, socket: str = "ws://x") -> None:
         self.socket = socket
+        self.max_ws_frame_size: int | None = None
         self.register = MagicMock()
         self.send_raw = AsyncMock(return_value={"ok": 1})
         self.start = AsyncMock()
@@ -552,7 +792,10 @@ class TestTheCdpUseClient:
         assert await connection.send("Page.enable", session_id="S") == {"ok": 1}
         client.send_raw.assert_awaited_once_with("Page.enable", None, "S")
 
-    @pytest.mark.parametrize("raised", [RuntimeError({"code": -32000}), ConnectionError("gone")])
+    @pytest.mark.parametrize(
+        "raised",
+        [RuntimeError({"code": -32000}), ConnectionError("gone"), ConnectionClosed(None, None)],
+    )
     async def test_a_refused_or_lost_command_is_a_cdp_error(self, raised: Exception) -> None:
         client = _Client()
         client.send_raw.side_effect = raised
@@ -573,7 +816,14 @@ class TestTheCdpUseClient:
 
 def _cdp_use(client: _Client) -> types.ModuleType:
     module = types.ModuleType("cdp_use")
-    module.CDPClient = lambda socket: client  # type: ignore[attr-defined]
+
+    def make_client(socket: str, *, max_ws_frame_size: int) -> _Client:
+        client.socket = socket
+        client.max_ws_frame_size = max_ws_frame_size
+        return client
+
+    # The fake optional module declares its client dynamically, like the installed module.
+    module.CDPClient = make_client  # type: ignore[attr-defined]
     return module
 
 
@@ -593,6 +843,8 @@ class TestConnecting:
         ):
             connection = await renderer._connect("http://artifact-render:9222")
         client.start.assert_awaited_once()
+        assert client.socket == "ws://10.0.0.2:9222/x"
+        assert client.max_ws_frame_size == 4 * 1024 * 1024
         assert isinstance(connection, renderer._CdpUseConnection)
 
     async def test_a_browser_that_does_not_answer_is_the_renderer_failing(self) -> None:

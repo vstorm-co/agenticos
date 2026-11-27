@@ -17,8 +17,11 @@
  */
 
 import { useMemo, useState } from "react";
-import { Upload } from "lucide-react";
+import { Download, Upload } from "lucide-react";
 
+import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/api-error";
+import { downloadSkillFile } from "@/lib/skill-package-api";
 import { FileEditor, FileIcon, PathTree, type PathTreeNode } from "@/components/files";
 import { Button, Input, Label, Textarea } from "@/components/ui";
 import { useUnsavedChanges } from "@/hooks/use-unsaved-changes";
@@ -130,7 +133,67 @@ function pathOfId(nodes: SkillTreeNode[], id: string | null): string | null {
  * whether anything was typed. A resource's content is not in the listing, which
  * is why this exists at all and the skill's own body does not need it.
  */
-export function FilePane({
+export function FilePane(props: {
+  skillId: string;
+  resource: SkillResourceSummary;
+  canEdit: boolean;
+  busy: boolean;
+  onSave: (content: string) => Promise<unknown>;
+  onDelete: () => void;
+}) {
+  if (props.resource.encoding === "base64") {
+    return (
+      <BinarySkillFile
+        skillId={props.skillId}
+        name={props.resource.name}
+        size={props.resource.size_bytes}
+        source={{ resourceId: props.resource.id }}
+      />
+    );
+  }
+  return <TextFilePane {...props} />;
+}
+
+export function BinarySkillFile({
+  skillId,
+  name,
+  size,
+  source,
+}: {
+  skillId: string;
+  name: string;
+  size: number;
+  source: { resourceId: string } | { versionId: string };
+}) {
+  const t = useTranslations("skills.package");
+  const errors = useTranslations("errors");
+  const [busy, setBusy] = useState(false);
+  async function download() {
+    setBusy(true);
+    try {
+      await downloadSkillFile(skillId, name, source);
+    } catch (error) {
+      toast.error(getErrorMessage(error, errors));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="space-y-3 rounded-xl border p-4">
+      <p className="font-mono text-sm break-all">{name}</p>
+      <p className="text-muted-foreground text-xs">
+        {t("binary")} · {formatSize(size)}
+      </p>
+      <p className="text-muted-foreground text-sm">{t("binaryHelp")}</p>
+      <Button variant="outline" loading={busy} onClick={() => void download()}>
+        <Download className="size-4" />
+        {t("download")}
+      </Button>
+    </div>
+  );
+}
+
+function TextFilePane({
   skillId,
   resource,
   canEdit,
@@ -163,10 +226,21 @@ export function FilePane({
     }
   };
   useUnsavedChanges(`skill-resource:${skillId}:${resource.id}`, {
-    dirty: canEdit && dirty,
+    dirty: canEdit && dirty && loaded?.encoding !== "base64",
     save,
     discard: () => setDraft(null),
   });
+
+  if (loaded?.encoding === "base64") {
+    return (
+      <BinarySkillFile
+        skillId={skillId}
+        name={resource.name}
+        size={resource.size_bytes}
+        source={{ resourceId: resource.id }}
+      />
+    );
+  }
 
   return (
     <FileEditor
@@ -209,7 +283,7 @@ export function UploadButton({
   return (
     // Shaped like the Button beside it rather than approximately like it: a
     // file input cannot be a <button>, so the label carries the same classes.
-    <label className="border-input hover:bg-accent inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-2 text-sm font-medium transition-colors">
+    <label className="border-input hover:bg-accent focus-within:ring-ring inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border px-2 text-sm font-medium transition-colors focus-within:ring-2 focus-within:ring-offset-2">
       <Icon className="h-3.5 w-3.5 shrink-0" />
       {label}
       <input
@@ -218,7 +292,7 @@ export function UploadButton({
         // Not in React's JSX types - it is a real attribute every browser that
         // matters implements, and it is the only way to pick a folder.
         {...(directory ? ({ webkitdirectory: "" } as Record<string, string>) : {})}
-        className="hidden"
+        className="sr-only"
         onChange={(event) => {
           onPick(Array.from(event.target.files ?? []));
           event.target.value = "";

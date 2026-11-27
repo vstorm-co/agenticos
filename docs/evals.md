@@ -159,12 +159,29 @@ reused baseline. Actual spending can differ from this estimate. Each model
 request still observes the monthly budgets; exhausting one ends the eval as
 `budget_exceeded`.
 
-A start may carry the estimate's `total_usd` back as `quoted_usd`, and the
-estimate's `dataset_version` with it. Starting refuses with `409` if the current
-start estimate is higher than that quote. The Architect passes both, and its
-approval card shows the quote. This compares estimates, not a hard cap on the
-provider's eventual bill. Skill update checks, knowledge drafts and promotion
-guards accept `quoted_usd` too; `GET .../gate/estimate` prices the due guards.
+A start may carry the estimate's `at_most_usd` - its first answers, the judge and
+every rerun - back as `quoted_usd`, and the estimate's `dataset_version` with it.
+Starting then refuses with `409` once the run could cost more than that quote. The
+console's start dialog and the Architect always pass both, and the Architect's
+approval card shows that price. This compares estimates, not a hard cap on the
+provider's eventual bill. Skill update checks, knowledge drafts and a promotion
+gate's guards take a `quoted_usd` the same way, and `GET .../gate/estimate` prices
+the guards a gate run would start.
+
+The run keeps that price. Quoted runs execute one attempt at a time, including
+its grading; runs without a quote retain their configured concurrency. Before the
+next answer, the worker compares recorded spend plus its estimated answer and
+grading cost with the quote. Before paid grading it also adds the frozen grading
+estimate, covering the rubric, reference and case-level judge criteria together.
+Confirmation reruns that would exceed the quote are not queued. A suite uses its
+ceiling the same way, and a skill check's stage uses what the preceding stage left
+of the agent's accepted maximum.
+
+A stopped run ends `budget_exceeded`, keeps its answers and grades, and names the
+accepted price in its error and notification. One active answer or grading can
+cost more than estimated and finish above the quote. This limits admission of
+attempts, not each provider request: an agent can make several model/tool requests
+within one answer. A hard per-provider-request cap is not implemented here.
 
 A queued knowledge draft retains its quote. Its worker checks the estimate
 again before retrieval or model work, and refuses a higher or unknown price.
@@ -172,8 +189,8 @@ Existing clients and jobs without a quote retain their previous behavior.
 
 A suite's estimated spend cap also includes confirming reruns and both sides
 when paired. Its first publish estimate includes the existing version as the
-next publication's baseline even when only one version exists. This estimate
-cap only decides whether to start; it never stops an eval already in progress.
+next publication's baseline even when only one version exists. The run keeps
+the cap as its price and is held to it while it runs, as a quoted run is.
 A cost-per-pass or latency percentage ceiling is exceeded by any positive
 increase from a zero baseline.
 
@@ -204,7 +221,9 @@ Copies of training questions or source evidence are excluded using normalized in
 
 An improvement session pins its dataset version, its held-out share and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats, new dataset cases and a changed held-out share cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
 
-A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
+A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. Of each earlier attempt it reads the verdict and only how many held-out questions it fixed and broke, never what the attempt changed: every attempt keeps its own questions aside, drawn afresh, so an earlier change may have been written from questions this attempt is measured on.
+
+The criteria an earlier attempt moved are counted only on this attempt's training questions; where its check graded none of them, the helper is told so rather than shown zeros. At most six recent measured attempts are read.
 
 A human decision and **Undo** invalidate dependent run comparisons and recompute the stored suite results in the same transaction. The run, suite, environment guard and promotion dialog show the corrected verdict and who reviewed it. Audit entries record previous and new statuses and counts; a changed suite verdict sends a new notification. Reviewer names are resolved from current organization membership rather than copied into retained results.
 
@@ -225,11 +244,19 @@ That role is read again before each case. When the starter has left the
 organization, lost access to the agent or the dataset, or had their key revoked,
 the run fails before it answers another case.
 
-Each case runs **isolated**, as [Environments](environments.md) describes: a
-tool with a test connection on the run's environment runs against it, a tool
-known to only read runs on the normal connection, and anything that writes without
-a test connection is not executed - the call and its arguments are kept as an
-intended call, which the trajectory scorer still judges.
+Each case runs **isolated**, as [Environments](environments.md#in-an-eval)
+describes: a tool with a test connection on the run's environment runs against
+it, a read of this deployment's own data runs on the normal connection, and
+anything that writes, or reads from outside the deployment, is not executed -
+the call and its arguments are kept as an intended call, which the trajectory
+scorer still judges.
+
+That includes the web. **An eval of an agent that fetches pages, searches the web
+or delegates to another system's agent does not do any of it live**: the model
+is told the tool is not available in an isolated run and answers without it. A
+case answered from its recording, below, still gets what the original run
+fetched. The judge is unaffected: it reads only the knowledge bases, context
+files and skills the platform hands it, all of which stay inside.
 
 Every isolated attempt uses a disposable workspace scoped to its own run, even
 when the agent normally shares files by conversation, user or agent. It needs
@@ -239,7 +266,9 @@ released when the run finishes.
 A case taken from a conversation can be answered **from the recording** of the
 run it came from (`from_recordings`): a call that matches the recording gets the
 recorded result, and one that does not is held and marked divergent. A case
-without a usable recording runs isolated without one.
+without a usable recording runs isolated without one. A code-mode agent's
+script runs again, and each call it makes is answered from the recording; the
+case lists those calls under the script.
 
 ### A draft is never counted as a version { #a-draft-is-never-counted-as-a-version }
 
@@ -314,8 +343,8 @@ Every attempt comes out one of four ways (`state` on the attempt):
   limit, a loop, a guardrail, a request the provider refused - which fails a
   suite outright, even when the case's reruns pass;
 - **incomplete** when the provider failed after its retries (an error 5xx, 408
-  or 429, or no answer at all), a scorer raised, the run was cancelled or ran
-  out of budget, or its tries tied;
+  or 429, or no answer at all), a scorer raised, the run was cancelled, ran
+  out of budget or reached the price it was started at, or its tries tied;
 - **ungraded** when no required scorer applies to the answer.
 
 Neither of the last two is ever a pass; the summary counts them apart

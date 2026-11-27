@@ -57,6 +57,14 @@ it("words finished tests and question writing", () => {
       stop,
     ),
   ).toBe("outcome.test.budget_exceeded");
+  // Stopped at the price the person accepted, not at an agent's or organization's budget.
+  expect(
+    notificationSummary(
+      row("eval_run_finished", { status: "budget_exceeded", reason: "quote" }),
+      t,
+      stop,
+    ),
+  ).toBe("outcome.test.quote");
   expect(
     notificationSummary(
       row("case_generation_finished", { status: "ready", reason: null }),
@@ -174,7 +182,7 @@ it("names the department whose budget stopped a run", () => {
       t,
       stop,
     ),
-  ).toBe("kind.budgetExceeded(Probe,department,Sales,$10.0200,$10.00)");
+  ).toBe("kind.budgetExceeded(Probe,department,Sales,$10.02,$10.00)");
 });
 
 it("shows a limit to the cent, and below a cent to the place spend is shown at", () => {
@@ -189,8 +197,8 @@ it("shows a limit to the cent, and below a cent to the place spend is shown at",
       t,
       stop,
     );
-  expect(stopped("20")).toBe("kind.budgetExceeded(Probe,organization,,$20.0100,$20.00)");
-  expect(stopped("0.004")).toBe("kind.budgetExceeded(Probe,organization,,$20.0100,$0.0040)");
+  expect(stopped("20")).toBe("kind.budgetExceeded(Probe,organization,,$20.01,$20.00)");
+  expect(stopped("0.004")).toBe("kind.budgetExceeded(Probe,organization,,$20.01,$0.0040)");
 });
 
 it("keeps the server's sentence where it kept no values, or for a kind the console does not word", () => {
@@ -308,4 +316,41 @@ it("keeps a scorer-qualified label when its duplicate was omitted from the notif
     stop,
   );
   expect(summary).toContain("Validity [check]");
+});
+
+it("formats a budget notice from its own frozen quote while preserving legacy USD rows", () => {
+  const item: Notification = {
+    ...row("budget_exceeded", null),
+    params: {
+      agent_name: "Agent",
+      scope: "agent",
+      limit_usd: "25",
+      spent_usd: "26",
+    },
+    reporting_quote: { currency: "PLN", units_per_usd: "4" },
+  };
+  expect(notificationSummary(item, t, stop)).toContain("PLN 104.00,PLN 100.00");
+  expect(notificationSummary({ ...item, reporting_quote: null }, t, stop)).toContain(
+    "$26.00,$25.00",
+  );
+  expect(
+    notificationSummary(
+      { ...item, reporting_quote: { currency: "PLN", units_per_usd: null } },
+      t,
+      stop,
+    ),
+  ).toContain("—,—");
+  const routine: Notification = {
+    ...item,
+    params: null,
+    wording_params: {
+      wording: "routine_budget_paused",
+      routine_name: "Digest",
+      routine_kind: "trigger",
+      limit: "25",
+      spent: "26",
+    },
+  };
+  expect(notificationSummary(routine, t, stop, "pl")).toContain("100,00");
+  expect(notificationSummary(routine, t, stop, "pl")).toContain("104,00");
 });

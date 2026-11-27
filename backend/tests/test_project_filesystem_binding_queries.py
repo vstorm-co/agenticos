@@ -54,8 +54,12 @@ async def test_binding_and_lease_queries_retain_their_authority_keys() -> None:
     db.scalars = AsyncMock(return_value=[rows.lease])
     now = datetime.now(UTC)
     assert await repo.live_leases(db, binding=rows.binding, now=now) == [rows.lease]
-    statement = db.scalars.await_args.args[0].compile(dialect=postgresql.dialect())
+    statement = db.scalars.await_args.args[0].compile(
+        dialect=postgresql.dialect(), compile_kwargs={"render_postcompile": True}
+    )
     assert "revoked_at IS NULL" in str(statement) and "expires_at >" in str(statement)
+    assert "EXISTS" in str(statement) and "conversation_environments.state IN" in str(statement)
+    assert {"starting", "ready"}.issubset(set(statement.params.values()))
     assert {rows.binding.id, rows.actor.organization_id, now}.issubset(
         set(statement.params.values())
     )

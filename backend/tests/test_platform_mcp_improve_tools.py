@@ -53,6 +53,7 @@ SESSION_READ: dict[str, Any] = {
             },
             "cost_usd": "0.01",
             "candidate_spec_hash": "a" * 64,
+            "result_hash": "c" * 64,
         },
         {
             "id": BEST,
@@ -67,6 +68,7 @@ SESSION_READ: dict[str, Any] = {
             },
             "cost_usd": "0.02",
             "candidate_spec_hash": "b" * 64,
+            "result_hash": "d" * 64,
         },
     ],
 }
@@ -184,8 +186,10 @@ class TestTextOthersWrote:
         read = await _call(server, "get_improvement", session_id=SESSION)
 
         carried = [path for path, text in _texts(read) if self.ORDER in text]
-        assert len(carried) >= 4
+        assert len(carried) >= 3
         assert all("untrusted" in path for path in carried), carried
+        if status == "ready":
+            assert read["measurement_noise"]["examples"] == [{"case_id": "c1"}]
 
 
 class TestReadingSessions:
@@ -229,6 +233,8 @@ class TestReadingSessions:
             "cost_usd": "0.02",
             "chosen": True,
             "best": True,
+            "candidate_hash": "b" * 64,
+            "result_hash": "d" * 64,
         }
         assert session["attempts"][0]["change"] == 1
         assert not session["attempts"][0]["chosen"]
@@ -404,9 +410,12 @@ class TestReadingSessions:
 
 
 class TestTheNoise:
-    async def test_a_noisy_test_reads_as_such_with_its_examples_cut_short(
+    @pytest.mark.security
+    async def test_a_noisy_test_reads_as_such_with_no_question_text(
         self, server: FastMCP, api: MagicMock
     ) -> None:
+        """Every example is a held-out question, and a question the Architect holds can be
+        pasted into a Try again note the next attempt is measured on."""
         noise = {
             "noisy": True,
             "held_out": 10,
@@ -436,8 +445,8 @@ class TestTheNoise:
         read = session["measurement_noise"]
         assert read["noisy"] is True
         assert (read["baseline_low"], read["baseline_high"]) == (0.5, 0.7)
-        assert len(read["examples"][0]["untrusted"]["input"]) == 200
         assert "input" not in read["examples"][0]
+        assert read["examples"][0]["case_id"] == noise["examples"][0]["case_id"]
 
     async def test_a_session_read_by_its_id_names_its_agent(
         self, server: FastMCP, api: MagicMock
@@ -1680,6 +1689,43 @@ class TestReadingAnEvalRun:
             c["case_id"] for c in run["broken"] + run["fixed"]
         }
 
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "proposal_check",
+        [{"improvement_run_id": str(uuid.uuid4())}, {"skill_check_id": str(uuid.uuid4())}],
+    )
+    async def test_a_run_measuring_a_session_names_its_questions_by_id_alone(
+        self, server: FastMCP, api: MagicMock, proposal_check: dict[str, str]
+    ) -> None:
+        """Its flips are held-out questions the next attempt may keep aside again: text
+        the Architect holds can be pasted into a Try again note."""
+        case = str(uuid.uuid4())
+        api.request = _responder(
+            {
+                ("GET", f"/eval-runs/{RUN}"): {
+                    **self.RUN_READ,
+                    "proposal_check": {"kind": "agent", "suggestions": 1, **proposal_check},
+                },
+                ("GET", f"/eval-runs/{RUN}/comparison"): {
+                    "cases": [
+                        {
+                            "case_id": case,
+                            "input": "Do you ship to Canada?",
+                            "flip": "regression",
+                            "confirmed": True,
+                        }
+                    ],
+                    "candidate": {"arm_id": "a"},
+                },
+            }
+        )
+
+        run = await _call(server, "get_eval_run", run_id=RUN)
+
+        assert run["broken"] == [{"case_id": case, "confirmed": True}]
+        assert "Canada" not in str(run)
+        assert api.request.await_count == 2
+
     async def test_a_question_from_a_conversation_the_caller_cannot_open_has_no_reason(
         self, server: FastMCP, api: MagicMock
     ) -> None:
@@ -1849,7 +1895,14 @@ class TestActingOnASession:
 
         accepted = await server.call_tool(
             "accept_improvement",
-            {"agent_id": str(AGENT), "session_id": str(SESSION), "publish": publish},
+            {
+                "agent_id": str(AGENT),
+                "session_id": str(SESSION),
+                "attempt": 2,
+                "candidate_hash": "c" * 64,
+                "result_hash": "e" * 64,
+                "publish": publish,
+            },
         )
 
         assert api.request.await_args.args == (
@@ -1857,7 +1910,15 @@ class TestActingOnASession:
             f"/agents/{AGENT}/improvements/{SESSION}/finish",
         )
         assert api.request.await_args.kwargs == {
-            "json": {"confirmed": True, "publish": publish, "automatic_check": False}
+            "json": {
+                "confirmed": True,
+                "attempt": 2,
+                "candidate_spec_hash": "c" * 64,
+                "result_hash": "e" * 64,
+                "publish": publish,
+                "publish_unmeasured_edits": False,
+                "automatic_check": False,
+            }
         }
         assert accepted.structured_content["version"] == 4
 
@@ -1947,6 +2008,32 @@ class TestDraftingKnowledge:
         assert api.request.await_args.kwargs["json"] == {"quoted_usd": "0.02"}
         assert topic["drafting"] is True
         assert "questions" not in topic
+
+    @pytest.mark.security
+    async def test_a_draft_with_a_price_needs_its_quote_and_one_without_runs_unquoted(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        estimate = f"/knowledge-gaps/{TOPIC}/draft/estimate"
+        drafted = {"id": TOPIC, "label": "Gift cards?", "drafting": True}
+        api.request = _responder(
+            {
+                ("GET", estimate): {"total_usd": "0.02"},
+                ("POST", f"/knowledge-gaps/{TOPIC}/draft"): drafted,
+            }
+        )
+        with pytest.raises(ToolError, match="quoted_usd"):
+            await _call(server, "draft_knowledge_topic", topic_id=TOPIC)
+        assert [call.args[0] for call in api.request.await_args_list] == ["GET"]
+
+        api.request = _responder(
+            {
+                ("GET", estimate): {"total_usd": None},
+                ("POST", f"/knowledge-gaps/{TOPIC}/draft"): drafted,
+            }
+        )
+        await _call(server, "draft_knowledge_topic", topic_id=TOPIC)
+        assert api.request.await_args.args == ("POST", f"/knowledge-gaps/{TOPIC}/draft")
+        assert api.request.await_args.kwargs["json"] is None
 
 
 READS = {

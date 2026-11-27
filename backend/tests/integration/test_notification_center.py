@@ -110,7 +110,7 @@ async def _own_platform_call(db, org: Organization, person: User) -> ToolApprova
         run_id=run.id,
         agent_id=agent.id,
         tool_id="agenticos_accept_improvement",
-        context={"platform_tool": "true"},
+        platform_call=True,
         tool_args={},
         status=ApprovalStatus.PENDING.value,
         always_asks=True,
@@ -2742,6 +2742,7 @@ async def test_routine_policy_database_errors_propagate_without_a_savepoint(db, 
         "key",
         "publisher",
         "malformed_calls",
+        "calls_not_a_list",
     ],
 )
 async def test_an_own_call_notice_rechecks_the_current_call_and_person(
@@ -2763,7 +2764,7 @@ async def test_an_own_call_notice_rechecks_the_current_call_and_person(
         assert run is not None
         run.user_id = owner.id
     elif change == "unbound":
-        call.context = None
+        call.platform_call = False
     elif change == "not_always":
         call.always_asks = False
     elif change == "other_tenant":
@@ -2772,6 +2773,8 @@ async def test_an_own_call_notice_rechecks_the_current_call_and_person(
         reader = dataclasses.replace(reader, api_key_id=uuid.uuid4())
     elif change == "malformed_calls":
         notice.render_context = {APPROVABLE_BY: str(person.id), APPROVABLE_CALLS: "not-a-list"}
+    elif change == "calls_not_a_list":
+        notice.render_context = {APPROVABLE_BY: str(person.id), APPROVABLE_CALLS: 7}
     else:
         reader = dataclasses.replace(reader, subject_is_publisher_fallback=True)
     await db.flush()

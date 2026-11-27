@@ -746,6 +746,8 @@ class TestApprovalQueue:
             "standing_consent_by": None,
             # An ordinary gated tool: a person may remember their answer to it.
             "always_asks": False,
+            # Not one of the platform's own tools, which only a binding's mark makes one.
+            "platform_call": False,
         }
 
     @pytest.mark.anyio

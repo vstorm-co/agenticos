@@ -23,6 +23,8 @@ If your current organization’s onboarding is unfinished, **Finish setup** retu
 
 **Settings → Profile** always keeps a manual setup link, including when reminders are off. The reminder has a clear action and a short, bounded illustration animation; reduced motion keeps it still. Returning is your choice: no tour starts automatically. In the same browser, the link remembers the last allowed step for this account and organization without storing form values.
 
+The desktop-app invitation uses the same sidebar card as setup. When both are available, one card appears at a time and changes every eight seconds while visible. Previous, Next and Pause controls remain available. Hovering pauses rotation; keyboard focus pauses it until you choose Resume. Reduced motion disables automatic rotation. Completion, snoozing, native-app detection and desktop-invitation dismissal keep their existing rules.
+
 Guided setup records the current step and its update time on your organization membership. The members table shows whether setup is not started, in progress or completed, with a readable step label. Progress belongs to that membership; completing setup in one organization does not mark the others complete. Existing recorded completion remains valid, but profile contents never imply progress or completion.
 
 A step shown before you choose or join an organization is not recorded as membership progress. Account language and appearance are saved separately. Under the organization’s Assistant tab, Architect and the other assistant services appear before Chat home; matching icons and card headers make the services easier to scan.
@@ -61,7 +63,7 @@ Creating a project asks for its name, workspace and audience first. **Instructio
 
 Organizations has a search field for membership names and slugs, with the matching count in the same toolbar. Clearing the search restores the full membership list.
 
-The AI Architect card links directly to its Builder beside the enable switch, without an extra disclosure. Other AI services retain collapsible forms where there are settings to edit.
+The AI Architect card controls organization availability without a separate Agent Builder action. Its model, instructions and knowledge remain editable from Agents. Organization and deployment settings use the same card frame, spacing and visible descriptions; switches and compact selectors sit at the right. Narrow cards move larger selectors to a separate right-aligned row.
 
 The Me view starts with its period summary in a card, followed by a compact Briefing with titles, sources and actions. Full proposal details remain in Inbox.
 
@@ -121,13 +123,13 @@ Generated portraits use a constrained set of Blobatar 2.7 silhouettes and bright
 Chat settings show Browser and Work on before Permissions. Conversation notifications
 and account connections remain below the permissions controls.
 
-Chat settings use a fixed heading and close button above a scrolling body. Information icons explain the model, Browser, Work on and permission modes on demand; the selected permission mode keeps its explanation visible. Under **Knowledge bases → Integrations**, integrations and local services use compact panels that fit their content, with explanatory text behind information icons.
+Chat settings use a fixed heading and close button above a scrolling body. Information icons explain the model, Browser, Work on and permission modes on demand; the selected permission mode keeps its explanation visible. Under **Knowledge bases → Integrations**, integrations and service connections use compact panels that fit their content, with explanatory text behind information icons.
 
 Conversation agents are ordered by their latest message or top-level run, newest first. The collapsed chat rail keeps full-size avatars, overlaps up to three, and hides older participants; the full participant list remains available in the tooltip.
 
 When **Approve everything** is unavailable, chat settings distinguish missing approval-decision permission from an organization policy that disables standing consent. A person allowed to decide approvals gets a link to **Budget and approvals**, where that policy can be changed explicitly. The chat never changes organization policy automatically.
 
-The composer shows the active permission mode beside the agent picker. Open the label to change the saved mode before sending. The same permission and organization waiver checks apply as in Chat controls. Automatically granted calls retain approved audit entries; only genuinely pending calls show actionable approval prompts.
+On wide chats, the composer shows the active permission mode beside the agent picker. Open the label to change the saved mode before sending. The same permission and organization waiver checks apply as in Chat controls. Automatically granted calls retain approved audit entries; only genuinely pending calls show actionable approval prompts.
 
 Centered phone dialogs keep a 12px gutter on every edge. Compact page headers place the title and actions on one row when they fit. Context descriptions open from the editor toolbar.
 
@@ -203,7 +205,9 @@ Under **Admin → Deployment → Identity → Console availability**, an operato
 
 Members can narrow that selection under **Settings → Profile → My navigation**. An empty selection intentionally hides every primary entry; an inherited selection follows the organization and deployment. Navigation drafts require **Save** and warn before leaving with unsaved changes. Account settings, organization switching and administrator recovery remain reachable. Hiding a page does not revoke its permission: an authorized person can still open its URL. Normal permission checks run after presentation filtering.
 
-The role preview shows navigation filtered by the selected role and the administrator’s own permissions. It does not impersonate a person or load their private content. **Product prompts** independently controls the desktop invitation and automatic release/mobile-installation suggestions, at deployment, organization and membership levels. A personal preference cannot override an organization or deployment restriction. Maintenance, service-availability and security notices keep their existing behavior; an installed app is not disabled by hiding its invitation.
+The inline role preview shows navigation filtered by the selected role and the administrator’s own permissions. **Open console preview** also shows the permitted dashboard cards, gallery restrictions and product-prompt visibility together. It uses the current navigation draft and saved role defaults, before any member’s personal choices. Dashboard cards are placeholders: the preview neither impersonates a person nor loads private widget data. Gallery counts are upper bounds before connected/installed availability and resource permissions, not live catalog totals.
+
+**Product prompts** independently controls the desktop invitation and automatic release/mobile-installation suggestions, at deployment, organization and membership levels. A personal preference cannot override an organization or deployment restriction. Maintenance, service-availability and security notices keep their existing behavior; an installed app is not disabled by hiding its invitation.
 
 
 ### Catalogs and role dashboards { #console-catalogs }
@@ -336,7 +340,7 @@ Dashboard cards use the same compact rows, service marks and status labels. Coun
 
 A new chat greets you by local time and shows a compact composer. Files sit beside the agent; chat settings and the permission shield sit beside the model. Context usage stays an icon until opened.
 
-Above the composer, an Inbox timeline shows priority items first and sorts each group newest first, with source marks and no dates. Selecting a row prepares an editable action request in the composer; Open Inbox leads to the full list. Approval counts link to the approval queue. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
+Above the composer, an Inbox timeline shows priority items first and sorts each group newest first, with source marks and no dates. Selecting a row prepares an editable action request in the composer; Open Inbox leads to the full list. Approval counts link to the approval queue, or to the Inbox for a person whose only approvals are their own platform calls. Loading, failure and empty states remain distinct. Dictation and calls use the same light surface as the composer. The Architect widget shares the primary action and dictation controls.
 
 Before the first message, Files and context usage remain visible but disabled. The attachment menu shows its available actions directly. Chat controls use compact sections for connections and remembered approvals; Inbox previews show source and priority.
 
@@ -755,6 +759,8 @@ the keyboard and the conversation stays on its last message while it opens,
 Enter starts a new line, and attaching a file or dictating sits behind one
 **+**. Fields are never small enough for iOS to zoom into them.
 
+The console tracks both the visible viewport’s height and its vertical offset. On touch focus and blur it also measures the keyboard transition for up to one second, so a delayed viewport event does not require typing to reposition the composer. Pinch zoom keeps its normal page navigation.
+
 **Drawings.** An agent with [Visuals](reference/capabilities.md#visuals) draws
 under its message - a diagram, an explainer with sliders, a 3D scene - and you watch
 it appear while it is written; its scripts start once it is complete. The panel shows
@@ -771,15 +777,22 @@ part has its own copy icon, which copies plain text; several variants of one dra
 are tabs in the same card. A message's own **Copy** includes its drafts.
 
 **Watching a browse.** The [web browser](reference/capabilities.md#browser-automation)
-opens automatically in a full-height side panel while the transcript scrolls.
-On narrow screens it opens full screen. Closing the panel leaves a compact link
-in the conversation to reopen it. Visited-page cards show the site icon, domain
-and page title, including when the conversation is reopened. Each answer keeps
-one card per browser tab; clicks, rereads and going back update that card.
-The panel's tab strip switches between pages. After the run, the last image remains. **Resume session** asks the
-agent to restore the private conversation checkpoint, available for up to one hour.
-Remote pages close after each run; resuming reloads URLs, cookies and local storage,
-not unsaved forms or JavaScript memory. The agent reads fresh element numbers.
+opens in a full-height panel beside the transcript when space allows. On desktop it temporarily folds
+the conversation list; you can reopen that list, and closing Browser restores the
+previous layout. On a phone the panel fills the screen. The owned browser fits the
+available panel while nobody else is driving; during agent work or another person's
+control, its image keeps its proportions.
+
+Each answer keeps one compact page link per browser tab, with the site icon, title
+and domain. Navigation updates that link instead of adding another card. Opening it
+returns to the same browser panel. Intermediate narration and tool steps share one
+expandable activity line; the final answer and questions stay visible.
+
+A [conversation-lifetime environment](sandbox.md#conversation-environments) keeps its
+live page until **End** or the idle limit. Legacy run-lifetime browsing closes after
+the run; **Resume session** can restore its private checkpoint for up to one hour.
+That checkpoint reloads URLs, cookies and local storage, not unsaved forms or
+JavaScript memory. The agent reads fresh element numbers.
 
 **Taking a browse over.** While a browse runs, **Take over** in the browser's toolbar
 pauses the agent after its current step and hands you the page, in the same window:
@@ -1087,7 +1100,7 @@ opens its wizard to be read, with what was decided on its last step; see
 
 Organization details use three tabs: **Members**, **Budget and approvals**, and **AI & services**. Members has name/email search, a role filter and the latest recorded action in this workspace. This is an audited action, not a visit or sign-in; impersonated actions are excluded and missing history shows a dash. **Edit workspace** opens a guarded name, avatar and colour dialog. AI & services uses individual function cards without parent groups. Expand configuration without losing drafts. Controls retain their own permission gates. Old `?tab=profile` links open the workspace dialog; `?tab=voice` and `?tab=proactivity` open their settings in AI & services.
 
-Daily briefing & suggestions is one service, configured once rather than through duplicate controls. Its card also shows spending and recent executions. Memory maintenance has its own model and budget and starts off. Choose a model before enabling either service. AI Architect keeps its switch and direct Agent Builder link visible, without a greeting editor or an extra disclosure. Other services use the same card header and icon layout, with disclosures only where they contain editable settings.
+Daily briefing & suggestions is one service, configured once rather than through duplicate controls. Its card also shows spending and recent executions. Memory maintenance has its own model and budget and starts off. Choose a model before enabling either service. AI Architect keeps its availability switch, without an extra Builder action, greeting editor or disclosure. Other services use the same card header and icon layout, with disclosures only where they contain editable settings.
 
 After signing in, addressed email invitations also appear in the console and onboarding without opening the email link. The recipient chooses a workspace and accepts explicitly; Later keeps an Invitations shortcut available. Only live invitations to the account’s current email are shown, excluding shareable links and organizations already joined. Acceptance switches to the chosen organization and opens its welcome flow. The server never returns the invitation token through this inbox.
 
@@ -1103,10 +1116,12 @@ The console speaks English, Polish, German, Turkish, French, Dutch and Brazilian
 walkthrough's first card offers all seven, and
 the account menu changes the language at any time; the choice is kept on your
 account, so the console opens in it on every device you sign in on. You can also
-ask an agent - "switch to English" - and the page changes as it answers, without a
-reload. Every agent answers in it unless you explicitly request another language. Product
+explicitly ask an agent to change the interface language. Asking for a reply in
+another language does not itself change this account setting. Product
 words - agent, skill, run, budget, MCP and the rest of the list in
 [translating](howto/translate.md) - stay English in every language.
+
+Agent replies follow explicit language requirements in the agent's instructions and explicit user requests according to their priority. Otherwise they follow the current user message, keeping the established conversation language when that message is ambiguous. The saved account language is a fallback for a short or ambiguous greeting with no established conversation language; it does not turn a clear Polish request into an English reply. Source documents and tool output do not choose the reply language.
 
 The same card asks what you do, and **Settings → Profile** keeps the rest of what
 agents know about you: your role, what you work on and your time zone. Every agent
@@ -1179,11 +1194,15 @@ The administration organization directory shows the uploaded organization pictur
 
 ## Your first task
 
+Setup has three independent scopes, offered in order: **deployment → organization → personal**. Deployment progress belongs to the whole installation and requires current app-administrator access. Organization progress belongs to the selected organization and requires `org:settings`; completing it once is visible to every authorized administrator there. Personal progress remains specific to your membership. An administrator can finish deployment setup before any organization exists, then create or choose one. An unfinished earlier scope takes priority, while completed scopes remain available to review. These stages guide setup; they do not block settings, security, sign-out or other modules.
+
+Each scope stores its own completion timestamp and last visited screen. Visiting a screen never proves that settings were saved. Concurrent completions preserve the first completion; later visits cannot reopen it. Personal snoozing does not snooze shared setup for other administrators. Upgrading introduces unfinished deployment and organization stages even for existing administrators; existing personal completions and snoozes remain unchanged. No agent, provider call, invitation or optional configuration is required merely to record completion.
+
 In a new organization, the shipped **AgenticOS** is selected before publication unless you chose another default. Its first message can explain model setup and show a configuration card without executing the draft or calling an AI provider. The reply and card remain in chat history. Builders can open the agent's model settings; other members see administrator guidance and the deployment's support contact when configured. Choose a model, add a key if required and publish the agent before normal AI replies can run. Ordinary drafts and archived agents remain unavailable for execution.
 
 The Studio walkthrough introduces the installed AgenticOS and Architect. If the shipped AgenticOS is still an accessible setup draft, its action opens the configuration chat; publishing and normal agent execution retain their usual checks. Authorized builders can configure Architect when it needs a model. Ordinary drafts and inaccessible agents do not become runnable through onboarding.
 
-Closing the start offer snoozes it for this membership’s effective 1, 3 or 7 day interval, using server time. It can return if setup is unfinished and reminders are enabled. After the questions, **Finish setup and open the app** records completion for this membership. Optional fields, invitations, a model, an agent and an AI run are not required. Completion and a successful task are separate states.
+Closing the personal start offer snoozes it for this membership’s effective 1, 3 or 7 day interval, using server time. It can return if setup is unfinished and reminders are enabled. After the questions, **Finish setup and open the app** records completion for this membership. Optional fields, invitations, a model, an agent and an AI run are not required. Completion and a successful task are separate states.
 
 Open **Get started** from the dashboard, the first-use offer or a page's help.
 On desktop, the chat start notice is a translucent overlay above the console.
@@ -1197,7 +1216,7 @@ The start follows the person's authority and existing work:
 
 | Person                                        | Guided start                                                                                                     |
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Application administrator                     | Create or choose a company organization, prepare identity and invitations, then decide how future accounts join. |
+| Application administrator                     | Shared deployment setup first, then shared organization setup and personal preferences. |
 | Organization administrator                    | Prepare their organization and its spending limit; no deployment controls.                                       |
 | New member account                            | Welcome, optional personal profile and work context, then a first task.                                          |
 | Existing account joining another organization | Welcome to that organization; use the saved personal profile or deliberately review it.                          |
@@ -1223,12 +1242,12 @@ and retain their usual permissions and save actions.
 
 The URL keeps the current step, setup question and organization for a reload. It does not preserve
 unsaved field edits, grant access or mark completion. A changed organization or
-revoked authority cannot restore a privileged step. Finishing the last step records
+revoked authority cannot restore a privileged step. Finishing the personal stage records
 membership completion even when optional fields and AI setup were skipped.
 
 Legacy account completion applies to memberships joined by that timestamp. A later
 membership starts separately. Existing personal chats and completed walkthroughs
-continue to suppress automatic restarts; available published agents also hide ordinary
+continue to suppress automatic personal restarts; available published agents also hide ordinary
 start offers. Registration and accepted-invitation entry links give a member with no
 personal activity or completion a welcome even in a workspace that already has agents.
 Older and failed chats count as activity without claiming a successful run. Explicit
@@ -1294,7 +1313,7 @@ Studio is the default at `/onboarding`. The other layouts remain available throu
 
 Studio keeps its heading and bottom actions in place while the current step moves between them. The avatar gallery snaps to a centered preview when dragged or browsed with the arrow keys; selecting a preview saves it. Reduced motion removes the spring and step movement. Unfinished setup is offered only in the sidebar, without a second banner across the workspace.
 
-New accounts open `/onboarding` after password registration or their first OAuth or directory sign-in, including registration from an invitation. Language and appearance come before workspace setup; addressed invitations can be reviewed and accepted here. Joining remains an explicit choice. Language is saved on the account and supplied to agents through `{{language}}` and the person briefing. An explicit request for another language takes precedence.
+New accounts open `/onboarding` after password registration or their first OAuth or directory sign-in, including registration from an invitation. Language and appearance come before workspace setup; addressed invitations can be reviewed and accepted here. Joining remains an explicit choice. Language is saved on the account and supplied to agents through `{{language}}` and the person briefing. It is a reply-language fallback, not a requirement to use the interface language for every message.
 
 After subscriptions, model setup presents a provider first, then its connection and model. Personal subscriptions remain in their previous step. Tools start with suggested services; **Browse all services** opens the complete MCP catalog.
 
@@ -1304,3 +1323,30 @@ When an agent asks a question, its card and the normal composer stay visible tog
 ## Flat recent chat list
 
 The Chats header offers **Most recent first (flat list)**. It combines project and ordinary chats in one list ordered by last activity, without project, unread or favourite headings. Favourites keep their stars but are not pinned above newer activity. Pagination uses this order on the server, so old favourites cannot displace recent chats from the first page. Existing agent, archive and API filters still apply. The choice is saved in this browser separately for each signed-in user; **Group chats by project** restores the default grouped view.
+
+## Live browser and desktop { #live-environments }
+
+The Browser toolbar uses one input-control icon with a tooltip and pressed state. Passive viewing has no visible status label. Compact visited-page links wrap together at the left edge, and the composer keeps Workspace beside the agent rather than spreading those controls across the row.
+
+In your own private chat, **Workspace** opens the last available pane with one click. Without an earlier selection it opens a live Browser or Desktop, otherwise Files. Browser and Desktop are available when the selected published agent enables that capability and you can run it. An empty project chat can first be created without sending a message or starting a model. Opening the panel never provisions an environment; **Open environment** explicitly starts one. Paired local-device flows keep their existing controls.
+
+Browser also has a row of actual open pages, separate from the Workspace views. Select a page to keep its existing form and JavaScript state. The list contains only live registered targets owned by this conversation, with at most eight entries; historical links and foreign browser contexts never become tabs. Page metadata updates on the existing stream, within five seconds. Switching an idle page does not require Take over; agent control or another person’s input lease prevents selection. The screen waits for a fresh frame from the selected page before showing pixels or accepting input.
+
+The compact tab strip keeps available views together above the live screen. Open **Environment options** for the lifetime policy, **Check availability** and **End environment**. End asks for confirmation. Opening and checking report progress or a controlled refusal. A hidden pane preserves its mounted view and draft address; reconnecting hides the cached screen until fresh readiness arrives.
+
+Hiding the panel, switching tabs or disconnecting its stream only detaches that view. A run-lifetime environment closes after an agent run that actually uses it; an unrelated turn does not close an unused manually opened environment.
+
+In conversation mode, the next eligible private web-chat turn adopts the same live browser target or desktop provider reference, including unsaved browser forms and JavaScript state. This is not a new browser populated with copied URLs or cookies. If the original resource expires or its owner is lost, the panel reports expiry rather than promising to restore it. One physical GUI driver holds control at a time; agent control blocks manual input until released. The selected agent/project execution target travels with reads, creation, End and streaming, so a changed selection never presents an old environment as the new target.
+
+See [session lifetimes](sandbox.md#conversation-environments) for configuration and failure behavior.
+
+Browser contexts are isolated per owner and conversation. A desktop follows its configured workspace or project scope: an agent-scoped or otherwise shared executor has a shared physical GUI. The driver lease serializes control; it does not make that shared desktop private. An owner-only menu protects who can attach this chat's view, not the screen content of a deliberately shared executor.
+
+Delegates keep their own browser and desktop activity views. A delegate using the same remote desktop must acquire its physical driver before starting or driving that screen; another active driver prevents startup. An independent delegate browser is never substituted with the primary agent's saved environment.
+
+
+## Narrow chat and page controls { #narrow-chat-controls }
+
+On phones, the floating **Chat controls** button above the transcript holds the model, permission mode, context usage and local tools. The composer keeps attachments, agent, Workspace and Send in one row; wider chats retain their bottom controls. The model library puts its provider selector above the model list on phones, leaving the full width for model names.
+
+On phones, dashboard layouts and customization move into **More page actions**. Table search shares a row with compact filter, sort and view-settings buttons; **Group by** is inside view settings. Onboarding keeps short mobile action labels with their full accessible names. Project tracking dialogs leave space around focused fields so their focus outlines remain visible.

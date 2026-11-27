@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import {
   WorkflowRunLoading,
   WORKFLOW_RUN_LAYOUT,
@@ -59,7 +61,7 @@ import {
 import { ErrorState } from "@/components/states";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
-import { formatRunCostUsd, formatDateTime, formatRunDuration } from "@/lib/utils";
+import { formatDateTime, formatRunDuration } from "@/lib/utils";
 import { routesErrors } from "@/lib/workflows/ports";
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { JsonView } from "@/components/ui/json-view";
@@ -100,6 +102,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
   const { id, runId } = use(params);
   const t = useTranslations("pages.workflows");
   const locale = useLocale();
+  const money = useMoney();
   const common = useTranslations("common");
   const errors = useTranslations("errors");
   const { workflow, error: workflowError, refetch: refetchWorkflow } = useWorkflow(id);
@@ -366,7 +369,7 @@ export default function WorkflowRunPage({ params }: PageProps) {
           {
             icon: CircleDollarSign,
             label: t("runCost"),
-            value: formatRunCostUsd(run.spent_cost, run.cost_is_partial),
+            value: money.runCost(run.spent_cost, run.cost_is_partial, locale),
             caption:
               run.budget_limit !== null ? t("runBudget", { limit: run.budget_limit }) : undefined,
           },

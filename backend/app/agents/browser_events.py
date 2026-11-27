@@ -33,6 +33,7 @@ a surface that cannot narrate one still runs; it is simply not narrated.
 from collections.abc import Awaitable, Callable
 from typing import Literal, Protocol
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -91,6 +92,11 @@ class BrowserEvent(BaseModel):
         description="Where the browser is. Present on the opening frame and on every step.",
     )
     title: str | None = Field(default=None, description="The page's title, when it has one.")
+
+    environment_id: UUID | None = Field(
+        default=None,
+        description="The actual app-owned live environment adopted by this view; never inferred from the run or selected agent.",
+    )
 
     tab_id: str | None = None
     """Stable tab identity across selected views and resumed turns."""
@@ -321,3 +327,25 @@ class BrowserControl(Protocol):
 
     async def wait(self, timeout: float) -> BrowserCommand | None:
         """The next command, waiting up to `timeout` seconds for one to arrive."""
+
+
+class OwnedEnvironmentView:
+    """Nominal provenance minted only by the app's successful owned-view adapters."""
+
+    def __init__(self, environment_id: UUID) -> None:
+        self._environment_id = environment_id
+
+    @property
+    def environment_id(self) -> UUID:
+        return self._environment_id
+
+
+def with_environment(event: BrowserEvent, view: object) -> BrowserEvent:
+    """Stamp actual owned provenance and clear arbitrary legacy/vendor markers."""
+    return event.model_copy(
+        update={
+            "environment_id": view.environment_id
+            if isinstance(view, OwnedEnvironmentView)
+            else None
+        }
+    )

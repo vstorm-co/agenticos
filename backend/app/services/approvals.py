@@ -12,7 +12,7 @@ the model cannot change its mind between asking and acting.
 """
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final, Literal
@@ -23,7 +23,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.approval import private_approval_fields
 from app.agents.capabilities.channel_tools._directory import ChannelDestination
-from app.agents.mcp import PLATFORM_MCP_NAME
 from app.core.audit import current_impersonator, record_audit
 from app.core.background import spawn_after_commit
 from app.core.config import settings
@@ -86,26 +85,25 @@ def _own_run(ctx: AuthContext, run_user_id: UUID | None) -> bool:
     return ctx.user_id is not None and ctx.api_key_id is None and run_user_id == ctx.user_id
 
 
-def runs_as_its_person(tool_id: str, *, always_asks: bool) -> bool:
-    """The conservative person-only release rule, including legacy platform names.
+def described_for(ctx: AuthContext, person_id: UUID | None, *, platform_call: bool) -> bool:
+    """Whether `ctx` may read the stored description of a parked call.
 
-    This classification restricts an existing approval; it grants no authority.
-    Permission exceptions additionally require `bound_platform_call` provenance.
+    A platform call is described with the names its run's person may read - an
+    agent, a skill, a dataset - so only that person reads them; everyone else
+    decides from its arguments. Any other call's description has its own rule.
     """
-    return always_asks and tool_id.startswith(f"{PLATFORM_MCP_NAME}_")
+    return not platform_call or _own_run(ctx, person_id)
 
 
-def bound_platform_call(
-    tool_id: str, *, always_asks: bool, context: Mapping[str, str] | None
-) -> bool:
-    """A bound platform call, proven by the trusted gate rather than its name alone.
+def runs_as_its_person(*, always_asks: bool, platform_call: bool) -> bool:
+    """Whether this is a call of the platform's own tools that always asks.
 
-    Older approvals retain their restrictive person-only release rule. They do not
-    gain the permission exception without provenance recorded when the tool parked.
+    Such a call runs with the platform authority of the person its run acts for,
+    so only that person's answer may release it. `platform_call` is the mark the
+    platform binding put on the tool and the call recorded when it parked, never
+    a reading of its name, which a binding may rename to anything.
     """
-    return runs_as_its_person(tool_id, always_asks=always_asks) and (
-        context is not None and context.get("platform_tool") == "true"
-    )
+    return always_asks and platform_call
 
 
 def answers_for(ctx: AuthContext, person_id: UUID | None) -> bool:
@@ -122,12 +120,7 @@ def answers_for(ctx: AuthContext, person_id: UUID | None) -> bool:
 
 
 def may_decide(
-    ctx: AuthContext,
-    *,
-    tool_id: str,
-    always_asks: bool,
-    person_id: UUID | None,
-    context: Mapping[str, str] | None,
+    ctx: AuthContext, *, always_asks: bool, platform_call: bool, person_id: UUID | None
 ) -> bool:
     """Whether `ctx` may answer this parked call at all.
 
@@ -135,7 +128,7 @@ def may_decide(
     that always asks, which needs no permission beyond being that person.
     """
     return ctx.has(Perm.APPROVALS_DECIDE) or (
-        bound_platform_call(tool_id, always_asks=always_asks, context=context)
+        runs_as_its_person(always_asks=always_asks, platform_call=platform_call)
         and answers_for(ctx, person_id)
     )
 
@@ -145,20 +138,17 @@ def may_approve(
     *,
     tool_id: str,
     always_asks: bool,
+    platform_call: bool,
     person_id: UUID | None,
     content_hidden: bool,
-    context: Mapping[str, str] | None,
 ) -> bool:
     """Whether an approval from `ctx` would be accepted, so a surface offers Approve."""
     if always_asks and content_hidden:
         return False
     if tool_id == "agenticos_change_deployment" and not ctx.is_app_admin:
         return False
-    if runs_as_its_person(tool_id, always_asks=always_asks):
-        return answers_for(ctx, person_id) and (
-            ctx.has(Perm.APPROVALS_DECIDE)
-            or bound_platform_call(tool_id, always_asks=always_asks, context=context)
-        )
+    if runs_as_its_person(always_asks=always_asks, platform_call=platform_call):
+        return answers_for(ctx, person_id)
     return ctx.has(Perm.APPROVALS_DECIDE)
 
 
@@ -176,8 +166,27 @@ async def past_own_platform_call(db: AsyncSession, ctx: AuthContext, run: AgentR
     )
     return any(
         str(approval.id) in parked
-        and bound_platform_call(
-            approval.tool_id, always_asks=approval.always_asks, context=approval.context
+        and runs_as_its_person(
+            always_asks=approval.always_asks, platform_call=approval.platform_call
+        )
+        for approval in approvals
+    )
+
+
+async def holds_approved_own_call(db: AsyncSession, run: AgentRun) -> bool:
+    """Whether the run's current park holds its person's approved platform call.
+
+    Only that person may continue the run past it, whoever decided the rest.
+    """
+    parked = (run.paused_state or {}).get("tool_call_ids", {})
+    approvals = await agent_run_repo.list_approvals_for_run(
+        db, run_id=run.id, organization_id=run.organization_id
+    )
+    return any(
+        str(approval.id) in parked
+        and approval.status == ApprovalStatus.APPROVED.value
+        and runs_as_its_person(
+            always_asks=approval.always_asks, platform_call=approval.platform_call
         )
         for approval in approvals
     )
@@ -225,6 +234,7 @@ class ApprovalService:
         subagent_agent_id: UUID | None = None,
         standing_consent_by: UUID | None = None,
         always_asks: bool = False,
+        platform_call: bool = False,
     ) -> ToolApproval:
         """Park a tool call until a human decides - or record one already decided.
 
@@ -262,6 +272,8 @@ class ApprovalService:
                 approval: pending, waiting for somebody.
             always_asks: Whether only a person's answer to this call could let it
                 run, which also means it can never be remembered.
+            platform_call: Whether the tool is one of the platform's own, as its
+                binding marked it.
         """
         approval = await agent_run_repo.create_approval(
             self.db,
@@ -278,6 +290,7 @@ class ApprovalService:
             subagent_agent_id=subagent_agent_id,
             standing_consent_by=standing_consent_by,
             always_asks=always_asks,
+            platform_call=platform_call,
         )
         logger.info(
             "Approval %s requested for tool %s on run %s (delegate: %s)",
@@ -307,7 +320,19 @@ class ApprovalService:
         acts on, and the decided list is the same rows read as an accountability
         trail - which is why it comes back with the decider's name and no way to
         decide again.
+
+        Without `approvals:decide` it is only the caller's own pending platform calls
+        that always ask, signed in as themselves: nobody else may approve those, and
+        a run asked in no conversation has no other place to show them.
         """
+        if not ctx.has(Perm.APPROVALS_DECIDE):
+            if not answers_for(ctx, ctx.user_id):
+                return [], 0
+            filters = replace(
+                filters or ApprovalFilters(),
+                statuses=None,
+                answerable_by=ctx.user_id,
+            )
         rows, total = await agent_run_repo.list_approvals(
             self.db,
             organization_id=ctx.organization_id,
@@ -325,9 +350,9 @@ class ApprovalService:
                     ctx,
                     tool_id=row.tool_id,
                     always_asks=row.always_asks,
+                    platform_call=row.platform_call,
                     person_id=row.acts_for_user_id,
                     content_hidden=row.content_hidden,
-                    context=row.context,
                 ),
             )
             for row in await self.as_read_by(ctx, rows)
@@ -340,7 +365,14 @@ class ApprovalService:
         what the run's person reads. Its private keys stay for somebody who may see
         the run - the person whose run it is, or a reader of every run who may view
         the agent - and are left out for everyone else, with `content_hidden` set.
+        A platform call's description is left out for anybody but its person.
         """
+        rows = [
+            row
+            if described_for(ctx, row.acts_for_user_id, platform_call=row.platform_call)
+            else replace(row, context=None)
+            for row in rows
+        ]
         private = {
             row.id: fields
             for row in rows
@@ -456,10 +488,9 @@ class ApprovalService:
         person_id = None if run is None else run.user_id
         if not may_decide(
             ctx,
-            tool_id=approval.tool_id,
             always_asks=approval.always_asks,
+            platform_call=approval.platform_call,
             person_id=person_id,
-            context=approval.context,
         ):
             raise AuthorizationError(
                 message="Deciding this tool call needs approvals:decide",
@@ -473,7 +504,9 @@ class ApprovalService:
             )
         if (
             approved
-            and runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+            and runs_as_its_person(
+                always_asks=approval.always_asks, platform_call=approval.platform_call
+            )
             and not answers_for(ctx, person_id)
         ):
             raise AuthorizationError(

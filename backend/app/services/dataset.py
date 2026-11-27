@@ -80,6 +80,7 @@ from app.schemas.dataset import (
     DatasetVersionList,
     DatasetVersionRead,
     EditedCaseContent,
+    StoredCaseContent,
 )
 from app.schemas.dataset_helpers import DatasetHelperDefaults, DatasetHelpers, DatasetHelpersRead
 from app.schemas.resource_grant import as_visibility
@@ -89,6 +90,8 @@ from app.services.access import DATASET, accessible_ids, resolve_access, visible
 from app.services.conversation import ConversationService
 from app.services.exporting import MAX_EXPORT_ROWS, ExportResult, stamp
 from app.services.model_outputs import model_outputs
+from app.services.monetary import MonetaryService
+from app.services.scorers import every_call_kept
 
 logger = logging.getLogger(__name__)
 
@@ -1073,6 +1076,11 @@ class DatasetService:
             # Checked again under the lock: two requests for the same answer
             # both pass the check made before it, and the second would add a twin.
             await self._refuse_held_answer(ctx, previous, message_id)
+        content = content.model_copy(
+            update={
+                "checks": await MonetaryService(self.db).checks(ctx.organization_id, content.checks)
+            }
+        )
         fields, redacted = redacted_case(content)
         case = self._revision(
             ctx, dataset, fields, source=source, authorship=authorship, partition=None, **provenance
@@ -1189,8 +1197,12 @@ class DatasetService:
         previous = await self._version(ctx, dataset, None)
         revisions: list[DatasetCase] = []
         redacted = 0
+        monetary = MonetaryService(self.db)
         for case in cases:
-            fields, found = redacted_case(case.content)
+            content = case.content.model_copy(
+                update={"checks": await monetary.checks(ctx.organization_id, case.content.checks)}
+            )
+            fields, found = redacted_case(content)
             redacted += found
             revisions.append(
                 self._revision(
@@ -1357,6 +1369,15 @@ class DatasetService:
                 message="This edit leaves a case that is not valid",
                 details={"fields": field_problems(exc.errors(), root="")},
             ) from None
+        content = content.model_copy(
+            update={
+                "checks": await MonetaryService(self.db).checks(
+                    ctx.organization_id,
+                    content.checks,
+                    previous=StoredCaseContent.model_validate(current).checks,
+                )
+            }
+        )
         fields, redacted = redacted_case(content)
         provenance = {
             "source_run_id": current.source_run_id,
@@ -1422,7 +1443,13 @@ class DatasetService:
         _refuse_past_ceiling(current.case_count, len(cases))
         revisions: list[DatasetCase] = []
         redacted = 0
+        monetary = MonetaryService(self.db)
         for fields, found in cases:
+            parsed_case = DatasetCaseContent.model_validate(fields)
+            normalized = await monetary.checks(
+                ctx.organization_id, parsed_case.checks, preserve_terms=True
+            )
+            fields["checks"] = [check.model_dump(mode="json") for check in normalized]
             redacted += found
             revisions.append(self._revision(ctx, current, fields, source=CaseSource.IMPORT))
         dataset = await self._locked(ctx, dataset_id)
@@ -1804,7 +1831,11 @@ class DatasetService:
         self, ctx: AuthContext, run_id: UUID | None, reply: list[Message]
     ) -> list[str]:
         """The tools a good reply called that a case should expect: those that succeeded
-        and that the answering agent's spec does not declare read-only."""
+        and that the answering agent's spec does not declare read-only.
+
+        A code-mode script stands for the calls it made, as it does when the case is
+        graded (`scored_calls`). A script whose run did not keep every call drafts no
+        expectation: the calls left out may be the ones a case should expect."""
         calls = await conversation_repo.tool_calls_of_messages(self.db, [turn.id for turn in reply])
         reads: set[str] = set()
         run = (
@@ -1819,8 +1850,15 @@ class DatasetService:
             if version is not None:
                 tools = capability_tools(AgentSpec.model_validate(version.spec))
                 reads = {name for name, tool in tools.items() if tool.read_only}
-        return [
-            call.tool_name
-            for call in calls
-            if call.status == "completed" and call.tool_name not in reads
-        ]
+        if not every_call_kept(calls):
+            return []
+        succeeded: list[str] = []
+        for call in calls:
+            script = [] if call.script_calls is None else call.script_calls["calls"]
+            if script:
+                succeeded.extend(
+                    entry["tool_name"] for entry in script if entry["outcome"] == "success"
+                )
+            elif call.status == "completed":
+                succeeded.append(call.tool_name)
+        return [name for name in succeeded if name not in reads]

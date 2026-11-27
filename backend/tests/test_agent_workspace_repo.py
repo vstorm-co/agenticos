@@ -321,3 +321,34 @@ async def test_project_chat_without_active_project_workspace_retains_its_convers
     conversation.assert_awaited_once_with(
         session, organization_id=organization_id, conversation_id=conversation_id
     )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("initial", [None, "previous-session"])
+@pytest.mark.parametrize("accepted", [False, True])
+async def test_idle_session_publish_is_tenant_and_original_session_fenced(initial, accepted):
+    db = AsyncMock()
+    workspace_id, organization_id, connection_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    db.scalar.return_value = workspace_id if accepted else None
+    result = await agent_workspace_repo.record_live_session(
+        db,
+        workspace_id=workspace_id,
+        organization_id=organization_id,
+        scope_key="owned-key",
+        connection_id=connection_id,
+        initial_session_id=initial,
+        session_id="new-session",
+    )
+    assert result is accepted
+    statement = db.scalar.await_args.args[0]
+    compiled = statement.compile(dialect=postgresql.dialect())
+    assert {workspace_id, organization_id, connection_id, "owned-key", "new-session"} <= set(
+        compiled.params.values()
+    )
+    sql = str(compiled)
+    assert "RETURNING agent_workspaces.id" in sql
+    if initial is None:
+        assert "session_id IS NULL" in sql
+    else:
+        assert initial in compiled.params.values()
+    db.commit.assert_not_awaited()

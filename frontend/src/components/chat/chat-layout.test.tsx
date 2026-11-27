@@ -44,6 +44,11 @@ vi.mock("@/stores", () => ({
   useAgentSelectionStore: (select: (value: { selectedAgentId: string }) => unknown) =>
     select({ selectedAgentId: "agent" }),
 }));
+vi.mock("./chat-approval-selector", () => ({
+  ChatApprovalSelector: ({ disabled }: { disabled: boolean }) => (
+    <button disabled={disabled}>Fixture approval settings</button>
+  ),
+}));
 vi.mock("./chat-model-picker", () => ({
   ChatModelPicker: () => (
     <>
@@ -176,4 +181,28 @@ it("separates optional coding accounts from the open tools and files section", a
   expect(summary).toBeTruthy();
   if (summary) await userEvent.click(summary);
   expect(accounts).toHaveAttribute("open");
+});
+
+it("keeps model, approval and context controls behind the floating entry point", async () => {
+  render(
+    <ChatComposerControls
+      floating
+      settingsOnly
+      approvalDisabled
+      desktop={false}
+      harnesses={[]}
+      usageSlot={<p>Context used: fixture</p>}
+    />,
+  );
+  expect(screen.queryByRole("button", { name: "Model" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Chat controls" }));
+  expect(screen.getByRole("button", { name: "Model" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Fixture approval settings" })).toBeDisabled();
+  expect(screen.getByText("Context used: fixture")).toBeVisible();
+  expect(state.update).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Model" }));
+  expect(screen.getByText("Model catalog")).toBeVisible();
+  const reset = screen.getByRole("button", { name: "Back to the agent's own model" });
+  expect(reset).toHaveAttribute("title", "Back to the agent's own model");
+  expect(reset.querySelector("span")).toHaveClass("hidden", "sm:inline");
 });

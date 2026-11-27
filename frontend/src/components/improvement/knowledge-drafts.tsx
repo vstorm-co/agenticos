@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import { NativeSelect } from "@/components/ui/native-select";
@@ -8,7 +10,6 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, Card, Checkbox } from "@/components/ui";
 import { KnowledgeGapDialog } from "@/components/knowledge-gaps/knowledge-gap-dialog";
-import { usd } from "@/components/evals/format";
 import { useDatasetCases } from "@/hooks/use-datasets";
 import { useEvalComparison, useEvalRun } from "@/hooks/use-eval-runs";
 import { useImprovement } from "@/hooks/use-improvements";
@@ -46,6 +47,7 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
+  const money = useMoney();
   const actions = useImprovement(subjectOf(session), session.id);
   const readOnly = useReadOnly();
   const { topics, added, error: topicsError } = useSessionTopics(session);
@@ -202,7 +204,7 @@ export function KnowledgeDrafts({ session }: { session: Improvement }) {
               <p>
                 {current.quote.can_measure
                   ? t("knowledgeQuote", {
-                      cost: usd(current.quote.total_usd, locale),
+                      cost: money.cost(current.quote.total_usd, locale),
                       count: current.quote.cases,
                       excluded: current.quote.excluded,
                     })

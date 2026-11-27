@@ -166,25 +166,6 @@ export function formatRunDuration(
   return formatElapsed(new Date(endedAt).getTime() - new Date(startedAt).getTime(), locale);
 }
 
-/**
- * A cost in dollars to four places, and "<$0.0001" for a real cost below that:
- * a run that spent a fraction of a cent has spent something, which "$0.0000"
- * would deny. Exactly zero stays "$0.0000".
- */
-export function formatCostUsd(amount: number): string {
-  if (amount > 0 && amount < 0.0001) return "<$0.0001";
-  return `$${amount.toFixed(4)}`;
-}
-
-/**
- * A run's cost, with "+" when some of its steps could not be priced. Below the
- * display floor "<$0.0001" already reads as a bound, so it takes no "+".
- */
-export function formatRunCostUsd(amount: number, partial: boolean): string {
-  const cost = formatCostUsd(amount);
-  return partial && !cost.startsWith("<") ? `${cost}+` : cost;
-}
-
 /** A span of milliseconds, human-readable, or "-" for one that is not a span. */
 export function formatElapsed(ms: number, locale?: string): string {
   if (Number.isNaN(ms) || ms < 0) return "-";

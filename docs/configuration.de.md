@@ -1,5 +1,5 @@
 ---
-source_sha: "3b896741cc56"
+source_sha: "57382ae4b40b"
 ---
 
 # Konfiguration { #configuration }
@@ -93,7 +93,9 @@ Die Konfiguration lehnt einen nicht gesetzten `VAULT_MASTER_KEY` außerhalb von 
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Obergrenze pro Datei für den in einen Prompt ohne Workspace eingefügten geparsten Text |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Gesamtobergrenze für Anhangstext über eine Runde |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | Die monatliche Ausgabenobergrenze, mit der eine **neue** Organisation startet, in USD, damit sie nicht einen entlaufenen Agent von einer überraschenden Rechnung entfernt ist. Gilt nur bei der Erstellung; bestehende Organisationen bleiben unberührt, und jede Organisation lässt sich danach wieder auf kein Cap zurücksetzen. Muss positiv sein; lassen Sie den Wert **leer**, damit Organisationen ohne Cap starten (die ältere Opt-in-Haltung) |
-| `STAV_NOK_PER_USD` | leer | Vom Betreiber gepflegte NOK pro USD für von Stav berechnete Kosten. Endlich und positiv; etwa `10` teilt NOK durch 10 (nur ein Beispiel, kein aktueller Kurs). USD braucht keine Einstellung. Kein Kursabruf; ohne Umrechnung gilt der Preiskatalog und unbekannte Modelle bleiben unvollständig bepreist |
+| `STAV_NOK_PER_USD` | leer | Vom Betreiber gepflegte NOK pro USD für von Stav berechnete Kosten. Endlich und positiv; etwa `10` teilt NOK durch 10 (nur ein Beispiel, kein aktueller Kurs). USD-Beträge und Rechnungsbeträge von null benötigen keinen Kurs. Eine gültige Rechnung ungleich null ohne verwendbaren Kurs behält Betrag und Währung, bleibt unbepreist und blockiert weitere gedeckelte Anfragen; der Katalog ersetzt sie nicht |
+| `DEFAULT_ORG_CURRENCY` | `USD` | Standardwährung der Organisation ohne Überschreibung durch die Bereitstellung. Standard USD; die Währung benötigt einen Kurs. Bestehende Preise und USD-Limits behalten ihre Einheiten. |
+| `CURRENCY_RATES` | `{"USD":"1"}` | JSON-Objekt mit Währungseinheiten pro USD, etwa `{"USD":"1","EUR":"0.9","PLN":"4"}`. USD muss genau 1 sein; Kurse müssen endlich und positiv sein. Administrationseinstellungen überschreiben dieses Dokument. |
 
 Für Bilder in Produktionskanälen setzen Sie `VISUAL_RENDER_CDP_URL=http://visual-render:9222` und `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` in `backend/.env`. `scripts/deploy.sh` aktiviert dann das Profil `visuals` in `docker-compose-prod.yml`; beim manuellen Start ergänzen Sie `--profile visuals`.
 
@@ -780,14 +782,18 @@ worauf jede Compose-Datei hier pinnt.
 
 Nichts hier. Jede Collection benennt selbst den Provider, über den sie embeddet,
 das Model, und entweder den Vault-Schlüssel der Organisation, der dafür zahlt,
-oder — beim schlüssellosen Provider `ollama` — einen **lokalen Dienst**, eine
+oder — beim schlüssellosen Provider `ollama` — eine **Dienstverbindung**, eine
 Zeile unter Knowledge → Integrations, die sagt, wo das Ollama des Deployments
-oder der Organisation antwortet. Siehe [Dateiverarbeitung](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+oder der Organisation antwortet. Der eigene Provider `openai_compatible` nimmt ebenfalls eine Verbindung,
+mit einem als Text eingegebenen Model und einem optionalen Vault-Schlüssel der Organisation; nur eine
+Verbindung der Organisation kann einen Schlüssel halten, eine Verbindung, die einen hat, kann ihn nicht
+verlieren, und eine deploymentweite Verbindung ist schlüssellos. Die API ist
+`/api/v1/service-connections`. Siehe [Dateiverarbeitung](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
 Früher standen hier zwei Variablen. `EMBEDDING_MODEL` wählte für neue Collections
 ein Model vor und ist weg: Das Formular bietet die Models an, die der gewählte
 Provider bereitstellt. `EMBEDDING_OLLAMA_BASE_URL` benannte ein Ollama für das
-ganze Deployment und ist jetzt ein lokaler Dienst, pro Organisation oder
+ganze Deployment und ist jetzt eine Dienstverbindung, pro Organisation oder
 deploymentweit.
 
 ### Dokument-Parsing — je Collection konfiguriert, nicht hier { #document-parsing-configured-per-collection-not-here }
@@ -811,7 +817,7 @@ Zwei Dinge, die früher hier blieben, sind jetzt Zeilen im Produkt. Ein
 LlamaParse-Schlüssel ist ein Vault-Eintrag, den die Ingestion-Konfiguration der
 Collection benennt (`llamaparse_secret_id`), und eine Collection auf LlamaParse
 ohne einen wird schon am Formular abgelehnt — `LLAMAPARSE_API_KEY` ist weg. Ein
-OCR-Server, an den LiteParse Seiten schickt, ist ein lokaler Dienst der Art `ocr`
+OCR-Server, an den LiteParse Seiten schickt, ist eine Dienstverbindung der Art `ocr`
 unter Knowledge → Integrations, pro Collection gewählt (`ocr_endpoint_id`),
 registriert vom Betreiber einer Organisation oder — für jede Organisation — vom
 Administrator des Deployments; `LITEPARSE_OCR_SERVER_URL` ist ebenfalls weg.
@@ -1812,3 +1818,14 @@ eigenes `SUBSCRIPTION_GATEWAY_TOKEN` in `.env`.
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 
 Setzen Sie `GITHUB_COPILOT_OAUTH_CLIENT_ID` (standardmäßig leer) auf die eigene GitHub OAuth App des Deployments und aktivieren Sie Device Flow. Ohne sie wird persönliche Copilot-Anmeldung abgelehnt. Dies ist getrennt von GitHub Models und GitHub-Konnektoren. GitHub-Autorisierung bestätigt keine Copilot-Berechtigung; zusätzlich muss die kontobezogene Chat-Modellprüfung bestehen. Ablaufende GitHub-App-Freigaben und eigene Enterprise-Gateways werden nicht unterstützt. Siehe [Copilot-Konten](models.md#github-copilot-accounts).
+
+## Umgebungen privater Chats { #conversation-environment-limits }
+
+| Einstellung | Standard | Bedeutung |
+| --- | --- | --- |
+| `CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS` | `900` | Deployment-Grenze der Browser-use-/Computer-use-Leerlaufaufbewahrung: 60–86400 Sekunden. Das Panel zeigt den kleineren Wert aus Grenze und `session_idle_seconds` der Capability. |
+| `CONVERSATION_ENVIRONMENTS_PER_USER` | `4` | Ausstehende Umgebungen pro Organisationsmitglied: 1–100. Bekannte Remote-Ressourcen zählen bis zur erfolgreichen Bereinigung mit. |
+
+Bindungen wählen `session_lifetime` (`run` oder `conversation`). Bestehende Bindungen ohne neue Felder behalten die Run-Laufzeit; neue Konsolenbindungen wählen ausdrücklich Unterhaltung und 900 Sekunden. Eine manuell geöffnete Run-Umgebung endet nach einem Run, der sie tatsächlich nutzt. Berücksichtigen Sie vor einer Erhöhung des Leerlauflimits die Ressourcenkosten des Anbieters. Öffnen und Betrachten benötigen keinen Modellaufruf.
+
+Der Worker muss Provisionierung, Ablaufkontrollen und dauerhafte Bereinigung ausführen können. Der ständig verbundene Browser-Eigentümer in API/Worker erzwingt die Egress-Policy; bei seinem Verlust wird der isolierte Kontext absichtlich verworfen. Ein Neustart kann den Browser daher vor Ablauf beenden, statt eine ungeschützte oder kopierte Sitzung wiederherzustellen. Siehe [Browser- und Desktop-Laufzeiten](sandbox.de.md#conversation-environments).

@@ -1,0 +1,600 @@
+import { act, renderHook } from "@testing-library/react";
+import { beforeEach, expect, it, vi } from "vitest";
+
+import type { ConversationEnvironment } from "@/lib/conversation-environments-api";
+import { useAuthStore } from "@/stores/auth-store";
+import { useOrgStore } from "@/stores/org-store";
+import { useWebSocket } from "./use-websocket";
+import { useLiveConversationEnvironment } from "./use-live-conversation-environment";
+
+const socket = vi.hoisted(() => ({ connect: vi.fn(), disconnect: vi.fn(), sendMessage: vi.fn() }));
+let options: Parameters<typeof useWebSocket>[0];
+vi.mock("./use-websocket", () => ({
+  useWebSocket: (received: Parameters<typeof useWebSocket>[0]) => {
+    options = received;
+    return socket;
+  },
+}));
+vi.mock("@/components/public-config/public-config-provider", () => ({
+  usePublicConfig: () => ({ wsUrl: "ws://console.example" }),
+}));
+
+const environment: ConversationEnvironment = {
+  id: "33333333-3333-4333-8333-333333333333",
+  agent_id: "11111111-1111-4111-8111-111111111111",
+  kind: "browser",
+  execution_target: "agent",
+  state: "ready",
+  control: "none",
+  can_control: true,
+  expires_at: null,
+  refusal: null,
+  session_lifetime: "conversation",
+  idle_seconds: 900,
+};
+
+function emit(value: unknown): void {
+  options.onMessage?.(new MessageEvent("message", { data: JSON.stringify(value) }));
+}
+function picture(title = "Prepared page") {
+  return {
+    type: "browser_event",
+    data: {
+      kind: "browser_frame",
+      call_id: environment.id,
+      step: 1,
+      title,
+      image: "data:image/jpeg;base64,AA==",
+      run_id: null,
+    },
+  };
+}
+
+function opened(): void {
+  emit({
+    type: "browser_event",
+    data: {
+      kind: "browser_opened",
+      call_id: environment.id,
+      step: 0,
+      run_id: null,
+      navigable: true,
+    },
+  });
+}
+
+function held(by = "actor"): void {
+  emit({
+    type: "browser_event",
+    data: {
+      kind: "browser_held",
+      call_id: environment.id,
+      step: 2,
+      by_user_id: by,
+    },
+  });
+}
+
+function view(title = "Prepared page"): void {
+  emit({ type: "environment_state", data: environment });
+  opened();
+  emit(picture(title));
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  useAuthStore.setState({
+    sessionOwnerId: "owner",
+    accessToken: "initial-token",
+    user: { id: "actor", email: "reader@example.com", is_active: true, created_at: "2026-01-01" },
+  });
+  useOrgStore.setState({ activeOrgId: "org-one" });
+});
+
+it("opens an authenticated environment socket without starting any run", () => {
+  const { result, unmount } = renderHook(() =>
+    useLiveConversationEnvironment("chat/one", environment, true),
+  );
+  expect(options.url).toBe(
+    `ws://console.example/api/v1/ws/conversations/chat%2Fone/environments/${environment.id}?project_execution_target=agent`,
+  );
+  expect(options.protocols?.()).toEqual([
+    "access_token.initial-token",
+    "environment",
+    "environment.tabs.v1",
+  ]);
+  expect(options.messageScope).toBe(options.identity);
+  expect(socket.connect).toHaveBeenCalledOnce();
+  expect(result.current.status).toBe("connecting");
+  unmount();
+  expect(socket.disconnect).toHaveBeenCalledOnce();
+});
+
+it.each([
+  { enabled: false, token: "token", environment },
+  { enabled: true, token: null, environment },
+  { enabled: true, token: "token", environment: { ...environment, id: null } },
+  { enabled: true, token: "token", environment: { ...environment, state: "starting" as const } },
+])(
+  "never opens an absent, hidden or unauthorized view",
+  ({ enabled, token, environment: selected }) => {
+    useAuthStore.setState({ accessToken: token });
+    const { result } = renderHook(() => useLiveConversationEnvironment("chat", selected, enabled));
+    act(() => {
+      result.current.retry();
+      result.current.send({ type: "take_over" });
+    });
+    expect(socket.connect).not.toHaveBeenCalled();
+    expect(socket.sendMessage).not.toHaveBeenCalled();
+  },
+);
+
+it("keeps the actual page and current driver independent of an agent run", () => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  act(() => emit({ type: "environment_state", data: { ...environment, control: "agent" } }));
+  act(opened);
+  act(() => emit(picture()));
+  expect(result.current.environment?.control).toBe("agent");
+  expect(result.current.browse?.title).toBe("Prepared page");
+  expect(result.current.browse?.runId).toBeNull();
+  act(() => result.current.send({ type: "take_over" }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() => emit({ type: "environment_state", data: { ...environment, control: "human" } }));
+  act(() => result.current.send({ type: "click", x: 1, y: 1 }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() => held());
+  act(() => result.current.send({ type: "click", x: 1, y: 1 }));
+  expect(socket.sendMessage).toHaveBeenCalledWith({ type: "click", x: 1, y: 1 });
+});
+
+it.each([
+  "not json",
+  JSON.stringify({ type: "browser_event", data: { ...picture().data, call_id: "another" } }),
+])("closes malformed streams until the person explicitly retries", (data) => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  act(() => options.onMessage?.(new MessageEvent("message", { data })));
+  expect(result.current.status).toBe("malformed");
+  expect(socket.disconnect).toHaveBeenCalled();
+  act(() => emit(picture()));
+  expect(result.current.browse).toBeNull();
+  act(() => result.current.retry());
+  act(() => view());
+  expect(result.current.status).toBe("live");
+});
+
+it("drops previous tenant pictures and buffered callbacks on a switch", () => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  act(() => view("Private first tenant"));
+  const old = options.onMessage;
+  const oldIdentity = options.identity;
+  act(() => useOrgStore.setState({ activeOrgId: "org-two" }));
+  expect(result.current.browse).toBeNull();
+  expect(options.identity).not.toBe(oldIdentity);
+  act(() =>
+    old?.(new MessageEvent("message", { data: JSON.stringify(picture("Late old frame")) })),
+  );
+  expect(result.current.browse).toBeNull();
+  act(() => view("Second tenant"));
+  expect(result.current.browse?.title).toBe("Second tenant");
+});
+
+it("keeps the socket on token refresh and presents the new token on reconnect", () => {
+  renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  act(() => useAuthStore.setState({ accessToken: "refreshed-token" }));
+  expect(socket.connect).toHaveBeenCalledOnce();
+  expect(socket.disconnect).not.toHaveBeenCalled();
+  expect(options.protocols?.()).toEqual([
+    "access_token.refreshed-token",
+    "environment",
+    "environment.tabs.v1",
+  ]);
+});
+
+it.each([
+  [4403, "forbidden"],
+  [4401, "forbidden"],
+  [4404, "gone"],
+  [1011, "unavailable"],
+] as const)("clears the picture when the server closes with %s", (code, status) => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  act(() => view());
+  act(() => options.onClose?.(new CloseEvent("close", { code })));
+  expect(result.current.status).toBe(status);
+  expect(result.current.browse).toBeNull();
+  act(() => result.current.send({ type: "click", x: 1, y: 1 }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+});
+
+it.each([
+  ["expired", "gone"],
+  ["failed", "unavailable"],
+  ["starting", "connecting"],
+] as const)("clears the view immediately when readiness becomes %s", (state, status) => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  act(() => view());
+  expect(result.current.browse).not.toBeNull();
+  act(() =>
+    emit({ type: "environment_state", data: { ...environment, state, can_control: false } }),
+  );
+  expect(result.current.status).toBe(status);
+  expect(result.current.browse).toBeNull();
+  expect(socket.disconnect).toHaveBeenCalled();
+  act(() => result.current.send({ type: "take_over" }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+});
+
+it("stops sending as soon as the token disappears", () => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  act(() => view());
+  act(() => emit({ type: "environment_state", data: { ...environment, control: "human" } }));
+  act(() => useAuthStore.setState({ accessToken: null }));
+  act(() => result.current.send({ type: "click", x: 1, y: 1 }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+});
+
+it("removes a stale live screen immediately when a read confirms End", () => {
+  const { result, rerender } = renderHook(
+    ({ selected }) => useLiveConversationEnvironment("chat", selected, true),
+    { initialProps: { selected: environment } },
+  );
+  act(() => view());
+  expect(result.current.browse).not.toBeNull();
+  rerender({ selected: { ...environment, state: "expired", can_control: false } });
+  expect(result.current.browse).toBeNull();
+  act(() => result.current.send({ type: "click", x: 1, y: 2 }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  expect(socket.disconnect).toHaveBeenCalled();
+});
+
+it("requires an authoritative state before accepting a picture or controls", () => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  act(opened);
+  act(() => emit(picture()));
+  expect(result.current.browse).toBeNull();
+  expect(result.current.status).toBe("connecting");
+  act(() => result.current.send({ type: "take_over" }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() => view());
+  expect(result.current.browse).not.toBeNull();
+});
+it("keeps malformed streams closed despite buffered frames and a subsequent close", () => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  act(() => options.onMessage?.(new MessageEvent("message", { data: "not-json" })));
+  act(() => view());
+  act(() => options.onClose?.(new CloseEvent("close", { code: 1011 })));
+  expect(result.current.status).toBe("malformed");
+  expect(result.current.browse).toBeNull();
+});
+it("handles refusal before the first state without retaining another session", () => {
+  useAuthStore.setState({ user: null, sessionOwnerId: null, accessToken: null });
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  expect(options.protocols?.()).toBeUndefined();
+  act(() => options.onClose?.(new CloseEvent("close", { code: 4401 })));
+  expect(result.current.status).toBe("forbidden");
+  expect(result.current.environment).toBeNull();
+  expect(socket.connect).not.toHaveBeenCalled();
+});
+
+it("keeps input callbacks stable when only the authority expiry timestamp changes", () => {
+  const { result } = renderHook(() =>
+    useLiveConversationEnvironment("chat/one", environment, true),
+  );
+  act(() => view());
+  const send = result.current.send;
+  act(() =>
+    emit({
+      type: "environment_state",
+      data: { ...environment, expires_at: "2026-12-01T00:00:00Z" },
+    }),
+  );
+  expect(result.current.send).toBe(send);
+  act(() => emit({ type: "environment_state", data: { ...environment, control: "human" } }));
+  act(() => held());
+  const humanSend = result.current.send;
+  expect(humanSend).not.toBe(send);
+  act(() =>
+    emit({
+      type: "environment_state",
+      data: { ...environment, control: "human", expires_at: "2026-12-02T00:00:00Z" },
+    }),
+  );
+  expect(result.current.send).toBe(humanSend);
+  act(() => result.current.send({ type: "type", text: "hello" }));
+  expect(socket.sendMessage).toHaveBeenLastCalledWith({ type: "type", text: "hello" });
+  act(() =>
+    emit({
+      type: "environment_state",
+      data: { ...environment, control: "agent", can_control: false },
+    }),
+  );
+  socket.sendMessage.mockClear();
+  act(() => result.current.send({ type: "type", text: "refused" }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+});
+
+it("retains observation but requires a fresh socket state and own ACK after quick hide/show", () => {
+  const { result, rerender } = renderHook(
+    ({ visible }) => useLiveConversationEnvironment("chat", environment, visible),
+    { initialProps: { visible: true } },
+  );
+  act(() => view());
+  act(() => emit({ type: "environment_state", data: { ...environment, control: "human" } }));
+  act(() => held());
+  const oldMessage = options.onMessage;
+  const oldClose = options.onClose;
+  const oldSend = result.current.send;
+  const originalIdentity = options.identity;
+  expect(result.current.browse?.heldById).toBe("actor");
+  rerender({ visible: false });
+  expect(result.current.status).toBe("connecting");
+  expect(result.current.browse?.image).toBe("data:image/jpeg;base64,AA==");
+  expect(result.current.browse?.heldById).toBeNull();
+  const hiddenMessage = options.onMessage;
+  rerender({ visible: true });
+  expect(options.identity).not.toBe(originalIdentity);
+  expect(options.messageScope).toBe(options.identity);
+  expect(result.current.status).toBe("connecting");
+  expect(result.current.browse?.heldById).toBeNull();
+  socket.sendMessage.mockClear();
+  act(() => {
+    oldSend({ type: "type", text: "old callback" });
+    result.current.send({ type: "type", text: "before handshake" });
+    oldMessage?.(new MessageEvent("message", { data: JSON.stringify(picture("Old socket")) }));
+    oldClose?.(new CloseEvent("close", { code: 4403 }));
+    hiddenMessage?.(new MessageEvent("message", { data: "malformed hidden socket" }));
+  });
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  expect(result.current.status).toBe("connecting");
+  expect(result.current.browse?.title).toBe("Prepared page");
+  act(() => emit({ type: "environment_state", data: { ...environment, control: "human" } }));
+  act(opened);
+  act(() => emit(picture()));
+  expect(result.current.status).toBe("live");
+  expect(result.current.browse?.heldById).toBeNull();
+  act(() => result.current.send({ type: "type", text: "global human is not ownership" }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() => held("other-person"));
+  act(() => result.current.send({ type: "type", text: "another holder" }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() => held());
+  act(() => result.current.send({ type: "type", text: "acknowledged" }));
+  expect(socket.sendMessage).toHaveBeenCalledExactlyOnceWith({
+    type: "type",
+    text: "acknowledged",
+  });
+});
+
+it("forgets a held hint when current state releases control and refuses callbacks after unmount", () => {
+  const { result, unmount } = renderHook(() =>
+    useLiveConversationEnvironment("chat", environment, true),
+  );
+  act(() => view());
+  act(() => emit({ type: "environment_state", data: { ...environment, control: "human" } }));
+  act(() => held());
+  act(() => emit({ type: "environment_state", data: environment }));
+  expect(result.current.browse?.heldById).toBeNull();
+  const message = options.onMessage;
+  const close = options.onClose;
+  const send = result.current.send;
+  unmount();
+  socket.sendMessage.mockClear();
+  act(() => {
+    message?.(new MessageEvent("message", { data: "late" }));
+    close?.(new CloseEvent("close", { code: 4403 }));
+    send({ type: "take_over" });
+  });
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+});
+
+it("fits only fresh idle browser viewers while preserving every human-input gate", () => {
+  const resize = { type: "resize", width: 640, height: 1500, scale: 2 } as const;
+  const { result, rerender } = renderHook(
+    ({ selected, visible }) => useLiveConversationEnvironment("chat", selected, visible),
+    { initialProps: { selected: environment, visible: true } },
+  );
+  act(() => result.current.send(resize));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(view);
+  act(() => {
+    result.current.send(resize);
+    result.current.send({ type: "click", x: 1, y: 2 });
+  });
+  expect(socket.sendMessage).toHaveBeenCalledExactlyOnceWith(resize);
+  for (const control of ["agent", "human"] as const) {
+    act(() =>
+      emit({
+        type: "environment_state",
+        data: { ...environment, control, can_control: control !== "agent" },
+      }),
+    );
+    act(() => result.current.send(resize));
+    expect(socket.sendMessage).toHaveBeenCalledTimes(1);
+  }
+  act(() => held());
+  act(() => result.current.send(resize));
+  expect(socket.sendMessage).toHaveBeenCalledTimes(2);
+  rerender({ selected: environment, visible: false });
+  act(() => result.current.send(resize));
+  expect(socket.sendMessage).toHaveBeenCalledTimes(2);
+  rerender({ selected: environment, visible: true });
+  act(() => result.current.send(resize));
+  expect(socket.sendMessage).toHaveBeenCalledTimes(2);
+  act(view);
+  act(() => result.current.send(resize));
+  expect(socket.sendMessage).toHaveBeenCalledTimes(3);
+});
+
+it("does not turn desktop/view-only snapshots into viewer resize authority", () => {
+  const { result } = renderHook(() =>
+    useLiveConversationEnvironment("chat", { ...environment, kind: "desktop" }, true),
+  );
+  act(() => {
+    emit({ type: "environment_state", data: { ...environment, kind: "desktop" } });
+    opened();
+    emit(picture());
+  });
+  act(() => result.current.send({ type: "resize", width: 640, height: 900, scale: 1 }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() => {
+    emit({
+      type: "environment_state",
+      data: { ...environment, kind: "desktop", control: "human" },
+    });
+    held();
+  });
+  act(() => result.current.send({ type: "resize", width: 640, height: 900, scale: 1 }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() =>
+    emit({
+      type: "environment_state",
+      data: { ...environment, kind: "desktop", can_control: false },
+    }),
+  );
+  act(() => result.current.send({ type: "resize", width: 640, height: 900, scale: 1 }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+});
+
+it("selects real live pages without takeover and never shows an overtaken page frame", () => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  const tabs = {
+    environment_id: environment.id,
+    tabs: [
+      { id: "main", title: "One", url: "https://one.test" },
+      { id: "second", title: "Two", url: "https://two.test" },
+    ],
+    active_tab_id: "main",
+  };
+  act(() => {
+    view();
+    emit({ type: "environment_tabs", data: tabs });
+    emit({ ...picture(), data: { ...picture().data, tab_id: "main" } });
+  });
+  act(() => result.current.activateTab("second"));
+  expect(socket.sendMessage).toHaveBeenCalledExactlyOnceWith({
+    type: "activate_tab",
+    tab_id: "second",
+  });
+  expect(result.current.selectingTab).toBe(true);
+  expect(result.current.browse?.image).toBeNull();
+  act(() => emit({ type: "environment_tabs", data: { ...tabs, active_tab_id: "second" } }));
+  expect(result.current.browse?.image).toBeNull();
+  expect(result.current.browse?.title).toBe("Two");
+  act(() => emit({ ...picture(), data: { ...picture().data, tab_id: "main", step: 50 } }));
+  expect(result.current.browse?.image).toBeNull();
+  act(() => emit({ ...picture(), data: { ...picture().data, tab_id: "second", step: 51 } }));
+  expect(result.current.browse?.image).not.toBeNull();
+  socket.sendMessage.mockClear();
+  act(() => result.current.activateTab("forged"));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+});
+
+it("never sends a tab selection while hidden or while the agent controls the environment", () => {
+  const { result, rerender } = renderHook(
+    ({ enabled }) => useLiveConversationEnvironment("chat", environment, enabled),
+    { initialProps: { enabled: true } },
+  );
+  act(() => {
+    view();
+    emit({
+      type: "environment_tabs",
+      data: {
+        environment_id: environment.id,
+        tabs: [{ id: "main", title: "One", url: "https://one.test" }],
+        active_tab_id: "main",
+      },
+    });
+    emit({
+      type: "environment_state",
+      data: { ...environment, control: "agent", can_control: false },
+    });
+  });
+  act(() => result.current.activateTab("main"));
+  rerender({ enabled: false });
+  act(() => result.current.activateTab("main"));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+});
+
+it("keeps input disabled until this selection is acknowledged or refused", () => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  act(() => {
+    view();
+    emit({
+      type: "environment_tabs",
+      data: {
+        environment_id: environment.id,
+        tabs: [
+          { id: "main", title: "One", url: "https://one.test" },
+          { id: "second", title: "Two", url: "https://two.test" },
+        ],
+        active_tab_id: "main",
+      },
+    });
+    held();
+    emit({ type: "environment_state", data: { ...environment, control: "human" } });
+  });
+  act(() => result.current.activateTab("second"));
+  socket.sendMessage.mockClear();
+  act(() => {
+    result.current.send({ type: "click", x: 1, y: 1 });
+    emit({
+      type: "browser_event",
+      data: {
+        kind: "browser_control_error",
+        call_id: environment.id,
+        step: 4,
+        operation: "activate_tab",
+        tab_id: "unrelated",
+        detail: "Old refusal",
+      },
+    });
+  });
+  expect(result.current.selectingTab).toBe(true);
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() =>
+    emit({
+      type: "browser_event",
+      data: {
+        kind: "browser_control_error",
+        call_id: environment.id,
+        step: 5,
+        operation: "activate_tab",
+        tab_id: "second",
+        detail: "The page closed",
+      },
+    }),
+  );
+  expect(result.current.selectingTab).toBe(false);
+  expect(result.current.browse?.image).toBeNull();
+});
+
+it("abandons an unacknowledged selection when the current socket reconnects", () => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  const tabs = {
+    environment_id: environment.id,
+    tabs: [
+      { id: "main", title: "One", url: "https://one.test" },
+      { id: "second", title: "Two", url: "https://two.test" },
+    ],
+    active_tab_id: "main",
+  };
+  act(() => {
+    view();
+    emit({ type: "environment_tabs", data: tabs });
+  });
+  act(() => result.current.activateTab("second"));
+  expect(result.current.selectingTab).toBe(true);
+  act(() => options.onClose?.(new CloseEvent("close", { code: 1006 })));
+  act(() => {
+    view();
+    emit({ type: "environment_tabs", data: tabs });
+    emit({ ...picture(), data: { ...picture().data, tab_id: "main" } });
+  });
+  expect(result.current.selectingTab).toBe(false);
+  expect(result.current.browse?.image).not.toBeNull();
+  socket.sendMessage.mockClear();
+  act(() => result.current.activateTab("second"));
+  expect(socket.sendMessage).toHaveBeenCalledExactlyOnceWith({
+    type: "activate_tab",
+    tab_id: "second",
+  });
+});

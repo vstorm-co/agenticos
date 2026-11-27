@@ -5,6 +5,7 @@
  * (`lib/improvement-subject.ts`); what is only a skill's is here.
  */
 
+import type { CurrencyAmount } from "@/lib/money";
 import { apiClient } from "./api-client";
 import type {
   SkillContinuationEstimate,
@@ -51,10 +52,12 @@ export function startSkillImprovement(
   skillId: string,
   origin: SkillImprovementOrigin,
   budgetUsd: string,
+  monetaryInputs?: Record<string, CurrencyAmount>,
 ): Promise<SkillImprovement> {
   return apiClient.post<SkillImprovement>(root(skillId), {
     ...originBody(origin),
     budget_usd: budgetUsd,
+    ...(monetaryInputs ? { monetary_inputs: monetaryInputs } : {}),
   });
 }
 
@@ -66,7 +69,7 @@ export function getSkillProblems(skillId: string, sessionId: string): Promise<Sk
 export function applySkillImprovement(
   skillId: string,
   sessionId: string,
-  body: { acknowledge_unknown: boolean; pin_worse: boolean },
+  body: { check_id: string; result_hash: string; acknowledge_unknown: boolean; pin_worse: boolean },
 ): Promise<{ session: SkillImprovement }> {
   return apiClient.post<{ session: SkillImprovement }>(`${root(skillId)}/${sessionId}/apply`, {
     confirmed: true,
@@ -78,7 +81,13 @@ export function applySkillImprovement(
 export function forkSkillImprovement(
   skillId: string,
   sessionId: string,
-  body: { name: string; agent_ids: string[]; acknowledge_unknown: boolean },
+  body: {
+    check_id: string;
+    result_hash: string;
+    name: string;
+    agent_ids: string[];
+    acknowledge_unknown: boolean;
+  },
 ): Promise<SkillImprovementForked> {
   return apiClient.post<SkillImprovementForked>(`${root(skillId)}/${sessionId}/fork`, {
     confirmed: true,
@@ -110,10 +119,12 @@ export function recheckSkillImprovement(
   sessionId: string,
   quote: SkillContinuationEstimate,
   budget: string,
+  monetaryInputs?: Record<string, CurrencyAmount>,
 ): Promise<SkillImprovement> {
   return apiClient.post<SkillImprovement>(`${root(skillId)}/${sessionId}/recheck`, {
     confirmed: true,
     budget_usd: budget,
+    ...(monetaryInputs ? { monetary_inputs: monetaryInputs } : {}),
     estimate_usd: quote.total_usd,
     candidate_hash: quote.candidate_hash,
   });

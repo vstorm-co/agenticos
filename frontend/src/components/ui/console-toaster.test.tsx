@@ -59,3 +59,26 @@ it("leaves loading and explicitly non-dismissible notifications visible", async 
     "false",
   );
 });
+
+it("routes workspace feedback to its own host and dismisses it only once", async () => {
+  render(
+    <>
+      <ConsoleToaster closeLabel="Close global" />
+      <ConsoleToaster id="visual" closeLabel="Close visual" />
+    </>,
+  );
+  const dismissed = vi.fn();
+  const opened = vi.fn();
+  await showToast(() => {
+    toast.success("Saved visual", {
+      toasterId: "visual",
+      onDismiss: dismissed,
+      action: { label: "Open app", onClick: opened },
+    });
+  });
+  expect(screen.queryByRole("button", { name: "Close global" })).toBeNull();
+  expect(screen.getByRole("button", { name: "Close visual" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Open app" }));
+  expect(opened).toHaveBeenCalledOnce();
+  expect(dismissed).toHaveBeenCalledOnce();
+});

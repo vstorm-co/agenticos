@@ -100,11 +100,12 @@ from app.services.coding_task_changes import CodingTaskChangeService
 from app.services.conversation_tasks import ConversationTaskService
 from app.services.tasks import TaskService
 from app.services.visual import VisualService
-from app.services.local_service import LocalServiceService
+from app.services.service_connection import ServiceConnectionService
 from app.services.ml import MLService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import SandboxWorkspaceService
 from app.services.conversation_share import ConversationShareService
+from app.services.conversation_environments import ConversationEnvironmentService
 
 
 def get_user_service(db: DBSession) -> UserService:
@@ -183,6 +184,15 @@ def get_coding_task_change_service(db: DBSession) -> CodingTaskChangeService:
 CodingTaskChangeSvc = Annotated[CodingTaskChangeService, Depends(get_coding_task_change_service)]
 
 
+def get_conversation_environment_service(db: DBSession) -> ConversationEnvironmentService:
+    return ConversationEnvironmentService(db)
+
+
+ConversationEnvironmentSvc = Annotated[
+    ConversationEnvironmentService, Depends(get_conversation_environment_service)
+]
+
+
 def get_conversation_service(db: DBSession) -> ConversationService:
     """Create ConversationService instance with database session."""
     return ConversationService(db)
@@ -212,11 +222,11 @@ def get_sandbox_connection_service(db: DBSession) -> SandboxConnectionService:
 SandboxConnectionSvc = Annotated[SandboxConnectionService, Depends(get_sandbox_connection_service)]
 
 
-def get_local_service_service(db: DBSession) -> LocalServiceService:
-    return LocalServiceService(db)
+def get_service_connection_service(db: DBSession) -> ServiceConnectionService:
+    return ServiceConnectionService(db)
 
 
-LocalServiceSvc = Annotated[LocalServiceService, Depends(get_local_service_service)]
+ServiceConnectionSvc = Annotated[ServiceConnectionService, Depends(get_service_connection_service)]
 
 
 def get_ml_service(db: DBSession) -> MLService:
@@ -963,6 +973,7 @@ from app.services.skill_agents import SkillAgentService
 from app.services.skill_catch_up import SkillCatchUpService
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
+from app.services.skill_package import SkillPackageService
 
 
 def get_skill_service(db: DBSession) -> SkillService:
@@ -971,6 +982,13 @@ def get_skill_service(db: DBSession) -> SkillService:
 
 
 SkillSvc = Annotated[SkillService, Depends(get_skill_service)]
+
+
+def get_skill_package_service(db: DBSession) -> SkillPackageService:
+    return SkillPackageService(db)
+
+
+SkillPackageSvc = Annotated[SkillPackageService, Depends(get_skill_package_service)]
 
 
 def get_skill_version_service(db: DBSession) -> SkillVersionService:
@@ -2018,6 +2036,19 @@ async def require_deployment_mcp_scope(request: Request, user: CurrentUser) -> N
 CurrentAppAdmin = Annotated[User, Depends(_require_app_admin)]
 
 
+async def require_personal_onboarding_session(request: Request, _user: CurrentUser) -> None:
+    """Setup completion represents a person, never a delegated key or MCP client.
+
+    Even a deployment-admin OAuth grant cannot complete the administrator's
+    onboarding. Preserve caller identity until this boundary before passing the
+    authenticated user into the organization-independent setup service.
+    """
+    if _key_caller(request) is not None:
+        raise AuthorizationError(
+            message="Setup progress requires a personal signed-in session", details={}
+        )
+
+
 _WS_TOKEN_PROTOCOL_PREFIX = "access_token."
 
 
@@ -2227,6 +2258,18 @@ def get_vectorstore(request: Request, embedder: EmbeddingSvc) -> BaseVectorStore
 
 
 VectorStoreSvc = Annotated[BaseVectorStore, Depends(get_vectorstore)]
+
+from app.services.embedding_probe import EmbeddingProbeService
+
+
+def get_embedding_probe_service(
+    db: DBSession, vector_store: VectorStoreSvc
+) -> EmbeddingProbeService:
+    """Create EmbeddingProbeService with the database session and the vector store."""
+    return EmbeddingProbeService(db, vector_store)
+
+
+EmbeddingProbeSvc = Annotated[EmbeddingProbeService, Depends(get_embedding_probe_service)]
 
 from app.services.case_generation import CaseGenerationService
 

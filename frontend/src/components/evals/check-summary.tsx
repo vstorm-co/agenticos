@@ -4,7 +4,8 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { describeCheck } from "@/lib/scoring";
 import type { CaseCheck } from "@/types/datasets";
-import { seconds, usd } from "./format";
+import { useMoney } from "@/components/providers/currency-provider";
+import { seconds } from "./format";
 
 const INLINE_IGNORE_CASE = "(?i)";
 const PATTERN_SYNTAX = /[.^$*+?()[\]{}|\\]/;
@@ -37,6 +38,7 @@ function lengthRule(t: ReturnType<typeof useTranslations>, check: CaseCheck): st
 
 /** One check of a case in words, with the check as stored behind it on hover. */
 export function CheckSummary({ check }: { check: CaseCheck }) {
+  const money = useMoney();
   const t = useTranslations("evals.case.expect.check");
   const locale = useLocale();
   const raw = describeCheck(check);
@@ -55,7 +57,7 @@ export function CheckSummary({ check }: { check: CaseCheck }) {
       break;
     }
     case "max_cost_usd":
-      rule = t("maxCost", { amount: usd(String(check.value), locale) });
+      rule = t("maxCost", { amount: money.cost(String(check.value), locale) });
       break;
     case "max_latency_ms":
       rule = t("maxLatency", { duration: seconds(Number(check.value), locale) });

@@ -1,12 +1,14 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useLocale, useTranslations } from "next-intl";
 
 import { AnimatedAmount, AnimatedTally, DeltaChip, Figure } from "@/components/ui";
 
 import { completedShare, formatCompletedShare, statusTally } from "@/lib/run-outcomes";
 import { timelineOf } from "@/lib/dashboard/timeline";
-import { deltaPercent, formatUsd } from "../format";
+import { deltaPercent } from "../format";
 import { WidgetFrame } from "../widget-frame";
 import type { DashboardWidgetProps } from "./types";
 import { UsageBody } from "./usage-body";
@@ -31,6 +33,7 @@ import { UsageBody } from "./usage-body";
 export function SummaryWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.summary");
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
 
   return (
     <WidgetFrame title={title} hint={hint} seeAll={seeAll} options={options}>
@@ -79,7 +82,7 @@ export function SummaryWidget({ title, hint, period, seeAll, options }: Dashboar
                 value={
                   <AnimatedAmount
                     value={usage.cost?.period_usd}
-                    label={t("spendLabel", { amount: formatUsd(usage.cost?.period_usd, locale) })}
+                    label={t("spendLabel", { amount: formatMoney(usage.cost?.period_usd, locale) })}
                   />
                 }
                 delta={

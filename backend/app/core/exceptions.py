@@ -175,6 +175,12 @@ class BadRequestError(AppException):
     status_code = 400
 
 
+class EmbeddingBudgetError(BadRequestError):
+    """Embedding policy refusal; replay cannot repair missing price or usage."""
+
+    code = "EMBEDDING_BUDGET_UNVERIFIABLE"
+
+
 class PaymentRequiredError(AppException):
     """Payment required - seat or usage limit reached (402)."""
 

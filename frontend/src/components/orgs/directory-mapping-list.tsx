@@ -73,9 +73,8 @@ export function DirectoryMappingList({
       className: "w-0 pr-5",
       cell: (mapping) => (
         <Button
-          variant="ghost"
+          variant="destructive-ghost"
           size="sm"
-          className="text-muted-foreground hover:text-destructive"
           onClick={() => onDelete(mapping)}
           aria-label={tc("removeNamed", { name: mapping.external_group })}
         >

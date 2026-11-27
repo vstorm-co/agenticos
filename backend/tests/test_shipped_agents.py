@@ -503,11 +503,12 @@ async def test_verified_historical_starter_upgrades_without_overwriting_independ
     async def save(_ctx, _id, spec):
         agent.draft_spec = spec.model_dump(mode="json")
 
-    async def publish(*args, **kwargs):
-        published.append(AgentSpec.model_validate(agent.draft_spec))
+    async def publish(_ctx, _id, spec, *, draft, note):
+        published.append(spec)
+        agent.draft_spec = draft.model_dump(mode="json")
 
     service.registry.save_draft = AsyncMock(side_effect=save)
-    service.registry.publish = AsyncMock(side_effect=publish)
+    service.registry.publish_spec = AsyncMock(side_effect=publish)
     monkeypatch.setattr(
         shipped_agents.agent_repo,
         "get_version",

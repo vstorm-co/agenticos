@@ -11,6 +11,9 @@ interface ServiceCardProps {
   description: string;
   icon: LucideIcon;
   action: ReactNode;
+  /** Keep a larger header control right-aligned without squeezing phone headings. */
+  responsiveAction?: boolean;
+  headingLevel?: 2 | 3;
   status?: ReactNode;
   children?: ReactNode;
   collapsible?: boolean;
@@ -28,6 +31,8 @@ export function ServiceCard({
   description,
   icon: Icon,
   action,
+  responsiveAction = false,
+  headingLevel = 2,
   status,
   children,
   collapsible = false,
@@ -38,6 +43,7 @@ export function ServiceCard({
   testId,
   toggleTour,
 }: ServiceCardProps) {
+  const Heading = headingLevel === 3 ? "h3" : "h2";
   const generatedId = useId();
   const panelId = id ?? generatedId;
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
@@ -53,9 +59,17 @@ export function ServiceCard({
       aria-label={title}
       data-slot="service-card"
       data-testid={testId}
-      className="bg-card min-w-0 overflow-hidden rounded-xl border"
+      className={cn(
+        "bg-card min-w-0 overflow-hidden rounded-xl border",
+        responsiveAction && "@container/service-card",
+      )}
     >
-      <header className="has-[[data-slot=service-trigger]:hover]:bg-control-hover relative isolate flex items-start gap-3 p-4 transition-colors sm:p-5">
+      <header
+        className={cn(
+          "has-[[data-slot=service-trigger]:hover]:bg-control-hover relative isolate flex items-start gap-3 p-4 transition-colors sm:p-5",
+          responsiveAction && "flex-wrap @min-[480px]/service-card:flex-nowrap",
+        )}
+      >
         <span
           data-slot="service-icon"
           className="bg-muted text-foreground/80 grid size-9 shrink-0 place-items-center rounded-lg"
@@ -63,7 +77,7 @@ export function ServiceCard({
           <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
         </span>
         <div className="flex min-w-0 flex-1 items-start gap-1.5">
-          <h2 aria-label={title} className="min-w-0 flex-1 text-sm font-semibold">
+          <Heading aria-label={title} className="min-w-0 flex-1 text-sm font-semibold">
             {expandable ? (
               <button
                 id={`${panelId}-toggle`}
@@ -104,10 +118,21 @@ export function ServiceCard({
                 </span>
               </span>
             )}
-          </h2>
+          </Heading>
           {status && <div className="relative z-10 empty:hidden">{status}</div>}
         </div>
-        <div className="relative z-10 shrink-0">{action}</div>
+        {action != null && (
+          <div
+            data-slot="service-action"
+            className={cn(
+              "relative z-10 min-w-0 shrink-0",
+              responsiveAction &&
+                "ms-auto flex max-w-full basis-full justify-end @min-[480px]/service-card:basis-auto",
+            )}
+          >
+            {action}
+          </div>
+        )}
       </header>
       {children && (
         <DisclosureContent

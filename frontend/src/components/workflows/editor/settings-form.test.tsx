@@ -104,8 +104,12 @@ describe("WorkflowSettingsForm", () => {
       run_retention_days: 30,
       keep_succeeded_runs: false,
       max_concurrent_runs: 3,
-      run_budget_usd: 0.5,
-      monthly_budget_usd: 25,
+      run_budget_usd: "0.5",
+      monthly_budget_usd: "25",
+      monetary_inputs: {
+        run_budget_usd: { amount: "0.5", currency: "USD" },
+        monthly_budget_usd: { amount: "25", currency: "USD" },
+      },
     });
   });
 
@@ -190,7 +194,7 @@ describe("WorkflowSettingsForm", () => {
       target: { value: "" },
     });
     fireEvent.change(screen.getByLabelText("Keep runs for (days)"), { target: { value: "" } });
-    expect(screen.getByLabelText("Most its runs may spend a month (USD)")).toHaveValue(40);
+    expect(screen.getByLabelText("Most its runs may spend a month (USD)")).toHaveValue("40");
     for (const label of [
       "Runs under way at once",
       "Most one run may spend (USD)",

@@ -17,7 +17,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import (
@@ -31,8 +31,9 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_run import AgentRun, RunSurface
-from app.db.models.authoring import AuthoringRequest, AuthoringStatus, HunkKind
+from app.db.models.authoring import AuthoringRequest, AuthoringStatus, HunkKind, SpecProposalHunk
 from app.db.models.background_job import BackgroundJob
+from app.db.models.dataset import Dataset
 from app.db.models.organization import OrganizationMember
 from app.db.models.skill import Skill
 from app.db.models.skill_check import (
@@ -55,6 +56,7 @@ from app.repositories import (
     skill_version_repo,
 )
 from app.schemas.authoring import AuthoringEstimate, InstructionChange
+from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.improvement import ChangeEdit, ImprovementDiscard, ImprovementSelection
 from app.schemas.skill import SkillUpdate
 from app.schemas.skill_check import (
@@ -81,11 +83,12 @@ from app.schemas.skill_version import SkillForkRead, VersionNumberRef, VersionRe
 from app.services import authoring_hunks
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack, EvidenceService, PackedRun
+from app.services.dataset import DatasetService
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
 from app.services.personal_data import PersonalDataService
 from app.services.skill_agents import SkillAgentService
-from app.services.skill_check import SkillCheckService
+from app.services.skill_check import SkillCheckService, result_hash
 from app.services.skill_improvement import SkillImprovementService
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
@@ -151,6 +154,23 @@ def fixed_evidence(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     monkeypatch.setattr(SkillImprovementService, "_evidence", pack)
     monkeypatch.setattr(AuthoringService, "estimate_pack", priced)
     return state
+
+
+async def reviewed_check(
+    db: AsyncSession,
+    ctx: AuthContext,
+    skill_id: uuid.UUID,
+    run_id: uuid.UUID,
+    *,
+    main_alone: bool = False,
+) -> dict[str, Any]:
+    """The check a person deciding on the session reviewed, and its result as they read it:
+    the session's result, or main alone."""
+    session = await SkillImprovementService(db).read(ctx, skill_id, run_id)
+    check = session.main_alone_check if main_alone else session.check
+    if check is None:
+        return {"check_id": uuid.uuid4(), "result_hash": "0" * 64}
+    return {"check_id": check.id, "result_hash": check.result_hash}
 
 
 async def _skill_on_main(db: AsyncSession, ctx: AuthContext) -> Skill:
@@ -488,6 +508,11 @@ class TestSteps:
         assert (run.status, run.stage, read.next_step) == ("waiting", "filtering", "check")
         assert len(changes) == 5 and all(change.applies for change in changes)
         assert [change.kind for change in changes].count("skill_description") == 2
+        described = next(change for change in changes if change.kind == "skill_description")
+        assert (described.old_text, described.new_text) == (
+            "How refunds work.",
+            "How refunds and returns work.",
+        )
         assert sorted(item["reason"] for item in attempt.dropped) == [
             "overlaps",
             "repeated",
@@ -1242,10 +1267,14 @@ class FakeChecks:
     async def read(self, ctx, skill_id, check_id):
         check = await skill_check_repo.get(self.db, check_id, organization_id=ctx.organization_id)
         assert check is not None
+        rows = await skill_check_repo.list_agents(
+            self.db, [check.id], organization_id=ctx.organization_id
+        )
         return SkillCheckRead(
             **self._estimate(SkillCheckStart(candidate=_TEXT)).model_dump(),
             id=check.id,
             skill_id=skill_id,
+            result_hash=result_hash(check, rows),
             source=check.source,
             status=check.status,
             verdict=check.verdict,
@@ -1443,6 +1472,29 @@ class TestCheckAndResult:
 
         assert change.contains_credential
         assert "Kanar3kSkillEdit" not in change.new_text
+        assert [call for call in fake.calls if call[0] == "start"] == []
+
+    async def test_a_chosen_change_nobody_can_fully_see_is_never_checked(
+        self, db, evidence, monkeypatch
+    ):
+        """A stored change holding a bidi override is refused when the check would start,
+        before any model reads it."""
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        [attempt] = await skill_improvement_repo.list_iterations(
+            db, organization_id=ctx.organization_id, run_id=run.id
+        )
+        [hunk] = await authoring_repo.list_hunks(
+            db, organization_id=ctx.organization_id, batch_id=attempt.batch_id
+        )
+        hunk.new_text = f"{hunk.new_text}\u202e"
+        await db.flush()
+
+        with pytest.raises(BadRequestError) as refused:
+            await _check_now(db, ctx, run)
+
+        assert [problem["field"] for problem in refused.value.details["fields"]] == ["hunk_ids"]
         assert [call for call in fake.calls if call[0] == "start"] == []
 
     async def test_a_limit_raised_at_the_quote_is_the_limit_the_session_keeps(
@@ -1647,6 +1699,37 @@ class TestCheckAndResult:
         assert refused.value.details["fields"][0]["field"] == "hunk_ids"
 
 
+@pytest.mark.security
+async def test_a_chosen_change_with_no_text_to_show_is_neither_checked_nor_applied(
+    db, evidence, monkeypatch
+):
+    """A description the person could not read is never measured, so it is never applied."""
+    _checked(db, monkeypatch)
+    ctx = await _owner(db)
+    run = await _at_changes(
+        db,
+        ctx,
+        [
+            _body_edit("Refunds take 14 days.", "Refunds take 30 days."),
+            _description("How refunds and returns work."),
+        ],
+    )
+    blank = await db.scalar(
+        select(SpecProposalHunk).where(
+            SpecProposalHunk.kind == HunkKind.SKILL_DESCRIPTION.value,
+            SpecProposalHunk.organization_id == ctx.organization_id,
+        )
+    )
+    assert blank is not None
+    blank.new_description = "   "
+    await db.flush()
+
+    with pytest.raises(BadRequestError) as refused:
+        await _check_now(db, ctx, run)
+
+    assert refused.value.details["fields"][0]["field"] == "hunk_ids"
+
+
 class TestOutcomes:
     async def test_apply_makes_a_version_and_accepts_the_session(self, db, evidence, monkeypatch):
         fake = _checked(db, monkeypatch)
@@ -1660,7 +1743,12 @@ class TestOutcomes:
             ctx,
             run.skill_id,
             run.id,
-            SkillImprovementApply(confirmed=True, pin_worse=True, acknowledge_unknown=True),
+            SkillImprovementApply(
+                confirmed=True,
+                **await reviewed_check(db, ctx, run.skill_id, run.id),
+                pin_worse=True,
+                acknowledge_unknown=True,
+            ),
         )
 
         assert (applied.session.status, applied.session.outcome) == ("accepted", "applied_pinned")
@@ -1668,7 +1756,94 @@ class TestOutcomes:
         [(_, sent)] = [call for call in fake.calls if call[0] == "apply"]
         assert sent.pin_worse and sent.acknowledge_unknown
         with pytest.raises(ConcurrentChangeError):
-            await service.apply(ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True))
+            await service.apply(
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementApply(
+                    confirmed=True, **await reviewed_check(db, ctx, run.skill_id, run.id)
+                ),
+            )
+
+    @pytest.mark.security
+    async def test_a_decision_on_a_result_other_than_the_one_reviewed_is_refused(
+        self, db, evidence, monkeypatch
+    ):
+        """The session's result is checked again after a person reviewed it: applying or
+        forking names the check that was shown, and is refused for the other."""
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="passed")
+        shown = await reviewed_check(db, ctx, run.skill_id, run.id)
+        service = SkillImprovementService(db)
+        other = {**shown, "check_id": uuid.uuid4()}
+
+        with pytest.raises(ConcurrentChangeError, match="Refresh the session") as refused:
+            await service.apply(
+                ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True, **other)
+            )
+        with pytest.raises(ConcurrentChangeError, match="Refresh the session"):
+            await service.fork(
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementFork(confirmed=True, **other, name="Returns"),
+            )
+
+        assert refused.value.details == {
+            "check_id": shown["check_id"],
+            "reviewed_check_id": other["check_id"],
+        }
+        assert [call for call in fake.calls if call[0] in ("apply", "fork")] == []
+        applied = await service.apply(
+            ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True, **shown)
+        )
+        assert applied.session.outcome == "applied"
+
+    @pytest.mark.security
+    async def test_a_decision_on_a_result_judged_again_since_it_was_reviewed_is_refused(
+        self, db, evidence, monkeypatch
+    ):
+        """A review of a case judges the check's agents again in place, keeping the check's
+        id: the confirmation given on the result as it read before is refused."""
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="passed")
+        shown = await reviewed_check(db, ctx, run.skill_id, run.id)
+        [row] = await skill_check_repo.list_agents(
+            db, [shown["check_id"]], organization_id=ctx.organization_id
+        )
+        row.broken = row.broken + 1
+        row.regressions_confirmed = row.regressions_confirmed + 1
+        await db.flush()
+        service = SkillImprovementService(db)
+
+        with pytest.raises(ConcurrentChangeError, match="Refresh the session"):
+            await service.apply(
+                ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True, **shown)
+            )
+        with pytest.raises(ConcurrentChangeError, match="Refresh the session"):
+            await service.fork(
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementFork(confirmed=True, **shown, name="Returns"),
+            )
+
+        assert [call for call in fake.calls if call[0] in ("apply", "fork")] == []
+        applied = await service.apply(
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillImprovementApply(
+                confirmed=True, **await reviewed_check(db, ctx, run.skill_id, run.id)
+            ),
+        )
+        assert applied.session.outcome == "applied"
 
     async def test_apply_without_a_worse_agent_is_a_plain_apply(self, db, evidence, monkeypatch):
         _checked(db, monkeypatch)
@@ -1678,7 +1853,12 @@ class TestOutcomes:
         run = await _settle(db, run, status="done", verdict="passed")
 
         applied = await SkillImprovementService(db).apply(
-            ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True)
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillImprovementApply(
+                confirmed=True, **await reviewed_check(db, ctx, run.skill_id, run.id)
+            ),
         )
 
         assert applied.session.outcome == "applied" and applied.pinned == []
@@ -1693,7 +1873,14 @@ class TestOutcomes:
         run = await _settle(db, run, status="done", verdict="blocked")
 
         forked = await SkillImprovementService(db).fork(
-            ctx, run.skill_id, run.id, SkillImprovementFork(confirmed=True, name="Returns")
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillImprovementFork(
+                confirmed=True,
+                **await reviewed_check(db, ctx, run.skill_id, run.id),
+                name="Returns",
+            ),
         )
 
         assert (forked.session.status, forked.session.outcome) == ("accepted", "forked")
@@ -1708,7 +1895,14 @@ class TestOutcomes:
 
         with pytest.raises(ConcurrentChangeError):
             await SkillImprovementService(db).fork(
-                ctx, run.skill_id, run.id, SkillImprovementFork(confirmed=True, name="Returns")
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementFork(
+                    confirmed=True,
+                    **await reviewed_check(db, ctx, run.skill_id, run.id),
+                    name="Returns",
+                ),
             )
 
     async def test_a_check_plan_that_changed_at_the_same_price_asks_again(
@@ -1798,6 +1992,56 @@ class TestOutcomes:
         assert read.check is None
         assert ("set_aside", checked) in fake.calls
 
+    @pytest.mark.security
+    async def test_a_try_again_note_quoting_a_skill_test_question_is_refused(
+        self, db, evidence, monkeypatch
+    ):
+        """Every question of the skill's own set is graded by the next check, so a note
+        carrying one would hand the helper what the check then measures."""
+        _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="blocked")
+        datasets = DatasetService(db)
+        test_set = await datasets.create(ctx, DatasetCreate(name="refunds-skill-questions"))
+        await db.execute(
+            update(Dataset).where(Dataset.id == test_set.id).values(skill_id=run.skill_id)
+        )
+        await datasets.add_case(
+            ctx,
+            test_set.id,
+            DatasetCaseCreate(
+                input="How long is the refund window for shoes?", reference_answer="30 days"
+            ),
+        )
+        service = SkillImprovementService(db)
+        quote = await service.estimate_continuation(ctx, run.skill_id, run.id, SkillContinue())
+
+        def consent(note: str) -> SkillContinuationConsent:
+            return SkillContinuationConsent(
+                confirmed=True,
+                estimate_usd=quote.total_usd,
+                candidate_hash=quote.candidate_hash,
+                budget_usd=run.budget_usd,
+                note=note,
+            )
+
+        with pytest.raises(BadRequestError) as refused:
+            await service.continue_run(
+                ctx,
+                run.skill_id,
+                run.id,
+                consent("Answer   how long is the REFUND window for shoes? with 30 days"),
+            )
+        read = await service.continue_run(
+            ctx, run.skill_id, run.id, consent("Keep main's other rules")
+        )
+
+        assert refused.value.details["fields"][0]["field"] == "note"
+        assert "refund window" not in refused.value.message
+        assert (read.iteration, read.stage) == (2, "proposing")
+
     async def test_a_result_nobody_decided_for_a_week_sets_its_check_aside(
         self, db, evidence, monkeypatch
     ):
@@ -1853,7 +2097,9 @@ class TestHandedOver:
             "run_ids": [str(seed.run_ids[0])],
             "problems": ["The window is wrong"],
             "quotes": ["Refunds take 14 days."],
+            "withheld": 0,
         }
+        assert read.seed_withheld == 0
 
     async def test_failed_training_answers_the_agents_session_read_are_evidence_enough(
         self, db, monkeypatch
@@ -2061,7 +2307,14 @@ class TestCheckAgain:
         service = SkillImprovementService(db)
 
         with pytest.raises(ConcurrentChangeError):
-            await service.apply(ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True))
+            await service.apply(
+                ctx,
+                run.skill_id,
+                run.id,
+                SkillImprovementApply(
+                    confirmed=True, **await reviewed_check(db, ctx, run.skill_id, run.id)
+                ),
+            )
         before = await service.read(ctx, run.skill_id, run.id)
         rechecked = await _recheck(db, ctx, run)
         run = await _settle(db, run, status="done", verdict="passed")
@@ -2420,7 +2673,14 @@ class TestReviewFixes:
         _, run = await _with_result(db, await _owner(db), monkeypatch)
         ctx = await _owner_of(db, run)
         service = SkillImprovementService(db)
-        await service.apply(ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True))
+        await service.apply(
+            ctx,
+            run.skill_id,
+            run.id,
+            SkillImprovementApply(
+                confirmed=True, **await reviewed_check(db, ctx, run.skill_id, run.id)
+            ),
+        )
 
         with pytest.raises(ConcurrentChangeError):
             await service.discard(ctx, run.skill_id, run.id, ImprovementDiscard(confirmed=True))
@@ -3039,3 +3299,78 @@ class TestADecisionBesideTheSkillsDelete:
                     task.cancel()
                     with contextlib.suppress(asyncio.CancelledError):
                         await task
+
+
+class TestADecisionBesideAReview:
+    @pytest.mark.security
+    async def test_a_decision_waits_for_a_review_judging_its_check_and_refuses_the_old_result(
+        self, db: AsyncSession, engine: AsyncEngine, evidence, monkeypatch
+    ):
+        """A review of a case judges the check's agents again under the check's lock; a
+        decision made meanwhile waits for it, and the result it was confirmed on is gone."""
+        fake = _checked(db, monkeypatch)
+        ctx = await _owner(db)
+        run = await _at_changes(db, ctx)
+        await _check_now(db, ctx, run)
+        run = await _settle(db, run, status="done", verdict="passed")
+        shown = await reviewed_check(db, ctx, run.skill_id, run.id)
+        await db.commit()
+        factory = async_sessionmaker(engine, expire_on_commit=False)
+
+        async def applying() -> object:
+            async with factory() as session:
+                return await SkillImprovementService(session).apply(
+                    ctx, run.skill_id, run.id, SkillImprovementApply(confirmed=True, **shown)
+                )
+
+        task: asyncio.Task[object] | None = None
+        async with factory() as judging:
+            try:
+                check = await skill_check_repo.get(
+                    judging, shown["check_id"], organization_id=ctx.organization_id, lock=True
+                )
+                assert check is not None
+                [row] = await skill_check_repo.list_agents(
+                    judging, [check.id], organization_id=ctx.organization_id
+                )
+                row.regressions_confirmed = row.regressions_confirmed + 1
+                await judging.flush()
+                task = asyncio.create_task(applying())
+                await _waiting_for_a_lock(factory, task)
+
+                await judging.commit()
+                with pytest.raises(ConcurrentChangeError, match="Refresh the session"):
+                    await task
+                task = None
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+
+        assert [call for call in fake.calls if call[0] == "apply"] == []
+
+
+@pytest.mark.security
+async def test_recheck_lower_consent_keeps_larger_budget_and_original_currency(
+    db: AsyncSession, evidence: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx = await _owner(db)
+    _, run = await _with_result(db, ctx, monkeypatch)
+    original_budget = run.budget_usd
+    original = {
+        "budget_usd": {
+            "amount": str(original_budget * 4),
+            "currency": "PLN",
+            "units_per_usd": "4",
+            "cost_usd": str(original_budget),
+        }
+    }
+    run.monetary_terms = original
+    await db.flush()
+    result = await _recheck(db, ctx, run, budget_usd=original_budget / 2)
+    await db.refresh(run)
+    assert result.budget_usd == original_budget
+    assert run.budget_usd == original_budget
+    assert run.monetary_terms == original
+    assert result.status == "running"

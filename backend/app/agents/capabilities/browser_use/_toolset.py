@@ -24,11 +24,11 @@ import functools
 import hashlib
 import logging
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal, cast
+from typing import Any, Literal, Protocol, cast
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -45,6 +45,7 @@ from app.agents.browser_events import (
     BrowserEvent,
     BrowserEventSink,
 )
+from app.agents.browser_sign_ins import SignIn
 from app.agents.capabilities._metered import MeteredModel
 from app.agents.capabilities.background_tools._capability import BACKGROUND
 from app.agents.capabilities.browser_use import _sessions
@@ -96,6 +97,33 @@ BROWSER_TAB_REQUIREMENT = "agenticos_browser_tab_requirement"
 
 PageFactory = Callable[..., AbstractAsyncContextManager[PageSession]]
 """Opens a browser tab on a starting URL. The default is `_page.open_page`."""
+
+
+class RetainedPageFactory(Protocol):
+    """The owned live-target adapter accepts no opaque user-supplied handle."""
+
+    def __call__(
+        self,
+        *,
+        cdp_url: str,
+        start_url: str | None,
+        policy: PagePolicy,
+        sign_ins: Sequence[SignIn],
+        route: BrowserRoute | None,
+        retained_tab_id: str,
+    ) -> AbstractAsyncContextManager[PageSession]: ...
+
+
+@dataclass(frozen=True)
+class RetainedBrowser:
+    """App-owned live tabs; IDs describe existing targets, never reload checkpoints."""
+
+    page_factory: RetainedPageFactory
+    tabs: Callable[[], Awaitable[tuple[tuple[str, ...], str] | None]]
+    select: Callable[[str], Awaitable[None]]
+    close: Callable[[str], Awaitable[None]]
+    finish: Callable[[], Awaitable[None]]
+
 
 _DATA_URL_PREFIX = "data:image/jpeg;base64,"
 
@@ -279,6 +307,7 @@ class BrowserToolset(FunctionToolset[Any]):
         self.restore_checked = False
         self.parked: dict[str, tuple[BrowseSession, AsyncExitStack]] = {}
         self.checkpoint: Callable[[], Awaitable[None]] | None = None
+        self.finish: Callable[[], Awaitable[None]] | None = None
         self._preview_stack: AsyncExitStack | None = None
 
     async def __aenter__(self) -> BrowserToolset:
@@ -292,7 +321,11 @@ class BrowserToolset(FunctionToolset[Any]):
                 if self.checkpoint is not None:
                     await self.checkpoint()
             finally:
-                await self.close()
+                try:
+                    await self.close()
+                finally:
+                    if self.finish is not None:
+                        await self.finish()
         return None
 
     async def open(self, factory: PageFactory, **kwargs: Any) -> BrowseSession:
@@ -422,10 +455,18 @@ def build_toolset(
     step_model: Model | None = None,
     route: BrowserRoute | None = None,
     resume_local: bool = False,
+    retained: RetainedBrowser | None = None,
 ) -> BrowserToolset:
     """`browse_web` and the agent's own browser tools, bound to the browser seam."""
-    open_browser = page_factory if page_factory is not None else open_page
+    open_browser = (
+        retained.page_factory
+        if retained is not None
+        else page_factory
+        if page_factory is not None
+        else open_page
+    )
     toolset = BrowserToolset()
+    toolset.finish = None if retained is None else retained.finish
 
     async def browse_web(
         ctx: RunContext[AgentDeps], task: str, start_url: str | None = None
@@ -510,6 +551,10 @@ def build_toolset(
             return detail
 
         try:
+            if retained is not None and not toolset.restore_checked:
+                failure = await restore_tabs(ctx)
+                if failure:
+                    return await fail(failure)
             session = toolset.session
             if session is None:
                 if not start_url and not resume_local:
@@ -615,6 +660,8 @@ def build_toolset(
             except UrlRefusedError as exc:
                 return f"This agent's browser connection cannot be used: {exc}"
         options: dict[str, object] = {}
+        if retained is not None:
+            options["retained_tab_id"] = toolset.tab_id
         scope = conversation_scope(ctx.deps)
         if resume_local:
             if scope is not None:
@@ -626,7 +673,7 @@ def build_toolset(
                 )
             elif url is None:
                 return NO_TAB
-        if scope is not None and person is not None and not hosted:
+        if retained is None and scope is not None and person is not None and not hosted:
 
             async def checkpoint() -> None:
                 tabs: list[_sessions.SavedTab] = []
@@ -727,6 +774,10 @@ def build_toolset(
         if page_factory is None and not cdp_url and (route is None or route.remote_url is None):
             return NO_ENDPOINT
         try:
+            if retained is not None and not toolset.restore_checked:
+                failure = await restore_tabs(ctx)
+                if failure:
+                    return failure
             if toolset.session is None:
                 opened = await open_tab(ctx, url)
                 if isinstance(opened, str):
@@ -749,6 +800,18 @@ def build_toolset(
         if toolset.restore_checked:
             return None
         toolset.restore_checked = True
+        if retained is not None:
+            live = await retained.tabs()
+            if live is not None:
+                ids, active = live
+                for tab_id in ids:
+                    await toolset.park()
+                    toolset.tab_id = tab_id
+                    opened = await open_tab(ctx, None)
+                    if isinstance(opened, str):
+                        return opened
+                await toolset.select(active)
+                return None
         person = _signed_in_as(ctx.deps)
         scope = conversation_scope(ctx.deps)
         if person is None or scope is None or (route and route.remote_url):
@@ -774,6 +837,10 @@ def build_toolset(
         Returns:
             The new tab id and a fresh page read, or a refusal at the eight-tab limit.
         """
+        if retained is not None:
+            failure = await restore_tabs(ctx)
+            if failure:
+                return failure
         if len(toolset.sessions()) >= _sessions.MAX_TABS:
             return "Eight tabs are open. Close one with browser_close_tab first."
         await toolset.park()
@@ -808,6 +875,8 @@ def build_toolset(
         """
         if not await toolset.select(tab_id):
             return "That tab is not open. Use browser_tabs to list tabs."
+        if retained is not None:
+            await retained.select(tab_id)
         return await browser_read(ctx)
 
     async def browser_close_tab(ctx: RunContext[AgentDeps], tab_id: str) -> str:
@@ -824,8 +893,12 @@ def build_toolset(
         if toolset.session is not None and isinstance(toolset.session.page, NativePage):
             toolset.session.page.close_on_release = True
         await toolset.close_active()
+        if retained is not None:
+            await retained.close(tab_id)
         if toolset.parked:
             await toolset.select(next(reversed(toolset.parked)))
+            if retained is not None:
+                await retained.select(toolset.tab_id)
         return "Closed tab.\n" + await browser_tabs(ctx)
 
     async def browser_read(ctx: RunContext[AgentDeps]) -> str:

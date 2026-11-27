@@ -223,6 +223,9 @@ def scoring_hash(scoring: DatasetScoring) -> str:
             del criterion["tags"]
     # A check that names no family scores as it did before families existed.
     for check in content["checks"]["defaults"]:
+        # Original monetary terms describe a threshold; they do not change what it grades.
+        check.pop("monetary_input", None)
+        check.pop("monetary_term", None)
         if check.get("family") is None:
             check.pop("family", None)
     canonical = json.dumps(content, sort_keys=True, separators=(",", ":"))
@@ -479,6 +482,21 @@ class ArmPlan:
     context_bodies: Mapping[UUID, ContextBody] = field(default_factory=dict)
     skill_versions: Mapping[str, str] | None = None
     """The stored skill versions the spec is served, by skill; `None` when it binds none."""
+
+
+def _uses_grading(scoring: DatasetScoring, cases: Sequence[DatasetCase]) -> bool:
+    """Case/default judge checks use the same paid judge as rubric and reference criteria."""
+    return (
+        scoring.judge.enabled
+        or scoring.reference.enabled
+        or (
+            scoring.checks.enabled
+            and (
+                any(check.type == "judge" for check in scoring.checks.defaults)
+                or any(check.get("type") == "judge" for case in cases for check in case.checks)
+            )
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -868,7 +886,7 @@ class EvalRunService:
                         from_recordings=request.from_recordings,
                         live_reads=request.live_reads,
                     ),
-                    judged=(config.judge.enabled or config.reference.enabled),
+                    judged=_uses_grading(config, cases),
                     judge_id=config.judge.agent_id,
                     judge_version_id=judge_version_id,
                     judge_pinned=judge_pinned,
@@ -894,7 +912,7 @@ class EvalRunService:
                     version,
                     scoring_hash=hashed,
                     execution=execution,
-                    judged=(config.judge.enabled or config.reference.enabled),
+                    judged=_uses_grading(config, cases),
                     judge_id=config.judge.agent_id,
                     judge_version_id=judge_version_id,
                     judge_pinned=judge_pinned,
@@ -933,7 +951,7 @@ class EvalRunService:
             reruns=reruns,
             from_recordings=request.from_recordings,
             live_reads=request.live_reads,
-            judged=(config.judge.enabled or config.reference.enabled),
+            judged=_uses_grading(config, cases),
             judge_version_id=judge_version_id,
             judge_pinned=judge_pinned,
             missing_baseline=missing,
@@ -1616,7 +1634,13 @@ class EvalRunService:
                 input_tokens=settings.EVAL_FALLBACK_INPUT_TOKENS * requests + reads,
                 output_tokens=settings.EVAL_FALLBACK_OUTPUT_TOKENS * requests,
             )
-            priced = price_request(typical, model.model, model.provider)
+            priced = price_request(
+                typical,
+                model.model,
+                model.provider,
+                custom_pricing=model.credential.custom_pricing,
+                exchange_rates=model.credential.exchange_rates,
+            )
             if priced is not None:
                 return Decimal(priced).quantize(_CENT), False
         return settings.EVAL_FALLBACK_CASE_COST_USD, False
@@ -1637,7 +1661,11 @@ class EvalRunService:
         if arm.model_profile_id is not None:
             model = await self.models.resolve(ctx, profile_id=arm.model_profile_id)
             priced = price_request(
-                RunUsage(input_tokens=tokens, output_tokens=0), model.model, model.provider
+                RunUsage(input_tokens=tokens, output_tokens=0),
+                model.model,
+                model.provider,
+                custom_pricing=model.credential.custom_pricing,
+                exchange_rates=model.credential.exchange_rates,
             )
             if priced is not None:
                 return Decimal(priced).quantize(_CENT)
@@ -1826,6 +1854,7 @@ class EvalRunService:
         baseline_contexts: Mapping[UUID, ContextBody] | None = None,
         suite: EvalSuiteCheck | None = None,
         proposal_check: ProposalCheckRecord | None = None,
+        hold_usd: Decimal | None = None,
     ) -> EvalRunRead:
         """Write a run and hand it to the worker - or refuse it before anything is spent.
 
@@ -1833,6 +1862,10 @@ class EvalRunService:
         as it stands now so its read can hold the run to that suite's threshold.
         `proposal_check` is what a check of the authoring assistant's proposal
         measures; the run then sends nothing to review by itself.
+
+        The run keeps the price it is started at - the request's `quoted_usd`, or
+        `hold_usd`, a ceiling its caller has already compared with the estimate -
+        and its worker starts no work that would take it past that price.
 
         Raises:
             PaymentRequiredError: The estimate is more than the agent or the
@@ -1871,11 +1904,11 @@ class EvalRunService:
             proposal_check,
         )
         proposal_check = self._priced_check(proposal_check, estimate)
-        if request.quoted_usd is not None and estimate.total_usd > request.quoted_usd:
+        if request.quoted_usd is not None and estimate.at_most_usd > request.quoted_usd:
             raise ConcurrentChangeError(
                 message="This eval now costs more than was quoted; estimate it again",
                 details={
-                    "estimate_usd": str(estimate.total_usd),
+                    "estimate_usd": str(estimate.at_most_usd),
                     "quoted_usd": str(request.quoted_usd),
                 },
             )
@@ -1911,7 +1944,17 @@ class EvalRunService:
             judge_version_id=plan.judge_version_id,
             judge_pinned=plan.judge_pinned,
             estimate_usd=estimate.total_usd,
+            grading_estimate_usd=(
+                estimate.judge_usd
+                / (len(plan.cases) * sum(arm.cached is None for arm in plan.arms))
+                if estimate.judge_usd
+                else Decimal(0)
+            ),
             rerun_ceiling_usd=estimate.rerun_ceiling_usd,
+            quoted_usd=min(
+                (price for price in (request.quoted_usd, hold_usd) if price is not None),
+                default=None,
+            ),
             excluded_case_ids=plan.excluded_case_ids,
             suite_check=None if suite is None else suite.model_dump(mode="json"),
             proposal_check=(
@@ -3005,6 +3048,7 @@ class EvalRunService:
         holdout_minimum: bool = True,
         training_only: bool = False,
         include_criteria: bool = True,
+        within: Collection[UUID] | None = None,
     ) -> EvalComparisonRead:
         """One candidate arm against its baseline.
 
@@ -3017,6 +3061,8 @@ class EvalRunService:
         instead, so nothing about its held-out questions is read.
         `include_criteria` False omits criterion-grade reads for internal callers
         that only consume whole-question outcomes.
+        `within` narrows whatever else is compared to these cases, so a caller can
+        read a run on the questions it is allowed to learn from and no others.
         """
         run = await self._readable(ctx, run_id)
         return await self._comparison(
@@ -3028,6 +3074,7 @@ class EvalRunService:
             holdout_minimum=holdout_minimum,
             training_only=training_only,
             include_criteria=include_criteria,
+            within=within,
         )
 
     @staticmethod
@@ -3122,6 +3169,7 @@ class EvalRunService:
         holdout_minimum: bool = True,
         training_only: bool = False,
         include_criteria: bool = False,
+        within: Collection[UUID] | None = None,
     ) -> EvalComparisonRead:
         """Whole-question results, with criterion detail only for explicit comparisons.
 
@@ -3154,6 +3202,8 @@ class EvalRunService:
             allowed = {attempt.case_id for attempt in attempts} - set(
                 () if kept_aside is None else kept_aside.holdout_case_ids
             )
+        if within is not None:
+            allowed = set(within) if allowed is None else allowed & set(within)
         if allowed is not None:
             mine = {key: value for key, value in mine.items() if key in allowed}
             candidate_attempts = [case for case in candidate_attempts if case.case_id in allowed]

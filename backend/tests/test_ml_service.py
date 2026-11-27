@@ -293,7 +293,7 @@ async def test_naming_an_ocr_server_sends_the_pages_to_its_address(recorded: Any
     service = MLService(_db())
     with (
         patch(
-            "app.services.ml.facade.LocalServiceService.get_visible",
+            "app.services.ml.facade.ServiceConnectionService.get_visible",
             new=AsyncMock(return_value=_ocr_row()),
         ),
         patch(
@@ -316,7 +316,7 @@ async def test_a_service_registered_for_something_else_is_refused() -> None:
     service = MLService(_db())
     with (
         patch(
-            "app.services.ml.facade.LocalServiceService.get_visible",
+            "app.services.ml.facade.ServiceConnectionService.get_visible",
             new=AsyncMock(return_value=_ocr_row(kind="embedding")),
         ),
         patch(f"{_REPO}.record", new=AsyncMock()),
@@ -337,7 +337,7 @@ async def test_an_ocr_server_that_is_turned_off_is_refused() -> None:
     service = MLService(_db())
     with (
         patch(
-            "app.services.ml.facade.LocalServiceService.get_visible",
+            "app.services.ml.facade.ServiceConnectionService.get_visible",
             new=AsyncMock(return_value=_ocr_row(is_active=False)),
         ),
         patch(f"{_REPO}.record", new=AsyncMock()),
@@ -356,12 +356,12 @@ async def test_an_ocr_server_that_is_turned_off_is_refused() -> None:
 
 @pytest.mark.security
 async def test_another_tenants_ocr_server_is_not_found() -> None:
-    """The scoping is the local-service layer's, reached rather than re-implemented."""
+    """The scoping is the service-connection layer's, reached rather than re-implemented."""
     service = MLService(_db())
     with (
         patch(
-            "app.services.ml.facade.LocalServiceService.get_visible",
-            new=AsyncMock(side_effect=NotFoundError(message="Local service not found")),
+            "app.services.ml.facade.ServiceConnectionService.get_visible",
+            new=AsyncMock(side_effect=NotFoundError(message="Service connection not found")),
         ),
         patch(f"{_REPO}.record", new=AsyncMock()),
         pytest.raises(NotFoundError),

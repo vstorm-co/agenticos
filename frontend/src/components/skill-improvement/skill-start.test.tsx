@@ -97,6 +97,7 @@ describe("SkillStart", () => {
     expect(apiClient.post).toHaveBeenCalledWith("/skills/k1/improvements", {
       fork_id: "f1",
       budget_usd: "0.5",
+      monetary_inputs: { budget_usd: { amount: "0.5", currency: "USD" } },
     });
     expect(apiClient.get).toHaveBeenCalledWith("/skills/k1/improvements", {
       params: { fork_id: "f1" },

@@ -51,3 +51,13 @@ it("never offers an escape from an organization restriction", () => {
   expect(screen.getByRole("combobox")).toBeDisabled();
   expect(screen.getByText(/hides chat costs for this account/)).toBeVisible();
 });
+
+it("keeps the compact header selector named, bounded and disabled while saving", () => {
+  render(
+    <OrganizationChatCostControl compact value="spend_privileged" disabled onChange={vi.fn()} />,
+  );
+  const control = screen.getByRole("combobox", { name: "Who sees costs in chat" });
+  expect(control).toBeDisabled();
+  expect(control.parentElement).toHaveClass("w-60", "max-w-full");
+  expect(screen.getByText("Who sees costs in chat")).toHaveClass("sr-only");
+});

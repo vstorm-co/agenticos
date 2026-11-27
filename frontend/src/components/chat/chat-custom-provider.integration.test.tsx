@@ -117,11 +117,8 @@ async function mount(presentation: "form" | "library", provider: ProviderInfo) {
     await userEvent.click(screen.getByRole("combobox", { name: "Provider" }));
     await userEvent.click(await screen.findByRole("option", { name: provider.name }));
   } else {
-    await userEvent.click(
-      await screen.findByRole("button", {
-        name: provider.name,
-      }),
-    );
+    await userEvent.click(await screen.findByRole("combobox", { name: "Provider" }));
+    await userEvent.click(await screen.findByRole("option", { name: provider.name }));
   }
   await screen.findByLabelText("Endpoint");
   return onChange;
@@ -139,9 +136,7 @@ for (const presentation of ["form", "library"] as const) {
         vi.mocked(apiClient.get).mock.calls.filter(([path]) => path.includes("/models?"));
       expect(listingCalls()).toHaveLength(0);
       expect(screen.queryByRole("combobox", { name: "API" })).toBeNull();
-      expect(screen.queryAllByRole("combobox", { name: "Provider" })).toHaveLength(
-        presentation === "form" ? 1 : 0,
-      );
+      expect(screen.getAllByRole("combobox", { name: "Provider" })).toHaveLength(1);
       await userEvent.type(screen.getByLabelText("Endpoint"), "https://models.example");
       expect(listingCalls()).toHaveLength(0);
       await userEvent.click(screen.getByRole("button", { name: "Load models" }));

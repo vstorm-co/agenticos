@@ -278,7 +278,12 @@ async def test_supporting_files_stay_separate_and_require_reading_the_skill():
         description="Refund policy",
         content="Use its template.",
         resources=[
-            SimpleNamespace(name="reply.md", description="Reply template", content="TEMPLATE_BODY")
+            SimpleNamespace(
+                name="reply.md",
+                description="Reply template",
+                content="TEMPLATE_BODY",
+                encoding="utf8",
+            )
         ],
     )
     calls = 0

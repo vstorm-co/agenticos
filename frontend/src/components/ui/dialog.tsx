@@ -5,6 +5,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
+import { usePortalContainer } from "./portal-container";
 
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -55,8 +56,9 @@ const DialogContent = React.forwardRef<
     // Radix gives focus back to a `DialogTrigger` on close. A dialog opened from state
     // has none, so without this keyboard focus would fall to the page's body.
     const opener = React.useRef<HTMLElement | null>(null);
+    const container = usePortalContainer();
     return (
-      <DialogPortal>
+      <DialogPortal container={container}>
         <DialogOverlay />
         <DialogPrimitive.Content
           ref={ref}

@@ -251,7 +251,7 @@ export function SlashCommandsManager() {
             </Button>
             <Button
               type="button"
-              variant="ghost"
+              variant="destructive-ghost"
               size="icon-sm"
               disabled={pendingToggles.has(row.name)}
               onClick={() => setRemoving(row.record)}

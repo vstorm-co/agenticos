@@ -2,11 +2,12 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import AfterValidator, ConfigDict, Field, JsonValue, model_validator
 
+from app.core.hidden_text import visible
 from app.db.models.improvement import (
     DroppedHunk,
     ImprovementMode,
@@ -18,6 +19,7 @@ from app.db.models.improvement import (
 )
 from app.schemas.authoring import EvidenceItemRead, StepFailure
 from app.schemas.base import BaseSchema
+from app.schemas.currency import MonetaryInputSchema
 from app.schemas.knowledge_gap import CauseBranch
 from app.schemas.scoring import ScorerKind, ScorerStatus
 from app.schemas.skill_version import SkillBindingRead
@@ -68,7 +70,7 @@ class SearchOptions(BaseSchema):
     )
 
 
-class ImprovementTarget(BaseSchema):
+class ImprovementTarget(MonetaryInputSchema):
     improver_agent_id: UUID | None = None
 
     dataset_id: UUID | None = None
@@ -277,6 +279,12 @@ class ImprovementIterationRead(BaseSchema):
     verdict_detail: (
         dict[str, int | float | str | list[VerdictCriterion] | list[VerdictFamily] | None] | None
     )
+    result_hash: str | None = Field(
+        default=None,
+        description="A fingerprint of the attempt's verdict and its detail as measured, the "
+        "same for every reader. A review that judges a case again changes it; accepting "
+        "sends it back",
+    )
     held_out: int | None = Field(
         default=None,
         description="How many questions the attempt is measured on - kept aside, and no copy "
@@ -417,6 +425,8 @@ class ImprovementStopRead(BaseSchema):
 
 
 class ImprovementRead(BaseSchema):
+    monetary_terms: dict[str, JsonValue] = Field(default_factory=dict)
+
     round_hint: Literal["no_change", "inconclusive"] | None = Field(
         default=None,
         description="When the last two attempts changed nothing, or could not tell, another "
@@ -440,6 +450,13 @@ class ImprovementRead(BaseSchema):
     published_version_id: UUID | None = None
     published_version: int | None = None
     next_version: int | None = None
+    unmeasured_draft_edits: bool = Field(
+        default=False,
+        description=(
+            "The draft differed from the version it is based on before the session "
+            "started; publishing releases those edits too, which no check measured"
+        ),
+    )
     offer_automatic_check: bool = False
     can_restart: bool = False
     can_discard: bool = False
@@ -526,7 +543,7 @@ class TopicDeferral(BaseSchema):
     later: bool
 
 
-class ImprovementContinue(BaseSchema):
+class ImprovementContinue(MonetaryInputSchema):
     budget_usd: Decimal = Field(gt=0, max_digits=12, decimal_places=6)
 
 
@@ -572,8 +589,32 @@ class AttributionConsent(BaseSchema):
 
 
 class ImprovementFinish(BaseSchema):
+    """Accepting the attempt a person reviewed, bound to what they saw.
+
+    `attempt`, `candidate_spec_hash` and `result_hash` are the attempt's number and
+    its `ImprovementIterationRead` fingerprints as the reviewer read them; the
+    session must still hold exactly that attempt, measured as it was, or the
+    request is refused with 409.
+    """
+
     confirmed: Literal[True]
+    attempt: int = Field(ge=1, le=10, description="The number of the attempt that was reviewed")
+    candidate_spec_hash: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="The reviewed attempt's `candidate_spec_hash`, from the session's read",
+    )
+    result_hash: str = Field(
+        pattern=r"^[0-9a-f]{64}$",
+        description="The reviewed attempt's `result_hash`, from the session's read",
+    )
     publish: bool = False
+    publish_unmeasured_edits: bool = Field(
+        default=False,
+        description=(
+            "Publish although the draft held edits before the session started, which "
+            "it never measured; required with `publish` when `unmeasured_draft_edits`"
+        ),
+    )
     automatic_check: bool = False
     round: int | None = Field(
         default=None,
@@ -689,9 +730,12 @@ class ImprovementSelection(BaseSchema):
 
 class ChangeEdit(BaseSchema):
     """A person's edit of one proposed change's text while the session waits at Changes;
-    null puts back the text that was proposed."""
+    null puts back the text that was proposed. Kept exactly as typed: whitespace at either
+    end is part of the passage."""
 
-    edited_text: str | None = Field(max_length=20000)
+    model_config = ConfigDict(str_strip_whitespace=False)
+
+    edited_text: Annotated[str, AfterValidator(visible)] | None = Field(max_length=20000)
 
 
 class SelectionEstimate(BaseSchema):

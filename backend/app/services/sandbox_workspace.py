@@ -26,6 +26,7 @@ import asyncio
 import base64
 import contextlib
 import contextvars
+import hashlib
 import json
 import logging
 from binascii import Error as BinasciiError
@@ -44,7 +45,7 @@ from datetime import UTC, datetime, timedelta
 from functools import partial
 from io import BytesIO
 from pathlib import PurePosixPath
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID, uuid4
 
 import anyio
@@ -71,6 +72,7 @@ from app.agents.capabilities.sandbox._identity import (
     SessionScope,
     WorkspaceIdentity,
     WorkspaceScopeUnavailable,
+    retained_scope_key,
     scope_key,
 )
 from app.agents.capabilities.sandbox._opensandbox import OpenSandboxWorkspace, OrgOpenSandboxBackend
@@ -99,6 +101,7 @@ from app.repositories import member as member_repo
 from app.repositories import pending_sandbox_destroy as pending_destroy_repo
 from app.repositories import project_filesystem_bindings as filesystem_binding_repo
 from app.repositories import project_repo
+from app.schemas.project_context import ProjectExecutionTarget
 from app.schemas.project_filesystem_authority import ProjectFilesystemCredential
 from app.schemas.workspace import ConversationWorkspaceOrigins, WorkspaceOriginRead
 from app.services import device_hub
@@ -112,6 +115,9 @@ from app.services.workspace_archive import stream_zip, zip_folder, zip_members
 
 ServiceSandbox = SandboxdWorkspace | DaytonaWorkspace | E2BWorkspace | OpenSandboxWorkspace
 """What supplies a connection's sandboxes, on its explicitly resolved account."""
+
+if TYPE_CHECKING:
+    from app.worker.jobs import ConversationEnvironmentPayload
 
 logger = logging.getLogger(__name__)
 
@@ -465,6 +471,22 @@ class WorkspaceFlushFailure:
     error: WorkspaceCapacityError | ExternalServiceError
 
 
+@dataclass(frozen=True)
+class LiveExecutorScope:
+    """Current authorized identity for observing or fencing a retained executor."""
+
+    config: SandboxConfig
+    identity: WorkspaceIdentity
+    scope: SessionScope
+    resolved: ResolvedConnection
+    key: str
+
+
+@dataclass(frozen=True)
+class LiveWorkspaceMetadata(LiveExecutorScope):
+    row: AgentWorkspace
+
+
 @dataclass
 class OpenWorkspace:
     """A workspace a run is using, and what it takes to put it away."""
@@ -485,6 +507,7 @@ class OpenWorkspace:
     """Sandbox identity; each run receives separate, short-lived Project authority."""
 
     connection_id: UUID | None = None
+    connection_fingerprint: str | None = None
     """Which registered connection it runs on, for a workspace that is not `state`."""
 
     briefing: str | None = None
@@ -929,6 +952,72 @@ class SandboxWorkspaceService:
             ),
         )
 
+    async def open_for_environment(
+        self,
+        payload: ConversationEnvironmentPayload,
+        attempt: int,
+    ) -> OpenWorkspace:
+        """Prepare a real owned manual desktop without inventing run authority."""
+        from app.services.conversation_environment_policy import DesktopEnvironmentSettings
+        from app.services.conversation_environments import ConversationEnvironmentService
+
+        admitted = await ConversationEnvironmentService(self.db).claim(payload, attempt)
+        if (
+            not isinstance(admitted, DesktopEnvironmentSettings)
+            or admitted.authority.producer_run_id is not None
+            or admitted.authority.execution_target != "agent"
+            or admitted.authority.ctx.user_id is None
+        ):
+            raise BadRequestError(message="The manual desktop admission is no longer available")
+        if admitted.config.desktop not in ("sandbox", "auto") or (
+            admitted.config.desktop == "auto" and admitted.credential
+        ):
+            raise BadRequestError(message="The manual desktop does not use this retained executor")
+        config = sandbox_config(admitted.authority.spec)
+        if (
+            config is None
+            or config.backend != "service"
+            or config.session_scope not in ("conversation", "user", "agent")
+        ):
+            raise BadRequestError(
+                message="A manual desktop needs a retained container-backed workspace"
+            )
+        owner = admitted.authority
+        identity = WorkspaceIdentity(
+            organization_id=owner.ctx.organization_id,
+            agent_id=owner.agent.id,
+            run_id=None,
+            conversation_id=owner.conversation.id,
+            user_id=str(owner.ctx.user_id),
+            project_id=owner.conversation.project_id,
+        )
+        resolved = await self.connections.resolve(
+            owner.ctx, config.connection_id, ensure_default=False
+        )
+        key = self._retained_key(
+            identity,
+            config.session_scope,
+            "service",
+            resolved.row.id,
+            _keyed_runtime(config, resolved),
+        )
+        return await self._open_service(config, identity, key, config.session_scope, resolved)
+
+    @staticmethod
+    def _retained_key(
+        identity: WorkspaceIdentity,
+        scope: SessionScope,
+        backend: BackendKind,
+        connection_id: UUID | None = None,
+        runtime: str | None = None,
+    ) -> str:
+        if scope not in ("conversation", "user", "agent"):
+            raise BadRequestError(message="A manual desktop needs a persistent workspace scope")
+        try:
+            return retained_scope_key(identity, scope, backend, connection_id, runtime)
+        except WorkspaceScopeUnavailable as exc:
+            raise BadRequestError(message=str(exc), details={"session_scope": scope}) from exc
+
     async def _open_config(
         self,
         config: SandboxConfig,
@@ -1048,34 +1137,7 @@ class SandboxWorkspaceService:
         parses_documents = False
         notice = _OpeningNotice(on_wait) if on_wait is not None else None
         row = await self._row(config, identity, key, scope, connection_id=resolved.row.id)
-        filesystem = None
-        if scope in ("conversation", "run") and await self.connections.supports_project_filesystem(
-            resolved
-        ):
-            from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
-
-            # Enabling optional mounts cannot retrofit a retained ordinary session.
-            # A recorded binding must still be forwarded, including any refusal.
-            if (
-                row is None
-                or row.session_id is None
-                or (
-                    await filesystem_binding_repo.binding_for_session(
-                        self.db,
-                        organization_id=identity.organization_id,
-                        connection_id=resolved.row.id,
-                        session_name=key,
-                    )
-                )
-                is not None
-            ):
-                filesystem = await ProjectFilesystemBindingService(self.db).credential(
-                    organization_id=identity.organization_id,
-                    connection_id=resolved.row.id,
-                    session_name=key,
-                    workspace_id=None if row is None else row.id,
-                    conversation_id=identity.conversation_id,
-                )
+        filesystem = await self._filesystem_for(config, identity, key, scope, resolved, row)
         sandbox = self._service_capability(
             resolved,
             key,
@@ -1124,10 +1186,50 @@ class SandboxWorkspaceService:
             scope_key=key,
             row_id=row.id if row is not None else None,
             connection_id=resolved.row.id,
+            connection_fingerprint=self.environment_connection_fingerprint(resolved),
             filesystem_binding_id=None if filesystem is None else filesystem.binding_id,
             briefing=briefing,
             parses_documents=parses_documents,
         )
+
+    async def _filesystem_for(
+        self,
+        config: SandboxConfig,
+        identity: WorkspaceIdentity,
+        key: str,
+        scope: SessionScope,
+        resolved: ResolvedConnection,
+        row: AgentWorkspace | None,
+    ) -> ProjectFilesystemCredential | None:
+        filesystem = None
+        if scope in ("conversation", "run") and await self.connections.supports_project_filesystem(
+            resolved
+        ):
+            from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+
+            # Enabling optional mounts cannot retrofit a retained ordinary session.
+            # A recorded binding must still be forwarded, including any refusal.
+            if (
+                row is None
+                or row.session_id is None
+                or (
+                    await filesystem_binding_repo.binding_for_session(
+                        self.db,
+                        organization_id=identity.organization_id,
+                        connection_id=resolved.row.id,
+                        session_name=key,
+                    )
+                )
+                is not None
+            ):
+                filesystem = await ProjectFilesystemBindingService(self.db).credential(
+                    organization_id=identity.organization_id,
+                    connection_id=resolved.row.id,
+                    session_name=key,
+                    workspace_id=None if row is None else row.id,
+                    conversation_id=identity.conversation_id,
+                )
+        return filesystem
 
     @staticmethod
     def _service_capability(
@@ -1243,6 +1345,213 @@ class SandboxWorkspaceService:
             scope_key=key,
             backend=config.backend,
             connection_id=connection_id,
+        )
+
+    @staticmethod
+    def environment_connection_fingerprint(resolved: ResolvedConnection) -> str:
+        """Bind a live desktop to the exact provider endpoint, runtime and credential."""
+        return hashlib.sha256(
+            json.dumps(
+                {
+                    "connection": str(resolved.row.id),
+                    "kind": resolved.kind,
+                    "base_url": resolved.row.base_url,
+                    "runtime": resolved.row.default_runtime,
+                    "secure_access": resolved.row.secure_access,
+                    "credential": resolved.token,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+
+    async def resolve_live_execution(
+        self,
+        ctx: AuthContext,
+        *,
+        spec: AgentSpec,
+        identity: WorkspaceIdentity,
+        execution_target: ProjectExecutionTarget,
+        selected_project_id: UUID | None = None,
+        selected_generation: UUID | None = None,
+    ) -> LiveExecutorScope:
+        """Resolve the authorized physical key without creating rows, sessions or providers."""
+        return await self._resolve_live_execution(
+            ctx,
+            spec=spec,
+            identity=identity,
+            execution_target=execution_target,
+            selected_project_id=selected_project_id,
+            selected_generation=selected_generation,
+            key_for=self._key,
+        )
+
+    async def _resolve_live_execution(
+        self,
+        ctx: AuthContext,
+        *,
+        spec: AgentSpec,
+        identity: WorkspaceIdentity,
+        execution_target: ProjectExecutionTarget,
+        selected_project_id: UUID | None = None,
+        selected_generation: UUID | None = None,
+        key_for: Callable[
+            [WorkspaceIdentity, SessionScope, BackendKind, UUID | None, str | None], str
+        ],
+    ) -> LiveExecutorScope:
+        """Resolve the authorized physical key without creating rows, sessions or providers."""
+        from app.services.conversation import ConversationService
+        from app.services.project_workspace_guard import project_for_workspace
+
+        if identity.conversation_id is None or ctx.user_id is None:
+            raise NotFoundError(message="The live workspace is unavailable", details={})
+        conversation = await ConversationService(self.db).get_conversation(
+            identity.conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            for_write=True,
+            turn=True,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        if execution_target == "project":
+            project = await project_for_workspace(
+                self.db, ctx, selected_project_id or conversation.project_id
+            )
+            config = project_sandbox(project)
+            if (
+                selected_project_id is not None or selected_generation is not None
+            ) and project.workspace_generation != selected_generation:
+                raise NotFoundError(message="The selected project executor changed", details={})
+            identity = replace(
+                identity, project_id=project.id, project_workspace_id=project.workspace_generation
+            )
+            scope: SessionScope = "project"
+        else:
+            config = sandbox_config(spec)
+            if config is None or config.backend != "service":
+                raise NotFoundError(message="The live workspace is unavailable", details={})
+            scope = config.session_scope
+        if config.backend != "service":
+            raise NotFoundError(message="The live workspace is unavailable", details={})
+        resolved = await self.connections.resolve(ctx, config.connection_id, ensure_default=False)
+        key = key_for(identity, scope, "service", resolved.row.id, _keyed_runtime(config, resolved))
+        return LiveExecutorScope(config, identity, scope, resolved, key)
+
+    async def resolve_live_workspace(
+        self,
+        ctx: AuthContext,
+        *,
+        spec: AgentSpec,
+        identity: WorkspaceIdentity,
+        execution_target: ProjectExecutionTarget,
+        workspace_id: UUID,
+        connection_fingerprint: str,
+        environment_id: UUID | None = None,
+    ) -> LiveWorkspaceMetadata:
+        """Resolve existing executor authority without admission, recovery or provider I/O."""
+        key_for = self._key
+        if identity.run_id is None and execution_target != "project" and environment_id is not None:
+            from app.services.conversation_environment_policy import DesktopEnvironmentSettings
+            from app.services.conversation_environment_resources import DesktopEnvironmentResource
+            from app.services.conversation_environments import ConversationEnvironmentService
+
+            if identity.conversation_id is None:
+                raise NotFoundError(
+                    message="The manual desktop identity is unavailable", details={}
+                )
+            _, configured, resource = await ConversationEnvironmentService(self.db).live(
+                ctx,
+                identity.conversation_id,
+                environment_id,
+                execution_target,
+            )
+            if (
+                not isinstance(configured, DesktopEnvironmentSettings)
+                or not isinstance(resource, DesktopEnvironmentResource)
+                or resource.backend != "sandbox"
+                or resource.workspace_id != workspace_id
+                or identity.organization_id != ctx.organization_id
+                or identity.agent_id != configured.authority.agent.id
+                or identity.user_id != str(ctx.user_id)
+            ):
+                raise NotFoundError(message="The manual desktop identity changed", details={})
+            spec = configured.authority.spec
+            key_for = self._retained_key
+        execution = await self._resolve_live_execution(
+            ctx,
+            spec=spec,
+            identity=identity,
+            execution_target=execution_target,
+            key_for=key_for,
+        )
+        config, identity, scope = execution.config, execution.identity, execution.scope
+        resolved, key = execution.resolved, execution.key
+        if self.environment_connection_fingerprint(resolved) != connection_fingerprint:
+            raise NotFoundError(message="The live workspace connection changed", details={})
+        row = await workspace_repo.get(self.db, workspace_id, organization_id=ctx.organization_id)
+        if (
+            row is None
+            or row.scope_key != key
+            or row.backend != "service"
+            or row.connection_id != resolved.row.id
+        ):
+            raise NotFoundError(message="The original live workspace is unavailable", details={})
+        return LiveWorkspaceMetadata(config, identity, scope, resolved, key, row)
+
+    async def attach_live_environment(
+        self,
+        ctx: AuthContext,
+        *,
+        spec: AgentSpec,
+        identity: WorkspaceIdentity,
+        execution_target: ProjectExecutionTarget,
+        workspace_id: UUID,
+        ref: WorkspaceRef,
+        connection_fingerprint: str,
+        environment_id: UUID | None = None,
+    ) -> OpenWorkspace:
+        """Attach an admitted environment's exact workspace, without opening a turn.
+
+        Watching a GUI is not a new workspace writer and must remain possible
+        while a real agent run owns the conversation. This path never creates a
+        workspace row, substitutes a lost ref or inherits a run-only Project lease.
+        The caller serializes actual GUI input separately from observation.
+        """
+        current = await self.resolve_live_workspace(
+            ctx,
+            spec=spec,
+            identity=identity,
+            execution_target=execution_target,
+            workspace_id=workspace_id,
+            connection_fingerprint=connection_fingerprint,
+            environment_id=environment_id,
+        )
+        config, identity, scope = current.config, current.identity, current.scope
+        resolved, key, row = current.resolved, current.key, current.row
+        if row.session_id != ref.id:
+            raise NotFoundError(message="The original live workspace is unavailable", details={})
+        filesystem = await self._filesystem_for(config, identity, key, scope, resolved, row)
+        sandbox = self._service_capability(
+            resolved,
+            key,
+            runtime=config.runtime,
+            tenant=str(ctx.organization_id),
+            filesystem_binding=filesystem,
+        )
+        if ref.provider != _provider(sandbox):
+            raise NotFoundError(message="The original live workspace provider changed", details={})
+        backend = sandbox.backend(ref)
+        return OpenWorkspace(
+            workspace=Workspace(backend),
+            kind="service",
+            scope=scope,
+            scope_key=key,
+            row_id=row.id,
+            connection_id=resolved.row.id,
+            sandbox=sandbox,
+            close_transport=backend.aclose if isinstance(backend, OrgOpenSandboxBackend) else None,
+            filesystem_binding_id=None if filesystem is None else filesystem.binding_id,
         )
 
     async def open_project(self, ctx: AuthContext, project: Project) -> OpenWorkspace:

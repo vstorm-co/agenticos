@@ -534,3 +534,24 @@ async def test_update_preflight_without_record_identity_or_revision_never_releas
             expected_revision=None if missing in {"revision", "both"} else 1,
         )
     read.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("name", ["update_skill", "add_skill_resource", "update_context_file"])
+def test_an_edit_live_agents_read_always_asks_the_person(name: str) -> None:
+    """A skill's main line and a bound Context file are read by every agent on its
+    next run, so the platform's edit of one is never a draft that runs unasked -
+    not by default, not under standing consent, not with a `never` override."""
+    from app.agents.mcp import platform_spec
+    from app.core.platform_tool_policy import ALWAYS_ASKS as POLICY_ALWAYS_ASKS
+    from app.core.platform_tool_policy import DEFAULT_APPROVAL_FREE
+
+    spec = platform_spec(
+        "credential", allowed_tools=None, approval="writes", tool_approval={name: "never"}
+    )
+
+    assert name in POLICY_ALWAYS_ASKS
+    assert name not in DEFAULT_APPROVAL_FREE
+    assert name in spec.always_asks
+    assert name not in spec.default_approval_free
+    assert name not in spec.tool_approval

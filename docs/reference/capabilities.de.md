@@ -1,5 +1,5 @@
 ---
-source_sha: "617b957f6b31"
+source_sha: "fa4ee25fb961"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -137,10 +137,9 @@ Der Code-Modus erhält diese Stopps über die Sandbox-Grenze hinweg.
 | `browser_use` | Webbrowser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | über das Extra `browser` | übergeben |
 | `computer_use` | Computer-Bedienung | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | für einen Daemon | übergeben |
 | `code_execution` | Berechnungen | analysis | `run_python` | `code:execute` | — | unverändert |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace`, `select_execution_target` | `sandbox:execute` | für Daytona | übergeben |
 | `mirage` | Virtuelles Terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | pro Ordner, über das Extra `mirage` | übergeben |
 | `charts` | Diagramme | analysis | `create_chart` | — | — | unverändert |
-| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | unverändert |
+| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual`, `preview_visual` | — | — | unverändert |
 | `image_generation` | Bilderzeugung | analysis | `generate_image` | — | erforderlich | unverändert |
 | `text_to_speech` | Sprachausgabe | analysis | `generate_speech` | — | erforderlich | unverändert |
 | `video_generation` | Videoerzeugung | analysis | `generate_video` | — | erforderlich | übergeben |
@@ -216,7 +215,7 @@ einen Spec ab, der diese Capability zu führen versucht — siehe
 ## Was ein Eval ausführt { #what-an-eval-runs }
 
 Ein Eval führt den Agent wirklich aus, also führt es ein Tool nur aus, wenn das
-Tool außerhalb des Runs nichts ändert oder eine Testverbindung der
+Tool die eigenen Daten dieses Deployments liest oder eine Testverbindung der
 [Umgebung](../environments.md#in-an-eval) erreicht. Jede Capability erklärt,
 welche ihrer Tools nur lesen — `read_only`, neben `side_effecting` —, und ein
 Tool, das nichts erklärt, schreibt. Dies sind die Tools, die schreiben und die
@@ -246,11 +245,38 @@ ein Eval anhält und aufzeichnet:
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 | `workflows` | `run_workflow` |
 
-Jedes andere Tool oben liest nur. Delegieren zählt als Lesen: Die eigenen Tools
-eines Delegaten unterliegen ihren eigenen Erklärungen. `side_effecting` und
-`read_only` beantworten verschiedene Fragen: Das erste ist, wonach die Freigabe
-standardmäßig fragt, das zweite, was ein Eval ausführen darf, und ein nicht
-erklärtes Tool ist beim ersten ungesperrt und beim zweiten blockiert.
+Jedes andere Tool oben liest nur, aber Lesen reicht nicht, um in einem Eval zu
+laufen. Ein Eval führt Text aus, den noch niemand geprüft hat — die Varianten
+von Improve, eine Skill-Änderung in Prüfung —, und ein Lesezugriff kann
+trotzdem aus dem Deployment hinaustragen, was das Modell in ihn hineinlegt.
+Deshalb führt ein Eval einen Lesezugriff nur aus, wenn er auf einer
+festgeschriebenen Liste von Lesezugriffen steht, die drinnen bleiben
+(`LIVE_IN_ISOLATION` in `app/agents/isolation.py`), und hält diese an und
+zeichnet sie mit dem Grund `external` auf:
+
+| id | Tools, die nur lesen und trotzdem angehalten werden |
+| --- | --- |
+| `artifacts` | `preview_artifact` |
+| `channel_actions` | `list_chat_connections`, `find_chat_channels`, `read_chat_messages` |
+| `channel_tools` | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` |
+| `web_fetch` | `web_fetch`, unabhängig von seinen `allowed_domains` |
+| `web_research` | `web_search` |
+
+Ein Binding von `web_fetch` oder `web_research`, das den Aufruf an den
+Modell-Provider übergibt (`native`, oder `auto` bei einem Abruf), wird in einem
+Eval mit der eigenen Methode dieses Deployments gebaut, sodass der Aufruf den
+Wächter erreicht und angehalten wird. Ein Tool, das der Registry hinzugefügt
+wird, wird angehalten, bis es auf die Liste gesetzt wird.
+
+Delegation bleibt auf der Liste: Ein Delegat dieses Deployments läuft unter
+derselben Isolation, und seine eigenen Tools unterliegen ihren eigenen
+Erklärungen. Ein Delegat, der der Agent eines anderen Systems ist
+([A2A](#remote-agents)), nicht: Eine Aufgabe für ihn wird mit dem Grund
+`external` angehalten, und der Delegat selbst wird ohne seinen Endpunkt und
+ohne seinen Schlüssel gebaut. `side_effecting` und `read_only` beantworten
+verschiedene Fragen: Das erste ist, wonach die Freigabe standardmäßig fragt, das
+zweite, ob ein Tool überhaupt etwas ändert, und ein nicht erklärtes Tool ist
+beim ersten ungesperrt und beim zweiten blockiert.
 
 Eine Umgebung kann den Vault-Schlüssel einer Capability gegen einen Testschlüssel
 tauschen, aber ein getauschter Schlüssel macht einen Schreibvorgang nicht von
@@ -2031,11 +2057,25 @@ Lässt einen Agenten einen lange laufenden Befehl starten - einen Test-Watcher, 
 `draw` — _Zeichnet im Gespräch: ein Diagramm, eine Karte, einen Ablauf, eine Erklärung, eine 3D-Szene._
 `revise_visual` — _Ändert ein Visual durch exakte Ersetzungen, ohne es neu zu zeichnen._
 `read_visual` — _Liest ein Visual dieses Gesprächs, wie es jetzt ist, mit angewendeten Überarbeitungen._
+`preview_visual` — _Prüft ein Visual dieses Gesprächs: Screenshot und Renderdiagnose._
+
+**Vor dem Speichern prüfen.** `preview_visual(visual_id, width=1000, appearance="light")`
+rendert die Zeichnung mit Überarbeitungen und Bildern, ohne sie zu veröffentlichen.
+Die Breite liegt zwischen 240 und 1600 Pixeln, das Farbschema ist `light` oder
+`dark`; 390 prüft die Telefonansicht. Zurück kommen Renderfehler, Konsolenwarnungen,
+Richtlinienverstöße und blockierte Anfragen sowie ein bis zu 2400 Pixel hoher
+Screenshot. Zuschnitt und Zeitüberschreitung werden genannt. Jede Diagnoseliste
+enthält höchstens zehn Einträge.
+
+Die Bereitstellung benötigt `ARTIFACT_RENDER_CDP_URL` und das Backend-Extra `browser`.
+Ohne Renderer erklärt das Tool, weshalb kein Screenshot vorliegt. Mit
+`preview_screenshot: false` erhält ein Modell ohne Bilderkennung weiterhin den
+Bericht. Der Quelltext wird neu gerendert; aktuelle Eingaben der Person in der
+Chat-Vorschau werden nicht gelesen.
 
 Zeichnet im Chat selbst. `kind` ist `svg` für Diagramme und Illustrationen,
 `mermaid` für Flussdiagramme, Sequenzen und ER-Diagramme oder `html` für alles
-Interaktive - Schieberegler, `<canvas>`, three.js, eine Karte. Keine Konfiguration;
-der mitgelieferte Skill `visual-design` trägt den Stil und fünf Vorlagen, und der
+Interaktive - Schieberegler, `<canvas>`, three.js, eine Karte. Der mitgelieferte Skill `visual-design` trägt den Stil und fünf Vorlagen, und der
 Builder bindet ihn, zusammen mit Charts, wenn Visuals eingeschaltet wird.
 
 **Es wählt zuerst die Form.** Nicht jede Antwort ist eine Zeichnung. Der Text des
@@ -2654,6 +2694,15 @@ läuft durch die Adressprüfungen des Deployments, sodass weder eine Karte noch 
 Endpunkt die Plattform auf ihr eigenes Netz richten kann. Das Veröffentlichen lehnt
 einen Verweis auf eine nicht vorhandene Registrierung ab, und ein Run, dessen
 Registrierung inzwischen entfernt wurde, scheitert und nennt sie.
+
+Ein [Eval](#what-an-eval-runs), und jeder andere isolierte Run, sendet einem
+Remote Agent nichts. Eine Aufgabe für ihn wird angehalten und mit dem Grund
+`external` aufgezeichnet, und das Modell erfährt, dass der Agent in einem
+isolierten Run nicht verfügbar ist. Der Delegat wird ohne seinen Endpunkt
+gebaut, und sein Schlüssel wird nicht entsiegelt, sodass auch ein Aufruf, der
+ihn auf anderem Weg erreichte, nicht hinausgelangen könnte. Das gilt auf jeder
+Ebene des Delegationsbaums: Ein Delegat dieses Deployments, der an einen Remote
+Agent delegiert, wird genauso angehalten.
 
 Was eine Delegation kostet und welche Run-Zeile sie festhält, steht unter
 [Governance](../governance.md#delegation-spends-the-parents-budget). Wer an wen
@@ -3615,7 +3664,7 @@ einwirken.
     still entfernt und ein Aufruf mit Seiteneffekten dann unbeaufsichtigt läuft,
     ohne dass etwas es meldet. Eine id, die keine solche Capability bereitstellt,
 
-wird beim Veröffentlichen abgelehnt, und ebenso ein Name, den kein Modell aufrufen könnte, oder einer, den schon ein anderes Tool des Agenten trägt - das einer anderen Capability oder eines, das die Plattform selbst hinzufügt, etwa `request_capability`.
+wird beim Veröffentlichen abgelehnt, und ebenso ein Name, den kein Modell aufrufen könnte, oder einer, den schon ein anderes Tool des Agenten trägt - das einer anderen Capability oder eines, das die Plattform selbst hinzufügt, etwa `request_capability`. Auch darf ein neuer Name nicht mit `agenticos_` beginnen, dem Präfix der eigenen Tools der Plattform. Wer einen Aufruf freigeben darf, hängt nie von seinem Namen ab: Das Binding der Plattform markiert ihre eigenen Tools, und ein Aufruf hält diese Markierung fest, wenn er auf eine Freigabe wartet.
 
 ## Scopes { #scopes }
 

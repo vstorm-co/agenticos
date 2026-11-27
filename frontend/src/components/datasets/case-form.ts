@@ -69,6 +69,7 @@ export function argText(value: unknown): string {
  * each as the editor shows it (see `lengthFields`).
  */
 export interface CheckDraft {
+  currencyInvalid?: boolean;
   type: string;
   value: string;
   rest: Record<string, unknown>;
@@ -301,6 +302,7 @@ function keysOf(check: CheckDraft): CaseCheck | DraftProblem["key"] {
 }
 
 function checkOf(check: CheckDraft): CaseCheck | DraftProblem["key"] {
+  if (check.currencyInvalid) return "notNumber";
   if (!isKnownCheck(check.type)) return { type: check.type, ...check.rest };
   const { key, as } = CHECK_KINDS[check.type];
   if (as === "length") return lengthOf(check);

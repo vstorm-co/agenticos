@@ -1,5 +1,5 @@
 ---
-source_sha: "0ed38379a333"
+source_sha: "844c384e6bc4"
 ---
 
 # El spec del agent { #the-agent-spec }
@@ -22,7 +22,9 @@ sistema que la plataforma conoce (la fecha y la hora, quién ha iniciado sesión
 `time_zone` decide qué reloj lee `{{current_time}}`. Publicar rechaza un nombre que
 no sea ninguna de las dos cosas.
 
-`{{language}}` es el idioma guardado en la cuenta de la persona para la que se ejecuta el run, expresado como nombre de idioma (English, Polish, German, Turkish, French, Dutch o Brazilian Portuguese). Si el run no tiene una persona o una preferencia admitida, usa English; los runs desatendidos no toman el idioma de quien los publicó. Los agents también reciben esta preferencia en el contexto de la persona: los saludos breves o ambiguos la mantienen y una petición explícita de otro idioma tiene prioridad.
+`{{language}}` es el idioma guardado en la cuenta de la persona para la que se ejecuta el run, expresado como nombre de idioma (English, Polish, German, Turkish, French, Dutch o Brazilian Portuguese). Si el run no tiene una persona o una preferencia admitida, usa English; los runs desatendidos no toman el idioma de quien los publicó.
+
+El contexto de la persona trata este valor como alternativa: los requisitos explícitos del agente y las peticiones del usuario conservan su prioridad de instrucciones. En los demás casos la respuesta sigue el mensaje actual, después el idioma establecido si el mensaje es ambiguo y, solo entonces, la preferencia de la cuenta. Las fuentes citadas y las salidas de herramientas no fijan el idioma. Las instrucciones publicadas no se reescriben: revisa y publica de nuevo una copia antigua de AgenticOS que imponga expresamente el idioma de la cuenta si quieres este criterio basado en la conversación. Mantén los requisitos deliberados de idioma fijo de otros agentes.
 
 ::: app.agents.spec.PromptVariableSpec
 

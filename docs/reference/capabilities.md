@@ -127,10 +127,9 @@ across the sandbox boundary.
 | `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
 | `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | for a daemon | handed off |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace`, `select_execution_target` | `sandbox:execute` | for Daytona | handed off |
 | `mirage` | Virtual terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | per folder, via the `mirage` extra | handed off |
 | `charts` | Charts | analysis | `create_chart` | — | — | as-is |
-| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | as-is |
+| `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual`, `preview_visual` | — | — | as-is |
 | `image_generation` | Image generation | analysis | `generate_image` | — | required | as-is |
 | `text_to_speech` | Text to speech | analysis | `generate_speech` | — | required | as-is |
 | `video_generation` | Video generation | analysis | `generate_video` | — | required | handed off |
@@ -198,8 +197,8 @@ tries to carry it — see [Chat channel lookup](#chat-channel-lookup).
 
 ## What an eval runs
 
-An eval runs the agent for real, so it executes a tool only when the tool
-changes nothing outside the run, or reaches a test connection of the
+An eval runs the agent for real, so it executes a tool only when the tool reads
+this deployment's own data, or reaches a test connection of the
 [environment](../environments.md#in-an-eval). Each capability declares which of
 its tools only read — `read_only`, beside `side_effecting` — and a tool that
 declares nothing writes. These are the tools that write, and that an eval holds
@@ -229,10 +228,33 @@ and records:
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 | `workflows` | `run_workflow` |
 
-Every other tool above only reads. Delegation counts as reading: a delegate's
-own tools are held to their own declarations. `side_effecting` and `read_only`
-answer different questions: the first is what approval asks about by default,
-the second what an eval may run, and an undeclared tool is ungated by the first
+Every other tool above only reads, but reading is not enough to run in an eval.
+An eval runs text nobody has reviewed yet — Improve's variants, a skill change
+under check — and a read can still carry what the model puts into it out of the
+deployment. So an eval runs a read only when it is on a written list of reads
+that stay inside (`LIVE_IN_ISOLATION` in `app/agents/isolation.py`), and holds
+these, recorded with the reason `external`:
+
+| id | Tools that only read and are still held |
+|---|---|
+| `artifacts` | `preview_artifact` |
+| `channel_actions` | `list_chat_connections`, `find_chat_channels`, `read_chat_messages` |
+| `channel_tools` | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` |
+| `web_fetch` | `web_fetch`, whatever its `allowed_domains` |
+| `web_research` | `web_search` |
+
+A binding of `web_fetch` or `web_research` that hands the call to the model
+provider (`native`, or `auto` for a fetch) is built with this deployment's own
+method in an eval, so the call reaches the guard and is held. A tool added to
+the registry is held until it is put on the list.
+
+Delegation stays on the list: a delegate of this deployment runs under the same
+isolation, and its own tools are held to their own declarations. A delegate that
+is another system's agent ([A2A](#remote-agents)) is not: a task for it is held
+with the reason `external`, and the delegate itself is built without its
+endpoint or its key. `side_effecting` and `read_only` answer different
+questions: the first is what approval asks about by default, the second whether
+a tool changes anything at all, and an undeclared tool is ungated by the first
 and blocked by the second.
 
 An environment can swap a capability's vault key for a test one, but a swapped
@@ -1850,10 +1872,24 @@ Lets an agent start a command that runs for a long time - a test watcher, a log 
 explainer, a 3D scene.*
 `revise_visual` — *Change a visual by exact replacements, without drawing it again.*
 `read_visual` — *Read a visual in this conversation as it now is, revisions applied.*
+`preview_visual` — *Inspect a visual in this conversation: a screenshot and rendering diagnostics.*
+
+**Check before saving.** `preview_visual(visual_id, width=1000, appearance="light")`
+renders the drawing, including its revisions and images, without publishing it.
+Use a width from 240 to 1600 pixels and `light` or `dark`; 390 checks a phone.
+It returns rendering errors, console warnings, policy refusals and blocked
+requests, plus a screenshot up to 2400 pixels tall. A clipped page or timeout
+is explicit. Each diagnostic list keeps at most ten entries.
+
+The deployment needs `ARTIFACT_RENDER_CDP_URL` and the backend's `browser` extra.
+Without a renderer the tool explains why no screenshot was taken. Set
+`preview_screenshot: false` for a model that cannot read images; diagnostics
+still return. This is a fresh render of the source, not an inspection of the
+person's current inputs in the chat preview.
 
 Draws in the chat itself. `kind` is `svg` for diagrams and illustrations,
 `mermaid` for flowcharts, sequences and ER diagrams, or `html` for anything
-interactive - sliders, `<canvas>`, three.js, a map. No configuration; the bundled
+interactive - sliders, `<canvas>`, three.js, a map. The bundled
 `visual-design` skill carries the house style and five templates, and the
 Builder binds it, with Charts, when Visuals is switched on.
 
@@ -2382,6 +2418,14 @@ cost says it is partial. Every request goes through the deployment's address
 checks, so a card or an endpoint cannot point the platform at its own network.
 Publishing refuses a reference to a registration that does not exist, and a run
 whose registration was removed since fails naming it.
+
+An [eval](#what-an-eval-runs), and every other isolated run, sends a remote agent
+nothing. A task for one is held and recorded with the reason `external`, and the
+model is told the agent is not available in an isolated run. The delegate is
+built without its endpoint, and its key is not unsealed, so a call that reached
+it some other way could not leave either. This holds at every level of the
+delegation tree: a delegate of this deployment that delegates to a remote agent
+is held the same way.
 
 For what a delegation costs and which run row records it, see
 [Governance](../governance.md#delegation-spends-the-parents-budget). For who may
@@ -3246,7 +3290,7 @@ asks nobody; `side_effecting` only tells the Builder which tools act on the worl
     That is what keeps an approval gate attached to a renamed tool. Keying it on
     the visible name would mean a rename silently removes the gate, and a
     side-effecting call then goes unattended with nothing reporting it. An id no such capability exposes
-is refused at publish, and so is a name no model could call, or one another of the agent's tools already has - another capability's, or one the platform adds itself, such as `request_capability`.
+is refused at publish, and so is a name no model could call, or one another of the agent's tools already has - another capability's, or one the platform adds itself, such as `request_capability`. Nor may a rename start with `agenticos_`, which names the platform's own tools. Who may approve a call never depends on its name: the platform binding marks its own tools, and a call records that mark when it waits for approval.
 
 ## Scopes
 

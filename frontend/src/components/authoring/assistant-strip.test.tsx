@@ -178,6 +178,17 @@ describe("AssistantStrip", () => {
     expect(await screen.findByRole("heading", { name: "Check with evals" })).toBeInTheDocument();
   });
 
+  it("will not check suggestions while one of them quotes a credential, and says why", () => {
+    state.authoring = agentAuthoring({
+      batch: batch({ hunks: [hunk({ contains_credential: true }), hunk({ id: "hunk-2" })] }),
+    });
+    strip();
+    expect(screen.getByRole("button", { name: "Check with evals" })).toBeDisabled();
+    expect(
+      screen.getByText(/A suggestion quotes a credential, so these suggestions can't be checked/),
+    ).toBeVisible();
+  });
+
   it("hides suggestions without permission to read runs", () => {
     state.runsView = false;
     const { container } = strip();

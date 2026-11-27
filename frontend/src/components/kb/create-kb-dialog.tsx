@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoreOptions } from "@/components/ui/more-options";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -36,7 +37,12 @@ import {
 } from "@/components/kb/embedding-picker";
 import { IngestionSettings, ParserCards } from "@/components/kb/ingestion-settings";
 import { ProviderRow } from "@/components/vault/provider-row";
-import { useKnowledgeBases } from "@/hooks";
+import { ProbeResult } from "@/components/kb/probe-result";
+import { ProbeTestButton, WhyDisabled } from "@/components/kb/probe-test-button";
+import { useChanged } from "@/hooks/use-changed";
+import { useProbeGate } from "@/hooks/use-probe-gate";
+import { probeNewEmbedding } from "@/lib/embedding-probe-api";
+import { useKnowledgeBases, usePermissions } from "@/hooks";
 import { submitFailure } from "@/lib/api-error";
 import {
   DEFAULT_INGESTION_CONFIG,
@@ -67,12 +73,17 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   // The organization by default (#2072). "Only me" is a personal collection; the
   // other two are an organization one, open or shared with chosen groups.
   const [audience, setAudience] = useState<Audience>(EVERYONE);
+  // Deployment-wide: every organization reads it, and it belongs to none. Offered
+  // to a deployment admin only, the one caller the API lets create one.
+  const [deploymentWide, setDeploymentWide] = useState(false);
+  const { isAppAdmin } = usePermissions();
   const [ingestion, setIngestion] = useState<IngestionConfig>(DEFAULT_INGESTION_CONFIG);
   const [embeddingModel, setEmbeddingModel] = useState<string | null>(null);
   const [embeddingProvider, setEmbeddingProvider] = useState<string | null>(null);
   const [embeddingSecretId, setEmbeddingSecretId] = useState<string | null>(null);
   const [embeddingBaseUrl, setEmbeddingBaseUrl] = useState("");
   const [embeddingEndpointId, setEmbeddingEndpointId] = useState<string | null>(null);
+  const [customModel, setCustomModel] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Readonly<Record<string, string>>>({});
   const { createKB } = useKnowledgeBases();
@@ -85,7 +96,12 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   // preselected so the model list has something to show, the first model that
   // provider serves is preselected for the same reason, and the key or server
   // beside them stays empty until somebody chooses one.
-  const provider = embeddingProvider ?? embeddingModels?.providers[0]?.provider ?? "";
+  const availableProviders = embeddingModels?.providers.filter(
+    (entry) => !deploymentWide || entry.keyless || entry.any_model,
+  );
+  const provider = availableProviders?.some((entry) => entry.provider === embeddingProvider)
+    ? (embeddingProvider ?? "")
+    : (availableProviders?.[0]?.provider ?? "");
   const providerEntry = embeddingModels?.providers.find((item) => item.provider === provider);
   // A custom endpoint narrows the catalog to what it lists, which for
   // OpenRouter's EU endpoint is none of the OpenAI models the catalog starts on.
@@ -95,9 +111,17 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   );
   const offered = endpointModels?.models ?? providerEntry?.models ?? [];
   const firstOffered = offered[0]?.model ?? "";
-  const model = offered.some((entry) => entry.model === embeddingModel)
-    ? (embeddingModel ?? firstOffered)
-    : firstOffered;
+  // A custom endpoint lists no models: the model is whatever was typed, and it is
+  // only good once a Test of that exact endpoint and model has passed.
+  const custom = providerEntry?.any_model === true;
+  const typedModel = customModel.trim();
+  const model = custom
+    ? typedModel
+    : offered.some((entry) => entry.model === embeddingModel)
+      ? (embeddingModel ?? firstOffered)
+      : firstOffered;
+  const scope = deploymentWide ? "app" : audience.mode === "private" ? "personal" : "org";
+  const gate = useProbeGate({ endpoint: embeddingEndpointId, model: typedModel, scope });
 
   // Nobody has chosen an ingestion configuration until it differs from what is
   // shown, and sending one they did not choose is not a harmless default: the
@@ -105,18 +129,58 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
   // operator may have set to something other than the platform's. Posting the
   // form's starting values would quietly overrule that.
   const chosen = !sameIngestion(ingestion, DEFAULT_INGESTION_CONFIG);
-  const localProblems = chosen ? ingestionProblems(ingestion, t) : {};
-  const canSubmit = name.trim().length > 0 && Object.keys(localProblems).length === 0;
-  // The parsing details open themselves when they hold something required -
-  // LlamaParse's key - or something refused, and never close themselves: a
-  // fold shutting the moment its last problem is fixed takes the field being
-  // typed into with it.
+  const [draftInvalid, setDraftInvalid] = useState(false);
+  const localProblems = chosen
+    ? {
+        ...ingestionProblems(ingestion, t),
+        ...(draftInvalid ? { docling_ocr_languages: t("doclingLanguageInvalid") } : {}),
+      }
+    : {};
+  // Docling converts through a server of the organization's own; without one
+  // there is nothing for the collection to read with.
+  const doclingUnconnected = ingestion.pdf_parser === "docling" && !ingestion.docling_connection_id;
+  const canSubmit =
+    name.trim().length > 0 &&
+    provider !== "" &&
+    model !== "" &&
+    !doclingUnconnected &&
+    Object.keys(localProblems).length === 0 &&
+    (!custom || gate.token !== null);
+  // What the disabled Create says on hover.
+  const settingsMissing =
+    name.trim().length === 0 ||
+    provider === "" ||
+    model === "" ||
+    doclingUnconnected ||
+    Object.keys(localProblems).length > 0 ||
+    (custom && (embeddingEndpointId === null || typedModel === ""));
+  const createBlockedBy = settingsMissing
+    ? t("blockedMissingSettings")
+    : custom && gate.token === null
+      ? t("blockedRunTest")
+      : null;
+  // The parsing details open themselves when something in them becomes owed -
+  // LlamaParse's key or Docling's connection still unchosen - or refused. They
+  // open on that change only, so a person can fold them away again, and never
+  // close themselves: a fold shutting the moment its last problem is fixed
+  // takes the field being typed into with it.
   const [detailsOpen, setDetailsOpen] = useState(false);
   const parsingNeedsAttention =
-    ingestion.pdf_parser === "llamaparse" ||
+    (ingestion.pdf_parser === "llamaparse" && !ingestion.llamaparse_secret_id) ||
+    (ingestion.pdf_parser === "docling" && !ingestion.docling_connection_id) ||
     Object.keys(localProblems).length > 0 ||
     INGESTION_FORM_FIELDS.some((field) => field !== "pdf_parser" && field in errors);
-  if (parsingNeedsAttention && !detailsOpen) setDetailsOpen(true);
+  const [attentionShown, setAttentionShown] = useState(false);
+  if (parsingNeedsAttention !== attentionShown) {
+    setAttentionShown(parsingNeedsAttention);
+    if (parsingNeedsAttention) setDetailsOpen(true);
+  }
+  // A fresh refusal from the server is news even when attention was already owed:
+  // the field it names may be behind a fold the person closed (#1930).
+  const refusalSeen = useChanged(errors);
+  if (refusalSeen && INGESTION_FORM_FIELDS.some((f) => f !== "pdf_parser" && f in errors)) {
+    if (!detailsOpen) setDetailsOpen(true);
+  }
 
   const reset = () => {
     setName("");
@@ -128,8 +192,33 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
     setEmbeddingSecretId(null);
     setEmbeddingEndpointId(null);
     setEmbeddingBaseUrl("");
+    setCustomModel("");
     setDetailsOpen(false);
+    setAttentionShown(false);
+    setDeploymentWide(false);
     setErrors({});
+  };
+
+  const runTest = async () => {
+    if (embeddingEndpointId === null) return;
+    setErrors({});
+    try {
+      await gate.test(() =>
+        probeNewEmbedding({
+          embedding_endpoint_id: embeddingEndpointId,
+          embedding_model: typedModel,
+          scope,
+        }),
+      );
+    } catch (error) {
+      const failure = submitFailure(
+        error,
+        { fields: ["embedding_model", "embedding_endpoint_id"] },
+        tErrors,
+      );
+      setErrors(failure.fields);
+      if (failure.toast) toast.error(failure.toast);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -140,9 +229,9 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       const input: CreateKnowledgeBaseInput = {
         name: name.trim(),
         description: description.trim() || undefined,
-        scope: audience.mode === "private" ? "personal" : "org",
-        group_ids: audiencePayload(audience).group_ids,
-        user_ids: audiencePayload(audience).user_ids,
+        scope,
+        group_ids: deploymentWide ? [] : audiencePayload(audience).group_ids,
+        user_ids: deploymentWide ? [] : audiencePayload(audience).user_ids,
       };
       // The key is absent rather than undefined: "inherit the deployment's
       // defaults" is a thing the API is told by being told nothing.
@@ -155,6 +244,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
       if (provider) input.embedding_provider = provider;
       if (embeddingSecretId) input.embedding_secret_id = embeddingSecretId;
       if (embeddingEndpointId) input.embedding_endpoint_id = embeddingEndpointId;
+      if (custom && gate.token !== null) input.probe_token = gate.token;
       if (provider === "openrouter" && embeddingBaseUrl.trim())
         input.embedding_base_url = embeddingBaseUrl.trim();
       const kb = await createKB(input);
@@ -181,6 +271,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
             "embedding_secret_id",
             "embedding_endpoint_id",
             "embedding_base_url",
+            "probe_token",
             ...INGESTION_FORM_FIELDS,
           ],
         },
@@ -226,7 +317,46 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
               </div>
               <div className="space-y-1.5" data-tour="kb-dialog-scope">
                 <Label>{t("whoCanSearchIt")}</Label>
-                <AudiencePicker value={audience} onChange={setAudience} />
+                {!deploymentWide && <AudiencePicker value={audience} onChange={setAudience} />}
+                {isAppAdmin && (
+                  <div className="flex items-start gap-2 pt-1 text-sm">
+                    <Checkbox
+                      id="kb-deployment-wide"
+                      checked={deploymentWide}
+                      onCheckedChange={(next) => {
+                        const appScope = next === true;
+                        setDeploymentWide(appScope);
+                        setEmbeddingSecretId(null);
+                        setEmbeddingEndpointId(null);
+                        setEmbeddingBaseUrl("");
+                        if (appScope) {
+                          setEmbeddingProvider(
+                            embeddingModels?.providers.find(
+                              (entry) => entry.keyless || entry.any_model,
+                            )?.provider ?? null,
+                          );
+                          setIngestion((current) => ({
+                            ...current,
+                            pdf_parser:
+                              current.pdf_parser === "llamaparse" ? "pymupdf" : current.pdf_parser,
+                            llamaparse_secret_id: null,
+                            ocr_endpoint_id: null,
+                            docling_connection_id: null,
+                          }));
+                        }
+                      }}
+                      aria-describedby="kb-deployment-wide-hint"
+                    />
+                    <div className="space-y-0.5">
+                      <label htmlFor="kb-deployment-wide" className="block">
+                        {t("deploymentWideCollection")}
+                      </label>
+                      <p id="kb-deployment-wide-hint" className="text-muted-foreground text-xs">
+                        {t("deploymentWideCollectionHint")}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/*
@@ -254,6 +384,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   <>
                     <EmbeddingProviderFields
                       models={embeddingModels}
+                      deploymentOnly={deploymentWide}
                       provider={provider}
                       secretId={embeddingSecretId}
                       endpointId={embeddingEndpointId}
@@ -262,22 +393,32 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       onProvider={setEmbeddingProvider}
                       onSecretId={setEmbeddingSecretId}
                       onEndpointId={setEmbeddingEndpointId}
+                      model={customModel}
+                      onModel={setCustomModel}
+                      allowFreeModel
                       idPrefix="kb-new-embedding"
                     />
+                    {custom && gate.result && <ProbeResult result={gate.result} />}
                     {(errors.embedding_provider ??
                       errors.embedding_secret_id ??
                       errors.embedding_endpoint_id ??
-                      errors.embedding_base_url) !== undefined && (
+                      errors.embedding_base_url ??
+                      errors.probe_token) !== undefined && (
                       <p className="text-destructive text-xs">
                         {errors.embedding_provider ??
                           errors.embedding_secret_id ??
                           errors.embedding_endpoint_id ??
-                          errors.embedding_base_url}
+                          errors.embedding_base_url ??
+                          errors.probe_token}
                       </p>
                     )}
-                    <div className="space-y-1.5">
-                      <Label htmlFor="kb-embedding-model">{t("model")}</Label>
-                      {/*
+                    {custom && errors.embedding_model !== undefined && (
+                      <p className="text-destructive text-xs">{errors.embedding_model}</p>
+                    )}
+                    {!custom && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="kb-embedding-model">{t("model")}</Label>
+                        {/*
                       Mounted only once the list is, never mounted empty. A Radix
                       select inside a form keeps a hidden native `<select>` in step
                       with its value: the `<option>` elements are registered by the
@@ -285,51 +426,54 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                       options is assigned to a `<select>` that has none, reads back
                       as `""`, and clobbers the state it was about to display.
                     */}
-                      <Select value={model} onValueChange={setEmbeddingModel}>
-                        <SelectTrigger id="kb-embedding-model">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {offered.map((entry) => (
-                            <SelectItem
-                              key={entry.model}
-                              value={entry.model}
-                              // Without this every row answers to the provider's
-                              // name - the mark's title is part of the item's text -
-                              // and typing a model id finds nothing.
-                              textValue={entry.model}
-                              // In the list rather than in the row: the trigger draws
-                              // whatever the row draws, and the width is a comparison
-                              // against the other options.
-                              trailing={
-                                <span className="text-muted-foreground ml-auto shrink-0 pl-2 text-xs">
-                                  {t("dimensions", { count: entry.dim })}
-                                </span>
-                              }
-                            >
-                              <ProviderRow provider={provider} name={entry.model} />
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-muted-foreground text-xs">{t("widthIsFixed")}</p>
-                      {checkingEndpoint ? (
-                        <p className="text-muted-foreground text-xs">
-                          {t("checkingEndpointModels")}
-                        </p>
-                      ) : endpointModels?.source === "curated" ? (
-                        <p className="text-muted-foreground text-xs">
-                          {t("endpointModelsUnconfirmed")}
-                        </p>
-                      ) : endpointModels !== undefined && offered.length === 0 ? (
-                        <p className="text-destructive text-xs">{t("endpointServesNoModel")}</p>
-                      ) : endpointModels !== undefined ? (
-                        <p className="text-muted-foreground text-xs">{t("endpointModelsListed")}</p>
-                      ) : null}
-                      {errors.embedding_model !== undefined && (
-                        <p className="text-destructive text-xs">{errors.embedding_model}</p>
-                      )}
-                    </div>
+                        <Select value={model} onValueChange={setEmbeddingModel}>
+                          <SelectTrigger id="kb-embedding-model">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {offered.map((entry) => (
+                              <SelectItem
+                                key={entry.model}
+                                value={entry.model}
+                                // Without this every row answers to the provider's
+                                // name - the mark's title is part of the item's text -
+                                // and typing a model id finds nothing.
+                                textValue={entry.model}
+                                // In the list rather than in the row: the trigger draws
+                                // whatever the row draws, and the width is a comparison
+                                // against the other options.
+                                trailing={
+                                  <span className="text-muted-foreground ml-auto shrink-0 pl-2 text-xs">
+                                    {t("dimensions", { count: entry.dim })}
+                                  </span>
+                                }
+                              >
+                                <ProviderRow provider={provider} name={entry.model} />
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-muted-foreground text-xs">{t("widthIsFixed")}</p>
+                        {checkingEndpoint ? (
+                          <p className="text-muted-foreground text-xs">
+                            {t("checkingEndpointModels")}
+                          </p>
+                        ) : endpointModels?.source === "curated" ? (
+                          <p className="text-muted-foreground text-xs">
+                            {t("endpointModelsUnconfirmed")}
+                          </p>
+                        ) : endpointModels !== undefined && offered.length === 0 ? (
+                          <p className="text-destructive text-xs">{t("endpointServesNoModel")}</p>
+                        ) : endpointModels !== undefined ? (
+                          <p className="text-muted-foreground text-xs">
+                            {t("endpointModelsListed")}
+                          </p>
+                        ) : null}
+                        {errors.embedding_model !== undefined && (
+                          <p className="text-destructive text-xs">{errors.embedding_model}</p>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
               </section>
@@ -349,6 +493,7 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                   onChange={setIngestion}
                   disabled={isSubmitting}
                   error={errors.pdf_parser}
+                  deploymentOnly={deploymentWide}
                 />
                 <MoreOptions
                   label={t("parsingDetails")}
@@ -365,6 +510,8 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
                     errors={{ ...localProblems, ...errors }}
                     disabled={isSubmitting}
                     withoutParser
+                    deploymentOnly={deploymentWide}
+                    onDraftInvalid={setDraftInvalid}
                   />
                 </MoreOptions>
               </section>
@@ -389,6 +536,16 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
           </div>
 
           <DialogFooter>
+            {custom && (
+              <div className="mr-auto flex flex-wrap items-center gap-2">
+                <ProbeTestButton
+                  status={gate.status}
+                  disabled={isSubmitting || embeddingEndpointId === null || typedModel === ""}
+                  onClick={runTest}
+                />
+                <span className="text-muted-foreground text-xs">{t("testCost", { count: 1 })}</span>
+              </div>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -397,13 +554,15 @@ export function CreateKBDialog({ open, onOpenChange, onCreated }: CreateKBDialog
             >
               {t("cancel")}
             </Button>
-            <Button
-              type="submit"
-              disabled={!canSubmit || isSubmitting || checkingEndpoint}
-              data-tour="kb-dialog-create"
-            >
-              {isSubmitting ? t("creating") : t("create")}
-            </Button>
+            <WhyDisabled reason={isSubmitting || checkingEndpoint ? null : createBlockedBy}>
+              <Button
+                type="submit"
+                disabled={!canSubmit || isSubmitting || checkingEndpoint}
+                data-tour="kb-dialog-create"
+              >
+                {isSubmitting ? t("creating") : t("create")}
+              </Button>
+            </WhyDisabled>
           </DialogFooter>
         </form>
       </DialogContent>

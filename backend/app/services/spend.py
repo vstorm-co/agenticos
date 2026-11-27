@@ -28,6 +28,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.budget import BudgetExceeded, BudgetScope
+from app.core.currency import sum_usd
 from app.repositories import (
     agent_run_repo,
     ingestion_spend_repo,
@@ -110,7 +111,7 @@ async def organization_spend_since(
     workflow_spend = await workflow_run_repo.node_spend_since(
         db, organization_id=organization_id, since=since, until=until
     )
-    return run_spend + ingestion_spend + purged_spend + workflow_spend
+    return sum_usd((run_spend, ingestion_spend, purged_spend, workflow_spend))
 
 
 async def organization_monthly_spend(

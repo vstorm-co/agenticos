@@ -14,7 +14,7 @@ just another client" true rather than aspirational.
 import json
 import logging
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from functools import partial
 from typing import Any
@@ -92,10 +92,10 @@ from app.agents.code_mode import CodeCalls, code_mode
 from app.agents.computer_on_use import REQUEST_COMPUTER_ACCESS, RequestComputerOnUse
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
-from app.agents.isolation import IsolationGuard, RunIsolation, capability_tools
+from app.agents.isolation import IsolationGuard, RunIsolation, capability_tools, kept_local
 from app.agents.loop_guard import LoopGuard
 from app.agents.manifest import RecordedToolSearch, RecordingModel, RunRecorder
-from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec
+from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec, provider_session
 from app.agents.native_model_spec import NativeContext, NativeModelSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.routine_actions import RoutineToolCheck
@@ -103,6 +103,7 @@ from app.agents.run_reviewer import RunReviewer
 from app.agents.setup_briefing import SetupBriefing
 from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
+from app.agents.subagent_runtime import SUBAGENT_RUNTIME_RESOURCE, SubagentRuntime
 from app.agents.tool_call_ids import UniqueToolCallIds
 from app.agents.tool_errors import ToolErrors
 from app.agents.tool_identity import CaptureToolIdentity
@@ -239,6 +240,7 @@ def build_agent(
     agent_id: UUID | None = None,
     run_id: UUID | None = None,
     conversation_id: UUID | None = None,
+    provider_session_scope: tuple[str, ...] | None = None,
     user_id: str | None = None,
     user_name: str | None = None,
     audience: RunAudience | None = None,
@@ -271,6 +273,9 @@ def build_agent(
 
     Args:
         spec: The published (or draft, when previewing) agent definition.
+        provider_session_scope: A routing scope for inline/dynamic specialists
+            whose cost is attributed to the parent agent_id. Published agents
+            default to their stable database identity; this grants no authority.
         offer_setup_tools: Whether to offer implicit setup actions. Restricted
             automatic turns and answer-only turns cannot expand their setup.
         model_spec: Already-resolved model and credentials.
@@ -357,6 +362,10 @@ def build_agent(
             the organization no longer has, or an approval the gate could not
             enforce because the model provider executes the tool.
     """
+    session_key = conversation_id if conversation_id is not None else run_id
+    session_scope = provider_session_scope or (
+        ("agent", str(agent_id)) if agent_id is not None else ("inline", spec.name)
+    )
     routine_policy = None
     if routine_action_check is not None:
         if agent_id is None:
@@ -373,6 +382,8 @@ def build_agent(
         bindings = [
             binding for binding in bindings if capability_def(binding.capability_id).voice == "live"
         ]
+    if isolation is not None:
+        bindings = [kept_local(binding) for binding in bindings]
     # Built before the capabilities, not after: compaction reads it to decide
     # whether this window has room for a summary at all, and the reading is
     # filled by the capability appended at the end of the list below.
@@ -569,6 +580,7 @@ def build_agent(
                     tools=capability_tools(spec, test_bindings=test_bindings),
                     agent_id=agent_id,
                     approval=gate,
+                    remote_delegates=_remote_delegates(resources),
                 ),
             )
         ),
@@ -599,7 +611,7 @@ def build_agent(
             if spec.loop_guard.enabled
             else []
         ),
-        *_reviewers(spec, reviewer_models or {}, recorder),
+        *_reviewers(spec, reviewer_models or {}, recorder, session_key, session_scope),
         # Off unless the spec asks, and never under a session that asks before
         # every tool: nothing could be folded into a script there.
         *(
@@ -648,6 +660,15 @@ def build_agent(
             **spec.model_settings.model_dump(),
         }
     )
+
+    # A provider that routes by conversation (OpenCode Go) sees one session per
+    # stable agent identity in it, across all runs and display-name changes.
+    # Inline/dynamic specialists use an explicit parent-and-name scope because
+    # their attribution agent_id remains the parent's; it must not be invented.
+    if session_key is not None:
+        model_spec = replace(
+            model_spec, provider_session=provider_session(session_key, *session_scope)
+        )
 
     if isinstance(model_spec, NativeModelSpec):
         capabilities.append(NativeContext())
@@ -699,8 +720,18 @@ def build_agent(
     )
 
 
+def _remote_delegates(resources: Mapping[str, Any] | None) -> frozenset[str]:
+    """The delegates of the run's delegation tree at this level that are remote agents."""
+    runtime = (resources or {}).get(SUBAGENT_RUNTIME_RESOURCE)
+    return runtime.remote_names if isinstance(runtime, SubagentRuntime) else frozenset()
+
+
 def _reviewers(
-    spec: AgentSpec, models: Mapping[UUID, ModelRequestSpec], recorder: RunRecorder
+    spec: AgentSpec,
+    models: Mapping[UUID, ModelRequestSpec],
+    recorder: RunRecorder,
+    session_key: UUID | None,
+    session_scope: tuple[str, ...],
 ) -> list[RunReviewer]:
     """The spec's run reviewers, each on the model the runner resolved for it (#2106).
 
@@ -729,7 +760,16 @@ def _reviewers(
         reviewers.append(
             RunReviewer(
                 name=reviewer.name,
-                model=model.build(),
+                model=(
+                    model
+                    if session_key is None
+                    else replace(
+                        model,
+                        provider_session=provider_session(
+                            session_key, *session_scope, "reviewer", reviewer.name
+                        ),
+                    )
+                ).build(),
                 model_settings=ModelSettings(**model.params),
                 instructions=reviewer.instructions,
                 every=reviewer.every,

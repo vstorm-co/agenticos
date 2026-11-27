@@ -419,7 +419,12 @@ class NotificationDeliveryService:
         return recipient.is_app_admin, None
 
     def _render(
-        self, notification: Notification, *, recipient: User, role: str | None, own_call: bool
+        self,
+        notification: Notification,
+        *,
+        recipient: User,
+        role: str | None,
+        own_call: bool = False,
     ) -> tuple[EmailKey, dict[str, Any]]:
         """What re-derives at send time is the *gate*, never the whole
         rendering (Decision 3) - `render_context`, frozen at write time, is

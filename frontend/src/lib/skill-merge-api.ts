@@ -3,6 +3,7 @@
  * session that merges them, the merge Changes edits, and who main has left behind.
  */
 
+import type { CurrencyAmount } from "@/lib/money";
 import { apiClient } from "./api-client";
 import type { SkillImprovement } from "@/types/skill-improvement";
 import type {
@@ -34,9 +35,11 @@ export function startSkillMerge(
   forkId: string,
   kind: MergeKind,
   budgetUsd: string,
+  monetaryInputs?: Record<string, CurrencyAmount>,
 ): Promise<SkillImprovement> {
   return apiClient.post<SkillImprovement>(forkRoot(skillId, forkId, kind), {
     budget_usd: budgetUsd,
+    ...(monetaryInputs ? { monetary_inputs: monetaryInputs } : {}),
   });
 }
 
@@ -79,11 +82,17 @@ export function pickMergeFile(
 export function returnSkillImprovementToMain(
   skillId: string,
   sessionId: string,
+  reviewed: { checkId: string; resultHash: string },
   acknowledgeUnknown: boolean,
 ): Promise<{ session: SkillImprovement; returned: ReturnedToMain }> {
   return apiClient.post<{ session: SkillImprovement; returned: ReturnedToMain }>(
     `/skills/${skillId}/improvements/${sessionId}/return-to-main`,
-    { confirmed: true, acknowledge_unknown: acknowledgeUnknown },
+    {
+      confirmed: true,
+      check_id: reviewed.checkId,
+      result_hash: reviewed.resultHash,
+      acknowledge_unknown: acknowledgeUnknown,
+    },
   );
 }
 

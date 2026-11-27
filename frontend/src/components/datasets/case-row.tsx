@@ -66,7 +66,7 @@ export function CaseRow({ item, onOpen, onRemove }: CaseRowProps) {
       </button>
       {onRemove !== undefined && (
         <Button
-          variant="ghost"
+          variant="destructive-ghost"
           size="icon"
           aria-label={tc("delete")}
           onClick={onRemove}

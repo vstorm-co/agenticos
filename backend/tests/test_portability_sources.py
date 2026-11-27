@@ -105,7 +105,12 @@ pytestmark = pytest.mark.anyio
             KnowledgeBaseContent,
         ),
         ("sandbox_connection", "SandboxConnectionService.get", {"name": "Sandbox"}, type(None)),
-        ("local_service", "LocalServiceService.get_visible", {"name": "Local OCR"}, type(None)),
+        (
+            "local_service",
+            "ServiceConnectionService.get_visible",
+            {"name": "Local OCR"},
+            type(None),
+        ),
     ],
 )
 async def test_source_adapters_use_scoped_services_and_never_serialize_storage_rows(
@@ -218,6 +223,7 @@ async def test_skill_copy_reads_the_exact_snapshot_and_its_file_descriptions(
             number=3,
             description="Pinned description",
             content="Pinned body",
+            manifest_metadata={"license": "MIT"},
             resources={"reference.md": {"description": "Read this", "size_bytes": 7}},
         )
     )
@@ -244,6 +250,8 @@ async def test_skill_copy_reads_the_exact_snapshot_and_its_file_descriptions(
     result = await BundleSources(mock_db_session).read(ctx, resource)
     assert isinstance(result.content, SkillContent)
     assert result.content.content == "Pinned body"
+    assert result.content.manifest_metadata == {"license": "MIT"}
+    assert result.content.files[0].encoding == "utf8"
     assert result.content.files[0].content == "  exact\n"
     assert result.content.files[0].description == "Read this"
     if kind != "skill":

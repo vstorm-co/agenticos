@@ -1,5 +1,5 @@
 ---
-source_sha: "4f9850e16b2b"
+source_sha: "6dc0fb368481"
 ---
 
 # Skills { #skills }
@@ -55,6 +55,42 @@ request, sin ingeniero.
 
 En Agent Builder, **Skills → New skill** permite escribir un skill sin salir del panel de capacidades. Al guardar se crea la entrada de biblioteca, se vincula al borrador actual y se activa la capacidad Skills. La publicación sigue siendo un paso separado. La acción requiere permisos para editar tanto el agente como los skills.
 
+## Importar un paquete de habilidad completo { #importing-a-package }
+
+En **Skills → Importar paquete**, elige una carpeta o ZIP con un `SKILL.md` raíz, opcionalmente dentro de una carpeta envolvente. La vista previa muestra nombre, descripción, rutas, formatos binarios/de texto y bytes. Importar crea una habilidad privada con su primera versión inmutable completa. Un nombre existente se rechaza sin sobrescribir. La vista previa no crea filas; aplicar vuelve a validar los bytes originales y la huella revisada.
+
+Los scripts, documentos, imágenes y plantillas binarias solo se almacenan. Importar nunca ejecuta scripts o pruebas ni descarga o instala dependencias. Límites: 8 MiB por archivo, 32 MiB por paquete y 1.024 entradas; ZIP también tras descomprimir. Se rechazan traversal, rutas absolutas, enlaces, archivos especiales, duplicados y archivos cifrados o no compatibles.
+
+`name`, `description` e instrucciones pasan a campos propios; el resto del frontmatter son metadatos JSON inertes y versionados. La representación YAML segura y canónica no conserva comentarios ni formato original. Se rechazan etiquetas inseguras, alias, claves duplicadas/no textuales, valores ajenos a JSON y profundidad excesiva. `allowed-tools` no concede herramientas ni exenciones de aprobación.
+
+Los recursos binarios conservan bytes y hashes exactos en versiones, pins, restauraciones y paquetes portables. Ábrelos para descargarlos; base64 nunca aparece como texto editable. Cada descarga comprueba acceso a la versión inmutable seleccionada. El workspace recibe sus recursos como bytes junto a `SKILL.md`; la ausencia de un recurso obligatorio hace fallar la preparación. Ejecutar un script después requiere herramientas y permisos configurados por separado. Las propuestas de texto conservan binarios; se modifican mediante una carga explícita.
+
+Forks y Checks conservan frontmatter. Catch-up combina cambios separados, pero rechaza conflictos sobre la misma clave en lugar de adivinar. Resuélvelos explícitamente antes de reintentar. El downgrade rechaza descartar archivos binarios o metadatos conservados.
+
+## Encontrar un skill en la biblioteca { #finding-a-skill }
+
+**Skills** se abre como una cuadrícula paginada, **No sections**, por defecto.
+**Arrange by**, junto a la búsqueda, permite organizar la biblioteca:
+
+| Arrange by | Secciones |
+|---|---|
+| **By agent** | Una por cada agent cuya versión publicada usa un skill, luego **Drafted only** y **Not used by an agent you can see** |
+| **By origin** | **Organization**, **Private**, **Built-in · Platform** para los skills con los que empieza toda organización, luego una por sector de la [galería](#the-gallery-seventy-more-and-none-of-them-arrive-uninvited) |
+| **By category** | Una por categoría, `Security` y `security` juntas, luego **Uncategorized** |
+| **No sections** (la opción por defecto) | La cuadrícula paginada de siempre |
+
+Un skill que usan varios agents aparece bajo cada uno. Cada sección muestra su
+número y sus primeras tarjetas, se pliega y recorre el resto por páginas con
+**Show all**. La búsqueda y los filtros acotan cada sección, y la elección queda en
+la dirección, así que una vista ordenada es un enlace que se puede enviar.
+
+Ordenar no cambia nada del acceso. Una sección solo contiene skills que ya puedes
+ver, y un agent que no puedes abrir nunca es una sección: sus skills aparecen como
+no usados. Los skills de la galería se reconocen por el nombre, igual que la
+insignia **built-in**. Por la API, `GET /api/v1/skills/sections?arrange=agent`
+devuelve las secciones con sus números, y `GET /api/v1/skills?section=<key>`
+recorre una de ellas.
+
 ## La forma { #the-shape }
 
 ```markdown
@@ -93,7 +129,8 @@ algunas conversaciones necesitan no tiene por qué estar en el cuerpo que carga
 cada conversación relevante.
 
 `category` es una de veinte sugerencias (`support`, `engineering`, `finance`,
-`legal`, `security`, `marketing`, …) y alimenta el filtro del listado de skills.
+`legal`, `security`, `marketing`, …) y alimenta el filtro del listado de skills,
+que, como las secciones por categoría, no distingue mayúsculas de minúsculas.
 No tiene ningún efecto sobre lo que ve el agent — el modelo elige por
 `description`, nunca por categoría.
 
@@ -696,7 +733,10 @@ El MCP de plataforma permite buscar, crear y editar Context, vincular
 `context_ids` a un borrador y leer/editar skills o añadir recursos de texto.
 Context admite `inject` para material permanente y `link` para lectura bajo
 demanda. Editar un archivo vinculado afecta al siguiente uso; cambiar el vínculo
-del borrador requiere publicación. Se mantienen permisos y aprobaciones.
+del borrador requiere publicación. Se mantienen permisos y aprobaciones. Editar un
+skill, añadirle un recurso y editar un archivo Context siempre preguntan antes a la
+persona: cada agent de la línea del skill, o con el archivo vinculado, lee el
+cambio en su siguiente run.
 
 El skill documental incluye fuentes iniciales LaTeX y un proceso de compilación,
 renderizado y revisión. Apps HTML y diapositivas web no equivalen a PDF compilado
@@ -895,12 +935,18 @@ o la evidencia que recibió ya no está - falla con el motivo en la sesión, y
 reintenta, una vez corregido. Un paso que supera el límite de gasto se detiene en
 su presupuesto. Ninguno se vuelve a pedir solo.
 
+Un cambio propuesto a la descripción del skill muestra la descripción antigua y la
+nueva, como lo hace un cambio de su texto. Un cambio sin texto que mostrar se deja
+fuera, y uno elegido se rechaza antes de comprobarlo.
+
 Una sesión abierta desde el Improve de un agente empieza con los problemas que
 esa sesión informó. Solo un problema que cita una línea del skill con el valor o
 la regla equivocados se lleva los criterios del agente; cuando el skill solo
 calla, el problema es un consejo y el agente sigue respondiendo de esos
 criterios - consulta [Cuando el fallo está en un
-skill](authoring.md#when-the-fault-is-in-a-skill).
+skill](authoring.md#when-the-fault-is-in-a-skill). Un problema que cita una
+respuesta que calificará la comprobación de esta sesión no se entrega: se
+cuenta.
 
 Lo que escribe una sesión - el título y el resumen de cada problema, y el texto
 que propone - sale de todas las respuestas que pudo leer la persona como la que se ejecuta
@@ -959,6 +1005,11 @@ Lo que ofrece Aceptar depende del resultado:
   preguntas de prueba**, al lado, escribe las preguntas propias del skill a partir
   de respuestas en las que los agents lo cargaron, para poder comprobarlos la
   próxima vez.
+
+Cada decisión nombra la comprobación que la persona revisó - su `check_id` y su
+`result_hash`, o los de la de main solo al volver a main - y se rechaza con `409`
+cuando la sesión tiene otro resultado o una revisión lo juzgó de nuevo: lea la
+sesión de nuevo y revíselo.
 
 Cuando la línea recibe una versión nueva, o cambian sus agents, después de la
 comprobación, el resultado deja de valer y ofrece **Check again** en lugar de

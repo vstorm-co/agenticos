@@ -360,6 +360,16 @@
       "description": "Hızlı soru, ses ve yerel araçlarınız tek bir kısayolda.",
       "download": "Masaüstü uygulamasını indir",
       "dismiss": "14 gün sonra hatırlat"
+    },
+    "sidebarPromotions": {
+      "title": "Başlangıç",
+      "carousel": "karusel",
+      "slide": "slayt",
+      "position": "{current} / {total}",
+      "previous": "Önceki kart",
+      "next": "Sonraki kart",
+      "pause": "Döndürmeyi duraklat",
+      "resume": "Döndürmeyi sürdür"
     }
   },
   "ui": {
@@ -418,6 +428,11 @@
     "clearSearch": "Aramayı temizle"
   },
   "notifications": {
+    "outcome": {
+      "test": {
+        "quote": "Testiniz, kabul ettiğiniz fiyat sınırında durduruldu."
+      }
+    },
     "needsAttention": "İlgilenilmesi gerekiyor",
     "markAllRead": "Tümünü okundu işaretle",
     "loadMore": "Daha fazla yükle",
@@ -847,7 +862,8 @@
       "testOptional": "Uygulamadan önce test et (isteğe bağlı)",
       "hiddenAgents": "{count, plural, one {# diğer ajan} other {# diğer ajan}}",
       "testOptionalShort": "Test (isteğe bağlı)",
-      "compareShort": "Değişiklikler"
+      "compareShort": "Değişiklikler",
+      "quotesCredential": "Bu değişiklik bir kimlik bilgisi alıntılıyor, bu yüzden uygulanamaz veya test edilemez. Değişikliği reddedip elle yapın."
     },
     "check": {
       "proposalGoneTitle": "Bu güncelleme artık beklemede değil",
@@ -857,6 +873,23 @@
       "reason": {
         "too_few_questions": "Kontrol edilmedi: değişikliği doğrulamak için çok az test sorusu var."
       }
+    },
+    "package": {
+      "title": "Paketi içe aktar",
+      "description": "SKILL.md içeren bir beceri klasörü veya ZIP seçin. Dosyalar ve üst veriler korunur. İçe aktarma betik, test veya bağımlılık kurulumu çalıştırmaz.",
+      "directory": "Klasör seç",
+      "zip": "ZIP seç",
+      "limits": "Dosya başına 8 MiB · Paket başına 32 MiB · 1.024 dosya.",
+      "reading": "Paket okunuyor…",
+      "summary": "{count} kaynak dosyası · {size}",
+      "private": "Tam ilk sürümü olan özel bir beceri oluşturur. Mevcut becerilerin üzerine yazılmaz.",
+      "apply": "Beceriyi içe aktar",
+      "cancel": "İptal",
+      "imported": "Beceri içe aktarıldı",
+      "binary": "İkili",
+      "text": "Metin",
+      "download": "Dosyayı indir",
+      "binaryHelp": "İkili dosyalar aynen korunur. Dosyayı indirin veya yükleyerek değiştirin."
     }
   },
   "workflows": {
@@ -2854,7 +2887,6 @@
       "bases": "Bilgi tabanları",
       "chooseFiles": "Dosya seç",
       "chunkCount": "{count, plural, =1 {1 parça} other {# parça}}",
-      "clear": "Temizle",
       "collectionItselfUnchanged": "Koleksiyonun kendisi değişmedi.",
       "configureConnectorsAtWorkspace": "Harici kaynaklardan eşitlemeye başlamak için bağlayıcıları kuruluş düzeyinde yapılandırın.",
       "connect": "Bağlan",
@@ -2907,9 +2939,8 @@
       "nothingHasBeenUploaded": "Buraya henüz hiçbir şey yüklenmedi.",
       "openCollection": "{name} koleksiyonunu aç",
       "overridden": "geçersiz kılındı",
-      "parseOptions": "Ayrıştırma seçenekleri",
       "parsedWith": "Şununla ayrıştırıldı",
-      "parsedWithOverrides": "Eklediğiniz sonraki dosyalar, bu koleksiyonun ayarlarından alınan <strong>{count, plural, =1 {1 değişiklik} other {# değişiklik}}</strong> uygulanarak ayrıştırılır ve bu durum belirtilir.",
+      "parsedWithOverrides": "Eklediğiniz sonraki dosyalar ve yeniden denediğiniz başarısız dosyalar, bu koleksiyonun ayarlarından alınan <strong>{count, plural, =1 {1 değişiklik} other {# değişiklik}}</strong> uygulanarak ayrıştırılır ve bu durum belirtilir.",
       "previewFile": "Dosyayı önizle",
       "previewFile2": "Dosyayı önizle",
       "processing": "İşleniyor…",
@@ -2954,7 +2985,12 @@
       "retryDocument": "Yeniden dene",
       "indexDocumentNamed": "{name} dosyasını dizine ekle",
       "retryDocumentNamed": "{name} dosyasını yeniden dene",
-      "indexDocumentHint": "Bu bilgi tabanının ayarlarını kullanır ve sağlayıcı maliyetleri oluşturabilir."
+      "indexDocumentHint": "Bu aslı güncel bilgi tabanı ayarları ve bekleyen yükleme değişiklikleriyle indeksler. Sağlayıcı maliyetleri oluşabilir.",
+      "revertPendingChanges": "Geri al",
+      "settings": "Ayarlar",
+      "uploadOptions": "Yükleme seçenekleri",
+      "uploadWithDifferentSettings": "Farklı ayarlarla yükle…",
+      "retryDocumentHint": "Güncel bilgi tabanı ayarları ve bekleyen yükleme değişiklikleriyle yeniden dener. Sağlayıcı maliyetleri oluşabilir."
     },
     "orgs": {
       "searchOrganizations": "Organizasyonlarda ara…",
@@ -3452,7 +3488,7 @@
       "mcpServersDescription": "Bu agentın <servers>katalogdaki</servers> harici araçları çağırmasına izin verilir. Herkes adına yanıt veren sunucuyu kuruluş hesabına bağlayın veya herkesin kendi hesabından bağlanmasını sağlayın. Bir üyenin kişisel bağlantısı doğrudan agenta atanmaz; herkesin çalıştırdığı agent, arkasındaki kişinin kimlik bilgilerine bağımlı olamaz.",
       "model": "Model",
       "modelSettings": "Model ayarları",
-      "monthlyUsd": "Aylık (USD)",
+      "monthlyUsd": "Aylık ({currency})",
       "monthlyUsdHint": "Agent bir takvim ayında bu tutarı harcadığında runlar durur. Boş bırakırsanız yalnızca kuruluş sınırı uygulanır.",
       "moreActions": "Diğer işlemler",
       "n100Default": "100 (varsayılan)",
@@ -3915,6 +3951,13 @@
     "skills": {
       "agentsBoundSkillWill": "Bu skill’e bağlanan agentlar, bir sonraki runlarından itibaren skillsiz çalışır. Bu işlem geri alınamaz.",
       "allCategories": "Tüm kategoriler",
+      "arrange": {
+        "agent": "Agent'a göre",
+        "origin": "Kaynağa göre",
+        "category": "Kategoriye göre",
+        "none": "Bölümsüz"
+      },
+      "arrangeBy": "Düzen",
       "askAdministratorAccessSkills": "Skill erişimi için yöneticiden izin isteyin.",
       "categoryCount": "{count, plural, =1 {1 kategori} other {# kategori}}",
       "clearFilter": "Filtreyi temizle",
@@ -3929,6 +3972,17 @@
       "nobodyHasWrittenSkill": "Bu kuruluş için henüz kimse skill yazmadı.",
       "recentlyUpdated": "Yakın zamanda güncellendi",
       "searchSkills": "Skill ara…",
+      "section": {
+        "drafted": "Yalnızca taslakta",
+        "unused": "Görebildiğiniz hiçbir agent kullanmıyor",
+        "org": "Organizasyon",
+        "private": "Özel",
+        "platform": "Yerleşik · Platform",
+        "gallery": "Yerleşik · {industry}",
+        "uncategorized": "Kategorisiz"
+      },
+      "showAll": "{count, plural, =1 {1 göster} other {Tümünü göster (#)}}",
+      "showFewer": "Daha az göster",
       "skillCount": "{count, plural, =1 {1 skill} other {# skill}}",
       "skillKnowHowWritten": "Skill; geri ödemelerin nasıl işlendiği veya kurumun yazım biçimi gibi, bir kez yazılıp ihtiyacı olan agentlarla paylaşılan bilgidir. Burada düzenlerseniz, bu skill’e bağlı her agent sonraki runında güncel hâlini kullanır.",
       "skills": "Skills",
@@ -4547,9 +4601,9 @@
       "settingsLimitsHint": "Runların aynı anda neler yapabileceği ve ne kadar harcayabileceği. Her adımın, agent adımı için maliyet sınırı dahil, kendi sınırları vardır; bu ayarlar onların üzerine uygulanır.",
       "settingsConcurrent": "Aynı anda çalışabilecek run sayısı",
       "settingsConcurrentHint": "Sınır aşılırsa bir run bitene kadar yeni başlangıç reddedilir: webhook göndereninden yeniden denemesi istenir, zamanlama sonraki çalıştırmayı bekler, tablo veya posta kutusu yeniden dener.",
-      "settingsRunBudget": "Bir runın harcayabileceği en fazla tutar (USD)",
+      "settingsRunBudget": "Bir runın harcayabileceği en fazla tutar ({currency})",
       "settingsRunBudgetHint": "Run bu sınıra ulaşınca bütçe tükendiği için sonraki adımından önce durur.",
-      "settingsMonthlyBudget": "Runların ayda harcayabileceği en fazla tutar (USD)",
+      "settingsMonthlyBudget": "Runların ayda harcayabileceği en fazla tutar ({currency})",
       "settingsMonthlyBudgetHint": "Test runları dahil, UTC takvim ayına göre hesaplanır. Sınıra ulaşılınca ay değişene veya budget yükseltilene kadar yeni run başlamaz.",
       "settingsNoLimit": "Sınır yok",
       "stats": {
@@ -4933,7 +4987,7 @@
       "accessHint": "Katılımı, başlangıç kuruluşunu ve kullanım sınırlarını yönetin.",
       "notices": "Duyurular ve bakım modu",
       "noticesHint": "Bir duyuru paylaşın veya bakım ekranını yapılandırın.",
-      "services": "Ses ve mobil",
+      "services": "Hizmetler ve maliyetler",
       "servicesHint": "Ses kaydı tercihleri ve mobil uygulama anlık bildirimleri.",
       "operations": "Güncellemeler ve tanılama",
       "operationsHint": "Uygulama güncellemeleri ve dağıtım tanılaması."
@@ -5112,7 +5166,9 @@
       "showFeatured": "Önerilen hizmetlere dönün",
       "customServer": "Özel bir MCP bağlayın",
       "manage": "Yönet"
-    }
+    },
+    "trustReadOnlyHints": "Bu sunucunun salt okunur ve kapalı dünya (closed-world) olarak işaretlediği araçları değerlendirmelerin çağırmasına izin ver",
+    "trustReadOnlyHintsHint": "Değerlendirmeler, güvenmediğiniz sürece üretim sunucusuna yapılan her çağrıyı durdurur; güvendiğinizde yalnızca sunucunun hem salt okunur hem kapalı dünya (closed-world) olarak işaretlediği, bu sunucudan başka hiçbir yere ulaşmayan araçları çalıştırır. İki işaret de sunucunun kendi beyanıdır. {count, plural, =0 {Buradaki hiçbir araç salt okunur olduğunu beyan etmiyor.} =1 {Buradaki 1 araç salt okunur olduğunu beyan ediyor.} other {Buradaki # araç salt okunur olduğunu beyan ediyor.}}"
   },
   "sandboxes": {
     "activityLogUnreadable": "Etkinlik günlüğü okunamadı",
@@ -5341,6 +5397,12 @@
     }
   },
   "capabilityConfig": {
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Modele görselin resmini göster",
+        "description": "Ajan bir görseli önizlediğinde ekran görüntüsü döndür. Görüntüleri okuyamayan modeller için kapat; işleme tanılama raporu yine döndürülür."
+      }
+    },
     "browser_use": {
       "cdp_url": {
         "title": "DevTools uç noktası",
@@ -5401,6 +5463,14 @@
       "prefer_native_browser": {
         "title": "Yerel browser'ı kullan",
         "description": "Yerel DOM browse için gömülü bir native sekme kullanır. İzole Chromium uyumluluğu için kapatın. Vision ve dil/saat dilimi geçersiz kılmaları Chromium kullanır."
+      },
+      "session_lifetime": {
+        "title": "Oturum süresi",
+        "description": "Özel web sohbetinde uygulamanın yönettiği uzak ortamı, onu kullanan bir run sonrasında kapatın veya mesajlar arasında koruyun. Eşleştirilmiş yerel cihazlar ve diğer arayüzler mevcut oturum davranışını korur."
+      },
+      "session_idle_seconds": {
+        "title": "Boşta kalma sınırı (saniye)",
+        "description": "Uygulamanın yönettiği uzak web sohbeti ortamını, dağıtım politikası sınırları içinde bu hareketsizlik süresinden sonra sonlandırın. Yalnızca izlemek oturumu uzatmaz; paneli kapatmak sadece görüntüyü ayırır."
       }
     },
     "guardrails": {
@@ -5954,6 +6024,14 @@
       "preview": {
         "title": "Canlı önizleme",
         "description": "Agent masaüstünde çalışırken görüntüyü chat'te canlı göster."
+      },
+      "session_lifetime": {
+        "title": "Oturum süresi",
+        "description": "Özel web sohbetinde uygulamanın yönettiği uzak ortamı, onu kullanan bir run sonrasında kapatın veya mesajlar arasında koruyun. Eşleştirilmiş yerel cihazlar ve diğer arayüzler mevcut oturum davranışını korur."
+      },
+      "session_idle_seconds": {
+        "title": "Boşta kalma sınırı (saniye)",
+        "description": "Uygulamanın yönettiği uzak web sohbeti ortamını, dağıtım politikası sınırları içinde bu hareketsizlik süresinden sonra sonlandırın. Yalnızca izlemek oturumu uzatmaz; paneli kapatmak sadece görüntüyü ayırır."
       }
     },
     "external_acp": {
@@ -7199,6 +7277,7 @@
     "notAChatModelHint": "{model} chat modeli değildir; metinden konuşma, transkripsiyon, görsel veya embedding içindir ve Agent bununla çalışamaz. Yayınlamadan önce chat modeli seçin.",
     "modelHasNoKeyHint": "Bu modelin key'i Vault'tan silinmiş; bu nedenle çalıştırılamaz. Model panelinden key ekleyin veya başka model seçin.",
     "updateModel": "Modeli güncelle",
+    "pricedModelConnectionLocked": "Özel fiyatlı bir modelin anahtarını veya uç noktasını değiştirmek için bütçe yönetimi izni gerekir.",
     "updateModelHint": "{label} için yeni key'i, endpoint'i veya API'yi kaydeder. Bu modeli kullanan her şey - tüm Agent'lar, koleksiyonlar ve zamanlanmış işler - yeni ayara geçer. Bunları olduğu gibi bırakmak için “Başka bir ad verin” seçip ayrı model ekleyin.",
     "notAChatModelRefused": "{model} chat modeli değil; Agent bu modelle çalışamaz. Chat modeli seçin.",
     "secretForDifferentService": "\"{name}\" key'i başka bir hizmet için. Bu yapılandırmaya ait bir key seçin.",
@@ -8709,7 +8788,7 @@
       },
       "org-assistant": {
         "title": "AI Architect",
-        "body": "Kuruluş asistanını açıp kapatın ve insanları nasıl karşılayacağını belirleyin. Adı, modeli ve bilgi tabanı Agent Builder’da diğer agent’lar gibi düzenlenir."
+        "body": "Kuruluşun AI Architect asistanını açın veya kapatın. Modelini, talimatlarını ve bilgisini diğer aracılar gibi Agent'lar bölümünden düzenleyin."
       },
       "org-members": {
         "title": "Kimler üye?",
@@ -8851,9 +8930,9 @@
         "title": "Şablondan başlayın",
         "body": "Sektörlere göre hazırlanmış 28 agent şablonu. Birini yükleyince skill’leri bağlı bir taslak oluşturulur."
       },
-      "knowledge-local-services": {
-        "title": "Yerel servisler",
-        "body": "Kendi ağınızdaki sunucuları ekleyin: key gerektirmeden embedding için Ollama’yı veya LiteParse için OCR sunucusunu kaydedin; her koleksiyon için birini seçerek bilgi tabanını tamamen kendi donanımınızda tutun."
+      "knowledge-service-connections": {
+        "title": "Hizmet bağlantıları",
+        "body": "Hizmet bağlantıları: gömme ve OCR uç noktaları – bir Ollama, kasa anahtarlı OpenAI uyumlu bir ağ geçidi, bir OCR sunucusu – bir kez kaydedilir ve koleksiyon başına seçilir."
       },
       "artifacts-list": {
         "title": "Yayımlanmış sayfalar",
@@ -8907,6 +8986,10 @@
         "title": "Departmana göre",
         "body": "Listeyi bir grubun erişimine açılanlarla daraltın. Grup, bir öğenin kimlere ulaştığını belirlediği için listeyi gruba göre de düzenler."
       },
+      "skills-arrange": {
+        "title": "Kütüphaneyi düzenle",
+        "body": "Skill'leri kullanan agent'a, kaynağına veya kategorisine göre görün. Düzen, bir skill'i kimin görebileceğini değiştirmez."
+      },
       "context-groups": {
         "title": "Departmana göre",
         "body": "Listeyi bir grubun erişimine açılanlarla daraltın. Grup, bir öğenin kimlere ulaştığını belirlediği için listeyi gruba göre de düzenler."
@@ -8946,6 +9029,14 @@
       "chat-visual": {
         "title": "Çizimler",
         "body": "Visuals capability’si olan agent, yazarken diyagramları, açıklayıcı görselleri ve 3D sahneleri burada canlı olarak çizer. Tam ekran açın, indirin, hakkında soru sorun veya paylaşılabilir bağlantıyla uygulama olarak kaydedin."
+      },
+      "chat-workspace-tabs": {
+        "title": "Sohbetinin yanında tek çalışma alanı",
+        "body": "Buradan Görseller, Tarayıcı ve Dosyalar arasında geçiş yap. Sekme değiştirdiğinde seçtiğin sayfa ve dosya açık kalır. Daha fazla alan için çalışma alanını genişlet veya sohbete dönmek için kapat."
+      },
+      "chat-visual-workspace": {
+        "title": "Sohbetinizin yanında bir sayfa",
+        "body": "Sohbete devam ederken görseli kullanmak için genişliği ayarlanabilir yan panelde açın. Kontrolleri sıfırlamadan Önizleme ve Kod arasında geçiş yapın, tam ekranı açın veya paneli kapatın."
       },
       "chat-voice-call": {
         "title": "Agent’la konuşun",
@@ -9206,6 +9297,22 @@
       "project-resources": {
         "title": "İlgili kaynakları bir arada tutun",
         "body": "Mevcut ajanları, iş akışlarını, Apps ve tabloları izinlerini değiştirmeden bağlayın. Buradan açın veya bağlı bir iş akışını projenin giriş noktası olarak seçin."
+      },
+      "skills-import": {
+        "title": "Paketi içe aktar",
+        "body": "SKILL.md içeren bir beceri klasörü veya ZIP seçin. Dosyalar ve üst veriler korunur. İçe aktarma betik, test veya bağımlılık kurulumu çalıştırmaz."
+      },
+      "chat-environments": {
+        "title": "Canlı ortam aç",
+        "body": "Workspace menüsünden Tarayıcı veya Masaüstü seçin ve ortamı açın. Agente sormadan önce kullanabilirsiniz. Paneli kapatmak oturumu korur; ortamı sonlandırmak serbest bırakır."
+      },
+      "project-tracking": {
+        "title": "Projeyi takip edin",
+        "body": "Görev tablosu yanındaki Görev tablosu seçenekleri menüsünü açın ve Görev güncellemelerini otomatikleştir seçeneğini seçin. Aynı tabloyu zamanlanmış olarak güncelleyen özel takip ajanını açıkça yayımlamadan önce yayımlanmış kaynak ajanı ve hesaplarını inceleyin."
+      },
+      "flow-project-tracker-create": {
+        "title": "Proje takibini yapılandırın",
+        "body": "Görev tablosu seçenekleri menüsünü açın ve Görev güncellemelerini otomatikleştir seçeneğini seçin. Düzenleyebildiğiniz yayımlanmış ajanı ve hesaplarını inceleyin, ardından proje tablosunu zamanlanmış olarak denetleyen özel takip ajanını açıkça yayımlayın."
       }
     }
   },
@@ -9990,6 +10097,8 @@
       "reviseVisual": "Görsel düzenlendi",
       "readingVisual": "Görsel okunuyor",
       "readVisual": "Görsel okundu",
+      "previewingVisual": "Görsel önizleniyor",
+      "previewVisual": "Görseli önizle",
       "workingInText": "Metin üzerinde çalışılıyor",
       "workedInText": "Metin üzerinde çalıştı",
       "workflowsListing": "Başlatabileceği workflow'lar denetleniyor",
@@ -10078,10 +10187,10 @@
       "runningAcpAgent": "Harici ACP ajanı",
       "inspectAcpAgent": "ACP model seçeneklerini oku",
       "readingAcpModels": "ACP model seçenekleri okunuyor",
-      "approveAcceptImprovement": "{agent} için {attempt}. denemeyi kabul et ({verdict, select, better {daha iyi} criteria_better {kriterlerde daha iyi} no_change {değişiklik yok} criteria_worse {kriterlerde daha kötü} regression {daha kötü} inconclusive {belirsiz} other {ölçülmedi}}) {publish, select, yes {ve v{version} olarak yayınla} other {taslak olarak}}",
-      "approvePublishAgent": "{agent} agent'ını v{version} olarak yayınla",
-      "approveChangeSkillVersion": "{state, select, main {{agent} agent'ını {skill} ana hattına taşı} pinned {{agent} agent'ını {skill} v{version} sürümüne sabitle} other {{agent} agent'ını bir {skill} fork'una taşı}}",
-      "approveAcceptSkillImprovement": "{outcome, select, apply {Geliştirilmiş {skill} skill'ini uygula} apply_and_pin {Geliştirilmiş {skill} skill'ini uygula ve zarar göreceği agent'ları sabitle} fork_for_helped {Yardım ettiği agent'lar için bir {skill} fork'u oluştur} catch_up {{skill} fork'unu main ile güncelle} other {{skill} fork'unu main'e geri döndür}}",
+      "approveAcceptImprovement": "{agent} için {attempt}. denemeyi kabul et ({verdict, select, better {daha iyi} criteria_better {kriterlerde daha iyi} no_change {değişiklik yok} criteria_worse {kriterlerde daha kötü} regression {daha kötü} inconclusive {belirsiz} other {ölçülmedi}}) {publish, select, yes {ve yayınla} other {taslak olarak}}",
+      "approvePublishAgent": "{agent} agent'ını yayınla",
+      "approveChangeSkillVersion": "{state, select, main {{agent} agent'ını {skill} ana hattına taşı} pinned {{agent} agent'ını {skill} v{version} sürümüne sabitle} other {{agent} agent'ını {skill} için {fork} fork'una taşı}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {Geliştirilmiş {skill} skill'ini uygula} apply_and_pin {Geliştirilmiş {skill} skill'ini uygula ve zarar göreceği agent'ları sabitle} fork_for_helped {Yardım ettiği agent'lar için bir {skill} fork'u oluştur} fork_for_chosen {Şu agent'lar için bir {skill} fork'u oluştur: {agents}} catch_up {{skill} fork'unu main ile güncelle} other {{skill} fork'unu main'e geri döndür}}",
       "approveStartEvalRun": "{agent} agent'ını {dataset} dataset'inin v{version} sürümünde test et",
       "selectingProjectContext": "Proje bağlamı seçiliyor…",
       "selectedProjectContext": "Proje bağlamı seçildi",
@@ -10109,9 +10218,9 @@
       "percent": "%{percent}",
       "sandboxMemory": "Sandbox belleği",
       "storedOf": "{limit} sınırının {used} kadarı saklanıyor",
-      "threadTotal": "${cost}",
+      "threadTotal": "{cost}",
       "threadTotalDetail": "Bu konuşma boyunca ücretlendirilen {input, number} input · {output, number} output",
-      "threadTotalPartial": "≥ ${cost}",
+      "threadTotalPartial": "≥ {cost}",
       "threadTotalPartialDetail": "Bu konuşma boyunca ücretlendirilen {input, number} input · {output, number} output - alt sınırdır; bazı modellerin fiyatı yok",
       "unmeasured": "kullanımda - bu host bir değer bildirmedi",
       "workspace": "Workspace",
@@ -10227,6 +10336,19 @@
     "hints": {
       "shortcuts": "Ajanına yaz. <key>/</key> komutlar · <key>@</key> kaynaklar"
     },
+    "workspace": {
+      "title": "Çalışma alanı",
+      "visuals": "Görseller",
+      "browser": "Tarayıcı",
+      "files": "Dosyalar",
+      "resize": "Çalışma alanını yeniden boyutlandır",
+      "expand": "Çalışma alanını genişlet",
+      "dock": "Çalışma alanını sabitle",
+      "allFiles": "Tüm dosyalara dön",
+      "close": "Workspace’i kapat",
+      "desktop": "Masaüstü",
+      "open": "Workspace aç"
+    },
     "visuals": {
       "drawing": "Çiziliyor…",
       "revising": "Düzenleniyor…",
@@ -10240,6 +10362,10 @@
       "zoomReset": "Yakınlaştırmayı sıfırla",
       "zoomLevel": "{zoom, number, percent}",
       "download": "İndir",
+      "downloadSvg": "SVG — vektör dosyası",
+      "downloadPng": "PNG — sunumlar için görsel",
+      "preparingPng": "PNG hazırlanıyor…",
+      "pngDownloadFailed": "PNG indirilemedi. Tekrar deneyin.",
       "copyImage": "Görsel olarak kopyala",
       "imageCopied": "Görsel kopyalandı",
       "copyImageFailed": "Görsel kopyalanamadı",
@@ -10268,7 +10394,15 @@
       "followUpAsks": "Çizim bunu mesaj olarak göndermek istiyor:",
       "followUpSend": "Gönder",
       "followUpEdit": "Düzenle",
-      "followUpDismiss": "Kapat"
+      "followUpDismiss": "Kapat",
+      "openWorkspace": "Yan paneli aç",
+      "dockWorkspace": "Yan panele dön",
+      "closeWorkspace": "Görseli kapat",
+      "workspaceTitle": "Görsel: {title}",
+      "workspaceViews": "Görsel görünümleri",
+      "resizeWorkspace": "Görsel panelini yeniden boyutlandır",
+      "previewTab": "Önizleme",
+      "codeTab": "Kod"
     },
     "dictation": {
       "cancel": "Dikteyi iptal et",
@@ -10652,7 +10786,71 @@
     "resumeQueue": "Kuyruğu sürdür",
     "routineHistoryReadOnly": "Bu rutin geçmişi salt okunurdur. Yeni bir sohbette devam etmek için yanıtı dallandır.",
     "routineContinueChat": "Yeni sohbette devam et",
-    "approvalNeedsItsAdminPerson": "Yalnızca bu çalıştırmanın adına işlem yaptığı kişi, uygulama yöneticisi olarak oturum açtığında onaylayabilir. Reddedebilirsiniz."
+    "approvalNeedsItsAdminPerson": "Yalnızca bu çalıştırmanın adına işlem yaptığı kişi, uygulama yöneticisi olarak oturum açtığında onaylayabilir. Reddedebilirsiniz.",
+    "environmentView": {
+      "agentDriving": "Ajan bu ortamı kullanıyor. Kontrol kullanılabilir olana kadar bekleyin.",
+      "humanDriving": "Bu ortamı bir kişi kontrol ediyor.",
+      "canTakeOver": "İzliyorsunuz. Etkileşim için kontrolü alın.",
+      "watchOnly": "Yalnızca görüntüleme.",
+      "refresh": "Kullanılabilirliği kontrol et",
+      "end": "Ortamı sonlandır",
+      "start": "Ortamı aç",
+      "startNew": "Yeni ortam aç",
+      "retry": "Görünümü yeniden bağla",
+      "confirmTitle": "Bu ortam sonlandırılsın mı?",
+      "confirmDescription": "Paneli kapatmak ortamı kullanılabilir tutar. Sonlandırmak oturumu serbest bırakır; kaydedilmemiş sayfa durumu kaybolabilir.",
+      "failure": {
+        "start": "Ortam açılamadı. Kullanılabilirliği kontrol edip yeniden deneyin.",
+        "end": "Ortam sonlandırılamadı. Hâlâ çalışıyor olabilir.",
+        "state": "Hazır olma durumu güncellenemedi. Devam etmeden kullanılabilirliği kontrol edin.",
+        "refresh": "Kullanılabilirlik kontrol edilemedi. Tekrar deneyin."
+      },
+      "phase": {
+        "expired": {
+          "title": "Ortam sonlandı",
+          "description": "Devam etmek için yeni bir ortam açın."
+        },
+        "failed": {
+          "title": "Ortam kullanılamıyor",
+          "description": "Kullanılabilirliği kontrol edin veya açıkça yeniden açmayı deneyin."
+        },
+        "notStarted": {
+          "title": "Ortam başlatılmadı",
+          "description": "Gerektiğinde bu ortamı açın. Ajan çalıştırması başlatılmaz."
+        },
+        "starting": {
+          "title": "Ortam hazırlanıyor",
+          "description": "Bu panelden ayrılıp hazır olduğunda dönebilirsiniz."
+        },
+        "forbidden": {
+          "title": "Erişim yok",
+          "description": "Erişiminiz değişti. Güncel izinler için kullanılabilirliği kontrol edin."
+        },
+        "malformed": {
+          "title": "Canlı görünüm doğrulanamadı",
+          "description": "Akış durduruldu. Yeni bir canlı görünüm için yeniden bağlanın."
+        },
+        "disconnected": {
+          "title": "Canlı görünüm bağlantısı kesildi",
+          "description": "Aynı ortamı izlemeye devam etmek için yeniden bağlanın."
+        },
+        "connecting": {
+          "title": "Canlı görünüm bağlanıyor",
+          "description": "Ortamın güncel ekranı bekleniyor."
+        }
+      },
+      "browserTitle": "Tarayıcı",
+      "desktopTitle": "Masaüstü",
+      "loadFailed": "Ortam yüklenemedi. Tekrar deneyin.",
+      "loading": "Ortam yükleniyor…",
+      "runLifetime": "Bu ortamı kullanan bir agent run işleminden sonra kapanır.",
+      "idleMinutes": "En fazla {minutes, plural, other {# dakika}} boşta kalma süresince korunur.",
+      "idleSeconds": "En fazla {seconds, plural, other {# saniye}} boşta kalma süresince korunur.",
+      "options": "Ortam seçenekleri",
+      "lifetime": "Ne zaman kapanır",
+      "checked": "Kullanılabilirlik kontrol edildi: {status}.",
+      "ready": "Hazır"
+    }
   },
   "admin": {
     "actions": "Eylemler",
@@ -10938,7 +11136,7 @@
     "adding": "Ekleniyor…",
     "appliesEachFileYou": "Bu ayar, bundan sonra ekleyeceğiniz her dosyaya uygulanır ve dosyanın kaydına eklenir. Koleksiyon kendi ayarlarını korur; sonraki yüklemeler o ayarları kullanır.",
     "applyChanges": "{count, plural, =1 {1 değişikliği uygula} other {# değişikliği uygula}}",
-    "builtInReadersRegardless": "Seçimden bağımsız olarak metin, Markdown ve Word dosyaları yerleşik okuyucularla işlenir.",
+    "builtInReadersRegardless": "Metin ve Markdown dosyaları, hangi ayrıştırıcı seçilirse seçilsin yerleşik okuyucuyla işlenir.",
     "cancel": "İptal",
     "cancel2": "İptal",
     "cancel3": "İptal",
@@ -11005,7 +11203,7 @@
     "knowledgeBasesAlreadyUsing": "Bu entegrasyonu kullanan bilgi tabanları kendi kopyalarını korur. Buradan yalnızca eşitleme yapmayan kopya kaldırılır.",
     "leaveEmptyAutoGenerate": "Otomatik oluşturmak için boş bırakın",
     "leftAloneCollectionInherits": "Bu koleksiyon değiştirilmezse dağıtımın varsayılan ayarlarını devralır. Aşağıda platform değerleri görünür; herhangi birini değiştirdiğinizde hepsi gönderilir ve biri düzenleyene kadar koleksiyona ait olur.",
-    "liteparseReadsTextLayer": "LiteParse önce metin katmanını okur, yalnızca metin yoksa OCR uygular. Ayrıştırma maliyetinin çoğunu OCR oluşturur; belgelerin çoğu dijital üretilmiştir. Her sayfaya OCR uygulamak için bu seçeneği kapatın.",
+    "liteparseReadsTextLayer": "Önce metin katmanı: bir sayfaya yalnızca metin yoksa OCR uygulanır. Ayrıştırma maliyetinin çoğunu OCR oluşturur; belgelerin çoğu dijital üretilmiştir. Her sayfaya OCR uygulamak için bu seçeneği kapatın.",
     "llamaparseKey": "LlamaParse anahtarı",
     "llamaparseTier": "LlamaParse katmanı",
     "loadingModels": "Modeller yükleniyor…",
@@ -11013,7 +11211,7 @@
     "maximumPages": "En fazla sayfa",
     "model": "Model",
     "model2": "Model",
-    "modelIsFixed": "Saklanan vektörler nedeniyle model sabit",
+    "modelIsFixed": "Model, daha önce saklanan vektörlerce sabitlenir. Geçiş bunlara karşı test edilir.",
     "modelsUnreadable": "Provider listesi okunamadığından provider veya anahtar seçilemiyor. Liste okunana kadar koleksiyon oluşturulamaz.",
     "name": "Ad",
     "nameCopy": "Kopyanın adı",
@@ -11037,7 +11235,10 @@
     "overlapRepeats": "Bitişik parçalar örtüşen metni tekrar içerir; böylece sınırdaki metin iki kez görünür",
     "pageNumber": "{number}. sayfa",
     "pageParsedNothingReadable": "Bu sayfa ayrıştırıldığında okunabilir içerik çıkmadı; muhtemelen tarama okunamıyor.",
-    "pagePictureTextCarries": "Metnin görselinden oluşan sayfada çıkarılacak metin katmanı yoktur. PyMuPDF böyle bir sayfayı görsel modeline iletir; LiteParse kendi OCR işlemini yapar.",
+    "scannedPagesDocling": "Metnin görselinden oluşan bir sayfa ya da görselde çıkarılacak metin yoktur. Docling onu kendi OCR'ıyla okur; bu kapalıyken yüklenen bir görselde dizinlenecek bir şey olmaz.",
+    "scannedPagesLiteparse": "Metnin görselinden oluşan bir sayfada çıkarılacak metin yoktur. LiteParse onu kendi OCR'ıyla okur.",
+    "scannedPagesLlamaparse": "LlamaParse, bu ayar ne olursa olsun taranmış sayfaları kendisi okur.",
+    "scannedPagesPymupdf": "Metnin görselinden oluşan bir sayfada çıkarılacak metin yoktur. PyMuPDF böyle bir sayfayı görsel modeline iletir.",
     "nextUploadsTitle": "Sonraki yüklemeler nasıl okunup dosyalanacak",
     "parseTimeoutSeconds": "Ayrıştırma zaman aşımı (saniye)",
     "parsed": "Ayrıştırıldı",
@@ -11058,15 +11259,15 @@
     "problemWholeBetween": "{min} ile {max} arasında bir tam sayı olmalı.",
     "productDocs": "Ürün belgeleri",
     "prompt": "Prompt",
-    "providerMoveKeepsTheIndex": "Başka bir yerde sunulan aynı model yine aynı modeldir; bu nedenle dizinlenmiş içerik değişmez. Yalnızca sonraki istek yeni anahtarla yeni providera gider.",
+    "providerMoveKeepsTheIndex": "Geçiş, daha önce saklanmış parçalar üzerinde test edilir: yeni sağlayıcı aynı vektörleri döndürüyorsa dizinlenmiş hiçbir şey değişmez – sonraki istek yalnızca yeni sağlayıcıya gider.",
     "readAsImages": "Görsel olarak oku",
-    "readScannedPages": "Taranmış sayfaları oku",
+    "readScannedPages": "Taranmış sayfaları oku (OCR)",
     "reasoning": "Akıl yürütme",
     "remove": "Kaldır",
     "removeNamed": "{name} kaldırılsın mı?",
     "integrationActions": "İşlemler",
     "integrationDetails": "Bağlantı / zamanlama",
-    "integrationsDescription": "Yeniden kullanılabilir kaynaklar bilgi tabanlarını besler. Yerel hizmetler kendi ağınızda embedding ve OCR işlemleri sağlar.",
+    "integrationsDescription": "Yeniden kullanılabilir kaynaklar bilgi tabanlarınızı besler. Hizmet bağlantıları, koleksiyonlarınızın kullandığı gömme ve OCR uç noktalarıdır.",
     "integrationsEmpty": "Henüz entegrasyon yok",
     "integrationsCount": "{count, plural, one {# entegrasyon} other {# entegrasyon}}",
     "reusableIntegrations": "Entegrasyonlar",
@@ -11100,11 +11301,12 @@
     "endpointModelsUnconfirmed": "Bu uç noktaya hangi modelleri sunduğu sorulamadığından tüm OpenRouter modelleri listeleniyor. Sunulmayan bir model ilk yüklemede hata verir.",
     "endpointServesNoModel": "Bu uç nokta AgenticOS’un sunduğu embedding modellerinden hiçbirini sunmuyor. Uç noktayı boş bırakın veya başka provider seçin.",
     "endpointLacksCollectionModel": "Bu uç nokta koleksiyonun vektörlerinin oluşturulduğu {model} modelini sunmuyor. Uç noktayı boş bırakın veya bu modeli sunan birini seçin.",
-    "localServicesHint": "Dağıtımın kendi ağındaki sunucular: embedding yapan Ollama veya LiteParse için OCR yan hizmeti gibi. Bir kez kaydedilip koleksiyon başına seçilir. Bu servislere gönderilen hiçbir şey dağıtım dışına çıkmaz.",
+    "connectionActive": "Etkin",
+    "serviceConnectionsHint": "Bir kez kaydedilip koleksiyon başına seçilen uç noktalar: gömme üreten bir Ollama, kasa anahtarlı OpenAI uyumlu bir ağ geçidi, LiteParse için bir OCR yan hizmeti.",
     "addServer": "Sunucu ekle",
-    "failedLoadLocalServices": "Yerel servisler yüklenemedi",
-    "localServiceKind": "Tür",
-    "embeddingServer": "Embedding sunucusu (Ollama)",
+    "failedLoadServiceConnections": "Hizmet bağlantıları yüklenemedi",
+    "serviceConnectionKind": "Tür",
+    "embeddingServer": "Embedding sunucusu",
     "ocrServer": "OCR sunucusu (LiteParse)",
     "address": "Adres",
     "addressHint": "Servisin yanıt verdiği kök adres. Ollama’nın OpenAI uyumlu kök adresi /v1 ile biter; OCR sunucusunun adresi temel URL’sidir.",
@@ -11131,7 +11333,75 @@
     "embeddingEndpoint": "Uç nokta",
     "embeddingEndpointHint": "Genel OpenRouter API’si için boş bırakın veya https://eu.openrouter.ai/api/v1 gibi bölgesel URL girin. AB yönlendirmesi uygun OpenRouter planı gerektirir; ZDR, OpenRouter’da ayrıca yapılandırılır.",
     "noConnectorsAvailable": "Kullanılabilir kaynak bağlayıcısı yok. Yönetici bu dağıtım için bağlayıcı etkinleştirebilir.",
-    "parsedSnapshotOnly": "İçe aktarılan ayrıştırılmış metin. Orijinal dosya dahil edilmedi."
+    "parsedSnapshotOnly": "İçe aktarılan ayrıştırılmış metin. Orijinal dosya dahil edilmedi.",
+    "apiStyle": "API biçimi",
+    "apiStyleOllama": "Ollama",
+    "apiStyleOpenAICompatible": "OpenAI uyumlu",
+    "apiStyleLiteparse": "LiteParse",
+    "apiStyleDocling": "Docling Serve",
+    "doclingAddressExample": "http://docling:5001",
+    "documentParserServer": "Belge ayrıştırıcı (Docling)",
+    "testConnection": "Bağlantıyı sına",
+    "doclingTestOk": "Docling Serve {version} yanıt verdi.",
+    "doclingTestKeyRefused": "Docling Serve anahtarı reddetti.",
+    "doclingTestKeyRequired": "Bu Docling Serve bir anahtar istiyor. Yukarıdan bir tane seçin.",
+    "doclingTestUnreachable": "Bu adreste yanıt veren yok.",
+    "doclingTestNotDocling": "Bir şey yanıt verdi ama bu Docling Serve değil.",
+    "parserDocling": "Docling",
+    "parserDoclingHint": "Kendi Docling Serve’iniz. Düzeni, tabloları ve sayfaları korur.",
+    "doclingConnection": "Docling bağlantısı",
+    "doclingConnectionHint": "Bu koleksiyonun dönüştürme için kullandığı Docling Serve. Koleksiyona aittir: bir yükleme başka birini seçemez.",
+    "doclingLanguages": "OCR dilleri",
+    "doclingLanguagesHint": "“de” veya “en” gibi iki harfli kodlar, en çok {max}. Docling’in varsayılanı için boş bırakın. Eklemek için Enter’a basın.",
+    "doclingLanguagePlaceholder": "de, en",
+    "doclingLanguageInvalid": "Dil kodları iki harflidir, örneğin “de” veya “en”.",
+    "removeLanguage": "{code} kaldır",
+    "doclingPreset": "OCR ön ayarı",
+    "doclingPresetHint": "Docling’in hangi OCR motorunu kullandığı: auto, easyocr, rapidocr veya tesseract. Yalnızca Docling Serve’inizde kurulu motorlar çalışır.",
+    "tableMode": "Tablo modu",
+    "tableModeAccurate": "Doğru",
+    "tableModeAccurateHint": "Daha yavaş, karmaşık tabloları daha sadık izler.",
+    "tableModeFast": "Hızlı",
+    "tableModeFastHint": "Daha hızlı, daha basit tablo yeniden kurma.",
+    "whereDoclingStops": "Docling’in durduğu yer. Bir belgenin maliyetini bu sınırlar - zaman aşımı yalnızca beklemeyi sınırlar.",
+    "howLongDoclingMay": "Platformun bir belge için Docling'i ne kadar beklediği. Daha yüksek bir değer ayarlansa bile 3000 saniyeden sonra beklemeyi bırakır, böylece ret işin kendi sınırından önce gelir; Docling'in kendisi durdurulmaz.",
+    "problemDoclingLanguages": "OCR dilleri iki harfli kodlardır, en çok {max} tane.",
+    "problemDoclingPreset": "OCR ön ayarı küçük harf, rakam, “-” ve “_” içerir, en çok 64 karakter.",
+    "connectionKey": "Kasa anahtarı",
+    "connectionKeyHint": "Her istekle gönderilir. Kuruluşunuzun kasasından bir anahtar seçin veya buradan ekleyin.",
+    "connectionHasKey": "Kasa anahtarı",
+    "deploymentWideKeyless": "Dağıtım genelindeki bir bağlantı anahtar taşıyamaz. Anahtar kullanmak için bir kuruluş bağlantısı kaydedin.",
+    "editServer": "Sunucuyu düzenle",
+    "testSettings": "Test et",
+    "testingSettings": "Test ediliyor…",
+    "testCost": "{count, plural, =0 {Gömme çağrısı yok} other {En fazla # gömme çağrısı}}. Sağlayıcı tokenleri tüketebilir; anahtarlı çağrılar kuruluşun aylık bütçesine sayılır.",
+    "probePassed": "{count, plural, =0 {Henüz hiçbir şey saklanmadı, bu yüzden bozulacak bir şey yok} other {# bilgi tabanı vektörlerini korur}}",
+    "probeOutcome": {
+      "passed": "Geçti",
+      "no_chunks": "Henüz hiçbir şey saklanmadı, bu yüzden bozulacak bir şey yok",
+      "unreachable": "Uç noktaya ulaşılamadı",
+      "key_refused": "Uç nokta anahtarı reddetti",
+      "model_unknown": "Uç nokta bu modeli tanımıyor veya vektör döndürmedi",
+      "wrong_width": "Uç nokta farklı bir vektör genişliğiyle yanıt veriyor",
+      "vectors_differ": "Uç nokta, saklananlardan farklı vektörler döndürüyor"
+    },
+    "probeFailedAdvice": "Bu ayarlar için yeni bir bilgi tabanı oluşturun.",
+    "saveWithoutTest": "Test etmeden kaydet",
+    "unverifiedTitle": "Test etmeden kaydedilsin mi?",
+    "unverifiedBody": "Yeni uç nokta farklı bir model sunuyorsa arama bozulur ve bundan sonra işlenen belgeler vektörlerini yeni uç noktadan alır.",
+    "unverifiedConfirm": "Yine de kaydet",
+    "unverifiedAffected": "{count, plural, other {# bilgi tabanı etkileniyor.}}",
+    "openaiCompatibleAddressExample": "https://gateway.example.com/v1",
+    "customModel": "Model",
+    "customModelHint": "Model adı, uç noktanın beklediği şekilde tam olarak yazılmalıdır.",
+    "measuredWidth": "{dim, plural, other {Ölçülen genişlik: # boyut}}",
+    "modelTestedAgainstStored": "Saklanan vektörlerin üretildiği model. Başka bir model olabilir ancak saklanan parçalara karşı test edilir.",
+    "testCostUnavailable": "Testin kaç yoklama yapacağı okunamadı.",
+    "tested": "Test edildi",
+    "blockedMissingSettings": "Önce eksik ayarları doldurun.",
+    "blockedRunTest": "Önce testi çalıştırın; test geçince kaydetme açılır.",
+    "deploymentWideCollection": "Her kuruluş (tüm dağıtım)",
+    "deploymentWideCollectionHint": "Bir kuruluşa değil, dağıtıma aittir: her kuruluş içinde arama yapabilir. Yalnızca dağıtım genelindeki bağlantıları ve anahtarsız provider'ları kullanabilir, vault anahtarı kullanamaz."
   },
   "rag": {
     "addSyncSource": "Eşitleme kaynağı ekle",
@@ -11583,7 +11853,8 @@
       "unavailableSettings": "Kullanılamayan araç kısıtlamaları",
       "unavailableSettingsBody": "Bu kayıtlı kısıtlamalar araç şu anda sunulmasa bile korunur. Bir kısıtlamayı kaldırmak için açıkça silin.",
       "removeRestriction": "{name} kısıtlamasını kaldır"
-    }
+    },
+    "budgetLabel": "Aylık bütçe ({currency}, isteğe bağlı)"
   },
   "teams": {
     "acmeCom": "acme.com",
@@ -11607,7 +11878,7 @@
     "emailAddress": "E-posta adresi",
     "emptyMeansUnlimited": "Boş bırakılırsa sınır olmaz.",
     "emptyNoLimit": "Sınır olmaması için boş bırakın.",
-    "enterAmountDollarsLeave": "Dolar cinsinden bir tutar girin veya sınır koymamak için boş bırakın.",
+    "enterAmountDollarsLeave": "Geçerli bir tutar girin veya sınır belirlememek için boş bırakın.",
     "howManyPeople": "Kaç kişi",
     "inviteEmailed": "{email} adresine e-posta gönderildi. Ulaşmazsa aşağıdaki bağlantı sizin kopyanızdır.",
     "inviteLinkLabel": "Davet bağlantısı",
@@ -11618,7 +11889,6 @@
     "inviteWithLink": "Bağlantıyla davet et",
     "joinAs": "Şu rolle katıl:",
     "joined": "Katıldı",
-    "limitUsd": "Sınır (USD)",
     "manageOrganizations": "Kuruluşları yönet",
     "member": "Üye",
     "monthlyLimitRemoved": "Aylık sınır kaldırıldı",
@@ -11723,7 +11993,7 @@
       "enabled": "Bu rolü çalıştır",
       "model": "Model",
       "modelHint": "Rol, o anda istenmemiş bir iş için para harcadığından model açıkça seçilir.",
-      "budget": "Aylık bütçe (USD)",
+      "budget": "Aylık bütçe ({currency})",
       "noBudget": "Ayrı bir sınır yok",
       "invalid": "Sıfır veya daha büyük bir sayı girin.",
       "modelRequired": "Etkinleştirmeden önce bu rolün modelini seçin.",
@@ -11760,7 +12030,7 @@
       "model": "Model",
       "modelHint": "Yalnızca sohbetlerden iyileştirme önermek içindir. İzleme seçilen ajanın modelini kullanır.",
       "modelRequired": "Açmadan önce kullanılacak modeli seçin.",
-      "label": "Kişi başına sınır (aylık USD)",
+      "label": "Kişi başına sınır (aylık {currency})",
       "days": "Gün",
       "timing": "Zamanlama",
       "timingFixed": "Belirli bir saatte",
@@ -11771,7 +12041,7 @@
       "save": "Kaydet",
       "saved": "Arka plan ayarları kaydedildi",
       "off": "Arka plan özellikleri kapalı",
-      "invalid": "Dolar cinsinden 0 veya daha büyük bir tutar girin.",
+      "invalid": "Negatif olmayan bir tutar girin.",
       "welcome": "Sohbet uygulamalarındaki karşılama mesajı",
       "welcomeHint": "Yeni üyeye Slack, Teams ve Mattermost botlarınızdan doğrudan mesaj gönderilir.",
       "welcomeText": "Mesaj",
@@ -11910,7 +12180,7 @@
     "addToGroupNothing": "Bu grupla paylaşabileceğiniz yeni bir şey yok; düzenleyebildiğiniz her şey zaten grupta.",
     "addToGroupLevel": "Şunları yapabilirler:",
     "addToGroupShare": "{count, plural, =0 {Paylaş} =1 {1 öğeyi paylaş} other {# öğeyi paylaş}}",
-    "monthlyBudget": "Aylık budget (USD)",
+    "monthlyBudget": "Aylık budget ({currency})",
     "monthlyBudgetHint": "Bu departman üyelerinin başlattığı run’lar sınıra ulaşınca durur. Lider ve yöneticiler %80’e ulaşıldığında bilgilendirilir.",
     "noBudget": "Sınır yok",
     "thisMonth": "Bu ay",
@@ -12812,7 +13082,9 @@
       "sharedWorkspace": "Paylaşılan proje workspace’i"
     },
     "tracking": {
-      "title": "Otomatik proje takibi",
+      "description": "Onayladığınız kaynaklardan ilerlemeyi kontrol edip bu projenin paylaşılan görev tablosunu güncelleyen bir agent ve zamanlanmış rutin oluşturun. Aynı tabloyu kendiniz de düzenleyebilirsiniz.",
+      "options": "Görev tablosu seçenekleri",
+      "title": "Görev güncellemelerini otomatikleştir",
       "openTracker": "Takip agentı"
     },
     "initialSetup": "Talimatlar ve varsayılanlar",
@@ -13762,6 +14034,14 @@
           "description": "Bu run için ayrı bir E2B masaüstü başlatır. Aşağıdan kuruluşun E2B key’ini seçin; Sandbox bağlantısı gerekmez.",
           "summary": "E2B’nin barındırdığı yalıtılmış bir masaüstü."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Bu run"
+        },
+        "conversation": {
+          "label": "Bu konuşma"
+        }
       }
     },
     "browser_use": {
@@ -13785,6 +14065,14 @@
           "label": "Bu bilgisayar (masaüstü uygulaması)",
           "summary": "Eşleştirilmiş bilgisayarınızdaki özel browser.",
           "description": "Eşleştirilmiş masaüstü uygulaması ve bu sohbette Local browser seçili olmalıdır. Kişisel browser oturumunuz paylaşılmaz."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Bu run"
+        },
+        "conversation": {
+          "label": "Bu konuşma"
         }
       }
     },
@@ -13899,7 +14187,14 @@
     "nativeTake": "Kontrolü al",
     "nativeCloseTab": "Sekmeyi kapat",
     "nativeViewport": "Native browser sayfası",
-    "nativeDesktopOnly": "Bu sekme eşleştirilmiş desktop app'te açık. Native browser'ını kullanmak için orada devam edin."
+    "nativeDesktopOnly": "Bu sekme eşleştirilmiş desktop app'te açık. Native browser'ını kullanmak için orada devam edin.",
+    "youControl": "Kontrol sizde",
+    "agentControls": "Aracı kontrol ediyor",
+    "otherViewerControls": "Başka kullanıcı kontrol ediyor",
+    "viewOnly": "Yalnızca görüntüleme",
+    "takingOverShort": "Kontrol alınıyor…",
+    "openPages": "Açık tarayıcı sayfaları",
+    "untitledPage": "Başlıksız sayfa"
   },
   "remoteAgents": {
     "optionalSettings": "Kimlik doğrulama ve tanıtıcı (isteğe bağlı)",
@@ -14087,6 +14382,8 @@
     "connectAnother": "Hesap ekle",
     "disconnect": "Bağlantıyı kes",
     "loadFailed": "Abonelik hesaplarınız yüklenemedi",
+    "disabledTitle": "Abonelikler burada etkin değil",
+    "disabledDescription": "Bu kurulumda abonelik ağ geçidi yapılandırılmamış. Kişisel aboneliğinizi bağlamadan önce kurulum yöneticinizden etkinleştirmesini isteyin.",
     "retry": "Yeniden dene",
     "dialogTitle": "{name} bağla",
     "deviceHelp": "Oturum açma sayfasını açın, bu kodu girin ve onaylayın. Bu pencere kendiliğinden tamamlanır.",
@@ -14391,7 +14688,7 @@
       "budgetTitle": "Aylık hangi sınır sana uygun?",
       "budgetGuide": "AI kullanımını sen kontrol edersin. Başlangıç tutarını seç veya kaydırıcıyı hareket ettir. Yalnızca devam ettiğinde kaydedeceğim.",
       "unlimited": "Sınırsız",
-      "budgetSlider": "ABD doları olarak aylık bütçe",
+      "budgetSlider": "Aylık bütçe kaydırıcısı ({currency})",
       "budgetInvalid": "Pozitif bir tutar veya limitsiz seçeneğini seç.",
       "budgetHint": "Bu organizasyondaki ajanların izlenen AI kullanımını sınırlar. Abonelik veya ön ödemeli kredi değildir. Sağlayıcı ayrı faturalandırır.",
       "workspaceReadyTitle": "İlk görevin için hazır",
@@ -14460,6 +14757,46 @@
       "workflowBody": "Araçları adlandırılmış işlevlere bağlayıp Python'dan çağırın. Her eylem kendi izinlerini, onaylarını ve yürütme kaydını korur.",
       "organizationTitle": "Kuruluş varsayılanlarını belirleyin",
       "organizationBody": "Her rol için gezinmeyi, katalogları, panoyu ve bildirimleri, ayrıca maliyet görünürlüğünü yapılandırın. Üyeler politikanızın izin verdiği seçenekleri kişiselleştirebilir."
+    },
+    "scopes": {
+      "progress": "Kurulum ilerlemesi",
+      "stages": "Kurulum aşamaları",
+      "position": "Aşama {current} / {total}",
+      "completed": "Tamamlandı",
+      "saveFailed": "Kurulum ilerlemen kaydedilemedi. Bu adımı tekrar dene.",
+      "allDoneTitle": "Kurulum tamamlandı",
+      "allDoneHint": "Ortak kurulum tamamlandı ve kişisel ilerlemen korundu. Bir aşamayı incele veya uygulamayı aç.",
+      "openApp": "Uygulamayı aç",
+      "workspaceTitle": "Bir kuruluş oluştur veya seç",
+      "workspaceHint": "Dağıtım kurulumu tamamlandı. Ortak varsayılanları için bir şirket çalışma alanı seç, ardından kişisel kurulumuna devam et.",
+      "loadFailed": "Kurulum yüklenemedi",
+      "deployment": {
+        "title": "Dağıtımı yapılandır",
+        "hint": "Bu dağıtımın tamamında paylaşılır. Bir uygulama yöneticisi bu aşamayı bir kez tamamlar.",
+        "short": "Dağıtım"
+      },
+      "organization": {
+        "title": "Kuruluşu yapılandır",
+        "hint": "Bu kuruluşta paylaşılır. Yetkili bir kişi bu aşamayı ekip adına tamamlar.",
+        "short": "Kuruluş"
+      },
+      "personal": {
+        "title": "Kişisel kurulumun",
+        "hint": "Profilin, bağlantıların ve tercihlerin. Bu ilerleme sana aittir.",
+        "short": "Kişisel"
+      },
+      "modelsShared": "İsteğe bağlı ortak sağlayıcı erişimi, kuruluş görünürlüğüyle Vault üzerinden yapılandırılır. Bu adım kişisel model seçimini değiştirmez.",
+      "toolsShared": "İsteğe bağlı ortak araç erişimi, kuruluşa ait MCP bağlantılarını kullanır. Özel hesaplarını daha sonra kişisel kurulumunda bağla.",
+      "openVault": "Vault’u aç",
+      "openConnections": "MCP bağlantılarını aç",
+      "returnToSetup": "Sayfa yeni bir sekmede açılır. İşin bittiğinde bu kuruluma dön.",
+      "resourcesPermission": "Bu ortak kaynakları görüntüleme iznin yok. Devam edebilirsin; yetkili bir kişi bunları daha sonra yapılandırabilir.",
+      "sharedReview": "Bu ortak aşama tamamlandı. Açık formun inceleme için korunur. Formdan ayrılmaya hazır olduğunda devam et.",
+      "continueReview": "Sonraki aşamaya geç",
+      "stageCompleted": "{stage} — Tamamlandı",
+      "continueShort": "Devam",
+      "skipShort": "Atla",
+      "finishShort": "Bitir"
     }
   },
   "notificationRoutes": {
@@ -17486,7 +17823,7 @@
     "estimating": "Süre ve maliyet tahmin ediliyor…",
     "sessionQuote": "{answers, plural, one {# seçili kaynak örneğini} other {# seçili kaynak örneğini}} sıralamak için en fazla {cost} (tahmini). Sonraki her deneme yaklaşık {minutes, plural, one {# dakika} other {# dakika}} sürer ve yaklaşık {perRound} tutar; başlamadan önce yeniden fiyatlandırılır. {limit} sınırı tüm oturum içindir.",
     "evidence": "Geri bildirim alan {count, plural, one {# yanıta} other {# yanıta}} dayanır.",
-    "budget": "Oturum harcama limiti (USD)",
+    "budget": "Oturum harcama sınırı ({currency})",
     "start": "İyileştirmeye başla",
     "working": "Hâlâ çalışılıyor…",
     "loading": "Sonuç yükleniyor…",
@@ -18083,7 +18420,7 @@
       "search": "Varyant ara",
       "searchHint": "Yardımcı, talimatların birçok sürümünü yazar ve her birini eğitim sorularında puanlar. En iyisi Değişiklikler adımına gelir ve ardından diğer denemeler gibi kontrol edilir.",
       "tooFew": "Arama için en az {needed} eğitim sorusu gerekir; bu dataset'te {count, plural, =0 {hiç yok} =1 {1 tane var} other {# tane var}}. Soru ekleyin veya adım adım iyileştirin.",
-      "budget": "Arama budget'ı (USD)",
+      "budget": "Arama bütçesi ({currency})",
       "budgetHint": "Arama, sonraki varyantı sığmayacağı anda durur. Budget'ı en fazla puanlamakta olduğu tek varyant kadar aşabilir.",
       "gradingModel": "Varyantları puanlayan model",
       "datasetJudge": "Dataset'in hakem modeli",
@@ -18133,7 +18470,12 @@
       "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
       "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
     },
-    "permissionRuns": "Bir Improve oturumunu okumak runs:view izni gerektirir; bu rolde bu izin yok. Erişim için bir kuruluş sahibinden isteyin."
+    "acceptChanged": "Kabul etmek üzere olduğunuz deneme, siz incelediğinizden beri değişti. Oturum yenilendi; yeniden inceleyin.",
+    "unmeasuredEdits": "Taslakta bu oturum başlamadan önce yapılmış düzenlemeler vardı. Yayımlamak onları da yayınlar ve hiçbir kontrol onları ölçmedi.",
+    "publishUnmeasuredEdits": "Bu düzenlemeleri de yayımla",
+    "permissionRuns": "Bir Improve oturumunu okumak runs:view izni gerektirir; bu rolde bu izin yok. Erişim için bir kuruluş sahibinden isteyin.",
+    "changeQuotesCredential": "Bu değişiklik bir kimlik bilgisi alıntılıyor, bu yüzden test edilemez veya uygulanamaz. Onu dışarıda bırakın.",
+    "selectionQuotesCredential": "Seçilen değişikliklerden biri kimlik bilgisi alıntılıyor. Diğerlerini test etmek için onu dışarıda bırakın."
   },
   "personalModelKeys": {
     "copilot": {
@@ -18159,12 +18501,14 @@
       "dismissAll": "Tümünü reddet",
       "verifyReport": "Asistanın düzenlemeleriniz hakkındaki değerlendirmesi",
       "skillCreated": "{name} adlı skill oluşturuldu ve taslağa eklendi",
-      "working": "Run'lar okunuyor…"
+      "working": "Run'lar okunuyor…",
+      "checkQuotesCredential": "Önerilerden biri kimlik bilgisi alıntılıyor, bu yüzden bu öneriler kontrol edilemez. Mümkünse düzenleyerek kimlik bilgisini çıkarın veya o öneriyi reddedin."
     },
     "suggestion": {
       "tool": "{tool} tool'u",
       "instructions": "Talimatlar",
       "fromVerify": "Düzenlemelerinizin doğrulanmasından",
+      "reworded": "Değişiklikler adımında yeniden ifade edildi",
       "status": {
         "accepted": "Taslağa kabul edildi",
         "dismissed": "Reddedildi"
@@ -18176,7 +18520,10 @@
       "accept": "Kabul et",
       "edit": "Düzenle",
       "dismiss": "Reddet",
-      "undo": "Geri al"
+      "undo": "Geri al",
+      "quotesCredential": "Bu öneri bir kimlik bilgisi alıntılıyor, bu yüzden olduğu gibi kabul edilemez. Düzenleyerek kimlik bilgisini çıkarın veya öneriyi reddedin.",
+      "quotesCredentialDismiss": "Bu öneri bir kimlik bilgisi alıntılıyor, bu yüzden kabul edilemez. Öneriyi reddedin ve değişikliği elle yapın.",
+      "quotesCredentialReadOnly": "Bu öneri kimlik bilgileri içeriyor ve bu haliyle kabul edilemez."
     },
     "field": {
       "editLabel": "Değeriniz",
@@ -18334,7 +18681,8 @@
       "liveHint": "Uygulama hemen geçerli olur: dosyayı okuyan her agent, bir sonraki run'ında yeni içeriği okur.",
       "expects": "Beklenen: {effect}",
       "applied": "Değişiklik {name} öğesine uygulandı",
-      "discarded": "{name} için yapılan değişiklikten vazgeçildi"
+      "discarded": "{name} için yapılan değişiklikten vazgeçildi",
+      "quotesCredential": "Bu değişiklik bir kimlik bilgisi alıntılıyor, bu yüzden uygulanamaz veya kontrol edilemez. Değişikliği reddedip elle yapın."
     },
     "describe": {
       "open": "{name} ile oluştur"
@@ -18359,6 +18707,7 @@
         "no_change": "Hiçbir şeyi değiştirmiyor",
         "unknown_tool": "Agent'ın böyle bir tool'u yok",
         "invalid_tool_change": "Agent'ın kullanamayacağı bir tool adı veya açıklaması",
+        "hidden_characters": "Metni, bir kişinin göremeyeceği karakterler içeriyor",
         "not_a_target": "Asistanın değiştirebileceği bir şey değil",
         "operation": "Bu ayarın izin verdiği bir değişiklik değil",
         "loosens_approval": "Onayı gevşetirdi",
@@ -18366,6 +18715,7 @@
         "unknown_capability": "Böyle bir capability yok",
         "invalid_config": "Ayarları geçerli değil",
         "does_not_apply": "Taslağa uymuyor",
+        "reaches_network": "Bu dağıtımın dışına uzanan bir capability ekliyor. Onu, sınırlarının ayarlandığı Builder'da ekleyin",
         "not_grantable": "İsteyen kişinin veremeyeceği bir şey ekliyor",
         "dismissed_before": "Biri bunu daha önce reddetti",
         "unsupported": "Düzenlemenin desteklendiğini söyledi, ancak kontrol edilebilecek bir kanıt yok",
@@ -18594,6 +18944,22 @@
       "preview": "Yalnızca düzen önizlemesi. Veri ve izinler açılışta her kişi için belirlenir.",
       "empty": "Bu rol varsayılanı bilinçli olarak hiç kart içermez.",
       "discard": "Değişiklikleri iptal et"
+    },
+    "rolePreview": {
+      "open": "Konsol önizlemesini aç",
+      "hint": "Kişisel seçimlerden önce rol varsayılanları. Gezinme mevcut taslağınızı; dashboard, kataloglar ve bildirimler kaydedilmiş ayarları kullanır. Kartlar özel veri yüklemez.",
+      "navigation": "Gezinme",
+      "dashboard": "Dashboard",
+      "catalogs": "Kataloglar",
+      "emptyDashboard": "Gösterilen dashboard kartı yok.",
+      "emptyNavigation": "Gösterilen ana gezinme öğesi yok.",
+      "wholeCatalog": "Mevcut izinlerin izin verdiği tüm öğeler",
+      "approvedLimit": "{count, plural, =0 {Öğe yok} one {En fazla # onaylı öğe} other {En fazla # onaylı öğe}}",
+      "mcp_galleryAvailable": "Yalnızca kuruluşun bağladığı sunucular",
+      "skill_galleryAvailable": "Yalnızca görünür yüklü Skills",
+      "shown": "Gösterilir",
+      "hidden": "Gizli",
+      "unavailable": "Bu izinlerle kullanılamaz"
     }
   },
   "onboardingStatus": {
@@ -18603,6 +18969,49 @@
     "inProgress": "Devam ediyor",
     "unknown": "Veri yok",
     "otherStep": "Kurulum"
+  },
+  "modelPricing": {
+    "title": "Fiyatlandırma",
+    "automaticAvailable": "Milyon token başına USD cinsinden tahmini otomatik fiyatlar. Gerçek fiyat, kullanım kademelerine veya sağlayıcının bildirdiği ücrete bağlı olabilir.",
+    "automaticUnavailable": "Otomatik token fiyatları kullanılamıyor. Sağlayıcının bildirdiği maliyet, istek sonrasında kaydedilebilir.",
+    "input": "Girdi tokenları",
+    "output": "Çıktı tokenları",
+    "cache_read": "Önbellek okuma tokenları",
+    "cache_write": "Önbellek yazma tokenları",
+    "cacheDefault": "Girdi fiyatını kullanmak için boş bırakın.",
+    "overrideCurrency": "Özel fiyatları kullan (milyon token başına)",
+    "currency": "Fiyatlandırma para birimi"
+  },
+  "currencies": {
+    "title": "Para birimleri ve döviz kurları",
+    "manualRates": "1 USD başına para birimi miktarını girin. Kurlar elle yönetilir; kaydedilen maliyetler, oluştukları anda kullanılan kuru korur.",
+    "deploymentDefault": "Varsayılan kuruluş para birimi",
+    "rate": "USD başına {currency}",
+    "remove": "{currency} kaldır",
+    "code": "Para birimi kodu",
+    "newRate": "USD başına birim",
+    "add": "Para birimi ekle",
+    "reset": "Ortam varsayılanlarını kullan",
+    "organization": "Kuruluş para birimi",
+    "organizationHint": "Dağıtım varsayılanını devralın veya raporlama para birimini seçin. Mevcut fiyat ve limitler özgün birimlerini korur.",
+    "inherit": "Devral ({currency})",
+    "rateUnavailable": "{currency} (döviz kuru yok)",
+    "loadFailed": "Para birimi ayarları yüklenemedi",
+    "retry": "Yeniden dene",
+    "saveFailed": "Para birimi kaydedilemedi",
+    "amountInvalid": "Raporlama para biriminde geçerli, negatif olmayan bir tutar girin.",
+    "budgetLabel": "Bütçe ({currency})",
+    "limitLabel": "Limit ({currency})",
+    "perMinuteLabel": "Dakika başına fiyat ({currency})",
+    "quoteHint": "Raporlama kuru: 1 USD = {rate} {currency}. Para birimi tercihi değişene kadar sabit kalır; yeni model maliyetleri güncel fiyatlandırma kurlarını kullanır.",
+    "spentOfLimit": "Bu ay {limit} limitinden {spent} harcandı.",
+    "spentNoLimit": "Bu ay {spent} harcandı. Limit yok.",
+    "amountPositive": "Sıfırdan büyük bir tutar girin.",
+    "amountMaximum": "En fazla {amount} {currency} girin.",
+    "switchOrganizationHint": "Limitlerini değiştirmeden önce bu organizasyona geçin. İzinler, harcamalar ve raporlama kuru aynı organizasyona ait olmalıdır.",
+    "switchOrganization": "Bu organizasyona geç",
+    "criterionLimit": "Maliyet ≤ {amount}",
+    "criterionObserved": "Ölçülen: {amount}; sınır: {limit}."
   },
   "evals": {
     "title": "Eval'ler",
@@ -19123,7 +19532,7 @@
         "efficiencyHint": "Temel ölçüme göre isteğe bağlı tavanlar. Boş bırakılırsa hiçbir şey kontrol edilmez.",
         "costRise": "Geçen vaka başına maliyetin artabileceği oran (%)",
         "p95Rise": "p95 gecikmesinin artabileceği oran (%)",
-        "maxRunUsd": "Tam tahmini şu tutarın üzerindeki run'ı atla ($)",
+        "maxRunUsd": "Tam tahmini şu tutarın üzerindeki run'ı atla ({currency})",
         "maxRunUsdHint": "Yeniden sormaları ve önceki sürümü içerir. Gerçek maliyet farklı olabilir; çalışan bir eval bu sınır nedeniyle durdurulmaz.",
         "description": "Not",
         "estimateRun": "Bir run: {count, plural, =1 {1 vaka} other {# vaka}} için yaklaşık {amount}.",
@@ -19394,7 +19803,7 @@
       "continue": "Devam et",
       "hidden": "{count, plural, =1 {Göremediğiniz 1 agent daha bu sürüm hattını kullanıyor.} other {Göremediğiniz # agent daha bu sürüm hattını kullanıyor.}}",
       "price": "İlk öneriye kadar en fazla {cost} (tahmini); sonraki her deneme yaklaşık {perRound}, en fazla {rounds, plural, =1 {1 deneme} other {# deneme}}. {limit} limiti tüm oturum için geçerlidir.",
-      "limit": "Tüm oturum için harcama limiti (USD)",
+      "limit": "Tüm oturum için harcama sınırı ({currency})",
       "limitHint": "İlk öneri ve yapabileceği her deneme için doldurulmuştur. Daha erken durması için düşürün; oturum, limiti aşacak bir adımdan önce durur.",
       "belowEstimate": "Limit, oturumun ilk öneriye kadarki maliyeti olan {cost} tutarının altında. Limiti en az bu tutara yükseltin.",
       "unaffordable": "Kuruluşun budget'ı bunu karşılamıyor.",
@@ -19407,11 +19816,12 @@
     "understand": {
       "title": "Anlama",
       "loading": "Neyin yanlış gittiği okunuyor…",
-      "summary": "{count, plural, =0 {Skill'de sorun bulunmadı} =1 {Skill'de 1 sorun} other {Skill'de # sorun}}{elsewhere, plural, =0 {} other {, sorunu başka yerde olan # yanıt}}{fine, plural, =0 {} other {, sorunsuz # yanıt}}.",
+      "summary": "{count, plural, =0 {Skill'de sorun bulunmadı} =1 {Skill'de 1 sorun} other {Skill'de # sorun}}{elsewhere, plural, =0 {} =1 {, sorunu başka yerde olan 1 yanıt} other {, sorunu başka yerde olan # yanıt}}{fine, plural, =0 {} =1 {, sorunsuz 1 yanıt} other {, sorunsuz # yanıt}}.",
       "usageUnknown": "{count, plural, =1 {1 yanıt, skill yüklemelerinin kaydedilmeye başlanmasından önceye ait ve sayılmaz.} other {# yanıt, skill yüklemelerinin kaydedilmeye başlanmasından önceye ait ve sayılmaz.}}",
       "agent": "{name} ({runs})",
       "occursIn": "{runs, plural, =1 {1 yanıtta} other {# yanıtta}}; {agents}{hidden, plural, =0 {} =1 { ve göremediğiniz 1 agent} other { ve göremediğiniz # agent}} üzerinde.",
-      "hiddenExamples": "{count, plural, =1 {+1 gizli örnek} other {+# gizli örnek}}"
+      "hiddenExamples": "{count, plural, =1 {+1 gizli örnek} other {+# gizli örnek}}",
+      "seedWithheld": "{count, plural, =1 {Agent'ın oturumundan aktarılan 1 problem dışarıda bırakıldı: bu skill'in kontrolünün değerlendirdiği bir soruya verilen yanıtı alıntılıyor.} other {Agent'ın oturumundan aktarılan # problem dışarıda bırakıldı: bu skill'in kontrolünün değerlendirdiği sorulara verilen yanıtları alıntılıyorlar.}}"
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Bu sürüm hattındaki hiçbir agent kontrol edilemez.} =1 {1 agent üzerinde kontrol edilecek: {names}.} other {# agent üzerinde kontrol edilecek: {names}.}}",
@@ -19518,7 +19928,7 @@
       "agents": "{count, plural, =0 {Görebildiğiniz hiçbir agent bu sürüm hattını okumuyor.} =1 {Sonucu 1 agent kontrol eder.} other {Sonucu # agent kontrol eder.}}",
       "hidden": "{count, plural, =1 {Göremediğiniz 1 agent daha bu sürüm hattını okuyor.} other {Göremediğiniz # agent daha bu sürüm hattını okuyor.}}",
       "price": "Çakışmaların metinlerini önermenin maliyeti yaklaşık {cost}. Kontrol, Değişiklikler adımında fiyatlandırılır.",
-      "limit": "Oturum için harcama limiti (USD)",
+      "limit": "Oturum için harcama sınırı ({currency})",
       "limitHint": "Kontrol fiyatlandırıldığında Değişiklikler adımında limiti yükseltebilirsiniz.",
       "unaffordable": "Kuruluşun budget'ı bunu karşılamıyor.",
       "start": {
@@ -19670,7 +20080,10 @@
     },
     "maskedConversation": "Kaynak kullanılamıyor veya kökeni doğrulanmamış",
     "scoring": {
-      "maskedConversation": "Kaynak kullanılamıyor veya kökeni doğrulanmamış"
+      "maskedConversation": "Kaynak kullanılamıyor veya kökeni doğrulanmamış",
+      "reason": {
+        "scriptCallsNotKept": "Kod modundaki bir betik, run'ın sakladığından daha fazla çağrı yaptı; bu yüzden araç çağrıları değerlendirilmedi."
+      }
     }
   },
   "stepFailure": {
@@ -19715,6 +20128,7 @@
       "context_gone": "Bağlam dosyası artık yok.",
       "no_edit_context": "Bunu başlatan kişi artık bağlam dosyasını düzenleyemez.",
       "unknown_skill_use": "Bu aralıktaki hiçbir run'ın skill'i kullandığı bilinmiyor. {runs, plural, one {Olumsuz puanlanan veya başarısız # run, kullanımlar kaydedilmeden öncesine ait, bu yüzden skill'i kullanıp kullanmadığı bilinmiyor.} other {Olumsuz puanlanan veya başarısız # run, kullanımlar kaydedilmeden öncesine ait, bu yüzden skill'i kullanıp kullanmadıkları bilinmiyor.}}",
+      "hidden_characters": "Önerilen metin görülemeyen karakterler içeriyor, bu yüzden kaydedilmedi. Yeniden isteyin.",
       "no_evidence": "Henüz öğrenilecek bir şey yok: bu aralıktaki hiçbir run puanlanmadı veya başarısız olmadı. Aralığı genişletin ya da birkaç yanıt puanlandığında geri gelin.",
       "key_revoked": "Bunu başlatan API anahtarı iptal edildi veya artık yok, bu yüzden durduruldu.",
       "not_a_member": "Bunu başlatan kişi artık üye değil.",
@@ -19722,5 +20136,9 @@
       "stalled": "Yardımcı bitirmeden durdu. Yeniden deneyin.",
       "withdrawn": "İstek başlamadan iptal edildi. Yeniden deneyin."
     }
+  },
+  "phone": {
+    "daily_budget_usd": "Günlük telefon bütçesi ({currency})",
+    "price_per_minute_usd": "Bölüm ve dakika başına temkinli ücret"
   }
 }

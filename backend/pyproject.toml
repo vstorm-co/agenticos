@@ -196,8 +196,8 @@ dependencies = [
     # expression. Interval schedules need no library, but "daily/weekly at HH:MM"
     # and any raw crontab do - and getting DST and month lengths right by hand is
     # the kind of arithmetic a dependency exists to own.
-    # Version 7 changes persisted maximum-step expressions; migrate them first.
-    "croniter>=6.2.4,<7",
+    # Migration 0376_croniter7_schedules preserves stored six-series cadences.
+    "croniter>=7.0.0,<8",
     "xlrd>=2.0.2",
     "odfpy>=1.4.1",
     "python-pptx>=1.0.2",
@@ -279,6 +279,8 @@ mirage = [
 # could skip it on some uv versions and leave pre-commit/ruff/ty unspawnable.)
 [dependency-groups]
 dev = [
+    # Type-check the optional browser adapters against their locked SDK.
+    "cdp-use==1.4.5",
     # The `mirage` extra's pin, for the suite - see the extra.
     "mirage-ai[pydantic-ai,ssh,mongodb,gridfs,postgres,redis,email,nextcloud,hf-buckets,chroma,mem0,langfuse,qdrant,lancedb]==0.0.8",
     "pytest>=9.2.0",
@@ -414,7 +416,7 @@ line-length = 100
 # These run on the runner's own `python3` (3.12), before any toolchain is
 # installed - CI's first job, and the dependency-graph submission - so they keep
 # to syntax that interpreter parses.
-per-file-target-version = { "../deploy/updater/*.py" = "py312", "../scripts/ci_changed_scope.py" = "py312", "../scripts/dependency_snapshot.py" = "py312" }
+per-file-target-version = { "app/agents/capabilities/computer_use/_desktop_session.py" = "py312", "../deploy/updater/*.py" = "py312", "../scripts/ci_changed_scope.py" = "py312", "../scripts/dependency_snapshot.py" = "py312" }
 
 [tool.ruff.lint]
 # Dotless i is a distinct Turkish letter used in localized messages.
@@ -646,6 +648,12 @@ missing-argument = "warn"
 [[tool.ty.overrides]]
 include = [
     "app/agents/**",
+    "app/schemas/token_pricing.py",
+    "app/core/currency.py",
+    "app/schemas/currency.py",
+    "app/services/currency.py",
+    "app/services/monetary.py",
+    "app/repositories/monetary.py",
     "app/commands/bootstrap.py",
     "app/commands/refresh_assistant.py",
     "app/commands/refresh_inbox.py",
@@ -662,6 +670,7 @@ include = [
     "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
+    "app/core/skill_files.py",
     "app/core/tool_identity.py",
     "app/core/vault.py",
     # The audit trail, fail-closed and part of the caller's transaction. Every
@@ -681,6 +690,8 @@ include = [
     "app/core/sanitize.py",
     # The bounded opening of a skill or context body that a listing card peeks at.
     "app/core/excerpt.py",
+    # Which characters a proposed or edited text may not carry before a person accepts it.
+    "app/core/hidden_text.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
@@ -758,7 +769,7 @@ include = [
     "app/services/run_reaper.py",
     "app/services/run_heartbeat.py",
     "app/repositories/agent_workspace.py",
-    "app/repositories/local_service.py",
+    "app/repositories/service_connection.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
     "app/repositories/skill_usage.py",
@@ -772,7 +783,10 @@ include = [
     # to the same bar as the other security-sensitive services here.
     "app/services/office_convert.py",
     "app/services/chat_timeline.py",
-    "app/services/local_service.py",
+    "app/services/service_connection.py",
+    "app/services/embedding_probe_token.py",
+    "app/services/embedding_probe.py",
+    "app/services/embedding_probe_call.py",
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/run_project_workspace.py",
@@ -785,6 +799,20 @@ include = [
     "app/services/project_filesystem_gateway.py",
     "app/services/project_filesystem_runtime.py",
     "app/services/sandbox_workspace.py",
+    "app/agents/capabilities/computer_use/_desktop_session.py",
+    "app/schemas/conversation_environment.py",
+    "app/repositories/conversation_environment.py",
+    "app/services/conversation_environment_policy.py",
+    "app/services/conversation_environment_project_files.py",
+    "app/services/conversation_environment_browser.py",
+    "app/services/conversation_environment_resources.py",
+    "app/services/conversation_environment_driver.py",
+    "app/services/conversation_environment_delegates.py",
+    "app/services/conversation_environment_runtime.py",
+    "app/services/conversation_environment_stream.py",
+    "app/services/conversation_environment_agent.py",
+    "app/services/conversation_environments.py",
+    "app/worker/tasks/conversation_environment_tasks.py",
     "app/services/sandboxd_compat.py",
     # A `.zip` or `.tar.gz` unpacked into a workspace, and a folder zipped out
     # (#2479). Every refusal here - a `../` member, a link, a device, a bomb - is
@@ -856,6 +884,7 @@ include = [
     "app/services/email/templates.py",
     "app/services/ingestion_config.py",
     "app/services/rag/failures.py",
+    "app/services/rag/docling.py",
     "app/services/rag_scratch.py",
     # Who hears that a run stopped on its budget or parked on an approval. The
     # emails are the only signal for a run nobody was watching — a Slack
@@ -966,6 +995,8 @@ include = [
     "app/services/rag/citation.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/skill_sections.py",
+    "app/services/skill_package.py",
     "app/services/exporting.py",
     "app/services/run_export.py",
     "app/services/spend.py",
@@ -990,7 +1021,7 @@ include = [
     "app/api/routes/v1/agent_exposures.py",
     "app/api/routes/v1/agent_triggers.py",
     "app/api/routes/v1/trigger_webhooks.py",
-    "app/api/routes/v1/local_services.py",
+    "app/api/routes/v1/service_connections.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/skill_checks.py",
@@ -1624,6 +1655,12 @@ relative_files = true
 # tests/test_coverage_gate.py exists to catch.
 include = [
     "app/agents/**",
+    "app/schemas/token_pricing.py",
+    "app/core/currency.py",
+    "app/schemas/currency.py",
+    "app/services/currency.py",
+    "app/services/monetary.py",
+    "app/repositories/monetary.py",
     "app/commands/bootstrap.py",
     "app/commands/refresh_assistant.py",
     "app/commands/refresh_inbox.py",
@@ -1640,6 +1677,7 @@ include = [
     "app/core/resource_icons.py",
     "app/core/catalog/**",
     "app/core/secret_kinds.py",
+    "app/core/skill_files.py",
     "app/core/tool_identity.py",
     "app/core/vault.py",
     # The audit trail, fail-closed and part of the caller's transaction. Every
@@ -1659,6 +1697,8 @@ include = [
     "app/core/sanitize.py",
     # The bounded opening of a skill or context body that a listing card peeks at.
     "app/core/excerpt.py",
+    # Which characters a proposed or edited text may not carry before a person accepts it.
+    "app/core/hidden_text.py",
     # The client that dials the address it validated, for a URL the party being
     # validated chose. A miss here is an SSRF the operator cannot see.
     "app/core/pinned_http.py",
@@ -1739,7 +1779,7 @@ include = [
     "app/services/run_reaper.py",
     "app/services/run_heartbeat.py",
     "app/repositories/agent_workspace.py",
-    "app/repositories/local_service.py",
+    "app/repositories/service_connection.py",
     "app/repositories/sandbox_connection.py",
     "app/repositories/skill_proposal.py",
     "app/repositories/skill_usage.py",
@@ -1753,7 +1793,10 @@ include = [
     # to the same bar as the other security-sensitive services here.
     "app/services/office_convert.py",
     "app/services/chat_timeline.py",
-    "app/services/local_service.py",
+    "app/services/service_connection.py",
+    "app/services/embedding_probe_token.py",
+    "app/services/embedding_probe.py",
+    "app/services/embedding_probe_call.py",
     "app/services/sandbox_connection.py",
     "app/services/sandbox_runtimes.py",
     "app/services/run_project_workspace.py",
@@ -1766,6 +1809,20 @@ include = [
     "app/services/project_filesystem_gateway.py",
     "app/services/project_filesystem_runtime.py",
     "app/services/sandbox_workspace.py",
+    "app/agents/capabilities/computer_use/_desktop_session.py",
+    "app/schemas/conversation_environment.py",
+    "app/repositories/conversation_environment.py",
+    "app/services/conversation_environment_policy.py",
+    "app/services/conversation_environment_project_files.py",
+    "app/services/conversation_environment_browser.py",
+    "app/services/conversation_environment_resources.py",
+    "app/services/conversation_environment_driver.py",
+    "app/services/conversation_environment_delegates.py",
+    "app/services/conversation_environment_runtime.py",
+    "app/services/conversation_environment_stream.py",
+    "app/services/conversation_environment_agent.py",
+    "app/services/conversation_environments.py",
+    "app/worker/tasks/conversation_environment_tasks.py",
     "app/services/sandboxd_compat.py",
     # A `.zip` or `.tar.gz` unpacked into a workspace, and a folder zipped out
     # (#2479). Every refusal here - a `../` member, a link, a device, a bomb - is
@@ -1867,6 +1924,7 @@ include = [
     # what leaves a worker for a stored column the whole organization reads —
     # the same judgement the vault and the exception handlers are held to.
     "app/services/rag/failures.py",
+    "app/services/rag/docling.py",
     "app/services/rag_scratch.py",
     # Who hears that a run stopped on its budget or parked on an approval. The
     # emails are the only signal for a run nobody was watching — a Slack
@@ -1977,6 +2035,8 @@ include = [
     "app/services/rag/citation.py",
     "app/services/sharing.py",
     "app/services/skills.py",
+    "app/services/skill_sections.py",
+    "app/services/skill_package.py",
     "app/services/exporting.py",
     "app/services/run_export.py",
     "app/services/spend.py",
@@ -2001,7 +2061,7 @@ include = [
     "app/api/routes/v1/agent_exposures.py",
     "app/api/routes/v1/agent_triggers.py",
     "app/api/routes/v1/trigger_webhooks.py",
-    "app/api/routes/v1/local_services.py",
+    "app/api/routes/v1/service_connections.py",
     "app/api/routes/v1/sandbox_connections.py",
     "app/api/routes/v1/skill_changes.py",
     "app/api/routes/v1/skill_checks.py",

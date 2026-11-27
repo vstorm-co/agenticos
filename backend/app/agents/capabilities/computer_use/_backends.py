@@ -37,8 +37,9 @@ way that chat's file and shell tools are, so it needs no address and no token.
 
 import base64
 import logging
+import shlex
 import struct
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -50,7 +51,7 @@ import httpx
 from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.workspaces import SupportsCommands, Workspace, WorkspaceError
 
-from app.agents.capabilities.computer_use import _desktop_apps
+from app.agents.capabilities.computer_use import _desktop_apps, _desktop_session
 from app.agents.capabilities.computer_use._actions import (
     AnyAction,
     Click,
@@ -138,6 +139,15 @@ class Computer(Protocol):
 
 
 ComputerFactory = Callable[[Workspace], Awaitable[Computer]]
+
+
+@dataclass(frozen=True)
+class ComputerFactoryDecorator:
+    """An app-owned lifetime/driver adapter around the capability backend."""
+
+    wrap: Callable[[ComputerFactory], ComputerFactory]
+
+
 """Opens the run's desktop; handed the run's workspace, which only the sandbox uses."""
 
 
@@ -194,14 +204,23 @@ def x11_keys(chord: str) -> str:
     return "+".join(_X11_KEYS.get(part.lower(), part) for part in parts)
 
 
+_PRIVATE_TEXT_ENV = "AGENTICOS_DESKTOP_INPUT_TEXT"
+_PRIVATE_TEXT_COMMAND = (
+    "import os,subprocess,sys; "
+    "payload=os.environ.pop('AGENTICOS_DESKTOP_INPUT_TEXT').encode('utf-8'); "
+    "result=subprocess.run(['xdotool','type','--clearmodifiers','--file','-'],input=payload,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); "
+    "sys.exit(result.returncode)"
+)
+
+
 def xdotool(action: NativeAction) -> list[str] | None:
     """The `xdotool` command that carries out an action on an X11 display.
 
     `None` for a wait, which is a sleep here rather than a process on the desktop,
     and for a launch, which `_desktop_apps` carries out.
 
-    An argv rather than a shell line, so typed text reaches `xdotool` as one
-    argument whatever it holds.
+    Fixed arguments rather than a shell line. Typed text is supplied separately
+    through the workspace environment and piped to xdotool, never audited argv.
     """
     match action:
         case Click():
@@ -222,7 +241,7 @@ def xdotool(action: NativeAction) -> list[str] | None:
                 *("click", "--repeat", str(action.amount), str(_SCROLL_BUTTONS[action.direction])),
             ]
         case TypeText():
-            return ["xdotool", "type", "--delay", "12", "--", action.text]
+            return ["python3", "-c", _PRIVATE_TEXT_COMMAND]
         case Key():
             return ["xdotool", "key", "--", x11_keys(action.keys)]
         case _:
@@ -230,6 +249,7 @@ def xdotool(action: NativeAction) -> list[str] | None:
 
 
 _DESKTOP_APPS = Path(_desktop_apps.__file__).read_text()
+_DESKTOP_SESSION = Path(_desktop_session.__file__).read_text() + f"\nretire({DISPLAY!r})\n"
 """`_desktop_apps`' source, which a sandbox runs with `python3 -c`: one lookup for every Linux desktop."""
 
 _APPS: TypeAdapter[list[App]] = TypeAdapter(list[App])
@@ -508,7 +528,7 @@ def open_local_desktop(workspace: Workspace) -> LocalComputer:
     return LocalComputer(backend.session_id)
 
 
-def _desktop_start(width: int, height: int) -> str:
+def _desktop_start(width: int, height: int, *, reset_session: bool = False) -> str:
     """The script that starts the sandbox's display and desktop, unless they already run.
 
     Run on every run's first use rather than once per sandbox: a sandbox that
@@ -523,7 +543,12 @@ def _desktop_start(width: int, height: int) -> str:
     when one crashes, so a session still running is left to do that.
     """
     display = f"xdpyinfo -display {DISPLAY} >/dev/null 2>&1"
-    return (
+    reset = (
+        f"python3 -c {shlex.quote(_DESKTOP_SESSION)} || exit 1\nif {display}; then exit 1; fi\n"
+        if reset_session
+        else ""
+    )
+    return reset + (
         f"{display} && pgrep -x xfce4-session >/dev/null && exit 0\n"
         f"for tool in Xvfb xdpyinfo startxfce4 xdotool scrot; do command -v $tool >/dev/null || exit {NO_DESKTOP}; done\n"
         f"if ! {display}; then\n"
@@ -556,16 +581,24 @@ class SandboxComputer:
         # One file per run's desktop: runs sharing a workspace share its `/tmp`.
         self._shot = f"/tmp/agenticos-screen-{uuid4().hex}.png"  # noqa: S108 - inside the sandbox
 
-    async def _run(self, argv: list[str], what: str) -> str:
+    async def _run(
+        self, argv: list[str], what: str, *, env: Mapping[str, str] | None = None
+    ) -> str:
         try:
-            result = await self._workspace.run(argv, env={"DISPLAY": DISPLAY}, timeout=60)
+            result = await self._workspace.run(
+                argv, env={"DISPLAY": DISPLAY, **(env or {})}, timeout=60
+            )
         except (WorkspaceError, OSError) as exc:
             logger.warning("sandbox desktop %s failed: %s", what, type(exc).__name__)
             raise ComputerError(
                 f"The sandbox could not {what}. It may be stopped or restarting."
             ) from exc
         if result.exit_code != 0:
-            said = (result.stderr or result.stdout).strip()[:200] or f"exit {result.exit_code}"
+            said = (
+                f"exit {result.exit_code}"
+                if env is not None and _PRIVATE_TEXT_ENV in env
+                else (result.stderr or result.stdout).strip()[:200] or f"exit {result.exit_code}"
+            )
             raise ComputerError(f"The desktop refused to {what}: {said}")
         return result.stdout
 
@@ -595,6 +628,8 @@ class SandboxComputer:
 
     async def perform(self, action: NativeAction) -> None:
         """Carry out one action with `xdotool` inside the sandbox."""
+        if isinstance(action, TypeText) and "\x00" in action.text:
+            raise ComputerError("Text input cannot contain a null character.")
         if isinstance(action, Launch):
             await self._run(
                 ["python3", "-c", _DESKTOP_APPS, "launch", action.app], f"open {action.app}"
@@ -605,7 +640,11 @@ class SandboxComputer:
             assert isinstance(action, Wait)
             await anyio.sleep(action.seconds)
             return
-        await self._run(argv, f"run the {action.action} action")
+        await self._run(
+            argv,
+            f"run the {action.action} action",
+            env={_PRIVATE_TEXT_ENV: action.text} if isinstance(action, TypeText) else None,
+        )
 
     async def apps(self) -> list[App]:
         """The sandbox's own list, read where its menu is."""
@@ -614,8 +653,14 @@ class SandboxComputer:
         )
 
 
-async def open_sandbox_desktop(workspace: Workspace, *, width: int, height: int) -> SandboxComputer:
+async def open_sandbox_desktop(
+    workspace: Workspace, *, width: int, height: int, reset_session: bool = False
+) -> SandboxComputer:
     """The desktop in the run's sandbox, started if it is not running.
+
+    A fresh owned Project admission resets only the GUI session while its caller
+    holds the physical driver lease. Otherwise launchers inherit the revoked
+    Project directory from the previous admission. Reattaching never resets it.
 
     Raises:
         ComputerError: The run has no sandbox that runs commands, its runtime has
@@ -628,7 +673,9 @@ async def open_sandbox_desktop(workspace: Workspace, *, width: int, height: int)
             "commands. Add the Sandbox capability on a sandbox connection."
         )
     try:
-        result = await workspace.run(_desktop_start(width, height), shell=True, timeout=90)  # noqa: S604
+        result = await workspace.run(  # noqa: S604 - static desktop lifecycle script
+            _desktop_start(width, height, reset_session=reset_session), shell=True, timeout=90
+        )
     except (WorkspaceError, OSError) as exc:
         logger.warning("sandbox desktop could not start: %s", type(exc).__name__)
         raise ComputerError("The sandbox could not be reached to start its desktop.") from exc

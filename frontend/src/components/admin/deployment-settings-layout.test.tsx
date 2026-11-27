@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
-import { DeploymentSettingsLayout } from "./deployment-settings-layout";
+import { DeploymentSettingsLayout, DeploymentSettingsPanel } from "./deployment-settings-layout";
 
 const env = vi.hoisted(() => ({ search: "" }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(env.search) }));
@@ -51,7 +51,7 @@ it("uses the ordinary first section for an invalid deep link", () => {
 
 it("updates the shareable section URL when a person changes sections", async () => {
   view();
-  await userEvent.click(screen.getByRole("tab", { name: "Voice & mobile" }));
+  await userEvent.click(screen.getByRole("tab", { name: "Services & costs" }));
   expect(screen.getByText("Voice fields")).toBeVisible();
   expect(new URLSearchParams(window.location.search).get("section")).toBe("services");
 });
@@ -93,4 +93,65 @@ it("keeps the same save control disabled until a timing error is corrected", () 
   expect(screen.getByRole("button", { name: "Save" })).toBe(save);
   expect(save).toBeEnabled();
   expect(screen.getByRole("textbox", { name: "Deployment name" })).toBe(draft);
+});
+
+it("keeps a solid full-width sticky save surface while preserving guided insets", () => {
+  const view = render(fixture());
+  const header = screen
+    .getByRole("heading", { name: "Deployment settings" })
+    .closest('[data-slot="deployment-settings-header"]');
+  expect(header).toHaveClass(
+    "bg-background",
+    "sticky",
+    "top-[calc(-1*var(--page-inset-top,0px))]",
+    "-mx-3",
+  );
+  expect(header).not.toHaveClass("bg-background/95", "backdrop-blur-md", "rounded-xl");
+  view.rerender(fixture({ guided: true }));
+  expect(
+    screen
+      .getByRole("heading", { name: "Deployment settings" })
+      .closest('[data-slot="deployment-settings-header"]'),
+  ).not.toHaveClass("-mx-3", "top-[calc(-1*var(--page-inset-top,0px))]");
+});
+
+it("uses the shared settings-card frame without hiding disabled form controls", () => {
+  render(
+    <DeploymentSettingsPanel title="Access policy" description="Who can join">
+      <fieldset disabled>
+        <label>
+          Email domain
+          <input />
+        </label>
+      </fieldset>
+    </DeploymentSettingsPanel>,
+  );
+  const heading = screen.getByRole("heading", { name: "Access policy", level: 3 });
+  expect(heading.closest("section")).toHaveAttribute("data-slot", "service-card");
+  expect(screen.getByRole("textbox", { name: "Email domain" })).toBeDisabled();
+});
+
+it("keeps guided navigation local and offers continue only when its draft is ready", async () => {
+  const onContinue = vi.fn();
+  const onSave = vi.fn();
+  const onDiscard = vi.fn();
+  const props = { guided: true, onContinue, onSave, onDiscard };
+  const result = render(fixture(props));
+  const initialUrl = window.location.href;
+  await userEvent.click(screen.getByRole("tab", { name: "Services & costs" }));
+  expect(screen.getByText("Voice fields")).toBeVisible();
+  expect(window.location.href).toBe(initialUrl);
+  const continueButton = screen.getByRole("button", { name: "Save and continue" });
+  await userEvent.click(continueButton);
+  expect(onContinue).toHaveBeenCalledOnce();
+  expect(onSave).not.toHaveBeenCalled();
+  result.rerender(fixture({ ...props, dirty: true, pending: true }));
+  expect(continueButton).toBeDisabled();
+  expect(continueButton.querySelector(".animate-spin")).not.toBeNull();
+  expect(screen.getByRole("button", { name: "Discard changes" })).toBeDisabled();
+  result.rerender(fixture({ ...props, dirty: true }));
+  await userEvent.click(continueButton);
+  expect(onSave).toHaveBeenCalledOnce();
+  await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+  expect(onDiscard).toHaveBeenCalledOnce();
 });

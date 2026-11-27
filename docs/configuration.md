@@ -87,7 +87,9 @@ The config refuses an unset `VAULT_MASTER_KEY` outside `local`/`development`.
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Per-file cap on the parsed text pasted into a no-workspace prompt |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Aggregate cap on attachment text across one turn |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | The monthly spend ceiling a **new** organization starts with, in USD, so it is not one runaway agent away from a surprise bill. Applies at creation only; existing organizations are untouched and any organization can be cleared back to no cap afterwards. Must be positive; leave **empty** to start organizations uncapped (the older opt-in posture) |
-| `STAV_NOK_PER_USD` | empty | Operator-maintained NOK per USD for Stav billed costs. Finite and positive; for example, `10` divides NOK by 10 (illustrative, not a current rate). USD needs no setting. No rate is fetched; without conversion, the price catalog is used and unknown models remain partial |
+| `STAV_NOK_PER_USD` | empty | Operator-maintained NOK per USD for Stav billed costs. Finite and positive; for example, `10` divides NOK by 10 (illustrative, not a current rate). USD and zero-value bills need no rate. A valid nonzero bill without a usable rate retains its original amount and currency, remains unpriced and blocks further capped requests; it does not fall back to catalog pricing |
+| `DEFAULT_ORG_CURRENCY` | `USD` | Default organization currency when deployment settings do not override it. USD if unset; the currency must have a rate. This does not change the units of existing prices or USD limits. |
+| `CURRENCY_RATES` | `{"USD":"1"}` | JSON object of currency units per USD, for example `{"USD":"1","EUR":"0.9","PLN":"4"}`. Include USD at exactly 1; rates must be finite and positive. Administration settings override this document. |
 
 For production channel pictures, set `VISUAL_RENDER_CDP_URL=http://visual-render:9222` and `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` in `backend/.env`. `scripts/deploy.sh` then enables the `visuals` profile in `docker-compose-prod.yml`; for a manual start, add `--profile visuals`.
 
@@ -736,14 +738,18 @@ compose file here pins.
 
 Nothing here. Every collection names the provider it embeds through, the model,
 and either the organization vault key that pays for it or - for the keyless
-`ollama` provider - a **local service**, a row under Knowledge → Integrations
-that says where the deployment's or the organization's Ollama answers. See
+`ollama` provider - a **service connection**, a row under Knowledge → Integrations
+that says where the deployment's or the organization's Ollama answers. The custom
+`openai_compatible` provider takes a connection too, with a model typed as text and an optional
+organization Vault key; only an organization-owned connection can hold a key, a connection that has
+one cannot lose it, and a deployment-wide connection is keyless. The API is
+`/api/v1/service-connections`. See
 [File processing](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
 There used to be two variables. `EMBEDDING_MODEL` preselected a model for new
 collections and is gone: the form offers the models the chosen provider serves.
 `EMBEDDING_OLLAMA_BASE_URL` named one Ollama for the whole deployment and is a
-local service now, per organization or deployment-wide.
+service connection now, per organization or deployment-wide.
 
 ### Document parsing — configured per collection, not here
 
@@ -764,7 +770,7 @@ Two things that used to stay here are rows in the product now. A LlamaParse
 key is a vault entry the collection's ingestion configuration names
 (`llamaparse_secret_id`), and a collection on LlamaParse without one is refused
 at the form - `LLAMAPARSE_API_KEY` is gone. An OCR server LiteParse sends pages
-to is a local service of kind `ocr` under Knowledge → Integrations, chosen per
+to is a service connection of kind `ocr` under Knowledge → Integrations, chosen per
 collection (`ocr_endpoint_id`), registered by an organization operator or, for
 every organization, by the deployment's administrator - `LITEPARSE_OCR_SERVER_URL`
 is gone too. Neither was visible to the tenant whose documents it decided about.
@@ -1682,3 +1688,14 @@ deployment other people reach.
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 
 Set `GITHUB_COPILOT_OAUTH_CLIENT_ID` (empty by default) to the deployment’s own GitHub OAuth App client ID and enable device flow in that app. Without it, personal Copilot sign-in is refused. This setting is separate from GitHub Models and GitHub connector credentials. GitHub authorization does not establish Copilot entitlement; the account-specific chat-model check must also pass. Expiring GitHub App grants and custom Enterprise gateways are not supported. See [Copilot accounts](models.md#github-copilot-accounts).
+
+## Private chat environments { #conversation-environment-limits }
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS` | `900` | Deployment ceiling for Browser use and Computer use idle retention, 60–86400 seconds. The panel shows the smaller of this ceiling and the capability's `session_idle_seconds`. |
+| `CONVERSATION_ENVIRONMENTS_PER_USER` | `4` | Outstanding environments per organization member, 1–100. Known remote resources still awaiting disposal count until cleanup succeeds. |
+
+Capability bindings choose `session_lifetime` (`run` or `conversation`). Existing bindings without these fields keep run lifetime; new console bindings explicitly choose conversation retention with 900 seconds. A manually opened run-lifetime environment ends after a run that actually uses it. Do not increase idle retention without considering the remote provider's resource cost. No model call is needed to open or view an environment.
+
+Keep the worker running for provisioning, expiry sweeps and durable cleanup. A browser's continuously attached API/worker owner enforces outbound-request policy; loss of that owner deliberately disposes its isolated context. A restart can therefore expire a browser even before its idle deadline, rather than restore an unguarded or copied session. See [browser and desktop lifetimes](sandbox.md#conversation-environments).

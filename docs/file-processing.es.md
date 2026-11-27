@@ -1,5 +1,5 @@
 ---
-source_sha: "b0a1ea4798cd"
+source_sha: "c2de5e09994d"
 ---
 
 # Procesamiento de archivos { #file-processing }
@@ -559,14 +559,24 @@ checkout y no limita nada, mientras que el pool hace cola en
 
 ### Formatos admitidos { #supported-formats }
 
-`.txt`, `.md` y `.docx` los leen los parsers integrados de Python sea cual sea el
-parser de la colección. Más allá de esos, el conjunto sigue al parser:
+`.txt` y `.md` los lee el lector de texto integrado sea cual sea el parser de la
+colección. Cualquier otro formato va al parser de la colección, y el conjunto lo
+sigue. Un `.docx` va al parser cuando lee Word y, si no, al lector de Word
+integrado, que conserva títulos y tablas (como tablas markdown) en el orden del
+documento:
 
 | Parser | Lee además | Necesita |
 |--------|-----------|-------|
-| PyMuPDF | `.pdf` | nada |
-| LiteParse | `.pdf`; imágenes (`.png`, `.jpg`, `.tiff`, `.svg`, …); formatos ofimáticos (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **solo para los formatos ofimáticos** — las imágenes se convierten de forma nativa |
-| LlamaParse | `.pdf`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, imágenes | Una clave de LlamaParse en el vault de la organización, nombrada por la colección (`llamaparse_secret_id`). No hay clave de deployment |
+| PyMuPDF | `.pdf`; `.docx` mediante el lector de Word integrado | nada |
+| LiteParse | `.pdf`, `.docx`; imágenes (`.png`, `.jpg`, `.tiff`, `.svg`, …); formatos ofimáticos (`.xlsx`, `.pptx`, `.odt`, `.csv`, `.rtf`, …) | LibreOffice **para `.docx` y el resto de formatos ofimáticos** — las imágenes se convierten de forma nativa |
+| LlamaParse | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.csv`, `.rtf`, `.epub`, `.html`, imágenes | Una clave de LlamaParse en el vault de la organización, nombrada por la colección (`llamaparse_secret_id`). No hay clave de deployment |
+| Docling | `.pdf`, `.docx`, `.pptx`, `.xlsx`, `.html`, `.htm`, `.csv`; imágenes (`.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`, `.webp`) | Un Docling Serve registrado como conexión de servicio, nombrado por la colección (`docling_connection_id`) |
+
+Un `.docx`, `.pptx` o `.xlsx` se comprueba en busca de un archivo demasiado grande
+o malformado antes de que lo reciba ningún parser, con los límites de archivo del
+chat (`CHAT_ARCHIVE_MAX_MEMBERS`, `CHAT_ARCHIVE_MEMBER_MAX_BYTES`,
+`CHAT_ARCHIVE_TOTAL_MAX_BYTES`). Un `.pptx` o `.xlsx` muy grande por encima de ellos
+se rechaza ahora al parsear también con LiteParse y LlamaParse.
 
 El Dockerfile del backend instala LibreOffice y Tesseract, así que los formatos
 ofimáticos y el OCR funcionan de serie en un contenedor. Si ejecutas el backend
@@ -589,6 +599,7 @@ de entorno. Se guarda en `knowledge_bases.ingestion_config`.
 | PyMuPDF (por defecto) | Procesamiento local rápido, documentos con mucho texto; el único que extrae imágenes incrustadas para describirlas |
 | LiteParse | Local, sin clave, consciente del diseño; lee formatos ofimáticos e imágenes; salida en markdown |
 | LlamaParse | Diseños complejos y PDF escaneados; en la nube, facturado por página |
+| Docling | Diseño, tablas y páginas conservados con fidelidad, con OCR, en un Docling Serve que ejecutas tú; lee también Word, Excel, PowerPoint, HTML e imágenes |
 
 ### Opciones de LiteParse { #liteparse-options }
 
@@ -599,6 +610,64 @@ de entorno. Se guarda en `knowledge_bases.ingestion_config`.
 | `ocr_language` | `eng` | Códigos de Tesseract — tres letras, unidos con `+` para varios (`eng+pol`). Un idioma sin su paquete instalado no lee nada; añade `tesseract-ocr-<lang>` al Dockerfile. |
 | `liteparse_dpi` | `150` | Más alto lee escaneos tenues, más lento. |
 | `max_pages` | `1000` | El ajuste que acota el coste de un documento; `parse_timeout_seconds` solo acota la espera. |
+
+### Opciones de Docling { #docling-options }
+
+Docling es un conversor de documentos que alojas tú ([Docling Serve](https://docling-project.github.io/docling/usage/api_server/)).
+Una colección que lo elige nombra una **conexión de Docling**: una conexión de
+servicio del tipo *Parser de documentos*, con la dirección del servidor (normalmente en tu
+propia red; la plataforma no la limita a direcciones privadas) y, cuando el servidor la pide, una clave del vault (propósito
+`docling`, enviada como `X-Api-Key`). Una conexión de todo el deployment no
+guarda clave. La conexión es de la colección, así que una anulación al subir
+puede cambiar las opciones de abajo, pero no puede elegir Docling para una
+colección sin conexión; esa subida se rechaza de inmediato.
+
+Elegir una nueva conexión de Docling con clave, también en una asignación de importación, requiere `connections:view`. Editar otras opciones conservando la misma conexión y subir archivos a una colección accesible no requiere este permiso adicional.
+
+**Probar** en el formulario de la conexión comprueba que la dirección responde
+como un Docling Serve y que la clave se acepta, sin convertir nada. Informa de la
+versión del servidor o de «clave rechazada», «este servidor requiere una clave»,
+«nada respondió» o «no es Docling Serve». Nunca bloquea el guardado: cambiar de
+parser no mueve ningún espacio vectorial.
+
+| Ajuste | Por defecto | Notas |
+|---------|---------|-------|
+| `docling_connection_id` | ninguna | Obligatorio mientras el parser sea Docling. Debe ser una conexión *Parser de documentos* activa que la organización pueda usar. |
+| `ocr` | `false` | Activa el OCR de Docling. Con él apagado, un PDF escaneado no tiene texto y la subida se rechaza con «activa el OCR». |
+| `auto_ocr` | `true` | Activado: OCR solo de las zonas de mapa de bits de una página. Desactivado: OCR de cada página. |
+| `docling_ocr_languages` | vacío | Hasta ocho códigos de dos letras (`de`, `en`). Docling rechaza los códigos de tres letras de Tesseract, por eso es un campo aparte de `ocr_language`. Vacío usa el valor por defecto del motor. |
+| `docling_ocr_preset` | `auto` | `auto`, `easyocr`, `rapidocr` o `tesseract`. Texto libre, porque Docling anuncia motores que el servidor puede no tener instalados. |
+| `docling_table_mode` | `accurate` | Reconstrucción de tablas rápida (`fast`) o precisa (`accurate`). |
+| `max_pages` | `1000` | Páginas convertidas, desde la página 1. |
+| `parse_timeout_seconds` | `600` | Cuánto espera la plataforma por un documento, como máximo 3000 segundos, para que el rechazo llegue antes del límite de una hora del propio trabajo. |
+
+Los fragmentos conservan sus números de página: el markdown de Docling se divide
+por páginas y el divisor, el tamaño de fragmento y el solapamiento de la
+colección se aplican a cada página como con los demás parsers. Un `.docx` no
+tiene páginas y se lee como la página 1; las citas tratan `.docx` como sin
+paginar con cualquier parser.
+
+Un documento se rechaza, con un mensaje que nunca cita al servidor, cuando
+Docling informa de una conversión fallida o parcialmente fallida, cuando termina
+con un error interno (su propio registro tiene la causa; revisa los idiomas de OCR
+y el preajuste), cuando la clave se rechaza o cuando no terminó a tiempo.
+
+Una conversión que sigue en marcha cuando la plataforma se rinde **no** se cancela —
+Docling no tiene cancelación— y Reintentar recoge su resultado en lugar de
+enviar una segunda conversión. Lo mismo vale para el reinicio de un worker o un
+reintento de la cola. Si el propio servidor de Docling se reinició, olvidó la
+tarea y el siguiente intento la envía de nuevo.
+
+Docling recibe el mismo límite de
+tiempo, así que una conversión que de verdad seguía en marcha cuando la
+plataforma dejó de esperar suele haber agotado su tiempo también, y Reintentar
+nombra entonces las páginas que no terminó; subir el límite antes de Reintentar
+inicia una conversión nueva. Un fallo después del parseo (embedding, indexado) se
+reintenta con una conversión nueva, porque la terminada ya se recogió.
+
+Probado con Docling Serve 1.39.0. Un servidor más antiguo no puede nombrar las
+páginas fallidas, y los preajustes de OCR ofrecidos no se comprueban contra lo
+instalado.
 
 ### Configuración de la fragmentación { #chunking-configuration }
 
@@ -696,7 +765,101 @@ Los tres se deciden **por colección**, no por deployment, en
 |---|---|
 | **Modelo y anchura** | Se registran en la base de conocimiento al crearla (`embedding_model`, `embedding_dim`) y no cambian nunca después — `PgVectorStore` escribe `embedding vector(N)` una sola vez, así que un segundo modelo o no se puede escribir o se compara en silencio con vectores de otro espacio. Una colección nueva elige uno de los modelos que sirve su provider; no hay valor por defecto del deployment. |
 | **Provider** | Qué endpoint compatible con OpenAI sirve ese modelo (`embedding_provider`). **Es modificable**, a diferencia del modelo: el mismo modelo con la misma anchura produce vectores del mismo espacio se sirva desde donde se sirva, así que `PATCH /kb/{id}` mueve una colección entre providers y deja válido todo lo ya indexado. |
-| **Credencial** | La clave del vault elegida en la colección (`embedding_secret_id`), que es lo que se le factura a la organización y que tiene que ser una clave **de ese provider**. No hay clave de embeddings a nivel de deployment: una colección nueva personal o de organización tiene que nombrar una, y una colección sin clave utilizable rechaza indexar y buscar hasta que tenga una. El provider `ollama` es **sin clave** — un Ollama en la red del propio deployment — así que una colección en él no nombra ninguna clave y se rechaza si lo intenta; nombra en su lugar un **servicio local** (`embedding_endpoint_id`), una fila bajo Knowledge → Integrations que lleva la dirección, la propia de la organización o una de todo el deployment que haya registrado el administrador de la aplicación. Una colección **app-scoped** no pertenece a ninguna organización y por tanto no tiene vault del que nombrar una clave; solo puede generar embeddings a través de un provider sin clave en un servicio de todo el deployment, y elegir uno con clave se rechaza donde se eligió el provider. |
+| **Credencial** | La clave del vault elegida en la colección (`embedding_secret_id`), que es lo que se le factura a la organización y que tiene que ser una clave **de ese provider**. No hay clave de embeddings a nivel de deployment: una colección nueva personal o de organización tiene que nombrar una, y una colección sin clave utilizable rechaza indexar y buscar hasta que tenga una. El provider `ollama` es **sin clave** — un Ollama en la red del propio deployment — así que una colección en él no nombra ninguna clave y se rechaza si lo intenta; nombra en su lugar una **conexión de servicio** (`embedding_endpoint_id`), una fila bajo Knowledge → Integrations que lleva la dirección, la propia de la organización o una de todo el deployment que haya registrado el administrador de la aplicación. El provider propio `openai_compatible` se alcanza igual, y su clave vive en la conexión ([más abajo](#a-custom-openai-compatible-endpoint-and-the-test)). Una colección **app-scoped** no pertenece a ninguna organización y por tanto no tiene vault del que nombrar una clave; solo puede generar embeddings a través de un provider sin clave en una conexión de todo el deployment, y elegir uno con clave se rechaza donde se eligió el provider. |
+
+#### Un endpoint propio compatible con OpenAI y el Test { #a-custom-openai-compatible-endpoint-and-the-test }
+
+La entrada del catálogo `openai_compatible`, mostrada como **Custom
+(OpenAI-compatible)**, no lista ningún modelo. Genera embeddings a través de cualquier
+endpoint compatible con OpenAI que la organización registre como **conexión de
+servicio** (Knowledge → Integrations → **Add server**, estilo de API
+*OpenAI-compatible*), y el modelo se escribe como texto libre.
+
+La conexión puede llevar una clave del vault de la organización (propósito
+`openai_compatible`): solo una conexión propiedad de la organización puede tenerla, y
+vincular una clave la presta a cada colección de la conexión, así que elegirla exige
+`secrets:view` sobre esa clave. Una conexión exige clave si se dio una al crearla o se
+añadió después, y quitar la clave de una conexión con clave se rechaza. Una conexión de
+todo el deployment no tiene clave. Una clave eliminada hace que la conexión rechace con
+su nombre en lugar de enviar peticiones sin ella.
+
+Nombrar una conexión con clave para
+una colección, un cambio o un Test exige `connections:view`, porque cada llamada gasta
+su clave; un Member sin ese permiso solo puede usar conexiones sin clave.
+
+Un endpoint propio puede servir cualquier modelo, así que no se puede dar nada por hecho.
+Dos Tests evitan que el espacio vectorial de una colección se mueva por accidente:
+
+- **Crear una colección.** **Test** hace una llamada con un texto fijo y mide la anchura,
+  que debe estar entre 1 y 4000 (el límite del índice). **Create** sigue desactivado hasta
+  que el Test de ese endpoint y ese modelo exactos del formulario haya pasado. Al crear no
+  hay anulación.
+- **Cambiar una existente.** Todo cambio que pueda mover el espacio vectorial necesita un
+  Test aprobado de los valores nuevos o un guardado sin verificar confirmado: un cambio de
+  provider, clave, endpoint o modelo en una base de conocimiento, y una edición de la
+  dirección o la clave de una conexión de embeddings. Renombrar una conexión, pausarla o
+  editar una conexión OCR no necesita ninguno.
+
+Qué hace un Test:
+
+- Vuelve a generar embeddings de hasta **3 chunks almacenados** de cada base de
+  conocimiento afectada - los dos más cortos de al menos 100 caracteres y el más largo -
+  una petición por chunk, con los ajustes nuevos. Los vectores se normalizan y se
+  comparan con los almacenados; pasa si la similitud coseno más baja es **0,995 o más** y
+  las anchuras coinciden exactamente.
+- Si la primera comparación falla, se **repite una vez** antes de que el Test falle.
+- Una base de conocimiento sin nada almacenado no tiene fragmentos que comparar, así que una
+  llamada con un texto fijo comprueba solo su anchura, fijada al crearla. Una conexión
+  compartida por varias bases de conocimiento prueba cada una, en su propio ámbito, y el
+  resultado nombra todas.
+- Antes de ejecutarse, el diálogo muestra el número de **sondeos**, cada uno una llamada de embedding facturada
+  (`GET .../estimate`), y el doble es lo máximo que puede hacer. El fallo es una respuesta
+  normal, no un error, y nombra la causa por base de conocimiento: `unreachable`,
+  `key_refused`, `model_unknown`, `wrong_width` o `vectors_differ`.
+- Si pasa, devuelve un **token válido durante 10 minutos**, ligado a los valores exactos
+  probados: la conexión, la dirección, la clave y su generación, el modelo, la anchura
+  medida y las bases de conocimiento que pasaron. Cambiar cualquier valor, rotar la clave
+  o adjuntar otra base de conocimiento a la conexión lo anula. El servidor no vuelve a
+  probar al guardar, así que guardar no cuesta nada.
+
+**Save without testing** envía `unverified: true` tras una confirmación. Se audita como
+`knowledge_base.embedding_changed_unverified` o `service_connection.updated_unverified`,
+con los ajustes anteriores y nuevos que no son secretos. No hay reversión y no se guarda
+nada más allá de la entrada de auditoría. Un traslado probado de una base de conocimiento
+se permite aunque su colección esté compartida con otras bases de conocimiento; un
+traslado sin verificar se rechaza cuando la colección está compartida y sus ajustes
+diferirían de los de las demás.
+
+Los embeddings de pago bajo un límite de ejecución y los endpoints propios con clave pagados
+por una organización con límite en dólares requieren un modelo con precio de catálogo y un uso
+válido. Si el endpoint omite o corrompe después el uso, se conserva el cargo parcial y el trabajo
+se detiene antes del siguiente lote o archivo; esta negativa de política no se reintenta automáticamente.
+Los endpoints sin límite o sin clave aún pueden devolver vectores válidos con costes parciales.
+La ingesta y sincronización siguen admitiendo un trabajo o ventana completa, por lo que el trabajo
+ya admitido puede superar el límite; los cargos parciales no revelan tarifas desconocidas.
+
+Una respuesta de embeddings con índices debe identificar cada entrada exactamente una vez. Los
+índices desordenados se devuelven al orden de entrada; se rechazan los duplicados, mixtos, nulos o
+fuera de rango. Los endpoints compatibles sin ningún índice conservan el contrato de orden del array.
+
+Limitaciones:
+
+- Un Test fallido no tiene más salida que una base de conocimiento nueva: **no hay
+  reconstrucción** de un índice existente sobre otro modelo.
+- Cada llamada de Test con clave comprueba el límite mensual de la organización que paga y
+  registra el uso de embeddings informado antes de devolver o reintentar, también si falla la
+  comparación o se cancela la petición. Un precio desconocido impide el Test bajo un límite
+  en dólares; el uso ausente queda explícitamente parcial y detiene más llamadas limitadas.
+  Las llamadas concurrentes ya admitidas pueden superar el límite. La cancelación espera una
+  liquidación acotada; una respuesta perdida o un fallo del proceso no permite conocer cargos
+  desconocidos. La liquidación no repite llamadas tras una cancelación o un fallo al guardar el cargo.
+- Una clave rotada en el sitio en el vault después de guardar **no se vuelve a probar** -
+  el mismo id de clave sigue pasando.
+- Un Test muestrea **3 chunks**. Un endpoint que coincide en ellos y difiere en otros
+  sitios no se detecta.
+- Los providers de chat, voz e imagen todavía no usan conexiones de servicio.
+- La herramienta de la plataforma MCP `create_knowledge_base` no puede crear una base de
+  conocimiento propia: no tiene token de prueba. Usa la consola.
 
 Qué base de conocimiento resuelve un nombre de colección es cuestión de tenants.
 `collection_name` está indexado pero **no es único** — dos organizaciones pueden
@@ -1386,6 +1549,35 @@ Un documento que no falló, o que no tiene archivo guardado — uno anterior a q
 las subidas guardaran el suyo, o uno que ingirió una sincronización — se rechaza
 con un 400 en vez de pasar a `processing`
 ([#441](https://github.com/vstorm-co/agenticos/issues/441)).
+
+Los ajustes propios de una colección están en **Settings**, en la cabecera de su
+página (también **Edit** en la pestaña **How documents are read**). **Upload
+with different settings…**, en el menú del botón **Upload**, fija cambios solo
+para las próximas subidas y deja la colección como está. Un administrador del
+deployment que crea una colección ve también **Every organization
+(deployment-wide)**: una colección app-scoped, que solo puede nombrar conexiones
+de todo el deployment y providers sin clave.
+
+En la consola, un documento fallido tiene un icono de reintento junto a **Failed**
+para quien puede editar la colección. Un reintento parsea con los ajustes de la
+colección tal como están al pulsarlo, y los registra en el documento. Así, un
+escaneo que falló con el OCR apagado se reintenta tras activar el OCR, sin volver
+a subirlo. Se rechaza el reintento cuando el parser actual ya no lee el formato
+del archivo, y el documento conserva sus ajustes. Un reintento sustituye solo lo
+que dejó su propio intento fallido; otra subida del mismo archivo sigue en la
+lista.
+
+Los cambios pendientes para las próximas subidas (**Upload with different settings…** en el menú del
+botón **Upload**, luego **Apply**) se aplican también al reintento, en lugar de los que tenía el archivo al
+subirse. Sin ninguno pendiente - tras **Revert** - el reintento lee solo con los
+ajustes de la colección.
+
+Por la API, `POST /rag/documents/{id}/retry` sin cuerpo conserva los cambios con
+los que se subió el archivo; un `ingestion_override` en el cuerpo los sustituye,
+y uno vacío significa solo los ajustes de la colección. Un reintento nunca
+sustituye otra subida del mismo archivo, aunque la subida original pidiera
+sustituir: para eso, vuelve a subir el archivo con `replace=true`. **Revert** en el
+aviso descarta los cambios pendientes.
 
 El reintento también rechaza un documento de una organización sin asignar a ninguna
 base de conocimiento: sus fragmentos se escribirían para todo el deployment, donde la

@@ -14,16 +14,20 @@ import ipaddress
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlsplit
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from cdp_use.cdp.fetch.events import RequestPausedEvent
+    from cdp_use.cdp.fetch.types import HeaderEntry
 
 from app.agents.capabilities.browser_use._endpoint import pin_host, version_url, websocket_url
 from app.core.config import settings
 from app.core.exceptions import ExternalServiceError, NotFoundError
 from app.repositories.conversation import ToolCallArgs
 from app.services import artifact as artifacts
-from app.services import rate_limit, tile_proxy
+from app.services import artifact_render, rate_limit, tile_proxy
 from app.services import visual as visuals
 from app.services.visual import VISUAL_RUNTIME, VISUAL_TOOLS, VisualKind, visual_document
 
@@ -205,6 +209,68 @@ async def render_png(
         )
 
 
+async def preview(
+    kind: VisualKind,
+    content: str,
+    *,
+    title: str,
+    width: int,
+    appearance: Literal["light", "dark"],
+) -> artifact_render.Rendered:
+    """Inspect a fresh visual with the Apps renderer, without saving or publishing it.
+
+    Uses the same document, libraries and sandbox as the chat frame. The Apps
+    renderer supplies bounded diagnostics and isolation for every subframe;
+    its deployment-owned endpoint is never chosen by the model. Inputs inside
+    the person's already-open visual are not read or changed. Only the page and
+    bundled libraries are served; map tiles cannot carry conversation content
+    to an external provider.
+
+    Raises:
+        ConfigurationError: The deployment has no Apps renderer or browser extra.
+        ExternalServiceError: The renderer is busy or cannot be reached.
+    """
+    return await artifact_render.render(
+        artifact_render.RenderRequest(
+            document=rendered_document(kind, content, title=title).encode("utf-8"),
+            nonce="",
+            bindings=None,
+            injected_lines=(artifacts.platform_script() + VISUAL_RUNTIME).count("\n"),
+            width=width,
+            appearance=appearance,
+        )
+    )
+
+
+def preview_report(drawn: artifact_render.Rendered) -> str:
+    """Bounded rendering diagnostics, including an explicitly incomplete screenshot."""
+    lines: list[str] = []
+    if drawn.timed_out:
+        lines.append(
+            "The preview timed out; no screenshot was taken. Check for a script that never finishes."
+        )
+    elif drawn.shown_height is not None:
+        lines.append(f"Rendered at {drawn.width} x {drawn.shown_height} pixels.")
+        if drawn.height is not None and drawn.height > drawn.shown_height:
+            lines.append(
+                f"The document is {drawn.height} pixels tall; the screenshot shows only its top."
+            )
+    for title, notes in (
+        ("Uncaught errors", drawn.errors),
+        ("Console errors and warnings", drawn.console),
+        ("Security policy refusals", drawn.policy),
+        ("Blocked requests", drawn.blocked),
+        ("Dismissed dialogs", drawn.dialogs),
+    ):
+        if notes:
+            lines.extend([f"{title}:", *(f"- {note}" for note in notes)])
+    if not drawn.timed_out and not any(
+        (drawn.errors, drawn.console, drawn.policy, drawn.blocked, drawn.dialogs)
+    ):
+        lines.append("No rendering errors or warnings were reported.")
+    return "\n".join(lines)
+
+
 async def picture_of_turn(
     called: list[tuple[str, str, dict[str, Any], str | None]],
     *,
@@ -280,7 +346,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
 
     try:
         # ty: `cdp-use` arrives with the `browser` extra, as for `browser_use`.
-        from cdp_use import CDPClient  # ty: ignore[import-not-found]
+        from cdp_use import CDPClient
     except ImportError as exc:
         raise RenderUnavailableError("Drawing visuals needs the `browser` extra.") from exc
 
@@ -295,7 +361,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
 
     client = CDPClient(socket)
     await client.start()
-    pending: set[asyncio.Task[Any]] = set()
+    pending: set[asyncio.Task[None]] = set()
     budget = RenderRequestBudget()
     context_id: str | None = None
     target: str | None = None
@@ -319,7 +385,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
                     session_id=session,
                 )
                 return
-            headers = [
+            headers: list[HeaderEntry] = [
                 {"name": "Content-Type", "value": reply.content_type},
                 {"name": "Access-Control-Allow-Origin", "value": "*"},
             ]
@@ -335,7 +401,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
                 session_id=session,
             )
 
-        def paused(event: dict[str, Any], session_id: str | None) -> None:
+        def paused(event: RequestPausedEvent, session_id: str | None) -> None:
             if session_id == session and budget.admit(len(pending)):
                 task = asyncio.ensure_future(respond(event["requestId"], event["request"]["url"]))
                 pending.add(task)

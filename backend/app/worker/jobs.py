@@ -65,6 +65,12 @@ class RevertCodingTask(Payload):
     api_key_id: UUID | None = None
 
 
+class ConversationEnvironmentPayload(Payload):
+    environment_id: UUID
+    organization_id: UUID
+    revision: int = Field(ge=1)
+
+
 class PortableTransferPayload(Payload):
     operation_id: UUID
     organization_id: UUID
@@ -211,6 +217,8 @@ class IngestDocument(Payload):
     replace: bool
     attempt: int
     """Which dispatch of the document this is (#1598) - not the job's attempt."""
+    replace_own_only: bool = False
+    """A retry's replace: only what no *other* row tracks, never another upload's copy."""
 
 
 class SyncCollection(Payload):
@@ -370,12 +378,12 @@ class ClassifyGaps(Payload):
 class DraftTopic(Payload):
     """One knowledge gap topic drafted, as the person - or through the key - that asked."""
 
-    quoted_usd: Decimal | None = Field(default=None, ge=0)
-
     organization_id: UUID
     topic_id: UUID
     user_id: UUID | None
     api_key_id: UUID | None = None
+    quoted_usd: Decimal | None = Field(default=None, ge=0)
+    """The price the person agreed to, rechecked before the drafter runs."""
 
 
 class DispatchWorkflowNode(Payload):
@@ -981,6 +989,40 @@ REVERT_CODING_TASK = Task(
     priority=Priority.INTERACTIVE,
 )
 
+PROVISION_CONVERSATION_ENVIRONMENT = Task(
+    kind="provision-conversation-environment",
+    payload_type=ConversationEnvironmentPayload,
+    pool=Pool.WORKFLOW,
+    max_attempts=1,
+    timeout=timedelta(minutes=3),
+    priority=Priority.INTERACTIVE,
+    retry_refusal="Open the environment again; interrupted provider creation must not be replayed implicitly",
+)
+CLEANUP_CONVERSATION_ENVIRONMENT = Task(
+    kind="cleanup-conversation-environment",
+    payload_type=ConversationEnvironmentPayload,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=1),
+    priority=Priority.BULK,
+)
+MAINTAIN_CONVERSATION_ENVIRONMENT = Task(
+    kind="maintain-conversation-environment",
+    payload_type=ConversationEnvironmentPayload,
+    pool=Pool.WORKFLOW,
+    max_attempts=1,
+    timeout=timedelta(seconds=45),
+    priority=Priority.BULK,
+)
+SWEEP_CONVERSATION_ENVIRONMENTS = Task(
+    kind="sweep-conversation-environments",
+    payload_type=Tick,
+    pool=Pool.SYSTEM,
+    max_attempts=1,
+    timeout=timedelta(seconds=30),
+    priority=Priority.BULK,
+)
+
 PORTABLE_TRANSFER = Task(
     kind="portable-transfer",
     payload_type=PortableTransferPayload,
@@ -1089,6 +1131,10 @@ TASKS: dict[str, TaskKind] = {
         DELIVER_CHANNEL_HANDBACK,
         ROUTINE_CHAT_ANSWER,
         MOVE_PROJECT_WORKSPACE,
+        PROVISION_CONVERSATION_ENVIRONMENT,
+        CLEANUP_CONVERSATION_ENVIRONMENT,
+        MAINTAIN_CONVERSATION_ENVIRONMENT,
+        SWEEP_CONVERSATION_ENVIRONMENTS,
         PORTABLE_TRANSFER,
         SWEEP_PORTABLE_TRANSFERS,
         REVERT_CODING_TASK,

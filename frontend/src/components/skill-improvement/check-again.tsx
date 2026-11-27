@@ -1,10 +1,14 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { limitText, limitValue, usd } from "@/components/evals/format";
-import { Button, Input, Label } from "@/components/ui";
+import { limitValue } from "@/components/evals/format";
+import { Button, Label } from "@/components/ui";
 import { useSkillRecheck } from "@/hooks/use-skill-improvement";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import type { SkillContinuationEstimate, SkillImprovement } from "@/types/skill-improvement";
@@ -25,15 +29,17 @@ export function CheckAgain({
   session: SkillImprovement;
   onStarted: () => void;
 }) {
-  const t = useTranslations("skillImprovement.checkAgain");
+  const monetary = useMonetaryInputs();
+  const money = useMoney();
   const tLimit = useTranslations("improvement");
+  const t = useTranslations("skillImprovement.checkAgain");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const { estimate, recheck } = useSkillRecheck(session.skill_id, session.id);
   const [quote, setQuote] = useState<SkillContinuationEstimate | null>(null);
   const [moved, setMoved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [budget, setBudget] = useState(() => limitText(session.budget_usd, locale));
+  const [budget, setBudget] = useState(() => session.budget_usd);
   const [asked, setAsked] = useState(session.budget_usd);
   const price = estimate.mutateAsync;
 
@@ -56,7 +62,11 @@ export function CheckAgain({
   async function start(value: SkillContinuationEstimate) {
     setError(null);
     try {
-      await recheck.mutateAsync({ quote: value, budget: asked });
+      await recheck.mutateAsync({
+        quote: value,
+        budget: asked,
+        monetary_inputs: monetary.payload({}).monetary_inputs,
+      });
       onStarted();
     } catch (failure) {
       if (!(failure instanceof ApiError && failure.status === 409)) {
@@ -82,19 +92,22 @@ export function CheckAgain({
       )}
       {moved && quote && (
         <p role="alert" className="text-warning text-sm">
-          {t("priceMoved", { cost: usd(quote.total_usd, locale) })}
+          {t("priceMoved", { cost: money.cost(quote.total_usd, locale) })}
         </p>
       )}
       {quote && !quote.affordable && (
         <div className="max-w-sm space-y-2">
           <p className="text-sm">{t("overLimit")}</p>
-          <Label htmlFor="check-again-budget">{tLimit("budget")}</Label>
+          <Label htmlFor="check-again-budget">
+            {tLimit("budget", { currency: money.currency ?? "—" })}
+          </Label>
           <div className="flex gap-2">
-            <Input
+            <MonetaryInput
               id="check-again-budget"
-              inputMode="decimal"
+              monetary={monetary}
+              field="budget_usd"
               value={budget}
-              onChange={(event) => setBudget(event.target.value)}
+              onValueChange={setBudget}
             />
             <Button
               variant="outline"
@@ -118,7 +131,7 @@ export function CheckAgain({
         disabled={!quote?.affordable || recheck.isPending}
         onClick={() => quote && void start(quote)}
       >
-        {quote ? t("go", { cost: usd(quote.total_usd, locale) }) : t("goUnpriced")}
+        {quote ? t("go", { cost: money.cost(quote.total_usd, locale) }) : t("goUnpriced")}
       </Button>
     </section>
   );

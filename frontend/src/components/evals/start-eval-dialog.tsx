@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
@@ -29,11 +31,10 @@ import { AgentSelect } from "@/components/agents/agent-select";
 import { cn } from "@/lib/utils";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import { useOrgStore } from "@/stores/org-store";
-import type { EvalRunRequest } from "@/types/eval-runs";
+import type { EvalRunEstimate, EvalRunRequest } from "@/types/eval-runs";
 import { Perm } from "@/types/permissions";
 import { EstimateSummary } from "./estimate-summary";
 import { type EvalTarget, TARGET_REQUEST, useEvalTarget } from "./eval-target";
-import { usd } from "./format";
 import { StartEvalFields, TargetChoice, Toggle } from "./start-eval-fields";
 
 /** How long the fields sit still before the estimate is asked for again. */
@@ -73,6 +74,7 @@ export function StartEvalDialog({
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
   const locale = useLocale();
+  const money = useMoney();
   const router = useRouter();
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -151,8 +153,14 @@ export function StartEvalDialog({
     return () => clearTimeout(timer);
   }, [agentId, asked, quote, clearQuote]);
 
-  async function run(chosen: EvalRunRequest) {
-    const created = await start.mutateAsync(chosen);
+  async function run(chosen: EvalRunRequest, agreed: EvalRunEstimate) {
+    // The price on screen is the one agreed to: a start that could now cost more, or
+    // that would run on a newer dataset version, is refused and priced again.
+    const created = await start.mutateAsync({
+      ...chosen,
+      dataset_version: chosen.dataset_version ?? agreed.dataset_version ?? null,
+      quoted_usd: agreed.at_most_usd ?? null,
+    });
     onOpenChange(false);
     router.push(`${ROUTES.AGENTS}/${agentId}/evals/${created.id}`);
   }
@@ -278,10 +286,16 @@ export function StartEvalDialog({
             data-tour="eval-run-start"
             loading={start.isPending}
             disabled={!priced || !priced.affordable || start.isPending}
-            onClick={() => full && void run(full).catch(() => undefined)}
+            onClick={() =>
+              full &&
+              priced &&
+              void run(full, priced).catch((error: unknown) => {
+                if (error instanceof ApiError && error.status === 409) quote(full);
+              })
+            }
           >
             {priced
-              ? t("runFor", { amount: usd(priced.expected_usd, locale) })
+              ? t("runFor", { amount: money.cost(priced.expected_usd, locale) })
               : full !== null && !failure
                 ? t("estimating")
                 : t("start")}

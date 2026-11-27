@@ -7,21 +7,24 @@ Each case is one place a profile id can live, and one that must not count.
 
 import asyncio
 import uuid
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import delete, select
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.exceptions import AlreadyExistsError, BadRequestError, InUseError
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.locks import LockScope, try_hold_subject
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.credential import ModelProfile
 from app.db.models.organization import Organization
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.user import User
-from app.repositories import agent_repo, credential_repo
+from app.repositories import agent_repo, credential_repo, organization_secret_repo
 from app.schemas.model_profile import ModelProfileRead, ModelProfileUpdate
+from app.schemas.token_pricing import TokenPricing
 from app.services.model_profile import ModelProfileService
 from tests.integration._keys import provider_key
 
@@ -330,3 +333,52 @@ async def test_two_edits_cannot_each_take_half_of_what_a_profile_needs(engine: A
         with pytest.raises(BadRequestError):
             await asyncio.wait_for(racing, timeout=10)
         await second.rollback()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("editing", [False, True], ids=["create", "rebind"])
+async def test_model_pricing_locks_the_credential_before_validation(
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, editing: bool
+) -> None:
+    org, owner = await _org(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role=OrgRoleName.OWNER)
+    key_id = await provider_key(db, org.id)
+    models = ModelProfileService(db)
+    rates = TokenPricing(input=0, output=0)
+    read = organization_secret_repo.get
+
+    async def read_under_pricing_lock(
+        session: AsyncSession, secret_id: uuid.UUID, *, organization_id: uuid.UUID
+    ) -> OrganizationSecret | None:
+        async with AsyncSession(engine) as other:
+            assert not await try_hold_subject(other, LockScope.MODEL_PRICING_PER_SECRET, secret_id)
+        return await read(session, secret_id, organization_id=organization_id)
+
+    verified_read = AsyncMock(side_effect=read_under_pricing_lock)
+    monkeypatch.setattr(organization_secret_repo, "get", verified_read)
+    monkeypatch.setattr(
+        "app.services.model_profile.models_for", AsyncMock(return_value=([], "curated"))
+    )
+    if editing:
+        profile = await credential_repo.create_profile(
+            db,
+            organization_id=org.id,
+            label="GPT",
+            provider="openai",
+            model="gpt-5",
+            secret_id=await provider_key(db, org.id),
+        )
+        priced = await models.update_profile(
+            ctx, profile.id, ModelProfileUpdate(secret_id=key_id, custom_pricing=rates)
+        )
+    else:
+        priced = await models.create_profile(
+            ctx,
+            label="GPT",
+            provider="openai",
+            model="gpt-5",
+            secret_id=key_id,
+            custom_pricing=rates,
+        )
+    verified_read.assert_any_await(db, key_id, organization_id=org.id)
+    assert priced.secret_id == key_id and priced.custom_pricing == rates.model_dump(mode="json")

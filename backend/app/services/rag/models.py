@@ -115,6 +115,13 @@ class DocumentChunk(BaseModel):
     chunk_num: int = 0
 
 
+class StoredChunk(BaseModel):
+    """A chunk as indexed - its text and the vector it was stored with - for a test."""
+
+    content: str
+    embedding: list[float]
+
+
 class ParentContextMode(StrEnum):
     """How much surrounding context a retrieved chunk is returned with.
 

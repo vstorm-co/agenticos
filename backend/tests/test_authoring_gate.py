@@ -31,11 +31,14 @@ def _run(
     crashed: int = 0,
     outcome: bool = True,
     checked: AgentSpec = COMBINATION,
+    measured: bool = False,
+    kept_crashed: int = 0,
+    kept_undecided: int = 0,
 ) -> Any:
     decided = SimpleNamespace(incomplete=0, ungraded=0, crashed=0)
     return SimpleNamespace(
         status=status,
-        proposal_check=None,
+        proposal_check=SimpleNamespace(measurement=SimpleNamespace()) if measured else None,
         arms=[
             SimpleNamespace(id=uuid.uuid4(), role=ArmRole.BASELINE, summary=decided),
             SimpleNamespace(
@@ -45,7 +48,12 @@ def _run(
                 spec_hash=spec_hash(checked),
             ),
         ],
-        outcome=SimpleNamespace(verdict=verdict, regressions_confirmed=regressions)
+        outcome=SimpleNamespace(
+            verdict=verdict,
+            regressions_confirmed=regressions,
+            candidate_crashed=kept_crashed,
+            candidate_undecided=kept_undecided,
+        )
         if outcome
         else None,
     )
@@ -61,6 +69,7 @@ async def _gate(monkeypatch, mock_db_session, runs: list[Any], *, model: str = M
         return found
 
     monkeypatch.setattr(EvalRunService, "get", get)
+    monkeypatch.setattr(EvalRunService, "compare", AsyncMock(side_effect=AssertionError))
     monkeypatch.setattr(
         eval_run_repo,
         "get_arm",
@@ -86,6 +95,12 @@ async def _gate(monkeypatch, mock_db_session, runs: list[Any], *, model: str = M
         (_run(crashed=1), "crashed"),
         (_run(regressions=1, ungraded=2), "regression"),
         (_run(outcome=False), "inconclusive"),
+        (_run(measured=True), None),
+        (_run(measured=True, crashed=1), None),
+        (_run(measured=True, kept_crashed=1), "crashed"),
+        (_run(measured=True, kept_undecided=2), "inconclusive"),
+        (_run(measured=True, kept_undecided=2, verdict="worse"), "regression"),
+        (_run(measured=True, outcome=False), "inconclusive"),
     ],
 )
 async def test_the_latest_check_of_this_model_decides(monkeypatch, mock_db_session, run, reason):

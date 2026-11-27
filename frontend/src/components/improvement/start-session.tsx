@@ -1,5 +1,9 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -10,7 +14,6 @@ import {
   Button,
   ConfirmDialog,
   DialogFooter,
-  Input,
   Label,
   Select,
   SelectContent,
@@ -25,7 +28,7 @@ import { StartQuestionSet, StartSignals } from "./session-inputs";
 import { MIN_SEARCH_QUESTIONS, StartMode } from "./start-search";
 import { TodayCheck } from "./today-check";
 import { WriteQuestions } from "./write-questions";
-import { limitText, limitValue, sessionLimit, usd } from "@/components/evals/format";
+import { limitValue, sessionLimit } from "@/components/evals/format";
 import { useDataset, useDatasets } from "@/hooks/use-datasets";
 import { useAgentEvalSuites } from "@/hooks/use-eval-suites";
 import { useImprovement, useImprovements } from "@/hooks/use-improvements";
@@ -41,6 +44,8 @@ import type { Improvement, ImprovementEstimate, ImprovementMode } from "@/types/
  * when needed. Creating test questions has its own estimate before it starts.
  */
 export function StartSession({ agentId, onClose }: { agentId: string; onClose: () => void }) {
+  const monetary = useMonetaryInputs();
+  const money = useMoney();
   const t = useTranslations("improvement");
   const tc = useTranslations("common");
   const tr = useTranslations("authoring.improve");
@@ -205,7 +210,12 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
   async function start() {
     setError(null);
     try {
-      const started = await sessions.start.mutateAsync({ ...body, budget_usd: limit });
+      const started = await sessions.start.mutateAsync(
+        monetary.payload(
+          { ...body, budget_usd: limit },
+          searchMode === "search" ? ["budget_usd", "search.budget_usd"] : ["budget_usd"],
+        ),
+      );
       setStartedId(started.id);
       if (useOrgStore.getState().activeOrgId === organizationId)
         router.push(`/agents/${agentId}/improve/${started.id}`);
@@ -255,10 +265,11 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
         )}
         {target && (
           <StartMode
+            monetary={monetary}
             mode={searchMode}
             onModeChange={(chosenMode) => {
               if (chosenMode === "search" && !searchBudget && quote)
-                setSearchBudget(limitText(sessionLimit(quote), locale));
+                setSearchBudget(sessionLimit(quote));
               setSearchMode(chosenMode);
             }}
             trainQuestions={trainQuestions}
@@ -301,13 +312,17 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
               <div>
                 <dt className="text-muted-foreground text-xs">{t("analysisEstimate")}</dt>
                 <dd className="mt-1 text-lg font-semibold tabular-nums">
-                  {usd(quote.total_usd, locale)}
+                  {money.cost(quote.total_usd, locale)}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground text-xs">{t("budget")}</dt>
+                <dt className="text-muted-foreground text-xs">
+                  {t("budget", { currency: money.currency ?? "—" })}
+                </dt>
                 <dd className="mt-1 text-lg font-semibold tabular-nums">
-                  {Number.isFinite(Number(limit)) && Number(limit) > 0 ? usd(limit, locale) : "—"}
+                  {Number.isFinite(Number(limit)) && Number(limit) > 0
+                    ? money.cost(limit, locale)
+                    : "—"}
                 </dd>
               </div>
             </dl>
@@ -317,13 +332,13 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
               </p>
             )}
             <p className="text-muted-foreground text-xs">
-              {t("startCostHint", { cost: usd(quote.per_round_usd, locale) })}
+              {t("startCostHint", { cost: money.cost(quote.per_round_usd, locale) })}
             </p>
             {Number(quote.search_usd ?? 0) > 0 && (
               <p className="text-muted-foreground text-xs">
                 {ts("quote", {
-                  search: usd(quote.search_usd ?? "0", locale),
-                  check: usd(quote.eval_usd, locale),
+                  search: money.cost(quote.search_usd ?? "0", locale),
+                  check: money.cost(quote.eval_usd, locale),
                 })}
               </p>
             )}
@@ -349,34 +364,37 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
                 <>
                   <p className="text-muted-foreground text-sm">
                     {t("sessionQuote", {
-                      cost: usd(quote.total_usd, locale),
+                      cost: money.cost(quote.total_usd, locale),
                       answers: quote.evidence_runs,
                       minutes: Math.max(
                         1,
                         Math.round(quote.estimated_minutes / quote.max_iterations),
                       ),
-                      perRound: usd(quote.per_round_usd, locale),
-                      limit: usd(limit, locale),
+                      perRound: money.cost(quote.per_round_usd, locale),
+                      limit: money.cost(limit, locale),
                     })}
                   </p>
                   <div className="space-y-1.5">
-                    <Label htmlFor="improvement-budget">{t("budget")}</Label>
-                    <Input
+                    <Label htmlFor="improvement-budget">
+                      {t("budget", { currency: money.currency ?? "—" })}
+                    </Label>
+                    <MonetaryInput
                       id="improvement-budget"
-                      inputMode="decimal"
-                      value={budget ?? limitText(sessionLimit(quote), locale)}
-                      onChange={(event) => setBudget(event.target.value)}
+                      monetary={monetary}
+                      field="budget_usd"
+                      value={budget ?? sessionLimit(quote)}
+                      onValueChange={setBudget}
                     />
                     <p className="text-muted-foreground text-xs">
                       {t("limitHint", {
-                        analysis: usd(quote.total_usd, locale),
-                        perRound: usd(quote.per_round_usd, locale),
+                        analysis: money.cost(quote.total_usd, locale),
+                        perRound: money.cost(quote.per_round_usd, locale),
                       })}
                     </p>
                   </div>
                   {quote.knowledge_usd && Number(quote.knowledge_usd) > 0 && (
                     <p className="text-muted-foreground text-sm">
-                      {t("knowledgeEstimate", { cost: usd(quote.knowledge_usd, locale) })}
+                      {t("knowledgeEstimate", { cost: money.cost(quote.knowledge_usd, locale) })}
                     </p>
                   )}
                 </>

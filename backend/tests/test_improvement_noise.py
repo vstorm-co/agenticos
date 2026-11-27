@@ -209,6 +209,7 @@ def _session(status: str) -> SimpleNamespace:
         suite_id=None,
         estimate_usd=Decimal(1),
         budget_usd=Decimal(1),
+        monetary_terms={},
         spent_usd=Decimal(0),
         best_iteration_id=None,
         stop_reason="no_change",

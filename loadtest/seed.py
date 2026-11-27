@@ -6,7 +6,7 @@ run measure a state the product cannot actually produce. Everything here is a
 call a person could make from the console.
 
 **Nothing in it costs money.** The agent runs on a model profile whose `base_url`
-is the load stub, and the collection embeds through a `local_services` row whose
+is the load stub, and the collection embeds through a `service_connections` row whose
 address is the same stub - which is what a keyless Ollama endpoint is, as far as
 the platform is concerned. So a run touches no vendor, and a deployment with no
 provider key at all can still be measured.
@@ -192,12 +192,12 @@ def model_profile(console: Console, *, secret_id: str, stub_url: str) -> str:
 
 
 def embedding_endpoint(console: Console, *, stub_url: str) -> str:
-    """A local service standing in for an Ollama server, which is the stub."""
-    for row in console.get("/local-services").get("items", []):
+    """A service connection standing in for an Ollama server, which is the stub."""
+    for row in console.get("/service-connections").get("items", []):
         if row.get("name") == "Load stub embeddings":
             return str(row["id"])
     created = console.post(
-        "/local-services",
+        "/service-connections",
         json={
             "name": "Load stub embeddings",
             "kind": "embedding",

@@ -132,7 +132,7 @@ export function NoteDetail({
                 )}
                 {t(note.deactivated_at ? "restore" : "suppress")}
               </Button>
-              <Button variant="ghost" disabled={busy} onClick={() => setConfirming(true)}>
+              <Button variant="destructive" disabled={busy} onClick={() => setConfirming(true)}>
                 <Trash2 className="size-4" aria-hidden />
                 {t("delete")}
               </Button>

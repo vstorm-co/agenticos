@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -9,7 +11,7 @@ import { useWaitingOnMe, waitingOn, type WaitingKind } from "@/hooks/use-waiting
 import { ROUTES } from "@/lib/constants";
 import { bucketLabeller, timelineOf } from "@/lib/dashboard/timeline";
 import { completedShare, formatCompletedShare, statusTally } from "@/lib/run-outcomes";
-import { formatUsd } from "../format";
+
 import { WidgetFrame } from "../widget-frame";
 import { WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -31,6 +33,7 @@ import type { DashboardWidgetProps } from "./types";
 export function MySummaryWidget({ title, hint, period, seeAll, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.my-summary");
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   const others = useWaitingOnMe();
   const { usage, isLoading, error, refetch } = useUsageStats(
     { from: period.from, to: period.to },
@@ -81,12 +84,12 @@ export function MySummaryWidget({ title, hint, period, seeAll, options }: Dashbo
             value={
               <AnimatedAmount
                 value={usage?.cost?.period_usd}
-                label={t("spentLabel", { amount: formatUsd(usage?.cost?.period_usd, locale) })}
+                label={t("spentLabel", { amount: formatMoney(usage?.cost?.period_usd, locale) })}
               />
             }
             spark={timelineOf(usage).map((step) => Number(step.cost_usd))}
             sparkLabels={labels}
-            sparkFormat={(value) => formatUsd(value, locale)}
+            sparkFormat={(value) => formatMoney(value, locale)}
           />
         </div>
       )}

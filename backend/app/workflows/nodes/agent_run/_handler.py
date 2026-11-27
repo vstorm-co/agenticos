@@ -55,6 +55,7 @@ from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.session import get_worker_db_context
 from app.repositories import agent_run as agent_run_repo
+from app.schemas.currency import NodeMonetaryConfig
 from app.services.agent_registry import AgentRegistryService
 from app.services.agent_runner import AgentRunnerService
 from app.services.workflow_agents import WorkflowAgentService
@@ -98,7 +99,7 @@ class AgentVersionPin(BaseModel):
     )
 
 
-class AgentRunConfig(BaseModel):
+class AgentRunConfig(NodeMonetaryConfig):
     """Which agent answers - pinned from the catalog or configured here - and how."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")

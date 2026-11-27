@@ -183,8 +183,13 @@ class ShippedAgentService:
                 }
             )
             if new_published != published:
-                await self.registry.save_draft(ctx, agent.id, new_published)
-                await self.registry.publish(ctx, agent.id, note="Refresh shipped agent defaults")
+                await self.registry.publish_spec(
+                    ctx,
+                    agent.id,
+                    new_published,
+                    draft=new_draft,
+                    note="Refresh shipped agent defaults",
+                )
         if AgentSpec.model_validate(agent.draft_spec) != new_draft:
             await self.registry.save_draft(ctx, agent.id, new_draft)
         delivered = baseline(key, target)

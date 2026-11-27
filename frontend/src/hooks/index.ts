@@ -19,6 +19,8 @@ export {
   useRevertCodingChanges,
 } from "./use-coding-changes";
 export { useConversationWorkspace } from "./use-conversation-workspace";
+export { useConversationEnvironments } from "./use-conversation-environments";
+export { useEnvironmentConversation } from "./use-environment-conversation";
 export { useConversationSearch, useConversations } from "./use-conversations";
 export { useWaitingChatQuestions } from "./use-waiting-chat-questions";
 export { useConversationShares } from "./use-conversation-shares";
@@ -36,7 +38,7 @@ export { useNotificationInbox, useUnreadNotificationCount } from "./use-notifica
 export { useDashboardLayout } from "./use-dashboard-layout";
 export { useDashboardPresets } from "./use-dashboard-presets";
 export { useReusableIntegrations } from "./use-reusable-integrations";
-export { useLocalServices } from "./use-local-services";
+export { useServiceConnections } from "./use-service-connections";
 export { useExternalAgents } from "./use-external-agents";
 export { useMcpConnections } from "./use-mcp-connections";
 export { useOrgMcpConnections, useOrgMcpToolCalls } from "./use-org-mcp-connections";
@@ -151,6 +153,7 @@ export { useAllWorkspaceFiles, useWorkspaceFiles } from "./use-sandbox-workspace
 export { useFileActions, useFileBytes, useFileText } from "./use-file-content";
 export { useSkillChanges } from "./use-skill-changes";
 export { useSkill, useSkillResource, useSkills } from "./use-skills";
+export { useSkillSections } from "./use-skill-sections";
 export {
   useSkillAgents,
   useSkillForks,

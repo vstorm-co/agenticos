@@ -1,14 +1,19 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { canonicalUsd } from "@/lib/money";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useState } from "react";
 import { Brain, Loader2, Newspaper, Wallet } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { ServiceCard } from "@/components/settings/service-card";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { ErrorState } from "@/components/states";
-import { Badge, Button, Input, Skeleton, Switch } from "@/components/ui";
+import { Badge, Button, Skeleton, Switch } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { useModelProviders, useOrganizations, usePermissions } from "@/hooks";
 import { useChanged } from "@/hooks/use-changed";
@@ -94,13 +99,15 @@ function Role({ agent, org }: { agent: SystemAgent; org: Organization }) {
 }
 
 function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
+  const monetary = useMonetaryInputs(`${agent.role}|${org.id}`);
+  const money = useMoney();
   const t = useTranslations("teams.systemAgents");
+  const proactive = useTranslations("teams.proactive");
   const tErrors = useTranslations("errors");
   const { profiles, profilesStatus } = useModelProviders();
   const { can } = usePermissions();
   const { update, refresh } = useSystemAgents(true);
   const { setProactivity } = useOrganizations();
-  const proactive = useTranslations("teams.proactive");
   const briefing = agent.role === "daily_briefing";
   const [open, setOpen] = useState(false);
   const modelId = briefing ? (org.proactive_model_profile_id ?? null) : agent.model_profile_id;
@@ -108,7 +115,7 @@ function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
   const saved = {
     enabled: Boolean((briefing ? org.proactive_enabled : agent.enabled) && modelId),
     modelId,
-    budget: budget === null ? "" : String(Number(budget)),
+    budget: canonicalUsd(budget),
   };
   const [form, setForm] = useState(saved);
   const [pending, setPending] = useState(0);
@@ -116,7 +123,9 @@ function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
   const busy = saving || update.isPending;
   const [errors, setErrors] = useState<Record<string, string>>({});
   if (useChanged(JSON.stringify(saved))) setForm(saved);
-  const changed = JSON.stringify(form) !== JSON.stringify(saved);
+  const changed =
+    JSON.stringify(form) !== JSON.stringify(saved) ||
+    monetary.has(briefing ? "proactive_limit_usd" : BUDGET_FIELD);
   const edit = (next: Partial<typeof form>) => {
     setForm((current) => ({ ...current, ...next }));
     setErrors({});
@@ -138,21 +147,27 @@ function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
     setSaving(true);
     try {
       if (briefing) {
-        await setProactivity(org.id, {
-          proactive_enabled: form.enabled,
-          proactive_model_profile_id: form.modelId,
-          proactive_limit_usd: Number(budget),
-        });
+        await setProactivity(
+          org.id,
+          monetary.payload({
+            proactive_enabled: form.enabled,
+            proactive_model_profile_id: form.modelId,
+            ...(form.budget !== saved.budget || monetary.has("proactive_limit_usd")
+              ? { proactive_limit_usd: budget }
+              : {}),
+          }),
+        );
         await refresh();
       } else
         await update.mutateAsync({
           role: agent.role,
-          change: {
+          change: monetary.payload({
             enabled: form.enabled,
             model_profile_id: form.modelId,
             monthly_budget_usd: budget === "" ? null : budget,
-          },
+          }),
         });
+      monetary.reset();
       toast.success(form.enabled ? t("saved") : t("savedOff"));
     } catch (failure) {
       const modelField = briefing ? "proactive_model_profile_id" : MODEL_FIELD;
@@ -223,19 +238,22 @@ function Profile({ agent, org }: { agent: SystemAgent; org: Organization }) {
         )}
       </fieldset>
       <FormField
-        label={briefing ? proactive("label") : t("budget")}
+        label={
+          briefing
+            ? proactive("label", { currency: money.currency ?? "—" })
+            : t("budget", { currency: money.currency ?? "—" })
+        }
         htmlFor={`system-agent-${agent.role}-budget`}
         error={errors[BUDGET_FIELD] ?? null}
       >
-        <Input
+        <MonetaryInput
           id={`system-agent-${agent.role}-budget`}
-          type="number"
-          min="0"
-          step="0.5"
+          monetary={monetary}
+          field={briefing ? "proactive_limit_usd" : BUDGET_FIELD}
           placeholder={t("noBudget")}
           value={form.budget}
           disabled={busy}
-          onChange={(event) => edit({ budget: event.target.value })}
+          onValueChange={(value) => edit({ budget: value })}
         />
       </FormField>
       <Button onClick={save} disabled={!changed || busy || pending > 0}>
@@ -258,16 +276,18 @@ export function SystemAgentActivity({ agent }: { agent: SystemAgent }) {
 
 function Spend({ agent }: { agent: SystemAgent }) {
   const t = useTranslations("teams.systemAgents");
-  const format = useFormatter();
-  const spent = Number(agent.spent_this_month);
-  const money = (value: number) =>
-    format.number(value, { style: "currency", currency: "USD", maximumFractionDigits: 4 });
+  const display = useMoney();
+  const locale = useLocale();
+  const money = (value: string) => display.format(value, locale, 4);
   return (
     <p className="text-foreground flex items-center gap-2 text-sm font-medium tabular-nums">
       <Wallet className="text-muted-foreground size-4 shrink-0" aria-hidden />
       {agent.monthly_budget_usd === null
-        ? t("spent", { amount: money(spent) })
-        : t("spentOf", { amount: money(spent), budget: money(Number(agent.monthly_budget_usd)) })}
+        ? t("spent", { amount: money(agent.spent_this_month) })
+        : t("spentOf", {
+            amount: money(agent.spent_this_month),
+            budget: money(agent.monthly_budget_usd),
+          })}
     </p>
   );
 }
@@ -275,6 +295,8 @@ function Spend({ agent }: { agent: SystemAgent }) {
 function History({ agent }: { agent: SystemAgent }) {
   const t = useTranslations("teams.systemAgents");
   const format = useFormatter();
+  const money = useMoney();
+  const locale = useLocale();
   if (agent.runs.length === 0) {
     return <p className="text-muted-foreground text-xs">{t("noRuns")}</p>;
   }
@@ -286,13 +308,7 @@ function History({ agent }: { agent: SystemAgent }) {
             {format.dateTime(new Date(run.started_at), { dateStyle: "medium", timeStyle: "short" })}
           </span>
           <span className="text-muted-foreground">{run.model_label ?? t("unknownModel")}</span>
-          <span>
-            {format.number(Number(run.cost_usd), {
-              style: "currency",
-              currency: "USD",
-              maximumFractionDigits: 4,
-            })}
-          </span>
+          <span>{money.format(run.cost_usd, locale, 4)}</span>
           <Badge variant={run.status === "completed" ? "outline" : "destructive"}>
             {run.status}
           </Badge>

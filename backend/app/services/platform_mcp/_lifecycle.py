@@ -16,8 +16,8 @@ from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.schemas.dataset import DatasetCaseCreate, DatasetCreate
 from app.schemas.eval_run import EvalRunRequest
 from app.schemas.eval_suite import EvalSuiteCreate, EvalSuiteEstimateRequest, EvalSuiteUpdate
-from app.schemas.local_service import LocalServiceCreate
 from app.schemas.model_profile import ModelProfileCreate, ModelProfileUpdate
+from app.schemas.service_connection import ServiceConnectionCreate
 from app.schemas.solution import Key
 from app.schemas.sync_source import SyncSourceCreate
 from app.services.platform_mcp._api import PlatformApi
@@ -173,13 +173,13 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
     async def list_embedding_endpoints(
         q: str | None = None, limit: Limit = 10, skip: Skip = 0, detailed: bool = False
     ) -> dict[str, JsonValue]:
-        """List accessible local services, including embedding endpoints and their IDs.
+        """List accessible service connections, including embedding endpoints and their IDs.
 
         Needs `connections:view`. Select an active service with kind `embedding`
         and the intended provider; an OCR service cannot embed documents.
         """
         return listing(
-            await call("GET", "/local-services"),
+            await call("GET", "/service-connections"),
             q=q,
             limit=limit,
             skip=skip,
@@ -187,17 +187,17 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
             detailed=detailed,
         )
 
-    async def create_embedding_endpoint(service: LocalServiceCreate) -> dict[str, JsonValue]:
-        """Register an organization-owned keyless embedding endpoint.
+    async def create_embedding_endpoint(service: ServiceConnectionCreate) -> dict[str, JsonValue]:
+        """Register an organization-owned embedding endpoint, optionally with a vault key.
 
         Needs `connections:manage`. Only kind `embedding`, deployment_wide false
-        is accepted here. Existing URL and private-network checks apply.
+        is accepted here; `secret_id` names an `openai_compatible` vault key. Existing URL and private-network checks apply.
         """
         if service.kind != "embedding" or service.deployment_wide:
             raise ToolError(
                 "Create an organization-owned embedding service; deployment-wide setup uses the console."
             )
-        return await call("POST", "/local-services", body=service.model_dump(mode="json"))
+        return await call("POST", "/service-connections", body=service.model_dump(mode="json"))
 
     async def get_knowledge_base(kb_id: UUID) -> dict[str, JsonValue]:
         """Read a knowledge base and its embedding configuration. Needs access to it."""
@@ -327,7 +327,7 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
         """Price a dataset eval without running a model. Needs agent and dataset access.
 
         Use the same request for start_eval_run after agreeing the cost, with the
-        estimate's `dataset_version` pinned and its `total_usd` as `quoted_usd`. Prefer
+        estimate's `dataset_version` pinned and its `at_most_usd` as `quoted_usd`. Prefer
         a named test environment and recorded calls; testing can otherwise reach live systems.
         """
         return await call(
@@ -340,7 +340,7 @@ def lifecycle_operations(api: PlatformApi) -> tuple[Operation, ...]:
         """Start an estimated eval as a background job. Needs dataset run and agent access.
 
         Pin `run.dataset_version` to the estimate's `dataset_version` and pass its
-        `total_usd` as `quoted_usd`: a run that now costs more is refused, so
+        `at_most_usd` as `quoted_usd`: a run that could now cost more is refused, so
         estimate again. Budget admission is rechecked by the eval service. Poll
         get_eval_run; admission does not mean the test passed. Requires OAuth, not
         an organization API key.

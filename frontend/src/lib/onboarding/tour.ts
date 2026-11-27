@@ -469,6 +469,20 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { id: "chat-plan", page: ROUTES.CHAT, target: "chat-plan", optional: true },
   // Only where an agent has drawn something in the conversation on screen.
   { id: "chat-visual", page: ROUTES.CHAT, target: "chat-visual", optional: true },
+  { id: "chat-environments", page: ROUTES.CHAT, target: "chat-environments", optional: true },
+  {
+    id: "chat-workspace-tabs",
+    page: ROUTES.CHAT,
+    target: "chat-workspace-tabs",
+    activate: "chat-workspace-open",
+    optional: true,
+  },
+  {
+    id: "chat-visual-workspace",
+    page: ROUTES.CHAT,
+    target: "chat-visual-workspace",
+    optional: true,
+  },
   {
     id: "chat-model-picker",
     page: ROUTES.CHAT,
@@ -785,6 +799,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.skillsEdit,
     inTour: true,
   },
+  {
+    id: "skills-import",
+    page: ROUTES.SKILLS,
+    target: "skills-import",
+    activate: "page-secondary-actions",
+    permission: Perm.skillsEdit,
+  },
   // The gallery is where a first skill actually comes from - an empty
   // organization has three, and writing one from scratch is the harder path.
   {
@@ -796,6 +817,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "skills-list", page: ROUTES.SKILLS, target: "skills-list", permission: Perm.skillsView },
+  // Arranging by agent, origin or category - drawn beside the search, so
+  // always there once the list may be read.
+  {
+    id: "skills-arrange",
+    page: ROUTES.SKILLS,
+    target: "skills-arrange",
+    permission: Perm.skillsView,
+  },
   // Grouping by department (#2124): only where the organization has groups.
   {
     id: "skills-groups",
@@ -1264,14 +1293,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.connectionsManage,
     optional: true,
   },
-  // The servers on the deployment's own network a collection may embed through
-  // or OCR with. Same tab and same gate as the integrations above: the section
+  // The endpoints - an Ollama, an OpenAI-compatible gateway, an OCR server - a
+  // collection may embed through or OCR with. Same tab and same gate as the integrations above: the section
   // renders only for `connections:manage`, and its header always does once it
   // renders, so the stop is not optional.
   {
-    id: "knowledge-local-services",
+    id: "knowledge-service-connections",
     page: ROUTES.RAG,
-    target: "knowledge-local-services",
+    target: "knowledge-service-connections",
     activate: "knowledge-tab-integrations",
     permission: Perm.connectionsManage,
   },

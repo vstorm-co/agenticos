@@ -48,6 +48,41 @@ Tuesday afternoon. No deploy, no pull request, no engineer.
 
 In the Agent Builder, open **Skills → New skill** to write a skill without leaving the capability panel. Saving creates the library entry, attaches it to the current draft and enables the Skills capability. Publishing remains a separate step. The action requires permission to edit both the agent and skills.
 
+## Import a complete skill package { #importing-a-package }
+
+In **Skills → Import package**, choose a folder or a ZIP containing a root `SKILL.md`, optionally inside one enclosing folder. The preview shows the skill name, description, resource paths, binary/text formats and byte totals. **Import skill** creates a private skill and its complete immutable first version; an existing name is refused rather than overwritten. Preview creates no rows. Applying reparses the original bytes and verifies the preview fingerprint.
+
+The package may contain scripts, reference documents, images and binary templates. Import only stores files: it never executes scripts or tests, downloads dependencies or installs packages. Limits are 8 MiB per file, 32 MiB per package and 1,024 members; ZIP limits apply before and after decompression. Traversal, absolute paths, links, special files, duplicates and unsupported/encrypted archives are refused.
+
+`name`, `description` and instructions become the skill's owned fields. Remaining frontmatter is versioned inert JSON metadata. Rendering `SKILL.md` uses canonical safe YAML, so comments and original formatting are not retained. Unsafe tags, aliases, duplicate/non-text keys, non-JSON values and unbounded nesting are refused. `allowed-tools` is preserved as metadata and grants no platform tools or approval exemption.
+
+Binary assets retain their exact bytes and raw-byte digests through versions, pins, restore and portable bundles. Open a binary resource to download it; it is never shown as editable base64. Version downloads always read the selected authorized immutable version. With a workspace, the selected version's assets are written as bytes beside `SKILL.md`; unavailable required assets fail preparation. Running a stored script later requires the agent's separately configured execution capability and its usual permissions. Text proposals preserve binary resources; binary changes use an explicit upload, not a generated text proposal.
+
+Fork and Check snapshots retain frontmatter. Catch-up merges unchanged or disjoint top-level metadata changes, and refuses conflicting edits to the same key rather than guessing which license or other metadata to keep. Resolve that metadata explicitly before retrying. A downgrade refuses binary files or preserved frontmatter instead of discarding them.
+
+## Finding a skill in the library { #finding-a-skill }
+
+**Skills** opens as a plain paged grid with **No sections**. **Arrange by**,
+beside the search, optionally organizes the library:
+
+| Arrange by | Sections |
+|---|---|
+| **By agent** | One per agent whose published version uses a skill, then **Drafted only** and **Not used by an agent you can see** |
+| **By origin** | **Organization**, **Private**, **Built-in · Platform** for the skills every organization starts with, then one per [gallery](#the-gallery-seventy-more-and-none-of-them-arrive-uninvited) industry |
+| **By category** | One per category, `Security` and `security` together, then **Uncategorized** |
+| **No sections** (the default) | The plain paged grid |
+
+A skill several agents use sits under each of them. Each section shows its count
+and its first cards, folds closed, and pages through the rest with **Show all**.
+The search and the filters narrow every section, and the choice stays in the
+address, so an arranged view is a link somebody can send.
+
+Arranging changes nothing about access. A section holds only skills you can
+already see, and an agent you cannot open is never a section: its skills read as
+not used. Gallery skills are recognised by name, as the **built-in** badge is.
+Over the API, `GET /api/v1/skills/sections?arrange=agent` returns the sections
+with their counts, and `GET /api/v1/skills?section=<key>` pages through one.
+
 ## The shape
 
 ```markdown
@@ -85,7 +120,8 @@ conversations need does not have to sit in the body every relevant conversation
 loads.
 
 `category` is one of twenty suggestions (`support`, `engineering`, `finance`,
-`legal`, `security`, `marketing`, …) and drives the filter on the skills listing.
+`legal`, `security`, `marketing`, …) and drives the filter on the skills listing,
+which, like the category sections, ignores letter case.
 It has no effect on what the agent sees — the model chooses by `description`, never
 by category.
 
@@ -658,7 +694,10 @@ Platform MCP can discover/create/edit Context files, bind their `context_ids` to
 an agent draft, and read/edit skills or add text resources. Context supports
 `inject` for standing prompt material and `link` for on-demand reading. Editing a
 bound file takes effect on the next run; changing a draft binding still requires
-publication. Resource writes keep normal permissions and approval gates.
+publication. Resource writes keep normal permissions and approval gates. Editing a
+skill, adding a resource to it and editing a Context file always ask the person
+first: every agent on the skill's line, or bound to the file, reads the change on
+its next run.
 
 The document-production skill includes LaTeX starter sources and a build/render
 procedure. HTML Apps and browser decks remain distinct from compiled PDF or
@@ -851,11 +890,17 @@ within the spending limit** runs it again, as whoever retries it, once that is
 fixed. A step past the spending limit stops on its budget. Neither is asked again
 on its own.
 
+A proposed change to the skill's description shows the old and the new
+description, as a change to its text does. A change with no text to show is left
+out, and a chosen one is refused before it is checked.
+
 A session opened from an agent's Improve starts from the problems that session
 reported. Only a problem that quotes a line of the skill stating the wrong value
 or rule takes the agent's criteria with it; where the skill is only silent the
 problem is advice, and the agent stays held to those criteria - see [When the
-fault is in a skill](authoring.md#when-the-fault-is-in-a-skill).
+fault is in a skill](authoring.md#when-the-fault-is-in-a-skill). A problem
+quoting an answer this session's check will grade is not handed over, and is
+counted instead.
 
 What a session writes - each problem's title and summary, and the text it
 proposes - is drawn from every answer the person it runs as could read (its
@@ -908,6 +953,11 @@ What Accept offers comes from the result:
 - **Unknown agents** have to be acknowledged before anything is applied. **Add
   test questions** beside them writes the skill's own questions from answers
   where agents loaded it, so they can be checked next time.
+
+Each decision names the check the person reviewed - its `check_id` and
+`result_hash`, or the main-alone check's for returning to main - and is refused
+with `409` when the session holds another result, or a review judged it again:
+read the session again and review it.
 
 When the line gets a new version, or its agents change, after the check, the
 result no longer holds and offers **Check again** in place of applying: the same

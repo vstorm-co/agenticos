@@ -1,5 +1,5 @@
 ---
-source_sha: "67639049734c"
+source_sha: "9265232f6b26"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -91,8 +91,20 @@ każdej decyduje się osobno:
 |---|---|
 | **Przyjmij** | Zmiana trafia do wersji roboczej. Nic nie jest publikowane. |
 | **Edytuj** | Zamiast sugestii przyjmowane jest Twoje sformułowanie. Dla instrukcji otwiera się cały tekst: obecna wersja obok proponowanej, którą edytujesz, a diff odświeża się w trakcie pisania. Zapisywany jest tylko sugerowany fragment; tekst poza nim zmienia się w edytorze instrukcji. |
-| **Odrzuć** | Zapisane; późniejsze zlecenie nie zasugeruje tego ponownie. |
+| **Odrzuć** | Zapisane; żadne późniejsze zlecenie, sprawdzenie zmian ani sesja Improve nie zasugeruje tego ponownie aż do następnej publikacji agenta. |
 | **Cofnij** | Odwraca decyzję, dopóki pasuje ona do wersji roboczej. |
+
+Sugestia, której tekst zawiera znaki niewidoczne dla człowieka - znak sterujący
+inny niż nowa linia albo tabulator, znak sterujący kierunkiem tekstu, znak tagu
+Unicode - nie jest zapisywana, a zapisana wcześniej jest odrzucana przez check i
+przy **Przyjmij**; tak samo taka propozycja dla skilla albo pliku kontekstowego,
+wariant wyszukiwania, skill tworzony z pomysłu i własne sformułowanie człowieka. Znaki zerowej szerokości
+przechodzą, a każdy diff wypisuje je kodem i o tym mówi. Koniec wiersza z Windows
+albo samotny powrót karetki jest czytany jako nowa linia i tak zapisywany.
+
+Sugestia przeredagowana w kroku **Zmiany** sesji Improve pokazuje to brzmienie,
+oznaczone **Przeredagowane w kroku Zmiany**: to ono zostanie zapisane przy
+**Przyjmij**, i od niego zaczyna się **Edytuj**.
 
 Sugestia jest zakotwiczona w miejscu, w którym był jej fragment, i w tym, co go
 otaczało, a nie w samym tekście, więc linia, która występuje dwa razy, jest
@@ -100,6 +112,12 @@ zmieniana tam, gdzie miała być. Jeśli wersja robocza poszła dalej - fragment
 został usunięty albo opis narzędzia zmieniony ręcznie - sugestia mówi, że **nie
 pasuje już do wersji roboczej**, i można ją tylko odrzucić. Cofnij odmawia tak samo, gdy
 przyjęty tekst został potem zmieniony ręcznie: wyrzuciłoby to tę zmianę.
+
+Fragment przeniesiony ręcznie albo stojący obok zmiany przyjętej przed nim jest
+nadal odnajdywany, dopóki występuje tylko raz i jest całą linią, ma co najmniej 40
+znaków albo zachował jedną stronę swojego otoczenia. Krótsza fraza, na przykład
+kwota, nie jest śledzona do innego zdania: jej sugestia nie pasuje już do wersji
+roboczej.
 
 Pasek ma dwie zakładki, każdą z licznikiem. **Do decyzji** pokazuje w całości
 każdą sugestię, która wciąż czeka. **Zdecydowane** zwija każdą przyjętą, zmienioną
@@ -163,7 +181,9 @@ Kopie pytań treningowych lub materiału źródłowego są wykluczane według zn
 
 Sesja poprawy przypina wersję datasetu, udział kontroli i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy, przypadki ani zmieniony udział kontroli nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
 
-Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji tylko zaproponowanej, której szkic nie zawiera: wcześniejszej próby, mierzonej przez test wiedzy ani takiej, która podaje zmianę skilla lub pliku kontekstu. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła. Kontekst wcześniejszych prób zawiera ograniczone fragmenty z najwyżej sześciu ostatnich zmierzonych prób, aby długie zmiany instrukcji lub treści skilla nie wypełniały promptu następnej propozycji.
+Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji tylko zaproponowanej, której szkic nie zawiera: wcześniejszej próby, mierzonej przez test wiedzy ani takiej, która podaje zmianę skilla lub pliku kontekstu. Z każdej wcześniejszej próby czyta werdykt i tylko liczbę pytań odłożonych, które naprawiła i zepsuła, nigdy to, co próba zmieniła: każda próba odkłada własne pytania, losowane od nowa, więc wcześniejsza zmiana mogła powstać z pytań, na których mierzy się ta próba.
+
+Kryteria, które przesunęła wcześniejsza próba, liczą się tylko na pytaniach treningowych tej próby; gdy jej test nie ocenił żadnego z nich, helper dostaje tę informację zamiast zer. Czytanych jest najwyżej sześć ostatnich zmierzonych prób.
 
 Sprawdzenie liczy się jako test wersji roboczej, gdy wersja robocza jest
 dokładnie tym, co sprawdzało - każda sprawdzona sugestia przyjęta i nic poza tym
@@ -195,7 +215,7 @@ serwera MCP, do którego się odnosi, nigdy przez identyfikator.
 | Model | Zmienić profil modelu |
 | Ustawienia modelu | Ustawić temperaturę, top-p, maksymalną liczbę tokenów, timeout albo równoległe wywołania narzędzi |
 | Limit kroków | Ustawić `max_steps` |
-| Capabilities | Dodać albo usunąć jedną albo zmienić jej ustawienia - tylko tam, gdzie ustawienia dotyczą wyłącznie jakości, na przykład ile wiedzy pobrać albo kiedy kompaktować; ustawienia, które sięgają do URL-a, domeny, połączenia, dostawcy albo danych osobowych, nigdy się nie zmieniają, a Subagents nigdy nie są dodawane ani przekonfigurowywane. Zabezpieczenie - Guardrails - można tylko dodać: nigdy usunąć ani zmienić jego ustawień, niezależnie od tego, jak nazywa je sugestia |
+| Capabilities | Dodać albo usunąć jedną albo zmienić jej ustawienia - tylko tam, gdzie ustawienia dotyczą wyłącznie jakości, na przykład ile wiedzy pobrać albo kiedy kompaktować; ustawienia, które sięgają do URL-a, domeny, połączenia, dostawcy albo danych osobowych, nigdy się nie zmieniają, a Subagents nigdy nie są dodawane ani przekonfigurowywane. Capability, której narzędzia sięgają poza wdrożenie - do sieci, przeglądarki albo pulpitu, kanału komunikacji albo telefonu, podłączonej usługi, sandboxa, workflowu albo innego agenta - nigdy nie jest dodawana. Zabezpieczenie - Guardrails - można tylko dodać: nigdy usunąć ani zmienić jego ustawień, niezależnie od tego, jak nazywa je sugestia |
 | Zatwierdzanie | Sprawić, że capability albo jedno z jej narzędzi najpierw pyta |
 | Specjaliści | Przepisać opis wbudowanego [specjalisty](reference/capabilities.md#delegation) |
 | Bazy wiedzy | Podpiąć albo odpiąć jedną |
@@ -225,6 +245,22 @@ poszerza tego, co działa bez udziału człowieka:
   się jako zapisujące.
 - Zatwierdzanie tylko się zaostrza: sugestia może sprawić, że capability albo
   narzędzie najpierw pyta, nigdy że przestaje pytać.
+- Capability, którą dodaje, ustawia tylko swoje ustawienia i zatwierdzanie, przez
+  które jej narzędzia najpierw pytają: nigdy innej nazwy ani opisu narzędzia,
+  które czytałby model agenta, klucza ani wyłączonego powiązania. Sugestia, która
+  niesie którąś z tych rzeczy, nie jest zapisywana, a taka zapisana wcześniej jest
+  odrzucana przy **Przyjmij**. Karta pokazuje całe powiązanie, które zapisze, z
+  każdym znakiem, który nic nie rysuje albo przestawia otaczający tekst,
+  wypisanym, na przykład `\u{202E}`.
+- Capability, której narzędzia sięgają poza wdrożenie, nigdy nie jest dodawana:
+  trafia pod **pomysły, których asystent nie dodał**, do dodania w Builderze,
+  gdzie ustawia się jej limity.
+- Ponowne dodanie capability, którą wiąże opublikowana wersja, a wersja robocza
+  już nie, jest oceniane jako zmiana względem opublikowanego powiązania:
+  wyłączone powiązanie nie zostaje ponownie włączone, jej ustawienia
+  zmieniają się tylko tam, gdzie dotyczą wyłącznie jakości, ustawienia
+  zabezpieczenia nigdy, a żadne z jej narzędzi nie pyta o zatwierdzenie rzadziej
+  niż wcześniej.
 
 Sugestię, która podpina bazę wiedzy, plik kontekstowy, profil modelu albo serwer
 MCP, albo pozwala agentowi wywołać więcej narzędzi MCP, przyjmie tylko ktoś, kto
@@ -373,6 +409,14 @@ ramach budżetu. Dwa wyniki z rzędu bez zmiany albo nierozstrzygnięty wynik i
 jego powtórzenie pokazują się na wyniku jako podpowiedź, że kolejna próba raczej
 nie pomoże, a nie jako zatrzymanie.
 
+Notatka cytująca pytanie, na którym mierzy się nowa próba, jest odrzucana na
+polu `note`, tak samo jak notatka w sesji skilla cytująca pytanie, które może
+ocenić jego następny test: pomocnik czytałby to, co test potem mierzy.
+Porównanie pomija wielkość liter i odstępy i łapie kopię, a nie parafrazę,
+dlatego Architekt w ogóle nie dostaje treści pytań odłożonych. Porównywane są tylko
+pytania, które osoba wywołująca może czytać: odrzucenie notatki z powodu pytania,
+którego nie widzi, potwierdzałoby jej domysł.
+
 Kto może rozpocząć sesję dla agenta - prawo edycji, `runs:view` i  - może też wykonać jej następny krok, spróbować ponownie albo zatwierdzić jeden z jej płatnych testów: wybranych zmian, szkicu wiedzy albo tego, co dała każda zmiana. Sesja
 zapisuje, kto to zrobił, a dalsze kroki idą z aktualnymi uprawnieniami i
 poświadczeniem tej osoby i są zapisywane w dzienniku pod nią, więc sesję rozpoczętą przez Architekta można
@@ -463,13 +507,15 @@ Koszt analizy i limit wydatków całej sesji pojawiają się przed **Zacznij pop
 2. **Zmiany.** Ile zmian zaproponowano i ile włączono, a potem każda zmiana jako diff z sekcją Powinno naprawić oraz zwiniętymi sekcjami Dlaczego i Na podstawie. Na postoju każda zmiana ma **Uwzględnij zmianę N w teście**, z czego co najmniej jedna zostaje zaznaczona, oraz **Zmień sformułowanie**, które testuje Twoje sformułowanie zamiast sformułowania pomocnika: zmiana jest wtedy oznaczona **Przeredagowane przez Ciebie**, a **Wróć do proponowanego sformułowania** to cofa. **Następny krok: przetestuj zaznaczone zmiany** uruchamia test, wyceniony na najwyższą możliwą kwotę, a pod nim to, ile najpewniej kosztuje - jeden test zadający ponownie około połowy odłożonych odpowiedzi, które może, bez powtórzenia, które dostaje nierozstrzygnięty wynik; w jego trakcie listę można czytać, ale nie zmieniać. Szkice wiedzy tworzą osobną kolumnę, w której są szkice, o które ktoś poprosił. Gdy nie znaleziono zmiany, ekran wymienia, czego próbowała każda próba.
 3. **Sprawdzenie.** Obecna i zmieniona wersja agenta odpowiadają na te same pytania w jednym teście, każda z paskiem postępu; odpowiedzi z testu sprzed rozpoczęcia sesji od razu wypełniają pasek obecnej wersji. Dalej etapy, każdy oznaczony jako gotowy, w toku albo nierozpoczęty: pytanie, ocenianie i ponowne zadanie pytań, których wynik się zmienił. Test biegnie sam, a wynik otwiera się, gdy się skończy. **Otwórz pełne sprawdzenie** prowadzi do runu ewaluacji.
 4. **Wynik.** Najpierw to, do czego doszła sesja, w zdaniach zbudowanych z werdyktów - która próba poprawiła agenta albo że żadna, i która go pogorszyła - z tematami brakującymi w bazie wiedzy i powodem zatrzymania sesji. Pytanie przechodzi dopiero wtedy, gdy spełnia każde kryterium, według którego jest oceniane, więc próba, która naprawiła jedno kryterium, podczas gdy inne nadal nie są spełnione, nie odwraca żadnego pytania: jej werdykt to **Lepiej w kryteriach**, a zdanie wymienia każde kryterium z liczbą odłożonych pytań, które je spełniły przed i po - *Próba 1 poprawiła agenta Quote Builder w 1 kryterium: price break 9/40 → 40/40* - a potem kryteria nadal niespełnione, ze skillem, któremu helper je przypisał - *Żadne kolejne pytanie jeszcze nie przechodzi, bo inne kryteria nadal nie są spełnione: validity (skill „Quote rules”)*. Taka próba jest sprawdzonym kandydatem jak próba lepsza. Próba, która pogorszyła kryterium, choć żadne pytanie nie zostało zepsute, to **Gorzej w kryteriach** i jest opisana tak samo, a lepsza próba, która przy okazji pogorszyła kryterium, mówi o tym obok swoich napraw; ostrzeżenie przy zachowaniu takiej próby wymienia pogorszone kryteria. Kryteria są liczone według [rodziny](evals.md#a-flip-is-confirmed-before-it-counts), więc checki tej samej rzeczy we wszystkich przypadkach przesuwają się razem. Rodzina, którą pomocnik przypisał skillowi, a która się pogorszyła, nie sprawia, że próba jest gorsza: zdanie mówi, że agent teraz ściślej trzyma się skilla i że to skill trzeba poprawić. Próba, która zepsuła pytania, nadal wymienia rodziny, które poprawiła, więc część, która pomogła, można zachować, próbując ponownie z notatką. Wśród liczb są też **Spełnione kryteria** - jak często kryteria były spełnione przed i po na odłożonych pytaniach - oraz **Wciąż blokowane przez skill** - ile kryteriów nadal nie jest spełnionych z powodu skilla i których skilli to dotyczy. W obu przypadkach zmiana kryterium liczy się dopiero, gdy potwierdziło ją ponowne zadanie pytań, jak przy całych pytaniach. Wiersz próby podaje, ile kryteriów się poprawiło lub pogorszyło, a po otwarciu pokazuje tabelę wszystkich kryteriów z liczbą spełnień przed i po oraz potwierdzoną zmianą; po decyzji mówi, która próba została opublikowana jako która wersja albo zachowana jako wersja robocza. Pod **Co możesz zrobić** jest jedna główna akcja: **Przejrzyj i zaakceptuj zmiany**, gdy czeka sprawdzony kandydat, **Spróbuj ponownie**, póki zostały próby lub budżet, **Przygotuj dokumenty, których potrzebujesz**, gdy brakuje tylko wiedzy, a poza tym **Zakończ bez zmian**, obok **Rozpocznij nową sesję** i wskazówki, by dodać pytania testowe tam, gdzie agent odpowiada źle. Nieudany krok najpierw proponuje **Ponów ten krok w limicie wydatków**. Gdy zmierzono co najmniej dwie próby, **Którą próbę zachować** wymienia je z zaznaczoną zachowaną; wybór innej wymaga **Zachowaj próbę N**, a próba, która nie była lepsza, najpierw mówi, ile kosztuje jej akceptacja - które pytania zepsuła albo że nie daje zmierzonej poprawy. Zamknięta sesja wymienia je bez wyboru. **Spróbuj ponownie** przyjmuje opcjonalną **Notatkę dla pomocnika** - co zmienić albo zostawić - i pokazuje cenę, zanim ruszy; nowa próba zatrzymuje się na **Zmianach**. Krok zatrzymany, bo osoba, która go wykonała, straciła potrzebny dostęp, proponuje **Kontynuuj ten krok z moim dostępem** każdemu, kto może rozpocząć sesję. Potem liczby: nowo naprawione i nowo zepsute liczą tylko zmiany potwierdzone ponownym zapytaniem, a niepotwierdzone - zmienione raz, ale przy ponownym zadaniu już nie tak samo - stoją pod nimi małym drukiem; liczba brakujących tematów prowadzi do ich listy. Każda próba to jeden zwinięty wiersz - werdykt, co naprawiła i zepsuła względem własnej wersji wyjściowej na odłożonych przez siebie pytaniach, koszt napisania i przetestowania - łączny koszt sesji, z analizą, stoi nad listą - a najlepsza próba jest oznaczona - albo, gdy ktoś wybrał próbę, która nie była lepsza, oznaczona jako wybrana. Każda próba odkłada własne pytania, więc próby porównuje się po zmianie, a nie po odsetku zaliczeń, który widać tylko w szczegółach wiersza. Wiersz rozwija się do pasków pytań obsłużonych dobrze przed i po, kosztu odpowiedzi, gdy się zmienił, i każdego zmienionego pytania z odpowiedziami przed i po; zmiana niepotwierdzona przez powtórzone odpowiedzi czeka pod **Jeszcze niepotwierdzone**, oznaczona tylko jako być może naprawiona albo być może zepsuta. Pasek jest zielony albo czerwony tylko dla zmiany potwierdzonej ponownym zapytaniem; w przeciwnym razie zostaje szary, a różnica jednego pytania albo paski wskazujące przeciwne kierunki są opisane jako mieszczące się w szumie. Pod **Pokaż szczegóły** w wierszu: **Jak to zmierzyliśmy**, jedno zdanie o tym, ile pytań widział pomocnik, a ile odłożono do rozstrzygnięcia wyniku; **Która zmiana pomogła?**, gdy próba wprowadziła co najmniej dwie zmiany, z kosztem przetestowania każdej osobno; i tylko wtedy, gdy sesja ma szkic do przetestowania, **Sprawdź, czy szkic by pomógł** - jakby wyszukiwanie go znalazło albo przez prawdziwe wyszukiwanie. Gdy sprawdzenia były szumem - odpowiedzi dostały obie oceny przy ponownym zadaniu w obrębie próby albo dzisiejsza wersja dostała różne wyniki między próbami na wspólnych dla nich odłożonych pytaniach - a żadna próba nie była lepsza, karta najpierw mówi, że test nie odróżnia lepszej wersji od gorszej, potem podaje, co go uwiarygodni - kryteria oceny tak/nie zamiast skali, regułę dla długości i formatu zamiast sędziego, więcej pytań, do około 30 odłożonych, mocniejszy model sędziego - i wymienia pytania ocenione na oba sposoby z ocenami z każdej próby. Obok lepszej próby tylko odnotowuje szum. Próby, które miały mniej niż pięć wspólnych odłożonych pytań, nie są porównywane pod kątem szumu, a karta to mówi. Dwie próby z rzędu, które niczego nie zmieniły albo których nie dało się wiarygodnie ocenić, dają podpowiedź, że kolejna raczej nie pomoże; sesja nigdy nie zatrzymuje się sama przed limitem prób, a karta wymienia ten limit dopiero, gdy zostanie osiągnięty. Zobacz [gdy porusza się sama ocena](evals.md#a-flip-is-confirmed-before-it-counts) oraz [jak stabilne są odpowiedzi](evals.md#how-steady-the-answers-are).
-5. **Akceptacja.** Liczby: co nowa wersja naprawi, zepsuje i ile będzie kosztować odpowiedź, oraz na ilu pytaniach ją przetestowano, z kosztem odpowiedzi względem dzisiejszej wersji na odłożonych pytaniach. Pod nimi akceptowana zmiana w tej postaci, w jakiej ją zmierzono - sformułowanie osoby oznaczone **Przeredagowane przez Ciebie**. Próba, która nie była lepsza, powtarza ostrzeżenie z wyniku, zostawia automatyczne sprawdzenie niezaznaczone, a pierwszym wyborem jest **Zachowaj jako wersję roboczą**; próba lepsza w kryteriach nie jest tak nazywana i zamiast tego powtarza, co naprawiła i co nadal nie przechodzi. Tematy, których według tej sesji nadal brakuje w bazie wiedzy, są policzone - razem z tym, ile ma szkic gotowy do dodania, a ile nieaktualny - i wymienione razem z ich pytaniami. Sesja nie pisze szkicu żadnego z nich: każdy ma **Napisz szkic** z najwyższym kosztem jednego szkicu, w trakcie pisania pokazuje **Piszę szkic…**, a gotowy szkic ma **Przejrzyj i dodaj** albo **Nie teraz**, które odkłada go na czas sesji (`PUT /{run_id}/topics/{topic_id}/later`). Każde miejsce, w którym ludzie używają agenta, mówi, czy przełączy się od razu, po zaliczeniu automatycznego sprawdzenia, czy zostanie przy swojej wersji. Potem **Opublikuj wersję N** albo **Zachowaj jako wersję roboczą**. Każda z tych decyzji kończy sesję, a ten krok mówi wtedy, co postanowiono, kto i kiedy, z linkiem do wersji i zmianą w zaakceptowanym brzmieniu; **Zmiany** pokazują wtedy wszystkie próby. Gdy nie ma czego akceptować, krok jest pomijany.
+5. **Akceptacja.** Liczby: co nowa wersja naprawi, zepsuje i ile będzie kosztować odpowiedź, oraz na ilu pytaniach ją przetestowano, z kosztem odpowiedzi względem dzisiejszej wersji na odłożonych pytaniach. Pod nimi akceptowana zmiana w tej postaci, w jakiej ją zmierzono - sformułowanie osoby oznaczone **Przeredagowane przez Ciebie**. Próba, która nie była lepsza, powtarza ostrzeżenie z wyniku, zostawia automatyczne sprawdzenie niezaznaczone, a pierwszym wyborem jest **Zachowaj jako wersję roboczą**; próba lepsza w kryteriach nie jest tak nazywana i zamiast tego powtarza, co naprawiła i co nadal nie przechodzi. Tematy, których według tej sesji nadal brakuje w bazie wiedzy, są policzone - razem z tym, ile ma szkic gotowy do dodania, a ile nieaktualny - i wymienione razem z ich pytaniami. Sesja nie pisze szkicu żadnego z nich: każdy ma **Napisz szkic** z najwyższym kosztem jednego szkicu, w trakcie pisania pokazuje **Piszę szkic…**, a gotowy szkic ma **Przejrzyj i dodaj** albo **Nie teraz**, które odkłada go na czas sesji (`PUT /{run_id}/topics/{topic_id}/later`). Każde miejsce, w którym ludzie używają agenta, mówi, czy przełączy się od razu, po zaliczeniu automatycznego sprawdzenia, czy zostanie przy swojej wersji. Potem **Opublikuj wersję N** albo **Zachowaj jako wersję roboczą**. Gdy wersja robocza miała edycje sprzed startu sesji, krok mówi, że publikacja wypuści także je, niezmierzone, i **Opublikuj** czeka, aż zostaną potwierdzone. Potwierdzenie dotyczy próby na ekranie w tej postaci, w jakiej ją zmierzono: gdy zostanie wybrana inna próba albo przegląd oceni ją na nowo, znika. Każda z tych decyzji kończy sesję, a ten krok mówi wtedy, co postanowiono, kto i kiedy, z linkiem do wersji i zmianą w zaakceptowanym brzmieniu; **Zmiany** pokazują wtedy wszystkie próby. Gdy nie ma czego akceptować, krok jest pomijany.
 
 Link do kroku, którego już nie ma - `?step=testSet` albo `?step=today` - otwiera krok, który zajął jego miejsce, **Zrozumienie** albo **Sprawdzenie**, bez dodawania wpisu w historii.
 
 Nieudany krok propozycji lub ewaluacji można jawnie ponowić przez `/{run_id}/retry`; powtórne kliknięcia nie tworzą kolejnego zadania. Automatyczne ponowienia zadań nie powtarzają płatnych wywołań. Decyzje człowieka zmieniają stan sesji na zaakceptowaną, opublikowaną lub odrzuconą. Potwierdzona akcja `/{run_id}/finish` akceptuje sprawdzone zmiany, w sformułowaniu podanym przez Ciebie tam, gdzie je podano, i opcjonalnie publikuje je w jednej transakcji.
 
-Sesja zachowana jako wersja robocza jest zakończona: wersję roboczą publikuje się zwykłym **Opublikuj** agenta, a gdy to wersja zmierzona przez sesję, zostaje zapisana w sesji. Zakończenie może utworzyć suite uruchamianą przy publikacji, z zerowym limitem regresji. Nadal obowiązują standardowe uprawnienia i walidacja publikacji, a chronione środowiska czekają na swoje sprawdzenia. Zmiany edytowane po teście trzeba przetestować ponownie.
+Zakończenie wskazuje próbę, którą osoba obejrzała - `attempt` oraz `candidate_spec_hash` i `result_hash` tej próby z `iterations` sesji - i jest odrzucane z `409`, gdy sesja ma inną próbę, zmierzyła ją ponownie albo przegląd ocenił jej wynik na nowo: odczytaj sesję jeszcze raz i obejrzyj ją. Sesja, której wersja robocza miała edycje sprzed jej startu, ma `unmeasured_draft_edits`; te edycje są po obu stronach każdego checku, więc żaden ich nie zmierzył, a publikacja wymaga także `publish_unmeasured_edits`.
+
+Sesja zachowana jako wersja robocza jest zakończona: wersję roboczą publikuje się zwykłym **Opublikuj** agenta, a gdy to wersja zmierzona przez sesję, zostaje zapisana w sesji. Nowsze zlecenie albo sesja, która zastąpi jej sugestie, zostawia ją zachowaną jako wersja robocza, bo jej zmiany nadal są w wersji roboczej; porzucenie wersji roboczej kończy ją jako odrzuconą. Zakończenie może utworzyć suite uruchamianą przy publikacji, z zerowym limitem regresji. Nadal obowiązują standardowe uprawnienia i walidacja publikacji, a chronione środowiska czekają na swoje sprawdzenia. Zmiany edytowane po teście trzeba przetestować ponownie.
 
 Szacunek sesji obejmuje klasyfikację złych odpowiedzi z rozmów i nieudanych odpowiedzi treningowych względem edytowalnych baz wiedzy agenta oraz grupowanie ich braków w [tematy](knowledge-gaps.md#topics). Nie obejmuje szkiców: szkic powstaje tylko wtedy, gdy poprosi o niego człowiek, i jest rozliczany jako własny run szkicu. Każdy krok przed rozpoczęciem ponownie sprawdza swój pełny koszt. Klasyfikacja i grupowanie korzystają wyłącznie z przypiętych, niewymazanych rozmów i z odpowiedzi treningowych, z których uczy się sesja; odpowiedź treningowa z brakującą wiedzą pozostaje też materiałem agenta, a tekst kontrolny nie trafia do tych pomocników.
 
@@ -608,6 +654,8 @@ Gdy skill tylko milczy albo tylko zabrania dodawania innych sekcji, a fakty potr
 
 Krok Changes pokazuje te problemy w sekcji **Należy do skilla**. Każda karta zawiera problemy z cytatami oraz liczbę agentów czytających tę samą linię skilla. **Popraw X** otwiera Improve samego skilla z problemami z tej sesji jako dowodami startowymi. Jeśli agent korzysta z forka, ten Improve pracuje na forku; problemy przypiętego agenta trafiają do main. Bez prawa edycji skilla karta mówi, kogo poprosić.
 
+Problem jest przekazywany tylko wtedy, gdy test skilla nie oceni żadnej z odpowiedzi, które cytuje: problem cytujący odpowiedź na pytanie zapisane w odłożonej części swojego datasetu albo na dowolne z własnych pytań testowych skilla w ogóle nie jest przekazywany, bo jego treść powstała także z tej odpowiedzi. Pomocnik skilla nigdy więc nie czyta tego, co jego test potem mierzy, a sesja skilla podaje, ile problemów pominięto (`seed_withheld`).
+
 Dowodami skilla są też przeczytane przez sesję błędne odpowiedzi treningowe z jego użyciem: pytania testowe z zapisanej części treningowej datasetu tej sesji, na której sprawdzenie skilla nigdy nie mierzy. Tak uruchomiony Improve nie potrzebuje już do startu negatywnie ocenionych odpowiedzi z rozmów; kto nie może uruchamiać tego datasetu, żadnej z nich nie czyta.
 
 Gdy agent jest za main, karta **Zaktualizuj do vN** albo **Dogoń main w forku** otwiera stronę skilla. Jeśli skilli nie da się odczytać, sekcja mówi o tym zamiast znikać.
@@ -636,7 +684,7 @@ Krok Zrozumienie w kreatorze pokazuje ograniczoną próbkę źródeł, zapisaną
 
 Dowody wysyłane do modelu pomocnika - pytania, odpowiedzi, komentarze oceniających, argumenty wywołań narzędzi i błędy - są redagowane tak samo, zanim wyjdą, więc cytaty, które zachowuje zmiana, też są zredagowane. Cytaty i podsumowania zapisane wcześniej są redagowane przy każdym odczycie.
 
-Wszystko, co sugestia zapisałaby, a co cytuje dane uwierzytelniające - tekst instrukcji albo skilla, nazwa lub opis narzędzia, wartość pola, nowy skill, proponowany plik kontekstu albo treść skilla - jest pokazywane zredagowane i oznaczone `contains_credential`, a akceptacja, zastosowanie albo sprawdzenie jest odrzucane. Proponowany fragment można zedytować i zaakceptować bez tych danych; proponowany plik albo treść skilla się odrzuca, a zmianę wprowadza ręcznie.
+Wszystko, co sugestia zapisałaby, a co cytuje dane uwierzytelniające - tekst instrukcji albo skilla, nazwa lub opis narzędzia, wartość pola, nowy skill, proponowany plik kontekstu albo treść skilla - jest pokazywane zredagowane i oznaczone `contains_credential`, a akceptacja, zastosowanie albo sprawdzenie jest odrzucane. Proponowany fragment można zedytować i zaakceptować bez tych danych; proponowany plik albo treść skilla się odrzuca, a zmianę wprowadza ręcznie. Konsola mówi o tym przy zmianie i wstrzymuje te akcje - akceptację, zastosowanie, sprawdzenie i wybór zmiany w kroku Zmiany w Improve - zanim cokolwiek zostanie wysłane.
 
 
 Ekran akceptacji pokazuje numer następnej wersji i zmierzony wynik wybranej rundy. Oferta automatycznego sprawdzenia pojawia się tylko dla agenta bez zestawu sprawdzeń. Publikacja zapisuje identyfikator i numer wersji w sesji, więc ponowne otwarcie zakończenia prowadzi do tej publikacji także po kolejnej. Stare sesje bez zapisanego powiązania pokazują stan bez zgadywania wersji. Błąd odczytu sugestii pozwala ponowić odczyt; zastąpione sugestie są niedostępne zamiast bez końca się ładować. Chronione środowiska śledzące zmiany czekają na sprawdzenia, a przypięte zachowują obecną wersję.

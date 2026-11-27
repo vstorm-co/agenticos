@@ -43,7 +43,13 @@ import { FilePreviewDialog } from "./file-preview-dialog";
 import type { Browse } from "@/lib/browse";
 import { BrowserPanelAutoOpen, LiveBrowsesProvider } from "./browser-card";
 import { ConversationVisualsProvider } from "./visual-panel";
+import { ChatWorkspaceProvider, VisualWorkspaceSlot } from "./chat-workspace-context";
 import { BrowserPanel } from "./browser-panel";
+import { ConversationEnvironments } from "./conversation-environments";
+import { useEnvironmentConversation } from "@/hooks/use-environment-conversation";
+import { useWorkOnStore } from "@/stores/work-on-store";
+import type { WorkspaceEnvironment } from "./chat-workspace-context";
+import type { EnvironmentExecutionTarget } from "@/lib/conversation-environments-api";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList, coalesceActivity } from "./message-list";
 import { TurnRail } from "./turn-rail";
@@ -250,6 +256,18 @@ export function ChatContainer({
     forkConversation,
   } = useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
+  const mainChat = useMainChat();
+  const environmentConversation = useEnvironmentConversation(createConversation);
+  const pendingProjectId = useConversationStore((state) => state.pendingProjectId);
+  const localBrowser = useWorkOnStore((state) => state.browserFor(currentConversationId));
+  const localDesktop = useWorkOnStore((state) => state.computerFor(currentConversationId));
+  const environmentPanels = useMemo<readonly WorkspaceEnvironment[]>(
+    () => [
+      ...(agentCapabilities?.includes("browser_use") && !localBrowser ? ["browser" as const] : []),
+      ...(agentCapabilities?.includes("computer_use") && !localDesktop ? ["desktop" as const] : []),
+    ],
+    [agentCapabilities, localBrowser, localDesktop],
+  );
 
   // Read access for non-owned threads even when channel participation lists them.
   const listed = conversations.find((conversation) => conversation.id === currentConversationId);
@@ -258,6 +276,10 @@ export function ChatContainer({
   // Naming the first turn is not opening an unknown thread: the socket has
   // just confirmed creation, before its row reaches the sidebar's query.
   const newlyCreated = notListed && createdConversationId === currentConversationId;
+  const executionTarget = useWorkOnStore(
+    (state) =>
+      state.executionFor(currentConversationId, listed?.project_id ?? pendingProjectId) ?? "agent",
+  );
   const needsAccess =
     currentConversationId !== null && !newlyCreated && (notListed || listed?.user_id !== meId);
   const access = useConversationAccess(currentConversationId, needsAccess);
@@ -820,7 +842,9 @@ export function ChatContainer({
       }
     },
     openSettings: () => {
-      document.querySelector<HTMLButtonElement>("[data-chat-settings-trigger]")?.click();
+      [...document.querySelectorAll<HTMLButtonElement>("[data-chat-settings-trigger]")]
+        .find((trigger) => trigger.getClientRects().length > 0)
+        ?.click();
     },
   };
 
@@ -861,6 +885,22 @@ export function ChatContainer({
         lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
         contextWindow={contextWindow}
         agentCapabilities={agentCapabilities}
+        environmentControls={
+          mainChat &&
+          !testing &&
+          !readOnly &&
+          selectedAgent?.can_run &&
+          environmentPanels.length > 0 &&
+          (currentConversationId === null || newlyCreated || listed?.user_id === meId)
+            ? {
+                agentId: selectedAgent.id,
+                panels: environmentPanels,
+                target: executionTarget,
+                prepare: environmentConversation.prepare,
+                preparing: environmentConversation.preparing,
+              }
+            : undefined
+        }
         agentModel={agentModel}
         // Only for the thread that is actually open. The store keeps the transcript
         // it last loaded, so between clicking another conversation and its messages
@@ -944,7 +984,16 @@ export function ChatContainer({
   );
 }
 
+interface EnvironmentControls {
+  agentId: string;
+  panels: readonly WorkspaceEnvironment[];
+  target: EnvironmentExecutionTarget;
+  prepare: () => Promise<string | null>;
+  preparing: boolean;
+}
+
 interface ChatUIProps {
+  environmentControls?: EnvironmentControls;
   composerDraft?: ComposerDraft;
   hasEarlierMessages: boolean;
   isLoadingEarlier: boolean;
@@ -1076,7 +1125,20 @@ interface ChatUIProps {
   onStartCall: (transport: VoiceTransport) => void;
 }
 
-function ChatUI({
+function ChatUI(props: ChatUIProps) {
+  return (
+    <ChatWorkspaceProvider
+      shared
+      conversationId={props.conversationId}
+      environmentPanels={props.environmentControls?.panels}
+    >
+      <ChatUIContent {...props} />
+    </ChatWorkspaceProvider>
+  );
+}
+
+function ChatUIContent({
+  environmentControls,
   hasEarlierMessages,
   isLoadingEarlier,
   loadEarlierMessages,
@@ -1435,20 +1497,12 @@ function ChatUI({
     !compact && messages.length === 0 && voice.call.phase === "idle" && !isLoadingConversation;
   const showDailyBriefing = showWorkspaceHome && mainChat && !emptyState && !conversationId;
   const composeSuggestion = (text: string) => setIncoming({ id: Date.now(), files: [], text });
-  const workspaceFiles = (
-    <WorkspaceFiles
-      key={conversationId ?? "new"}
-      beforeFirstMessage={mainChat && messages.length === 0}
-      conversationId={conversationId}
-      revision={turns}
-      attachments={attachments}
-      buttonSlot={filesSlot}
-      overlay={compact}
-    />
-  );
   return (
     <div className="chat-surface @container/sources-layout relative flex h-full min-h-0 w-full overflow-hidden">
-      <div className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1">
+      <div
+        style={{ containerName: "browser-layout visual-layout" }}
+        className="@container/browser-layout relative flex h-full min-h-0 min-w-0 flex-1"
+      >
         {/* The column no longer carries the width. The scroller does, and the
           content is centred inside it - so the scrollbar sits at the edge of the
           pane where a scrollbar belongs, rather than a hundred pixels to the
@@ -1464,6 +1518,29 @@ function ChatUI({
             showDailyBriefing && "chat-home-timeline",
           )}
         >
+          {mainChat && !viewOnly && !accessState && (
+            <div className="chat-floating-controls" data-chat-floating-controls>
+              <ChatControls
+                floating
+                agentCapabilities={agentCapabilities}
+                agentModel={agentModel}
+                onModelProfileChange={onModelProfileChange}
+                onApprovalModeChange={onApprovalModeChange}
+                approvalDisabled={isProcessing || readOnly}
+                usageSlot={
+                  <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                    <span>{t("input.contextUsed")}</span>
+                    <UsageMeter
+                      usage={lastUsage}
+                      workspace={workspace}
+                      total={conversationCost}
+                      contextWindow={contextWindow}
+                    />
+                  </div>
+                }
+              />
+            </div>
+          )}
           {!compact && <TurnRail entries={railEntries} />}
           <BrowserPanelAutoOpen browses={browses} />
           <div
@@ -1829,6 +1906,7 @@ function ChatUI({
                         />
                         <div
                           data-tour="chat-composer"
+                          data-keyboard-anchor
                           className={cn(
                             "panel composer-box chat-composer-width focus-within:border-foreground/20 rounded-2xl transition-colors",
                             composerStrip !== null && !minimalComposer && "rounded-t-none",
@@ -1879,6 +1957,7 @@ function ChatUI({
                               hints={messages.length === 0 && homeOptions.feature_hints}
                               disabled={
                                 isStopping ||
+                                environmentControls?.preparing ||
                                 isLoadingConversation ||
                                 (!isConnected && !keepsOutbox) ||
                                 readOnly ||
@@ -2019,7 +2098,7 @@ function ChatUI({
                                           <UsageMeter
                                             key={`${conversationId ?? "new"}:${messages.length === 0}`}
                                             iconOnly={mainChat}
-                                            beforeFirstMessage={mainChat && messages.length === 0}
+                                            beforeFirstMessage={mainChat && conversationId === null}
                                             usage={lastUsage}
                                             workspace={workspace}
                                             total={conversationCost}
@@ -2069,15 +2148,32 @@ function ChatUI({
           onComment={commentOnPage}
           onResume={() => sendMessage(t("browserResumePrompt"))}
         />
+        <WorkspaceFiles
+          beforeFirstMessage={mainChat && conversationId === null}
+          overlay={compact}
+          conversationId={conversationId}
+          revision={turns}
+          attachments={attachments}
+          buttonSlot={environmentControls ? null : filesSlot}
+        />
+        {environmentControls && (
+          <ConversationEnvironments
+            key={`${conversationId}:${environmentControls.agentId}:${environmentControls.target}`}
+            conversationId={conversationId}
+            agentId={environmentControls.agentId}
+            panels={environmentControls.panels}
+            browses={browses}
+            target={environmentControls.target}
+            buttonSlot={filesSlot}
+            prepareConversation={environmentControls.prepare}
+            preparing={environmentControls.preparing}
+          />
+        )}
+        <VisualWorkspaceSlot />
       </div>
       {/* Docked panels must be direct children of the chat row: both the percentage
           width and pointer resize measure that parent. Embedded Files stays contained. */}
       <SourcesPanel contained={compact} conversationId={conversationId} />
-      {mainChat ? (
-        workspaceFiles
-      ) : (
-        <div className="hidden h-full min-h-0 shrink-0 lg:block">{workspaceFiles}</div>
-      )}
     </div>
   );
 }

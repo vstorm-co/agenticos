@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { MessagePart } from "@/types";
 import { TurnParts } from "./turn-parts";
@@ -32,6 +33,23 @@ const step = (
 const text = (id: string, content: string): MessagePart => ({ id, type: "text", content });
 
 describe("browser cards across a whole answer", () => {
+  it("shows one activity disclosure and keeps narration available inside it", async () => {
+    const parts = [
+      text("intro", "Opening the browser."),
+      step("open", "browser_open", "Home"),
+      text("progress", "I will read the article."),
+      step("read", "browser_read", "Article"),
+      text("answer", "The article is ready."),
+    ];
+    render(<TurnParts parts={parts} isStreaming={false} isUser={false} mcpServers={[]} />);
+    expect(screen.getAllByRole("button", { name: /Worked/ })).toHaveLength(1);
+    expect(screen.getByText("The article is ready.")).toBeVisible();
+    expect(screen.queryByText("Opening the browser.")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Worked · 2 steps" }));
+    expect(screen.getByText("Opening the browser.")).toBeVisible();
+    expect(screen.getByText("I will read the article.")).toBeVisible();
+    expect(screen.getAllByRole("link", { name: /Visit site/ })).toHaveLength(1);
+  });
   it("keeps one card across narration and repeated reads, live and after completion", () => {
     const parts = [
       step("open", "browser_open", "Home"),

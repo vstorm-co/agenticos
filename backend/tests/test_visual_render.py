@@ -42,6 +42,38 @@ class TestRenderRequestBudget:
         assert budget.exceeded is True
 
 
+class TestVisualInspection:
+    async def test_the_apps_renderer_gets_the_same_visual_document_and_requested_view(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        drawn = visual_render.artifact_render.Rendered(image=b"jpeg", width=390)
+        render = AsyncMock(return_value=drawn)
+        monkeypatch.setattr(visual_render.artifact_render, "render", render)
+        result = await visual_render.preview("svg", SVG, title="Flow", width=390, appearance="dark")
+        assert result is drawn
+        request = render.await_args.args[0]
+        assert (
+            request.document == visual_render.rendered_document("svg", SVG, title="Flow").encode()
+        )
+        assert request.width == 390
+        assert request.appearance == "dark"
+        assert request.bindings is None
+        assert request.injected_lines > 0
+
+    def test_an_unclipped_picture_and_clean_report(self) -> None:
+        result = visual_render.preview_report(
+            visual_render.artifact_render.Rendered(
+                image=b"jpeg",
+                width=1000,
+                height=500,
+                shown_height=500,
+            )
+        )
+        assert "1000 x 500" in result
+        assert "No rendering errors or warnings" in result
+        assert "only its top" not in result
+
+
 class TestWhichBrowser:
     def test_none_is_configured_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(visual_render.settings, "VISUAL_RENDER_CDP_URL", "")

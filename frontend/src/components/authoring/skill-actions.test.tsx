@@ -136,6 +136,11 @@ describe("the context file buttons", () => {
     expect(button).toHaveAttribute("title", expect.stringMatching(/Save your changes first/));
   });
 
+  it("hold the check of a change that cannot be applied", () => {
+    render(<ContextCheckButton contextId="ctx-1" proposalId="change-1" agents={[]} disabled />);
+    expect(screen.getByRole("button", { name: "Check with evals" })).toBeDisabled();
+  });
+
   it("check a context file change only on an agent bound to the file", async () => {
     render(
       <ContextCheckButton

@@ -10,10 +10,12 @@ compare-and-set runs before the graph is even looked at.
 import logging
 import re
 from collections.abc import Sequence
+from decimal import Decimal
 from itertools import pairwise
 from typing import Any
 from uuid import UUID, uuid4
 
+from pydantic import JsonValue, TypeAdapter
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.spec import AgentSpec
 from app.core.audit import record_audit
 from app.core.background import spawn_after_commit
+from app.core.currency import MonetaryTerm
 from app.core.exceptions import (
     AlreadyExistsError,
     AppException,
@@ -40,6 +43,7 @@ from app.repositories import resource_grant_repo, virtual_table_repo
 from app.repositories import workflow as workflow_repo
 from app.repositories import workflow_file as workflow_file_repo
 from app.repositories import workflow_run as workflow_run_repo
+from app.schemas.currency import NodeMonetaryConfig
 from app.schemas.reply_expectation import ReplyDraftSelection, ReplyMailboxSelection
 from app.schemas.resource_grant import as_visibility
 from app.schemas.virtual_table import ColumnInput, TableCreate
@@ -71,6 +75,7 @@ from app.schemas.workflow import (
 from app.services.access import TABLE, WORKFLOW, resolve_access, visible_resource_ids
 from app.services.file_storage import delete_files_best_effort
 from app.services.mcp_connection import McpConnectionService
+from app.services.monetary import MonetaryService
 from app.services.sharing import SharingService
 from app.services.virtual_tables.dependencies import Dependent, register_dependency_checker
 from app.services.virtual_tables.facade import VirtualTableService
@@ -916,6 +921,18 @@ class WorkflowRegistryService:
                     layout=NodePosition(x=600, y=160),
                 )
             )
+            draft_config = TypeAdapter(dict[str, JsonValue]).validate_python(nodes[-1].config)
+            draft_config["monetary_inputs"] = {
+                field: value.model_dump(mode="json")
+                for field, value in draft.monetary_inputs.items()
+            }
+            nodes[-1] = nodes[-1].model_copy(
+                update={
+                    "config": await MonetaryService(self.db).node_config(
+                        ctx.organization_id, draft_config
+                    )
+                }
+            )
             edges = [
                 edge.model_copy(update={"target_node_id": draft_id})
                 if edge.source_node_id == wait and edge.source_port == "deadline"
@@ -1101,7 +1118,12 @@ class WorkflowRegistryService:
         return await self._detail(updated, can_edit=True)
 
     async def update_settings(
-        self, ctx: AuthContext, workflow_id: UUID, data: WorkflowSettings
+        self,
+        ctx: AuthContext,
+        workflow_id: UUID,
+        data: WorkflowSettings,
+        *,
+        preserve_monetary_terms: bool = False,
     ) -> WorkflowDetail:
         """Replace what the workflow is run with. Its schedule keeps the new timezone
         from its next tick; the other settings apply to the runs admitted after.
@@ -1118,6 +1140,33 @@ class WorkflowRegistryService:
         workflow = await self._load(ctx, workflow_id, Perm.WORKFLOWS_EDIT, lock=True)
         self._ensure_editable(workflow)
         before = StoredWorkflowSettings.model_validate(workflow.settings)
+        original = before.monetary_terms
+        if preserve_monetary_terms:
+            original = {}
+            for field, raw in data.monetary_terms.items():
+                if field not in {"run_budget_usd", "monthly_budget_usd"}:
+                    raise BadRequestError(message="Unknown imported monetary limit")
+                term = MonetaryTerm.model_validate(raw)
+                amount = getattr(data, field)
+                if amount is None or term.cost_usd != Decimal(str(amount)):
+                    raise BadRequestError(message="Imported monetary terms do not match the limit")
+                original[field] = term.model_dump(mode="json")
+        terms = await MonetaryService(self.db).terms(
+            ctx.organization_id,
+            values={
+                field: value
+                for field, value in {
+                    "run_budget_usd": data.run_budget_usd,
+                    "monthly_budget_usd": data.monthly_budget_usd,
+                }.items()
+                if field in data.monetary_inputs
+                or (not preserve_monetary_terms and value != getattr(before, field))
+                or (preserve_monetary_terms and field not in original)
+            },
+            inputs=data.monetary_inputs,
+            previous=original,
+        )
+        data = data.model_copy(update={"monetary_terms": terms})
         run_as = before.error_workflow_run_as
         if data.error_workflow_id is None:
             run_as = None
@@ -1430,7 +1479,12 @@ class WorkflowRegistryService:
         )
 
     async def update_draft(
-        self, ctx: AuthContext, workflow_id: UUID, data: WorkflowDraftUpdate
+        self,
+        ctx: AuthContext,
+        workflow_id: UUID,
+        data: WorkflowDraftUpdate,
+        *,
+        preserve_monetary_terms: bool = False,
     ) -> WorkflowDetail:
         """Replace the draft graph, if it is still at `expected_revision`.
 
@@ -1448,7 +1502,17 @@ class WorkflowRegistryService:
         self._ensure_editable(workflow)
         self._check_revision(workflow, data.expected_revision)
         empty = data.graph.get("nodes") == []
-        graph = None if empty else _parse_submitted_graph(data.graph).model_dump(mode="json")
+        parsed = None if empty else _parse_submitted_graph(data.graph)
+        if parsed is not None:
+            parsed = await self._monetary_graph(
+                ctx.organization_id,
+                parsed,
+                previous=WorkflowGraph.model_validate(workflow.draft_graph)
+                if workflow.draft_graph
+                else None,
+                preserve_terms=preserve_monetary_terms,
+            )
+        graph = None if parsed is None else parsed.model_dump(mode="json")
         updated = await workflow_repo.update(
             self.db,
             workflow=workflow,
@@ -1458,6 +1522,68 @@ class WorkflowRegistryService:
             },
         )
         return await self._detail(updated, can_edit=True)
+
+    async def _monetary_graph(
+        self,
+        organization_id: UUID,
+        graph: WorkflowGraph,
+        *,
+        previous: WorkflowGraph | None = None,
+        preserve_terms: bool = False,
+    ) -> WorkflowGraph:
+        """Keep cap units for actual capped definitions, not arbitrary payload keys."""
+        capped = {
+            (definition.id, definition.version)
+            for definition in all_node_definitions()
+            if definition.config_schema is not None
+            and issubclass(definition.config_schema, NodeMonetaryConfig)
+        }
+        before = {node.id: node for node in previous.nodes} if previous is not None else {}
+        service = MonetaryService(self.db)
+        json_config = TypeAdapter(dict[str, JsonValue])
+        nodes: list[NodeInstance] = []
+        for node in graph.nodes:
+            config = json_config.validate_python(node.config)
+            old = before.get(node.id)
+            old_config = json_config.validate_python(old.config) if old is not None else None
+            if (node.definition_id, node.definition_version) in capped:
+                config = await service.node_config(
+                    organization_id, config, previous=old_config, preserve_terms=preserve_terms
+                )
+            elif node.definition_id == PYTHON_ACTIONS and isinstance(config.get("actions"), dict):
+                actions = config["actions"]
+                assert isinstance(actions, dict)
+                old_actions = old_config.get("actions") if old_config is not None else None
+                updated_actions: dict[str, JsonValue] = dict(actions)
+                for alias, binding in actions.items():
+                    if not isinstance(binding, dict):
+                        continue
+                    kind, version = binding.get("type"), binding.get("version", 1)
+                    if (
+                        not isinstance(kind, str)
+                        or not isinstance(version, int)
+                        or isinstance(version, bool)
+                    ):
+                        continue
+                    action_config = binding.get("config")
+                    if (kind, version) not in capped or not isinstance(action_config, dict):
+                        continue
+                    old_binding = old_actions.get(alias) if isinstance(old_actions, dict) else None
+                    old_values = (
+                        old_binding.get("config") if isinstance(old_binding, dict) else None
+                    )
+                    updated_actions[alias] = {
+                        **binding,
+                        "config": await service.node_config(
+                            organization_id,
+                            action_config,
+                            previous=old_values if isinstance(old_values, dict) else None,
+                            preserve_terms=preserve_terms,
+                        ),
+                    }
+                config["actions"] = updated_actions
+            nodes.append(node.model_copy(update={"config": config}))
+        return graph.model_copy(update={"nodes": tuple(nodes)})
 
     async def restore_version(
         self,

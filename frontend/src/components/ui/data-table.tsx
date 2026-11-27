@@ -254,6 +254,7 @@ export function DataTable<T>({
         className={cn(
           "scrollbar-thin overflow-x-auto overscroll-x-contain",
           fillHeight && "min-h-0 flex-1 overflow-y-auto",
+          fillHeight && showEmpty && "flex flex-col",
         )}
       >
         {/* Explicit roles retain semantics when narrow-container CSS changes display types. */}
@@ -426,6 +427,7 @@ export function DataTable<T>({
             className={cn(
               "text-muted-foreground text-center text-sm [&>*]:border-0 [&>*]:bg-transparent",
               !empty && "px-4 py-6",
+              fillHeight && "flex flex-1 flex-col justify-center",
             )}
           >
             {typeof empty === "string" || empty == null ? (

@@ -28,9 +28,9 @@ class TestCronHasNext:
 
 class TestCronNext:
     def test_stored_weekday_maximum_step_keeps_its_daily_cadence(self) -> None:
-        """croniter 7 changes this existing expression to Saturdays only."""
+        """The upgrade makes old maximum steps explicit before scheduling."""
         now = datetime(2026, 11, 16, 12, 0, tzinfo=UTC)
-        assert cron_next("* * * * 6/1", now=now) == datetime(2026, 11, 16, 12, 1, tzinfo=UTC)
+        assert cron_next("* * * * */1", now=now) == datetime(2026, 11, 16, 12, 1, tzinfo=UTC)
 
     def test_utc_is_the_default_zone(self) -> None:
         now = datetime(2026, 10, 19, 8, 30, tzinfo=UTC)
@@ -69,7 +69,7 @@ class TestCronFires:
     def test_stored_weekday_maximum_step_keeps_the_minute_run_estimate(self) -> None:
         assert (
             cron_fires(
-                "* * * * 6/1",
+                "* * * * */1",
                 start=datetime(2026, 11, 16, 12, 0, tzinfo=UTC),
                 end=datetime(2026, 11, 16, 13, 0, tzinfo=UTC),
                 sample=100,

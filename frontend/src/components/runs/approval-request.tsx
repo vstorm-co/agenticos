@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { createElement, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -8,7 +10,6 @@ import { MarkdownContent } from "@/components/chat/markdown-content";
 import { TableCallReadout } from "@/components/chat/tool-results/table-call";
 import { BrandIcon, isBrandName } from "@/components/icons/brand-icon";
 import { Monogram } from "@/components/icons/monogram";
-import { usd } from "@/components/evals/format";
 import { quotedPrice, serviceAction, spokenArgs } from "@/lib/approval-view";
 import { Badge } from "@/components/ui/badge";
 import { MCP_LOGOS } from "@/lib/mcp-logos.generated";
@@ -168,24 +169,26 @@ export function ApprovalDetails({
   toolName,
   args,
   fallback,
-  context,
+  platformCall,
 }: {
   toolName: string;
   args: Record<string, unknown>;
   /** What a table write leads with instead while its table cannot be read. */
   fallback?: ReactNode;
-  context?: Record<string, string> | null;
+  /** One of the platform's own tools, as the server marked it; only such a call shows a quote. */
+  platformCall?: boolean;
 }) {
   const t = useTranslations("pages.runs");
   const locale = useLocale();
+  const money = useMoney();
   const [open, setOpen] = useState(false);
   const fields = spokenArgs(args);
-  const price = quotedPrice(toolName, args, context);
+  const price = quotedPrice(toolName, args, platformCall);
   return (
     <div className="space-y-2">
       {price !== null && (
         <p className="text-foreground text-xs font-medium">
-          {t("approvalQuotedPrice", { price: usd(price, locale) })}
+          {t("approvalQuotedPrice", { price: money.cost(price, locale) })}
         </p>
       )}
       {/* A table write in the table's own labels, above the ids it will run with. */}

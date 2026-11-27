@@ -216,7 +216,13 @@ class KnowledgeTransfer:
                     # credentials/profiles are chosen on the KB, not historical chunks.
                     config = PortableIngestionConfig.model_validate(
                         document.ingestion_config
-                    ).model_copy(update={"llamaparse_secret_id": None, "ocr_endpoint_id": None})
+                    ).model_copy(
+                        update={
+                            "llamaparse_secret_id": None,
+                            "ocr_endpoint_id": None,
+                            "docling_connection_id": None,
+                        }
+                    )
                     config = config.model_copy(
                         update={
                             "image_description": config.image_description.model_copy(

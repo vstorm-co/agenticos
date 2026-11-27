@@ -1,4 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
+import type { StartScopeState, StartScope } from "@/lib/onboarding-api";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useOnboardingLocationStore } from "@/stores/onboarding-location-store";
@@ -16,7 +17,13 @@ const env = vi.hoisted(() => ({
     isLoading: false,
     waitingForScope: false,
     error: null as unknown,
-    data: { organization_id: "org", completed: false, dismissed: false },
+    data: {
+      organization_id: "org",
+      completed: false,
+      dismissed: false,
+      scopes: undefined as StartScopeState[] | undefined,
+      active_scope: undefined as StartScope | null | undefined,
+    },
     save: { isPending: false, isError: false, mutate: vi.fn() },
   },
 }));
@@ -45,7 +52,13 @@ beforeEach(() => {
   env.state.isLoading = false;
   env.state.waitingForScope = false;
   env.state.error = null;
-  env.state.data = { organization_id: "org", completed: false, dismissed: false };
+  env.state.data = {
+    organization_id: "org",
+    completed: false,
+    dismissed: false,
+    scopes: undefined,
+    active_scope: undefined,
+  };
   env.state.save.isPending = false;
   env.state.save.isError = false;
   env.state.save.mutate.mockClear();
@@ -127,11 +140,23 @@ it("resumes only this account and organization, then clears the hint on confirme
   expect(screen.getByRole("link", { name: "Finish setup" })).toHaveAttribute("href", "/onboarding");
   env.userId = "user";
   env.orgId = "other-org";
-  env.state.data = { organization_id: "other-org", completed: false, dismissed: false };
+  env.state.data = {
+    organization_id: "other-org",
+    completed: false,
+    dismissed: false,
+    scopes: undefined,
+    active_scope: undefined,
+  };
   view.rerender(<OnboardingReminder />);
   expect(screen.getByRole("link", { name: "Finish setup" })).toHaveAttribute("href", "/onboarding");
   env.orgId = "org";
-  env.state.data = { organization_id: "org", completed: true, dismissed: false };
+  env.state.data = {
+    organization_id: "org",
+    completed: true,
+    dismissed: false,
+    scopes: undefined,
+    active_scope: undefined,
+  };
   view.rerender(<OnboardingReminder />);
   expect(
     useOnboardingLocationStore.getState().startLocations[startLocationKey("user", "org")],
@@ -213,4 +238,31 @@ it("preserves the manual resume location when a server snooze hides the sidebar"
     "href",
     "/onboarding?start-step=member.context&workspace=org",
   );
+});
+
+it("offers new shared setup even to a completed snoozed person without snoozing it globally", () => {
+  env.state.data = {
+    organization_id: "org",
+    completed: true,
+    dismissed: true,
+    active_scope: "deployment",
+    scopes: (["deployment", "organization", "personal"] as const).map((scope) => ({
+      scope,
+      applicable: true,
+      completed: scope === "personal",
+      completed_at: null,
+      current_step: null,
+      updated_at: null,
+    })),
+  };
+  useOnboardingLocationStore
+    .getState()
+    .rememberStartLocation("user", "org", "/onboarding?start-step=member.context&workspace=org");
+  render(<OnboardingReminder />);
+  expect(screen.getByRole("link", { name: "Set up the deployment" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Remind me tomorrow" })).not.toBeInTheDocument();
+  expect(
+    useOnboardingLocationStore.getState().startLocations[startLocationKey("user", "org")],
+  ).toBeDefined();
+  expect(env.state.save.mutate).not.toHaveBeenCalled();
 });

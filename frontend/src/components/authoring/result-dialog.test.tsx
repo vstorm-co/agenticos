@@ -228,6 +228,25 @@ it("previews field changes and tool renames without editable controls", () => {
   expect(screen.getByText(diffLine("New description"))).toBeInTheDocument();
 });
 
+it("shows a skill description change as the old and the new description", () => {
+  render(
+    <ChangePreview
+      hunk={hunk({
+        kind: "skill_description",
+        old_text: "",
+        new_text: "",
+        base_description: "Refunds.",
+        new_description: "Open for every request.",
+      })}
+      sources={{}}
+    />,
+  );
+
+  expect(screen.getByText(diffLine("Refunds."))).toBeInTheDocument();
+  expect(screen.getByText(diffLine("Open for every request."))).toBeInTheDocument();
+  expect(screen.queryByText("No text")).not.toBeInTheDocument();
+});
+
 it("replaces raw identities in the result dialog's effect with the source count", () => {
   const id = "467abd40-2539-49d3-b239-2c960f7b7b07";
   render(

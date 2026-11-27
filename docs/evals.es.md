@@ -1,5 +1,5 @@
 ---
-source_sha: "80da2d54c72a"
+source_sha: "5a8cc4116f25"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -170,13 +170,32 @@ baseline, también cuando se reutiliza. El coste real puede variar. Cada petici�
 al modelo sigue sujeta a los presupuestos mensuales; agotarlos termina el run
 como `budget_exceeded`.
 
-Un inicio puede devolver `total_usd` como `quoted_usd` y la `dataset_version`
-estimada. Si la estimación actual de inicio es mayor, el servidor rechaza con
-`409`. El Architect envía ambos valores y la tarjeta muestra la cotización.
-Esto compara estimaciones; no impone un límite estricto a la factura final del
-proveedor. Las comprobaciones de skills, los borradores y los guardias de
-promoción también aceptan `quoted_usd`; `GET .../gate/estimate` calcula los
-guardias pendientes.
+Un inicio puede devolver el `at_most_usd` de la estimación (primeras respuestas,
+calificación y todas las repeticiones) como `quoted_usd`, y con él el
+`dataset_version` de la estimación. El inicio se rechaza entonces con `409` en cuanto
+el run pudiera costar más que esa cotización. El diálogo de inicio de la consola y el
+Architect pasan siempre ambos, y la tarjeta de aprobación del Architect muestra ese
+precio. Esto compara estimaciones; no impone un límite estricto a la factura final del
+proveedor. Las comprobaciones de actualización de skills, los borradores de
+conocimiento y los guardias de una puerta de promoción aceptan `quoted_usd` igual, y
+`GET .../gate/estimate` pone precio a los guardias que iniciaría la puerta.
+
+El run conserva ese precio. Los runs con cotización ejecutan un intento a la vez,
+incluida su calificación; los runs sin cotización mantienen la concurrencia
+configurada. Antes de la siguiente respuesta, el worker compara el gasto registrado
+más la estimación de respuesta y calificación con la cotización. Antes de calificar
+con coste añade también la estimación de calificación congelada, que cubre juntos
+la rúbrica, la referencia y los criterios de juez del caso. No encola repeticiones
+de confirmación que superarían la cotización. Una suite usa igual su límite y una
+etapa de comprobación de skill lo que dejó la etapa anterior del máximo aceptado
+para el agente.
+
+Un run detenido termina como `budget_exceeded`, conserva respuestas y calificaciones
+y nombra el precio aceptado en el error y la notificación. Una respuesta o
+calificación en curso puede costar más de lo estimado y superar la cotización.
+Esto limita la admisión de intentos, no cada solicitud al proveedor: una respuesta
+puede incluir varias solicitudes al modelo o a herramientas. Aquí no se implementa
+un límite estricto por solicitud al proveedor.
 
 Un borrador de conocimiento en cola conserva su cotización. El worker vuelve a
 comprobarla antes de recuperar datos o ejecutar el modelo y rechaza precios
@@ -185,7 +204,8 @@ mayores o desconocidos. Los clientes y trabajos existentes sin cotización no ca
 El límite de gasto estimado de una suite también incluye repeticiones y ambos
 lados cuando se comparan. La primera estimación de publicación incluye la versión
 existente como baseline de la siguiente publicación, incluso si solo hay una.
-Este límite solo decide si se inicia; no detiene una evaluación en curso.
+El run conserva el límite como su precio y se mantiene en él mientras se
+ejecuta, como un run con cotización.
 Cualquier aumento positivo de coste por caso aprobado o latencia desde cero
 supera cualquier límite porcentual.
 
@@ -216,7 +236,9 @@ Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto n
 
 Una sesión de mejora fija la versión del dataset, la proporción de control y las identidades de los chats fuente. Un intento posterior aprende de los resultados de entrenamiento de su propio reparto, así que una pregunta que un intento apartó puede ayudar a escribir el siguiente; ni nuevos chats, ni nuevos casos, ni un cambio de la proporción de control cambian lo que mide la sesión. Los intentos medidos con preguntas distintas se comparan por lo que cambió cada uno frente a su propia base, no por su tasa de aprobados.
 
-Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de la versión propuesta por un intento anterior, que el borrador no contiene. También lee lo que cambió cada intento anterior: su veredicto, los criterios que se movieron en las preguntas de las que aprendió, y solo cuántas preguntas apartadas arregló y rompió. El contexto de intentos anteriores incluye extractos limitados de un máximo de seis intentos medidos recientes, para que los cambios largos de instrucciones o del contenido de una skill no llenen el prompt de la siguiente propuesta.
+Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de la versión propuesta por un intento anterior, que el borrador no contiene. De cada intento anterior lee el veredicto y solo cuántas preguntas apartadas arregló y rompió, nunca lo que cambió el intento: cada intento aparta sus propias preguntas, sorteadas de nuevo, así que un cambio anterior pudo escribirse a partir de preguntas con las que se mide este intento.
+
+Los criterios que movió un intento anterior se cuentan solo en las preguntas de entrenamiento de este intento; cuando su comprobación no calificó ninguna, el asistente lo sabe en vez de ver ceros. Se leen como máximo seis intentos medidos recientes.
 
 Una decisión humana y **Retirar decisión** invalidan comparaciones dependientes y recalculan resultados guardados de suites en la misma transacción. El run, la suite, la puerta del entorno y el diálogo de promoción muestran el veredicto corregido y quién lo revisó. La auditoría registra estados y cantidades anteriores y nuevos; un cambio de veredicto envía otra notificación. Los nombres se resuelven desde la pertenencia actual a la organización, sin copiarlos a resultados retenidos.
 
@@ -237,12 +259,21 @@ Ese rol se vuelve a leer antes de cada caso. Si quien inició el eval ha dejado
 la organización, ha perdido el acceso al agent o al dataset, o se ha revocado su
 clave, el run falla antes de responder otro caso.
 
-Cada caso se ejecuta **aislado**, como describe [Entornos](environments.md):
-una herramienta con una conexión de prueba en el entorno del run se ejecuta
-contra ella, una herramienta de la que se sabe que solo lee se ejecuta en la
-conexión normal, y todo lo que escribe sin conexión de prueba no se ejecuta: la
-llamada y sus argumentos se guardan como una llamada prevista, que la
-puntuación de trayectoria sigue juzgando.
+Cada caso se ejecuta **aislado**, como describe
+[Entornos](environments.md#in-an-eval): una herramienta con una conexión de
+prueba en el entorno del run se ejecuta contra ella, una lectura de datos
+propios de este despliegue se ejecuta en la conexión normal, y todo lo que
+escribe, o lee de fuera del despliegue, no se ejecuta: la llamada y sus
+argumentos se guardan como una llamada prevista, que la puntuación de
+trayectoria sigue juzgando.
+
+Eso incluye la web. **Un eval de un agent que obtiene páginas, busca en la web o
+delega en el agent de otro sistema no hace nada de eso en vivo**: al modelo se le
+dice que la herramienta no está disponible en un run aislado y responde sin
+ella. Un caso respondido desde su grabación, más abajo, sigue recibiendo lo que
+obtuvo el run original. El juez no se ve afectado: solo lee las bases de
+conocimiento, los archivos de contexto y los skills que le entrega la
+plataforma, y todo eso se queda dentro.
 
 Cada intento aislado utiliza un workspace temporal para su propio run, aunque
 el agent normalmente comparta archivos por conversación, usuario o agent. No
@@ -253,7 +284,9 @@ Un caso tomado de una conversación puede responderse **desde la grabación** de
 run del que salió (`from_recordings`): una llamada que coincide con la
 grabación recibe el resultado grabado, y una que no coincide se retiene y se
 marca como divergente. Un caso sin grabación utilizable se ejecuta aislado sin
-ella.
+ella. El script de un agent en modo código se ejecuta de nuevo, y cada llamada
+que hace se responde desde la grabación; el caso enumera esas llamadas bajo el
+script.
 
 ### Un borrador nunca cuenta como versión { #a-draft-is-never-counted-as-a-version }
 
@@ -333,7 +366,8 @@ Cada intento sale de una de cuatro maneras (`state` en el intento):
   reintentos del caso aprueben;
 - **incompleto** cuando el provider falló tras sus reintentos (un error 5xx,
   408 o 429, o ninguna respuesta), un evaluador lanzó una excepción, el run se
-  canceló o se quedó sin budget, o sus intentos empataron;
+  canceló, se quedó sin budget o llegó al precio con el que se inició, o sus
+  intentos empataron;
 - calificación sin un evaluador obligatorio aplicable a algún caso: añade una comprobación, una herramienta esperada o criterios;
 
 Ninguno de los dos últimos es nunca un aprobado; el resumen los cuenta aparte

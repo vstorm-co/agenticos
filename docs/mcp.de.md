@@ -1,5 +1,5 @@
 ---
-source_sha: "5e69a7458f60"
+source_sha: "5d850ab1c3cc"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -653,11 +653,21 @@ die Produktion wird nie stattdessen erreicht.
 
 In einem Eval wird jeder Aufruf einer Produktionsverbindung angehalten und mit
 seinen Argumenten aufgezeichnet statt ausgeführt. Die einzige Ausnahme ist ein
-Tool, das der Server mit `readOnlyHint` markiert, auf einer Verbindung, die
-dieser Markierung vertraut. Die Markierung ist die eigene Angabe des Servers,
-deshalb ist das Vertrauen auf jeder Verbindung aus. Eingeschaltet wird es im
-Dialog **Tools** der Verbindung. Der Dialog nennt, wie viele Tools die
-Markierung beanspruchen, und die Änderung wird mit dieser Zahl im Audit erfasst.
+Tool, das der Server sowohl mit `readOnlyHint: true` als auch mit
+`openWorldHint: false` markiert - es liest nur und erreicht nichts jenseits
+dieses Servers -, auf einer Verbindung, die diesen Markierungen vertraut. Ein
+Tool, das nur liest, aber `openWorldHint` weglässt oder auf true setzt, wird mit
+dem Grund `external` angehalten: Ein Open-World-Tool wie eine Websuche gibt
+seine Argumente an alles weiter, was es erreicht, und ein Eval führt Text aus,
+den noch niemand geprüft hat.
+
+Beide Markierungen sind die eigene Angabe des Servers, und **ihnen zu vertrauen
+ist die Entscheidung des Betreibers**: Das Vertrauen ist auf jeder Verbindung
+aus, und nichts auf dieser Seite prüft, was ein Server über sich selbst sagt.
+Schalten Sie es nur für einen Server ein, von dem Sie wissen, dass er sein
+eigenes System erreicht und sonst nichts. Eingeschaltet wird es im Dialog
+**Tools** der Verbindung. Der Dialog nennt, wie viele Tools angeben, nur zu
+lesen, und die Änderung wird mit dieser Zahl im Audit erfasst.
 
 ### Einen aus dem Builder heraus verbinden { #connecting-one-from-the-builder }
 
@@ -1556,6 +1566,11 @@ bei Bedarf. Beide Agentenentwurfs-Tools akzeptieren `context_ids`; die Liste
 ersetzt alle Context-Bindungen. Änderungen gebundener Dateien gelten beim
 nächsten Lauf; neue Entwurfsbindungen müssen veröffentlicht werden. Berechtigungen
 und Schreibfreigaben bleiben bestehen.
+
+`update_skill`, `add_skill_resource` und
+`update_context_file` ändern, was laufende Agenten beim nächsten Lauf lesen, also
+fragt jeder Aufruf zuerst die Person, auch bei stehender Zustimmung; ein neuer
+Skill oder eine neue Context-Datei wird standardmäßig angelegt.
 
 ### Herkunft und Berechtigung verbundener Konten { #connected-account-source-authority }
 

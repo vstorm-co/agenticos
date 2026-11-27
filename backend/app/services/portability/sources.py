@@ -13,7 +13,6 @@ from app.schemas.resource_bundle import BundleResource, BundleResourceKind
 from app.services.agent_registry import AgentRegistryService
 from app.services.context import ContextService
 from app.services.knowledge_base import KnowledgeBaseService
-from app.services.local_service import LocalServiceService
 from app.services.mcp_connection import McpConnectionService
 from app.services.model_profile import ModelProfileService
 from app.services.organization_secret import OrganizationSecretService
@@ -29,6 +28,7 @@ from app.services.portability.content import (
 )
 from app.services.portability.workflows import WorkflowBundleSettings, WorkflowContent
 from app.services.sandbox_connection import SandboxConnectionService
+from app.services.service_connection import ServiceConnectionService
 from app.services.skill_versions import SkillVersionService
 from app.services.virtual_tables import VirtualTableService
 from app.services.workflow_registry import WorkflowRegistryService
@@ -238,7 +238,7 @@ class BundleSources:
             )
             return SourceDefinition(row.id, row.name, content)
         if kind == BundleResourceKind.LOCAL_SERVICE:
-            row = await LocalServiceService(self.db).get_visible(ctx, identity)
+            row = await ServiceConnectionService(self.db).get_visible(ctx, identity)
             return SourceDefinition(row.id, row.name, copyable=False)
         if kind == BundleResourceKind.SANDBOX_CONNECTION:
             self._require(ctx, Perm.CONNECTIONS_VIEW)
@@ -291,7 +291,10 @@ class BundleSources:
         bodies = await versions.files_of(version)
         files = tuple(
             SkillFileContent(
-                name=name, description=version.resources[name]["description"], content=body
+                name=name,
+                description=version.resources[name]["description"],
+                content=body,
+                encoding=version.resources[name].get("encoding", "utf8"),
             )
             for name, body in bodies.items()
         )
@@ -299,6 +302,7 @@ class BundleSources:
             "name": skill.name,
             "description": version.description,
             "content": version.content,
+            "manifest_metadata": version.manifest_metadata or {},
             "category": skill.category,
             "files": files,
         }

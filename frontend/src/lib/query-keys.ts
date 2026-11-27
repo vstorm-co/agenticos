@@ -10,6 +10,21 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  currencies: {
+    all: () => ["currencies"] as const,
+    current: (org: string | null) => ["currencies", org, "current"] as const,
+    organization: (org: string) => ["currencies", org, "settings"] as const,
+  },
+  conversationEnvironments: {
+    context: (
+      owner: string | null,
+      actor: string | null,
+      org: string | null,
+      conversation: string | null,
+      agent: string | null,
+      target: "agent" | "project" = "agent",
+    ) => ["conversation-environments", owner, actor, org, conversation, agent, target] as const,
+  },
   portability: {
     exportPreview: (
       org: string | null,
@@ -59,6 +74,7 @@ export const qk = {
       ["improvements", agentId, runId, "changes", attempt] as const,
   },
   onboarding: {
+    deployment: (user: string) => ["onboarding", "deployment", user] as const,
     preview: (org: string, user: string) => ["onboarding", "preview", org, user] as const,
     all: () => ["onboarding"] as const,
     state: (user: string, org: string) => ["onboarding", user, org] as const,
@@ -536,12 +552,20 @@ export const qk = {
     all: () => ["skills"] as const,
     list: (query: {
       search: string;
-      category: string;
+      categories: string[];
       sort: string;
       skip: number;
       limit: number;
       groupId: string;
+      section?: string;
     }) => ["skills", "list", query] as const,
+    sections: (query: {
+      arrange: string;
+      search: string;
+      categories: string[];
+      sort: string;
+      groupId: string;
+    }) => ["skills", "sections", query] as const,
     detail: (id: string) => ["skills", id] as const,
     gallery: () => ["skills", "gallery"] as const,
     galleryPreview: (key: string) => ["skills", "gallery", "preview", key] as const,
@@ -782,6 +806,7 @@ export const qk = {
     // three sources feeding it - in one call.
     detail: (id: string) => ["kb", id] as const,
     documents: (id: string) => ["kb", id, "documents"] as const,
+    probeEstimate: (id: string) => ["kb", id, "embedding-probe-estimate"] as const,
     // The three sources feeding a collection, each its own key so a failure in
     // one is that section's rather than the page's. They sit behind
     // `connections:manage`, so a member who may read the collection but not the
@@ -927,9 +952,10 @@ export const qk = {
     // showing every decided proposal must not overwrite it in the cache.
     list: (status: string) => ["skill-changes", "list", status] as const,
   },
-  localServices: {
-    all: () => ["local-services"] as const,
-    list: () => ["local-services", "list"] as const,
+  serviceConnections: {
+    all: () => ["service-connections"] as const,
+    list: () => ["service-connections", "list"] as const,
+    probeEstimate: (id: string) => ["service-connections", id, "probe-estimate"] as const,
   },
   wikiGraph: {
     source: (source: import("./workspace-files").FileSource) => ["wiki-graph", source] as const,

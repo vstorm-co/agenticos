@@ -33,6 +33,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
+from pydantic import JsonValue
 from pydantic.main import IncEx
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,7 +51,9 @@ from app.core.exceptions import (
     PaymentRequiredError,
 )
 from app.core.field_errors import refused_field
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm, Scope
+from app.core.skill_files import same_skill_metadata
 from app.db.models.authoring import (
     AuthoringKind,
     AuthoringRequest,
@@ -83,12 +86,14 @@ from app.repositories import (
     agent_repo,
     agent_run_repo,
     authoring_repo,
+    dataset_repo,
     skill_check_repo,
     skill_improvement_repo,
     skill_repo,
     skill_version_repo,
     user_repo,
 )
+from app.repositories.monetary import set_terms as set_monetary_terms
 from app.schemas.authoring import EvidenceItemRead, HunkRead
 from app.schemas.improvement import (
     ChangeEdit,
@@ -134,17 +139,19 @@ from app.schemas.skill_improvement import (
 from app.schemas.skill_version import PersonRef, ReturnToMain
 from app.services import authoring_hunks
 from app.services import improvement_states as rules
-from app.services.access import AGENT, SKILL, accessible_ids, resolve_access
+from app.services.access import AGENT, DATASET, SKILL, accessible_ids, resolve_access
 from app.services.api_key import job_context
 from app.services.authoring import AuthoringService
 from app.services.authoring_evidence import EvidencePack
 from app.services.background_jobs import enqueue
 from app.services.dataset import redact_credentials
+from app.services.improvement_data import quotes_a_question
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
+from app.services.monetary import MonetaryService
 from app.services.skill_agents import SkillAgentService
 from app.services.skill_catch_up import MergeSides, SkillCatchUpService
-from app.services.skill_check import SkillCheckService
+from app.services.skill_check import SkillCheckService, result_hash
 from app.services.skill_versions import SkillVersionService
 from app.worker.jobs import ADVANCE_SKILL_IMPROVEMENT, AdvanceSkillImprovement
 
@@ -248,7 +255,15 @@ def merge_hash(
             {
                 "description": start.candidate.description,
                 "content": start.candidate.content,
-                "files": [[item.name, item.description, item.content] for item in files],
+                "files": [
+                    [
+                        item.name,
+                        item.description,
+                        item.content,
+                        *([item.encoding] if item.encoding != "utf8" else []),
+                    ]
+                    for item in files
+                ],
                 "plan": check.model_dump(mode="json", exclude=_UNPRICED),
             }
         )
@@ -261,14 +276,20 @@ def _same_skill(
     files: Sequence[SkillBodyFile],
     version: SkillVersion,
     version_files: Sequence[SkillBodyFile],
+    *,
+    manifest_metadata: Mapping[str, JsonValue] | None = None,
 ) -> bool:
-    def keyed(items: Sequence[SkillBodyFile]) -> dict[str, tuple[str | None, str]]:
-        return {item.name: (item.description, item.content) for item in items}
+    def keyed(items: Sequence[SkillBodyFile]) -> dict[str, tuple[str | None, str, str]]:
+        return {item.name: (item.description, item.content, item.encoding) for item in items}
 
     return (
         description == version.description
         and content == version.content
         and keyed(files) == keyed(version_files)
+        and (
+            manifest_metadata is None
+            or same_skill_metadata(manifest_metadata, version.manifest_metadata or {})
+        )
     )
 
 
@@ -311,14 +332,22 @@ def candidate_text(base: SkillVersion, hunks: Sequence[SpecProposalHunk]) -> tup
     return description, content
 
 
+def shown(hunk: SpecProposalHunk) -> bool:
+    """Whether an edit has text a person reads before it is checked or applied."""
+    if hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
+        return bool((hunk.edited_text or hunk.new_description or "").strip())
+    return bool((hunk.old_text or "").strip() or (hunk.edited_text or hunk.new_text or "").strip())
+
+
 def filtered(
     hunks: Sequence[SpecProposalHunk], base: SkillVersion
 ) -> tuple[list[SpecProposalHunk], list[DroppedHunk]]:
     """The edits a session offers, and the ones its policy drops with why.
 
     An edit repeating one already kept is dropped, and so is one whose passage an
-    edit kept before it already changed - both cannot be applied - and every
-    description after the first.
+    edit kept before it already changed - both cannot be applied - every
+    description after the first, an edit with no text to show, and an edit holding
+    characters a person cannot see.
     """
     kept: list[SpecProposalHunk] = []
     dropped: list[DroppedHunk] = []
@@ -327,7 +356,11 @@ def filtered(
     described = False
     for hunk in hunks:
         reason: str | None = None
-        if hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
+        if not shown(hunk):
+            reason = "nothing_to_show"
+        elif holds_refused([hunk.new_text, hunk.edited_text, hunk.new_description]):
+            reason = "hidden_characters"
+        elif hunk.kind == HunkKind.SKILL_DESCRIPTION.value:
             reason = "repeated" if described else None
             described = True
         elif (hunk.old_text, hunk.new_text) in seen:
@@ -485,7 +518,16 @@ class SkillImprovementService:
                         "run_ids": [str(run_id) for run_id in seed.run_ids],
                         "problems": list(seed.problems),
                         "quotes": list(seed.quotes),
+                        "withheld": seed.withheld,
                     },
+                )
+                terms = await MonetaryService(self.db).terms(
+                    ctx.organization_id,
+                    values={"budget_usd": data.budget_usd},
+                    inputs=data.monetary_inputs,
+                )
+                await set_monetary_terms(
+                    self.db, run, terms=terms, fields=frozenset({"budget_usd"})
                 )
         except IntegrityError as exc:
             # The skill and its fork were read in this transaction, so the open-session
@@ -565,6 +607,14 @@ class SkillImprovementService:
                     seed=None,
                     purpose=purpose.value,
                     source_fork_id=source.fork_id if purpose is Purpose.TO_MAIN else None,
+                )
+                terms = await MonetaryService(self.db).terms(
+                    ctx.organization_id,
+                    values={"budget_usd": data.budget_usd},
+                    inputs=data.monetary_inputs,
+                )
+                await set_monetary_terms(
+                    self.db, run, terms=terms, fields=frozenset({"budget_usd"})
                 )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -887,6 +937,18 @@ class SkillImprovementService:
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
         if Status(run.status).active:
             return await self._read(ctx, run, line)
+        requested_terms = await MonetaryService(self.db).terms(
+            ctx.organization_id,
+            values={"budget_usd": consent.budget_usd}
+            if consent.budget_usd != run.budget_usd or consent.monetary_inputs
+            else {},
+            inputs=consent.monetary_inputs,
+            previous=run.monetary_terms,
+        )
+        if consent.budget_usd >= run.budget_usd:
+            await set_monetary_terms(
+                self.db, run, terms=requested_terms, fields=frozenset({"budget_usd"})
+            )
         if run.purpose != Purpose.IMPROVE.value:
             await self._continue_merge(ctx, line, run, consent)
             return await self._read(ctx, run, line)
@@ -921,6 +983,12 @@ class SkillImprovementService:
             "actor_api_key_id": ctx.api_key_id,
         }
         if quote.mode == "next_round":
+            if consent.note is not None and quotes_a_question(
+                consent.note, await self._measured_questions(ctx, line, run)
+            ):
+                raise refused_field(
+                    "note", "The note quotes a question this attempt is measured on"
+                )
             await self._set_aside_checks(run)
             number = run.iteration + 1
             await skill_improvement_repo.create_iteration(
@@ -959,7 +1027,9 @@ class SkillImprovementService:
         newest; a move to main makes it main's newest version, taken in from the fork.
         """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
-        check_id = await self._decidable(run)
+        check = await self._decidable(run)
+        await self._refuse_unreviewed(data, check)
+        check_id = check.id
         if run.purpose == Purpose.CATCH_UP.value:
             return await self._catch_up(ctx, line, run, check_id, data)
         merged_from_id = None
@@ -1023,6 +1093,7 @@ class SkillImprovementService:
             )
         await self._decidable(run)
         await self._refuse_merge_moved(run, line.skill)
+        alone = await self._main_alone_check(run, lock=True)
         read = await self._read(ctx, run, line)
         if "return_to_main" not in read.outcomes:
             raise BadRequestError(
@@ -1031,8 +1102,8 @@ class SkillImprovementService:
                 details={"main_alone": read.main_alone},
             )
         assert run.fork_id is not None, "a catch-up runs on its fork"
-        alone = await self._main_alone_check(run)
         assert alone is not None, "return to main is offered after main alone was checked"
+        await self._refuse_unreviewed(data, alone)
         await self.checks.decidable_for_session(ctx, run.skill_id, alone.id)
         measured = await self.checks.read(ctx, run.skill_id, alone.id)
         unknown = measured.hidden_unknown + sum(
@@ -1121,7 +1192,9 @@ class SkillImprovementService:
                 message="A merge is taken in or moved back, not made a fork",
                 details={"purpose": run.purpose},
             )
-        check_id = await self._decidable(run)
+        check = await self._decidable(run)
+        await self._refuse_unreviewed(data, check)
+        check_id = check.id
         forked = await self.checks.fork(
             ctx,
             skill_id,
@@ -1171,6 +1244,14 @@ class SkillImprovementService:
             PaymentRequiredError: The spending limit does not cover the check.
         """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
+        requested_terms = await MonetaryService(self.db).terms(
+            ctx.organization_id,
+            values={"budget_usd": consent.budget_usd}
+            if consent.budget_usd != run.budget_usd or consent.monetary_inputs
+            else {},
+            inputs=consent.monetary_inputs,
+            previous=run.monetary_terms,
+        )
         mode = consent.mode or await self._mode_of(run)
         quote = await self._recheck_quote(ctx, line, run, mode, budget=consent.budget_usd)
         if consent.candidate_hash != quote.candidate_hash or consent.estimate_usd < quote.total_usd:
@@ -1186,6 +1267,10 @@ class SkillImprovementService:
             raise PaymentRequiredError(
                 message="The spending limit does not cover this check",
                 details={"estimate_usd": str(quote.total_usd), "budget_usd": str(budget)},
+            )
+        if consent.budget_usd >= run.budget_usd:
+            await set_monetary_terms(
+                self.db, run, terms=requested_terms, fields=frozenset({"budget_usd"})
             )
         previous = await self._check(run)
         assert previous is not None, "a result is the outcome of its check"
@@ -1782,13 +1867,15 @@ class SkillImprovementService:
             details={"moved": moved},
         )
 
-    async def _main_alone_check(self, run: SkillImprovementRun) -> SkillCheck | None:
+    async def _main_alone_check(
+        self, run: SkillImprovementRun, *, lock: bool = False
+    ) -> SkillCheck | None:
         """A catch-up's second check, of main's newest version alone, once it started."""
         iteration = await self._iteration(run)
         if iteration.main_alone_check_id is None:
             return None
         return await skill_check_repo.get(
-            self.db, iteration.main_alone_check_id, organization_id=run.organization_id
+            self.db, iteration.main_alone_check_id, organization_id=run.organization_id, lock=lock
         )
 
     async def _propose(self, ctx: AuthContext, run: SkillImprovementRun, line: SessionLine) -> None:
@@ -1893,6 +1980,18 @@ class SkillImprovementService:
     ) -> SkillCheckStart:
         chosen = await self._chosen(ctx, iteration)
         authoring_hunks.refuse_quoted_credentials(chosen)
+        if not all(shown(hunk) for hunk in chosen):
+            raise refused_field(
+                "hunk_ids",
+                "A chosen change has no text to show, so it is neither checked nor applied; "
+                "leave it out",
+            )
+        if any(holds_refused([h.new_text, h.edited_text, h.new_description]) for h in chosen):
+            raise refused_field(
+                "hunk_ids",
+                "A chosen change holds characters a person cannot see, so it is neither "
+                "checked nor applied; leave it out",
+            )
         text = candidate_text(base or await self.base_of(run), chosen)
         if text is None:
             raise refused_field(
@@ -2069,25 +2168,92 @@ class SkillImprovementService:
                 details={"base_version_id": run.base_version_id, "latest": line.latest},
             )
 
-    async def _check(self, run: SkillImprovementRun) -> SkillCheck | None:
+    async def _measured_questions(
+        self, ctx: AuthContext, line: SessionLine, run: SkillImprovementRun
+    ) -> list[str]:
+        """The questions the next check may grade that the caller may read.
+
+        The next check asks the skill's own test questions, every one held out, and for
+        each agent the line serves now, the held-out questions of a dataset testing it
+        that its starter may read - so every such dataset is read here. A question the
+        caller may not read is left out: refusing a note for one would confirm a guess.
+        """
+        org = run.organization_id
+        test_set = await dataset_repo.for_skill(self.db, run.skill_id, organization_id=org)
+        candidates = [] if test_set is None else [test_set]
+        for reached in await self.skill_agents.line_agents(line.skill, line.fork_id):
+            candidates.extend(
+                item
+                for item in await dataset_repo.testing_agent(
+                    self.db, reached.agent.id, organization_id=org
+                )
+                if item.skill_id is None
+            )
+        readable = await accessible_ids(
+            self.db, ctx, candidates, Perm.DATASETS_VIEW, resource_type=DATASET
+        )
+        sets = [
+            (item.id, item.latest_version, item.skill_id is not None)
+            for item in candidates
+            if item.id in readable
+        ]
+        questions: list[str] = []
+        for dataset_id, number, whole in dict.fromkeys(sets):
+            version = await dataset_repo.get_version(
+                self.db, dataset_id, number, organization_id=org
+            )
+            if version is None:
+                continue
+            questions.extend(
+                case.input
+                for case in await dataset_repo.list_cases(
+                    self.db, version.id, organization_id=org, limit=None
+                )
+                if whole or case.improvement_partition == "holdout"
+            )
+        return questions
+
+    async def _check(self, run: SkillImprovementRun, *, lock: bool = False) -> SkillCheck | None:
         """The current attempt's check, once it started."""
         iteration = await self._iteration(run)
         if iteration.skill_check_id is None:
             return None
         return await skill_check_repo.get(
-            self.db, iteration.skill_check_id, organization_id=run.organization_id
+            self.db, iteration.skill_check_id, organization_id=run.organization_id, lock=lock
         )
 
-    async def _decidable(self, run: SkillImprovementRun) -> UUID:
+    async def _refuse_unreviewed(
+        self,
+        data: SkillImprovementApply | SkillImprovementFork | SkillImprovementReturn,
+        current: SkillCheck,
+    ) -> None:
+        """Refuse a decision on any result but the one the person reviewed, as judged then.
+
+        `current` is held locked: a review that judges its agents again does so under the
+        check's lock, so the result hashed here is the one the decision is made on.
+        """
+        rows = await skill_check_repo.list_agents(
+            self.db, [current.id], organization_id=current.organization_id
+        )
+        if data.check_id != current.id or data.result_hash != result_hash(current, rows):
+            raise ConcurrentChangeError(
+                message=(
+                    "The result waiting to be decided changed since you reviewed it. "
+                    "Refresh the session and review it again."
+                ),
+                details={"check_id": current.id, "reviewed_check_id": data.check_id},
+            )
+
+    async def _decidable(self, run: SkillImprovementRun) -> SkillCheck:
         """The check a person decides on: the result the session waits with."""
         if run.status != Status.READY:
             raise ConcurrentChangeError(
                 message="The session has no result to decide on now",
                 details={"status": run.status},
             )
-        check = await self._check(run)
+        check = await self._check(run, lock=True)
         assert check is not None, "a session waits with a result only after its check"
-        return check.id
+        return check
 
     async def _decide(
         self,
@@ -2240,7 +2406,11 @@ class SkillImprovementService:
             (
                 SkillCheckStart(
                     fork_id=line.fork_id,
-                    candidate=CandidateText(description=merged.description, content=merged.content),
+                    candidate=CandidateText(
+                        description=merged.description,
+                        content=merged.content,
+                        manifest_metadata=merged.manifest_metadata,
+                    ),
                     mode=mode,
                 ),
                 merged.files,
@@ -2249,7 +2419,14 @@ class SkillImprovementService:
         if run.purpose == Purpose.CATCH_UP.value and main_alone:
             main = await self._main_latest(line.skill)
             files = await self._files_of(main)
-            if not _same_skill(merged.description, merged.content, merged.files, main, files):
+            if not _same_skill(
+                merged.description,
+                merged.content,
+                merged.files,
+                main,
+                files,
+                manifest_metadata=merged.manifest_metadata,
+            ):
                 starts.append(
                     (
                         SkillCheckStart(
@@ -2311,7 +2488,12 @@ class SkillImprovementService:
         """A version's files in full, as a check serves them."""
         contents = await self.versions.files_of(version)
         return tuple(
-            SkillBodyFile(name=name, description=entry["description"], content=contents[name])
+            SkillBodyFile(
+                name=name,
+                description=entry["description"],
+                content=contents[name],
+                encoding=entry.get("encoding", "utf8"),
+            )
             for name, entry in sorted(version.resources.items())
         )
 
@@ -2441,6 +2623,7 @@ class SkillImprovementService:
             None if base is None else SkillVersionRef(id=base.id, number=base.number)
         )
         result.agents, result.hidden_agents = visible, hidden
+        result.seed_withheld = (run.seed or {}).get("withheld", 0)
         if people is None:
             people = await self.versions.people(ctx, [run.created_by_user_id])
         result.created_by = _starter(people, run.created_by_user_id)
@@ -2511,7 +2694,12 @@ class SkillImprovementService:
         merged = await self.merges.candidate_of(merge)
         main = await self._main_latest(line.skill)
         if merged is not None and _same_skill(
-            merged.description, merged.content, merged.files, main, await self._files_of(main)
+            merged.description,
+            merged.content,
+            merged.files,
+            main,
+            await self._files_of(main),
+            manifest_metadata=merged.manifest_metadata,
         ):
             return "same"
         return "off"
@@ -2584,8 +2772,11 @@ class SkillImprovementService:
             kind=hunk.kind,
             origin=hunk.origin,
             status=hunk.status,
-            old_text=hunk.old_text,
-            new_text=redact_credentials(hunk.new_text)[0] or hunk.new_text,
+            old_text=(hunk.base_description or "") if description else hunk.old_text,
+            new_text=redact_credentials(
+                (hunk.new_description or "") if description else hunk.new_text
+            )[0]
+            or "",
             edited_text=redact_credentials(hunk.edited_text)[0],
             accepted_text=redact_credentials(hunk.accepted_text)[0],
             context_before=hunk.context_before,

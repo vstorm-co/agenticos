@@ -57,6 +57,7 @@ const pending = vi.hoisted(() => ({
   >[],
   steps: [] as { id: string; title: string; workflow_name: string }[],
   count: 0,
+  decidesAll: true,
   isLoading: false,
   error: null as Error | null,
   refetch: vi.fn(),
@@ -145,6 +146,7 @@ beforeEach(() => {
   pending.tools = [];
   pending.steps = [];
   pending.count = 0;
+  pending.decidesAll = true;
   pending.isLoading = false;
   pending.error = null;
   pending.refetch.mockReset();
@@ -380,10 +382,24 @@ async function chooseFilter(name: string) {
 
 it("changes the desktop filters without opening a duplicate select", async () => {
   render(<InboxPage />);
-  await userEvent.click(screen.getByRole("button", { name: "Urgent" }));
-  expect(screen.getByRole("button", { name: "Urgent" })).toHaveAttribute("aria-pressed", "true");
-  await userEvent.click(screen.getByRole("button", { name: "All" }));
-  expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(screen.getByRole("radio", { name: "Urgent" }));
+  expect(screen.getByRole("radio", { name: "Urgent" })).toHaveAttribute("aria-checked", "true");
+  await userEvent.click(screen.getByRole("radio", { name: "All" }));
+  expect(screen.getByRole("radio", { name: "All" })).toHaveAttribute("aria-checked", "true");
+});
+
+it("moves the animated filter selection with the keyboard and keeps one Tab stop", async () => {
+  render(<InboxPage />);
+  const all = screen.getByRole("radio", { name: "All" });
+  all.focus();
+  await userEvent.keyboard("{ArrowRight}");
+  const urgent = screen.getByRole("radio", { name: "Urgent" });
+  expect(urgent).toHaveFocus();
+  expect(urgent).toHaveAttribute("aria-checked", "true");
+  expect(all).toHaveAttribute("tabindex", "-1");
+  await userEvent.keyboard("{ArrowLeft}");
+  expect(all).toHaveFocus();
+  expect(all).toHaveAttribute("aria-checked", "true");
 });
 
 describe("approvals waiting on the reader", () => {
@@ -443,6 +459,20 @@ describe("approvals waiting on the reader", () => {
     const section = screen.getByRole("region", { name: "Approval requests" });
     expect(section).toHaveTextContent("Delivery exceptions");
     expect(section).not.toHaveTextContent("Private run content");
+  });
+
+  it("lets a person who decides nothing else answer their own call where it waits", async () => {
+    pending.decidesAll = false;
+    pending.steps = [];
+    pending.count = 1;
+    render(<InboxPage />);
+
+    const section = screen.getByRole("region", { name: "Approval requests" });
+    expect(screen.queryByRole("link", { name: "Open approvals" })).toBeNull();
+    const [own] = section.querySelectorAll("li");
+    expect(within(own as HTMLElement).queryByRole("button", { name: "Open the run" })).toBeNull();
+    await userEvent.click(within(own as HTMLElement).getByRole("button", { name: "Reject" }));
+    expect(decideTool).toHaveBeenCalledWith({ id: "t1", approved: false });
   });
 
   it("decides requests through the same actions as the approvals queue", async () => {

@@ -35,6 +35,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+from pydantic import JsonValue, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.skills import SkillBody, SkillBodyFile
@@ -50,6 +51,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.core.skill_files import ResourceEncoding
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.dataset import Dataset
@@ -137,7 +139,12 @@ STALE_AFTER = timedelta(hours=24)
 TEST_SET_FROM_EVIDENCE = 12
 """How many recent answers a skill's first test questions are made from."""
 
-_SETTLED_RUNS = (EvalRunStatus.COMPLETED, EvalRunStatus.CANCELLED, EvalRunStatus.FAILED)
+_SETTLED_RUNS = (
+    EvalRunStatus.COMPLETED,
+    EvalRunStatus.CANCELLED,
+    EvalRunStatus.FAILED,
+    EvalRunStatus.BUDGET_EXCEEDED,
+)
 _AWAITING_LIMIT = 20
 """How many open checks "Waiting for you" lists; it shows the newest few."""
 
@@ -152,6 +159,7 @@ class Candidate:
     replaces: bool = False
     """`resources` is the whole set of files, so the line's others are dropped."""
     described: bool = False
+    manifest_metadata: dict[str, JsonValue] | None = None
     """`resources` carry their own descriptions, as a merge's files do; otherwise a
     replaced file keeps the line's."""
 
@@ -160,18 +168,29 @@ class Candidate:
             description=self.description,
             content=self.content,
             resources=self.resources,
+            manifest_metadata=self.manifest_metadata,
             fork_id=fork_id,
             over_pin=over_pin,
         )
 
     def digest(self) -> str:
-        document = {
+        document: dict[str, JsonValue] = {
             "description": self.description,
             "content": self.content,
             "resources": None
             if self.resources is None
-            else [[item.name, item.description, item.content] for item in self.resources],
+            else [
+                [
+                    item.name,
+                    item.description,
+                    item.content,
+                    *([item.encoding] if item.encoding != "utf8" else []),
+                ]
+                for item in self.resources
+            ],
         }
+        if self.manifest_metadata:
+            document["manifest_metadata"] = self.manifest_metadata
         return hashlib.sha256(
             json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
@@ -213,9 +232,10 @@ class Plan:
     agents: list[Planned]
     org_remaining: Decimal | None
     proposal: SkillProposal | None
+    candidate_hash: str
+    served: tuple[SkillBodyFile, ...]
     excluded: tuple[UUID, ...] = ()
     skill_set_case_ids: list[UUID] | None = None
-    served: tuple[SkillBodyFile, ...] | None = None
     agent_id: UUID | None = None
     candidate_version_id: UUID | None = None
 
@@ -293,35 +313,47 @@ class SkillCheckService:
             raise BadRequestError(
                 message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
             )
+        from app.services.skill_proposal import PROPOSAL_HIDES_TEXT, proposal_hides_text
+
+        if proposal_hides_text(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_HIDES_TEXT,
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
+            )
         return _proposal_candidate(proposal), proposal, proposal.fork_id
 
-    async def _served(
-        self, candidate: Candidate, base: SkillVersion
-    ) -> tuple[SkillBodyFile, ...] | None:
+    async def _served(self, candidate: Candidate, base: SkillVersion) -> tuple[SkillBodyFile, ...]:
         """The files a candidate is served with: the line's, with its own replacing or added.
 
         The same files applying it writes, so the check measures what would ship.
         """
-        if candidate.resources is None:
-            return None
         files = {
-            name: SkillBodyFile(name=name, description=entry["description"], content="")
+            name: SkillBodyFile(
+                name=name,
+                description=entry["description"],
+                content="",
+                encoding=entry.get("encoding", "utf8"),
+            )
             for name, entry in base.resources.items()
         }
         for name, content in (await self.versions.files_of(base)).items():
             files[name] = SkillBodyFile(
-                name=name, description=files[name].description, content=content
+                name=name,
+                description=files[name].description,
+                content=content,
+                encoding=files[name].encoding,
             )
         # A replaced file keeps its description, on main (`put_resources`) and on a fork
         # (`_apply_to_fork`) alike; only a merge's files bring their own.
-        for item in candidate.resources:
+        for item in candidate.resources or ():
             kept = files[item.name].description if item.name in files else None
             files[item.name] = SkillBodyFile(
                 name=item.name,
                 description=item.description if candidate.described else kept,
                 content=item.content,
+                encoding=item.encoding,
             )
-        names = {item.name for item in candidate.resources} if candidate.replaces else files
+        names = {item.name for item in candidate.resources or ()} if candidate.replaces else files
         return tuple(files[name] for name in sorted(names))
 
     async def _held_out(
@@ -378,8 +410,11 @@ class SkillCheckService:
         proposal: SkillProposal | None = None
         fork: SkillFork | None = None
         target: SkillVersion | None = None
+        proposal_hash: str | None = None
         if pinned is None:
             candidate, proposal, fork_id = await self._candidate(ctx, skill, data)
+            if proposal is not None:
+                proposal_hash = _proposal_digest(proposal)
             if files is not None:
                 candidate = replace(candidate, resources=files, replaces=True, described=True)
             fork, base = await self._line(ctx, skill, fork_id)
@@ -408,7 +443,9 @@ class SkillCheckService:
         else:
             user, base, target = await self._pinned(ctx, skill, pinned)
             candidate = await self._version_candidate(target)
-            users, served = [user], candidate.resources
+            users, served = [user], candidate.resources or ()
+        if candidate.manifest_metadata is None:
+            candidate = replace(candidate, manifest_metadata=base.manifest_metadata or {})
         changed = candidate.description != base.description
         mode = CheckMode.THOROUGH if changed else data.mode
         runnable = await accessible_ids(
@@ -418,11 +455,25 @@ class SkillCheckService:
         size = rules.sample_size(
             await self._held_out(ctx, test_set, holdout or {}), minimum=MIN_HOLDOUT_CASES
         )
-        before = {} if served is None else await self.versions.files_of(base)
+        before = await self.versions.files_of(base)
         changed_words = rules.changed_words(
-            "\n".join([base.description, base.content, *before.values()]),
             "\n".join(
-                [candidate.description, candidate.content, *(item.content for item in served or ())]
+                [
+                    base.description,
+                    base.content,
+                    *(
+                        text
+                        for name, text in before.items()
+                        if base.resources[name].get("encoding", "utf8") == "utf8"
+                    ),
+                ]
+            ),
+            "\n".join(
+                [
+                    candidate.description,
+                    candidate.content,
+                    *(item.content for item in served or () if item.encoding == "utf8"),
+                ]
             ),
         )
         body = {
@@ -430,6 +481,7 @@ class SkillCheckService:
                 description=candidate.description,
                 content=candidate.content,
                 resources=served,
+                manifest_metadata=candidate.manifest_metadata,
                 fork_id=None if fork is None else fork.id,
                 over_pin=pinned is not None,
             )
@@ -523,6 +575,7 @@ class SkillCheckService:
             agents=planned,
             org_remaining=org_remaining,
             proposal=proposal,
+            candidate_hash=proposal_hash if proposal_hash is not None else candidate.digest(),
             excluded=tuple(exclude_conversations),
             skill_set_case_ids=_kept(test_set, holdout or {}),
             served=served,
@@ -589,9 +642,11 @@ class SkillCheckService:
                     name=name,
                     description=version.resources[name]["description"],
                     content=bodies[name],
+                    encoding=version.resources[name].get("encoding", "utf8"),
                 )
                 for name in sorted(bodies)
             ),
+            manifest_metadata=version.manifest_metadata or {},
         )
 
     async def _stages(
@@ -793,22 +848,17 @@ class SkillCheckService:
             ConcurrentChangeError: The check would now cost more than `quoted_usd`,
                 or check another version than `base_version_id`.
         """
-        if data.quoted_usd is not None or data.base_version_id is not None:
-            quote = await self.estimate_update(ctx, skill_id, agent_id, data)
-            if (
-                data.base_version_id is not None and quote.base_version.id != data.base_version_id
-            ) or (data.quoted_usd is not None and quote.at_most_usd > data.quoted_usd):
-                raise ConcurrentChangeError(
-                    message="This check now costs more or checks another version than was "
-                    "quoted; estimate it again",
-                    details={
-                        "at_most_usd": str(quote.at_most_usd),
-                        "base_version_id": quote.base_version.id,
-                    },
-                )
-        return await self.start(
-            ctx, skill_id, _update_start(data), source=CheckSource.CATCH_UP, pinned=agent_id
-        )
+        plan = await self._plan(ctx, skill_id, _update_start(data), pinned=agent_id)
+        _, at_most = _priced(plan.agents)
+        if (data.base_version_id is not None and plan.base.id != data.base_version_id) or (
+            data.quoted_usd is not None and at_most > data.quoted_usd
+        ):
+            raise ConcurrentChangeError(
+                message="This check now costs more or checks another version than was "
+                "quoted; estimate it again",
+                details={"at_most_usd": str(at_most), "base_version_id": plan.base.id},
+            )
+        return await self._start(ctx, skill_id, plan, source=CheckSource.CATCH_UP, narrowed=False)
 
     async def start(
         self,
@@ -846,6 +896,21 @@ class SkillCheckService:
             pinned=pinned,
             files=files,
         )
+        return await self._start(
+            ctx, skill_id, plan, source=source, narrowed=only is not None or bool(holdout)
+        )
+
+    async def _start(
+        self,
+        ctx: AuthContext,
+        skill_id: UUID,
+        plan: Plan,
+        *,
+        source: CheckSource | None,
+        narrowed: bool,
+    ) -> SkillCheckRead:
+        """Write the check `plan` describes and start it; `narrowed` when it checks part
+        of what a whole check would."""
         expected, at_most = _priced(plan.agents)
         if plan.org_remaining is not None and at_most > plan.org_remaining:
             raise BadRequestError(
@@ -861,8 +926,7 @@ class SkillCheckService:
         )
         if (
             source in (CheckSource.MANUAL, CheckSource.CATCH_UP)
-            and only is None
-            and not holdout
+            and not narrowed
             and not plan.excluded
         ):
             await hold_subject(self.db, LockScope.SKILL_CHECK_STARTS_PER_SKILL, plan.skill.id)
@@ -873,22 +937,28 @@ class SkillCheckService:
                 fork_id=None if plan.fork is None else plan.fork.id,
                 agent_id=plan.agent_id,
                 base_version_id=plan.base.id,
-                candidate_hash=plan.candidate.digest(),
+                candidate_hash=plan.candidate_hash,
                 mode=plan.mode.value,
                 source=source.value,
             )
             if running is not None:
                 return await self.read(ctx, skill_id, running.id)
         if plan.proposal is not None:
-            await skill_proposal_repo.lock(
+            locked = await skill_proposal_repo.lock(
                 self.db, plan.proposal.id, organization_id=ctx.organization_id
             )
+            if locked is None or locked.status != ProposalStatus.PENDING.value:
+                raise NotFoundError(message="No change to this skill is waiting")
+            if _proposal_digest(locked) != plan.candidate_hash:
+                raise ConcurrentChangeError(
+                    message="The proposal changed while its check was being planned. Check the current proposal again."
+                )
             for open_check in await skill_check_repo.open_for_proposal(
                 self.db, plan.proposal.id, organization_id=ctx.organization_id
             ):
                 # A finished check the line has moved past can no longer be decided, so
                 # it does not stand in the way of checking the change again.
-                if open_check.candidate_hash == plan.candidate.digest() and (
+                if open_check.candidate_hash == plan.candidate_hash and (
                     open_check.status == CheckStatus.RUNNING.value
                     or await self._drift(ctx, plan.skill, open_check) is None
                 ):
@@ -908,7 +978,8 @@ class SkillCheckService:
                 candidate_description=plan.candidate.description,
                 candidate_content=plan.candidate.content,
                 candidate_resources=_resources_json(plan.served),
-                candidate_hash=plan.candidate.digest(),
+                candidate_manifest_metadata=plan.candidate.manifest_metadata,
+                candidate_hash=plan.candidate_hash,
                 description_changed=plan.description_changed,
                 mode=plan.mode.value,
                 source=source.value,
@@ -953,22 +1024,51 @@ class SkillCheckService:
         await self._settle(check, no_readers=not rows)
         return await self.read(ctx, skill_id, check.id)
 
+    async def _stage_body(self, check: SkillCheck) -> SkillBody:
+        """Freeze legacy missing file snapshots against their immutable recorded base.
+
+        Candidate hashes identify the submitted change, not this served-file snapshot;
+        resuming an older check must not rewrite its fingerprint or use newer live files.
+        """
+        candidate = _candidate_of(check)
+        if candidate.resources is None:
+            base = await skill_version_repo.get_version(
+                self.db,
+                check.base_version_id,
+                organization_id=check.organization_id,
+                skill_id=check.skill_id,
+            )
+            if base is None:
+                raise NotFoundError(message="The skill check's immutable base is unavailable")
+            candidate = replace(candidate, resources=await self._served(candidate, base))
+        return candidate.body(check.fork_id, over_pin=check.agent_id is not None)
+
     async def _run_stage(
         self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent, stage: Stage
     ) -> None:
-        """Start one stage of one agent; an agent whose run cannot start is unknown."""
+        """Start one stage of one agent; an agent whose run cannot start is unknown.
+
+        The stage's run is held to what is left of the agent's accepted most once
+        its earlier stage's run is paid for.
+        """
         assert row.agent_version is not None, "only a published agent is run"
+        spent = (
+            Decimal(0)
+            if row.skill_set_run_id is None
+            else (
+                await eval_run_repo.spending(
+                    self.db, row.skill_set_run_id, organization_id=ctx.organization_id
+                )
+            ).spent_usd
+        )
         try:
+            body = await self._stage_body(check)
             run = await self.evals.start(
                 ctx,
                 row.agent_id,
                 _request(stage, row.agent_version),
                 purpose=EvalRunPurpose.GATE,
-                candidate_skills={
-                    check.skill_id: _candidate_of(check).body(
-                        check.fork_id, over_pin=check.agent_id is not None
-                    )
-                },
+                candidate_skills={check.skill_id: body},
                 exclude_conversations=check.excluded_conversation_ids,
                 proposal_check=ProposalCheckRecord(
                     kind="skill",
@@ -976,6 +1076,7 @@ class SkillCheckService:
                     suggestions=1,
                     skill_check_id=check.id,
                 ),
+                hold_usd=max(row.at_most_usd - spent, Decimal(0)),
             )
         except AppException as refused:
             logger.info(
@@ -1573,11 +1674,14 @@ class SkillCheckService:
                 SkillCheckRead(
                     id=check.id,
                     skill_id=check.skill_id,
+                    result_hash=result_hash(check, mine),
                     source=CheckSource(check.source),
                     agent_id=check.agent_id if check.agent_id in shown_agents else None,
                     candidate_version_id=check.candidate_version_id,
                     candidate=CandidateText(
-                        description=check.candidate_description, content=check.candidate_content
+                        description=check.candidate_description,
+                        content=check.candidate_content,
+                        manifest_metadata=check.candidate_manifest_metadata,
                     ),
                     status=status,
                     verdict=verdict,
@@ -2120,6 +2224,7 @@ class SkillCheckService:
                     base_version_id=check.base_version_id,
                     description=check.candidate_description,
                     content=check.candidate_content,
+                    manifest_metadata=check.candidate_manifest_metadata,
                 ),
             )
             version = await skill_version_repo.get_version(
@@ -2150,6 +2255,7 @@ class SkillCheckService:
             description=candidate.description,
             content=candidate.content,
             files=candidate.resources,
+            manifest_metadata=candidate.manifest_metadata,
             merged_from_id=merged_from_id,
         )
 
@@ -2302,6 +2408,7 @@ class SkillCheckService:
             fork,
             description=check.candidate_description,
             content=check.candidate_content,
+            manifest_metadata=check.candidate_manifest_metadata,
             resources=resources,
             source=version_source(proposal) if proposal is not None else _source_of(check),
             proposal_id=check.proposal_id,
@@ -2559,6 +2666,34 @@ _NAME_TRIES = 10
 _HELPED = frozenset({AgentState.BETTER.value, AgentState.CRITERIA_BETTER.value})
 
 
+def result_hash(check: SkillCheck, rows: Sequence[SkillCheckAgent]) -> str:
+    """A fingerprint of a check's verdict and every agent's judged result, whoever reads it.
+
+    A person's review of a case judges the check's agents again in place, keeping
+    the check's id, so the id alone does not say what was measured.
+    """
+    agents = [
+        {
+            "agent_id": row.agent_id,
+            "state": row.state,
+            "unknown_reason": row.unknown_reason,
+            "fixed": row.fixed,
+            "broken": row.broken,
+            "held_out": row.held_out,
+            "fixed_confirmed": row.fixed_confirmed,
+            "regressions_confirmed": row.regressions_confirmed,
+            "noisy": row.noisy,
+            "stages": row.stages,
+            "criteria": row.criteria,
+            "families": row.families,
+        }
+        for row in sorted(rows, key=lambda row: str(row.agent_id))
+    ]
+    measured = {"verdict": check.verdict, "agents": agents}
+    canonical = json.dumps(measured, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
 def _chosen_for_fork(
     rows: Sequence[SkillCheckAgent], agent_ids: Sequence[UUID] | None
 ) -> list[SkillCheckAgent]:
@@ -2701,7 +2836,7 @@ def _refuse_update(check: SkillCheck) -> None:
 
 
 def _from_text(text: CandidateText) -> Candidate:
-    return Candidate(text.description, text.content)
+    return Candidate(text.description, text.content, manifest_metadata=text.manifest_metadata)
 
 
 def _candidate_of(check: SkillCheck) -> Candidate:
@@ -2712,19 +2847,32 @@ def _candidate_of(check: SkillCheck) -> Candidate:
         None
         if files is None
         else tuple(
-            SkillBodyFile(name=name, description=item.get("description"), content=item["content"])
+            SkillBodyFile(
+                name=name,
+                description=item.get("description"),
+                content=item["content"],
+                encoding=TypeAdapter(ResourceEncoding).validate_python(
+                    item.get("encoding", "utf8")
+                ),
+            )
             for name, item in sorted(files.items())
         ),
+        # Checks created before frontmatter snapshots existed had no metadata.
+        # Bind that empty snapshot explicitly rather than inherit a newer live skill.
+        manifest_metadata=check.candidate_manifest_metadata or {},
     )
 
 
 def _resources_json(
-    served: tuple[SkillBodyFile, ...] | None,
-) -> dict[str, dict[str, str | None]] | None:
-    if served is None:
-        return None
+    served: tuple[SkillBodyFile, ...],
+) -> dict[str, dict[str, str | None]]:
     return {
-        item.name: {"description": item.description, "content": item.content} for item in served
+        item.name: {
+            "description": item.description,
+            "content": item.content,
+            **({"encoding": item.encoding} if item.encoding != "utf8" else {}),
+        }
+        for item in served
     }
 
 

@@ -3162,6 +3162,19 @@ class TestToolOverrideValidation:
 
         assert any(f"to {name}, the name of the tool" in problem for problem in problems)
 
+    @pytest.mark.security
+    def test_a_rename_onto_the_platform_s_prefix_is_refused(self):
+        """That prefix marks the platform's own tools wherever who may approve a call
+        is decided, so a capability's tool may not wear it."""
+        binding = CapabilityBindingSpec(
+            id="charts", tool_overrides={"create_chart": {"name": "agenticos_create_chart"}}
+        )
+
+        assert _tool_override_problems(binding, get_capability("charts")) == [
+            "Capability 'charts' renames a tool to agenticos_create_chart: names starting "
+            "with agenticos_ belong to this platform's own tools"
+        ]
+
     def test_a_media_tool_keeping_its_own_name_is_no_rename(self):
         binding = CapabilityBindingSpec(
             id="image_generation",
@@ -5083,7 +5096,9 @@ class TestACapabilityAgentsMayNotBind:
     @pytest.mark.anyio
     async def test_saving_a_draft_drops_it(self):
         service = AgentRegistryService(_db())
-        service.get = AsyncMock(return_value=MagicMock(kind="agent"))
+        service.get = AsyncMock(
+            return_value=MagicMock(kind="agent", draft_spec=_spec().model_dump(mode="json"))
+        )
         spec = _spec(capabilities=[{"id": "clock"}, {"id": "channel_tools"}])
 
         with patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as stored:
@@ -5097,7 +5112,9 @@ class TestACapabilityAgentsMayNotBind:
         """Which is the whole point of doing it on write. A migration cleared
         these once and the next save put one straight back."""
         service = AgentRegistryService(_db())
-        service.get = AsyncMock(return_value=MagicMock(kind="agent"))
+        service.get = AsyncMock(
+            return_value=MagicMock(kind="agent", draft_spec=_spec().model_dump(mode="json"))
+        )
 
         with patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as stored:
             await service.save_draft(
@@ -5110,7 +5127,9 @@ class TestACapabilityAgentsMayNotBind:
     async def test_a_spec_that_names_none_is_stored_unchanged(self):
         """No copy, no log line, nothing to explain - which is every save."""
         service = AgentRegistryService(_db())
-        service.get = AsyncMock(return_value=MagicMock(kind="agent"))
+        service.get = AsyncMock(
+            return_value=MagicMock(kind="agent", draft_spec=_spec().model_dump(mode="json"))
+        )
         spec = _spec(capabilities=[{"id": "clock"}])
 
         with patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as stored:
@@ -5138,7 +5157,9 @@ class TestACapabilityAgentsMayNotBind:
         """A draft naming an unknown id has to stay saveable - half-finished
         configuration is the whole reason `save_draft` does not validate."""
         service = AgentRegistryService(_db())
-        service.get = AsyncMock(return_value=MagicMock(kind="agent"))
+        service.get = AsyncMock(
+            return_value=MagicMock(kind="agent", draft_spec=_spec().model_dump(mode="json"))
+        )
 
         with patch(f"{REGISTRY_PATH}.agent_repo.update", new=AsyncMock()) as stored:
             await service.save_draft(

@@ -44,7 +44,8 @@ from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.api_key import ApiKey
-from app.db.models.authoring import AuthoringRequest, SpecProposalBatch
+from app.db.models.audit_log import AppAdminAuditLog
+from app.db.models.authoring import AuthoringRequest, SpecProposalBatch, SpecProposalHunk
 from app.db.models.case_score import CaseScore
 from app.db.models.conversation import Conversation, Message
 from app.db.models.dataset import Dataset, DatasetCase
@@ -322,10 +323,13 @@ class QuotingImprover(Improver):
 
     def _answer(self, prompt: str) -> dict[str, Any]:
         answer = super()._answer(prompt)
-        said = re.search(r"^Reader comment: (.+)$", prompt, flags=re.MULTILINE)
-        if said and "instructions" in answer:
+        _, marker, comment = prompt.partition("Reader comment:\n")
+        if marker and "instructions" in answer:
+            bar, _, fenced = comment.partition("\n")
+            said, closing, _ = fenced.partition(f"\n{bar}\n")
+            assert closing, "The evidence comment must have a complete Markdown fence"
             run_id = _RUN.findall(prompt)[0]
-            answer["instructions"][0]["evidence"] = [{"run_id": run_id, "quote": said.group(1)}]
+            answer["instructions"][0]["evidence"] = [{"run_id": run_id, "quote": said}]
         return answer
 
 
@@ -358,7 +362,14 @@ def _environment():
             ModelProfileService,
             "resolve",
             new=AsyncMock(
-                return_value=SimpleNamespace(label="gpt-test", model="gpt-test", provider="openai")
+                return_value=SimpleNamespace(
+                    label="gpt-test",
+                    model="gpt-test",
+                    provider="openai",
+                    credential=SimpleNamespace(
+                        custom_pricing=None, exchange_rates={"USD": Decimal(1)}
+                    ),
+                )
             ),
         ),
         patch.object(AgentRegistryService, "validate_spec", new=AsyncMock()),
@@ -770,6 +781,50 @@ class TestImprove:
         old = await db.get(SpecProposalBatch, first.id)
         assert old is not None and old.status == "superseded"
 
+    async def test_a_change_dismissed_two_requests_ago_is_not_proposed_again(self, db):
+        ctx, agent, _ = await _setup(db)
+        service = AuthoringService(db)
+        await _improve(db, ctx, agent, Improver(db))
+        first = (await service.for_agent(ctx, agent.id)).batch
+        assert first is not None
+        [instructions] = [hunk for hunk in first.hunks if hunk.kind == "instructions"]
+        await service.decide(ctx, agent.id, instructions.id, HunkDecision(action="dismiss"))
+        await _improve(db, ctx, agent, Improver(db))
+
+        third = await _improve(db, ctx, agent, Improver(db))
+
+        latest = (await service.for_agent(ctx, agent.id)).batch
+        assert latest is not None
+        assert [hunk.kind for hunk in latest.hunks] == ["tool_override"]
+        assert third.report is not None
+        assert [
+            item["reason"] for item in third.report["rejected"] if item["kind"] == "instructions"
+        ] == ["dismissed_before"]
+
+    async def test_a_dismissal_from_before_the_last_publish_is_not_held_against_a_change(self, db):
+        ctx, agent, _ = await _setup(db)
+        service = AuthoringService(db)
+        await _improve(db, ctx, agent, Improver(db))
+        first = (await service.for_agent(ctx, agent.id)).batch
+        assert first is not None
+        [instructions] = [hunk for hunk in first.hunks if hunk.kind == "instructions"]
+        await service.decide(ctx, agent.id, instructions.id, HunkDecision(action="dismiss"))
+        # One transaction stamps the publish with its own start, so what came before is
+        # moved back past it.
+        row = await db.get(SpecProposalBatch, first.id)
+        dismissed = await db.get(SpecProposalHunk, instructions.id)
+        assert row is not None and dismissed is not None
+        row.created_at = dismissed.decided_at = datetime.now(UTC) - timedelta(minutes=5)
+        await AgentRegistryService(db).publish(ctx, agent.id)
+
+        request = await _improve(db, ctx, agent, Improver(db))
+
+        latest = (await service.for_agent(ctx, agent.id)).batch
+        assert latest is not None and latest.id != first.id
+        assert "instructions" in [hunk.kind for hunk in latest.hunks]
+        assert request.report is not None
+        assert "dismissed_before" not in request.report["dropped"]
+
     async def test_an_older_request_finishing_late_replaces_nothing(self, db):
         ctx, agent, _ = await _setup(db)
         service = AuthoringService(db)
@@ -840,6 +895,25 @@ class TestVerify:
 
         read = await AuthoringService(db).for_agent(ctx, agent.id)
         assert read.batch is not None and [h.origin for h in read.batch.hunks] == ["verify"]
+
+    async def test_verify_does_not_add_back_a_change_dismissed_before(self, db):
+        ctx, agent, _ = await _setup(db)
+        agent.draft_spec = {**agent.draft_spec, "instructions": "You answer refund questions."}
+        await db.flush()
+        service = AuthoringService(db)
+        await _improve(db, ctx, agent, Improver(db), kind="verify")
+        batch = (await service.for_agent(ctx, agent.id)).batch
+        assert batch is not None
+        [added] = batch.hunks
+        await service.decide(ctx, agent.id, added.id, HunkDecision(action="dismiss"))
+
+        again = await _improve(db, ctx, agent, Improver(db), kind="verify")
+
+        read = (await service.for_agent(ctx, agent.id)).batch
+        assert read is not None and read.id == batch.id
+        assert [hunk.status for hunk in read.hunks] == ["dismissed"]
+        assert again.report is not None
+        assert [item["reason"] for item in again.report["rejected"]] == ["dismissed_before"]
 
     async def test_verify_with_nothing_to_change_adds_no_batch(self, db):
         ctx, agent, _ = await _setup(db)
@@ -1233,6 +1307,67 @@ class TestSkills:
         with pytest.raises(BadRequestError, match="no draft to verify"):
             await service.estimate_skill(ctx, skill.id, AuthoringStart(kind="verify"))
 
+    @pytest.mark.security
+    async def test_a_skill_body_with_characters_nobody_can_see_is_never_recorded_or_applied(
+        self, db
+    ):
+        """A bidi override in the new body reorders what a reviewer reads: the proposal is
+        not recorded, and a row that carries one anyway is refused at Apply."""
+        from app.schemas.resource_usage import ProposalDecision
+        from app.services.skill_proposal import SkillProposalService
+
+        class Hiding(Improver):
+            def _answer(self, prompt: str) -> dict[str, Any]:
+                answer = super()._answer(prompt)
+                if prompt.startswith("Propose an improved body for the skill"):
+                    return {**answer, "content": "Refunds take 30\u202e days."}
+                return answer
+
+        ctx, _agent, run = await _setup(db)
+        skill = Skill(
+            organization_id=ctx.organization_id,
+            owner_user_id=ctx.user_id,
+            visibility="org",
+            name="refunds",
+            description="Refunds",
+            content="Refunds take 90 days.",
+            version=3,
+        )
+        db.add(skill)
+        await db.flush()
+        await skill_usage_repo.record_uses(
+            db,
+            [SkillUseRecord(agent_id=run.agent_id, skill_id=skill.id, loaded=True)],
+            organization_id=ctx.organization_id,
+            run_id=run.id,
+            started_at=datetime.now(UTC),
+        )
+        service = AuthoringService(db)
+        proposals = select(SkillProposal).where(SkillProposal.skill_id == skill.id)
+
+        started = await service.start_skill(ctx, skill.id, AuthoringStart())
+        with _answering(Hiding(db)):
+            await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
+
+        request = await db.get(AuthoringRequest, started.id)
+        assert request is not None and "cannot be seen" in (request.error or "")
+        assert request.error_code == "hidden_characters"
+        assert (await db.execute(proposals)).scalars().all() == []
+        started = await service.start_skill(ctx, skill.id, AuthoringStart())
+        with _answering(Improver(db)):
+            await AuthoringWorker(started.id, ctx.organization_id, sessions=_sessions(db)).run()
+        (proposal,) = (await db.execute(proposals)).scalars().all()
+        proposal.content = "Refunds take 30 days.\U000e0041"
+        await db.flush()
+
+        with pytest.raises(BadRequestError, match="cannot see"):
+            await SkillProposalService(db).apply(
+                ctx, proposal.id, ProposalDecision(revision=proposal.revision)
+            )
+
+        await db.refresh(skill)
+        assert skill.content == "Refunds take 90 days."
+
 
 class TestRefusals:
     @pytest.mark.security
@@ -1430,6 +1565,26 @@ class TestWorker:
 
 
 class TestEdges:
+    @pytest.mark.security
+    async def test_a_check_refuses_a_stored_suggestion_with_characters_nobody_can_see(self, db):
+        """A row stored before the rule, or written by hand, is refused before any model
+        reads it, not only at Accept."""
+        ctx, agent, _ = await _setup(db)
+        await _improve(db, ctx, agent, Improver(db))
+        batch = (await AuthoringService(db).for_agent(ctx, agent.id)).batch
+        assert batch is not None
+        stored = await db.get(SpecProposalHunk, batch.hunks[0].id)
+        assert stored is not None
+        stored.new_text = f"{stored.new_text}\u202e"
+        await db.flush()
+
+        with pytest.raises(BadRequestError) as refused:
+            await AuthoringService(db).estimate_check(
+                ctx, agent.id, ProposalCheck(dataset_id=uuid.uuid4())
+            )
+
+        assert refused.value.details == {"hunk_id": stored.id, "reason": "hidden_characters"}
+
     async def test_an_archived_agent_is_not_improved(self, db):
         ctx, agent, _ = await _setup(db)
         agent.status = "archived"
@@ -1515,6 +1670,44 @@ class TestEdges:
 
         assert read.batch is not None
         assert [hunk.status for hunk in read.batch.hunks] == ["accepted", "dismissed"]
+        dismissed = read.batch.hunks[1]
+        entries = list(
+            await db.scalars(
+                select(AppAdminAuditLog).where(
+                    AppAdminAuditLog.action == "authoring.suggestion_dismiss"
+                )
+            )
+        )
+        assert [(entry.target_id, (entry.details or {}).get("hunk_id")) for entry in entries] == [
+            (str(agent.id), str(dismissed.id))
+        ]
+
+    async def test_dismissing_all_audits_only_what_it_dismissed(self, db):
+        """A suggestion decided elsewhere after the list was read stays as it is, unaudited."""
+        ctx, agent, _ = await _setup(db)
+        service = AuthoringService(db)
+        await _improve(db, ctx, agent, Improver(db))
+        batch = (await service.for_agent(ctx, agent.id)).batch
+        assert batch is not None
+        first, second = batch.hunks
+        decide = authoring_repo.decide_hunk
+
+        async def taken_first(db, *, hunk_id, **values):
+            if hunk_id == second.id:
+                return None
+            return await decide(db, hunk_id=hunk_id, **values)
+
+        with patch("app.services.authoring.authoring_repo.decide_hunk", new=taken_first):
+            await service.dismiss_all(ctx, agent.id)
+
+        entries = list(
+            await db.scalars(
+                select(AppAdminAuditLog).where(
+                    AppAdminAuditLog.action == "authoring.suggestion_dismiss"
+                )
+            )
+        )
+        assert [(entry.details or {}).get("hunk_id") for entry in entries] == [str(first.id)]
 
     async def test_changes_that_cannot_land_are_not_proposed(self, db):
         ctx, agent, _ = await _setup(db)
@@ -1774,6 +1967,27 @@ class TestSkillCheck:
             DatasetCaseCreate(input="Q", checks=[{"type": "contains", "value": "30 days"}]),
         )
         return AuthoringContext(ctx=ctx, agent=agent, dataset_id=dataset.id), skill, proposal
+
+    @pytest.mark.security
+    async def test_a_skill_change_holding_hidden_text_is_never_checked(self, db):
+        """No eval run starts, so no model reads a body a reviewer could not read whole."""
+        setup, skill, proposal = await self._proposal(db)
+        proposal.description = "Refunds\u202e, revised"
+        await db.flush()
+        service = AuthoringService(db)
+        body = ProposalCheck(
+            dataset_id=setup.dataset_id, agent_id=setup.agent.id, proposal_id=proposal.id
+        )
+
+        for start in (service.estimate_skill_check, service.check_skill):
+            with pytest.raises(BadRequestError, match="cannot see") as refused:
+                await start(setup.ctx, skill.id, body)
+            assert refused.value.details == {
+                "proposal_id": proposal.id,
+                "reason": "hidden_characters",
+            }
+
+        assert await db.scalar(select(func.count()).select_from(EvalRun)) == 0
 
     async def test_a_skill_change_is_checked_on_an_agent_that_uses_it(self, db):
         setup, skill, proposal = await self._proposal(db)

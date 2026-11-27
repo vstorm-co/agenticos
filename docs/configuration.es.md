@@ -1,5 +1,5 @@
 ---
-source_sha: "3b896741cc56"
+source_sha: "57382ae4b40b"
 ---
 
 # Configuración { #configuration }
@@ -94,7 +94,9 @@ La configuración rechaza un `VAULT_MASTER_KEY` sin fijar fuera de
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Tope por archivo del texto parseado que se pega en un prompt sin workspace |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Tope agregado del texto de adjuntos en un turno |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | El techo de gasto mensual con el que arranca una organización **nueva**, en USD, para que no esté a un agent desbocado de una factura sorpresa. Se aplica solo en la creación; las organizaciones existentes no se tocan y a cualquier organización se le puede quitar el tope después. Tiene que ser positivo; déjalo **vacío** para que las organizaciones empiecen sin tope (la postura anterior, de adhesión voluntaria) |
-| `STAV_NOK_PER_USD` | vacío | NOK por USD mantenidas por el operador para los costes facturados por Stav. Finito y positivo; por ejemplo, `10` divide NOK entre 10 (ejemplo, no tipo actual). USD no requiere ajuste. No se consulta ningún tipo; sin conversión se usa el catálogo y los modelos desconocidos siguen con coste parcial |
+| `STAV_NOK_PER_USD` | vacío | NOK por USD mantenidas por el operador para los costes facturados por Stav. Finito y positivo; por ejemplo, `10` divide NOK entre 10 (ejemplo, no tipo actual). Los importes en USD y los importes de cero no requieren un tipo de cambio. Una factura válida distinta de cero sin tipo utilizable conserva su importe y moneda, queda sin precio y bloquea nuevas solicitudes con límite; no se sustituye por el catálogo |
+| `DEFAULT_ORG_CURRENCY` | `USD` | Moneda predeterminada de la organización sin ajuste de despliegue. USD si no se configura; debe tener un tipo de cambio. No cambia las unidades de precios ni límites USD existentes. |
+| `CURRENCY_RATES` | `{"USD":"1"}` | Objeto JSON de unidades de moneda por USD, por ejemplo `{"USD":"1","EUR":"0.9","PLN":"4"}`. USD debe ser exactamente 1; tipos finitos y positivos. La administración sustituye este documento. |
 
 Para enviar imágenes a canales en producción, configura `VISUAL_RENDER_CDP_URL=http://visual-render:9222` y `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` en `backend/.env`. `scripts/deploy.sh` activa entonces el perfil `visuals` en `docker-compose-prod.yml`; para iniciar manualmente, añade `--profile visuals`.
 
@@ -763,16 +765,22 @@ fija cada archivo compose de aquí.
 
 ### Embeddings { #embeddings }
 
-Nada aquí. Cada colección nombra el provider a través del cual genera sus
-embeddings, el modelo, y o bien la clave del vault de la organización que lo
-paga o bien — para el provider sin clave `ollama` — un **servicio local**, una
-fila bajo Knowledge → Integrations que dice dónde responde el Ollama del
-deployment o de la organización. Consulta [Procesamiento de archivos](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+Nada aquí. Cada colección nombra el provider a través del cual genera sus embeddings, el
+modelo, y o bien la clave del vault de la organización que lo paga o bien — para el
+provider sin clave `ollama` — una **conexión de servicio**, una fila bajo Knowledge →
+Integrations que dice dónde responde el Ollama del deployment o de la organización.
+
+El provider propio `openai_compatible` también toma una conexión, con un modelo escrito
+como texto y una clave opcional del vault de la organización; solo una conexión
+propiedad de la organización puede tener clave, una conexión que la tiene no puede
+perderla, y una conexión de todo el deployment no tiene clave. La API es
+`/api/v1/service-connections`. Consulta [Procesamiento de
+archivos](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
 Antes había aquí dos variables. `EMBEDDING_MODEL` preseleccionaba un modelo para
 las colecciones nuevas y ha desaparecido: el formulario ofrece los modelos que
 sirve el provider elegido. `EMBEDDING_OLLAMA_BASE_URL` nombraba un único Ollama
-para todo el deployment y ahora es un servicio local, por organización o de todo
+para todo el deployment y ahora es una conexión de servicio, por organización o de todo
 el deployment.
 
 ### Parseo de documentos — se configura por colección, no aquí { #document-parsing-configured-per-collection-not-here }
@@ -794,7 +802,7 @@ Dos cosas que antes se quedaban aquí son ahora filas en el producto. Una clave
 de LlamaParse es una entrada del vault que nombra la configuración de ingesta de
 la colección (`llamaparse_secret_id`), y una colección en LlamaParse sin ella se
 rechaza ya en el formulario: `LLAMAPARSE_API_KEY` ha desaparecido. Un servidor de
-OCR al que LiteParse envía páginas es un servicio local de tipo `ocr` bajo
+OCR al que LiteParse envía páginas es una conexión de servicio de tipo `ocr` bajo
 Knowledge → Integrations, elegido por colección (`ocr_endpoint_id`), registrado
 por el operador de una organización o — para todas las organizaciones — por el
 administrador del deployment; `LITEPARSE_OCR_SERVER_URL` también ha
@@ -1745,3 +1753,14 @@ despliegue así al que lleguen otras personas.
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 
 Establece `GITHUB_COPILOT_OAUTH_CLIENT_ID` (vacío por defecto) con la aplicación OAuth propia del despliegue y habilita device flow. Sin ella se rechaza el inicio personal Copilot. Es distinto de GitHub Models y las credenciales del conector GitHub. Autorizar GitHub no confirma acceso Copilot; también debe pasar la comprobación de modelos de chat de la cuenta. No se admiten concesiones GitHub App caducables ni gateways Enterprise propios. Consulta [cuentas Copilot](models.md#github-copilot-accounts).
+
+## Entornos del chat privado { #conversation-environment-limits }
+
+| Ajuste | Predeterminado | Significado |
+| --- | --- | --- |
+| `CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS` | `900` | Límite del despliegue para la retención inactiva de Browser use y Computer use: 60–86400 segundos. El panel muestra el menor valor entre este límite y `session_idle_seconds` de la capability. |
+| `CONVERSATION_ENVIRONMENTS_PER_USER` | `4` | Entornos pendientes por miembro de organización: 1–100. Los recursos remotos conocidos pendientes de eliminación cuentan hasta que la limpieza termine. |
+
+Los bindings eligen `session_lifetime` (`run` o `conversation`). Los existentes sin los campos nuevos conservan duración por run; los nuevos de la consola eligen expresamente conversación y 900 segundos. Un entorno por run abierto manualmente termina tras un run que realmente lo utilice. Considera el coste del recurso del proveedor antes de ampliar la inactividad. Abrir y observar un entorno no requiere llamadas al modelo.
+
+Mantén el worker disponible para aprovisionar, comprobar caducidades y realizar limpieza duradera. El propietario del navegador permanece conectado desde API/worker para aplicar la política de salida; perderlo elimina deliberadamente el contexto aislado. Un reinicio puede caducar el navegador antes del límite, en lugar de restaurar una sesión desprotegida o copiada. Consulta [duración de navegador y escritorio](sandbox.es.md#conversation-environments).

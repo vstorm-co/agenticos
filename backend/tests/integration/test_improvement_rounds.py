@@ -20,7 +20,6 @@ from app.schemas.improvement import (
     AttributionConsent,
     ContinuationConsent,
     ImprovementContinue,
-    ImprovementFinish,
     ImprovementStart,
     ImprovementTarget,
     NextStepBlocked,
@@ -35,7 +34,7 @@ from app.services.improvement_pipeline import ImprovementPipelineService, Inputs
 from tests.integration.test_authoring import Improver, _answering, _sessions, _setup
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_eval_suites import Model, _dataset
-from tests.integration.test_improvement_pipeline import _next_step
+from tests.integration.test_improvement_pipeline import _next_step, reviewed
 
 pytestmark = [pytest.mark.anyio, pytest.mark.usefixtures("_environment")]
 
@@ -132,9 +131,19 @@ async def _marked_dataset(db, ctx, *, share: Decimal):
     return dataset, [row.case_id for row in rows[3:]]
 
 
-async def _two_rounds(db):
+async def _two_rounds(db, *, first: str = "ROUND_BAD", fitted_held_out: bool = False):
+    """Two attempts; with `fitted_held_out` the second keeps aside a question the first
+    learned from, as a fresh draw over every question can."""
     ctx, agent, _ = await _setup(db)
     dataset, measured = await _marked_dataset(db, ctx, share=Decimal("0.625"))
+    if fitted_held_out:
+        learned = await db.scalar(
+            select(DatasetCase.case_id).where(
+                DatasetCase.dataset_id == dataset.id,
+                DatasetCase.input == "TRAIN_QUESTION_MARKER_0",
+            )
+        )
+        measured = [learned, *measured[:4]]
     service = ImprovementPipelineService(db)
     started = await service.start(
         ctx,
@@ -145,7 +154,7 @@ async def _two_rounds(db):
     for _ in range(2):
         await service.advance(started.id, ctx.organization_id)
     await _next_step(db, ctx, started.id)
-    first = await _round(db, ctx, agent, started.id, "ROUND_BAD")
+    first = await _round(db, ctx, agent, started.id, first)
     stopped = await service.read(ctx, agent.id, started.id)
     assert (stopped.status, stopped.stop_reason, stopped.iteration) == ("stopped", "regression", 1)
     assert stopped.try_again_blocked is None
@@ -177,9 +186,11 @@ async def test_a_stopped_attempt_is_selected_and_accepted_in_one_call(db):
     assert (await service.read(ctx, agent.id, started.id)).status == "stopped"
 
     with pytest.raises(BadRequestError, match="checked round"):
-        await service.finish(ctx, agent.id, started.id, ImprovementFinish(confirmed=True))
+        await service.finish(
+            ctx, agent.id, started.id, await reviewed(db, ctx, agent.id, started.id)
+        )
     result = await service.finish(
-        ctx, agent.id, started.id, ImprovementFinish(confirmed=True, round=1)
+        ctx, agent.id, started.id, await reviewed(db, ctx, agent.id, started.id, round=1)
     )
 
     assert result.session.status == "accepted"
@@ -267,8 +278,35 @@ async def test_the_next_attempt_learns_from_the_draft_and_reads_what_the_last_on
     learned = "\n".join(second.prompts)
     assert "# Earlier attempts in this session" not in "\n".join(first.prompts)
     assert "## Attempt 1: regression" in learned
-    assert "Be brief. ROUND_BAD" in learned
+    assert "ROUND_BAD" not in learned
     assert "On 5 held-out questions it fixed 0 and broke" in learned
+
+
+@pytest.mark.security
+async def test_a_later_attempt_never_reads_a_change_fitted_to_its_held_out_questions(db):
+    """The second attempt draws its own questions to keep aside, and one of them is a
+    question the first attempt learned from. The first attempt's change quotes it; the
+    second attempt's helper must not read that change, or the check it is measured by
+    would be measuring what it was shown."""
+    ctx, agent, started, _first, second = await _two_rounds(
+        db, first="ROUND_BAD after TRAIN_QUESTION_MARKER_0", fitted_held_out=True
+    )
+    one, two = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=started.id
+    )
+    fitted = await db.scalar(
+        select(DatasetCase).where(
+            DatasetCase.dataset_id == started.dataset_id,
+            DatasetCase.input == "TRAIN_QUESTION_MARKER_0",
+        )
+    )
+
+    # The first attempt learns from the stored partition, so from this question.
+    assert one.train_case_ids is None and fitted is not None
+    assert fitted.improvement_partition == "train"
+    assert two.holdout_case_ids is not None and fitted.case_id in two.holdout_case_ids
+    assert "## Attempt 1: regression" in "\n".join(second.prompts)
+    assert "TRAIN_QUESTION_MARKER_0" not in "\n".join(second.prompts)
 
 
 @pytest.mark.security
@@ -576,6 +614,99 @@ async def test_attribution_refuses_a_changed_base_and_an_exhausted_session_budge
         await service.select_round(ctx, agent.id, started.id, 1)
     with pytest.raises(ConcurrentChangeError, match="stale"):
         await service.estimate_attribution(ctx, agent.id, started.id, 2)
+
+
+@pytest.mark.security
+async def test_accepting_refuses_an_attempt_other_than_the_one_reviewed(db):
+    """A colleague chose another attempt after this person reviewed one: the acceptance
+    names the attempt and its measurement it was shown, and is refused for the other."""
+    ctx, agent, started, _, _ = await _two_rounds(db)
+    service = ImprovementPipelineService(db)
+    shown = await reviewed(db, ctx, agent.id, started.id)
+    assert shown.attempt == 2
+    await service.select_round(ctx, agent.id, started.id, 1)
+    before = dict(agent.draft_spec)
+
+    with pytest.raises(ConcurrentChangeError, match="Refresh the session") as refused:
+        await service.finish(ctx, agent.id, started.id, shown)
+    with pytest.raises(ConcurrentChangeError, match="Refresh the session"):
+        await service.finish(
+            ctx,
+            agent.id,
+            started.id,
+            shown.model_copy(update={"attempt": 1, "candidate_spec_hash": "f" * 64}),
+        )
+
+    assert refused.value.details == {"attempt": 1, "reviewed_attempt": 2}
+    assert agent.draft_spec == before
+    accepted = await service.finish(
+        ctx, agent.id, started.id, await reviewed(db, ctx, agent.id, started.id)
+    )
+    assert accepted.session.best_iteration_id == accepted.session.iterations[0].id
+
+
+@pytest.mark.security
+async def test_accepting_refuses_an_attempt_judged_again_since_it_was_reviewed(db):
+    """A review of a case judges the attempt again in place, keeping its number and its
+    candidate: the acceptance given on the result as it read before is refused."""
+    ctx, agent, started, _, _ = await _two_rounds(db)
+    service = ImprovementPipelineService(db)
+    shown = await reviewed(db, ctx, agent.id, started.id)
+    rounds = await improvement_repo.list_iterations(
+        db, organization_id=ctx.organization_id, run_id=started.id
+    )
+    chosen = next(item for item in rounds if item.number == shown.attempt)
+    await improvement_repo.update_iteration(
+        db,
+        iteration=chosen,
+        values={"verdict_detail": {**(chosen.verdict_detail or {}), "broken": 1}},
+    )
+    before = dict(agent.draft_spec)
+
+    with pytest.raises(ConcurrentChangeError, match="Refresh the session") as refused:
+        await service.finish(ctx, agent.id, started.id, shown)
+
+    assert refused.value.details == {"attempt": shown.attempt, "reviewed_attempt": shown.attempt}
+    assert agent.draft_spec == before
+    accepted = await service.finish(
+        ctx, agent.id, started.id, await reviewed(db, ctx, agent.id, started.id)
+    )
+    assert accepted.session.best_iteration_id == chosen.id
+
+
+@pytest.mark.security
+async def test_a_try_again_note_quoting_a_question_the_attempt_is_measured_on_is_refused(db):
+    """The helper reads the note beside its evidence: a held-out question pasted into it
+    would be graded by the check the attempt is measured with."""
+    ctx, agent, _ = await _setup(db)
+    dataset, measured = await _marked_dataset(db, ctx, share=Decimal("0.625"))
+    service = ImprovementPipelineService(db)
+    started = await service.start(
+        ctx,
+        agent.id,
+        ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
+    )
+    for _ in range(2):
+        await service.advance(started.id, ctx.organization_id)
+    await _next_step(db, ctx, started.id)
+    await _round(db, ctx, agent, started.id, "ROUND_BAD")
+
+    with (
+        patch("app.services.improvement_pipeline.drawn_holdout", return_value=measured),
+        pytest.raises(BadRequestError) as refused,
+    ):
+        await _next_step(
+            db, ctx, started.id, note="Fix the flaky one:  holdout_question_marker_4 please"
+        )
+    with patch("app.services.improvement_pipeline.drawn_holdout", return_value=measured):
+        allowed = await _next_step(
+            db, ctx, started.id, note="Keep TRAIN_QUESTION_MARKER_0 answered as before"
+        )
+
+    assert refused.value.details["fields"][0]["field"] == "note"
+    assert "HOLDOUT_QUESTION_MARKER_4" not in refused.value.message
+    assert (allowed.status, allowed.iteration) == ("running", 2)
+    assert allowed.iterations[1].note == "Keep TRAIN_QUESTION_MARKER_0 answered as before"
 
 
 @pytest.mark.security

@@ -1,5 +1,5 @@
 ---
-source_sha: "5e69a7458f60"
+source_sha: "5d850ab1c3cc"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -644,11 +644,19 @@ ese turno y nunca se llega a producción en su lugar.
 
 En un eval, cada llamada a una conexión de producción se retiene y se registra con
 sus argumentos en lugar de ejecutarse. La única excepción es una herramienta que
-el servidor marca con `readOnlyHint`, en una conexión que confía en esa marca. La
-marca es una afirmación del propio servidor, así que la confianza está
-desactivada en todas las conexiones. Se activa en el diálogo **Tools** de la
-conexión. El diálogo indica cuántas herramientas declaran la marca, y el cambio
-queda en la auditoría con ese número.
+el servidor marca a la vez con `readOnlyHint: true` y `openWorldHint: false` —
+solo lee, y no llega a nada más allá de ese servidor — en una conexión que confía
+en esas marcas. Una herramienta que solo lee pero omite `openWorldHint`, o lo
+pone en true, se retiene con el motivo `external`: una herramienta de mundo
+abierto, como una búsqueda web, pasa sus argumentos a lo que sea que alcance, y
+un eval ejecuta texto que nadie ha revisado todavía.
+
+Ambas marcas son una afirmación del propio servidor, y **confiar en ellas es
+decisión del operador**: la confianza está desactivada en todas las conexiones,
+y nada de este lado comprueba lo que un servidor dice de sí mismo. Actívala solo
+para un servidor que sepas que llega a su propio sistema y a nada más. Se activa
+en el diálogo **Tools** de la conexión. El diálogo indica cuántas herramientas
+afirman ser de solo lectura, y el cambio queda en la auditoría con ese número.
 
 ### Conectar uno desde el Builder { #connecting-one-from-the-builder }
 
@@ -1539,6 +1547,11 @@ herramientas de borrador aceptan `context_ids`; la lista sustituye todos los
 vínculos Context. Editar un archivo vinculado afecta al próximo uso; cambiar
 el vínculo del borrador requiere publicación. Se mantienen permisos y
 aprobaciones de escritura.
+
+`update_skill`, `add_skill_resource` y
+`update_context_file` cambian lo que leen los agents en uso en su siguiente run,
+así que cada llamada pregunta antes a la persona, también con consentimiento
+permanente; crear un skill o un archivo Context nuevo se ejecuta por defecto.
 
 ### Autoridad de origen de las cuentas conectadas { #connected-account-source-authority }
 

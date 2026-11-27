@@ -395,9 +395,9 @@ export function TableGridView({
             {tGrid("clearSelection")}
           </Button>
           <Button
-            variant="outline"
+            variant="destructive-ghost"
             size="sm"
-            className="text-destructive ml-auto"
+            className="ml-auto"
             onClick={() => setConfirming(true)}
           >
             <Trash2 className="size-3.5" /> {tGrid("delete")}

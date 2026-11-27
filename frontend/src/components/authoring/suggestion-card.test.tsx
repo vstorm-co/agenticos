@@ -35,6 +35,65 @@ describe("SuggestionCard", () => {
     ]);
   });
 
+  it("shows and edits a colleague's rewording, which is what Accept writes", async () => {
+    const reworded = hunk({ new_text: "A", edited_text: "Be brief. Refunds take 14 days." });
+    render(<SuggestionCard hunk={reworded} canEdit busy={false} onDecide={vi.fn()} />);
+
+    expect(screen.getByText("Reworded at the Changes step")).toBeVisible();
+    expect(screen.getByText(diffLine("Be brief. Refunds take 14 days."))).toBeInTheDocument();
+    expect(screen.queryByText(diffLine("A"))).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByRole("textbox", { name: "Your wording of the suggestion" })).toHaveValue(
+      "Be brief. Refunds take 14 days.",
+    );
+  });
+
+  it("says why a suggestion quoting a credential cannot be accepted, and keeps Edit", async () => {
+    const onDecide = vi.fn();
+    render(
+      <SuggestionCard
+        hunk={hunk({ contains_credential: true })}
+        canEdit
+        busy={false}
+        onDecide={onDecide}
+      />,
+    );
+    expect(
+      screen.getByText(/quotes a credential, so it can't be accepted as written/),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const box = screen.getByRole("textbox", { name: "Your wording of the suggestion" });
+    await userEvent.clear(box);
+    await userEvent.type(box, "Thirty days.");
+    await userEvent.click(screen.getByRole("button", { name: "Save and accept" }));
+    expect(onDecide).toHaveBeenCalledWith({ action: "accept", text: "Thirty days." });
+  });
+
+  it("says to dismiss a suggestion quoting a credential that offers no Edit", () => {
+    render(
+      <SuggestionCard
+        hunk={hunk({
+          kind: "tool_override",
+          capability_id: "charts",
+          tool_id: "create_chart",
+          new_name: "draw_chart",
+          new_description: "Draw a chart of the numbers asked about.",
+          base_description: null,
+          contains_credential: true,
+        })}
+        canEdit
+        busy={false}
+        onDecide={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Dismiss it and make the change by hand/)).toBeVisible();
+    expect(screen.queryByText(/Edit the credential out/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled();
+  });
+
   it("can leave the edit without deciding", async () => {
     render(<SuggestionCard hunk={hunk()} canEdit busy={false} onDecide={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));
@@ -194,4 +253,20 @@ describe("SuggestionCard", () => {
     expect(screen.queryByRole("textbox", { name: "Proposed instructions, editable" })).toBeNull();
     expect(screen.getByRole("textbox")).toHaveValue("Be brief. Refunds take 30 days.");
   });
+});
+
+it("keeps a read-only credential warning free of unavailable actions", () => {
+  render(
+    <SuggestionCard
+      hunk={hunk({ contains_credential: true })}
+      canEdit={false}
+      busy={false}
+      onDecide={vi.fn()}
+    />,
+  );
+  expect(screen.getByText(/suggestion quotes a credential and cannot be accepted/)).toBeVisible();
+  expect(screen.queryByText(/Dismiss it/)).toBeNull();
+  expect(screen.queryByText(/historical/)).toBeNull();
+  expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
 });

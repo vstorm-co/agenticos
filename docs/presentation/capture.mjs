@@ -189,7 +189,11 @@ const SHOTS = [
   {
     name: "kb-parse",
     path: (ids) => `/rag/${ids.collection}`,
-    then: async (page) => page.getByRole("button", { name: "Parse options", exact: true }).click(),
+    then: async (page) => {
+      // The per-upload dialog sits behind the Upload button's menu.
+      await page.getByRole("button", { name: "Upload options", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Upload with different settings…" }).click();
+    },
     areas: async (page) => ({ dialog: await box(page.getByRole("dialog")) }),
   },
   {

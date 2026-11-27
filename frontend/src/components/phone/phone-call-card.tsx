@@ -1,7 +1,8 @@
 "use client";
+import { useMoney } from "@/components/providers/currency-provider";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useTranslations, useFormatter } from "next-intl";
+import { useLocale, useTranslations, useFormatter } from "next-intl";
 import { Phone } from "lucide-react";
 import { toast } from "sonner";
 import { Badge, Button, Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui";
@@ -24,6 +25,8 @@ export function PhoneReceiptCard({ call }: { call: PhoneCall }) {
   const t = useTranslations("phone");
   const errors = useTranslations("errors");
   const format = useFormatter();
+  const money = useMoney();
+  const locale = useLocale();
   const client = useQueryClient();
   const org = useOrgStore((state) => state.activeOrgId) ?? "current";
   const [transferring, setTransferring] = useState(false);
@@ -43,10 +46,7 @@ export function PhoneReceiptCard({ call }: { call: PhoneCall }) {
       </div>
       <p className="text-muted-foreground text-xs">
         {t("estimatedCost", {
-          cost: format.number(Number(call.estimated_cost_usd), {
-            style: "currency",
-            currency: "USD",
-          }),
+          cost: money.cost(call.estimated_cost_usd, locale),
         })}
       </p>
       {call.status === "queued" && call.not_before ? (

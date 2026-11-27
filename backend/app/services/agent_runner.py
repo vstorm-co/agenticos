@@ -104,7 +104,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import prompt_variables
-from app.agents.a2a_delegate import a2a_delegate
+from app.agents.a2a_delegate import a2a_delegate, held_a2a_delegate
 from app.agents.ask_user import (
     QUESTION_DEFERRED_KIND,
     QuestionItem,
@@ -292,6 +292,7 @@ from app.core.exceptions import (
     AppException,
     AuthorizationError,
     BadRequestError,
+    ConflictError,
     ExternalServiceError,
     ModelCallFailedError,
     NotFoundError,
@@ -315,7 +316,7 @@ from app.db.models.agent_run import (
     RunSurface,
 )
 from app.db.models.chat_file import ChatFile
-from app.db.models.conversation import Message
+from app.db.models.conversation import Message, ToolCall
 from app.db.models.credential import ModelProfile
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.knowledge_base import KnowledgeBase
@@ -368,6 +369,7 @@ from app.services.api_key import ApiKeyService, mint_for_run
 from app.services.approvals import (
     ApprovalService,
     answers_for,
+    described_for,
     may_approve,
     may_decide,
     runs_as_its_person,
@@ -508,6 +510,31 @@ _ORIGIN_KINDS: dict[
     AgentKind.EXTRACTOR.value: "key_drafts",
     AgentKind.COVERAGE.value: "key_coverage",
 }
+
+
+def _answers_of(call: ToolCall) -> list[CallRow]:
+    """What a recorded row can answer: itself, or the calls its script made."""
+    script = call.script_calls
+    if script is not None and script["calls"] and not script["omitted"]:
+        return [
+            CallRow(
+                tool_name=entry["tool_name"],
+                args=entry["args"],
+                result=entry["result"],
+                failed=entry["outcome"] != "success",
+            )
+            for entry in script["calls"]
+        ]
+    if call.result is None:
+        return []
+    return [
+        CallRow(
+            tool_name=call.tool_name,
+            args=call.args,
+            result=call.result,
+            omitted_script_calls=script["omitted"] if script is not None else 0,
+        )
+    ]
 
 
 def _preview(text: str) -> str:
@@ -1313,6 +1340,8 @@ class ParkedApproval:
     tool_consented_by: UUID | None = None
     always_asks: bool = False
     """Only a person's answer to this call may let it run - see `ApprovalRequest.always_asks`."""
+    platform_call: bool = False
+    """One of the platform's own tools - see `ApprovalRequest.platform_call`."""
     standing: bool = False
     """Whether this was granted by standing consent rather than parked.
 
@@ -1454,6 +1483,7 @@ class ApprovalChannel:
                 context=context,
                 account=request.account,
                 always_asks=request.always_asks,
+                platform_call=request.platform_call,
                 standing=consenting is not None,
                 routine_consented_by=request.routine_consented_by,
                 tool_consented_by=consenting,
@@ -2671,9 +2701,9 @@ def _start_turn_on_first_use(
 
     The same steps, in the same order, that a `state` workspace takes while the
     run is prepared - deferred because on a sandbox they are what opens the
-    session. None of them raises, so the operation waiting behind them is never
-    failed by them; a snapshot that could not be taken stays `None`, which posts
-    nothing back.
+    session. Missing required binary skill assets fail the waiting operation;
+    terminal run cleanup then releases its workspace. A snapshot that could not
+    be taken stays `None`, which posts nothing back.
     """
 
     async def start() -> None:
@@ -3386,6 +3416,8 @@ def _delegate_builder(
     extra_toolsets: list[AbstractToolset[Any]],
     test_bindings: frozenset[str] = frozenset(),
     reviewer_models: Mapping[UUID, ModelRequestSpec] | None = None,
+    provider_session_scope: tuple[str, ...] | None = None,
+    version_id: UUID | None = None,
 ) -> Callable[[], PydanticAgent[Any, Any]]:
     """A closure that builds one delegate, with nothing left to look up.
 
@@ -3411,6 +3443,21 @@ def _delegate_builder(
         own_resources = dict(resources)
         if any(_computer_requirements(spec)):
             own_resources.update(delegation.computer_resources)
+        from app.services.conversation_environment_delegates import (
+            NESTED_DESKTOP_AUTHORITY,
+            NestedDesktopAuthority,
+        )
+
+        nested_authority = own_resources.get(NESTED_DESKTOP_AUTHORITY)
+        if isinstance(nested_authority, NestedDesktopAuthority):
+            desktop_driver = nested_authority.for_child(
+                effective,
+                secrets,
+                agent_id=agent_id,
+                version_id=version_id,
+            )
+            if desktop_driver is not None:
+                own_resources["conversation_desktop"] = desktop_driver
         built = build_agent(
             _with_execution_environment(effective, None),
             model,
@@ -3418,6 +3465,7 @@ def _delegate_builder(
             agent_id=agent_id,
             run_id=delegation.run.id,
             conversation_id=delegation.run.conversation_id,
+            provider_session_scope=provider_session_scope,
             user_id=delegation.user_id,
             user_name=delegation.user_name,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
@@ -3504,6 +3552,7 @@ def _dynamic_builder(
             ),
             model=profiles[model],
             agent_id=delegation.agent_id,
+            provider_session_scope=("dynamic", str(delegation.agent_id), name),
             resources={
                 "kb_collection_names": [],
                 "kb_vector_scopes": {},
@@ -3725,6 +3774,24 @@ class AgentRunnerService:
         self.workspaces = SandboxWorkspaceService(db)
         self.proposals = SkillProposalService(db)
         self.transcript = TranscriptService(db)
+
+    async def _materialise_initial_skills(
+        self, workspace: OpenWorkspace, skills: list[Skill], bodies: Mapping[UUID, SkillBody]
+    ) -> MaterialisedSkills:
+        """Release initial workspace ownership if required asset preparation fails.
+
+        No PreparedRun exists yet, so terminal run cleanup cannot own this failure.
+        The workspace service preserves shared/local browser session ownership.
+        """
+        try:
+            return await materialise_skills(workspace.workspace, skills, bodies)
+        except ExternalServiceError, asyncio.CancelledError:
+            failure = await self.workspaces.close(workspace)
+            if failure is not None:
+                logger.error(
+                    "skill_preparation_cleanup_failed", extra={"reason": failure.error.message}
+                )
+            raise
 
     async def _variable_renderer(
         self,
@@ -5388,8 +5455,8 @@ class AgentRunnerService:
                     spec = _with_skills_briefing(spec, deferred=True)
             else:
                 if not independent_agent_workspace:
-                    materialised = await materialise_skills(
-                        workspace.workspace, resources["skills"], resources[SKILL_BODIES_RESOURCE]
+                    materialised = await self._materialise_initial_skills(
+                        workspace, resources["skills"], resources[SKILL_BODIES_RESOURCE]
                     )
                     if materialised.written:
                         spec = _with_skills_briefing(spec)
@@ -5775,6 +5842,90 @@ class AgentRunnerService:
             extra_toolsets = []
             on_use = None
             computer_on_use = None
+
+        if (
+            surface is RunSurface.WEB
+            and conversation_id is not None
+            and version_id is not None
+            and audience.private
+            and audience_user_id == ctx.user_id
+            and ctx.user_id is not None
+            and ctx.api_key_id is None
+            and not ctx.subject_is_publisher_fallback
+            and not public_origin
+            and not impersonated
+            and current_impersonator() is None
+            and isolation is None
+            and not is_test
+            and voice is None
+            and routine is None
+            and not answer_only
+            and not organization_mcp_only
+        ):
+            from app.services.conversation_environment_agent import AgentEnvironment
+            from app.services.conversation_environment_delegates import (
+                NESTED_DESKTOP_AUTHORITY,
+                NestedDesktopAuthority,
+                SharedDesktopWorkspace,
+            )
+
+            shared_desktop = None
+            if (
+                workspace is not None
+                and workspace.kind == "service"
+                and workspace.connection_id is not None
+            ):
+                if workspace.connection_fingerprint is None:
+                    raise ConflictError(
+                        message="The shared executor has no verified connection identity"
+                    )
+                shared_desktop = SharedDesktopWorkspace(
+                    workspace.connection_id,
+                    workspace.scope_key,
+                    workspace.connection_fingerprint,
+                    "project" if workspace.scope == "project" else "agent",
+                    project.id if workspace.scope == "project" and project is not None else None,
+                )
+
+            def owned_environment(kind: Literal["browser", "desktop"]) -> AgentEnvironment:
+                return AgentEnvironment(
+                    ctx,
+                    conversation_id=conversation_id,
+                    agent_id=agent.id,
+                    version_id=version_id,
+                    run_id=run.id,
+                    target=project_execution_target or "agent",
+                    kind=kind,
+                    workspace=shared_desktop if kind == "desktop" else None,
+                )
+
+            if _delegation_config(spec) is not None:
+                resources[NESTED_DESKTOP_AUTHORITY] = NestedDesktopAuthority(
+                    ctx,
+                    agent.id,
+                    version_id,
+                    run.id,
+                    conversation_id,
+                    project_execution_target or "agent",
+                    shared_desktop,
+                    shares_workspace=workspace is not None or project_workspace is not None,
+                )
+            if "local_browser_session" not in resources:
+                resources["conversation_browser"] = owned_environment("browser").browser()
+            if "local_computer_session" not in resources:
+                desktop_environment = owned_environment("desktop")
+                resources["conversation_desktop"] = desktop_environment.desktop()
+                from app.services.conversation_environment_project_files import (
+                    retained_project_mount,
+                )
+
+                if project_workspace is not None and retained_project_mount(spec, secrets):
+                    project_workspace.environment_project_directory = (
+                        desktop_environment.project_directory
+                    )
+                    project_workspace.finish_environment_project_directory = (
+                        desktop_environment.finish
+                    )
 
         built = build_agent(
             spoken_spec if voice is not None else spec,
@@ -6334,6 +6485,9 @@ class AgentRunnerService:
         a pin to a vanished version does: delegating to "whatever is there now"
         is not what was published. Its credential is unsealed now, like every
         secret a run holds, and goes nowhere but its own endpoint.
+
+        An isolated run unseals nothing and builds each one held: the task would
+        leave the deployment, and the remote side is held to no isolation.
         """
         ctx = delegation.ctx
         rows = await external_agent_repo.get_many(
@@ -6345,8 +6499,9 @@ class AgentRunnerService:
                 message="A remote agent this agent delegates to is no longer registered",
                 details={"external_agent_ids": missing},
             )
+        held = delegation.isolation is not None
         secret_ids = [row.secret_id for row in rows.values() if row.secret_id is not None]
-        secrets = await self.secrets.resolve_for_bindings(ctx, secret_ids)
+        secrets = {} if held else await self.secrets.resolve_for_bindings(ctx, secret_ids)
         resolved: list[ResolvedSubagent] = []
         for ref in refs:
             row = rows[ref.external_agent_id]
@@ -6356,13 +6511,16 @@ class AgentRunnerService:
                 ResolvedSubagent(
                     name=row.slug,
                     description=row.description or row.name,
-                    build=a2a_delegate(
+                    build=held_a2a_delegate(handle=row.slug)
+                    if held
+                    else a2a_delegate(
                         handle=row.slug,
                         endpoint=row.endpoint_url,
                         card_url=row.card_url,
                         bearer=bearer,
                     ),
                     preferred_mode=ref.preferred_mode,
+                    remote=True,
                 )
             )
         return resolved
@@ -6470,6 +6628,7 @@ class AgentRunnerService:
                 spec=spec,
                 model=await self._delegated_model(delegation, spec),
                 agent_id=delegation.agent_id,
+                provider_session_scope=("inline", str(delegation.agent_id), specialist.name),
                 resources=own_resources,
                 secrets=await self.secrets.resolve_for_bindings(ctx, _secret_ids(spec)),
                 # A specialist has no MCP connections. They are
@@ -6706,6 +6865,7 @@ class AgentRunnerService:
                 spec=runnable,
                 model=model,
                 agent_id=ref.agent_id,
+                version_id=ref.agent_version_id,
                 resources=delegate_resources,
                 secrets=secrets,
                 extra_toolsets=toolsets,
@@ -6790,6 +6950,16 @@ class AgentRunnerService:
             SKILL_BODIES_RESOURCE: projected,
             RUN_SKILL_BODIES_RESOURCE: run_bodies,
         }
+        from app.services.conversation_environment_delegates import (
+            NESTED_DESKTOP_AUTHORITY,
+            NestedDesktopAuthority,
+        )
+
+        nested_authority = parent_resources.get(NESTED_DESKTOP_AUTHORITY)
+        if isinstance(nested_authority, NestedDesktopAuthority):
+            resources[NESTED_DESKTOP_AUTHORITY] = nested_authority.delegated(
+                shares_workspace=any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared),
+            )
         if isinstance(routine, RoutineAuthority):
             resources["routine_authority"] = routine
             resources["routine_behavior_namespace"] = behavior_namespace
@@ -7217,6 +7387,11 @@ class AgentRunnerService:
         that renamed a tool still matches its own recorded calls. A call that
         never returned is left out: there is nothing to answer it with.
 
+        A code-mode script is offered as the calls it made, never as itself: a
+        replay runs the script again and each of its calls is answered from here,
+        so the replay's trajectory lists them too. A script recorded before its
+        calls were kept, or one that made more than its row kept, is offered whole.
+
         The manifest is the check that no row is missing. Its request waterfall
         names every call the model asked for, and survives every trim; a call it
         names that has no row means the transcript lost part of the run. A row
@@ -7256,11 +7431,7 @@ class AgentRunnerService:
                 tools = capability_tools(AgentSpec.model_validate(version.spec))
         return ToolRecording(
             recorded_calls(
-                [
-                    CallRow(tool_name=call.tool_name, args=call.args, result=call.result)
-                    for call, _ in rows
-                    if call.result is not None
-                ],
+                [answer for call, _ in rows for answer in _answers_of(call)],
                 tools=tools,
             )
         )
@@ -7322,6 +7493,7 @@ class AgentRunnerService:
                 context=parked.context,
                 account=parked.account,
                 always_asks=parked.always_asks,
+                platform_call=parked.platform_call,
                 subagent_name=parked.subagent,
                 # Null when the delegate's agent was deleted after the call was
                 # parked: the record of what it was authorised to do outlives it.
@@ -8270,6 +8442,8 @@ class AgentRunnerService:
             tool_args, context = withhold(
                 hidden, tool_args=approval.tool_args or {}, context=approval.context
             )
+            if not described_for(ctx, run.user_id, platform_call=approval.platform_call):
+                context = None
             parked.append(
                 ParkedCall(
                     id=approval.id,
@@ -8285,20 +8459,20 @@ class AgentRunnerService:
                     account=approval.account,
                     content_hidden=bool(hidden),
                     always_asks=approval.always_asks,
+                    platform_call=approval.platform_call,
                     may_decide=may_decide(
                         ctx,
-                        tool_id=approval.tool_id,
                         always_asks=approval.always_asks,
+                        platform_call=approval.platform_call,
                         person_id=run.user_id,
-                        context=approval.context,
                     ),
                     may_approve=may_approve(
                         ctx,
                         tool_id=approval.tool_id,
                         always_asks=approval.always_asks,
+                        platform_call=approval.platform_call,
                         person_id=run.user_id,
                         content_hidden=bool(hidden),
-                        context=approval.context,
                     ),
                 )
             )
@@ -9163,7 +9337,9 @@ class AgentRunnerService:
                 continue
             if (
                 approval.status == ApprovalStatus.APPROVED.value
-                and runs_as_its_person(approval.tool_id, always_asks=approval.always_asks)
+                and runs_as_its_person(
+                    always_asks=approval.always_asks, platform_call=approval.platform_call
+                )
                 and not answers_for(ctx, run.user_id)
             ):
                 raise AuthorizationError(
@@ -9493,6 +9669,8 @@ class AgentRunnerService:
                 new_messages,
                 identities=prepared.built.deps.tool_identities,
                 definitions=prepared.built.deps.tool_definitions,
+                scripts=prepared.built.deps.code_continuations.script_calls,
+                omitted_scripts=prepared.built.deps.code_continuations.omitted_script_calls,
             )
             # And what the *inherited* calls returned. On a resume the approved
             # call was made by the previous execution, so only its return is new -
@@ -9610,6 +9788,8 @@ class AgentRunnerService:
                         ),
                         tool_calls=called,
                         settled=settled,
+                        scripts=prepared.built.deps.code_continuations.script_calls,
+                        omitted_scripts=prepared.built.deps.code_continuations.omitted_script_calls,
                         # So the step the run stopped on reads "awaiting approval" when
                         # the conversation is read back, not as a call that ran (#601).
                         parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),

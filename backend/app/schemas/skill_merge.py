@@ -1,11 +1,12 @@
 """A session's three-way merge of a fork with main, as the Changes step shows it."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field
+from pydantic import AfterValidator, ConfigDict, Field
 
+from app.core.hidden_text import visible
 from app.schemas.base import BaseSchema
 from app.schemas.skill_version import VersionNumberRef
 
@@ -78,7 +79,7 @@ class SkillMergeRead(BaseSchema):
 
 
 class MergeDescriptionEdit(BaseSchema):
-    result: str = Field(min_length=1, max_length=500)
+    result: Annotated[str, AfterValidator(visible)] = Field(min_length=1, max_length=500)
 
 
 class MergePartEdit(BaseSchema):
@@ -86,7 +87,7 @@ class MergePartEdit(BaseSchema):
 
     model_config = ConfigDict(str_strip_whitespace=False)
 
-    result: str
+    result: Annotated[str, AfterValidator(visible)]
 
 
 class MergeFilePick(BaseSchema):

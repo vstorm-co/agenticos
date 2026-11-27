@@ -46,7 +46,10 @@ export function SuggestionCard({
   const field = hunk.kind === "spec_field";
   const pending = hunk.status === "pending";
   const editableAs = newSkill ? null : field ? editable(hunk.path) : "text";
-  const proposed = field ? String(hunk.new_value ?? "") : hunk.new_text;
+  const rewordable = hunk.applies && !tool && editableAs !== null;
+  // A reword made at the Improve session's Changes step is what Accept writes.
+  const reworded = pending ? hunk.edited_text : null;
+  const proposed = field ? String(hunk.new_value ?? "") : (reworded ?? hunk.new_text);
   const placed =
     hunk.kind === "instructions" && instructions !== undefined
       ? locatePassage(instructions, hunk)
@@ -83,6 +86,7 @@ export function SuggestionCard({
             </Badge>
           )}
           {hunk.origin === "verify" && <Badge variant="outline">{t("fromVerify")}</Badge>}
+          {reworded && <Badge variant="outline">{t("reworded")}</Badge>}
           {hunk.status !== "pending" && !folded && (
             <Badge variant="outline">{t(`status.${hunk.status}`)}</Badge>
           )}
@@ -121,9 +125,7 @@ export function SuggestionCard({
           <DiffView
             context={leadingContext(hunk.context_before)}
             before={hunk.old_text}
-            after={
-              hunk.status === "accepted" ? (hunk.accepted_text ?? hunk.new_text) : hunk.new_text
-            }
+            after={hunk.status === "accepted" ? (hunk.accepted_text ?? hunk.new_text) : proposed}
             trailing={trailingContext(hunk.context_after)}
           />
         )}
@@ -133,6 +135,17 @@ export function SuggestionCard({
           dropped={hunk.evidence_dropped}
           hidden={hunk.evidence_hidden}
         />
+        {pending && hunk.contains_credential && (
+          <p className="text-sm text-amber-700 dark:text-amber-400">
+            {t(
+              !canEdit
+                ? "quotesCredentialReadOnly"
+                : rewordable
+                  ? "quotesCredential"
+                  : "quotesCredentialDismiss",
+            )}
+          </p>
+        )}
         {canEdit && (
           <div className="flex flex-wrap gap-2">
             {pending && editing !== null && (
@@ -159,13 +172,13 @@ export function SuggestionCard({
                 {hunk.applies && (
                   <Button
                     size="sm"
-                    disabled={busy || Boolean(hunk.blocked)}
+                    disabled={busy || Boolean(hunk.blocked) || Boolean(hunk.contains_credential)}
                     onClick={() => onDecide(accepting())}
                   >
                     {t("accept")}
                   </Button>
                 )}
-                {hunk.applies && !tool && editableAs !== null && (
+                {rewordable && (
                   <Button
                     size="sm"
                     variant="outline"

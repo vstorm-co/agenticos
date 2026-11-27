@@ -16,7 +16,13 @@ rather than ten panels of one step each.
 import logging
 from dataclasses import dataclass
 
-from app.agents.browser_events import BrowserControl, BrowserEvent, BrowserEventSink
+from app.agents.browser_events import (
+    BrowserControl,
+    BrowserEvent,
+    BrowserEventSink,
+    OwnedEnvironmentView,
+    with_environment,
+)
 from app.agents.capabilities.browser_use._decision import Action, GoBack, Navigate, Step
 from app.agents.capabilities.browser_use._elements import Snapshot, render_table
 from app.agents.capabilities.browser_use._endpoint import EndpointError
@@ -49,12 +55,13 @@ class DirectView:
     run_id: str | None
     remember: RememberSignIn | None
     preview: bool
+    provenance: OwnedEnvironmentView | None = None
 
     async def emit(self, event: BrowserEvent) -> bool:
         """Send one event, and answer whether a surface received it."""
         if self.sink is None:
             return True
-        return await self.sink(event)
+        return await self.sink(with_environment(event, self.provenance))
 
 
 def page_report(snapshot: Snapshot, done: str | None = None) -> str:
@@ -95,6 +102,7 @@ async def _ready_snapshot(page: PageSession) -> Snapshot:
 
 async def open_view(view: DirectView, session: BrowseSession, goal: str) -> Snapshot:
     """Announce the view and show the page the tab is on now."""
+    view.provenance = session.page if isinstance(session.page, OwnedEnvironmentView) else None
     snapshot = await _ready_snapshot(session.page)
     session.last = snapshot
     await view.emit(

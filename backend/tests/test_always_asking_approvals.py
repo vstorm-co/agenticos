@@ -195,6 +195,7 @@ def _approval(*, always_asks: bool, capability_tool_id: str = "share_memory") ->
         context={"claim": "Anna owns invoices", "audience": "organization"},
         status=ApprovalStatus.PENDING.value,
         always_asks=always_asks,
+        platform_call=False,
     )
 
 

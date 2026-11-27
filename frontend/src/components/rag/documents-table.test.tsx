@@ -1,10 +1,16 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { KBDocument } from "@/types";
+import { ApiError } from "@/lib/api-error";
 import { DocumentsTable } from "./documents-table";
+
+const toastError = vi.fn();
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: (message: string) => toastError(message) },
+}));
 
 const download = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/lib/rag-api", () => ({ kbDocumentAccess: () => ({ download }) }));
@@ -66,7 +72,7 @@ describe("stored knowledge content", () => {
     await userEvent.click(index);
     expect(index).toBeDisabled();
     await userEvent.click(index);
-    expect(onRetry).toHaveBeenCalledExactlyOnceWith("doc-1");
+    expect(onRetry).toHaveBeenCalledExactlyOnceWith(stored);
     await act(async () => finish());
     await waitFor(() => expect(index).toBeEnabled());
   });
@@ -116,5 +122,59 @@ describe("stored knowledge content", () => {
     });
     expect(screen.queryByRole("button", { name: "Preview file" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Index / })).not.toBeInTheDocument();
+  });
+});
+
+function failedDocument(overrides: Partial<KBDocument> = {}): KBDocument {
+  return {
+    ...stored,
+    filename: "scan.png",
+    filetype: "png",
+    status: "error",
+    error_message: "Docling found no text in this file.",
+    ...overrides,
+  };
+}
+function showFailed(doc: KBDocument, mayEdit = true, onRetry = vi.fn(async () => {})) {
+  show({ documents: [doc], mayEdit, onRetry });
+  return onRetry;
+}
+
+describe("retrying a failed document", () => {
+  beforeEach(() => toastError.mockReset());
+
+  it("asks for a retry from the icon beside Failed", async () => {
+    const doc = failedDocument();
+    const onRetry = showFailed(doc);
+
+    await userEvent.click(screen.getByRole("button", { name: "Retry scan.png" }));
+
+    expect(onRetry).toHaveBeenCalledWith(doc);
+  });
+
+  it("says why when the retry is refused", async () => {
+    const refused = vi.fn(async () => {
+      throw new ApiError(400, "This collection's parser no longer reads '.png' files", {
+        error: {
+          code: "BAD_REQUEST",
+          message: "This collection's parser no longer reads '.png' files",
+        },
+      });
+    });
+    showFailed(failedDocument(), true, refused);
+
+    await userEvent.click(screen.getByRole("button", { name: "Retry scan.png" }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+  });
+
+  it.each([
+    ["a finished document", failedDocument({ status: "done" }), true],
+    ["a document with no stored file", failedDocument({ has_file: false }), true],
+    ["someone who cannot edit the collection", failedDocument(), false],
+  ])("offers no retry for %s", (_, doc, mayEdit) => {
+    showFailed(doc, mayEdit);
+
+    expect(screen.queryByRole("button", { name: /^Retry/ })).toBeNull();
   });
 });

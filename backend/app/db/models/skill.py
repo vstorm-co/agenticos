@@ -13,6 +13,7 @@ and two organizations on one deployment must not see each other's.
 
 import uuid
 
+from pydantic import JsonValue
 from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
@@ -21,9 +22,11 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.skill_files import ResourceEncoding, decode_skill_file
 from app.db.base import Base, TimestampMixin
 from app.db.models.resource_grant import Visibility
 
@@ -59,6 +62,9 @@ class Skill(Base, TimestampMixin):
     # what makes progressive disclosure work, so it earns its own column.
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    manifest_metadata: Mapped[dict[str, JsonValue]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
     # A grouping label for people ("marketing", "devops"), not for the model -
     # the picker filters by it. Nullable: a skill without one is uncategorized,
     # which is a fine thing for a skill to be.
@@ -86,6 +92,9 @@ class Skill(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "jsonb_typeof(manifest_metadata) = 'object'", name="ck_skills_manifest_metadata"
+        ),
         UniqueConstraint("organization_id", "name", name="uq_skill_org_name"),
         # The target of the versions' and forks' tenant keys, so a version can only
         # ever belong to a skill of its own organization.
@@ -119,15 +128,21 @@ class SkillResource(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    encoding: Mapped[ResourceEncoding] = mapped_column(
+        String(8), nullable=False, default="utf8", server_default="utf8"
+    )
 
     skill: Mapped[Skill] = relationship("Skill", back_populates="resources")
 
     @property
     def size_bytes(self) -> int:
         """What a listing reports instead of the body - see `SkillResourceSummary`."""
-        return len(self.content.encode("utf-8"))
+        return len(decode_skill_file(self.content, self.encoding or "utf8"))
 
-    __table_args__ = (UniqueConstraint("skill_id", "name", name="uq_skill_resource_name"),)
+    __table_args__ = (
+        UniqueConstraint("skill_id", "name", name="uq_skill_resource_name"),
+        CheckConstraint("encoding IN ('utf8', 'base64')", name="ck_skill_resource_encoding"),
+    )
 
     def __repr__(self) -> str:
         return f"<SkillResource({self.name})>"

@@ -3,7 +3,13 @@
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, ChevronRight, LayoutGrid, MessageSquarePlus } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  LayoutGrid,
+  MessageSquarePlus,
+  MoreHorizontal,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
@@ -22,7 +28,7 @@ import { StartChecklist } from "@/components/dashboard/start-checklist";
 import { ViewSwitcher } from "@/components/dashboard/view-switcher";
 import { WIDGET_COMPONENTS } from "@/components/dashboard/widgets";
 import { MySummaryWidget } from "@/components/dashboard/widgets/my-summary";
-import { Button } from "@/components/ui";
+import { Button, Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
 import { useConsolePresentation } from "@/components/settings/console-experience-provider";
 import { ErrorState, EmptyState } from "@/components/states";
 import { useDashboardLayout, useDashboardPresets, useGroups, usePermissions } from "@/hooks";
@@ -314,28 +320,47 @@ export default function DashboardPage() {
   // The arrange controls, then the page's one primary action - the position
   // every other page in the product puts its primary in (`New agent` on
   // Agents, `New collection` on Knowledge bases).
-  const arrangeActions = (
-    <>
-      {/* Arranging belongs to the organization's view: the others are fixed
-          pages, each made of the cards that answer its question. */}
-      {arrangeable ? (
-        <div data-tour="dashboard-customize" className="flex flex-wrap items-center gap-2">
-          <DashboardPresetMenu
-            presets={presets}
-            isCustom={isCustom}
-            onApply={handleApplyPreset}
-            onUseDefault={handleReset}
-            onNewBlank={() => openEditor(true)}
-            onDelete={removePreset}
-          />
-          <Button variant="outline" className="gap-1.5" onClick={() => openEditor(false)}>
+  const presetActions = {
+    presets,
+    isCustom,
+    onApply: handleApplyPreset,
+    onUseDefault: handleReset,
+    onNewBlank: () => openEditor(true),
+    onDelete: removePreset,
+  };
+  const arrangeActions = arrangeable ? (
+    <div data-tour="dashboard-customize">
+      <div className="hidden items-center gap-2 sm:flex">
+        <DashboardPresetMenu {...presetActions} />
+        <Button variant="outline" className="gap-1.5" onClick={() => openEditor(false)}>
+          <LayoutGrid className="size-4" aria-hidden />
+          {t("edit.customize")}
+        </Button>
+      </div>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-11 sm:hidden"
+            aria-label={t("morePageActions")}
+          >
+            <MoreHorizontal className="size-4" aria-hidden />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="end"
+          className="w-64 space-y-2 p-2 [&_button]:min-h-11 [&_button]:w-full [&_button]:justify-start"
+        >
+          <DashboardPresetMenu {...presetActions} />
+          <Button variant="ghost" onClick={() => openEditor(false)}>
             <LayoutGrid className="size-4" aria-hidden />
             {t("edit.customize")}
           </Button>
-        </div>
-      ) : null}
-    </>
-  );
+        </PopoverContent>
+      </Popover>
+    </div>
+  ) : null;
 
   const headerActions = (
     // Wrapping, because three buttons are wider than a phone (#2075).

@@ -703,6 +703,18 @@ describe("ProjectApps", () => {
 });
 
 describe("ProjectSettings", () => {
+  it("marks project deletion and its confirmation red while keeping Cancel neutral", async () => {
+    wrap(<ProjectSettings project={aProject()} />);
+    const remove = screen.getByRole("button", { name: "Delete" });
+    expect(remove).toHaveClass("bg-destructive", "text-destructive-foreground");
+    await userEvent.click(remove);
+    const buttons = screen.getAllByRole("button", { name: "Delete" });
+    expect(buttons[buttons.length - 1]).toHaveClass("bg-destructive");
+    expect(buttons[buttons.length - 1]).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).not.toHaveClass("bg-destructive");
+    expect(project.remove.mutateAsync).not.toHaveBeenCalled();
+  });
+
   it("saves what changed, trimmed", async () => {
     wrap(<ProjectSettings project={aProject()} />);
     const save = screen.getByRole("button", { name: "Save" });

@@ -1,5 +1,5 @@
 ---
-source_sha: "822050191fb7"
+source_sha: "e027da438382"
 ---
 
 # Governance { #governance }
@@ -266,6 +266,8 @@ petición siguiente.
 
 ### Un coste que no se pudo medir lo dice { #a-cost-that-could-not-be-measured-says-so }
 
+Stav también acepta tipos del despliegue para la moneda facturada, incluido EUR. Un tipo NOK configurado tiene prioridad sobre el antiguo `STAV_NOK_PER_USD` descrito a continuación. USD sigue como unidad de registro; el uso conserva la moneda facturada y el tipo aplicado.
+
 El coste facturado por Stav prevalece sobre el catálogo: `usage.cost` con
 `cost_currency`, o las cabeceras `x-stav-cost` y `x-stav-cost-currency`. Incluye
 Chat Completions y Responses, también con streaming. USD se usa directamente;
@@ -273,8 +275,9 @@ NOK requiere `STAV_NOK_PER_USD` ([configuración](configuration.md)), mantenido
 por el operador. Indica NOK por dólar: `10` dividiría NOK entre 10; no es una
 recomendación de tipo actual. No se consulta ningún tipo automáticamente.
 Usage conserva el importe, la moneda, el tipo y el coste en USD; el ledger
-marca la fuente como informada por el proveedor. Los importes inválidos, las
-monedas no admitidas o la conversión ausente mantienen el catálogo como respaldo.
+marca la fuente como informada por el proveedor.
+
+Un coste inválido o ausente permite usar el catálogo. Una factura válida sin tipo compatible queda sin precio: conserva el importe y la moneda originales e impide nuevas solicitudes con límite. Los precios de tokens personalizados siguen siendo la autoridad.
 
 Sin un coste utilizable informado por el proveedor, se usa `genai-prices`.
 El paquete no conoce todos los modelos. Cuando un run llega a uno del que no
@@ -1142,6 +1145,11 @@ es el registro de lo que se decidió, y lleva el nombre y la nota de quien decid
 porque un UUID pelado no es un rastro de responsabilidad. Deliberadamente no hay
 controles en una fila ya resuelta.
 
+Quien no tiene `approvals:decide` solo lee sus propias llamadas de la plataforma
+que preguntan siempre y siguen esperando, con su propia sesión; `status` no lo
+amplía. Así llega a su persona la llamada de una rutina que no se pidió en ninguna
+conversación.
+
 | Parámetro |  |
 | --- | --- |
 | `status` | Se repite. Ausente significa pendientes — la cola |
@@ -1425,6 +1433,8 @@ herramienta `run_code`: el modelo escribe un script corto de Python que corre en
 el sandbox Monty y llama a las herramientas en bucles y en paralelo, hasta
 `max_tool_calls` por script.
 
+Los argumentos no válidos de una llamada ordinaria consumen su presupuesto de reintentos del SDK; por defecto, el modelo puede corregirlos una vez antes de que otra llamada no válida detenga el run. Una llamada correcta restablece el presupuesto de esa herramienta. Las llamadas dentro de un script conservan las reglas de validación del SDK y el límite `max_tool_calls`. Un script no puede capturar el agotamiento del presupuesto de otro agente para seguir ejecutando herramientas.
+
 Como mucho cuatro llamadas de un script corren a la vez y el resto espera, así que
 un script que reparte cientos de llamadas en el sandbox no puede abrirlas todas
 juntas.
@@ -1437,6 +1447,20 @@ manifiesto y el contador de llamadas. Tras la decisión, cualquier worker puede
 continuar el script sin otro turno del modelo ni repetir operaciones terminadas.
 El rechazo lanza un `RuntimeError` dentro del script; el código de la herramienta
 no se ejecuta. Aprobar `run_code` no aprueba ninguna operación interna.
+
+En un eval, y en cualquier otro run aislado, `run_code` se ejecuta, y cada
+llamada del script se decide por separado con las
+[reglas de aislamiento](environments.md#in-an-eval): una lectura de los datos
+propios de este despliegue se ejecuta; una lectura de fuera o una escritura se
+retiene y se registra con sus argumentos. Ejecutar el script no deja pasar nada
+que una llamada directa no obtendría.
+
+Cada llamada que hace el script se guarda con el run, bajo el script: su
+herramienta, sus argumentos y su resultado, hasta 100 llamadas y alrededor de 1 MB por script. Un
+eval califica esas llamadas en lugar del script y las enumera bajo él
+([llamadas a herramientas esperadas](datasets.md#trajectory)). Una grabación del
+run responde a cada una cuando un eval vuelve a ejecutar el script, así que la
+reproducción también las enumera.
 
 El estado guardado pertenece al servidor y tiene un límite de tamaño. La captura
 bruta del intérprete admite hasta 512 kB y todos los checkpoints de código de un
@@ -1494,6 +1518,19 @@ sus busts, expiraciones y los tokens en caché que no se leyeron de vuelta en la
 ventana - una medida del fallo, no de lo que se volvió a cobrar, ya que una
 compactación también puede acortar el prompt que la caché guardaba.
 La tarjeta no aparece mientras todas las cachés aguantaron.
+
+### Moneda del límite { #limit-currency }
+
+La contabilidad y los campos existentes de la API siguen en USD. La consola convierte el importe introducido en la moneda de informes usando la cotización fijada de la organización y envía la declaración original junto al valor USD. El servidor verifica la conversión con su propia cotización. Una cotización obsoleta, incoherente, no admitida o ausente impide guardar el límite. Usa cadenas decimales para conservar la precisión.
+
+Con una cotización fijada de 4 PLN por USD, `monthly_budget_usd: "25"` puede acompañarse de `monetary_inputs: {"monthly_budget_usd": {"amount": "100", "currency": "PLN"}}`. Una edición explícita mediante la API anterior en USD sustituye solo las condiciones de ese campo. Una modificación no relacionada las conserva. Clonar y los formatos compatibles de exportación/importación conservan las condiciones históricas validadas sin revalorizar el límite USD.
+
+Los límites en moneda extranjera se redondean a seis decimales USD; se rechazan importes que se convertirían en cero. Los presupuestos de agente y umbrales de nodos/comprobaciones con valores float conservan su formato y rechazan declaraciones que no puedan representar exactamente. Un criterio de coste de dataset sigue siendo un umbral de aprobado/suspenso, no una autorización de gasto. Cambiar la moneda de informes no altera los importes comparados para aplicar límites.
+
+Las nuevas notificaciones de presupuesto e informes periódicos conservan la cotización de informes del momento de su creación. Los reintentos de entrega y la lectura desde otra organización no revalorizan importes. Las notificaciones antiguas pendientes conservan sus valores USD originales. Los nuevos resultados de criterios de coste incluyen importes estructurados para mostrarlos en la moneda de informes; las frases de criterios guardadas anteriormente conservan su redacción USD original.
+
+Los límites mensuales de rutinas conservan seis decimales USD. Se rechaza una precisión fraccionaria mayor antes de almacenar. Se bloquea la vuelta a la columna anterior de cuatro decimales mientras algún límite se redondearía o excedería su capacidad.
+
 
 ## Aprobaciones { #approvals }
 
@@ -1670,11 +1707,11 @@ Las elecciones se guardan en el servidor. **Chat controls → Preferences → Re
 
 La cola de aprobaciones es de la organización, pero algunas llamadas citan lo que lee la persona de su run: el hecho que compartiría `share_memory`. Esa cita solo la ve quien puede ver el run: la persona para la que corrió, o un miembro que lee todos los runs y puede ver el agent. Los demás ven la herramienta, la audiencia y un aviso de que el contenido está oculto. Una llamada que pregunta siempre solo la aprueba quien puede leer lo que cita: cualquier otra persona puede rechazarla, y su aprobación se rechaza.
 
-La tarjeta de una llamada así dice con nombres lo que hace, leído como la persona del run cuando se aparca: el agent, el intento y su veredicto, la versión que crea una publicación, el dataset en el que corre un eval y el precio indicado. Los argumentos en bruto siguen en Detalles, y una llamada cuyos registros la persona no puede leer muestra solo esos.
-
 Una llamada de la plataforma que pregunta siempre - aceptar una mejora, publicar un agent, invitar a un miembro - se ejecuta con la autoridad de plataforma de la persona para la que actúa su run. Por eso solo esa persona, con su propia sesión, puede aprobarla: ni otro miembro con `approvals:decide`, ni una clave de API, aunque sea la suya, ni un administrador mediante suplantación. Quien tiene `approvals:decide` puede seguir rechazándola. Basta con ser esa persona, así que un Builder o un Member aprueba la tarjeta del Architect en su propio chat y continúa allí el run. Solo ella puede continuar un run tras una llamada de la plataforma aprobada.
 
-En un canal como Slack o Telegram, la persona responde en ese chat, desde la cuenta de chat vinculada a ella. Cuando el run pregunta a la vez por otras llamadas, la persona responde solo a las suyas, y el resto espera a alguien con `approvals:decide`. El run continúa cuando cada llamada tiene respuesta.
+La tarjeta de una llamada así dice con nombres lo que hace, leído como la persona del run cuando se aparca: el agent, el intento y su veredicto, el fork del skill o los agents que mueve un cambio de skill, el dataset en el que corre un eval y el precio indicado. Solo se acepta el intento que nombra la tarjeta. Los argumentos en bruto siguen en Detalles, y una llamada cuyos registros la persona no puede leer muestra solo esos.
+
+En un canal como Slack o Telegram, la persona responde en ese chat, desde la cuenta de chat vinculada a ella. Cuando el run pregunta a la vez por otras llamadas, la persona responde solo a las suyas, y el resto espera a alguien con `approvals:decide`. El run continúa cuando cada llamada tiene respuesta, como esa persona, sea quien sea quien respondió la última.
 
 Un run sin persona - el de un visitante en un widget o una página pública, el de un miembro de canal sin vincular, o uno cuya persona se eliminó - no tiene a nadie cuya respuesta cuente, así que su llamada de la plataforma espera hasta caducar; un run así nunca tiene autoridad de plataforma. Un cambio del despliegue (`change_deployment`) necesita las dos reglas a la vez: la persona del run, que además debe ser administradora de la aplicación. El Architect de cualquier otra persona no puede cambiarlo.
 
@@ -2154,11 +2191,16 @@ Así que la audiencia se divide por el permiso en lugar de recortarse a él:
 | Quien recibe tiene | Recibe |
 | --- | --- |
 | `approvals:decide` | la solicitud, con el enlace a la cola |
-| nada, pero es la persona del run y entre las llamadas está su propia llamada de la plataforma que siempre pregunta | la solicitud, con un enlace a la conversación donde se preguntó, mientras esa llamada espera |
+| nada, pero es la persona del run y entre las llamadas está su propia llamada de la plataforma que pregunta siempre | la solicitud, con un enlace a la conversación en la que se pidió, o a su bandeja de entrada para un run sin conversación, mientras esa llamada espera |
 | cualquier cosa menor | el _hecho_: el run está retenido y no fallido, tiene que responderlo alguien que pueda decidir aprobaciones, y no se le pide nada |
 
 Recortarla dejaría a la única persona que seguro espera el run — quien lo inició — sin
 oír nada sobre por qué se detuvo.
+
+La persona del run recibe la solicitud de su propia llamada de la plataforma
+aunque la alerta de aprobaciones del agent no la incluya o esté desactivada: nadie
+más puede aprobarla. Sin `approvals:decide`, su bandeja de entrada y
+`GET /approvals` muestran esas llamadas: las suyas y nada más.
 
 El segundo correo **no lleva enlace**, y eso es deliberado, no algo a medias. Que
 `agents:view` sea un permiso de rol no hace alcanzable un agent: el acceso se resuelve

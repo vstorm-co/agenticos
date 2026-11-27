@@ -41,6 +41,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from pydantic import JsonValue
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -186,6 +187,10 @@ class AgentTrigger(Base, TimestampMixin):
     """One schedule that fires one agent."""
 
     __tablename__ = "agent_triggers"
+
+    monetary_terms: Mapped[dict[str, JsonValue]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'")
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -444,7 +449,7 @@ class AgentTrigger(Base, TimestampMixin):
     # "Paused - budget" and starts again on the first of the next month, with nothing to
     # resume by hand. Null is no limit of its own; the agent's and the organization's
     # limits apply either way, and this only ever narrows.
-    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(38, 6), nullable=True)
     # When a schedule stops by itself - "keep an eye on this until Friday". Null runs
     # until somebody stops it. The first fire due after this instant pauses it instead.
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

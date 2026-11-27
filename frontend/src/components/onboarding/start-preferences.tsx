@@ -15,14 +15,21 @@ import { locales, type Locale } from "@/lib/locales";
 import { useStartTransition } from "./start-experience";
 import { StartPreferencesAppearance } from "./start-preferences-appearance";
 import styles from "./start-preferences.module.css";
+import { StartScopeProgress } from "./start-scope-progress";
+import { useStartScopeJourney } from "./start-scope-context";
+import { rememberStartPosition } from "./start-position";
 
 /** Deliberate account preferences precede workspace setup; merely visiting saves nothing. */
 export function StartPreferences({
   onContinue,
   children,
+  initialStage = "language",
+  continuing = false,
 }: {
   onContinue: () => void;
   children?: ReactNode;
+  initialStage?: "language" | "appearance";
+  continuing?: boolean;
 }) {
   const t = useTranslations("start.preferences");
   const navigation = useTranslations("start.administration");
@@ -30,8 +37,14 @@ export function StartPreferences({
   const locale = useLocale();
   const chooseLocale = useChooseLocale();
   const { appName } = useBranding();
-  const [stage, setStage] = useState<"language" | "appearance">("language");
+  const [stage, setStage] = useState<"language" | "appearance">(initialStage);
   const organizationId = useOrgStore((state) => state.activeOrgId);
+  const journey = useStartScopeJourney();
+  const scoped = journey?.current === "personal";
+  useEffect(() => {
+    if (scoped && organizationId)
+      rememberStartPosition(`preferences.${stage}`, organizationId, "personal");
+  }, [scoped, stage, organizationId]);
   useReportStartStep(`preferences.${stage}`, organizationId);
   const [chosenLocale, setChosenLocale] = useState<Locale | null>(null);
   const content = useRef<HTMLElement>(null);
@@ -60,6 +73,7 @@ export function StartPreferences({
       <div className={styles.viewport}>
         <section ref={content} className={styles.content} aria-labelledby={titleId}>
           {children}
+          <StartScopeProgress />
           <header className={styles.question}>
             <h1 id={titleId} ref={heading} tabIndex={-1}>
               {t(stage === "language" ? "languageTitle" : "appearanceTitle")}
@@ -115,6 +129,7 @@ export function StartPreferences({
         </span>
         <Button
           type="button"
+          disabled={continuing}
           onClick={() => {
             if (stage === "language") {
               chooseLocale(chosenLocale ?? locales.find((item) => item === locale) ?? "en", {

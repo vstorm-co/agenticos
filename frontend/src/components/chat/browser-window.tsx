@@ -2,7 +2,7 @@
 
 import { NATIVE_CHOICE } from "@/components/ui/control-styles";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   ExternalLink,
   Globe,
@@ -13,12 +13,14 @@ import {
   MessageSquarePlus,
   Minimize2,
   MoreHorizontal,
+  Monitor,
   Undo2,
   X,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import type { BrowserCommand } from "@/hooks/use-live-browse";
+import type { ConversationEnvironment } from "@/lib/conversation-environments-api";
 import { isRunning, type Browse } from "@/lib/browse";
 import { cn } from "@/lib/utils";
 import {
@@ -28,11 +30,14 @@ import {
   DropdownMenuItem,
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
+import { useChanged } from "@/hooks/use-changed";
 import { useAuthStore } from "@/stores";
 import { BrowserNavigation } from "./browser-navigation";
 import { BrowserCommentLayer, type PageComment } from "./browser-comment";
 import type { BrowseOutcome } from "@/types/chat";
 import { OUTCOME_TONE, StepTimeline } from "./browser-view";
+import type { EnvironmentTabs } from "@/lib/environment-stream";
+import { BrowserPageTabs } from "./browser-page-tabs";
 import { LiveViewport } from "./live-viewport";
 
 /** What a person may do with the browser, as the window offers it. */
@@ -104,16 +109,17 @@ function ChromeButton({
  * the agent finishes the step in flight first, and a button that stayed live
  * through that would be pressed again.
  */
-function useHold(browse: Browse, control: BrowseControl | null) {
+function useHold(browse: Browse, control: BrowseControl | null, active: boolean) {
   const user = useAuthStore((state) => state.user);
   const [asked, setAsked] = useState(false);
+  if (useChanged(active) && !active) setAsked(false);
   // By id: two viewers can share a name, and each would read the other's hold
   // as their own and get the page's live controls.
   const holding = Boolean(browse.heldById) && browse.heldById === user?.id;
   return {
     holding,
     someoneElse: Boolean(browse.heldBy) && !holding,
-    waiting: asked && !browse.heldBy && isRunning(browse),
+    waiting: asked && !browse.heldBy && !browse.controlError && isRunning(browse),
     takeOver: () => {
       setAsked(true);
       control?.send({ type: "take_over" });
@@ -198,9 +204,9 @@ const FIT_SETTLE_MS = 250;
  * moment, so dragging the panel's edge does not lay the page out sixty times.
  * The browser applies it between steps.
  */
-function useFitPage(control: BrowseControl | null) {
+function useFitPage(control: BrowseControl | null, pageIdentity: string | null) {
   const ref = useRef<HTMLDivElement>(null);
-  const [asked, setAsked] = useState<number | null>(null);
+  const [asked, setAsked] = useState<{ width: number; height: number } | null>(null);
   const send = control?.send;
   useEffect(() => {
     const element = ref.current;
@@ -216,7 +222,7 @@ function useFitPage(control: BrowseControl | null) {
       const size = `${width}x${height}@${scale}`;
       if (size === last) return;
       last = size;
-      setAsked(width * scale);
+      setAsked({ width: width * scale, height: height * scale });
       send({ type: "resize", width, height, scale });
     };
     const observer = new ResizeObserver(() => {
@@ -229,7 +235,7 @@ function useFitPage(control: BrowseControl | null) {
       clearTimeout(timer);
       observer.disconnect();
     };
-  }, [send]);
+  }, [send, pageIdentity]);
   return { ref, asked };
 }
 
@@ -237,8 +243,8 @@ function useFitPage(control: BrowseControl | null) {
 const FIRST_FIT_MS = 6000;
 
 /**
- * Whether the picture can be shown: once a frame has arrived at the width this
- * window asked for, or once waiting for one has taken too long.
+ * Whether the picture can be shown: once a frame has arrived at both dimensions
+ * this window asked for, or once waiting for one has taken too long.
  *
  * The browser opens the tab at a default size and the window's own arrives a
  * moment later, applied between the agent's steps - so the first frames are a
@@ -247,7 +253,11 @@ const FIRST_FIT_MS = 6000;
  * difference between a browser opening and a thumbnail being swapped. Latched:
  * once shown, a later frame of another size (the window resized) shows too.
  */
-function useFitted(image: string | null, asked: number | null, waiting: boolean): boolean {
+function useFitted(
+  image: string | null,
+  asked: { width: number; height: number } | null,
+  waiting: boolean,
+): boolean {
   const [fitted, setFitted] = useState(false);
   useEffect(() => {
     if (!waiting || fitted) return;
@@ -259,7 +269,11 @@ function useFitted(image: string | null, asked: number | null, waiting: boolean)
     const probe = new Image();
     probe.onload = () => {
       // Within a couple of pixels: a scrollbar or rounding is not a wrong size.
-      if (Math.abs(probe.naturalWidth - asked) <= 2) setFitted(true);
+      if (
+        Math.abs(probe.naturalWidth - asked.width) <= 2 &&
+        Math.abs(probe.naturalHeight - asked.height) <= 2
+      )
+        setFitted(true);
     };
     probe.src = image;
   }, [image, asked, waiting, fitted]);
@@ -281,6 +295,11 @@ function useFitted(image: string | null, asked: number | null, waiting: boolean)
  */
 export function BrowserWindow({
   browse,
+  surface = "browser",
+  controlState,
+  tabs,
+  onActivateTab,
+  selectingTab = false,
   control,
   onClose,
   maximized,
@@ -289,8 +308,16 @@ export function BrowserWindow({
   newTabHref,
   waitForFit = false,
   onComment,
+  menuItems,
+  active = true,
 }: {
   browse: Browse;
+  surface?: "browser" | "desktop";
+  /** Fresh physical control state for a retained environment, distinct from this socket’s own ACK. */
+  controlState?: ConversationEnvironment["control"];
+  tabs?: EnvironmentTabs | null;
+  onActivateTab?: (id: string) => void;
+  selectingTab?: boolean;
   control: BrowseControl | null;
   onClose?: () => void;
   maximized?: boolean;
@@ -302,48 +329,79 @@ export function BrowserWindow({
   waitForFit?: boolean;
   /** Where a comment on a spot of the page goes - the chat's composer; none, no button. */
   onComment?: (comment: PageComment) => void;
+  menuItems?: ReactNode;
+  /** The frame owns visibility; hiding it dismisses portalled controls. */
+  active?: boolean;
 }) {
   const t = useTranslations("chat");
   const tb = useTranslations("browse");
+  const tabId = useId();
+  const menuLabel = menuItems === undefined ? t("browserMenu") : t("environmentView.options");
+  const heading = surface === "desktop" ? t("environmentView.desktopTitle") : t("browserHeading");
+  const [menuOpen, setMenuOpen] = useState(false);
+  if (useChanged(active) && !active) setMenuOpen(false);
   const [showSteps, setShowSteps] = useState(false);
   const [remember, setRemember] = useState(false);
   const [commenting, setCommenting] = useState(false);
-  const hold = useHold(browse, control);
+  const hold = useHold(browse, control, active);
   const running = isRunning(browse);
   const host = hostOf(browse.url);
   const secure = browse.url?.startsWith("https:") ?? false;
-  const canDrive = running && control !== null && control.canControl;
-  const { ref: pageRef, asked } = useFitPage(canDrive ? control : null);
-  const fitted = useFitted(browse.image, asked, waitForFit && canDrive);
+  const canDrive = active && running && control !== null && control.canControl;
+  const showNavigation = browse.navigable && (canDrive || menuItems !== undefined);
+  const canFit =
+    canDrive &&
+    surface === "browser" &&
+    (controlState === undefined || controlState === "none" || hold.holding);
+  const { ref: pageRef, asked } = useFitPage(canFit ? control : null, tabs?.active_tab_id ?? null);
+  const fitted = useFitted(browse.image, asked, waitForFit && canFit);
+  const controlLabel =
+    hold.holding && canDrive
+      ? tb("youControl")
+      : controlState === "human" || hold.someoneElse
+        ? tb("otherViewerControls")
+        : controlState === "agent" || (controlState === undefined && running)
+          ? tb("agentControls")
+          : tb("viewOnly");
   // Pointing at the page and driving it are two gestures on one picture; while
   // somebody holds the tab, a click is theirs to send to it.
   const canComment = onComment !== undefined && browse.image !== null && fitted && !hold.holding;
 
   return (
     <section
-      aria-label={t("browserHeading")}
+      aria-label={heading}
       className="bg-background @container/browser-window flex h-full min-h-0 min-w-0 flex-col"
     >
+      {tabs && tabs.tabs.length > 0 && onActivateTab && (
+        <BrowserPageTabs
+          tabs={tabs}
+          disabled={selectingTab || !canDrive || (controlState !== "none" && !hold.holding)}
+          onActivate={onActivateTab}
+          id={tabId}
+          panelId={`${tabId}-page`}
+        />
+      )}
       <div className="bg-muted/25 border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b p-1.5 @min-[640px]/browser-window:flex-nowrap">
-        <div
-          className={cn(
-            "flex min-w-0 flex-1 items-center",
-            browse.navigable && canDrive && "basis-full @min-[420px]/browser-window:basis-auto",
-          )}
-        >
-          {browse.navigable && canDrive ? (
-            <BrowserNavigation url={browse.url} holding={hold.holding} send={control.send} />
+        <div className="flex min-w-0 flex-1 items-center">
+          {showNavigation ? (
+            <BrowserNavigation
+              url={browse.url}
+              holding={hold.holding && canDrive}
+              send={control?.send}
+            />
           ) : (
             <div
               className="bg-muted/80 flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-3 text-xs"
               title={browse.url ?? undefined}
             >
-              {secure ? (
+              {surface === "desktop" ? (
+                <Monitor className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+              ) : secure ? (
                 <Lock className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
               ) : (
                 <Globe className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
               )}
-              <h2 className="sr-only">{browse.title || host || t("browserHeading")}</h2>
+              <h2 className="sr-only">{browse.title || host || heading}</h2>
               <span className="min-w-0 flex-1 truncate">
                 {host ? (
                   <>
@@ -351,7 +409,9 @@ export function BrowserWindow({
                     <span className="text-muted-foreground">{pathOf(browse.url ?? "")}</span>
                   </>
                 ) : (
-                  <span className="text-muted-foreground">{t("browserStarting")}</span>
+                  <span className="text-muted-foreground">
+                    {surface === "desktop" ? browse.title || heading : t("browserStarting")}
+                  </span>
                 )}
               </span>
               {running && (
@@ -363,7 +423,10 @@ export function BrowserWindow({
             </div>
           )}
         </div>
-        <div className="ml-auto flex shrink-0 items-center gap-0.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <span role="status" className="sr-only">
+            {controlLabel}
+          </span>
           {browse.outcome && <OutcomeBadge outcome={browse.outcome} />}
           {canDrive &&
             (hold.holding ? (
@@ -377,18 +440,20 @@ export function BrowserWindow({
                   // take-over asks again rather than inheriting a tick.
                   setRemember(false);
                 }}
-                className="bg-foreground text-background hover:bg-foreground/90 flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium"
+                aria-pressed
+                className="bg-muted text-foreground hover:bg-muted/80 flex size-8 shrink-0 items-center justify-center rounded-lg pointer-coarse:size-11"
               >
                 <Undo2 className="size-4" aria-hidden />
               </button>
-            ) : hold.someoneElse ? null : (
+            ) : hold.someoneElse || controlState === "human" ? null : (
               <button
                 type="button"
                 aria-label={hold.waiting ? tb("takingOver") : tb("takeOver")}
                 onClick={hold.takeOver}
                 disabled={hold.waiting}
-                title={tb("takeOverHint")}
-                className="bg-foreground text-background hover:bg-foreground/90 flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium disabled:opacity-60"
+                title={hold.waiting ? tb("takingOverShort") : tb("takeOverHint")}
+                aria-pressed={false}
+                className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-lg disabled:opacity-60 pointer-coarse:size-11"
               >
                 <Hand className="size-4" aria-hidden />
               </button>
@@ -402,18 +467,19 @@ export function BrowserWindow({
               <MessageSquarePlus className="size-4" />
             </ChromeButton>
           )}
-          <DropdownMenu>
+          <DropdownMenu open={active && menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                aria-label={t("browserMenu")}
-                title={t("browserMenu")}
-                className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-full"
+                aria-label={menuLabel}
+                title={menuLabel}
+                className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-full pointer-coarse:size-11"
               >
                 <MoreHorizontal className="size-4" aria-hidden />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {menuItems}
               <DropdownMenuCheckboxItem checked={showSteps} onCheckedChange={setShowSteps}>
                 <ListChecks className="mr-2 size-4" aria-hidden />
                 {t("browserShowSteps", { count: browse.steps.length })}
@@ -447,9 +513,7 @@ export function BrowserWindow({
         </div>
       </div>
 
-      {browse.navigable && canDrive && (
-        <h2 className="sr-only">{browse.title || host || t("browserHeading")}</h2>
-      )}
+      {showNavigation && <h2 className="sr-only">{browse.title || host || heading}</h2>}
       {browse.controlError && (
         <p role="alert" className="text-destructive border-b px-3 py-2 text-sm">
           {browse.controlError}
@@ -490,7 +554,17 @@ export function BrowserWindow({
           asked for the page to be laid out at its own size (see `useFitPage`),
           so the picture fills it 1:1 rather than being a laptop screen shrunk
           into a column. Activity does not cover the page. */}
-      <div ref={pageRef} className="bg-background relative min-h-0 flex-1 overflow-hidden">
+      <div
+        ref={pageRef}
+        id={`${tabId}-page`}
+        role={tabs?.tabs.length ? "tabpanel" : undefined}
+        aria-labelledby={
+          tabs?.active_tab_id
+            ? `${tabId}-${tabs.tabs.findIndex((tab) => tab.id === tabs.active_tab_id)}`
+            : undefined
+        }
+        className="bg-background relative min-h-0 flex-1 overflow-hidden"
+      >
         <div className="h-full scrollbar-thin overflow-y-auto">
           {browse.image && fitted ? (
             // The comment picker sits beside the remote screen rather than inside
@@ -499,7 +573,7 @@ export function BrowserWindow({
             <div className="relative">
               <LiveViewport
                 browse={browse}
-                holding={hold.holding}
+                holding={hold.holding && canDrive}
                 onCommand={(command) => control?.send(command)}
                 flush
                 overlay={

@@ -1,5 +1,5 @@
 ---
-source_sha: "67639049734c"
+source_sha: "9265232f6b26"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -90,8 +90,23 @@ y la evidencia, y cada una se decide por separado:
 |---|---|
 | **Aceptar** | El cambio se escribe en el draft. No se publica nada. |
 | **Editar** | Se acepta tu propia redacción en lugar de la sugerencia. Para las instrucciones se abre el texto completo: la versión actual junto a la propuesta, que editas, con el diff redibujado mientras escribes. Solo se guarda el pasaje sugerido; el texto de fuera se cambia en el editor de instrucciones. |
-| **Descartar** | Queda registrado; una petición posterior no lo vuelve a sugerir. |
+| **Descartar** | Queda registrado; ninguna petición posterior, verificación ni sesión de Improve lo vuelve a sugerir hasta la próxima publicación del agent. |
 | **Deshacer** | Revierte la decisión mientras aún encaja en el draft. |
+
+Una sugerencia cuyo texto contiene caracteres que una persona no puede ver - un
+carácter de control distinto de un salto de línea o un tabulador, un control de
+dirección del texto, un carácter de etiqueta Unicode - no se registra, y una
+guardada antes la rechazan una comprobación y **Aceptar**; lo mismo una propuesta
+así para un skill o un archivo de contexto, una variante de búsqueda, un skill
+creado desde una idea y la redacción propia de una persona.
+
+Los caracteres de ancho cero se dejan pasar, y cada diff los escribe con su código
+y lo indica. Un fin de línea de Windows o un retorno de carro suelto se guarda
+como salto de línea.
+
+Una sugerencia reescrita en el paso **Changes** de una sesión Improve muestra
+esa redacción, marcada **Reworded at the Changes step**: es la que escribe
+**Aceptar**, y **Editar** empieza desde ella.
 
 Una sugerencia se ancla en dónde estaba su fragmento y en lo que lo rodeaba, no
 solo en el texto, así que una línea que aparece dos veces se cambia donde se
@@ -99,6 +114,11 @@ pretendía. Si el draft ha cambiado - el fragmento se eliminó o la descripción
 una herramienta se cambió a mano -, la sugerencia dice que **ya no encaja en el
 draft** y solo se puede descartar. Deshacer se niega igual cuando el texto
 aceptado se editó después a mano: tiraría esa edición.
+
+Un fragmento movido a mano, o junto a un cambio aceptado antes que él, se sigue
+encontrando mientras aparezca una sola vez y sea una línea entera, tenga al menos
+40 caracteres o conserve un lado de lo que lo rodeaba. Una frase más corta, como un
+importe, no se sigue a otra oración: su sugerencia ya no encaja en el draft.
 
 La barra tiene dos pestañas, cada una con su número. **To review** muestra entera
 cada sugerencia que sigue pendiente. **Decided** pliega cada una aceptada, editada
@@ -166,7 +186,9 @@ Una sesión de mejora fija la versión del dataset, la proporción de control y 
 
 Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de una versión solo propuesta, que el borrador no contiene: la de un intento anterior, la que mide una comprobación de conocimiento o una que sirve un cambio de skill o de archivo de contexto.
 
-También lee lo que cambió cada intento anterior: su veredicto, los criterios que se movieron en las preguntas de las que aprendió, y solo cuántas preguntas apartadas arregló y rompió. El contexto de intentos anteriores incluye extractos limitados de un máximo de seis intentos medidos recientes, para que los cambios largos de instrucciones o del contenido de una skill no llenen el prompt de la siguiente propuesta.
+De cada intento anterior lee el veredicto y solo cuántas preguntas apartadas arregló y rompió, nunca lo que cambió el intento: cada intento aparta sus propias preguntas, sorteadas de nuevo, así que un cambio anterior pudo escribirse a partir de preguntas con las que se mide este intento.
+
+Los criterios que movió un intento anterior se cuentan solo en las preguntas de entrenamiento de este intento; cuando su comprobación no calificó ninguna, el asistente lo sabe en vez de ver ceros. Se leen como máximo seis intentos medidos recientes.
 
 Una comprobación cuenta como la prueba del draft en cuanto el draft es
 exactamente lo que comprobó - cada sugerencia comprobada aceptada y nada más
@@ -199,7 +221,7 @@ refiere, nunca un identificador.
 | Modelo | Cambiar el perfil de modelo |
 | Ajustes del modelo | Fijar la temperatura, top-p, el máximo de tokens, el timeout o las llamadas paralelas a herramientas |
 | Límite de pasos | Fijar `max_steps` |
-| Capabilities | Añadir o quitar una, o cambiar sus ajustes - solo donde los ajustes tratan únicamente de calidad, como cuánto conocimiento recuperar o cuándo compactar; los ajustes que llegan a una URL, un dominio, una conexión, un proveedor o datos personales nunca cambian, y Subagents nunca se añade ni se reconfigura. Una salvaguarda - Guardrails - solo se puede añadir: nunca quitar ni reconfigurar, se nombre como se nombre en la sugerencia |
+| Capabilities | Añadir o quitar una, o cambiar sus ajustes - solo donde los ajustes tratan únicamente de calidad, como cuánto conocimiento recuperar o cuándo compactar; los ajustes que llegan a una URL, un dominio, una conexión, un proveedor o datos personales nunca cambian, y Subagents nunca se añade ni se reconfigura. Una capability cuyas herramientas llegan más allá del despliegue - a la web, a un navegador o un escritorio, a un canal de mensajería o un teléfono, a un servicio montado, a un sandbox, a un workflow o a otro agent - nunca se añade. Una salvaguarda - Guardrails - solo se puede añadir: nunca quitar ni reconfigurar, se nombre como se nombre en la sugerencia |
 | Aprobación | Hacer que una capability o una de sus herramientas pregunte antes |
 | Especialistas | Reescribir la descripción de un [especialista](reference/capabilities.md#delegation) integrado |
 | Bases de conocimiento | Vincular o desvincular una |
@@ -230,6 +252,22 @@ Nunca amplía lo que se ejecuta sin una persona:
   cuenta como una que escribe.
 - La aprobación solo se endurece: una sugerencia puede hacer que una capability
   o una herramienta pregunte antes, nunca que deje de preguntar.
+- Una capability que añade solo fija sus ajustes y aprobaciones que hacen que sus
+  herramientas pregunten antes: nunca otro nombre u otra descripción de una
+  herramienta, que leería el modelo del agent, una clave ni una vinculación
+  desactivada. Una sugerencia que lleve algo de eso no se registra, y una
+  guardada antes se rechaza al pulsar **Aceptar**. La tarjeta muestra toda la
+  vinculación que escribe, con cada carácter que no dibuja nada o reordena el
+  texto a su alrededor escrito de forma visible, como `\u{202E}`.
+- Una capability cuyas herramientas llegan más allá del despliegue nunca se
+  añade: aparece bajo **ideas que el asistente no añadió**, para añadirla
+  en el Builder, donde se fijan sus límites.
+- Volver a añadir una capability que vincula la versión publicada y que el
+  borrador ya no tiene se juzga como un cambio respecto a la vinculación
+  publicada: una vinculación desactivada no se vuelve a activar, sus ajustes
+  solo cambian donde tratan únicamente de calidad, los de
+  una salvaguarda nunca, y ninguna de sus herramientas pide aprobación menos que
+  antes.
 
 Una sugerencia que vincula una base de conocimiento, un archivo de contexto, un
 perfil de modelo o un servidor MCP, o que deja al agent llamar a más herramientas
@@ -382,6 +420,14 @@ resultados seguidos sin cambios, o uno inconcluso y su repetición, aparecen en 
 resultado como una pista de que otro intento probablemente no ayudará, no como
 una parada.
 
+Una nota que cita una pregunta con la que se mide el nuevo intento se rechaza en
+`note`, y también una en la sesión de un skill que cita una pregunta que su
+siguiente comprobación puede calificar: el asistente leería lo que la
+comprobación mide después. La comparación ignora mayúsculas y espacios y detecta
+una copia, no una paráfrasis, por eso el Architect nunca recibe el texto de una
+pregunta apartada. Solo se comparan las preguntas que quien llama puede
+leer: rechazar una nota por una que no puede ver confirmaría una suposición.
+
 Quien puede empezar una sesión del agente - permiso de edición, `runs:view` y la
  - puede también dar su siguiente paso, volver a
 intentarlo o confirmar una de sus comprobaciones de pago: de los cambios elegidos, de un borrador de conocimiento o de lo que hizo cada cambio. La sesión registra quién lo hizo, y los pasos siguientes se ejecutan
@@ -477,13 +523,15 @@ El coste del análisis y el límite de gasto de toda la sesión aparecen antes d
 2. **Cambios.** Cuántos cambios se propusieron y cuántos se incluyen, y luego cada cambio como diff con Debería corregir, Por qué y Basado en plegados debajo. En la parada, cada cambio tiene **Include change N in the test**, de los que al menos uno sigue marcado, y **Change the wording**, que prueba su redacción en lugar de la del asistente: el cambio queda marcado **Reworded by you**, y **Back to the proposed wording** lo deshace. **Next step: test the selected changes** inicia la prueba, con el precio máximo que puede costar y debajo lo que probablemente costará - una prueba que vuelve a preguntar cerca de la mitad de las respuestas apartadas que puede, sin la repetición que recibe un resultado no concluyente; mientras avanza, la lista se puede leer pero no cambiar. Los borradores de conocimiento forman su propia columna, con los borradores que alguien pidió. Si no se encontró ningún cambio, la pantalla enumera lo que probó cada intento.
 3. **Comprobación.** El agente tal como está hoy y el cambiado responden a las mismas preguntas en una prueba, cada uno con una barra de su avance; las respuestas de una prueba anterior al inicio de la sesión llenan de inmediato la barra de la versión de hoy. Después, las etapas, cada una marcada como hecha, en curso o sin empezar: preguntar, calificar y volver a preguntar las respuestas cuyo resultado cambió. La prueba avanza sola y el resultado se abre cuando termina. **Open the full check** lleva a la ejecución de evaluación.
 4. **Resultado.** Primero, a qué llegó la sesión, en frases construidas a partir de los veredictos - qué intento mejoró el agente, o que ninguno lo hizo y cuál lo empeoró - con los temas que faltan en la base de conocimiento y por qué se detuvo la sesión. Una pregunta aprueba solo cuando cumple cada criterio con el que se califica, así que un intento que arregló un criterio mientras otros siguen fallando no cambia ninguna pregunta: su veredicto es **Better on criteria**, y la frase nombra cada criterio con cuántas preguntas apartadas lo cumplían antes y después - *Attempt 1 made Quote Builder better on 1 criterion: price break 9/40 → 40/40* - y luego los criterios que siguen fallando, con el skill al que el asistente atribuyó cada uno - *No additional question passes yet, because other criteria still fail: validity (skill “Quote rules”)*. Un intento así es un candidato comprobado como uno mejor. Uno que empeoró un criterio sin romper ninguna pregunta es **Worse on criteria** y se nombra igual, y un intento mejor que además empeoró un criterio lo dice junto a sus arreglos; el aviso al conservar un intento así nombra los criterios empeorados. Los criterios se cuentan por [familia](evals.md#a-flip-is-confirmed-before-it-counts), así que los checks de una misma cosa en todos los casos se mueven juntos. Una familia que el asistente atribuyó a un skill y que empeoró no hace peor un intento: la frase dice que el agente ahora sigue el skill más de cerca y que es el skill lo que hay que arreglar. Un intento que rompió preguntas sigue nombrando las familias que mejoró, así que la parte que ayudó puede conservarse intentándolo de nuevo con una nota. Las cifras añaden **Criteria passed** (criterios cumplidos), cuántas veces se cumplieron los criterios antes y después en las preguntas apartadas, y **Still held back by a skill** (aún bloqueados por un skill), cuántos siguen fallando por un skill y por cuál. En ambos casos el cambio de un criterio solo cuenta cuando volver a preguntar lo confirmó, como con las preguntas enteras. La fila de un intento indica cuántos criterios mejoraron o empeoraron y se abre a una tabla de todos los criterios con sus aciertos antes y después y su cambio confirmado; una vez decidida, dice qué intento se publicó y como qué versión, o se guardó como borrador. Bajo **What you can do** hay una acción principal: **Review and accept the changes** cuando espera un candidato comprobado, **Try again** mientras quedan intentos o presupuesto, **Draft the ones you need** cuando solo falta conocimiento y, si no, **End without changes**, junto a **Start a new session** y una pista para añadir preguntas de prueba donde el agente responde mal. Un paso fallido ofrece primero **Retry this step within the spending limit**. Con dos intentos medidos o más, **Which attempt to keep** los enumera con el conservado marcado; elegir otro pide **Keep attempt N**, y un intento que no fue mejor dice antes lo que cuesta aceptarlo - las preguntas que rompió, o que no aporta una mejora medida. Una sesión decidida los enumera sin la elección. **Try again** admite una **Note for the helper** opcional - qué cambiar o conservar - y muestra su precio antes de empezar; el nuevo intento se detiene en **Changes**. Un paso detenido porque quien lo dio perdió el acceso que necesita ofrece **Continue this step with my access** a cualquiera que pueda empezar una sesión. Después, las cifras: arregladas y rotas cuentan solo los cambios confirmados al preguntar de nuevo, con los aún no confirmados en letra pequeña debajo - cambiaron una vez, pero no de la misma manera al preguntar de nuevo, y el recuento de temas sin conocimiento lleva a su lista. Cada intento es una fila cerrada: su veredicto, lo que arregló y rompió frente a su propia versión de partida en las preguntas que apartó, lo que costó escribirlo y probarlo - el total de la sesión, análisis incluido, figura encima de la lista - y el mejor intento marcado o, si una persona eligió un intento que no era mejor, marcado como elegido. Cada intento aparta sus propias preguntas, así que los intentos se comparan por su cambio y no por sus tasas de aprobados, que solo aparecen en los detalles de la fila. Una fila se abre a las barras de preguntas manejadas bien antes y después, el coste por respuesta cuando cambió y cada pregunta cambiada con sus respuestas antes y después; un cambio que las respuestas repetidas no confirmaron espera bajo **Not confirmed yet**, marcado solo como posiblemente arreglado o posiblemente roto. Una barra es verde o roja solo para un cambio confirmado al preguntar de nuevo; si no, queda gris, y una diferencia de una pregunta, o barras que apuntan en sentidos opuestos, se califica como ruido. Bajo **Show details** en la fila: **How we measured it**, una frase que dice cuántas preguntas vio el ayudante y cuántas se apartaron para decidir el resultado; **Which change helped?** cuando el intento hizo dos cambios o más, con lo que cuesta probar cada uno por separado; y, solo cuando la sesión tiene un borrador que probar, **Check whether the draft would help**, como si la búsqueda lo encontrara o con la búsqueda real. Cuando las comprobaciones fueron ruido - respuestas calificadas de las dos maneras al preguntar de nuevo dentro de un intento, o la versión de hoy puntuando distinto entre intentos en las preguntas apartadas que compartían - y ningún intento fue mejor, la tarjeta dice primero que la prueba no distingue una versión mejor de una peor, ofrece lo que la hace fiable - criterios de calificación de sí o no en lugar de una escala, una regla para la longitud y el formato en lugar del juez, más preguntas hasta unas 30 apartadas, un modelo de juez más potente - y enumera las preguntas calificadas de las dos maneras con las notas de cada intento. Junto a un intento mejor solo señala el ruido. Los intentos que compartieron menos de cinco preguntas apartadas no se comparan en cuanto a ruido, y la tarjeta lo dice. Dos intentos seguidos que no cambiaron nada, o que no se pudieron calificar de forma fiable, dan una pista de que otro probablemente no ayudará; la sesión nunca se detiene sola antes de su límite de intentos, y la tarjeta nombra ese límite solo cuando se alcanza. Consulta [cuando se mueve la propia calificación](evals.md#a-flip-is-confirmed-before-it-counts) y [cuán estables son las respuestas](evals.md#how-steady-the-answers-are).
-5. **Aceptar.** Cifras de lo que la nueva versión corrige, rompe y cuesta por respuesta, y con cuántas preguntas se probó, con el coste por respuesta frente a la versión de hoy en las preguntas apartadas. Debajo, el cambio que se acepta tal como se midió: la redacción de una persona marcada **Reworded by you**. Un intento que no fue mejor repite el aviso del resultado, deja sin marcar la comprobación automática y hace de **Keep as draft** la primera opción; un intento mejor en criterios no se llama así y repite en su lugar lo que arregló y lo que sigue fallando. Los temas que esta sesión encontró aún ausentes de la base de conocimiento se cuentan - con cuántos tienen un borrador listo para añadir y cuántos uno desactualizado - y aparecen con sus preguntas. Una sesión no redacta ninguno: cada uno ofrece **Draft** con lo máximo que cuesta un borrador, dice **Drafting…** mientras se escribe y, una vez redactado, ofrece **Review and add** o **Not now**, que lo aparta durante la sesión (`PUT /{run_id}/topics/{topic_id}/later`). Cada lugar donde la gente usa el agente dice si cambia en el acto, tras superar su comprobación automática o se queda en su versión. Después, **Publish version N** o **Keep as draft**. Cualquiera de las dos termina la sesión, y este paso dice entonces qué se decidió, quién y cuándo, con un enlace a la versión y el cambio con la redacción aceptada; **Changes** enumera entonces todos los intentos. Si no hay nada que aceptar, el paso se omite.
+5. **Aceptar.** Cifras de lo que la nueva versión corrige, rompe y cuesta por respuesta, y con cuántas preguntas se probó, con el coste por respuesta frente a la versión de hoy en las preguntas apartadas. Debajo, el cambio que se acepta tal como se midió: la redacción de una persona marcada **Reworded by you**. Un intento que no fue mejor repite el aviso del resultado, deja sin marcar la comprobación automática y hace de **Keep as draft** la primera opción; un intento mejor en criterios no se llama así y repite en su lugar lo que arregló y lo que sigue fallando. Los temas que esta sesión encontró aún ausentes de la base de conocimiento se cuentan - con cuántos tienen un borrador listo para añadir y cuántos uno desactualizado - y aparecen con sus preguntas. Una sesión no redacta ninguno: cada uno ofrece **Draft** con lo máximo que cuesta un borrador, dice **Drafting…** mientras se escribe y, una vez redactado, ofrece **Review and add** o **Not now**, que lo aparta durante la sesión (`PUT /{run_id}/topics/{topic_id}/later`). Cada lugar donde la gente usa el agente dice si cambia en el acto, tras superar su comprobación automática o se queda en su versión. Después, **Publish version N** o **Keep as draft**. Cuando el draft tenía ediciones antes de empezar la sesión, el paso dice que publicar también las libera, sin medir, y **Publish** espera a que se confirmen también. Una confirmación vale para el intento en pantalla tal como se midió: cuando se elige otro intento, o una revisión lo juzga de nuevo, se borra. Cualquiera de las dos termina la sesión, y este paso dice entonces qué se decidió, quién y cuándo, con un enlace a la versión y el cambio con la redacción aceptada; **Changes** enumera entonces todos los intentos. Si no hay nada que aceptar, el paso se omite.
 
 Un enlace a un paso que ya no existe - `?step=testSet` o `?step=today` - abre el paso que ocupó su lugar, **Understand** o **Check**, sin añadir una entrada al historial.
 
 Un paso de propuestas o eval fallido se reintenta explícitamente con `/{run_id}/retry`; varios clics no crean otro trabajo. Los reintentos automáticos nunca repiten llamadas pagadas. Las decisiones humanas actualizan la sesión a aceptada, publicada o descartada. La acción confirmada `/{run_id}/finish` acepta los cambios comprobados, con su redacción allí donde usted dio una, y opcionalmente los publica en una transacción.
 
-Una sesión guardada como borrador está terminada: el borrador se publica con el **Publish** del propio agente y, cuando esa versión es la que midió la sesión, queda registrada en ella. Terminar puede crear una suite que se ejecute al publicar, sin regresiones permitidas. Se mantienen los permisos y validaciones habituales, y los entornos protegidos esperan a sus comprobaciones. Los cambios editados después de su prueba deben probarse de nuevo.
+Al terminar se nombra el intento que la persona revisó - `attempt`, el `candidate_spec_hash` y el `result_hash` de ese intento en `iterations` de la sesión - y se rechaza con `409` cuando la sesión tiene otro intento, lo midió de nuevo o una revisión juzgó de nuevo su resultado: lea la sesión de nuevo y revíselo. Una sesión cuyo draft tenía ediciones antes de empezar indica `unmeasured_draft_edits`; esas ediciones están en ambos lados de cada comprobación, así que ninguna las midió, y publicar requiere además `publish_unmeasured_edits`.
+
+Una sesión guardada como borrador está terminada: el borrador se publica con el **Publish** del propio agente y, cuando esa versión es la que midió la sesión, queda registrada en ella. Si una petición o sesión más nueva reemplaza sus sugerencias, sigue guardada como borrador, porque sus cambios siguen en el borrador; descartar el borrador la termina como rechazada. Terminar puede crear una suite que se ejecute al publicar, sin regresiones permitidas. Se mantienen los permisos y validaciones habituales, y los entornos protegidos esperan a sus comprobaciones. Los cambios editados después de su prueba deben probarse de nuevo.
 
 La estimación incluye clasificar respuestas de chat incorrectas y respuestas de entrenamiento fallidas con las bases de conocimiento editables del agente y agrupar sus carencias en [temas](knowledge-gaps.md#topics). No incluye borradores: un borrador solo se escribe cuando una persona lo pide, y se paga como su propio run. Cada paso comprueba de nuevo su estimación completa antes de iniciarse. Solo los chats fuente fijados y no borrados y las respuestas de entrenamiento de las que aprende la sesión llegan a clasificación o agrupación; una respuesta de entrenamiento sin el conocimiento necesario sigue también como evidencia del agente, sin textos de control para estos asistentes.
 
@@ -628,6 +676,8 @@ Cuando el skill solo calla, o solo prohíbe añadir otras secciones, y los datos
 
 El paso Changes muestra estos problemas en **Belongs to a skill**. Cada tarjeta muestra los problemas con sus citas y cuántos agentes leen la misma línea del skill. **Improve X** abre el Improve del propio skill, con los problemas de esta sesión como evidencia inicial. Si el agente sigue un fork, ese Improve trabaja sobre el fork; los problemas de un agente fijado van a main. Sin permiso de edición sobre el skill, la tarjeta indica a quién pedírselo.
 
+Un problema se entrega solo cuando la comprobación del skill no calificará ninguna de las respuestas que cita: un problema que cita una respuesta a una pregunta guardada en la parte apartada de su dataset, o a cualquiera de las preguntas de prueba propias de un skill, no se entrega en absoluto, porque su texto se escribió también a partir de esa respuesta. Así el asistente del skill nunca lee lo que su comprobación mide después, y la sesión del skill dice cuántos problemas quedaron fuera (`seed_withheld`).
+
 Las respuestas de entrenamiento fallidas que leyó esta sesión y que usaron el skill también cuentan como evidencia del skill: preguntas de prueba de la parte de entrenamiento guardada del propio dataset de la sesión, con la que una comprobación de skill nunca mide. Un Improve del skill iniciado así ya no necesita respuestas de chat valoradas negativamente para empezar; quien no puede ejecutar ese dataset no lee ninguna de esas respuestas.
 
 Cuando el agente va por detrás de main, una tarjeta **Update to vN** o **Catch up the fork** abre la página del skill. Si no se pueden leer los skills, la sección lo dice en lugar de desaparecer.
@@ -656,7 +706,7 @@ El paso Comprender muestra una muestra limitada de fuentes, la causa registrada,
 
 Las pruebas que recibe el modelo del asistente - preguntas, respuestas, comentarios de evaluación, argumentos de llamadas a herramientas y errores - se ocultan igual antes de salir, de modo que también las citas que conserva un cambio están ocultadas. Las citas y los resúmenes guardados antes se ocultan cada vez que se leen.
 
-Todo lo que una sugerencia escribiría y cite una credencial - texto de instrucciones o de una skill, el nombre o la descripción de una herramienta, el valor de un campo, una skill nueva, un archivo de contexto o un cuerpo de skill propuestos - se muestra ocultado y marcado con `contains_credential`, y aceptarlo, aplicarlo o comprobarlo se rechaza. Un pasaje sugerido puede editarse y aceptarse sin la credencial; un archivo o cuerpo de skill propuesto se descarta y el cambio se hace a mano.
+Todo lo que una sugerencia escribiría y cite una credencial - texto de instrucciones o de una skill, el nombre o la descripción de una herramienta, el valor de un campo, una skill nueva, un archivo de contexto o un cuerpo de skill propuestos - se muestra ocultado y marcado con `contains_credential`, y aceptarlo, aplicarlo o comprobarlo se rechaza. Un pasaje sugerido puede editarse y aceptarse sin la credencial; un archivo o cuerpo de skill propuesto se descarta y el cambio se hace a mano. La consola lo indica junto al cambio y bloquea antes de enviar esas acciones: aceptar, aplicar, comprobar y elegirlo en el paso Cambios de Improve.
 
 
 El paso de aceptación muestra el número de la siguiente versión y repite el resultado medido de la ronda seleccionada. La comprobación automática se ofrece solo si el agente no tiene ninguna suite. Publicar guarda la identidad y el número de versión en la sesión: al volver a abrirla, el enlace sigue apuntando a esa publicación. Las sesiones antiguas sin este dato muestran su estado sin adivinar una versión. Un error al leer sugerencias permite reintentar; las sugerencias sustituidas no permanecen cargando indefinidamente. Los entornos protegidos esperan sus comprobaciones y los fijados conservan su versión actual.

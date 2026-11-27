@@ -2,12 +2,23 @@
 
 import { useState, type ReactNode } from "react";
 import { useUrlState } from "@/hooks/use-url-state";
-import { Bell, Loader2, Palette, Save, Server, ShieldCheck, Smartphone } from "lucide-react";
+import {
+  Bell,
+  Loader2,
+  Palette,
+  Save,
+  Server,
+  ShieldCheck,
+  Smartphone,
+  Settings2,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { ServiceCard } from "@/components/settings/service-card";
 
 const SECTIONS = [
   { id: "identity", icon: Palette },
@@ -50,15 +61,25 @@ export function DeploymentSettingsLayout({
     : (SECTIONS.find((section) => section.id === requestedSection)?.id ?? "identity");
 
   return (
-    <div className="space-y-5 pb-6">
-      <div className="bg-background/95 sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl py-3 backdrop-blur-md">
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold tracking-tight">{t("title")}</h2>
-          <p className="text-muted-foreground mt-1 text-sm" role="status" aria-live="polite">
+    <div className="space-y-4 pb-6">
+      <div
+        data-slot="deployment-settings-header"
+        className={cn(
+          "bg-background border-border sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b py-3",
+          !guided && "top-[calc(-1*var(--page-inset-top,0px))] -mx-3 px-3 sm:-mx-6 sm:px-6",
+        )}
+      >
+        <div className="min-w-0 flex-1 basis-full sm:basis-auto">
+          <h2 className="text-base font-semibold tracking-tight">{t("title")}</h2>
+          <p
+            className="text-muted-foreground mt-1 text-xs leading-5 max-sm:sr-only"
+            role="status"
+            aria-live="polite"
+          >
             {dirty ? t("unsaved") : t("hint")}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="ms-auto flex shrink-0 items-center gap-2">
           {dirty && (
             <Button variant="ghost" onClick={onDiscard} disabled={pending}>
               {t("discard")}
@@ -82,7 +103,7 @@ export function DeploymentSettingsLayout({
             else setSection(section.id);
           }
         }}
-        className="min-w-0 space-y-5"
+        className="min-w-0 space-y-4"
       >
         <TabsList aria-label={t("title")}>
           {SECTIONS.map(({ id, icon: Icon }) => (
@@ -100,10 +121,10 @@ export function DeploymentSettingsLayout({
               </p>
               <div
                 className={cn(
-                  "gap-5",
+                  "gap-4",
                   guided && (id === "access" || id === "identity")
                     ? "grid md:grid-cols-2 [&>*]:min-w-0"
-                    : "space-y-5",
+                    : "space-y-4",
                 )}
               >
                 {content[id]}
@@ -120,18 +141,16 @@ export function DeploymentSettingsPanel({
   title,
   description,
   children,
+  icon = Settings2,
 }: {
   title: string;
   description: string;
   children: ReactNode;
+  icon?: LucideIcon;
 }) {
   return (
-    <div className="bg-card shadow-card border-foreground/[0.06] overflow-hidden rounded-2xl border">
-      <div className="border-foreground/[0.06] border-b px-5 py-4 sm:px-6">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <p className="text-muted-foreground mt-1 max-w-2xl text-xs leading-5">{description}</p>
-      </div>
-      <div className="p-5 sm:p-6">{children}</div>
-    </div>
+    <ServiceCard icon={icon} headingLevel={3} title={title} description={description} action={null}>
+      {children}
+    </ServiceCard>
   );
 }

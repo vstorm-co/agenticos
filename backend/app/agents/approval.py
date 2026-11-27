@@ -104,6 +104,10 @@ class ApprovalRequest:
     remembered "Always allow" are decisions made before the call existed, and
     for such a tool the call is the decision."""
 
+    platform_call: bool = False
+    """Whether the tool is one of the platform's own, as the platform binding marked
+    its definition - see `app.agents.mcp.PLATFORM_TOOL`. Never read off the name."""
+
 
 @dataclass(frozen=True)
 class ApprovalGranted:

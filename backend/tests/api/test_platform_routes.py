@@ -136,6 +136,7 @@ _SERVICE_DEPS = (
     deps.get_agent_runner_service,
     deps.get_approval_service,
     deps.get_skill_service,
+    deps.get_skill_package_service,
     deps.get_context_service,
     deps.get_virtual_table_service,
     deps.get_durable_task_service,
@@ -220,6 +221,7 @@ class Call:
     """Appended verbatim, so it carries its own `?` - there is no route here that
     needs one twice and no reason for this to guess."""
 
+    upload_field: str = "file"
     upload: bool = False
     """A multipart route, which is sent a token file rather than a JSON body.
 
@@ -239,7 +241,7 @@ async def _send(client: AsyncClient, call: Call) -> Any:
         return await client.request(
             call.method,
             _url(call.path, call.query),
-            files={"file": ("probe.pdf", b"%PDF-1.4", "application/pdf")},
+            files={call.upload_field: ("probe.pdf", b"%PDF-1.4", "application/pdf")},
             data=call.body or {},
         )
     return await client.request(call.method, _url(call.path, call.query), json=call.body)
@@ -380,7 +382,6 @@ CALLS: tuple[Call, ...] = (
         query="?started_from=2020-01-01T00:00:00&started_to=2020-01-02T00:00:00",
     ),
     Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
-    Call("GET", "/approvals", Perm.APPROVALS_DECIDE),
     Call(
         "GET",
         "/approvals/export",
@@ -394,7 +395,24 @@ CALLS: tuple[Call, ...] = (
         Perm.RUNS_VIEW,
         query="?from=2020-01-01T00:00:00&to=2020-01-02T00:00:00",
     ),
+    Call(
+        "POST",
+        "/skills/import/preview",
+        Perm.SKILLS_EDIT,
+        body={"format": "zip"},
+        upload=True,
+        upload_field="files",
+    ),
+    Call(
+        "POST",
+        "/skills/import",
+        Perm.SKILLS_EDIT,
+        body={"format": "zip", "fingerprint": "a" * 64},
+        upload=True,
+        upload_field="files",
+    ),
     Call("GET", "/skills", Perm.SKILLS_VIEW),
+    Call("GET", "/skills/sections", Perm.SKILLS_VIEW, query="?arrange=agent"),
     Call("GET", "/skills/gallery", Perm.SKILLS_VIEW),
     Call("GET", "/skills/gallery/preview", Perm.SKILLS_VIEW, query="?key=healthcare/consent"),
     Call("GET", "/skills/behind-main", Perm.SKILLS_VIEW),
@@ -503,6 +521,7 @@ CALLS: tuple[Call, ...] = (
     # the Builder's model picker, so it is gated on seeing agents rather than on
     # managing connections. Knowing Bedrock wants a key pair is not a secret.
     Call("GET", "/providers/catalog", Perm.AGENTS_VIEW),
+    Call("GET", "/providers/currencies", Perm.AGENTS_VIEW),
     # Which models a provider offers, for the field where one is typed. Gated
     # on seeing agents like the catalog beside it: the answer is a public list
     # for OpenRouter and a list of model names for everyone else.
@@ -627,6 +646,15 @@ CALLS: tuple[Call, ...] = (
     # caller's scope and grants against the row - `readable_kb`/`writable_kb`.
     Call("GET", "/kb", Perm.COLLECTIONS_VIEW),
     Call("POST", "/kb", Perm.COLLECTIONS_EDIT, body={"name": "Docs", "scope": "org"}),
+    Call(
+        "POST",
+        "/kb/embedding-probe",
+        Perm.COLLECTIONS_EDIT,
+        body={
+            "embedding_endpoint_id": "00000000-0000-0000-0000-000000000001",
+            "embedding_model": "m",
+        },
+    ),
     # The exception under /kb/{kb_id}: the organization's integrations - every
     # base's, not this one's - which `/org/integrations` gates the same way, so
     # no grant on the base in the path could widen it (#2745).
@@ -691,10 +719,10 @@ CALLS: tuple[Call, ...] = (
     # containers there. Every route including the per-resource ones: a connection
     # has no grants, so a gate here cannot refuse somebody a grant would have
     # admitted.
-    Call("GET", "/local-services", Perm.CONNECTIONS_VIEW),
+    Call("GET", "/service-connections", Perm.CONNECTIONS_VIEW),
     Call(
         "POST",
-        "/local-services",
+        "/service-connections",
         Perm.CONNECTIONS_MANAGE,
         body={
             "name": "GPU box",
@@ -703,7 +731,22 @@ CALLS: tuple[Call, ...] = (
             "base_url": "http://ollama:11434/v1",
         },
     ),
-    Call("PATCH", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE, body={}),
+    Call("PATCH", "/service-connections/{service_id}", Perm.CONNECTIONS_MANAGE, body={}),
+    # A test spends embedding quota and writes nothing; it is `connections:manage`
+    # because it sends a base's text to the address under test.
+    Call("GET", "/service-connections/{service_id}/probe/estimate", Perm.CONNECTIONS_MANAGE),
+    Call("POST", "/service-connections/{service_id}/probe", Perm.CONNECTIONS_MANAGE, body={}),
+    # A Docling test sends a stored key to the address under test and stores nothing.
+    Call(
+        "POST",
+        "/service-connections/test",
+        Perm.CONNECTIONS_MANAGE,
+        body={
+            "kind": "document_parser",
+            "provider": "docling",
+            "base_url": "http://docling.internal:5001",
+        },
+    ),
     # The standalone ML services, all on one permission. `ml:invoke` is separate
     # from `agents:run` so that an integration which parses documents cannot also
     # spend the organization's model budget.
@@ -717,7 +760,7 @@ CALLS: tuple[Call, ...] = (
     # `ml:invoke` alone (every Member) is not enough (#1797).
     Call("GET", "/ml/calls/summary", Perm.RUNS_VIEW),
     Call("GET", "/ml/calls/{call_id}", Perm.ML_INVOKE),
-    Call("DELETE", "/local-services/{service_id}", Perm.CONNECTIONS_MANAGE),
+    Call("DELETE", "/service-connections/{service_id}", Perm.CONNECTIONS_MANAGE),
     Call("GET", "/sandbox-connections", Perm.CONNECTIONS_VIEW),
     Call(
         "POST",
@@ -777,7 +820,16 @@ CALLS: tuple[Call, ...] = (
 # Planning validates caller-supplied content without reading resources or writing;
 # POST keeps the manifest out of query strings and access logs. Routine readiness
 # writes nothing either: POST carries up to 100 ids a query string would not.
-_READ_ONLY_POSTS = frozenset({"/solutions/plan", "/triggers/readiness"})
+_READ_ONLY_POSTS = frozenset(
+    {
+        "/solutions/plan",
+        "/triggers/readiness",
+        # An embedding test sends a few stored chunks out and stores nothing.
+        "/kb/embedding-probe",
+        "/service-connections/{service_id}/probe",
+        "/service-connections/test",
+    }
+)
 WRITE_CALLS: tuple[Call, ...] = tuple(
     call for call in CALLS if call.method != "GET" and call.path not in _READ_ONLY_POSTS
 )
@@ -1048,7 +1100,7 @@ _PLATFORM_PREFIXES = (
     "/solutions",
     # Where an organization's embedding and OCR servers are, on the deployment's
     # own network - the rows a collection names instead of a vault key.
-    "/local-services",
+    "/service-connections",
     # The standalone ML services. Reached by another component holding a key
     # rather than by a person in a browser, which is precisely why the sweep has
     # to see them: nobody would notice an ungated one from the console.
@@ -1160,6 +1212,9 @@ RESOURCE_AWARE_SERVICES = (
     # grants rather than tested as a role.
     deps.get_agent_embed_service,
     deps.get_agent_runner_service,
+    # The approvals queue is the organization's for `approvals:decide`; anybody else
+    # reads only their own waiting platform calls, which only they may approve.
+    deps.get_approval_service,
     deps.get_skill_service,
     # A context file is a shared resource shaped like a skill: who may read, edit
     # or delete one is its grants' answer, resolved inside the service. Every
@@ -1230,6 +1285,9 @@ RESOURCE_AWARE_SERVICES = (
     # through `readable_kb`, writes through `get_for_write`, both of which end
     # at `resolve_access` for org rows. Every per-KB route depends on it.
     deps.get_knowledge_base_service,
+    # The per-base embedding test resolves the base through `get_for_write`, the
+    # decision a save makes, so a test is available to exactly who may change it.
+    deps.get_embedding_probe_service,
     # A workspace is not a shared resource with grants, but the decision is the
     # same shape: the service scopes every read to what the caller is part of -
     # their own user-scoped files, their own conversations, the shared workspace of
@@ -1484,6 +1542,7 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                "platform_call": False,
                 "may_decide": False,
                 "may_approve": False,
             },
@@ -1500,6 +1559,7 @@ class TestReadingWhatARunIsParkedOn:
                 "subagent_name": None,
                 "content_hidden": False,
                 "always_asks": False,
+                "platform_call": False,
                 "may_decide": False,
                 "may_approve": False,
             },

@@ -1,5 +1,5 @@
 ---
-source_sha: "b4f01f7af48e"
+source_sha: "459407421009"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -428,6 +428,10 @@ Para un **Z.AI GLM Coding Plan**, selecciona **Z.AI** y configura **Endpoint** e
 
 Una clave de plan no es intercambiable con la clave de API facturada por uso del proveedor. Algunos proveedores limitan las claves de plan a herramientas de programación; usarla desde una plataforma de agentes es tu decisión y puede limitar o suspender el plan. Los presupuestos de AgenticOS tratan este uso como uso de suscripción sin precio.
 
+**Sesiones de OpenCode Go.** AgenticOS envía `x-opencode-session` y su propio user agent `agenticos/<version>` en las solicitudes a modelos Go. Un agente publicado utiliza su ID estable dentro de la conversación; cambiarle el nombre no cambia la sesión. Los especialistas inline y dinámicos usan ámbitos distintos de padre y nombre; los revisores tienen su propio ámbito. Sin conversación se usa el ID de ejecución; los modelos creados fuera de una ejecución mantienen una sesión generada en toda su cadena de respaldo. Los `extra_headers` explícitos siguen sobrescribiendo ambos encabezados.
+
+OpenCode Go está destinado al tráfico típico de agentes de programación. Estos encabezados de enrutamiento no cambian el uso permitido de la suscripción; un perfil Go no ofrece inferencia de uso general sin restricciones.
+
 **Más cuentas compatibles con OpenAI.** Nous Portal, Inception, Cline, Chutes y Synthetic usan la clave de la consola de cada servicio. Un Endpoint vacío usa el predeterminado de abajo, y la lista de modelos procede del catálogo de la clave. Las suscripciones de Nous Portal, Chutes y Synthetic se tratan sin precio; los créditos de Cline y el uso de Inception tienen precio solo cuando AgenticOS conoce el del modelo.
 
 | Provider | Endpoint predeterminado |
@@ -445,6 +449,8 @@ El ámbito también incluye el ID de membresía: volver a unirse crea un ámbito
 Selecciona la clave del almacén y confirma el destino antes de cargar modelos. Un catálogo personalizado utiliza solo esa clave y ese endpoint. Si la lista no está disponible, puedes escribir el modelo manualmente; no se sustituye por el catálogo general de la API. Las estimaciones de presupuesto de AgenticOS no miden la cuota restante de tu suscripción.
 
 ### Cuentas de suscripción { #subscription-accounts }
+
+Si la instalación no tiene una pasarela de suscripciones configurada, **Ajustes → Suscripciones** explica que las suscripciones no están habilitadas en lugar de mostrar una página en blanco. **Reintentar** actualiza la disponibilidad después de que el administrador configure la pasarela; no inicia sesión con ningún proveedor. Las consultas fallidas muestran un error con la opción de reintentar.
 
 En el editor del agente y el selector de modelos del chat, empieza por **Your subscriptions**, elige un proveedor conocido como **Claude Code (Pro, Max)** o **ChatGPT (Codex)** y pulsa **Connect**. El inicio de sesión se abre allí mismo y vuelve al selector; la lista procede de las cuentas conectadas de ese proveedor, sin deducirla de los nombres de modelos. Las cuentas no disponibles permiten volver a iniciar sesión. Puedes administrar y desconectar cuentas en **Configuración → Suscripciones**. Las claves API de la organización tienen un grupo separado; los gateways y endpoints configurados manualmente están en **Advanced / custom endpoint**. Los perfiles existentes `subscription_accounts` y `cliproxyapi` conservan sus identificadores API.
 
@@ -567,6 +573,12 @@ clave archivada bajo el nombre de un proveedor habla de ese proveedor.
 desplegable ofrece lo que tu servidor sirve de verdad. El identificador del
 modelo sigue siendo texto libre: un servidor que no publica ninguna lista se
 puede usar escribiendo el identificador a mano.
+
+**Embeddings a través del mismo gateway.** Un gateway al que llega un perfil de chat `openai_compatible` también
+puede generar embeddings: regístralo en Knowledge → Integrations como **conexión de servicio** con estilo de
+API *OpenAI-compatible* y elige la misma clave del vault (su propósito es `openai_compatible`). La colección
+usa entonces el provider de embeddings **Custom (OpenAI-compatible)** con un modelo que escribes, tras un Test
+contra sus chunks almacenados. Consulta [Procesamiento de archivos](file-processing.md#a-custom-openai-compatible-endpoint-and-the-test).
 
 ### Cuando la credencial no es una clave de API { #when-the-credential-is-not-an-api-key }
 
@@ -870,13 +882,50 @@ conviene saber:
   `claude-sonnet-5-5` de Anthropic.
 - Actualizar los precios es subir una dependencia.
 
-!!! warning "Un provider sin clave no registra gasto"
+En la sección **Precios** de un perfil puedes sustituir los precios automáticos
+de tokens. Indica entrada y salida por millón de tokens en la moneda elegida (USD por defecto). Las tarifas de
+lectura y escritura de caché son opcionales; si quedan vacías, usan la de entrada.
+Un cero explícito es un precio. La API utiliza `custom_pricing`: omitirlo en una
+actualización conserva el ajuste; enviar `null` restaura el precio automático.
 
-    El gasto se atribuye al [secreto del vault](secrets.md) al que resolvió el
-    run, y un provider sin clave no tiene ninguno al que atribuirlo.
+Cambiar o restablecer los precios requiere `budgets:manage`, además de gestionar las conexiones de modelos. Ese permiso también se requiere al cambiar la clave, el endpoint, `extra_body` o `extra_headers` de un perfil con precios personalizados: esos ajustes pueden cambiar el modelo o la cuenta que paga. Otros ajustes de generación, como la temperatura, conservan sus permisos actuales.
+
+Los perfiles de suscripción admiten los mismos precios opcionales por token: miden el consumo del presupuesto, no la cuota de la suscripción. Cuando las tarifas personalizadas sustituyen el coste contable, los importes originales del proveedor permanecen en los metadatos de uso.
+
+Las tarifas propias tienen prioridad sobre el catálogo y la factura del proveedor.
+Se aplican las del perfil que realmente responde, incluidos fallbacks, delegaciones
+y modelos sin clave. Los tokens de caché normalizados se cobran una sola vez.
+Las estimaciones usan estas tarifas cuando antes usaban el catálogo; las basadas
+en ejecuciones históricas siguen utilizando sus costes registrados.
+
+Cambiar una tarifa afecta al uso resuelto posteriormente y no modifica costes
+históricos de ejecuciones o mensajes. Los recuentos de tokens inválidos o el uso
+omitido mantienen una tarifa parcial. Se conservan los subtotales conocidos, y un
+presupuesto activo en dólares impide nuevas peticiones tras un uso incompleto
+con tarifas propias. El modo automático conserva el catálogo y las facturas
+del proveedor. El formulario muestra tarifas orientativas del nivel básico cuando
+están disponibles; la factura real se conoce después de la petición. Estas tarifas
+no configuran voz realtime ni generación de imágenes, audio o vídeo por unidad.
+
+Las peticiones tarifadas sin clave cuentan para el gasto y presupuesto de la
+organización. No tienen un [secreto del vault](secrets.md) al que atribuir un
+informe por clave.
 
 El coste se comprueba *antes* de cada petición al modelo y se registra incluso
 cuando el run falla. Ver [Budgets](governance.md#budgets).
+
+Los precios propios incluyen un código `currency`, independiente de la organización
+y del idioma. Los administradores mantienen tipos manuales en **Monedas y tipos de
+cambio**. Son unidades de moneda por USD: con EUR a `0.9`, `9 EUR` se registran como
+`10 USD`. El uso conserva importe, moneda y tipo aplicados; los cambios posteriores
+no sobrescriben ese coste en USD. Los costes de cero se registran como `0 USD`
+aunque falte el tipo de cambio. Si hay un límite de gasto, se requiere un tipo
+de cambio antes de la inferencia cuando alguna tarifa por token del perfil puede
+generar un cargo. Esto incluye las lecturas y escrituras de caché.
+
+Las estadísticas de workflows, gastos del panel, historial, costes de conversaciones y presupuesto restante usan el tipo de presentación guardado por la organización. Se fija al crear la organización, cambiar expresamente la moneda preferida o predeterminada y conciliar después de una migración o un arranque. Cambiar los tipos de precios no lo renueva. Un cambio expreso de moneda modifica los equivalentes mostrados, nunca los recibos ni límites contables en USD. Sin tipo de presentación, el importe permanece desconocido.
+
+Los formularios de límites usan ese mismo tipo. Conservan el importe, moneda y tipo originales junto al límite contable USD; otras modificaciones no los sustituyen. Los límites de workflows, presupuestos Improve y criterios de coste mantienen sus reglas. Las especificaciones antiguas de agentes conservan el presupuesto USD como float y rechazan declaraciones no representables exactamente en esa frontera. Véase el contrato API en [moneda de los límites](governance.md#limit-currency).
 
 ### Una delegación resuelve su propio perfil { #a-delegation-resolves-its-own-profile }
 

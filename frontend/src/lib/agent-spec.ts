@@ -66,6 +66,14 @@ export const TEXT_TO_SPEECH_ID = "text_to_speech";
 export const VIDEO_GENERATION_ID = "video_generation";
 export const CODING_AGENT_ID = "coding_agent";
 
+function initialCapabilityConfig(capabilityId: string): CapabilityBindingSpec["config"] {
+  if (capabilityId === "computer_use")
+    return { desktop: "sandbox", session_lifetime: "conversation", session_idle_seconds: 900 };
+  if (capabilityId === "browser_use")
+    return { session_lifetime: "conversation", session_idle_seconds: 900 };
+  return {};
+}
+
 /**
  * The binding a capability would get if somebody switched it on.
  *
@@ -79,7 +87,7 @@ export const CODING_AGENT_ID = "coding_agent";
 export function unboundBinding(capabilityId: string): CapabilityBindingSpec {
   return {
     id: capabilityId,
-    config: capabilityId === "computer_use" ? { desktop: "sandbox" } : {},
+    config: initialCapabilityConfig(capabilityId),
     approval: "required",
     tool_approval: {},
     tool_overrides: {},
@@ -155,7 +163,7 @@ export function withCapability(
     ...bindings,
     {
       id: capabilityId,
-      config: capabilityId === "computer_use" ? { desktop: "sandbox" } : {},
+      config: initialCapabilityConfig(capabilityId),
       approval: "required",
       tool_approval: {},
       tool_overrides: {},

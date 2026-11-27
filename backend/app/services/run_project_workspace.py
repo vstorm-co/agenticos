@@ -113,6 +113,16 @@ class ProjectRunAuthority:
         return ctx, project
 
 
+@dataclass(frozen=True)
+class DesktopExecutionSelection:
+    """Effect-free physical execution choice held by one delegation snapshot."""
+
+    target: Literal["agent", "project"]
+    project_id: UUID | None
+    project_generation: UUID | None
+    opened: OpenWorkspace | None
+
+
 class RunProjectWorkspace(Workspace):
     """One selector per top-level run; approval resumes restore only the project id."""
 
@@ -161,6 +171,10 @@ class RunProjectWorkspace(Workspace):
         self._lifecycle_owner: RunProjectWorkspace = self
         self.admitted_actor = admitted_actor
         self.filesystem_binding_id = filesystem_binding_id
+        self.environment_project_directory: (
+            Callable[[UUID, UUID, UUID | None, OpenWorkspace | None], Awaitable[str]] | None
+        ) = None
+        self.finish_environment_project_directory: Callable[[], Awaitable[None]] | None = None
         self._project_mount = None
         if run_id is not None:
             from app.schemas.project_filesystem_authority import ProjectFilesystemAuthority
@@ -195,6 +209,18 @@ class RunProjectWorkspace(Workspace):
         self._read_versions: dict[tuple[UUID, str], bytes] = {}
         self._require_continuation_reads = False
         self.workspace = self
+
+    def desktop_selection(self) -> DesktopExecutionSelection:
+        """Describe the actual executor without opening it or snapshotting its files."""
+        self._require_open()
+        return DesktopExecutionSelection(
+            self.execution_target,
+            self.project_id,
+            self.project_generation,
+            self._lifecycle_owner.agent_workspace
+            if self.execution_target == "agent" and self.open_agent_executor is not None
+            else None,
+        )
 
     def snapshot_for_delegate(self) -> Workspace:
         """Pin this delegation's targets; the root retains executor cleanup and journals."""
@@ -232,6 +258,7 @@ class RunProjectWorkspace(Workspace):
         selected._pinned_view = True
         selected._lifecycle_owner = self._lifecycle_owner
         selected._project_mount = self._project_mount
+        selected.environment_project_directory = self.environment_project_directory
         selected.filesystem_binding_id = self.filesystem_binding_id
         selected.origins = self.origins
         selected._read_versions = dict(self._read_versions)
@@ -323,6 +350,16 @@ class RunProjectWorkspace(Workspace):
         self._require_open()
         project_id = self._require_selection()
         await self._initialize_staging()
+        if self.execution_target == "agent" and self.environment_project_directory is not None:
+            async with self._open_agent():
+                binding_id = self._filesystem_binding()
+                if binding_id is not None:
+                    await self.environment_project_directory(
+                        binding_id,
+                        project_id,
+                        self.project_generation,
+                        self._lifecycle_owner.agent_workspace,
+                    )
         async with get_db_context() as db:
             try:
                 ctx, project = await self._project(db, project_id)
@@ -1000,6 +1037,10 @@ class RunProjectWorkspace(Workspace):
         self._require_open()
         yield opened.workspace
 
+    def _filesystem_binding(self) -> UUID | None:
+        opened = self._lifecycle_owner.agent_workspace
+        return self.filesystem_binding_id if opened is None else opened.filesystem_binding_id
+
     async def _record_mounted_origin(self) -> None:
         """Keep mounted Project outputs discoverable in this conversation's Files picker."""
         project_id = self._require_selection()
@@ -1035,11 +1076,15 @@ class RunProjectWorkspace(Workspace):
             if self._project_mount is not None:
                 await self._project_mount.close()
         finally:
-            if opened is not None:
-                async with get_db_context() as db:
-                    failure = await SandboxWorkspaceService(db).close(
-                        opened, keep_spills=keep_spills
-                    )
+            try:
+                if self.finish_environment_project_directory is not None:
+                    await self.finish_environment_project_directory()
+            finally:
+                if opened is not None:
+                    async with get_db_context() as db:
+                        failure = await SandboxWorkspaceService(db).close(
+                            opened, keep_spills=keep_spills
+                        )
         return failure
 
     async def run(
@@ -1071,22 +1116,25 @@ class RunProjectWorkspace(Workspace):
                 environment = dict(env or {})
                 environment.pop("PROJECT_DIR", None)
                 if self.project_id is not None and self._project_mount is not None:
-                    opened = self._lifecycle_owner.agent_workspace
-                    binding_id = (
-                        self.filesystem_binding_id
-                        if opened is None
-                        else opened.filesystem_binding_id
-                    )
+                    binding_id = self._filesystem_binding()
                     if binding_id is None:
                         raise WorkspaceUnavailableError(
                             "Live Project files require a mount-enabled Docker connection and a private conversation- or run-scoped workspace. After enabling mounts, start a new conversation to keep an older conversation and its files intact, or explicitly select Project execution."
                         )
                     await self._initialize_staging()
-                    environment["PROJECT_DIR"] = await self._project_mount.directory(
-                        binding_id=binding_id,
-                        project_id=self.project_id,
-                        generation=self.project_generation,
-                    )
+                    if self.environment_project_directory is not None:
+                        environment["PROJECT_DIR"] = await self.environment_project_directory(
+                            binding_id,
+                            self.project_id,
+                            self.project_generation,
+                            self._lifecycle_owner.agent_workspace,
+                        )
+                    else:
+                        environment["PROJECT_DIR"] = await self._project_mount.directory(
+                            binding_id=binding_id,
+                            project_id=self.project_id,
+                            generation=self.project_generation,
+                        )
                     await self._record_mounted_origin()
                 return await workspace.run(
                     command, shell=shell, env=environment, timeout=timeout, cwd=cwd

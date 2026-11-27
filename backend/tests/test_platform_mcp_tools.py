@@ -796,7 +796,14 @@ CALLS.extend(
             (
                 "POST",
                 f"/skills/{KB}/resources",
-                {"json": {"name": "example.md", "content": "Example", "description": None}},
+                {
+                    "json": {
+                        "name": "example.md",
+                        "content": "Example",
+                        "description": None,
+                        "encoding": "utf8",
+                    }
+                },
             ),
         ),
         (
@@ -2495,10 +2502,10 @@ def test_create_routine_says_a_private_chat_routine_is_posted_there() -> None:
     text = " ".join((tool.function.__doc__ or "").split())
 
     assert (
-        "A per_run routine created from a private chat in a chat app (Telegram, Slack, "
-        "Mattermost, Teams, Discord, Matrix) also has the bot post each answer to that chat"
+        "For per_run created in a private Telegram, Slack, Mattermost, Teams, Discord or "
+        "Matrix chat, the bot also posts each answer there while access remains"
     ) in text
-    assert "do not add `notification_channels` to reach the same chat" in text
+    assert "do not duplicate this with notification_channels" in text
 
 
 OWN = uuid.UUID("00000000-0000-4000-8000-0000000000a2")

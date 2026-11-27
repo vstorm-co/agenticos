@@ -1,5 +1,5 @@
 ---
-source_sha: "d9973864c59a"
+source_sha: "475e74d4c418"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -26,6 +26,8 @@ Nutzungs- und Ausgabenaggregate des Dashboards verwenden dieselbe Antwort im Arb
 Ist das Onboarding Ihrer aktuellen Organisation noch nicht abgeschlossen, führt **Einrichtung abschließen** zur geführten Einrichtung zurück. Das Ausblenden pausiert die Erinnerung für das wirksame Intervall von 1, 3 oder 7 Tagen (standardmäßig einen Tag). Abschluss und Aufschub werden für Ihre Mitgliedschaft auf dem Server gespeichert. Während des Ladens oder bei fehlgeschlagenen Fortschrittsabfragen wird die Einrichtung nicht als unvollständig bezeichnet.
 
 **Einstellungen → Profil** behält immer einen manuellen Einrichtungslink, auch bei ausgeschalteten Erinnerungen. Die Erinnerung hat eine klare Aktion und eine kurze, begrenzte Illustration; reduzierte Bewegung hält sie still. Kein Rundgang startet automatisch. Im selben Browser merkt sich der Link den letzten zulässigen Schritt für dieses Konto und diese Organisation, ohne Formularwerte zu speichern.
+
+Die Einladung zur Desktop-App verwendet denselben Seitenleisten-Kartenstil wie die Einrichtung. Wenn beide verfügbar sind, erscheint jeweils eine Karte, die bei sichtbarer Anzeige alle acht Sekunden wechselt. Zurück, Weiter und Pause bleiben verfügbar. Beim Darüberfahren pausiert der Wechsel; Tastaturfokus pausiert ihn bis zur ausdrücklichen Fortsetzung. Reduzierte Bewegung deaktiviert den automatischen Wechsel. Abschluss, Erinnerungsaufschub, Erkennung nativer Apps und das Ausblenden der Desktop-Einladung behalten ihre bisherigen Regeln.
 
 Die geführte Einrichtung speichert den aktuellen Schritt und den Aktualisierungszeitpunkt für Ihre Organisationsmitgliedschaft. Die Mitgliedertabelle zeigt nicht begonnen, in Bearbeitung oder abgeschlossen mit einer lesbaren Schrittbezeichnung. Der Fortschritt gehört zur jeweiligen Mitgliedschaft; ein Abschluss in einer Organisation schließt die anderen nicht ab. Bereits gespeicherte Abschlüsse bleiben gültig, aber Profilinhalte gelten nie als Nachweis für Fortschritt oder Abschluss.
 
@@ -65,7 +67,7 @@ Beim Erstellen eines Projekts geben Sie zuerst Namen, Arbeitsbereich und Zielgru
 
 Organisationen bietet eine Suche nach Namen und Slugs der Mitgliedschaften; die Trefferzahl steht in derselben Leiste. Leeren der Suche zeigt wieder alle Mitgliedschaften.
 
-Die AI-Architect-Karte verlinkt neben dem Einschalter direkt auf den Builder, ohne zusätzlichen aufklappbaren Abschnitt. Andere KI-Dienste behalten aufklappbare Formulare, wenn Einstellungen bearbeitet werden können.
+Die AI-Architect-Karte steuert die Verfügbarkeit für die Organisation ohne zusätzliche Agent-Builder-Aktion. Modell, Anweisungen und Wissen bleiben unter Agents bearbeitbar. Organisations- und Deployment-Einstellungen verwenden dieselben Kartenrahmen, Abstände und sichtbaren Beschreibungen; Schalter und kompakte Auswahllisten stehen rechts. In schmalen Karten wechseln größere Auswahllisten in eine eigene rechtsbündige Zeile.
 
 Die Me-Ansicht beginnt mit einer Zusammenfassung des Zeitraums als Karte, gefolgt von einem kompakten Briefing mit Titeln, Quellen und Aktionen. Vollständige Vorschläge bleiben im Posteingang.
 
@@ -127,7 +129,7 @@ Die Chat-Einstellungen zeigen Browser und Work on vor Permissions.
 Gesprächsbenachrichtigungen und Kontoverbindungen bleiben unter den
 Freigabeeinstellungen.
 
-Die Chat-Einstellungen haben eine feste Überschrift und Schließen-Schaltfläche über dem scrollbaren Inhalt. Informationssymbole erklären Modell, Browser, Work on und Berechtigungsmodi bei Bedarf; die Erklärung des ausgewählten Modus bleibt sichtbar. Unter **Knowledge bases → Integrations** passen sich kompakte Panels für Integrationen und lokale Dienste ihrem Inhalt an; Erläuterungen stehen hinter Informationssymbolen.
+Die Chat-Einstellungen haben eine feste Überschrift und Schließen-Schaltfläche über dem scrollbaren Inhalt. Informationssymbole erklären Modell, Browser, Work on und Berechtigungsmodi bei Bedarf; die Erklärung des ausgewählten Modus bleibt sichtbar. Unter **Knowledge bases → Integrations** passen sich kompakte Panels für Integrationen und Dienstverbindungen ihrem Inhalt an; Erläuterungen stehen hinter Informationssymbolen.
 
 Die Agenten einer Unterhaltung sind nach ihrer letzten Nachricht oder ihrem letzten übergeordneten Lauf sortiert, die neuesten zuerst. Die eingeklappte Chat-Leiste behält die volle Avatargröße bei, überlagert bis zu drei Bilder und blendet ältere Teilnehmer aus; die vollständige Liste bleibt im Tooltip verfügbar.
 
@@ -219,7 +221,9 @@ Unter **Admin → Deployment → Identität → Verfügbarkeit der Konsole** wä
 
 Mitglieder können diese Auswahl unter **Einstellungen → Profil → Meine Navigation** weiter einschränken. Eine leere Auswahl blendet bewusst alle primären Einträge aus; eine geerbte Auswahl folgt Organisation und Deployment. Navigationsentwürfe erfordern **Speichern** und warnen vor dem Verlassen mit ungespeicherten Änderungen. Kontoeinstellungen, Organisationswechsel und Administratorzugriff bleiben erreichbar. Das Ausblenden einer Seite entzieht keine Berechtigung: Berechtigte Personen können ihre URL weiterhin öffnen. Die normale Berechtigungsprüfung erfolgt nach dem Darstellungsfilter.
 
-Die Rollenvorschau filtert die Navigation nach der ausgewählten Rolle und den eigenen Rechten des Administrators. Sie imitiert niemanden und lädt keine privaten Inhalte. **Produkthinweise** steuert die Desktop-Einladung sowie automatische Versions- und mobile Installationshinweise getrennt, auf Deployment-, Organisations- und Mitgliedschaftsebene. Persönliche Einstellungen können übergeordnete Einschränkungen nicht aufheben. Wartungs-, Verfügbarkeits- und Sicherheitshinweise behalten ihr Verhalten; eine installierte App wird durch Ausblenden ihrer Einladung nicht deaktiviert.
+Die Rollenvorschau filtert die Navigation nach der ausgewählten Rolle und den eigenen Rechten des Administrators. **Konsolenvorschau öffnen** zeigt außerdem erlaubte Dashboard-Karten, Katalogbeschränkungen und Produkthinweise gemeinsam. Sie nutzt den aktuellen Navigationsentwurf und gespeicherte Rollenvorgaben, vor persönlichen Einstellungen eines Mitglieds. Karten sind Platzhalter: Die Vorschau imitiert niemanden und lädt keine privaten Widget-Daten. Katalogzahlen sind Obergrenzen vor der Prüfung verbundener/installierter Einträge und Ressourcenrechte, keine aktuellen Katalogsummen.
+
+**Produkthinweise** steuert die Desktop-Einladung sowie automatische Versions- und mobile Installationshinweise getrennt, auf Deployment-, Organisations- und Mitgliedschaftsebene. Persönliche Einstellungen können übergeordnete Einschränkungen nicht aufheben. Wartungs-, Verfügbarkeits- und Sicherheitshinweise behalten ihr Verhalten; eine installierte App wird durch Ausblenden ihrer Einladung nicht deaktiviert.
 
 
 ### Kataloge und Rollen-Dashboards { #console-catalogs }
@@ -364,7 +368,7 @@ Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statu
 
 Ein neuer Chat begrüßt nach lokaler Tageszeit und zeigt ein kompaktes Eingabefeld. Dateien stehen neben dem Agenten, Chat-Einstellungen und Berechtigungsschild neben dem Modell. Die Kontextnutzung bleibt bis zum Öffnen ein Symbol.
 
-Die Zeitleiste über dem Eingabefeld zeigt Einträge mit Priorität zuerst. Innerhalb jeder Gruppe stehen die neuesten Einträge oben. Jede Zeile zeigt die Quelle, ohne Datum. Ein Klick bereitet eine bearbeitbare Handlungsanfrage im Eingabefeld vor; Inbox öffnen führt zur vollständigen Liste. Der Genehmigungszähler führt zur Entscheidungswarteschlange. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
+Die Zeitleiste über dem Eingabefeld zeigt Einträge mit Priorität zuerst. Innerhalb jeder Gruppe stehen die neuesten Einträge oben. Jede Zeile zeigt die Quelle, ohne Datum. Ein Klick bereitet eine bearbeitbare Handlungsanfrage im Eingabefeld vor; Inbox öffnen führt zur vollständigen Liste. Der Genehmigungszähler führt zur Entscheidungswarteschlange oder, für eine Person, deren einzige Genehmigungen ihre eigenen Plattform-Aufrufe sind, zum Posteingang. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
 
 Vor der ersten Nachricht bleiben Dateien und Kontextnutzung sichtbar, aber deaktiviert. Das Anhangsmenü zeigt verfügbare Aktionen direkt. Die Chat-Einstellungen verwenden kompakte Abschnitte für Verbindungen und gespeicherte Freigaben; die Inbox-Vorschau zeigt Quelle und Priorität.
 
@@ -820,6 +824,8 @@ Nachricht, wenn sie aufgeht, Enter
 beginnt eine neue Zeile, und Anhängen oder Diktieren liegen hinter einem **+**.
 Felder sind nie so klein, dass iOS hineinzoomt.
 
+Die Konsole berücksichtigt Höhe und vertikalen Versatz des sichtbaren Bereichs. Beim Fokussieren und Verlassen eines Eingabefelds auf einem Touchscreen misst sie den Tastaturübergang zusätzlich bis zu einer Sekunde lang. Ein verspätetes Viewport-Ereignis erfordert dadurch keinen Tastendruck, um das Nachrichtenfeld auszurichten. Beim Zoomen mit zwei Fingern bleibt die normale Seitennavigation erhalten.
+
 **Zeichnungen.** Ein Agent mit [Visuals](reference/capabilities.md#visuals)
 zeichnet unter seiner Nachricht - ein Diagramm, eine Erklärung mit Schiebereglern, eine
 3D-Szene - und Sie sehen sie entstehen, während sie geschrieben wird; ihre Skripte
@@ -838,17 +844,23 @@ kopiert; mehrere Varianten eines Entwurfs sind Tabs in derselben Karte. Das eige
 **Kopieren** einer Nachricht enthält auch ihre Entwürfe.
 
 **Einem Durchlauf zusehen.** Der [Webbrowser](reference/capabilities.md#browser-automation)
-öffnet sich automatisch in einem Panel in voller Höhe neben dem Gespräch.
-Auf schmalen Bildschirmen nutzt er das Vollbild. Nach dem Schließen bleibt
-ein kompakter Link im Gespräch, um das Panel erneut zu öffnen. Karten besuchter
-Seiten zeigen das Website-Symbol, die Domain und den Seitentitel, auch nach dem
-erneuten Öffnen des Gesprächs. Jede Antwort behält eine Karte pro Browser-Tab;
-Klicks, erneutes Lesen und Zurückgehen aktualisieren diese Karte.
-Die Tableiste im Panel wechselt zwischen den Seiten. Nach dem Lauf bleibt das letzte Bild. **Sitzung fortsetzen** bittet den
-Agent, den privaten Sitzungsstand wiederherzustellen, bis zu einer Stunde lang.
-Remote-Seiten schließen nach jedem Lauf. Fortsetzen lädt URLs, Cookies und Local
-Storage neu, aber keine ungespeicherten Formulare oder JavaScript-Zustände. Der Agent
-liest die Elementnummern erneut.
+öffnet bei ausreichend Platz ein hohes Panel neben dem Gespräch. Auf dem Desktop klappt er die Gesprächsliste
+vorübergehend ein. Sie können sie wieder öffnen; beim Schließen von Browser wird das
+vorherige Layout wiederhergestellt. Auf dem Telefon füllt das Panel den Bildschirm.
+Der eigene Browser passt sich an das Panel an, solange niemand anders steuert.
+Während der Arbeit des Agents oder der Steuerung durch eine andere Person behält das
+Bild seine Proportionen.
+
+Jede Antwort behält einen kompakten Seitenlink pro Browser-Tab mit Symbol, Titel und
+Domain. Navigation aktualisiert diesen Link statt weitere Karten anzulegen. Der Link
+öffnet dasselbe Panel. Zwischenmeldungen und Werkzeugschritte teilen sich eine
+aufklappbare Aktivitätszeile; die abschließende Antwort und Fragen bleiben sichtbar.
+
+Eine [Umgebung für das Gespräch](sandbox.md#conversation-environments) behält die
+Live-Seite bis **End** oder zum Leerlauflimit. Älteres Browsing mit Run-Lebensdauer
+schließt die Seite nach dem Run. **Sitzung fortsetzen** kann den privaten Checkpoint
+bis zu einer Stunde wiederherstellen: URLs, Cookies und Local Storage, aber keine
+ungespeicherten Formulare oder JavaScript-Speicher. Der Agent liest neue Elementnummern.
 
 **Einen Durchlauf übernehmen.** Während ein Durchlauf läuft, pausiert **Übernehmen** in
 der Symbolleiste des Browsers den Agent nach seinem laufenden Schritt und gibt Ihnen die
@@ -1190,7 +1202,7 @@ ihren Assistenten nur zum Lesen, mit der Entscheidung im letzten Schritt; siehe
 
 Organisationsdetails haben drei Registerkarten: **Mitglieder**, **Budget und Freigaben** und **KI & Dienste**. Mitglieder bietet Namens-/E-Mail-Suche, Rollenfilter und die letzte erfasste Aktion in diesem Arbeitsbereich. Dies ist eine Audit-Aktion, kein Besuch oder Login; Aktionen durch Identitätsübernahme werden ausgeschlossen und fehlende Historie erscheint als Strich. **Arbeitsbereich bearbeiten** öffnet einen Dialog für Name, Avatar und Farbe mit Schutz ungespeicherter Änderungen. KI & Dienste zeigt einzelne Funktionskarten ohne übergeordnete Gruppen. Aufklappen erhält Entwürfe. Alle Steuerelemente behalten ihre Berechtigungsprüfungen. Alte Links mit `?tab=profile` öffnen den Arbeitsbereich-Dialog; `?tab=voice` und `?tab=proactivity` öffnen die passenden Einstellungen in KI & Dienste.
 
-Tägliches Briefing und Vorschläge sind ein Dienst mit gemeinsamen Einstellungen. Seine Karte zeigt auch Ausgaben und letzte Ausführungen. Die Speicherpflege hat ein eigenes Modell und Budget und beginnt ausgeschaltet. Wählen Sie vor dem Einschalten ein Modell. Beim KI-Architekten bleiben Schalter und direkter Agent-Builder-Link ohne Begrüßungseditor oder zusätzliches Aufklappen sichtbar. Andere Dienste verwenden denselben Kartenkopf und dasselbe Symbollayout; sie lassen sich nur aufklappen, wenn sie bearbeitbare Einstellungen enthalten.
+Tägliches Briefing und Vorschläge sind ein Dienst mit gemeinsamen Einstellungen. Seine Karte zeigt auch Ausgaben und letzte Ausführungen. Die Speicherpflege hat ein eigenes Modell und Budget und beginnt ausgeschaltet. Wählen Sie vor dem Einschalten ein Modell. AI Architect behält den Verfügbarkeitsschalter, ohne zusätzliche Builder-Aktion, Begrüßungseditor oder Aufklappen. Andere Dienste verwenden denselben Kartenkopf und dasselbe Symbollayout; sie lassen sich nur aufklappen, wenn sie bearbeitbare Einstellungen enthalten.
 
 Nach der Anmeldung erscheinen an die Konto-E-Mail adressierte Einladungen auch in Konsole und Onboarding, ohne den E-Mail-Link zu öffnen. Der Empfänger wählt eine Organisation und nimmt ausdrücklich an; Später lässt die Verknüpfung Einladungen verfügbar. Angezeigt werden nur gültige Einladungen an die aktuelle Konto-Adresse, ohne geteilte Links und bereits beigetretene Organisationen. Die Annahme wechselt zur gewählten Organisation und öffnet deren Begrüßung. Der Server gibt in diesem Posteingang keine Einladungstokens zurück.
 
@@ -1207,10 +1219,11 @@ brasilianisches Portugiesisch. Die erste Karte des Rundgangs bietet alle sieben 
 Kontomenü wechselt die Sprache jederzeit;
 die Wahl wird in Ihrem
 Konto gespeichert, sodass die Konsole auf jedem Gerät, auf dem Sie sich anmelden,
-in ihr öffnet. Sie können auch einen Agent bitten - "auf Englisch umstellen" -, und
-die Seite wechselt, während er antwortet, ohne Neuladen. Jeder Agent antwortet in
-ihr, außer Sie bitten ausdrücklich um eine andere Sprache. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
+in ihr öffnet. Sie können einen Agent auch ausdrücklich bitten, die Oberflächensprache zu ändern.
+Die Bitte um eine Antwort in einer anderen Sprache ändert diese Kontoeinstellung nicht automatisch. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
 unter [Übersetzen](howto/translate.md) - bleiben in jeder Sprache Englisch.
+
+Antworten beachten ausdrückliche Sprachvorgaben in den Agentenanweisungen und ausdrückliche Benutzerwünsche gemäß ihrer Priorität. Ansonsten folgen sie der aktuellen Benutzernachricht; ist sie mehrdeutig, bleibt die bisherige Gesprächssprache erhalten. Die gespeicherte Kontosprache dient nur als Rückfall für eine kurze oder mehrdeutige Begrüßung ohne festgelegte Gesprächssprache. Sie macht aus einer klaren polnischen Anfrage keine englische Antwort. Quelldokumente und Werkzeugausgaben bestimmen nicht die Antwortsprache.
 
 Dieselbe Karte fragt, was Sie tun, und **Einstellungen → Profil (Settings →
 Profile)** hält den Rest dessen, was Agents über Sie wissen: Ihre Rolle, woran Sie
@@ -1288,11 +1301,15 @@ Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder
 
 ## Ihre erste Aufgabe { #your-first-task }
 
+Die Einrichtung hat drei unabhängige Bereiche in dieser Reihenfolge: **Deployment → Organisation → Persönlich**. Der Deployment-Fortschritt gilt für die gesamte Installation und erfordert aktuelle Anwendungsadministratorrechte. Der Organisationsfortschritt gilt für die gewählte Organisation und erfordert `org:settings`; ein einmaliger Abschluss ist für alle dort berechtigten Administratoren sichtbar. Persönlicher Fortschritt bleibt an die Mitgliedschaft gebunden. Ein Anwendungsadministrator kann die Deployment-Einrichtung abschließen, bevor eine Organisation existiert, und danach eine erstellen oder auswählen. Ein früherer unvollständiger Bereich hat Vorrang; abgeschlossene Bereiche können erneut angesehen werden. Diese Schritte führen durch die Einrichtung, sperren aber weder Einstellungen noch Sicherheit, Abmeldung oder andere Module.
+
+Jeder Bereich speichert seinen eigenen Abschlusszeitpunkt und den zuletzt besuchten Bildschirm. Ein Besuch ist kein Nachweis gespeicherter Einstellungen. Gleichzeitige Abschlüsse behalten den ersten Zeitpunkt; spätere Besuche öffnen den Abschluss nicht erneut. Persönlicher Aufschub pausiert keine gemeinsame Einrichtung für andere Administratoren. Ein Upgrade führt unvollständige Deployment- und Organisationsbereiche auch für bestehende Administratoren ein; persönliche Abschlüsse und Aufschübe bleiben erhalten. Das Speichern eines Abschlusses erfordert weder Agenten, Anbieteraufrufe, Einladungen noch optionale Konfiguration.
+
 In einer neuen Organisation ist der mitgelieferte **AgenticOS** bereits vor der Veröffentlichung ausgewählt, sofern Sie keinen anderen Standard festgelegt haben. Auf die erste Nachricht kann er die Modelleinrichtung erklären und eine Konfigurationskarte zeigen, ohne den Entwurf auszuführen oder einen KI-Anbieter aufzurufen. Antwort und Karte bleiben im Chatverlauf. Berechtigte Personen öffnen die Modelleinstellungen des Agenten; andere Mitglieder sehen einen Administratorhinweis und den Supportkontakt der Instanz, falls konfiguriert. Wählen Sie ein Modell, ergänzen Sie bei Bedarf einen Schlüssel und veröffentlichen Sie den Agenten, bevor normale KI-Antworten ausgeführt werden können. Gewöhnliche Entwürfe und archivierte Agenten bleiben von der Ausführung ausgeschlossen.
 
 Der Studio-Ablauf stellt die installierten Agenten AgenticOS und Architect vor. Ist der mitgelieferte AgenticOS noch ein zugänglicher Einrichtungsentwurf, öffnet seine Aktion den Konfigurationschat; Veröffentlichung und reguläre Ausführung behalten ihre üblichen Prüfungen. Berechtigte Personen können Architect konfigurieren, wenn ein Modell fehlt. Gewöhnliche Entwürfe und unzugängliche Agenten werden durch das Onboarding nicht ausführbar.
 
-Das Schließen des Startangebots pausiert es nach Serverzeit für das wirksame Intervall dieser Mitgliedschaft von 1, 3 oder 7 Tagen. Es kann zurückkehren, wenn die Einrichtung unvollständig und Erinnerungen eingeschaltet sind. Nach den Fragen speichert **Einrichtung abschließen und App öffnen** den Abschluss für diese Mitgliedschaft. Optionale Felder, Einladungen, ein Modell, ein Agent oder ein KI-Run sind nicht erforderlich. Abgeschlossene Einrichtung und erfolgreiche Aufgabe sind getrennte Zustände.
+Das Schließen des persönlichen Startangebots pausiert es nach Serverzeit für das wirksame Intervall dieser Mitgliedschaft von 1, 3 oder 7 Tagen. Es kann zurückkehren, wenn die Einrichtung unvollständig und Erinnerungen eingeschaltet sind. Nach den Fragen speichert **Einrichtung abschließen und App öffnen** den Abschluss für diese Mitgliedschaft. Optionale Felder, Einladungen, ein Modell, ein Agent oder ein KI-Run sind nicht erforderlich. Abgeschlossene Einrichtung und erfolgreiche Aufgabe sind getrennte Zustände.
 
 Öffnen Sie **Erste Schritte** über das Dashboard, den Startvorschlag oder die
 Seitenhilfe. Auf dem Desktop liegt der Starthinweis als halbtransparente Ebene über
@@ -1305,7 +1322,7 @@ Der Einstieg berücksichtigt Berechtigungen und bestehende Arbeit:
 
 | Person                                           | Geführter Einstieg                                                                                                               |
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| Anwendungsadministrator                          | Firmenorganisation erstellen oder wählen, Identität und Einladungen vorbereiten, dann den Beitritt zukünftiger Konten festlegen. |
+| Anwendungsadministrator                          | Zuerst gemeinsame Deployment-Einrichtung, dann Organisation und persönliche Einstellungen. |
 | Organisationsadministrator                       | Organisation und Ausgabenlimit vorbereiten, ohne Deployment-Steuerung.                                                           |
 | Neues Mitgliedskonto                             | Begrüßung, optionales persönliches Profil und Arbeitskontext, dann erste Aufgabe.                                                |
 | Bestehendes Konto in einer weiteren Organisation | Begrüßung in der Organisation; gespeichertes Profil verwenden oder bewusst überprüfen.                                           |
@@ -1332,12 +1349,12 @@ bleiben eingeklappt, mit ihren üblichen Rechten und Speicheraktionen.
 Die URL erhält Schritt, Einrichtungsfrage und Organisation für ein Neuladen. Ungespeicherte Änderungen,
 Zugriff oder Abschluss werden dadurch nicht gespeichert. Organisationswechsel und
 entzogene Rechte verhindern das Wiederherstellen eines privilegierten Schritts.
-Der Abschluss des letzten Schritts wird für die Mitgliedschaft gespeichert, auch
+Der Abschluss des persönlichen Bereichs wird für die Mitgliedschaft gespeichert, auch
 wenn optionale Angaben und KI-Einrichtung übersprungen wurden.
 
 Ein früherer Kontoabschluss gilt für Mitgliedschaften, die zu diesem Zeitpunkt bereits
 bestanden. Spätere Mitgliedschaften beginnen separat. Eigene Chats und abgeschlossene
-Abläufe verhindern automatische Neustarts; veröffentlichte Agenten blenden gewöhnliche
+Abläufe verhindern automatische persönliche Neustarts; veröffentlichte Agenten blenden gewöhnliche
 Startangebote aus. Links nach Registrierung oder Einladung begrüßen Mitglieder ohne
 eigene Aktivität oder Abschluss auch in Organisationen mit fertigen Agenten. Ältere und
 fehlgeschlagene Chats zählen als Aktivität, ohne erfolgreiche Läufe zu behaupten.
@@ -1407,7 +1424,7 @@ Studio ist unter `/onboarding` der Standard; die anderen Layouts bleiben über V
 
 Studio behält Überschrift und untere Aktionen beim Schrittwechsel an ihrer Position. Die Avatar-Galerie rastet nach Ziehen oder Blättern mit den Pfeiltasten auf einer mittigen Vorschau ein; erst die Auswahl speichert sie. Reduzierte Bewegung deaktiviert Federbewegung und Schrittübergänge. An unvollständige Einrichtung erinnert nur die Seitenleiste, ohne zweites Banner über dem Arbeitsbereich.
 
-Neue Konten öffnen `/onboarding` nach der Passwortregistrierung oder der ersten OAuth- oder Verzeichnisanmeldung, auch bei Registrierung über eine Einladung. Sprache und Erscheinungsbild kommen vor der Workspace-Einrichtung; hier lassen sich auch Einladungen prüfen und annehmen. Der Beitritt bleibt eine ausdrückliche Entscheidung. Die Sprache wird im Konto gespeichert und über `{{language}}` sowie das Personenbriefing an Agenten übergeben. Eine ausdrückliche Bitte um eine andere Sprache hat Vorrang.
+Neue Konten öffnen `/onboarding` nach der Passwortregistrierung oder der ersten OAuth- oder Verzeichnisanmeldung, auch bei Registrierung über eine Einladung. Sprache und Erscheinungsbild kommen vor der Workspace-Einrichtung; hier lassen sich auch Einladungen prüfen und annehmen. Der Beitritt bleibt eine ausdrückliche Entscheidung. Die Sprache wird im Konto gespeichert und über `{{language}}` sowie das Personenbriefing an Agenten übergeben. Sie ist ein Rückfall für die Antwortsprache, keine Pflicht, jede Nachricht in der Oberflächensprache zu beantworten.
 
 Nach den Abonnements zeigt die Modelleinrichtung zuerst den Anbieter, dann dessen Verbindung und Modell. Persönliche Abonnements bleiben im vorherigen Schritt. Werkzeuge beginnen mit vorgeschlagenen Diensten; **Alle Dienste durchsuchen** öffnet den vollständigen MCP-Katalog.
 
@@ -1417,3 +1434,30 @@ Wenn ein Agent eine Frage stellt, bleiben seine Karte und der normale Editor gem
 ## Flache Liste der letzten Chats { #flat-recent-chat-list }
 
 Der Chats-Kopf bietet **Neueste Aktivität zuerst (flache Liste)**. Projektchats und gewöhnliche Chats erscheinen nach letzter Aktivität in einer Liste, ohne Überschriften für Projekte, ungelesene Chats oder Favoriten. Favoriten behalten ihre Sterne, werden aber nicht vor neueren Aktivitäten angeheftet. Die Paginierung verwendet diese Reihenfolge auf dem Server, sodass alte Favoriten aktuelle Chats nicht von der ersten Seite verdrängen. Bestehende Agenten-, Archiv- und API-Filter bleiben wirksam. Die Auswahl wird in diesem Browser für jeden angemeldeten Benutzer separat gespeichert; **Chats nach Projekt gruppieren** stellt die standardmäßige Gruppierung wieder her.
+
+## Live-Browser und Desktop { #live-environments }
+
+Die Browser-Leiste verwendet ein Symbol für die Eingabesteuerung mit Tooltip und gedrücktem Zustand. Reines Zuschauen zeigt keine sichtbare Statusbeschriftung. Kompakte Links besuchter Seiten stehen gemeinsam am linken Rand und brechen bei Bedarf um; im Composer bleibt Workspace direkt neben dem Agenten.
+
+Im eigenen privaten Chat öffnet **Workspace** mit einem Klick die zuletzt verfügbare Ansicht. Ohne vorherige Auswahl öffnet sich ein laufender Browser oder Desktop, andernfalls Files. Browser und Desktop sind verfügbar, wenn der ausgewählte veröffentlichte Agent die Capability aktiviert und Sie ihn ausführen dürfen. Ein leerer Projektchat lässt sich ohne Nachricht oder Modellaufruf erstellen. Das Öffnen des Panels stellt keine Umgebung bereit; erst **Open environment** startet sie ausdrücklich. Gekoppelte lokale Geräte behalten ihre bisherigen Bedienelemente.
+
+Browser zeigt zusätzlich eine Zeile tatsächlich geöffneter Seiten, getrennt von den Workspace-Ansichten. Die Auswahl bewahrt Formulare und JavaScript-Zustand der Seite. Die Liste enthält höchstens acht aktive registrierte Ziele dieses Gesprächs; historische Links und fremde Browserkontexte werden nicht zu Tabs. Metadaten werden über den bestehenden Stream innerhalb von fünf Sekunden aktualisiert. Eine ruhende Seite lässt sich ohne Take over wechseln; Agentensteuerung oder die Eingabelease einer anderen Person verhindern die Auswahl. Vor der Anzeige und Eingabe wartet der Bildschirm auf ein frisches Bild der ausgewählten Seite.
+
+Die kompakte Tableiste bündelt verfügbare Ansichten über dem Live-Bild. **Umgebungsoptionen** enthält die Laufzeitregel, **Verfügbarkeit prüfen** und **Umgebung beenden**. Das Beenden erfordert eine Bestätigung. Öffnen und Prüfen zeigen Fortschritt oder eine kontrollierte Ablehnung. Eine ausgeblendete Ansicht bleibt mit ihrem Adressentwurf gemountet; beim Wiederverbinden bleibt das gespeicherte Bild bis zur aktuellen Bereitschaft verborgen.
+
+Ausblenden, Tabwechsel und Trennen des Streams lösen nur diese Ansicht. Eine Umgebung mit Run-Laufzeit endet nach einem Agenten-Run, der sie tatsächlich verwendet; eine andere Nachricht beendet keine unbenutzte, manuell geöffnete Umgebung.
+
+Im Unterhaltungsmodus übernimmt der nächste berechtigte private Webchat-Turn dasselbe Live-Browserziel oder dieselbe Desktop-Referenz des Anbieters, einschließlich ungespeicherter Formulare und JavaScript-Zustand. Es wird kein neuer Browser mit kopierten URLs oder Cookies aufgebaut. Geht die ursprüngliche Ressource oder ihr Eigentümer verloren, meldet das Panel den Ablauf. Eine physische Oberfläche hat jeweils einen steuernden Akteur; während der Agent steuert, sind manuelle Eingaben gesperrt. Das gewählte Ausführungsziel Agent/Projekt wird bei Lesen, Start, End und Streaming mitgeführt; eine geänderte Auswahl zeigt die alte Umgebung nicht als neues Ziel.
+
+Konfiguration und Fehlerverhalten stehen unter [Sitzungslaufzeiten](sandbox.de.md#conversation-environments).
+
+Browserkontexte sind je Eigentümer und Unterhaltung isoliert. Ein Desktop folgt dagegen dem konfigurierten Workspace- oder Projektumfang: Ein agentenweiter oder sonst gemeinsam genutzter Executor besitzt eine gemeinsame physische Oberfläche. Die Steuerungslease serialisiert Eingaben und macht den Desktop nicht privat. Das Eigentümermenü schützt die Anbindung dieser Chatansicht, nicht den Bildschirminhalt eines bewusst gemeinsam genutzten Executors.
+
+Delegierte behalten eigene Aktivitätsansichten für Browser und Desktop. Ein Delegierter, der denselben Remote-Desktop nutzt, muss dessen physische Steuerung vor dem Start oder der Bedienung übernehmen; eine andere aktive Steuerung verhindert den Start. Ein unabhängiger Browser eines Delegierten wird niemals durch die gespeicherte Umgebung des Hauptagenten ersetzt.
+
+
+## Bedienelemente in schmalen Chats und auf Telefonen { #narrow-chat-controls }
+
+Auf Telefonen enthält die schwebende Schaltfläche **Chat controls** über dem Gespräch Modell, Freigabemodus, Kontextnutzung und lokale Werkzeuge. Anhänge, Agent, Workspace und Senden bleiben in einer Zeile; breite Chats behalten die unteren Bedienelemente. Auf Telefonen steht die Anbieterauswahl über der Modellliste, sodass die gesamte Breite für Modellnamen verfügbar bleibt.
+
+Auf Telefonen befinden sich Dashboard-Layouts und Anpassung unter **Weitere Seitenaktionen**. Die Tabellensuche teilt sich eine Zeile mit kompakten Schaltflächen für Filter, Sortierung und Ansichtseinstellungen; **Gruppieren nach** steht in den Ansichtseinstellungen. Onboarding-Aktionen verwenden kurze mobile Beschriftungen und behalten ihre vollständigen zugänglichen Namen. Projektverfolgungsdialoge lassen Platz um fokussierte Felder, damit deren Fokusrahmen sichtbar bleiben.

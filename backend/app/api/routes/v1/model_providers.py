@@ -15,12 +15,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, status
 
 from app.agents.model_resolver import PROVIDERS, ModelApi, is_decision_api
+from app.agents.profile_pricing import catalog_token_pricing
 from app.api.deps import Auth, ModelProfileSvc, SecretSvc, SubscriptionAccountSvc, require
 from app.api.public_api import ASSISTANT, PUBLIC
 from app.clients.subscription_gateway import configured_gateway
 from app.core.exceptions import AuthorizationError, BadRequestError
 from app.core.field_errors import refused_field
 from app.core.permissions import Perm
+from app.schemas.currency import CurrencyContext
 from app.schemas.model_profile import (
     ImageModelRead,
     ImageProviderList,
@@ -62,6 +64,14 @@ from app.services.text_to_speech_models import providers as text_to_speech_provi
 from app.services.video_models import providers as video_providers
 
 router = APIRouter()
+
+
+@router.get(
+    "/currencies", response_model=CurrencyContext, dependencies=[Depends(require(Perm.AGENTS_VIEW))]
+)
+async def currency_context(service: ModelProfileSvc, ctx: Auth) -> Any:
+    """Effective organization currency and manual rates; never provider credentials."""
+    return await service.currency_context(ctx)
 
 
 @router.get(
@@ -123,7 +133,7 @@ async def list_model_profiles(service: ModelProfileSvc, ctx: Auth) -> Any:
 async def create_model_profile(
     data: ModelProfileCreate, service: ModelProfileSvc, ctx: Auth
 ) -> Any:
-    """Define a selectable model backed by one of the organization's keys."""
+    """Define a selectable model with optional custom USD token prices."""
     return await service.create_profile(
         ctx,
         label=data.label,
@@ -135,6 +145,7 @@ async def create_model_profile(
         region=data.region,
         params=data.params,
         fallback_profile_ids=data.fallback_profile_ids,
+        custom_pricing=data.custom_pricing,
     )
 
 
@@ -146,7 +157,7 @@ async def create_model_profile(
 async def update_model_profile(
     profile_id: UUID, data: ModelProfileUpdate, service: ModelProfileSvc, ctx: Auth
 ) -> Any:
-    """Change a model's key, endpoint, API, settings or name in place.
+    """Change a model's key, endpoint, API, prices, settings or name in place.
 
     The profile keeps its id, so every agent on it uses the change from its next
     run - rotating a key is one call rather than a new model and a republish of
@@ -500,6 +511,7 @@ async def list_provider_models(
             ProviderModelRead(
                 id=entry.id,
                 name=entry.name,
+                automatic_pricing=catalog_token_pricing(provider, entry.id),
                 context_length=entry.context_length,
                 output_modalities=list(entry.output_modalities),
                 apis=[api for api in ("chat", "responses") if api in entry.surfaces],

@@ -1,5 +1,9 @@
 "use client";
 
+import { CostCriterionName, CostCriterionReason } from "@/components/money/cost-criterion";
+
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
@@ -13,11 +17,34 @@ import { Badge } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { reasonKeyOf } from "@/lib/scoring";
 import type { DatasetCaseContent } from "@/types/datasets";
-import type { CallOutcome, EvalAttempt, EvalRunArm } from "@/types/eval-runs";
+import type { CallOutcome, EvalAttempt, EvalCall, EvalRunArm } from "@/types/eval-runs";
 import { CheckSummary } from "./check-summary";
-import { percent, seconds, usd } from "./format";
+import { percent, seconds } from "./format";
 import { sideName, type SideCheck } from "./names";
 import { SCORER_TONE, VerdictBadge, VerdictIcon, type VerdictTone } from "./verdict-badge";
+
+/** Each call with the calls its code-mode script made, which follow it in the list. */
+function scripted(calls: EvalCall[]): { call: EvalCall; inner: EvalCall[] }[] {
+  const groups: { call: EvalCall; inner: EvalCall[] }[] = [];
+  for (const call of calls) {
+    const last = groups.at(-1);
+    if (call.parent && last) last.inner.push(call);
+    else groups.push({ call, inner: [] });
+  }
+  return groups;
+}
+
+function Call({ call }: { call: EvalCall }) {
+  const t = useTranslations("evals.case");
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <Badge variant={CALL_TONE[call.outcome]}>{t(`call.${call.outcome}`)}</Badge>
+      <code className="break-all">
+        {call.tool}({JSON.stringify(call.args)})
+      </code>
+    </div>
+  );
+}
 
 const CALL_TONE: Record<CallOutcome, "secondary" | "warning" | "outline"> = {
   executed: "secondary",
@@ -35,6 +62,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
   const t = useTranslations("evals.case");
   const tScoring = useTranslations("datasets.scoring");
   const locale = useLocale();
+  const money = useMoney();
   // An answer no scorer reached a verdict on is not graded, not merely undecided.
   const why = attempt.outcome === null ? (attempt.score?.unscored_reason ?? null) : null;
   const known = reasonKeyOf(why);
@@ -53,7 +81,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
             : t("notGraded", { reason: known ? tScoring(known) : why })}
         </VerdictBadge>
         <span className="text-muted-foreground text-xs tabular-nums">
-          {usd(attempt.cost_usd, locale)}
+          {money.cost(attempt.cost_usd, locale)}
         </span>
         <span className="text-muted-foreground text-xs tabular-nums">
           {seconds(attempt.latency_ms, locale)}
@@ -76,12 +104,18 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
         )}
         {attempt.calls.length > 0 && (
           <ul className="space-y-1">
-            {attempt.calls.map((call, index) => (
-              <li key={index} className="flex flex-wrap items-center gap-2 text-xs">
-                <Badge variant={CALL_TONE[call.outcome]}>{t(`call.${call.outcome}`)}</Badge>
-                <code className="break-all">
-                  {call.tool}({JSON.stringify(call.args)})
-                </code>
+            {scripted(attempt.calls).map(({ call, inner }, index) => (
+              <li key={index} className="space-y-1">
+                <Call call={call} />
+                {inner.length > 0 && (
+                  <ul className="ms-2 space-y-1 border-s ps-3">
+                    {inner.map((made, position) => (
+                      <li key={position}>
+                        <Call call={made} />
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>
@@ -104,7 +138,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
                     <summary className="hover:bg-muted/40 flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2">
                       <VerdictIcon tone={tone} />
                       <span className="text-foreground min-w-0 flex-1 font-semibold">
-                        {result.name}
+                        <CostCriterionName result={result} />
                       </span>
                       <VerdictBadge tone={tone}>{t(`scorer.${result.status}`)}</VerdictBadge>
                       {result.score !== null && (
@@ -118,7 +152,9 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
                       />
                     </summary>
                     <div className="text-muted-foreground space-y-1 px-3 pb-3 text-xs">
-                      <p className="whitespace-pre-wrap">{result.reason}</p>
+                      <p className="whitespace-pre-wrap">
+                        <CostCriterionReason result={result} fallback={result.reason} />
+                      </p>
                       {result.rule && <p>{tScoring("rule", { rule: result.rule })}</p>}
                       <KnowledgeFindings findings={result.knowledge} />
                     </div>

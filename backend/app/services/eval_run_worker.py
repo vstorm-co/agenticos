@@ -16,6 +16,13 @@ After the first answer of every case, an improvement session's check asks once
 more the answers the infrastructure lost, then the cases whose outcome flipped
 against the baseline, or in which a family of criteria the first answers cannot
 settle flipped, are rerun, and the run ends.
+
+A run started at a price - a person's accepted quote, an eval suite's ceiling, a
+skill check's accepted most - starts no work that would take it past that price:
+not the next answer, not a grading whose frozen estimate would exceed it, not
+reruns. Quoted attempts run serially, including grading; one active answer or
+grading can cost more than estimated. This is not a hard cap per provider request
+inside the agent's answer.
 """
 
 import asyncio
@@ -33,6 +40,7 @@ from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import ToolCallPart
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.capabilities.budget import usd
 from app.agents.capabilities.context import ContextBody
 from app.agents.failures import run_failure_summary
 from app.agents.isolation import RunIsolation, ToolRecording, recorded_args
@@ -47,8 +55,10 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, Perm
 from app.core.redaction import redact_secrets
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.case_score import CaseScore
+from app.db.models.conversation import ScriptCallEntry
 from app.db.models.dataset import DatasetCase
 from app.db.models.eval_run import (
     ArmRole,
@@ -89,7 +99,7 @@ from app.services.improvement_states import affordable
 from app.services.message_history import HistoryMessage, build_message_history
 from app.services.notifications import NotificationService
 from app.services.rag.overlay import KnowledgeOverlay, OverlayDocument
-from app.services.scorers import ScoredAnswer, ScoredCall
+from app.services.scorers import ScoredAnswer, every_call_kept, scored_calls
 from app.services.scoring import ScoringService
 from app.services.transcript import RecordedToolCall
 
@@ -99,6 +109,24 @@ logger = logging.getLogger(__name__)
 _FULL_BACKOFF_SECONDS = 2.0
 _STARTER_GONE = "Whoever started this eval is no longer a member."
 _NO_LONGER_RUNS = "Whoever started this eval may no longer run its agent or its dataset."
+_BUDGET_STOP = "A case ran into the agent's or the organization's budget."
+_UNGRADED_AT_QUOTE = "Not graded: the next grading would take the run past its accepted price."
+
+
+def _at_quote(quoted_usd: Decimal) -> str:
+    return (
+        f"Stopped at the price accepted for this run ({usd(quoted_usd)}): it starts no work "
+        "that would go past it. The active answer or grading is kept and can cost more than estimated."
+    )
+
+
+def _would_pass(
+    quoted_usd: Decimal, run: EvalRun, spending: eval_run_repo.Spending, *, answers: int
+) -> bool:
+    """Whether `answers` more, each priced at the run's estimate per first answer and its
+    grading, would take what the run spent past `quoted_usd`."""
+    share = run.estimate_usd / max(1, spending.first_attempts)
+    return spending.spent_usd + answers * share > quoted_usd
 
 
 _JSON = TypeAdapter(JsonValue)
@@ -211,6 +239,10 @@ def _latency_ms(run: AgentRun) -> int | None:
     return int((run.ended_at - run.started_at).total_seconds() * 1000)
 
 
+def _script_of(call: RecordedToolCall) -> list[ScriptCallEntry]:
+    return [] if call.script_calls is None else call.script_calls["calls"]
+
+
 def trajectory(
     calls: list[RecordedToolCall], intercepted: list[InterceptedToolCall]
 ) -> list[dict[str, Any]]:
@@ -218,23 +250,43 @@ def trajectory(
 
     A call isolation answered without executing it - held back because it
     writes, answered from a recording, or matching nothing recorded - carries
-    that outcome and why; everything else ran.
+    that outcome and why; everything else ran. A code-mode script is followed by
+    the calls it made, each naming the script as its `parent`, and is marked
+    `script` so a grader reads its calls in its place (:func:`scored_calls`).
     """
     held = {call.tool_call_id: call for call in intercepted}
+
+    def row(tool: str, args: dict[str, Any], tool_call_id: str) -> dict[str, Any]:
+        caught = held.get(tool_call_id)
+        return {
+            "tool": tool,
+            "args": recorded_args(ToolCallPart(tool, args, tool_call_id=tool_call_id)),
+            "outcome": caught.outcome if caught is not None else "executed",
+            "reason": caught.reason if caught is not None else None,
+        }
+
     rows = []
     for call in calls:
-        caught = held.get(call.tool_call_id)
+        script = _script_of(call)
+        omitted = 0 if call.script_calls is None else call.script_calls["omitted"]
         rows.append(
-            {
-                "tool": call.tool_name,
-                "args": recorded_args(
-                    ToolCallPart(call.tool_name, call.args, tool_call_id=call.tool_call_id)
-                ),
-                "outcome": caught.outcome if caught is not None else "executed",
-                "reason": caught.reason if caught is not None else None,
-            }
+            row(call.tool_name, call.args, call.tool_call_id)
+            | ({"script": True} if script else {})
+            | ({"omitted": omitted} if omitted else {})
+        )
+        rows.extend(
+            row(entry["tool_name"], entry["args"], entry["tool_call_id"])
+            | {"parent": call.tool_call_id}
+            for entry in script
         )
     return rows
+
+
+def held_back(intercepted: list[InterceptedToolCall]) -> frozenset[str]:
+    """The calls an isolated run kept from running, by tool call id."""
+    return frozenset(
+        call.tool_call_id for call in intercepted if call.outcome == InterceptionOutcome.BLOCKED
+    )
 
 
 _ERRORED = "This eval stopped on an error before it finished. Run it again."
@@ -454,6 +506,10 @@ class EvalRunWorker:
         """Claim and answer attempts until none is left, or the run stops."""
         while True:
             async with self.sessions() as db:
+                quote = await self._quote_reached(db)
+                if quote is not None:
+                    await self._stop_for_budget(db, quoted_usd=quote)
+                    return
                 claimed = await eval_run_repo.claim_next(
                     db,
                     self.eval_run_id,
@@ -479,6 +535,27 @@ class EvalRunWorker:
                 continue
             if await self._answer(attempt_id):
                 return
+
+    async def _quote_reached(self, db: AsyncSession) -> Decimal | None:
+        """The price the run was started at, when its next answer would take it past it.
+
+        The organization's claim lock also serializes quoted attempts. While one
+        is running, other drainers wait for its actual answer and grading costs;
+        they must not end the run using a provisional estimate of that attempt.
+        """
+        org = self.organization_id
+        run = await eval_run_repo.get(db, self.eval_run_id, organization_id=org)
+        if run is None or run.quoted_usd is None or EvalRunStatus(run.status).terminal:
+            return None
+        await hold_subject(db, LockScope.EVAL_CASES_PER_ORGANIZATION, org)
+        spending = await eval_run_repo.spending(db, run.id, organization_id=org)
+        if (
+            not spending.running
+            and spending.pending
+            and _would_pass(run.quoted_usd, run, spending, answers=1)
+        ):
+            return run.quoted_usd
+        return None
 
     async def _answer(self, attempt_id: UUID) -> bool:
         """Run, record and score one attempt. True when the budget stopped the run.
@@ -648,16 +725,31 @@ class EvalRunWorker:
                 db, run_id=agent_run.id, organization_id=org
             )
             rows = trajectory(calls, intercepted)
+            if await self._graded_past_quote(db, run, agent_run):
+                if await self._erased_meanwhile(db, asked, {agent_run.id}):
+                    await self._fail(
+                        db,
+                        attempt,
+                        _ANONYMISED_MEANWHILE,
+                        agent_run,
+                        fault=AttemptFault.INFRASTRUCTURE,
+                    )
+                else:
+                    await self._fail(
+                        db,
+                        attempt,
+                        _UNGRADED_AT_QUOTE,
+                        agent_run,
+                        fault=AttemptFault.INFRASTRUCTURE,
+                        answer=output,
+                        calls=rows,
+                    )
+                await self._stop_for_budget(db, quoted_usd=run.quoted_usd)
+                return True
             answer = ScoredAnswer(
                 text=output,
-                calls=tuple(
-                    ScoredCall(
-                        tool=call.tool_name,
-                        args=call.args,
-                        blocked=row["outcome"] == InterceptionOutcome.BLOCKED.value,
-                    )
-                    for call, row in zip(calls, rows, strict=True)
-                ),
+                calls=scored_calls(calls, blocked=held_back(intercepted)),
+                calls_kept=every_call_kept(calls),
                 cost_usd=agent_run.cost_usd,
                 latency_ms=_latency_ms(agent_run),
                 run_id=agent_run.id,
@@ -747,6 +839,20 @@ class EvalRunWorker:
                 },
             )
             return False
+
+    async def _graded_past_quote(self, db: AsyncSession, run: EvalRun, agent_run: AgentRun) -> bool:
+        """Whether this answer and the next grading estimate would exceed the quote.
+
+        Grading with checks alone costs nothing and still runs. What earlier tries of an
+        attempt asked again spent stays on the attempt, so it is in the run's spend already.
+        """
+        if run.quoted_usd is None:
+            return False
+        scoring = DatasetScoring.model_validate(run.scoring)
+        if not (scoring.judge.enabled or scoring.reference.enabled or run.grading_estimate_usd):
+            return False
+        spending = await eval_run_repo.spending(db, run.id, organization_id=self.organization_id)
+        return spending.spent_usd + agent_run.cost_usd + run.grading_estimate_usd > run.quoted_usd
 
     async def _erased_meanwhile(
         self,
@@ -895,7 +1001,15 @@ class EvalRunWorker:
             logger.info("No usable recording for eval case %s", revision.case_id)
             return None
 
-    async def _stop_for_budget(self, db: AsyncSession) -> None:
+    async def _stop_for_budget(
+        self, db: AsyncSession, *, quoted_usd: Decimal | None = None
+    ) -> None:
+        """End the run `budget_exceeded`, skipping what has not started.
+
+        A case ran into the agent's or the organization's budget - or, with
+        `quoted_usd`, the run's next work would have taken it past the price it
+        was started at. Its error and its notice say which.
+        """
         run = await eval_run_repo.lock(db, self.eval_run_id, organization_id=self.organization_id)
         if run is None or EvalRunStatus(run.status).terminal:
             return
@@ -904,12 +1018,12 @@ class EvalRunWorker:
             run=run,
             values={
                 "status": EvalRunStatus.BUDGET_EXCEEDED.value,
-                "error": "A case ran into the agent's or the organization's budget.",
+                "error": _BUDGET_STOP if quoted_usd is None else _at_quote(quoted_usd),
                 "ended_at": datetime.now(UTC),
             },
         )
         await eval_run_repo.skip_pending(db, run.id, organization_id=self.organization_id)
-        await NotificationService(db).eval_run_finished(run)
+        await self._announce(db, run, at_quote=quoted_usd is not None)
 
     async def _ask_lost_again(self) -> bool:
         """Ask once more the first answers an improvement check lost to the infrastructure.
@@ -1015,6 +1129,9 @@ class EvalRunWorker:
         The run is locked while they are queued, as a cancel locks it: a cancel
         landing between the status check and the insert would skip the pending
         attempts it found and leave these pending in a cancelled run for good.
+
+        A run started at a price queues none when they would take it past that
+        price, and ends there instead.
         """
         org = self.organization_id
         async with self.sessions() as db:
@@ -1126,6 +1243,11 @@ class EvalRunWorker:
                 )
                 for attempt in range(1, run.reruns + 1)
             ]
+            if new and run.quoted_usd is not None:
+                spending = await eval_run_repo.spending(db, run.id, organization_id=org)
+                if _would_pass(run.quoted_usd, run, spending, answers=len(new)):
+                    await self._stop_for_budget(db, quoted_usd=run.quoted_usd)
+                    return False
             await eval_run_repo.add_cases(db, organization_id=org, cases=new)
             return bool(new)
 
@@ -1207,13 +1329,18 @@ class EvalRunWorker:
             )
             if status is EvalRunStatus.COMPLETED:
                 await EvalRunService(db).forget_moved_skills(await self._reader(db, run), run)
-            await NotificationService(db).eval_run_finished(run)
-            record = (
-                None
-                if run.proposal_check is None
-                else ProposalCheckRecord.model_validate(run.proposal_check)
-            )
-            if record is not None and record.skill_check_id is not None:
-                from app.services.skill_check import SkillCheckService
+            await self._announce(db, run)
 
-                await SkillCheckService(db).after_run(run.organization_id, run.id)
+    @staticmethod
+    async def _announce(db: AsyncSession, run: EvalRun, *, at_quote: bool = False) -> None:
+        """Say the run ended, and move on the skill check it was a stage of."""
+        await NotificationService(db).eval_run_finished(run, at_quote=at_quote)
+        record = (
+            None
+            if run.proposal_check is None
+            else ProposalCheckRecord.model_validate(run.proposal_check)
+        )
+        if record is not None and record.skill_check_id is not None:
+            from app.services.skill_check import SkillCheckService
+
+            await SkillCheckService(db).after_run(run.organization_id, run.id)

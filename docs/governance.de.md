@@ -1,5 +1,5 @@
 ---
-source_sha: "822050191fb7"
+source_sha: "e027da438382"
 ---
 
 # Governance { #governance }
@@ -276,6 +276,8 @@ Ausgabe wird festgehalten statt abgelehnt, sodass eine Kompaktierung, die ein Ca
 
 ### Kosten, die sich nicht messen ließen, sagen das { #a-cost-that-could-not-be-measured-says-so }
 
+Stav akzeptiert auch Bereitstellungskurse für die Rechnungswährung, einschließlich EUR. Ein konfigurierter NOK-Kurs hat Vorrang vor dem unten beschriebenen bisherigen `STAV_NOK_PER_USD`. USD bleibt die gespeicherte Abrechnungseinheit; die Nutzung behält Rechnungswährung und angewendeten Kurs.
+
 Die von Stav berechneten Kosten haben Vorrang vor dem Katalog: `usage.cost`
 mit `cost_currency` oder die Header `x-stav-cost` und `x-stav-cost-currency`.
 Das gilt für Chat Completions und Responses, auch beim Streaming. USD wird
@@ -284,8 +286,9 @@ direkt verwendet; NOK erfordert `STAV_NOK_PER_USD`
 pro Dollar an: `10` würde NOK durch 10 teilen und ist keine Empfehlung für den
 aktuellen Kurs. Es wird kein Kurs automatisch abgerufen. Usage bewahrt Betrag,
 Währung, Kurs und USD-Kosten; das Ledger markiert die Quelle als vom Anbieter
-gemeldet. Ungültige Beträge, nicht unterstützte Währungen oder fehlende
-Umrechnung lassen den Katalog-Fallback bestehen.
+gemeldet.
+
+Ein ungültiger oder fehlender Anbieterbetrag erlaubt den Katalog-Fallback. Eine gültige Rechnung ohne unterstützten Kurs bleibt unbepreist: ursprünglicher Betrag und Währung bleiben erhalten, und ein gedeckelter Lauf verweigert weitere Anfragen. Konfigurierte eigene Tokenpreise bleiben maßgeblich.
 
 Ohne verwendbare vom Anbieter gemeldete Kosten gilt: `genai-prices` kennt nicht jedes Modell. Trifft ein Run auf eines, für das es
 keinen Eintrag hat, wird diese Anfrage mit null gebucht und der Run als
@@ -1201,6 +1204,11 @@ wurde, und er trägt den Namen und die Notiz der entscheidenden Person, denn ein
 nackte UUID ist keine Spur der Verantwortlichkeit. Auf einer entschiedenen Zeile
 gibt es bewusst keine Bedienelemente.
 
+Wer `approvals:decide` nicht hat, liest nur die eigenen Plattform-Aufrufe, die
+jedes Mal fragen und noch warten, angemeldet als er selbst; `status` erweitert das
+nicht. So erreicht der Aufruf einer Routine, die in keiner Unterhaltung gestellt
+wurde, ihre Person.
+
 | Parameter |  |
 | --- | --- |
 | `status` | Wiederholbar. Abwesend heißt ausstehend — die Queue |
@@ -1509,6 +1517,8 @@ ein einziges `run_code`-Tool gefaltet: Das Modell schreibt ein kurzes
 Python-Skript, das in der Monty-Sandbox läuft und die Tools in Schleifen und
 parallel aufruft, bis zu `max_tool_calls` pro Skript.
 
+Ungültige Argumente eines gewöhnlichen Tool-Aufrufs verbrauchen dessen SDK-Wiederholungsbudget; standardmäßig erhält das Modell eine Korrekturmöglichkeit, bevor weitere ungültige Aufrufe den Run beenden. Ein erfolgreicher Aufruf setzt das Budget dieses Tools zurück. Aufrufe innerhalb eines Skripts behalten die SDK-Validierungsregeln und die Grenze `max_tool_calls`. Ein Skript kann ein erschöpftes Wiederholungsbudget eines separaten Agents nicht abfangen, um weitere Tools auszuführen.
+
 Höchstens vier Aufrufe eines Skripts laufen gleichzeitig, der Rest wartet, sodass
 ein Skript, das Hunderte Sandbox-Aufrufe auffächert, sie nicht alle zugleich
 öffnet.
@@ -1521,6 +1531,20 @@ speichert. Nach der Entscheidung kann jeder Worker das Skript fortsetzen, ohne
 einen weiteren Modell-Turn oder abgeschlossene Operationen zu wiederholen.
 Eine Ablehnung löst im Skript einen `RuntimeError` aus; der Tool-Handler läuft
 nicht. Die Freigabe von `run_code` selbst genehmigt keine verschachtelte Operation.
+
+In einem Eval und in jedem anderen isolierten Run läuft `run_code`, und über
+jeden Aufruf des Skripts entscheiden einzeln die
+[Isolationsregeln](environments.md#in-an-eval): Ein Lesezugriff auf die eigenen
+Daten dieses Deployments läuft, ein Lesezugriff nach außen oder ein Schreibzugriff
+wird angehalten und mit seinen Argumenten aufgezeichnet. Das Ausführen des Skripts
+lässt nichts durch, was ein direkter Aufruf nicht bekäme.
+
+Jeder Aufruf des Skripts wird mit dem Run aufbewahrt, unter dem Skript: sein
+Tool, seine Argumente und sein Ergebnis, bis zu 100 Aufrufe und etwa 1 MB pro Skript. Ein Eval
+bewertet diese Aufrufe an Stelle des Skripts und führt sie darunter auf
+([erwartete Tool-Aufrufe](datasets.md#trajectory)). Eine Aufzeichnung des Runs
+beantwortet jeden von ihnen, wenn ein Eval das Skript erneut ausführt, sodass
+auch die Wiedergabe sie aufführt.
 
 Der gespeicherte Zustand gehört dem Server und hat eine Größenbegrenzung. Der
 rohe Interpreterzustand ist auf 512 kB begrenzt, alle Code-Checkpoints eines Runs
@@ -1579,6 +1603,19 @@ der Cache nicht gehalten hat: eine Karte _Prompt-Cache_, eine Zeile pro Agent
 und Modell, mit Busts, Abläufen und den gecachten Tokens, die nicht zurückgelesen
 wurden, im Zeitraum - ein Maß für den Fehlgriff, nicht für erneut Berechnetes, da
 auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cache gehalten hat, erscheint die Karte nicht.
+
+### Limitwährung { #limit-currency }
+
+Buchführung und vorhandene API-Felder bleiben USD. Die Konsole rechnet den eingegebenen Berichtswährungsbetrag mit dem gespeicherten Organisationskurs um und sendet die ursprüngliche Deklaration neben dem USD-Wert. Der Server prüft die Umrechnung mit seinem eigenen Kurs. Ein veralteter, widersprüchlicher, nicht unterstützter oder fehlender Kurs kann kein Limit schreiben. Dezimale Zeichenketten bewahren die Eingabegenauigkeit.
+
+Bei einem gespeicherten Kurs von 4 PLN je USD kann etwa `monthly_budget_usd: "25"` von `monetary_inputs: {"monthly_budget_usd": {"amount": "100", "currency": "PLN"}}` begleitet werden. Eine ausdrückliche USD-Änderung eines älteren Clients ersetzt nur die ursprünglichen Bedingungen dieses Feldes. Andere Patches erhalten sie. Klonen sowie unterstützte Exporte und Importe übernehmen geprüfte historische Bedingungen ohne Neubewertung des USD-Limits.
+
+Fremdwährungslimits werden auf sechs USD-Nachkommastellen gerundet; auf null fallende Beträge werden abgelehnt. Ältere Float-Budgets von Agenten und Schritt- oder Prüfschwellen behalten ihr Format und lehnen nicht exakt darstellbare Deklarationen ab. Ein Kostenkriterium bleibt eine Bewertungsschwelle, keine Ausgabenberechtigung. Ein Wechsel der Berichtswährung ändert niemals die bei der Durchsetzung verglichenen Kosten oder Limits.
+
+Neue Budgetmitteilungen und periodische Nutzungsberichte speichern den Berichtskurs ihrer Erstellung. Wiederholte Zustellungen und das Lesen aus einer anderen Organisation bewerten Beträge nicht neu. Bereits wartende ältere Mitteilungen behalten ihre ursprünglichen USD-Werte. Neue Kostenprüfungen enthalten strukturierte Beträge zur Anzeige in der Berichtswährung; ältere gespeicherte Kriteriensätze behalten ihren ursprünglichen USD-Wortlaut.
+
+Monatliche Routinenlimits bewahren sechs USD-Nachkommastellen. Höhere Nachkommagenauigkeit wird vor dem Speichern abgelehnt. Die Rückkehr zur früheren Routinen-Spalte mit vier Nachkommastellen wird blockiert, solange ein Limit gerundet würde oder den Wertebereich überschritte.
+
 
 ## Freigaben { #approvals }
 
@@ -1761,11 +1798,11 @@ Die Auswahl wird auf dem Server gespeichert. **Chat controls → Preferences →
 
 Die Freigabe-Warteschlange gehört der Organisation, aber manche Aufrufe zitieren, was die Person ihres Runs liest - den Fakt, den `share_memory` teilen würde. Dieses Zitat sieht nur, wer den Run sehen darf: die Person, für die er lief, oder ein Mitglied, das jeden Run liest und den Agent sehen darf. Alle anderen sehen das Tool, den Leserkreis und einen Hinweis, dass der Inhalt verborgen ist. Einen Aufruf, der jedes Mal fragt, gibt nur frei, wer lesen kann, was er zitiert: Alle anderen können ihn ablehnen, und ihre Freigabe wird abgewiesen.
 
-Die Karte eines solchen Aufrufs sagt mit Namen, was er tut, gelesen als die Person des Runs, wenn er parkt: der Agent, der Versuch und sein Urteil, die Version, die eine Veröffentlichung erzeugt, das Dataset, auf dem ein Eval läuft, und der genannte Preis. Die rohen Argumente bleiben unter Details, und ein Aufruf, dessen Datensätze die Person nicht lesen kann, zeigt nur diese.
-
 Ein Plattform-Aufruf, der jedes Mal fragt - eine Verbesserung annehmen, einen Agent veröffentlichen, ein Mitglied einladen -, läuft mit den Plattform-Rechten der Person, für die sein Run handelt. Deshalb gibt ihn nur diese Person frei, angemeldet als sie selbst: kein anderes Mitglied mit `approvals:decide`, kein API-Schlüssel, auch nicht ihr eigener, und kein Administrator per Impersonierung. Wer `approvals:decide` hat, kann ihn weiterhin ablehnen. Die Person braucht dafür keine Berechtigung außer dieser Person zu sein, also gibt ein Builder oder ein Member die Karte des Architect im eigenen Chat frei und setzt den Run dort fort. Nur sie kann einen Run nach einem freigegebenen Plattform-Aufruf fortsetzen.
 
-Auf einem Kanal wie Slack oder Telegram antwortet die Person in diesem Chat, über das mit ihr verknüpfte Chat-Konto. Fragt der Run zugleich nach anderen Aufrufen, beantwortet die Person nur ihre eigenen, und der Rest wartet auf jemanden mit `approvals:decide`. Der Run geht weiter, sobald jeder Aufruf eine Antwort hat.
+Die Karte eines solchen Aufrufs sagt mit Namen, was er tut, gelesen als die Person des Runs, wenn er parkt: der Agent, der Versuch und sein Urteil, der Skill-Fork oder die Agenten, die eine Skill-Änderung verschiebt, das Dataset, auf dem ein Eval läuft, und der genannte Preis. Übernommen wird nur der Versuch, den die Karte nennt. Die rohen Argumente bleiben unter Details, und ein Aufruf, dessen Datensätze die Person nicht lesen kann, zeigt nur diese.
+
+Auf einem Kanal wie Slack oder Telegram antwortet die Person in diesem Chat, über das mit ihr verknüpfte Chat-Konto. Fragt der Run zugleich nach anderen Aufrufen, beantwortet die Person nur ihre eigenen, und der Rest wartet auf jemanden mit `approvals:decide`. Der Run geht weiter, sobald jeder Aufruf eine Antwort hat, als diese Person, wer auch immer zuletzt geantwortet hat.
 
 Ein Run ohne Person - der eines Besuchers auf einem Widget oder einer öffentlichen Seite, eines nicht verknüpften Kanalmitglieds oder einer gelöschten Person - hat niemanden, dessen Antwort zählt, also wartet sein Plattform-Aufruf, bis er abläuft; so ein Run hat ohnehin keine Plattform-Rechte. Eine Änderung des Deployments (`change_deployment`) braucht beide Regeln zugleich: die Person des Runs, die außerdem Anwendungsadministrator ist. Der Architect jeder anderen Person ändert es nicht.
 
@@ -2276,12 +2313,17 @@ Das Publikum wird also nach der Berechtigung aufgeteilt, statt darauf beschnitte
 | Empfänger hält | Bekommt |
 | --- | --- |
 | `approvals:decide` | die Anfrage, mit dem Link zur Queue |
-| nichts, ist aber die Person des Runs, und unter den Aufrufen ist ihr eigener Plattform-Aufruf, der immer fragt | die Anfrage, mit einem Link zur Unterhaltung, in der gefragt wurde, solange dieser Aufruf wartet |
-| irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, jemand, der über Freigaben entscheiden darf, muss ihn beantworten, und von ihnen wird nichts verlangt |
+| nichts, ist aber die Person des Runs, und unter den Aufrufen ist ihr eigener Plattform-Aufruf, der jedes Mal fragt | die Anfrage, mit einem Link zur Unterhaltung, in der danach gefragt wurde, oder zu ihrem Posteingang für einen Run ohne Unterhaltung, solange dieser Aufruf wartet |
+| irgendetwas Geringeres | die _Tatsache_: Der Run ist angehalten, nicht gescheitert, antworten muss jemand, der über Freigaben entscheiden darf, und von ihnen wird nichts verlangt |
 
 Zu beschneiden würde stattdessen die eine Person, die definitiv auf den Run
 wartet — die Person, die ihn gestartet hat —, nichts darüber hören lassen, warum
 er gestoppt hat.
+
+Die Person des Runs bekommt die Anfrage zu ihrem eigenen Plattform-Aufruf auch
+dann, wenn der Freigabe-Alarm des Agents sie auslässt oder ausgeschaltet ist:
+Niemand sonst darf ihn freigeben. Ohne `approvals:decide` zeigen ihr Posteingang
+und `GET /approvals` solche Aufrufe - ihre eigenen und sonst nichts.
 
 Die zweite E-Mail trägt **keinen Link**, und das ist gewollt und nicht
 unfertig. Dass `agents:view` eine Rollenberechtigung ist, macht keinen einzelnen

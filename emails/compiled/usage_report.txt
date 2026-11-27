@@ -2,7 +2,7 @@ Subject: [[org_name]] - agent usage this [[period]]
 
 What [[org_name]] spent over the past [[period]]:
 
-  $[[total]] across [[runs]] runs and [[agents]] agents.
+  [[reported_total]] across [[runs]] runs and [[agents]] agents.
 
 Costs are what the models actually charged, priced per run rather than
 estimated from a rate table.

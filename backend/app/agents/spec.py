@@ -44,6 +44,7 @@ from pydantic import (
 
 from app.agents.capabilities import LOAD_CAPABILITY, CapabilityBinding, ToolOverride
 from app.agents.table_bindings import TableGrant
+from app.core.currency import CurrencyAmount, MonetaryTerm
 
 logger = logging.getLogger(__name__)
 
@@ -444,12 +445,18 @@ class BudgetSpec(BaseModel):
 
     One monthly cap, metered against this agent's own runs. The platform has
     exactly two budget levels - the agent's and the organization's - and this
-    is the agent's half.
+    is the agent's half. The numeric field remains accounting USD for compatible
+    clients. Optional original monetary terms retain the input unit and quote;
+    new declarations are request-only and validated against the server quote.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     monthly_usd: float | None = Field(default=None, gt=0)
+    monetary_inputs: dict[str, CurrencyAmount] = Field(default_factory=dict, exclude=True)
+    monetary_terms: dict[Literal["monthly_usd"], MonetaryTerm] = Field(
+        default_factory=dict, exclude_if=lambda value: not value
+    )
 
 
 class LoopGuardSpec(BaseModel):

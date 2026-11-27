@@ -63,6 +63,11 @@ it("configures a new route with explicit limits, inbound exposure and transfer c
     await userEvent.clear(field);
     await userEvent.type(field, "1");
   }
+  for (const name of ["Daily telephony budget (USD)", "Price per minute (USD)"]) {
+    const amount = screen.getByLabelText(name);
+    await userEvent.clear(amount);
+    await userEvent.type(amount, "1");
+  }
   await userEvent.clear(fields[0]!);
   await userEvent.type(fields[0]!, "120");
   await userEvent.click(screen.getByRole("checkbox", { name: "On-call" }));

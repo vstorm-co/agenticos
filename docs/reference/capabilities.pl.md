@@ -1,5 +1,5 @@
 ---
-source_sha: "617b957f6b31"
+source_sha: "fa4ee25fb961"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -134,10 +134,9 @@ zatrzymania po przejściu przez granicę sandboxa.
 | `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
 | `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
-| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace`, `select_execution_target` | `sandbox:execute` | dla Daytony | przekazana |
 | `mirage` | Wirtualny terminal | analiza | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | dla każdego folderu, przez extra `mirage` | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
-| `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — | bez zmian |
+| `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual`, `preview_visual` | — | — | bez zmian |
 | `image_generation` | Generowanie obrazów | analiza | `generate_image` | — | wymagany | bez zmian |
 | `text_to_speech` | Zamiana tekstu na mowę | analiza | `generate_speech` | — | wymagany | bez zmian |
 | `video_generation` | Generowanie wideo | analiza | `generate_video` | — | wymagany | przekazana |
@@ -210,8 +209,8 @@ publikacja odrzuca spec, który próbuje ją nieść — zobacz
 
 ## Co uruchamia eval { #what-an-eval-runs }
 
-Eval uruchamia agenta naprawdę, więc wykonuje narzędzie tylko wtedy, gdy nie
-zmienia ono niczego poza runem albo sięga do połączenia testowego
+Eval uruchamia agenta naprawdę, więc wykonuje narzędzie tylko wtedy, gdy czyta
+ono własne dane tego wdrożenia albo sięga do połączenia testowego
 [środowiska](../environments.md#in-an-eval). Każda capability deklaruje, które z
 jej narzędzi tylko czytają — `read_only`, obok `side_effecting` — a narzędzie,
 które niczego nie deklaruje, zapisuje. Oto narzędzia, które zapisują i które eval
@@ -241,10 +240,34 @@ wstrzymuje i zapisuje:
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 | `workflows` | `run_workflow` |
 
-Każde inne narzędzie powyżej tylko czyta. Delegowanie liczy się jako czytanie:
-narzędzia delegata podlegają jego własnym deklaracjom. `side_effecting` i
-`read_only` odpowiadają na różne pytania: pierwsze mówi, o co domyślnie pyta
-zatwierdzanie, drugie — co może uruchomić eval, a niezadeklarowane narzędzie
+Każde inne narzędzie powyżej tylko czyta, ale samo czytanie nie wystarcza, by
+działać w evalu. Eval uruchamia tekst, którego nikt jeszcze nie przejrzał —
+warianty Improve, zmianę skilla w trakcie sprawdzania — a odczyt nadal może
+wynieść poza wdrożenie to, co model w niego włoży. Dlatego eval uruchamia odczyt
+tylko wtedy, gdy jest on na spisanej liście odczytów, które zostają w środku
+(`LIVE_IN_ISOLATION` w `app/agents/isolation.py`), a te wstrzymuje i zapisuje z
+powodem `external`:
+
+| id | Narzędzia, które tylko czytają, a mimo to są wstrzymywane |
+| --- | --- |
+| `artifacts` | `preview_artifact` |
+| `channel_actions` | `list_chat_connections`, `find_chat_channels`, `read_chat_messages` |
+| `channel_tools` | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` |
+| `web_fetch` | `web_fetch`, niezależnie od jego `allowed_domains` |
+| `web_research` | `web_search` |
+
+Binding `web_fetch` albo `web_research`, który przekazuje wywołanie providerowi
+modelu (`native` albo `auto` dla pobierania), jest w evalu budowany z własną
+metodą tego wdrożenia, więc wywołanie trafia do strażnika i jest wstrzymywane.
+Narzędzie dodane do rejestru jest wstrzymywane, dopóki nie trafi na listę.
+
+Delegowanie zostaje na liście: delegat tego wdrożenia działa w tej samej
+izolacji, a jego własne narzędzia podlegają jego własnym deklaracjom. Delegat,
+który jest agentem innego systemu ([A2A](#remote-agents)), na niej nie jest:
+zadanie dla niego jest wstrzymywane z powodem `external`, a sam delegat jest
+budowany bez swojego endpointu i klucza. `side_effecting` i `read_only`
+odpowiadają na różne pytania: pierwsze mówi, o co domyślnie pyta zatwierdzanie,
+drugie — czy narzędzie w ogóle cokolwiek zmienia, a niezadeklarowane narzędzie
 pierwsze przepuszcza bez bramki, a drugie blokuje.
 
 Środowisko może podmienić klucz z vault capability na testowy, ale sam
@@ -1914,10 +1937,23 @@ Pozwala agentowi uruchomić polecenie, które działa długo - watcher testów, 
 `draw` — _Narysuj w rozmowie: diagram, mapę, przepływ, explainer, scenę 3D._
 `revise_visual` — _Zmień wizual dokładnymi zamianami, bez rysowania go od nowa._
 `read_visual` — _Przeczytaj wizual z tej rozmowy w obecnej postaci, z naniesionymi poprawkami._
+`preview_visual` — _Sprawdź wizualizację z tej rozmowy: zrzut ekranu i raport renderowania._
+
+**Sprawdź przed zapisaniem.** `preview_visual(visual_id, width=1000, appearance="light")`
+renderuje rysunek z poprawkami i obrazami, bez publikowania. Szerokość wynosi
+od 240 do 1600 pikseli, a motyw to `light` lub `dark`; 390 sprawdza telefon.
+Narzędzie zwraca błędy renderowania, ostrzeżenia konsoli, odmowy polityki i
+zablokowane żądania oraz zrzut do 2400 pikseli wysokości. Informuje o przycięciu
+strony lub przekroczeniu czasu. Każda lista diagnostyczna mieści do dziesięciu wpisów.
+
+Wdrożenie wymaga `ARTIFACT_RENDER_CDP_URL` i dodatku `browser` backendu.
+Bez renderera narzędzie wyjaśnia brak zrzutu. Ustaw `preview_screenshot: false`
+dla modelu, który nie odczytuje obrazów; raport nadal wraca. To nowy render
+źródła, a nie odczyt bieżących danych wpisanych przez osobę w podglądzie czatu.
 
 Rysuje w samym czacie. `kind` to `svg` dla diagramów i ilustracji, `mermaid` dla
 schematów blokowych, sekwencji i diagramów ER albo `html` dla wszystkiego, co
-interaktywne - suwaków, `<canvas>`, three.js, mapy. Bez konfiguracji; dostarczany
+interaktywne - suwaków, `<canvas>`, three.js, mapy. Dostarczany
 skill `visual-design` niesie styl i pięć szablonów, a Builder podpina go, razem z
 Wykresami (Charts), przy włączeniu Wizualizacji.
 
@@ -2473,6 +2509,14 @@ koszt runa mówi, że jest częściowy. Każde żądanie przechodzi przez kontro
 deploymentu, więc karta ani endpoint nie mogą skierować platformy do jej własnej
 sieci. Publikacja odrzuca odwołanie do nieistniejącej rejestracji, a run, którego
 rejestracja została w międzyczasie usunięta, kończy się błędem, który ją wskazuje.
+
+[Eval](#what-an-eval-runs), i każdy inny run w izolacji, nie wysyła zdalnemu
+agentowi niczego. Zadanie dla niego jest wstrzymywane i zapisywane z powodem
+`external`, a model dowiaduje się, że agent nie jest dostępny w runie w
+izolacji. Delegat jest budowany bez swojego endpointu, a jego klucz nie jest
+odpieczętowywany, więc wywołanie, które dotarłoby do niego inną drogą, też nie
+mogłoby wyjść. Dotyczy to każdego poziomu drzewa delegowania: delegat tego
+wdrożenia, który deleguje do zdalnego agenta, jest wstrzymywany tak samo.
 
 Co kosztuje delegowanie i który wiersz runa je zapisuje — zobacz
 [Nadzór](../governance.md#delegation-spends-the-parents-budget). Kto może delegować
@@ -3367,7 +3411,7 @@ nikogo; `side_effecting` mówi Builderowi tylko, które narzędzia działają na
     bramkę, a wywołanie ze skutkami ubocznymi przechodzi wtedy bez nadzoru i nic
     tego nie zgłasza. Id, którego żadna taka capability nie wystawia, zostaje
 
-odrzucone przy publikacji, i tak samo nazwa, której żaden model nie mógłby zawołać, albo taka, którą ma już inne narzędzie agenta - narzędzie innej capability albo takie, które platforma dodaje sama, jak `request_capability`.
+odrzucone przy publikacji, i tak samo nazwa, której żaden model nie mógłby zawołać, albo taka, którą ma już inne narzędzie agenta - narzędzie innej capability albo takie, które platforma dodaje sama, jak `request_capability`. Nowa nazwa nie może też zaczynać się od `agenticos_`, którym nazywają się własne narzędzia platformy. To, kto może zatwierdzić wywołanie, nigdy nie zależy od jego nazwy: binding platformy oznacza jej własne narzędzia, a wywołanie zapisuje ten znacznik, gdy czeka na zatwierdzenie.
 
 ## Zakresy { #scopes }
 

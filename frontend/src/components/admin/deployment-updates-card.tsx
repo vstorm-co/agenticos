@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { ServiceCard } from "@/components/settings/service-card";
 import { version } from "../../../package.json";
 import {
   Button,
@@ -22,7 +23,6 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  ListCard,
 } from "@/components/ui";
 import { useDeploymentUpdates } from "@/hooks/use-deployment-updates";
 import { useReleaseUpdate } from "@/hooks/use-release-update";
@@ -62,8 +62,14 @@ export function DeploymentUpdatesCard() {
           ? 2
           : 0;
   return (
-    <ListCard title={t("title")} counted={t("hint")}>
-      <div className="space-y-5 p-4">
+    <ServiceCard
+      icon={Download}
+      headingLevel={3}
+      title={t("title")}
+      description={t("hint")}
+      action={null}
+    >
+      <div className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="flex items-center gap-2 font-medium">
@@ -273,6 +279,6 @@ export function DeploymentUpdatesCard() {
           </DialogContent>
         </Dialog>
       </div>
-    </ListCard>
+    </ServiceCard>
   );
 }

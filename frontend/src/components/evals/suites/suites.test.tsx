@@ -538,7 +538,7 @@ describe("SuiteFormDialog", () => {
     );
     await userEvent.type(within(dialog).getByLabelText("p95 latency may rise by (%)"), "50");
     await userEvent.type(
-      within(dialog).getByLabelText("Skip a run whose full estimate is above ($)"),
+      within(dialog).getByLabelText("Skip a run whose full estimate is above (USD)"),
       "2",
     );
     await userEvent.type(within(dialog).getByLabelText("Note"), "Checked weekly");
@@ -563,6 +563,7 @@ describe("SuiteFormDialog", () => {
       on_dependency_change: true,
       schedule: { cron: "0 7 1 * *", timezone: "UTC" },
       max_run_usd: "2",
+      monetary_inputs: { max_run_usd: { amount: "2", currency: "USD" } },
     });
   });
 

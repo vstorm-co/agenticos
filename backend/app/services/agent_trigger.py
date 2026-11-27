@@ -96,6 +96,7 @@ from app.repositories import background_job as background_job_repo
 from app.repositories import channel_bot as channel_bot_repo
 from app.repositories import routine_delivery as routine_delivery_repo
 from app.repositories import routine_device_wait as device_wait_repo
+from app.repositories.monetary import set_terms as set_monetary_terms
 from app.schemas.agent_trigger import (
     _EVENT_CONFIG_MODELS,
     GithubFilteredEvent,
@@ -136,6 +137,7 @@ from app.services.background_jobs import enqueue
 from app.services.channels.teams_post import post_to_teams
 from app.services.conversation import ConversationService
 from app.services.mcp_connection import McpConnectionService
+from app.services.monetary import MonetaryService
 from app.services.notifications import NotificationService
 from app.services.outcome import OutcomeService
 from app.services.personal_model_surfaces import require_organization_agent
@@ -1168,6 +1170,14 @@ class AgentTriggerService:
             notification_channels=data.notification_channels,
             monthly_budget_usd=data.monthly_budget_usd,
         )
+        terms = await MonetaryService(self.db).terms(
+            ctx.organization_id,
+            values={"monthly_budget_usd": data.monthly_budget_usd},
+            inputs=data.monetary_inputs,
+        )
+        await set_monetary_terms(
+            self.db, trigger, terms=terms, fields=frozenset({"monthly_budget_usd"})
+        )
         if data.source_id is not None:
             from app.services.event_sources import EventSourceService
 
@@ -1440,6 +1450,16 @@ class AgentTriggerService:
         """
         trigger = await self._owned(ctx, agent_id, trigger_id, for_update=True)
         changes = writable(data, over=AgentTrigger)
+        if "monthly_budget_usd" in data.model_fields_set or data.monetary_inputs:
+            terms = await MonetaryService(self.db).terms(
+                ctx.organization_id,
+                values={"monthly_budget_usd": data.monthly_budget_usd}
+                if "monthly_budget_usd" in data.model_fields_set
+                else {},
+                inputs=data.monetary_inputs,
+                previous=trigger.monetary_terms,
+            )
+            changes["monetary_terms"] = terms
         if "answer_to" in changes and "chat_mode" not in changes:
             changes["chat_mode"] = "shared" if changes["answer_to"] == "run_log" else "per_run"
 

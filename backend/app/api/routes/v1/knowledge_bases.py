@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile,
 from app.api.deps import (
     Auth,
     CollectionAccessSvc,
+    EmbeddingProbeSvc,
     IngestionSvc,
     KnowledgeBaseSvc,
     RAGDocumentSvc,
@@ -25,6 +26,12 @@ from app.api.routes.v1._stored_bytes import stored_file_response
 from app.core.exceptions import NotFoundError
 from app.core.field_errors import refused_field
 from app.core.permissions import Perm
+from app.schemas.embedding_probe import (
+    EmbeddingProbeEstimate,
+    EmbeddingProbeResult,
+    KbEmbeddingProbeRequest,
+    NewEmbeddingProbeRequest,
+)
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
     KnowledgeBaseDetailRead,
@@ -99,6 +106,24 @@ async def create_knowledge_base(
     return await service.describe(kb, ctx=ctx)
 
 
+@router.post(
+    "/embedding-probe",
+    response_model=EmbeddingProbeResult,
+    dependencies=[Depends(require(Perm.COLLECTIONS_EDIT))],
+)
+async def probe_new_embedding(
+    data: NewEmbeddingProbeRequest, service: EmbeddingProbeSvc, ctx: Auth
+) -> Any:
+    """Test a custom model through a connection, before a collection is made on it.
+
+    Makes one request and reports the width the endpoint answered at. A pass
+    returns a `probe_token`, good for ten minutes, that `POST /kb` takes as
+    `probe_token`; the collection is created at the measured width. A failed test
+    is a 200 with `passed: false` and the reason in `outcome`.
+    """
+    return await service.measure_new(ctx, data)
+
+
 @router.get("/{kb_id}", response_model=KnowledgeBaseDetailRead)
 async def get_knowledge_base(
     kb_id: UUID,
@@ -120,14 +145,42 @@ async def update_knowledge_base(
     service: KnowledgeBaseSvc,
     ctx: Auth,
 ) -> Any:
-    """Update the name, description or ingestion configuration of a Knowledge Base.
+    """Update a Knowledge Base: its name, description, ingestion configuration or embeddings.
 
     A new `ingestion_config` applies to documents ingested from now on.
-    Nothing already indexed is re-parsed, and the embedding model cannot be
-    changed here at all.
+    Nothing already indexed is re-parsed.
+
+    A change to where or how the base embeds - provider, connection, key, endpoint
+    or model - could move its vector space, so it needs proof: the `probe_token`
+    a passing `POST /kb/{id}/embedding-probe` returned for exactly these
+    settings, or `unverified: true`, which saves without a test and is audited.
     """
     kb = await service.update(kb_id, data, ctx=ctx)
     return await service.describe(kb, ctx=ctx)
+
+
+@router.get("/{kb_id}/embedding-probe/estimate", response_model=EmbeddingProbeEstimate)
+async def estimate_embedding_probe(kb_id: UUID, service: EmbeddingProbeSvc, ctx: Auth) -> Any:
+    """What testing a change to this base's embeddings would cost, before running it.
+
+    Reads the base's stored chunks and sends nothing: `calls` is the number of
+    requests a passing test makes, `max_calls` the most it makes with its retry.
+    """
+    return await service.estimate_kb_change(ctx, kb_id)
+
+
+@router.post("/{kb_id}/embedding-probe", response_model=EmbeddingProbeResult)
+async def probe_embedding_change(
+    kb_id: UUID, data: KbEmbeddingProbeRequest, service: EmbeddingProbeSvc, ctx: Auth
+) -> Any:
+    """Test an embedding change against this base's own stored chunks.
+
+    Re-embeds up to three stored chunks through the settings in the body - what is
+    omitted stays as the base has it - and compares them with the vectors stored.
+    A pass returns a `probe_token`, good for ten minutes, that `PATCH /kb/{id}` takes
+    with the same settings. A failed test is a 200 with `passed: false`.
+    """
+    return await service.probe_kb_change(ctx, kb_id, data)
 
 
 @router.delete(

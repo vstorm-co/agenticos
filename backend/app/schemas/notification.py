@@ -6,6 +6,7 @@ from uuid import UUID
 
 from pydantic import Field, TypeAdapter, ValidationError
 
+from app.core.currency import ReportingQuote
 from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.notification_delivery import NotificationDelivery
 from app.schemas.base import BaseSchema
@@ -230,6 +231,11 @@ class NotificationRead(BaseSchema):
         "missing values, and readers served another summary; never links or ids.",
     )
 
+    reporting_quote: ReportingQuote | None = Field(
+        default=None,
+        description="The reporting quote retained when a monetary notice was created; null for legacy USD notices.",
+    )
+
     wording_params: dict[str, str] | None = Field(
         default=None,
         description="Versioned sentence values for the current console. Kept separate from "
@@ -260,6 +266,9 @@ class NotificationRead(BaseSchema):
             outcome_id=notification.outcome_id,
             params=None if summary_override else _params_of(notification),
             wording_params=None if summary_override else _worded(notification.render_context or {}),
+            reporting_quote=None
+            if summary_override
+            else (notification.render_context or {}).get("reporting_quote"),
         )
 
 

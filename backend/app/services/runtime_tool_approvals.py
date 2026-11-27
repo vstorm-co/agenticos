@@ -88,6 +88,7 @@ async def decide_live(
                 subagent_name=parked.subagent,
                 subagent_agent_id=parked.subagent_agent_id,
                 always_asks=parked.always_asks,
+                platform_call=parked.platform_call,
             )
             ctx = await _decider(db, channel.organization_id, user_id)
             hidden = await service.hidden_fields(ctx, row)

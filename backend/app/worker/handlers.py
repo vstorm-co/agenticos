@@ -56,6 +56,7 @@ def production() -> Handlers:
         channel_observation_tasks,
         channel_tasks,
         coding_tasks,
+        conversation_environment_tasks,
         conversation_tasks,
         diagnostics_tasks,
         eval_suite_tasks,
@@ -101,6 +102,22 @@ def production() -> Handlers:
             ),
             Handler(jobs.WAKE_TASK, task_tasks.wake_task),
             Handler(jobs.DELIVER_ROUTINE_ANSWER, trigger_tasks.deliver_routine_answer),
+            Handler(
+                jobs.PROVISION_CONVERSATION_ENVIRONMENT,
+                conversation_environment_tasks.provision_environment,
+            ),
+            Handler(
+                jobs.CLEANUP_CONVERSATION_ENVIRONMENT,
+                conversation_environment_tasks.cleanup_environment,
+            ),
+            Handler(
+                jobs.MAINTAIN_CONVERSATION_ENVIRONMENT,
+                conversation_environment_tasks.maintain_environment,
+            ),
+            Handler(
+                jobs.SWEEP_CONVERSATION_ENVIRONMENTS,
+                _each_tick(conversation_environment_tasks.sweep_environments),
+            ),
             Handler(jobs.RUN_AGENT, run_tasks.run_agent),
             Handler(jobs.REVERT_CODING_TASK, coding_tasks.revert_coding_task),
             Handler(jobs.RUN_EVAL, eval_tasks.run_eval),
@@ -214,6 +231,7 @@ def _settlers() -> dict[str, Settler]:
         case_generation_tasks,
         case_key_tasks,
         channel_tasks,
+        conversation_environment_tasks,
         conversation_tasks,
         eval_tasks,
         key_coverage_tasks,
@@ -223,6 +241,10 @@ def _settlers() -> dict[str, Settler]:
     )
 
     return {
+        jobs.PROVISION_CONVERSATION_ENVIRONMENT.kind: _settler(
+            jobs.PROVISION_CONVERSATION_ENVIRONMENT,
+            conversation_environment_tasks.settle_environment,
+        ),
         jobs.PORTABLE_TRANSFER.kind: _settler(
             jobs.PORTABLE_TRANSFER, portability_tasks.settle_transfer
         ),

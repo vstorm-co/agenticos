@@ -13,10 +13,11 @@ See `app/db/models/skill_version.py` for the model.
 
 import hashlib
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from pydantic import JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import record_audit
@@ -30,6 +31,12 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.core.skill_files import (
+    ResourceEncoding,
+    decode_skill_file,
+    encode_skill_file,
+    same_skill_metadata,
+)
 from app.db.models.skill import Skill
 from app.db.models.skill_version import (
     ManifestEntry,
@@ -62,23 +69,23 @@ ARCHIVE_AFTER = timedelta(days=30)
 """How long a fork goes unread before it is offered for archiving. Never archived by itself."""
 
 
-def _sha256(content: str) -> str:
-    return hashlib.sha256(content.encode("utf-8")).hexdigest()
-
-
 def manifest_of(
     files: Iterable[tuple[str, str | None, str]],
+    *,
+    encodings: Mapping[str, ResourceEncoding] | None = None,
 ) -> tuple[dict[str, ManifestEntry], dict[str, str]]:
     """Files given as `(name, description, content)`, as a version records them, and
     the bodies to store by hash."""
     manifest: dict[str, ManifestEntry] = {}
     bodies: dict[str, str] = {}
     for name, description, content in files:
-        sha256 = _sha256(content)
-        manifest[name] = ManifestEntry(
-            sha256=sha256, description=description, size_bytes=len(content.encode("utf-8"))
-        )
-        bodies[sha256] = content
+        raw = decode_skill_file(content, (encodings or {}).get(name, "utf8"))
+        encoded = encode_skill_file(raw)
+        sha256 = hashlib.sha256(raw).hexdigest()
+        manifest[name] = ManifestEntry(sha256=sha256, description=description, size_bytes=len(raw))
+        if encoded.encoding != "utf8":
+            manifest[name]["encoding"] = encoded.encoding
+        bodies[sha256] = encoded.content
     return manifest, bodies
 
 
@@ -131,7 +138,11 @@ class SkillVersionService:
         if locked is None:
             raise NotFoundError(message="Skill not found", details={"skill_id": skill.id})
         manifest, bodies = manifest_of(
-            (resource.name, resource.description, resource.content) for resource in locked.resources
+            (
+                (resource.name, resource.description, resource.content)
+                for resource in locked.resources
+            ),
+            encodings={resource.name: resource.encoding or "utf8" for resource in locked.resources},
         )
         await skill_version_repo.put_files(
             self.db, organization_id=locked.organization_id, skill_id=locked.id, bodies=bodies
@@ -150,6 +161,7 @@ class SkillVersionService:
             number=number,
             description=locked.description,
             content=locked.content,
+            manifest_metadata=locked.manifest_metadata or {},
             resources=manifest,
             source=source.value,
             restored_from_id=restored_from_id,
@@ -179,8 +191,19 @@ class SkillVersionService:
         proposal_id: UUID | None = None,
         restored_from_id: UUID | None = None,
         merged_from_id: UUID | None = None,
+        manifest_metadata: dict[str, JsonValue] | None = None,
     ) -> SkillVersion:
         """Record the next version of a fork, whose row the caller holds locked."""
+        if manifest_metadata is None:
+            base = await skill_version_repo.get_version(
+                self.db,
+                fork.latest_version_id or fork.base_version_id,
+                organization_id=fork.organization_id,
+                skill_id=fork.skill_id,
+            )
+            if base is None:
+                raise NotFoundError(message="Skill version not found")
+            manifest_metadata = base.manifest_metadata or {}
         number = (
             await skill_version_repo.latest_number(
                 self.db,
@@ -198,6 +221,7 @@ class SkillVersionService:
             number=number,
             description=description,
             content=content,
+            manifest_metadata=manifest_metadata,
             resources=resources,
             source=source.value,
             restored_from_id=restored_from_id,
@@ -415,12 +439,14 @@ class SkillVersionService:
             **summary.model_dump(),
             description=version.description,
             content=version.content,
+            manifest_metadata=version.manifest_metadata or {},
             resources=[
                 VersionResourceSummary(
                     name=name,
                     description=entry["description"],
                     size_bytes=entry["size_bytes"],
                     digest=entry["sha256"],
+                    encoding=entry.get("encoding", "utf8"),
                 )
                 for name, entry in sorted(version.resources.items())
             ],
@@ -446,7 +472,10 @@ class SkillVersionService:
         if entry is None or entry["sha256"] not in bodies:
             raise NotFoundError(message="File not found", details={"name": name})
         return VersionResourceRead(
-            name=name, description=entry["description"], content=bodies[entry["sha256"]]
+            name=name,
+            description=entry["description"],
+            content=bodies[entry["sha256"]],
+            encoding=entry.get("encoding", "utf8"),
         )
 
     async def files_of(self, version: SkillVersion) -> dict[str, str]:
@@ -475,9 +504,16 @@ class SkillVersionService:
             locked = await skill_repo.lock(self.db, skill.id)
             assert locked is not None, "the skill was read in this transaction"
             self._refuse_moved(data.base_version_id, locked.latest_version_id)
-            updated = await SkillService(self.db).update(
-                ctx, skill.id, SkillUpdate(description=data.description, content=data.content)
+            update = (
+                SkillUpdate(description=data.description, content=data.content)
+                if data.manifest_metadata is None
+                else SkillUpdate(
+                    description=data.description,
+                    content=data.content,
+                    manifest_metadata=data.manifest_metadata,
+                )
             )
+            updated = await SkillService(self.db).update(ctx, skill.id, update)
             assert updated.latest_version_id is not None, "a skill always has a main version"
             return await self._read(
                 ctx, skill, await self._version(ctx, skill, updated.latest_version_id)
@@ -488,7 +524,10 @@ class SkillVersionService:
         self._refuse_moved(data.base_version_id, latest)
         assert latest is not None, "a fork serves at least its base"
         current = await self._version(ctx, skill, latest)
-        if (data.description, data.content) == (current.description, current.content):
+        if (data.description, data.content) == (current.description, current.content) and (
+            data.manifest_metadata is None
+            or same_skill_metadata(data.manifest_metadata, current.manifest_metadata or {})
+        ):
             return await self._read(ctx, skill, current)
         version = await self.record_fork(
             ctx,
@@ -496,6 +535,7 @@ class SkillVersionService:
             description=data.description,
             content=data.content,
             resources=current.resources,
+            manifest_metadata=data.manifest_metadata,
             source=SkillVersionSource.EDIT,
         )
         await self._audit(ctx, skill, "skill.fork_edited", fork=fork, version=version)
@@ -533,6 +573,7 @@ class SkillVersionService:
             resources=earlier.resources,
             source=SkillVersionSource.RESTORE,
             restored_from_id=earlier.id,
+            manifest_metadata=earlier.manifest_metadata or {},
         )
         await self._audit(ctx, skill, "skill.restored", fork=fork, version=version)
         return await self._read(ctx, skill, version)

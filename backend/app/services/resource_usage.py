@@ -9,6 +9,7 @@ card (#2072). The listings ask both once per page.
 
 import json
 from collections.abc import Collection, Sequence
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
@@ -20,6 +21,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus
 from app.repositories import agent_environment_repo, agent_repo, group_repo, resource_grant_repo
 from app.repositories.agent import BoundResourceField
+from app.schemas.eval_suite import DependencyKind
 from app.schemas.resource_usage import AgentUsage
 from app.services.access import AGENT, ResourceType, accessible_ids
 
@@ -33,13 +35,33 @@ async def agents_using(
 ) -> dict[UUID, list[AgentUsage]]:
     """For each resource, the agents binding it that the caller may see.
 
-    Narrowed to what `agents:view` reaches, so a skill's card never names a
-    private agent its reader could not open. Every requested id is a key.
+    A draft binds a resource itself or through an inline specialist it defines. Only
+    drafts naming one of these ids are parsed for their specialists, which keeps a
+    page's cost to its own cards. Narrowed to what `agents:view` reaches, so a card
+    never names a private agent its reader could not open. Every requested id is a
+    key, each list in name order.
     """
     found = await agent_repo.binding_resources(
         db, organization_id=ctx.organization_id, field=field, resource_ids=resource_ids
     )
+    wanted = frozenset(found)
+    kind = _KIND_OF_FIELD[field]
+    for agent in await agent_repo.drafts_mentioning(
+        db, [str(resource_id) for resource_id in wanted], organization_id=ctx.organization_id
+    ):
+        for resource_id in _bound(agent.draft_spec, kind) & wanted:
+            if all(listed.id != agent.id for listed in found[resource_id]):
+                found[resource_id].append(agent)
+    for agents in found.values():
+        agents.sort(key=lambda agent: agent.name)
     return await _visible_usage(db, ctx, found)
+
+
+_KIND_OF_FIELD: dict[BoundResourceField, DependencyKind] = {
+    "skill_ids": "skill",
+    "collection_ids": "knowledge_base",
+    "context_ids": "context",
+}
 
 
 async def agents_using_mcp(
@@ -58,19 +80,19 @@ async def _visible_usage(
     agents = {agent.id: agent for bound in found.values() for agent in bound}
     visible = await accessible_ids(db, ctx, agents.values(), Perm.AGENTS_VIEW, resource_type=AGENT)
     return {
-        resource_id: [
-            AgentUsage(
-                id=agent.id,
-                name=agent.name,
-                slug=agent.slug,
-                has_avatar=agent.has_avatar,
-                avatar_color=agent.avatar_color,
-            )
-            for agent in bound
-            if agent.id in visible
-        ]
+        resource_id: [_usage(agent) for agent in bound if agent.id in visible]
         for resource_id, bound in found.items()
     }
+
+
+def _usage(agent: Agent) -> AgentUsage:
+    return AgentUsage(
+        id=agent.id,
+        name=agent.name,
+        slug=agent.slug,
+        has_avatar=agent.has_avatar,
+        avatar_color=agent.avatar_color,
+    )
 
 
 async def groups_sharing(
@@ -164,7 +186,7 @@ async def agents_using_skill(
         if environment.agent_id not in using and _binds_skill(version.spec, skill_id):
             using.add(environment.agent_id)
     for agent in await agent_repo.drafts_mentioning(
-        db, str(skill_id), organization_id=organization_id
+        db, [str(skill_id)], organization_id=organization_id
     ):
         if agent.id not in using and _binds_skill(agent.draft_spec, skill_id):
             using.add(agent.id)
@@ -173,6 +195,127 @@ async def agents_using_skill(
         (agent for agent in agents.values() if agent.status != AgentStatus.ARCHIVED.value),
         key=lambda agent: agent.name,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class SkillBindings:
+    """Which agents serve or draft which skills, by id, with each agent named once.
+
+    Kept as id sets per agent rather than as a list of agents per skill, so a
+    library bound by many agents costs ids, not an agent object per binding: the
+    names are drawn only for the cards a listing actually shows.
+    """
+
+    serving: dict[UUID, frozenset[UUID]]
+    """Per agent the caller may see, the skills a version it serves binds."""
+
+    drafting: dict[UUID, frozenset[UUID]]
+    """Per agent the caller may see, the skills its draft binds."""
+
+    agents: dict[UUID, AgentUsage]
+    """Every agent above, in name order."""
+
+    def used_by(self, skill_id: UUID) -> list[AgentUsage]:
+        """The agents serving one skill, in name order."""
+        return [
+            agent
+            for agent_id, agent in self.agents.items()
+            if skill_id in self.serving.get(agent_id, ())
+        ]
+
+    def drafted_by(self, skill_id: UUID) -> list[AgentUsage]:
+        """The agents whose draft binds one skill, in name order."""
+        return [
+            agent
+            for agent_id, agent in self.agents.items()
+            if skill_id in self.drafting.get(agent_id, ())
+        ]
+
+
+async def skill_bindings(
+    db: AsyncSession, ctx: AuthContext, *, skill_ids: Collection[UUID]
+) -> SkillBindings:
+    """Across a whole library: which agents serve each skill, and whose draft binds it.
+
+    What `agents_serving_skills` and `agents_drafting_skills` answer for a page, read for any
+    number of skills at once: every served version and every live draft of the
+    organization is parsed once, instead of being matched once per skill. A skill
+    an inline specialist binds counts, in a draft as in a served version, and only
+    agents the caller may see are kept. A draft that does not parse binds nothing
+    here - it serves no answer, and a listing is not a deletion check.
+    """
+    wanted = frozenset(skill_ids)
+    if not wanted:
+        return SkillBindings(serving={}, drafting={}, agents={})
+    live = {
+        agent.id: agent
+        for agent in await agent_repo.list_live(db, organization_id=ctx.organization_id)
+    }
+    serving: dict[UUID, set[UUID]] = {}
+    for environment, version in await agent_environment_repo.served(
+        db, organization_id=ctx.organization_id
+    ):
+        bound = _bound_skills(version.spec) & wanted
+        if bound and environment.agent_id in live:
+            serving.setdefault(environment.agent_id, set()).update(bound)
+    drafting = {
+        agent.id: bound
+        for agent in live.values()
+        if (bound := _bound_skills(agent.draft_spec) & wanted)
+    }
+    visible = await accessible_ids(
+        db,
+        ctx,
+        [live[agent_id] for agent_id in serving.keys() | drafting.keys()],
+        Perm.AGENTS_VIEW,
+        resource_type=AGENT,
+    )
+    return SkillBindings(
+        serving={key: frozenset(ids) for key, ids in serving.items() if key in visible},
+        drafting={key: frozenset(ids) for key, ids in drafting.items() if key in visible},
+        agents={
+            agent.id: _usage(agent)
+            for agent in sorted((live[key] for key in visible), key=lambda agent: agent.name)
+        },
+    )
+
+
+def _bound_skills(spec: dict[str, Any]) -> set[UUID]:
+    return _bound(spec, "skill")
+
+
+def _bound(spec: object, kind: DependencyKind) -> set[UUID]:
+    """What a stored spec binds of one kind, its specialists included; nothing if it
+    does not parse."""
+    from app.services.eval_suite import bound_ids
+
+    try:
+        return bound_ids(AgentSpec.model_validate(spec), kind)
+    except ValidationError:
+        return set()
+
+
+async def agents_drafting_skills(
+    db: AsyncSession, ctx: AuthContext, *, skill_ids: Collection[UUID]
+) -> dict[UUID, list[AgentUsage]]:
+    """For each skill, the live agents whose draft binds it, that the caller may see.
+
+    A draft binds a skill itself or through an inline specialist it defines, as
+    `skill_bindings` counts it for an arranged listing, so a card says the same
+    whatever the arrangement. Only drafts naming one of these ids are parsed, which
+    keeps a page's cost to its own cards. A draft that does not parse binds nothing.
+    """
+    wanted = frozenset(skill_ids)
+    drafting: dict[UUID, list[Agent]] = {skill_id: [] for skill_id in wanted}
+    for agent in sorted(
+        await agent_repo.drafts_mentioning(
+            db, [str(skill_id) for skill_id in wanted], organization_id=ctx.organization_id
+        ),
+        key=lambda agent: agent.name,
+    ):
+        for skill_id in _bound_skills(agent.draft_spec) & wanted:
+            drafting[skill_id].append(agent)
+    return await _visible_usage(db, ctx, drafting)
 
 
 async def agents_serving_skills(

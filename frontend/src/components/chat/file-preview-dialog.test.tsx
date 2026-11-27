@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FilePreviewDialog } from "./file-preview-dialog";
+import { ChatWorkspaceProvider } from "./chat-workspace-context";
 import { useFilePreviewStore } from "@/stores";
 import type { ChatMessageFile } from "@/types";
 
@@ -152,4 +153,16 @@ describe("the chat's file dialog", () => {
 
     expect(useFilePreviewStore.getState().openId).toBeNull();
   });
+});
+
+it("lets the shared workspace own attachment previews without opening a second dialog", () => {
+  useFilePreviewStore.getState().open(file());
+  const view = render(
+    <ChatWorkspaceProvider shared>
+      <FilePreviewDialog />
+    </ChatWorkspaceProvider>,
+    { wrapper: Wrapper },
+  );
+  expect(view.container).toBeEmptyDOMElement();
+  expect(screen.queryByRole("dialog")).toBeNull();
 });

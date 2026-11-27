@@ -356,3 +356,11 @@ async def test_rename_confines_both_paths_to_the_same_lease_and_prefixes_results
     )
     gateway.perform.return_value = FsFailure(errno=errno.EIO, message="Provider failed")
     assert isinstance(await read(gateway), FsFailure)
+
+
+async def test_corrupt_ownerless_lease_cannot_be_treated_as_a_live_run(gateway):
+    gateway.rows.lease.run_id = None
+    gateway.rows.lease.environment_id = None
+    with pytest.raises(AuthorizationError, match="has no run"):
+        await gateway.gateway.authorize(gateway.rows.binding, gateway.rows.lease)
+    gateway.run.assert_not_awaited()

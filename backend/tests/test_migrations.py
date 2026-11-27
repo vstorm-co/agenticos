@@ -38,7 +38,7 @@ from uuid import uuid4
 import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, delete, insert, select, text, update
+from sqlalchemy import create_engine, delete, insert, inspect, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session as DatabaseSession
@@ -2955,6 +2955,99 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
         engine.dispose()
 
 
+def test_custom_pricing_upgrade_preserves_existing_profiles_and_downgrades_cleanly() -> None:
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0374_case_from_conversation")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as db:
+            user_id, org_id, profile_id = uuid4(), uuid4(), uuid4()
+            db.execute(_HISTORICAL_USER_INSERT, {"id": user_id, "email": f"{user_id}@example.test"})
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {"id": org_id, "name": "Pricing", "slug": f"pricing-{org_id}", "owner": user_id},
+            )
+            db.execute(
+                text(
+                    "INSERT INTO model_profiles (id, organization_id, label, provider, model) VALUES (:id, :org, 'Legacy', 'ollama', 'alias')"
+                ),
+                {"id": profile_id, "org": org_id},
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as db:
+            assert (
+                db.scalar(
+                    text("SELECT custom_pricing IS NULL FROM model_profiles WHERE id = :id"),
+                    {"id": profile_id},
+                )
+                is True
+            )
+            db.execute(
+                text(
+                    "UPDATE model_profiles SET custom_pricing = CAST(:rates AS jsonb) WHERE id = :id"
+                ),
+                {"id": profile_id, "rates": '{"input":"0","output":"2","cache_read":"0"}'},
+            )
+            # A valid custom-priced request can exceed the former storage cap.
+            # Check every monetary column that terminal accounting may write.
+            from app.db.base import Base
+
+            monetary = [
+                (table.name, column.name)
+                for table in Base.metadata.sorted_tables
+                for column in table.columns
+                if getattr(column.type, "precision", None) == 38
+            ]
+            for table, column in monetary:
+                precision = db.scalar(
+                    text(
+                        "SELECT numeric_precision FROM information_schema.columns "
+                        "WHERE table_name = :table AND column_name = :column AND table_schema = 'public'"
+                    ),
+                    {"table": table, "column": column},
+                )
+                assert precision == 38, (table, column)
+            db.execute(
+                text("UPDATE organizations SET monthly_budget_usd = 1000000 WHERE id = :id"),
+                {"id": org_id},
+            )
+            assert db.scalar(
+                text("SELECT monthly_budget_usd FROM organizations WHERE id = :id"), {"id": org_id}
+            ) == Decimal("1000000")
+            db.execute(
+                text("UPDATE organizations SET monthly_budget_usd = NULL WHERE id = :id"),
+                {"id": org_id},
+            )
+        result = _alembic("downgrade", "0374_case_from_conversation")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            assert (
+                db.scalar(
+                    text(
+                        "SELECT numeric_precision FROM information_schema.columns "
+                        "WHERE table_schema = 'public' AND table_name = 'workflow_retained_spend' "
+                        "AND column_name = 'cost_usd'"
+                    )
+                )
+                == 13
+            )
+            assert (
+                db.scalar(
+                    text("SELECT model FROM model_profiles WHERE id = :id"), {"id": profile_id}
+                )
+                == "alias"
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
+
+
 def test_routine_chat_mode_migration_maps_destinations_without_changing_authority() -> None:
     from app.db.models.agent import Agent
     from app.db.models.conversation import Conversation
@@ -3047,6 +3140,86 @@ def test_routine_chat_mode_migration_maps_destinations_without_changing_authorit
                     ).scalar_one()
                     == "routine"
                 )
+    finally:
+        engine.dispose()
+
+
+def test_currency_settings_upgrade_keeps_existing_prices_and_limits_in_usd() -> None:
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0376_monetary_cost_capacity")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as db:
+            user_id, org_id, profile_id = uuid4(), uuid4(), uuid4()
+            db.execute(_HISTORICAL_USER_INSERT, {"id": user_id, "email": f"{user_id}@example.test"})
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {
+                    "id": org_id,
+                    "name": "Currency upgrade",
+                    "slug": f"currency-{org_id}",
+                    "owner": user_id,
+                },
+            )
+            db.execute(
+                text("UPDATE organizations SET monthly_budget_usd = 100 WHERE id = :id"),
+                {"id": org_id},
+            )
+            db.execute(
+                text(
+                    "INSERT INTO model_profiles (id, organization_id, label, provider, model, custom_pricing) VALUES (:id, :org, 'Legacy', 'ollama', 'alias', '{\"input\":\"2\",\"output\":\"3\"}'::jsonb)"
+                ),
+                {"id": profile_id, "org": org_id},
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            row = db.execute(
+                text("SELECT currency, monthly_budget_usd FROM organizations WHERE id = :id"),
+                {"id": org_id},
+            ).one()
+            assert row == (None, Decimal(100))
+            assert db.scalar(
+                text("SELECT custom_pricing FROM model_profiles WHERE id = :id"), {"id": profile_id}
+            ) == {"input": "2", "output": "3"}
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as db:
+            db.execute(
+                text(
+                    "UPDATE model_profiles SET custom_pricing = custom_pricing || "
+                    """'{"currency":"EUR"}'::jsonb WHERE id = :id"""
+                ),
+                {"id": profile_id},
+            )
+        result = _alembic("downgrade", "0376_monetary_cost_capacity")
+        assert result.returncode != 0
+        assert "explicitly reprice them in USD before downgrading" in result.stderr
+        with engine.begin() as db:
+            assert (
+                db.scalar(
+                    text("SELECT custom_pricing->>'currency' FROM model_profiles WHERE id = :id"),
+                    {"id": profile_id},
+                )
+                == "EUR"
+            )
+            db.execute(
+                text(
+                    "UPDATE model_profiles SET custom_pricing = custom_pricing || "
+                    """'{"currency":"USD"}'::jsonb WHERE id = :id"""
+                ),
+                {"id": profile_id},
+            )
+        result = _alembic("downgrade", "0376_monetary_cost_capacity")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            assert db.scalar(
+                text("SELECT custom_pricing FROM model_profiles WHERE id = :id"), {"id": profile_id}
+            ) == {"input": "2", "output": "3"}
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
     finally:
         engine.dispose()
 
@@ -3352,3 +3525,318 @@ def test_event_source_downgrade_retires_only_obsolete_queue_work() -> None:
         engine.dispose()
         result = _alembic("upgrade", "head")
         assert result.returncode == 0, result.stderr
+
+
+class TestServiceConnectionsRename:
+    @staticmethod
+    def _kb_endpoint(engine, kb_id):
+        with engine.connect() as connection:
+            return connection.scalar(
+                text("SELECT embedding_endpoint_id FROM knowledge_bases WHERE id = :id"),
+                {"id": kb_id},
+            )
+
+    def test_rows_survive_and_the_knowledge_base_foreign_key_follows_the_table(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        up = _alembic("upgrade", "0364_merge_routine_and_kb")
+        assert up.returncode == 0, up.stderr
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        service_id, kb_id = uuid4(), uuid4()
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                connection.execute(
+                    text(
+                        "INSERT INTO local_services (id, kind, provider, name, base_url, is_active) "
+                        "VALUES (:id, 'embedding', 'ollama', 'gpu', 'http://ollama:11434/v1', true)"
+                    ),
+                    {"id": service_id},
+                )
+                connection.execute(
+                    text(
+                        "INSERT INTO knowledge_bases (id, name, scope, collection_name, "
+                        "embedding_model, embedding_dim, embedding_provider, "
+                        "embedding_endpoint_id, is_default, visibility) VALUES (:kb, 'Docs', 'app', "
+                        "'docs_c', 'nomic-embed-text', 768, 'ollama', :id, false, 'org')"
+                    ),
+                    {"kb": kb_id, "id": service_id},
+                )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            inspector = inspect(engine)
+            assert inspector.has_table("service_connections")
+            assert not inspector.has_table("local_services")
+            with engine.connect() as connection:
+                row = connection.execute(
+                    text("SELECT requires_key, secret_id, base_url FROM service_connections")
+                ).one()
+            assert tuple(row) == (False, None, "http://ollama:11434/v1")
+            checks = {c["name"] for c in inspector.get_check_constraints("service_connections")}
+            assert checks == {
+                "service_connections_ck_service_connections_kind_check",
+                "service_connections_ck_service_connections_deployment_k_44ad",
+            }
+            fk = next(
+                f
+                for f in inspector.get_foreign_keys("knowledge_bases")
+                if f["constrained_columns"] == ["embedding_endpoint_id"]
+            )
+            assert fk["referred_table"] == "service_connections"
+            assert fk["name"] == "knowledge_bases_embedding_endpoint_id_fkey"
+            assert self._kb_endpoint(engine, kb_id) == service_id
+            assert inspector.get_pk_constraint("service_connections")["name"] == (
+                "service_connections_pkey"
+            )
+            assert {f["name"] for f in inspector.get_foreign_keys("service_connections")} == {
+                "service_connections_created_by_user_id_fkey",
+                "service_connections_organization_id_fkey",
+                "service_connections_secret_id_fkey",
+            }
+            assert {i["name"] for i in inspector.get_indexes("service_connections")} == {
+                "service_connections_organization_id_idx",
+                "service_connections_secret_id_idx",
+            }
+            assert _alembic("check").returncode == 0
+            down = _alembic("downgrade", "0364_merge_routine_and_kb")
+            assert down.returncode == 0, down.stderr
+            inspector = inspect(engine)
+            assert inspector.has_table("local_services")
+            assert not inspector.has_table("service_connections")
+            columns = {c["name"] for c in inspector.get_columns("local_services")}
+            assert "secret_id" not in columns and "requires_key" not in columns
+            with engine.connect() as connection:
+                assert connection.scalar(text("SELECT count(*) FROM local_services")) == 1
+            assert self._kb_endpoint(engine, kb_id) == service_id
+            again = _alembic("upgrade", "head")
+            assert again.returncode == 0, again.stderr
+        finally:
+            engine.dispose()
+
+
+def test_embedding_receipt_precision_downgrade_refuses_financial_data_loss() -> None:
+    """0367 preserves sub-microdollar receipts and never silently rounds on downgrade."""
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    receipt_id = uuid4()
+    from decimal import Decimal
+
+    try:
+        with engine.begin() as db:
+            db.execute(
+                text(
+                    "INSERT INTO ingestion_spend (id, model, input_tokens, output_tokens, cost_usd, cost_is_partial) VALUES (:id, 'text-embedding-3-small', 8, 0, 0.00000016, false)"
+                ),
+                {"id": receipt_id},
+            )
+        refused = _alembic("downgrade", "0366_docling_parser")
+        assert refused.returncode != 0
+        assert "sub-microdollar receipts would lose financial data" in refused.stderr
+        with engine.begin() as db:
+            value = db.scalar(
+                text("SELECT cost_usd FROM ingestion_spend WHERE id=:id"), {"id": receipt_id}
+            )
+            assert value == Decimal("0.00000016")
+            db.execute(text("DELETE FROM ingestion_spend WHERE id=:id"), {"id": receipt_id})
+        result = _alembic("downgrade", "0366_docling_parser")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            assert (
+                db.scalar(
+                    text(
+                        "SELECT numeric_scale FROM information_schema.columns WHERE table_name='ingestion_spend' AND column_name='cost_usd'"
+                    )
+                )
+                == 6
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            assert (
+                db.scalar(
+                    text(
+                        "SELECT numeric_scale FROM information_schema.columns WHERE table_name='ingestion_spend' AND column_name='cost_usd'"
+                    )
+                )
+                == 12
+            )
+    finally:
+        engine.dispose()
+
+
+def test_croniter7_preserves_schedule_owners_and_rolls_back_unrepresentable_rows() -> None:
+    import importlib.util
+    from pathlib import Path
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import column as sql_column
+    from sqlalchemy import table as sql_table
+    from sqlalchemy.dialects.postgresql import JSONB
+
+    path = Path(__file__).parents[1] / "alembic/versions/0376_croniter7_schedules.py"
+    spec = importlib.util.spec_from_file_location("cron7_pg", path)
+    assert spec is not None and spec.loader is not None
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    schema = f"cron_test_{uuid4().hex}"
+    owners = (
+        ("agent_triggers", "cron_expression"),
+        ("workflow_exposures", "cron_expression"),
+        ("eval_suites", "schedule_cron"),
+    )
+    graphs = (
+        ("workflows", "draft_graph"),
+        ("workflow_versions", "graph"),
+        ("workflow_runs", "draft_graph_snapshot"),
+    )
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+            connection.execute(text(f'SET LOCAL search_path TO "{schema}"'))
+            for table, column in owners:
+                connection.execute(
+                    text(
+                        f"CREATE TABLE {table} (id text PRIMARY KEY, {column} text, next_fire_at timestamptz)"
+                    )
+                )
+                connection.execute(
+                    sql_table(
+                        table, sql_column("id"), sql_column(column), sql_column("next_fire_at")
+                    )
+                    .insert()
+                    .values(
+                        id="old",
+                        **{
+                            column: "* * * * 6/1",
+                            "next_fire_at": datetime(2026, 11, 16, 12, 1, tzinfo=UTC),
+                        },
+                    )
+                )
+            graph = {
+                "nodes": [
+                    {
+                        "definition_id": "trigger.schedule",
+                        "config": {
+                            "cron_expression": "59/15 * * * *",
+                            "input": {"literal": "59/15 * * * *"},
+                        },
+                    },
+                    {
+                        "definition_id": "transform.map",
+                        "config": {"cron_expression": "59/15 * * * *"},
+                    },
+                    {
+                        "definition_id": "trigger.schedule",
+                        "config": {"cron_expression": "0 23/6 * * *"},
+                    },
+                ],
+                "note": "unchanged",
+            }
+            for table, column in graphs:
+                connection.execute(
+                    text(f"CREATE TABLE {table} (id text PRIMARY KEY, {column} jsonb)")
+                )
+                connection.execute(
+                    sql_table(table, sql_column("id"), sql_column(column, JSONB))
+                    .insert()
+                    .values(id="old", **{column: graph}),
+                )
+            with Operations.context(MigrationContext.configure(connection)):
+                migration.upgrade()
+                for table, column in owners:
+                    assert connection.execute(
+                        select(sql_table(table, sql_column(column), sql_column("next_fire_at")))
+                    ).one() == ("* * * * */1", datetime(2026, 11, 16, 12, 1, tzinfo=UTC))
+                expected = json.loads(json.dumps(graph))
+                expected["nodes"][0]["config"]["cron_expression"] = "*/15 * * * *"
+                expected["nodes"][2]["config"]["cron_expression"] = "0 */6 * * *"
+                for table, column in graphs:
+                    assert (
+                        connection.scalar(select(sql_table(table, sql_column(column, JSONB))))
+                        == expected
+                    )
+                connection.execute(
+                    text("UPDATE agent_triggers SET cron_expression='59/15 * * * *'")
+                )
+                migration.downgrade()
+                assert (
+                    connection.scalar(text("SELECT cron_expression FROM agent_triggers"))
+                    == "59 * * * *"
+                )
+                connection.execute(
+                    text("UPDATE agent_triggers SET cron_expression='59/15 * * * *'")
+                )
+                connection.execute(text("UPDATE eval_suites SET schedule_cron='0 0 31 2 *'"))
+                with (
+                    pytest.raises(ValueError, match="eval_suites row old"),
+                    connection.begin_nested(),
+                ):
+                    migration.upgrade()
+                assert (
+                    connection.scalar(text("SELECT cron_expression FROM agent_triggers"))
+                    == "59/15 * * * *"
+                )
+    finally:
+        with engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+        engine.dispose()
+
+
+def test_code_mode_calls_upgrade_from_the_released_history_and_downgrade_without_replaying_it() -> (
+    None
+):
+    released = "0375_merge_service_connections"
+    # Other migration tests leave independent branch heads applied. Upgrading
+    # to an ancestor does not remove those branches or their script column.
+    reset = _alembic("downgrade", "base")
+    assert reset.returncode == 0, reset.stderr
+    assert _alembic("upgrade", released).returncode == 0
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.connect() as connection:
+            assert "script_calls" not in {
+                col["name"] for col in inspect(connection).get_columns("tool_calls")
+            }
+            assert "holdout_share" in {
+                col["name"] for col in inspect(connection).get_columns("improvement_runs")
+            }
+        upgraded = _alembic("upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.connect() as connection:
+            assert "script_calls" in {
+                col["name"] for col in inspect(connection).get_columns("tool_calls")
+            }
+            constraints = connection.scalars(
+                text(
+                    "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                    "WHERE conrelid = 'intercepted_tool_calls'::regclass AND contype = 'c'"
+                )
+            ).all()
+            assert any(isinstance(value, str) and "external" in value for value in constraints)
+            assert (
+                connection.scalar(text("SELECT version_num FROM alembic_version"))
+                == ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
+            )
+        for target in (
+            released,
+            "0367_tool_call_script_calls@-1",
+            "0365_intercepted_call_external@-1",
+            "0375_tool_approval_platform_call@-1",
+        ):
+            down = _alembic("downgrade", target)
+            assert down.returncode == 0, down.stderr
+        with engine.connect() as connection:
+            assert "script_calls" not in {
+                col["name"] for col in inspect(connection).get_columns("tool_calls")
+            }
+            assert "holdout_share" in {
+                col["name"] for col in inspect(connection).get_columns("improvement_runs")
+            }
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == released
+        upgraded_again = _alembic("upgrade", "head")
+        assert upgraded_again.returncode == 0, upgraded_again.stderr
+    finally:
+        engine.dispose()

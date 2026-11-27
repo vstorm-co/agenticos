@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import Field, computed_field, field_validator, model_validator, ValidationInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.currency import CurrencyCode, CurrencySettings
 from app.core.map_tiles import MapTiles, resolve as resolve_map_tiles
 from app.core.sanitize import (
     PrivateAllowlist,
@@ -345,6 +346,14 @@ class Settings(BaseSettings):
     DEFAULT_ORG_MONTHLY_BUDGET_USD: Decimal | None = Decimal("100")
 
     STAV_NOK_PER_USD: Decimal | None = Field(default=None, gt=0, allow_inf_nan=False)
+
+    DEFAULT_ORG_CURRENCY: CurrencyCode = "USD"
+    CURRENCY_RATES: dict[str, Decimal] = Field(default_factory=lambda: {"USD": Decimal(1)})
+
+    @model_validator(mode="after")
+    def validate_currency_defaults(self) -> Settings:
+        CurrencySettings(default_currency=self.DEFAULT_ORG_CURRENCY, rates=self.CURRENCY_RATES)
+        return self
 
     @field_validator("DEFAULT_ORG_MONTHLY_BUDGET_USD")
     @classmethod
@@ -982,7 +991,7 @@ class Settings(BaseSettings):
 
     # Nothing about embeddings or parsing is a setting. The model, the provider
     # and the vault key that pays are recorded on the collection; where a local
-    # embedding or OCR server answers is a `local_services` row an organization
+    # embedding or OCR server answers is a `service_connections` row an organization
     # (or the deployment's administrator) registers in the product; a LlamaParse
     # key is a vault entry the collection's ingestion configuration names. Each
     # of these was an environment variable once, and each was one address or one
@@ -1215,6 +1224,8 @@ class Settings(BaseSettings):
     # internet, which is worse. So the operator names the hosts instead, exactly
     # like any spec-supplied address. Empty refuses browser automation outright.
     BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
+    CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS: int = Field(default=900, ge=60, le=86400)
+    CONVERSATION_ENVIRONMENTS_PER_USER: int = Field(default=4, ge=1, le=100)
 
     # Hosts a virtual terminal (`mirage`) may mount by an address its author typed:
     # an SSH server, a Postgres or MongoDB DSN, an IMAP server, a self-hosted

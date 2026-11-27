@@ -1,4 +1,4 @@
-"""Authorize each live filesystem RPC against its original run and current Project."""
+"""Authorize each filesystem RPC against its live owner and current Project."""
 
 import errno
 from datetime import UTC, datetime
@@ -61,7 +61,7 @@ class ProjectFilesystemGateway:
             return FsFailure(
                 errno=errno.ESTALE, message="The Project filesystem directory is stale"
             )
-        actor, project, authority = await self._authorize(binding, lease)
+        actor, project, authority = await self.authorize(binding, lease)
         if isinstance(request, FsRename):
             destination = _lease_path(request.destination)
             if destination is None or destination[0] != lease.id:
@@ -92,9 +92,9 @@ class ProjectFilesystemGateway:
             self.db, binding=binding, now=datetime.now(UTC)
         ):
             try:
-                await self._authorize(binding, lease)
+                await self.authorize(binding, lease)
             except AuthenticationError, AuthorizationError, ConcurrentChangeError, NotFoundError:
-                # Root listings expose only currently authorized run directories.
+                # Root listings expose only currently authorized owner directories.
                 continue
             entries.append(
                 FsEntry(
@@ -107,10 +107,12 @@ class ProjectFilesystemGateway:
             )
         return FsSuccess(entries=entries)
 
-    async def _authorize(
+    async def authorize(
         self, binding: ProjectFilesystemBinding, lease: ProjectFilesystemLease
     ) -> tuple[AuthContext, Project, ProjectFilesystemAuthority]:
-        if lease.revoked_at is not None or lease.expires_at <= datetime.now(UTC):
+        if lease.revoked_at is not None or (
+            lease.environment_id is None and lease.expires_at <= datetime.now(UTC)
+        ):
             raise AuthorizationError(message="The Project filesystem lease expired", details={})
         authority = ProjectFilesystemAuthority.model_validate_json(lease.authority_json)
         if (
@@ -120,6 +122,13 @@ class ProjectFilesystemGateway:
             raise AuthorizationError(
                 message="The Project filesystem admission is invalid", details={}
             )
+        if lease.environment_id is not None:
+            from app.services.conversation_environment_project_files import authorize
+
+            await self._conversation(binding, authority)
+            return await authorize(self.db, binding, lease, authority)
+        if lease.run_id is None:
+            raise AuthorizationError(message="The Project filesystem lease has no run")
         run = await run_repo.get_run(self.db, lease.run_id, organization_id=binding.organization_id)
         if (
             run is None

@@ -10,6 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.agents.spec import AgentSpec
+from app.core.config import settings
 from app.db.models.improvement import (
     ImprovementRun,
     ImprovementSearchVariant,
@@ -18,10 +19,12 @@ from app.db.models.improvement import (
 )
 from app.schemas.improvement import ImprovementStart, ImprovementTarget, SearchOptions
 from app.schemas.scoring import DatasetScoring, ScorerResult
+from app.schemas.token_pricing import TokenPricing
 from app.services import authoring_hunks
 from app.services.improvement_search import (
     _close_generation,
     _grading,
+    _longer_instructions_usd,
     _prompt,
     _proposal_price,
     case_share,
@@ -253,7 +256,13 @@ def test_a_search_unit_holds_an_eval_slot_briefly_and_one_per_organization():
 async def test_a_round_of_proposals_is_priced_at_the_improvers_model_or_the_fallback(
     model: str, profile, expected: Decimal | None
 ):
-    resolve = AsyncMock(return_value=SimpleNamespace(model=model, provider="openai"))
+    resolve = AsyncMock(
+        return_value=SimpleNamespace(
+            model=model,
+            provider="openai",
+            credential=SimpleNamespace(custom_pricing=None, exchange_rates={"USD": Decimal(1)}),
+        )
+    )
     with patch.object(ModelProfileService, "resolve", new=resolve):
         price = await _proposal_price(
             AsyncMock(), AsyncMock(), profile, "x" * 4000, count=2, seed="y" * 400
@@ -262,6 +271,55 @@ async def test_a_round_of_proposals_is_priced_at_the_improvers_model_or_the_fall
         assert Decimal(0) < price < Decimal("0.10")
     else:
         assert price == expected
+
+
+@pytest.mark.parametrize(
+    ("model", "input_rate", "output_rate", "currency", "expected"),
+    [
+        ("gpt-4o-mini", 0, 0, "USD", Decimal(0)),
+        ("not-a-priced-model", 50, 200, "USD", Decimal("0.35")),
+        ("not-a-priced-model", 50, 200, "EUR", Decimal("0.70")),
+    ],
+)
+async def test_search_round_estimates_use_custom_rates(
+    monkeypatch: pytest.MonkeyPatch,
+    model: str,
+    input_rate: int,
+    output_rate: int,
+    currency: str,
+    expected: Decimal,
+) -> None:
+    monkeypatch.setattr(settings, "EVAL_FALLBACK_INPUT_TOKENS", 2_000)
+    monkeypatch.setattr(settings, "EVAL_FALLBACK_OUTPUT_TOKENS", 400)
+    credential = SimpleNamespace(
+        custom_pricing=TokenPricing(input=input_rate, output=output_rate, currency=currency),
+        exchange_rates={"USD": Decimal(1), "EUR": Decimal("0.5")},
+    )
+    resolved = SimpleNamespace(model=model, provider="openai", credential=credential)
+    with patch.object(ModelProfileService, "resolve", return_value=resolved):
+        price = await _proposal_price(
+            AsyncMock(), AsyncMock(), uuid4(), "x" * 4000, count=2, seed="y" * 400
+        )
+    assert price == expected
+
+
+@pytest.mark.parametrize(
+    ("currency", "expected"), [("USD", Decimal("0.005")), ("EUR", Decimal("0.01"))]
+)
+async def test_longer_search_instructions_use_custom_input_price(
+    currency: str, expected: Decimal
+) -> None:
+    spec = AgentSpec(name="Clerk", instructions="Be brief.", model_profile_id=uuid4())
+    credential = SimpleNamespace(
+        custom_pricing=TokenPricing(input=50, output=200, currency=currency),
+        exchange_rates={"USD": Decimal(1), "EUR": Decimal("0.5")},
+    )
+    resolved = SimpleNamespace(model="not-a-priced-model", provider="openai", credential=credential)
+    with patch.object(ModelProfileService, "resolve", return_value=resolved):
+        cost = await _longer_instructions_usd(
+            AsyncMock(), AsyncMock(), spec, spec.instructions + "x" * 400
+        )
+    assert cost == expected
 
 
 def test_a_variant_names_itself_by_attempt_generation_and_score():

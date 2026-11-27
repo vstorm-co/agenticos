@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { BadgeCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
-import { SettingsSection } from "@/components/settings/settings-section";
+import { ServiceCard } from "@/components/settings/service-card";
 import { Switch } from "@/components/ui";
 import { useOrganizations, usePermissions } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
@@ -55,22 +56,23 @@ export function PublicAttributionSetting({
   const t = useTranslations("teams");
   return (
     <div data-tour="org-public-attribution">
-      <SettingsSection
-        title={t("publicAttribution")}
-        description={t("publicAttributionDescription")}
-      >
-        <label className="flex items-start gap-3">
+      <ServiceCard
+        icon={BadgeCheck}
+        action={
           <Switch
             checked={enabled}
             disabled={saving}
             onCheckedChange={onChange}
             aria-label={t("publicAttribution")}
           />
-          <span className="text-muted-foreground text-xs leading-relaxed">
-            {t("publicAttributionHint")}
-          </span>
-        </label>
-      </SettingsSection>
+        }
+        title={t("publicAttribution")}
+        description={t("publicAttributionDescription")}
+      >
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          {t("publicAttributionHint")}
+        </p>
+      </ServiceCard>
     </div>
   );
 }

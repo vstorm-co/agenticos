@@ -30,6 +30,7 @@
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",
         "css-tree": "^3.2.1",
+        "decimal.js": "10.6.0",
         "driver.js": "^1.8.0",
         "img-fx": "^0.5.1",
         "lowlight": "3.3.0",

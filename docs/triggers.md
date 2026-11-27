@@ -41,6 +41,20 @@ moves with it. A schedule saved before schedules had zones is read in UTC, as it
 always was, until somebody picks a zone for it. An interval schedule has no time
 of day and no zone.
 
+## Raw cron expressions { #raw-cron-expressions }
+
+New and explicitly edited schedules use croniter 7's five-field semantics. A step
+starting at a field's maximum selects that value only: `59/15 * * * *` means minute
+59, while `*/15 * * * *` means every 15 minutes. Use the latter for a repeating step.
+
+Migration `0376_croniter7_schedules.py` rewrites existing maximum-step schedules to
+their previous cadence, including routines, workflow exposures, saved workflow
+graphs and eval suites. It preserves timezones and queued next-fire instants.
+Stop old API and workers before migrating. An unrepresentable executable schedule
+refuses the transaction and identifies its row; correct it before retrying.
+Unfinished draft configurations remain editable. Downgrade preserves new maximum-only
+schedules as explicit single values. Times inside daylight-saving gaps are skipped.
+
 ## A schedule whose last run is still going
 
 A schedule can come due while the run it fired last time is still going - a

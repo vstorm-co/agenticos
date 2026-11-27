@@ -290,6 +290,9 @@ describe("stepsForPage", () => {
       "chat-coding-revert",
       "chat-plan",
       "chat-visual",
+      "chat-environments",
+      "chat-workspace-tabs",
+      "chat-visual-workspace",
       "chat-model-picker",
       "chat-voice-call",
       "chat-approval-mode",
@@ -459,7 +462,7 @@ describe("stepsForPage", () => {
       "knowledge-groups",
       "knowledge-integrations",
       "knowledge-add-integration",
-      "knowledge-local-services",
+      "knowledge-service-connections",
       ...KB_STEPS,
     ]);
   });

@@ -11,13 +11,13 @@ what the merge says. Accepting refuses once either line moved past the merge.
 """
 
 import json
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import get_args
 from uuid import UUID
 
 import anyio
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.skills import SkillBodyFile
@@ -34,6 +34,7 @@ from app.core.exceptions import (
 )
 from app.core.exceptions import ValidationError as TooLargeToMerge
 from app.core.field_errors import refused_field
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus, AgentVersion
 from app.db.models.agent_environment import AgentEnvironment
@@ -131,6 +132,31 @@ class MergeSides:
         return _prompt(self.description, self.parts)
 
 
+def merge_manifest_metadata(
+    base: Mapping[str, JsonValue], main: Mapping[str, JsonValue], fork: Mapping[str, JsonValue]
+) -> dict[str, JsonValue]:
+    """Merge unchanged/disjoint top-level keys; never guess between conflicting licenses."""
+
+    def marker(values: Mapping[str, JsonValue], key: str) -> tuple[bool, str]:
+        return key in values, json.dumps(values.get(key), sort_keys=True, ensure_ascii=False)
+
+    result: dict[str, JsonValue] = {}
+    for key in sorted(set(base) | set(main) | set(fork)):
+        before, left, right = marker(base, key), marker(main, key), marker(fork, key)
+        if left == right or right == before:
+            chosen = main
+        elif left == before:
+            chosen = fork
+        else:
+            raise ConflictError(
+                message="Both lines changed the same frontmatter key. Resolve that metadata before restarting the merge.",
+                details={"field": "manifest_metadata", "key": key},
+            )
+        if key in chosen:
+            result[key] = chosen[key]
+    return result
+
+
 @dataclass(frozen=True)
 class MergedSkill:
     """What a settled merge says: the text a check measures and accepting writes.
@@ -146,6 +172,7 @@ class MergedSkill:
     content: str
     resources: dict[str, ManifestEntry]
     files: tuple[SkillBodyFile, ...]
+    manifest_metadata: dict[str, JsonValue] = field(default_factory=dict)
 
 
 class SkillCatchUpService:
@@ -387,13 +414,31 @@ class SkillCatchUpService:
             skill_id=merge.skill_id,
             hashes=[entry["sha256"] for entry in resources.values()],
         )
+        versions = await skill_version_repo.get_versions(
+            self.db,
+            {merge.base_version_id, merge.main_version_id, merge.fork_version_id},
+            organization_id=merge.organization_id,
+        )
+        if len(versions) != len(
+            {merge.base_version_id, merge.main_version_id, merge.fork_version_id}
+        ) or any(version.skill_id != merge.skill_id for version in versions.values()):
+            raise BadRequestError(message="The merge no longer has its skill versions")
+        metadata = merge_manifest_metadata(
+            versions[merge.base_version_id].manifest_metadata or {},
+            versions[merge.main_version_id].manifest_metadata or {},
+            versions[merge.fork_version_id].manifest_metadata or {},
+        )
         return MergedSkill(
             description=merge.description["result"] or "",
             content="".join(row["result"] or "" for row in merge.parts),
             resources=resources,
+            manifest_metadata=metadata,
             files=tuple(
                 SkillBodyFile(
-                    name=name, description=entry["description"], content=bodies[entry["sha256"]]
+                    name=name,
+                    description=entry["description"],
+                    content=bodies[entry["sha256"]],
+                    encoding=entry.get("encoding", "utf8"),
                 )
                 for name, entry in sorted(resources.items())
             ),
@@ -425,6 +470,8 @@ class SkillCatchUpService:
         if len(proposed) != len(conflicts):
             raise ValueError(f"{len(conflicts)} conflicts, {len(proposed)} texts")
         for row, text in zip(conflicts, proposed, strict=True):
+            if holds_refused(text):
+                continue
             if row is description:
                 text = text.strip()
                 if not 1 <= len(text) <= _DESCRIPTION_CHARS:
@@ -467,6 +514,7 @@ class SkillCatchUpService:
             description=merged.description,
             content=merged.content,
             resources=merged.resources,
+            manifest_metadata=merged.manifest_metadata,
             source=SkillVersionSource.CATCH_UP,
             merged_from_id=merge.main_version_id,
         )

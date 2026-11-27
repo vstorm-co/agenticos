@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 
-import { SettingsSection } from "@/components/settings/settings-section";
+import { ServiceCard } from "@/components/settings/service-card";
 import { Switch } from "@/components/ui";
 import { useOrganizations, usePermissions } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
@@ -55,18 +56,20 @@ function WaiverSwitch({ org }: { org: Organization }) {
   };
 
   return (
-    <SettingsSection title={t("approvalWaiver")} description={t("approvalWaiverDescription")}>
-      <label className="flex items-start gap-3">
+    <ServiceCard
+      icon={ShieldCheck}
+      action={
         <Switch
           checked={org.chat_may_waive_approvals}
           disabled={saving}
           onCheckedChange={(next) => void handleChange(next)}
           aria-label={t("approvalWaiver")}
         />
-        <span className="text-muted-foreground text-xs leading-relaxed">
-          {t("approvalWaiverHint")}
-        </span>
-      </label>
-    </SettingsSection>
+      }
+      title={t("approvalWaiver")}
+      description={t("approvalWaiverDescription")}
+    >
+      <p className="text-muted-foreground text-xs leading-relaxed">{t("approvalWaiverHint")}</p>
+    </ServiceCard>
   );
 }

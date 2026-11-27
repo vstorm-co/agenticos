@@ -89,6 +89,7 @@
     "sessionsCouldNotBeRead": "De sessies konden niet worden gelezen."
   },
   "agents": {
+    "pricedModelConnectionLocked": "Je hebt budgetrechten nodig om de sleutel of het eindpunt van een model met aangepaste prijzen te wijzigen.",
     "profileDefaults": "Modelstandaarden",
     "profileDefaultsHint": "Deze standaarden gelden overal waar dit opgeslagen model wordt gebruikt. Afzonderlijke agents kunnen ze overschrijven. Laat niet-ondersteunde parameters op de standaard van de provider staan.",
     "profileThinkingOn": "Aan · inspanning van de provider",
@@ -2197,17 +2198,19 @@
       "runningAcpAgent": "Externe ACP-agent",
       "inspectAcpAgent": "ACP-modelkeuzes lezen",
       "readingAcpModels": "ACP-modelkeuzes lezen",
-      "approveAcceptImprovement": "Poging {attempt} voor {agent} accepteren ({verdict, select, better {beter} criteria_better {beter op criteria} no_change {geen verandering} criteria_worse {slechter op criteria} regression {slechter} inconclusive {onbeslist} other {niet gemeten}}) {publish, select, yes {en publiceren als v{version}} other {als concept}}",
-      "approvePublishAgent": "{agent} publiceren als v{version}",
-      "approveChangeSkillVersion": "{state, select, main {{agent} naar de hoofdlijn van {skill} zetten} pinned {{agent} vastzetten op {skill} v{version}} other {{agent} naar een fork van {skill} zetten}}",
-      "approveAcceptSkillImprovement": "{outcome, select, apply {De verbeterde skill {skill} toepassen} apply_and_pin {De verbeterde skill {skill} toepassen en de agents vastzetten die hij zou schaden} fork_for_helped {Een fork van {skill} maken voor de agents die hij hielp} catch_up {De fork van {skill} bijwerken met main} other {De fork van {skill} terugzetten naar main}}",
+      "approveAcceptImprovement": "Poging {attempt} voor {agent} accepteren ({verdict, select, better {beter} criteria_better {beter op criteria} no_change {geen verandering} criteria_worse {slechter op criteria} regression {slechter} inconclusive {onbeslist} other {niet gemeten}}) {publish, select, yes {en publiceren} other {als concept}}",
+      "approvePublishAgent": "{agent} publiceren",
+      "approveChangeSkillVersion": "{state, select, main {{agent} naar de hoofdlijn van {skill} zetten} pinned {{agent} vastzetten op {skill} v{version}} other {{agent} naar de fork {fork} van {skill} zetten}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {De verbeterde skill {skill} toepassen} apply_and_pin {De verbeterde skill {skill} toepassen en de agents vastzetten die hij zou schaden} fork_for_helped {Een fork van {skill} maken voor de agents die hij hielp} fork_for_chosen {Een fork van {skill} maken voor: {agents}} catch_up {De fork van {skill} bijwerken met main} other {De fork van {skill} terugzetten naar main}}",
       "approveStartEvalRun": "{agent} testen op de dataset {dataset} v{version}",
       "selectingProjectContext": "Projectcontext kiezen…",
       "selectedProjectContext": "Projectcontext gekozen",
       "selectingExecutionTarget": "Uitvoerdoel kiezen…",
       "selectedExecutionTarget": "Uitvoerdoel gekozen",
       "transferringProjectFile": "Projectbestand overdragen…",
-      "transferredProjectFile": "Projectbestand overgedragen"
+      "transferredProjectFile": "Projectbestand overgedragen",
+      "previewingVisual": "Een visual bekijken",
+      "previewVisual": "Een visual bekijken"
     },
     "turnWasStopped": "gestopt",
     "unfavourite": "Uit favorieten verwijderen",
@@ -2387,7 +2390,19 @@
       "followUpAsks": "De tekening vraagt om dit als jouw bericht te versturen:",
       "followUpSend": "Versturen",
       "followUpEdit": "Bewerken",
-      "followUpDismiss": "Sluiten"
+      "followUpDismiss": "Sluiten",
+      "downloadSvg": "SVG — vectorbestand",
+      "downloadPng": "PNG — afbeelding voor presentaties",
+      "preparingPng": "PNG voorbereiden…",
+      "pngDownloadFailed": "De PNG kon niet worden gedownload. Probeer het opnieuw.",
+      "openWorkspace": "Zijpaneel openen",
+      "dockWorkspace": "Terug naar zijpaneel",
+      "closeWorkspace": "Visual sluiten",
+      "workspaceTitle": "Visual: {title}",
+      "workspaceViews": "Weergaven van de visual",
+      "resizeWorkspace": "Grootte van visualpaneel wijzigen",
+      "previewTab": "Voorbeeld",
+      "codeTab": "Code"
     },
     "dictation": {
       "cancel": "Dicteren annuleren",
@@ -2777,7 +2792,84 @@
     "routineContinueChat": "Verder in een nieuwe chat",
     "approvalOthersWait": "Je antwoord geldt alleen voor je eigen platformaanroepen. De andere wachten op iemand die over goedkeuringen mag beslissen.",
     "approvalNeedsItsPerson": "Alleen de persoon voor wie deze run handelt, kan dit goedkeuren. Je kunt het afwijzen.",
-    "approvalNeedsItsAdminPerson": "Alleen de persoon namens wie deze run werkt, aangemeld als applicatiebeheerder, kan dit goedkeuren. Je kunt het afwijzen."
+    "approvalNeedsItsAdminPerson": "Alleen de persoon namens wie deze run werkt, aangemeld als applicatiebeheerder, kan dit goedkeuren. Je kunt het afwijzen.",
+    "workspace": {
+      "title": "Workspace",
+      "visuals": "Visuals",
+      "browser": "Browser",
+      "files": "Bestanden",
+      "resize": "Grootte van workspace wijzigen",
+      "expand": "Workspace vergroten",
+      "dock": "Workspace vastzetten",
+      "allFiles": "Terug naar alle bestanden",
+      "close": "Workspace sluiten",
+      "desktop": "Bureaublad",
+      "open": "Workspace openen"
+    },
+    "environmentView": {
+      "agentDriving": "De agent gebruikt deze omgeving. Wacht tot bediening beschikbaar is.",
+      "humanDriving": "Een persoon bestuurt deze omgeving.",
+      "canTakeOver": "Je kijkt mee. Neem de bediening over om te werken.",
+      "watchOnly": "Alleen bekijken.",
+      "refresh": "Beschikbaarheid controleren",
+      "end": "Omgeving beëindigen",
+      "start": "Omgeving openen",
+      "startNew": "Nieuwe omgeving openen",
+      "retry": "Weergave opnieuw verbinden",
+      "confirmTitle": "Deze omgeving beëindigen?",
+      "confirmDescription": "Het paneel sluiten behoudt de omgeving. Beëindigen geeft de sessie vrij; niet-opgeslagen paginastatus kan verloren gaan.",
+      "failure": {
+        "start": "De omgeving kon niet worden geopend. Controleer de beschikbaarheid en probeer opnieuw.",
+        "end": "De omgeving kon niet worden beëindigd. Ze draait mogelijk nog.",
+        "state": "Gereedheid kon niet worden bijgewerkt. Controleer de beschikbaarheid voordat je doorgaat.",
+        "refresh": "De beschikbaarheid kon niet worden gecontroleerd. Probeer het opnieuw."
+      },
+      "phase": {
+        "expired": {
+          "title": "Omgeving beëindigd",
+          "description": "Open een nieuwe omgeving om door te gaan."
+        },
+        "failed": {
+          "title": "Omgeving niet beschikbaar",
+          "description": "Controleer de beschikbaarheid of probeer de omgeving expliciet opnieuw te openen."
+        },
+        "notStarted": {
+          "title": "Omgeving niet gestart",
+          "description": "Open deze omgeving wanneer nodig. Er wordt geen agent gestart."
+        },
+        "starting": {
+          "title": "Omgeving voorbereiden",
+          "description": "Je kunt dit paneel verlaten en terugkomen zodra het klaar is."
+        },
+        "forbidden": {
+          "title": "Geen toegang",
+          "description": "Je toegang is gewijzigd. Controleer de beschikbaarheid voor de huidige rechten."
+        },
+        "malformed": {
+          "title": "Liveweergave kon niet worden geverifieerd",
+          "description": "De stream is gestopt. Verbind opnieuw voor een nieuwe liveweergave."
+        },
+        "disconnected": {
+          "title": "Liveweergave verbroken",
+          "description": "Verbind opnieuw om dezelfde omgeving te blijven bekijken."
+        },
+        "connecting": {
+          "title": "Liveweergave verbinden",
+          "description": "Wachten op het huidige scherm van de omgeving."
+        }
+      },
+      "browserTitle": "Browser",
+      "desktopTitle": "Bureaublad",
+      "loadFailed": "De omgeving kon niet worden geladen. Probeer het opnieuw.",
+      "loading": "Omgeving laden…",
+      "runLifetime": "Sluit na een run van de agent die deze omgeving gebruikt.",
+      "idleMinutes": "Bewaard gedurende maximaal {minutes, plural, one {# minuut} other {# minuten}} inactiviteit.",
+      "idleSeconds": "Bewaard gedurende maximaal {seconds, plural, one {# seconde} other {# seconden}} inactiviteit.",
+      "options": "Omgevingsopties",
+      "lifetime": "Wanneer deze sluit",
+      "checked": "Beschikbaarheid gecontroleerd: {status}.",
+      "ready": "Gereed"
+    }
   },
   "approvalFeedback": {
     "savedApproval": "Al goedgekeurd: {action}",
@@ -4198,7 +4290,7 @@
     "adding": "Toevoegen…",
     "appliesEachFileYou": "Dit geldt voor elk bestand dat je hierna toevoegt en wordt erbij vastgelegd. De collectie behoudt haar eigen instellingen - elke latere upload gaat daar weer naar terug.",
     "applyChanges": "{count, plural, =1 {1 wijziging toepassen} other {# wijzigingen toepassen}}",
-    "builtInReadersRegardless": "Tekst-, Markdown- en Word-bestanden gebruiken de ingebouwde lezers, wat er ook wordt gekozen.",
+    "builtInReadersRegardless": "Tekst- en Markdown-bestanden gebruiken de ingebouwde lezer, welke parser ook is gekozen.",
     "cancel": "Annuleren",
     "cancel2": "Annuleren",
     "cancel3": "Annuleren",
@@ -4265,7 +4357,7 @@
     "knowledgeBasesAlreadyUsing": "Kennisbanken die deze integratie al gebruiken, behouden hun eigen kopie. Je verwijdert alleen de oorspronkelijke integratie, waaruit geen enkele kennisbank rechtstreeks synchroniseert.",
     "leaveEmptyAutoGenerate": "Leeg laten om automatisch te genereren",
     "leftAloneCollectionInherits": "Als je niets wijzigt, neemt deze collectie de standaarden over waarmee de installatie is geconfigureerd. De waarden hieronder zijn die van het platform; als je er één wijzigt, worden ze allemaal verstuurd, en ze worden die van deze collectie tot iemand ze bewerkt.",
-    "liteparseReadsTextLayer": "LiteParse leest eerst de tekstlaag en past alleen OCR toe op een pagina als daar niets staat. OCR bepaalt het grootste deel van de kosten van een parse, en de meeste documenten zijn digitaal ontstaan. Schakel dit uit om OCR op elke pagina toe te passen.",
+    "liteparseReadsTextLayer": "Eerst de tekstlaag: een pagina krijgt alleen OCR als daar niets staat. OCR bepaalt het grootste deel van de kosten van een parse, en de meeste documenten zijn digitaal ontstaan. Schakel dit uit om OCR op elke pagina toe te passen.",
     "llamaparseKey": "LlamaParse-sleutel",
     "llamaparseTier": "LlamaParse-niveau",
     "loadingModels": "Modellen laden…",
@@ -4273,7 +4365,7 @@
     "maximumPages": "Maximum aantal pagina's",
     "model": "Model",
     "model2": "Model",
-    "modelIsFixed": "Model, vastgelegd door de al opgeslagen vectoren",
+    "modelIsFixed": "Model, vastgelegd door de reeds opgeslagen vectoren. Een verhuizing wordt ertegen getest.",
     "modelsUnreadable": "De lijst met providers kon niet worden gelezen, dus er kan geen provider of sleutel worden gekozen. Deze collectie aanmaken wordt geweigerd tot dat wel kan.",
     "name": "Naam",
     "nameCopy": "Naam voor de kopie",
@@ -4297,7 +4389,10 @@
     "overlapRepeats": "aangrenzende chunks herhalen hun overlap, dus tekst op de grens verschijnt twee keer",
     "pageNumber": "Pagina {number}",
     "pageParsedNothingReadable": "Deze pagina leverde bij het parsen niets leesbaars op - waarschijnlijk een onleesbare scan.",
-    "pagePictureTextCarries": "Een pagina die een afbeelding van tekst is, bevat geen tekst om te extraheren. PyMuPDF geeft zo'n pagina aan het afbeeldingsmodel; LiteParse voert zijn eigen OCR uit.",
+    "scannedPagesDocling": "Een pagina of afbeelding die een afbeelding van tekst is, bevat geen tekst om te extraheren. Docling leest die met zijn eigen OCR; staat dit uit, dan heeft een geüploade afbeelding niets om te indexeren.",
+    "scannedPagesLiteparse": "Een pagina die een afbeelding van tekst is, bevat geen tekst om te extraheren. LiteParse leest haar met zijn eigen OCR.",
+    "scannedPagesLlamaparse": "LlamaParse leest gescande pagina's zelf, wat hier ook is ingesteld.",
+    "scannedPagesPymupdf": "Een pagina die een afbeelding van tekst is, bevat geen tekst om te extraheren. PyMuPDF geeft zo'n pagina aan het afbeeldingsmodel.",
     "nextUploadsTitle": "Hoe de volgende uploads worden gelezen en ingedeeld",
     "parseTimeoutSeconds": "Time-out voor parsen (seconden)",
     "parsed": "Geparst",
@@ -4318,15 +4413,15 @@
     "problemWholeBetween": "Een geheel getal tussen {min} en {max}.",
     "productDocs": "Productdocumentatie",
     "prompt": "Prompt",
-    "providerMoveKeepsTheIndex": "Hetzelfde model dat ergens anders vandaan wordt aangeboden, is hetzelfde model, dus wat al is geïndexeerd, verandert niet - het volgende verzoek gaat gewoon naar de nieuwe provider, met de nieuwe sleutel.",
+    "providerMoveKeepsTheIndex": "Een verhuizing wordt getest op reeds opgeslagen chunks: geeft de nieuwe provider dezelfde vectoren, dan verandert er niets aan wat al is geïndexeerd – het volgende verzoek gaat gewoon naar de nieuwe provider.",
     "readAsImages": "Als afbeeldingen lezen",
-    "readScannedPages": "Gescande pagina's lezen",
+    "readScannedPages": "Gescande pagina's lezen (OCR)",
     "reasoning": "Redeneren",
     "remove": "Verwijderen",
     "removeNamed": "{name} verwijderen?",
     "integrationActions": "Acties",
     "integrationDetails": "Koppeling / planning",
-    "integrationsDescription": "Herbruikbare bronnen voeden je kennisbanken. Lokale services verzorgen embeddings en OCR-verwerking op je eigen netwerk.",
+    "integrationsDescription": "Herbruikbare bronnen voeden je kennisbanken. Dienstverbindingen zijn de embedding- en OCR-eindpunten die je collecties gebruiken.",
     "integrationsEmpty": "Nog geen integraties",
     "integrationsCount": "{count, plural, one {# integratie} other {# integraties}}",
     "reusableIntegrations": "Integraties",
@@ -4360,11 +4455,12 @@
     "endpointModelsUnconfirmed": "Er kon niet worden nagegaan welke modellen dit endpoint aanbiedt, dus elk OpenRouter-model wordt vermeld. Een model dat het niet aanbiedt, faalt bij de eerste upload.",
     "endpointServesNoModel": "Dit endpoint biedt geen van de embeddingmodellen aan die AgenticOS aanbiedt. Laat het endpoint leeg, of kies een andere provider.",
     "endpointLacksCollectionModel": "Dit endpoint biedt {model} niet aan, het model waarmee de vectoren van deze collectie zijn gemaakt. Laat het endpoint leeg, of kies er een dat het wel aanbiedt.",
-    "localServicesHint": "Servers op het eigen netwerk van de installatie - een Ollama die embeddings maakt, een OCR-sidecar voor LiteParse - één keer geregistreerd en per collectie gekozen. Niets wat ernaar wordt gestuurd, verlaat de installatie.",
+    "connectionActive": "Actief",
+    "serviceConnectionsHint": "Eindpunten die je één keer registreert en per collectie kiest: een Ollama die embedt, een OpenAI-compatibele gateway met zijn Vault-sleutel, een OCR-sidecar voor LiteParse.",
     "addServer": "Server toevoegen",
-    "failedLoadLocalServices": "Lokale services laden mislukt",
-    "localServiceKind": "Soort",
-    "embeddingServer": "Embeddingserver (Ollama)",
+    "failedLoadServiceConnections": "Dienstverbindingen laden mislukt",
+    "serviceConnectionKind": "Soort",
+    "embeddingServer": "Embeddingserver",
     "ocrServer": "OCR-server (LiteParse)",
     "address": "Adres",
     "addressHint": "De root waarop de service antwoordt. De OpenAI-compatibele root van Ollama eindigt op /v1; die van een OCR-server is de basis-URL.",
@@ -4391,7 +4487,75 @@
     "embeddingEndpoint": "Endpoint",
     "embeddingEndpointHint": "Laat leeg voor de globale OpenRouter-API, of vul een regionale URL in zoals https://eu.openrouter.ai/api/v1. EU-routering vereist een geschikt OpenRouter-abonnement; ZDR wordt apart ingesteld op OpenRouter.",
     "noConnectorsAvailable": "Er zijn geen bronconnectors beschikbaar. Een beheerder kan een connector inschakelen voor deze installatie.",
-    "parsedSnapshotOnly": "Geïmporteerde verwerkte tekst. Het oorspronkelijke bestand was niet opgenomen."
+    "parsedSnapshotOnly": "Geïmporteerde verwerkte tekst. Het oorspronkelijke bestand was niet opgenomen.",
+    "apiStyle": "API-stijl",
+    "apiStyleOllama": "Ollama",
+    "apiStyleOpenAICompatible": "OpenAI-compatibel",
+    "apiStyleLiteparse": "LiteParse",
+    "apiStyleDocling": "Docling Serve",
+    "doclingAddressExample": "http://docling:5001",
+    "documentParserServer": "Documentparser (Docling)",
+    "testConnection": "Verbinding testen",
+    "doclingTestOk": "Docling Serve {version} heeft geantwoord.",
+    "doclingTestKeyRefused": "Docling Serve heeft de sleutel geweigerd.",
+    "doclingTestKeyRequired": "Deze Docling Serve vraagt om een sleutel. Kies er hierboven een.",
+    "doclingTestUnreachable": "Op dit adres antwoordt niets.",
+    "doclingTestNotDocling": "Er antwoordde iets, maar het is geen Docling Serve.",
+    "parserDocling": "Docling",
+    "parserDoclingHint": "Je eigen Docling Serve. Behoudt opmaak, tabellen en pagina’s.",
+    "doclingConnection": "Docling-verbinding",
+    "doclingConnectionHint": "De Docling Serve waarmee deze collectie converteert. Hij hoort bij de collectie: een upload kan er geen andere kiezen.",
+    "doclingLanguages": "OCR-talen",
+    "doclingLanguagesHint": "Codes van twee letters, zoals “de” of “en”, maximaal {max}. Laat leeg voor de standaard van Docling. Enter voegt er een toe.",
+    "doclingLanguagePlaceholder": "de, en",
+    "doclingLanguageInvalid": "Taalcodes bestaan uit twee letters, zoals “de” of “en”.",
+    "removeLanguage": "{code} verwijderen",
+    "doclingPreset": "OCR-preset",
+    "doclingPresetHint": "Welke OCR-engine Docling gebruikt: auto, easyocr, rapidocr of tesseract. Alleen engines die op je Docling Serve staan, werken.",
+    "tableMode": "Tabelmodus",
+    "tableModeAccurate": "Nauwkeurig",
+    "tableModeAccurateHint": "Trager, volgt complexe tabellen getrouwer.",
+    "tableModeFast": "Snel",
+    "tableModeFastHint": "Sneller, met eenvoudiger tabelreconstructie.",
+    "whereDoclingStops": "Waar Docling stopt. Dit begrenst de kosten van één document - de time-out begrenst alleen het wachten.",
+    "howLongDoclingMay": "Hoe lang het platform per document op Docling wacht. Het stopt na 3000 seconden met wachten, ook als een hogere waarde is ingesteld, zodat de weigering vóór de limiet van de taak komt; Docling zelf wordt niet gestopt.",
+    "problemDoclingLanguages": "OCR-talen zijn codes van twee letters, maximaal {max}.",
+    "problemDoclingPreset": "De OCR-preset bestaat uit kleine letters, cijfers, “-” en “_”, maximaal 64 tekens.",
+    "connectionKey": "Vault-sleutel",
+    "connectionKeyHint": "Wordt met elk verzoek meegestuurd. Kies een sleutel uit de vault van je organisatie of voeg er hier een toe.",
+    "connectionHasKey": "Vault-sleutel",
+    "deploymentWideKeyless": "Een deployment-brede verbinding kan geen sleutel bevatten. Registreer een organisatieverbinding om er een te gebruiken.",
+    "editServer": "Server bewerken",
+    "testSettings": "Testen",
+    "testingSettings": "Bezig met testen…",
+    "testCost": "{count, plural, =0 {Geen embedding-aanroepen} one {Maximaal # embedding-aanroep} other {Maximaal # embedding-aanroepen}}. Kan providertokens verbruiken; aanroepen met een sleutel tellen mee voor het maandbudget van de organisatie.",
+    "probePassed": "{count, plural, =0 {Nog niets opgeslagen, dus er kan niets stuk} one {# kennisbank behoudt zijn vectoren} other {# kennisbanken behouden hun vectoren}}",
+    "probeOutcome": {
+      "passed": "Geslaagd",
+      "no_chunks": "Nog niets opgeslagen, dus er kan niets stuk",
+      "unreachable": "Het eindpunt was niet bereikbaar",
+      "key_refused": "Het eindpunt weigerde de sleutel",
+      "model_unknown": "Het eindpunt kent dit model niet of gaf geen vector terug",
+      "wrong_width": "Het eindpunt antwoordt met een andere vectorbreedte",
+      "vectors_differ": "Het eindpunt geeft andere vectoren dan de opgeslagen"
+    },
+    "probeFailedAdvice": "Maak voor deze instellingen een nieuwe kennisbank.",
+    "saveWithoutTest": "Opslaan zonder te testen",
+    "unverifiedTitle": "Opslaan zonder te testen?",
+    "unverifiedBody": "Zoeken gaat stuk als het nieuwe eindpunt een ander model aanbiedt, en documenten die vanaf nu worden ingelezen krijgen vectoren van het nieuwe eindpunt.",
+    "unverifiedConfirm": "Toch opslaan",
+    "unverifiedAffected": "{count, plural, one {# kennisbank wordt geraakt.} other {# kennisbanken worden geraakt.}}",
+    "openaiCompatibleAddressExample": "https://gateway.example.com/v1",
+    "customModel": "Model",
+    "customModelHint": "De modelnaam precies zoals het eindpunt die verwacht.",
+    "measuredWidth": "{dim, plural, one {Gemeten breedte: # dimensie} other {Gemeten breedte: # dimensies}}",
+    "modelTestedAgainstStored": "Model waarmee de opgeslagen vectoren zijn gemaakt. Een ander model mag, maar wordt getest tegen de opgeslagen chunks.",
+    "testCostUnavailable": "Kon niet lezen hoeveel probes de test uitvoert.",
+    "tested": "Getest",
+    "blockedMissingSettings": "Vul eerst de ontbrekende instellingen in.",
+    "blockedRunTest": "Voer eerst de test uit; opslaan wordt mogelijk zodra die slaagt.",
+    "deploymentWideCollection": "Elke organisatie (hele deployment)",
+    "deploymentWideCollectionHint": "Hoort bij de deployment, niet bij een organisatie: elke organisatie kan erin zoeken. Ze kan alleen deploymentbrede verbindingen en providers zonder sleutel gebruiken, geen vault-sleutels."
   },
   "knowledgeBases": {
     "active": "Actief",
@@ -4466,7 +4630,17 @@
       "download": "De desktop-app downloaden",
       "dismiss": "Herinner me over 14 dagen"
     },
-    "signInAgain": "Opnieuw inloggen"
+    "signInAgain": "Opnieuw inloggen",
+    "sidebarPromotions": {
+      "title": "Aan de slag",
+      "carousel": "carrousel",
+      "slide": "dia",
+      "position": "{current} van {total}",
+      "previous": "Vorige kaart",
+      "next": "Volgende kaart",
+      "pause": "Rotatie pauzeren",
+      "resume": "Rotatie hervatten"
+    }
   },
   "legal": {
     "acceptAll": "Alles accepteren",
@@ -4789,8 +4963,8 @@
     "cardYoursAndOrganizations": "Van jou en van de organisatie",
     "accountActions": "Meer voor {name}",
     "watch": "Bewaken",
-    "trustReadOnlyHints": "Evals tools laten aanroepen die deze server als alleen-lezen markeert",
-    "trustReadOnlyHintsHint": "Evals houden elke aanroep naar een productieserver tegen, tenzij je hem vertrouwt: de alleen-lezenmarkering is de eigen bewering van de server. {count, plural, =0 {Geen tool hier beweert het.} =1 {1 tool hier beweert het.} other {# tools hier beweren het.}}",
+    "trustReadOnlyHints": "Evals tools laten aanroepen die deze server als alleen-lezen en closed-world markeert",
+    "trustReadOnlyHintsHint": "Evals houden elke aanroep naar een productieserver tegen, tenzij je hem vertrouwt, en voeren dan alleen tools uit die hij als alleen-lezen én closed-world markeert: ze bereiken niets behalve deze server. Beide markeringen zijn de eigen bewering van de server. {count, plural, =0 {Geen tool hier beweert alleen te lezen.} =1 {1 tool hier beweert alleen te lezen.} other {# tools hier beweren alleen te lezen.}}",
     "googleOAuthClientRequired": "Google vereist een client-ID en clientgeheim uit Google Cloud voordat je kunt koppelen.",
     "googleOAuthSetupGuide": "Configuratiegids van Google openen",
     "oauthRequiredClient": "Google Cloud OAuth-client",
@@ -5382,7 +5556,7 @@
       },
       "org-assistant": {
         "title": "De AI-Architect",
-        "body": "Zet de assistent van de organisatie aan of uit en stel in hoe hij mensen begroet. Zijn naam, model en kennis bewerk je in de Agent Builder, zoals bij elke agent."
+        "body": "Schakel AI Architect voor de organisatie in of uit. Bewerk het model, de instructies en de kennis via Agents, net als bij andere agents."
       },
       "org-members": {
         "title": "Wie erin zit",
@@ -5516,9 +5690,9 @@
         "title": "Begin vanuit een sjabloon",
         "body": "Achtentwintig kant-en-klare agents per sector. Er een installeren maakt een concept aan waarvan de skills al zijn gekoppeld."
       },
-      "knowledge-local-services": {
-        "title": "Lokale services",
-        "body": "Servers op je eigen netwerk: registreer een Ollama om zonder sleutel embeddings te maken, of een OCR-server voor LiteParse, en kies er een per collectie - zodat een kennisbank volledig op je eigen hardware kan blijven."
+      "knowledge-service-connections": {
+        "title": "Dienstverbindingen",
+        "body": "Dienstverbindingen: embedding- en OCR-eindpunten – een Ollama, een OpenAI-compatibele gateway met zijn Vault-sleutel, een OCR-server – eenmaal geregistreerd en per collectie gekozen."
       },
       "artifacts-list": {
         "title": "Gepubliceerde pagina's",
@@ -6079,11 +6253,11 @@
       },
       "project-tracking": {
         "title": "Houd je project op koers",
-        "body": "Bekijk een gepubliceerde bronagent en de accounts ervan, en publiceer dan bewust een privétracker met een takentabel en een gewone projectroutine."
+        "body": "Open Opties voor de takentabel naast Takentabel en kies Taken automatisch bijwerken. Bekijk een gepubliceerde bronagent en de accounts voordat je bewust een privétracker publiceert die dezelfde tabel volgens een schema bijwerkt."
       },
       "flow-project-tracker-create": {
         "title": "Een projecttracker instellen?",
-        "body": "Bekijk een bewerkbare gepubliceerde agent en de accounts ervan, en publiceer dan bewust een privétracker met een takentabel en geplande controles."
+        "body": "Open Opties voor de takentabel en kies Taken automatisch bijwerken. Bekijk een bewerkbare gepubliceerde agent en de accounts en publiceer dan bewust een privétracker met geplande controles van de projecttabel."
       },
       "channels-phone": {
         "title": "Telefoonroutering instellen",
@@ -6340,6 +6514,26 @@
       "project-resources": {
         "title": "Houd gerelateerde bronnen bij elkaar",
         "body": "Koppel bestaande agents, workflows, Apps en tabellen zonder hun rechten te wijzigen. Open ze hier of kies een gekoppelde workflow als ingang van het project."
+      },
+      "chat-workspace-tabs": {
+        "title": "Eén workspace naast je chat",
+        "body": "Wissel hier tussen Visuals, Browser en Bestanden. Je geselecteerde pagina en bestand blijven open wanneer je van tabblad wisselt. Vergroot de workspace voor meer ruimte of sluit deze om terug te keren naar het gesprek."
+      },
+      "chat-visual-workspace": {
+        "title": "Een pagina naast je chat",
+        "body": "Open een visual in het zijpaneel met aanpasbare grootte om verder te chatten terwijl je de visual gebruikt. Wissel tussen Voorbeeld en Code, vergroot het paneel of sluit het zonder de bedieningselementen opnieuw in te stellen."
+      },
+      "skills-arrange": {
+        "title": "De bibliotheek ordenen",
+        "body": "Bekijk skills per agent die ze gebruikt, per herkomst of per categorie. Ordenen verandert niets aan wie een skill kan zien."
+      },
+      "skills-import": {
+        "title": "Pakket importeren",
+        "body": "Kies een vaardigheidsmap of ZIP met SKILL.md. Bestanden en metadata blijven behouden. Importeren voert geen scripts, tests of installaties uit."
+      },
+      "chat-environments": {
+        "title": "Liveomgeving openen",
+        "body": "Kies Browser of Desktop in het workspace-menu en open de omgeving. Je kunt haar gebruiken voordat je de agent iets vraagt. Het paneel sluiten bewaart de sessie; de omgeving beëindigen geeft haar vrij."
       }
     },
     "chooseLanguage": "Taal",
@@ -6884,9 +7078,9 @@
       "settingsLimitsHint": "Wat de runs ervan tegelijk mogen doen en uitgeven. Elke stap houdt zijn eigen limieten - waaronder het kostenplafond van een agentstap - en deze gelden daarboven.",
       "settingsConcurrent": "Gelijktijdige runs",
       "settingsConcurrentHint": "Een start daarboven wordt geweigerd tot er een eindigt: de afzender van een webhook krijgt te horen dat hij het opnieuw moet proberen, een planning wacht op de volgende tik, en een tabel of mailbox probeert het opnieuw.",
-      "settingsRunBudget": "Maximum dat één run mag uitgeven (USD)",
+      "settingsRunBudget": "Maximum dat één run mag uitgeven ({currency})",
       "settingsRunBudgetHint": "Een run die het bereikt, stopt vóór de volgende stap, met de status Budget op.",
-      "settingsMonthlyBudget": "Maximum dat de runs per maand mogen uitgeven (USD)",
+      "settingsMonthlyBudget": "Maximum dat de runs per maand mogen uitgeven ({currency})",
       "settingsMonthlyBudgetHint": "Geteld over de kalendermaand in UTC, testruns inbegrepen. Zodra dat bereikt is, start er geen run meer tot de nieuwe maand begint of het budget wordt verhoogd.",
       "settingsNoLimit": "Geen limiet",
       "stats": {
@@ -7365,7 +7559,7 @@
       "mcpServersDescription": "Externe tools die deze agent mag aanroepen, uit <servers>de catalogus</servers>. Koppel een server aan het account van de organisatie, dat voor iedereen antwoordt, of aan het eigen account van elke persoon, dat die zelf koppelt. De koppeling van een lid wordt nooit rechtstreeks gekoppeld - een agent die iedereen uitvoert, kan niet afhangen van wiens inloggegevens erachter zitten.",
       "model": "Model",
       "modelSettings": "Modelinstellingen",
-      "monthlyUsd": "Maandelijks (USD)",
+      "monthlyUsd": "Maandelijks ({currency})",
       "monthlyUsdHint": "Runs stoppen zodra deze agent zoveel uitgeeft in een kalendermaand. Leeg laat alleen de limiet van de organisatie over.",
       "moreActions": "Meer acties",
       "n100Default": "100 (standaard)",
@@ -7677,7 +7871,6 @@
       "bases": "Kennisbanken",
       "chooseFiles": "Bestanden kiezen",
       "chunkCount": "{count, plural, =1 {1 chunk} other {# chunks}}",
-      "clear": "Wissen",
       "collectionItselfUnchanged": "De collectie zelf is ongewijzigd.",
       "configureConnectorsAtWorkspace": "Stel connectors in op organisatieniveau om te beginnen met synchroniseren vanuit externe bronnen.",
       "connect": "Koppelen",
@@ -7730,9 +7923,8 @@
       "nothingHasBeenUploaded": "Hier is nog niets geüpload.",
       "openCollection": "{name} openen",
       "overridden": "overschreven",
-      "parseOptions": "Parse-opties",
       "parsedWith": "Geparst met",
-      "parsedWithOverrides": "De volgende bestanden die je toevoegt, worden geparst met <strong>{count, plural, =1 {1 wijziging} other {# wijzigingen}}</strong> ten opzichte van de instellingen van deze collectie, en vermelden dat.",
+      "parsedWithOverrides": "De volgende bestanden die je toevoegt, en mislukte bestanden die je opnieuw probeert, worden geparst met <strong>{count, plural, =1 {1 wijziging} other {# wijzigingen}}</strong> ten opzichte van de instellingen van deze collectie, en vermelden dat.",
       "previewFile": "Voorbeeld van bestand",
       "previewFile2": "Voorbeeld van bestand",
       "processing": "Verwerken…",
@@ -7777,7 +7969,12 @@
       "retryDocument": "Opnieuw",
       "indexDocumentNamed": "{name} indexeren",
       "retryDocumentNamed": "{name} opnieuw proberen",
-      "indexDocumentHint": "Gebruikt de instellingen van deze kennisbank en kan providerkosten veroorzaken."
+      "indexDocumentHint": "Indexeert dit origineel met de huidige kennisbankinstellingen en wachtende uploadwijzigingen. Er kunnen providerkosten gelden.",
+      "revertPendingChanges": "Terugdraaien",
+      "settings": "Instellingen",
+      "uploadOptions": "Uploadopties",
+      "uploadWithDifferentSettings": "Uploaden met andere instellingen…",
+      "retryDocumentHint": "Probeert opnieuw met de huidige kennisbankinstellingen en wachtende uploadwijzigingen. Er kunnen providerkosten gelden."
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "De catalogus is in de backend ingebouwd, en niemand heeft een eigen server toegevoegd. Een lege lijst hier betekent dat deze installatie er geen meelevert.",
@@ -8522,6 +8719,13 @@
     },
     "skills": {
       "allCategories": "Alle categorieën",
+      "arrange": {
+        "agent": "Per agent",
+        "origin": "Per herkomst",
+        "category": "Per categorie",
+        "none": "Geen secties"
+      },
+      "arrangeBy": "Ordenen op",
       "askAdministratorAccessSkills": "Vraag een beheerder om toegang tot skills.",
       "categoryCount": "{count, plural, =1 {1 categorie} other {# categorieën}}",
       "clearFilter": "Filter wissen",
@@ -8536,6 +8740,17 @@
       "nobodyHasWrittenSkill": "Nog niemand heeft een skill voor deze organisatie geschreven.",
       "recentlyUpdated": "Recent bijgewerkt",
       "searchSkills": "Skills zoeken…",
+      "section": {
+        "drafted": "Alleen in concept",
+        "unused": "Niet gebruikt door een agent die je ziet",
+        "org": "Organisatie",
+        "private": "Privé",
+        "platform": "Ingebouwd · Platform",
+        "gallery": "Ingebouwd · {industry}",
+        "uncategorized": "Zonder categorie"
+      },
+      "showAll": "{count, plural, =1 {1 tonen} other {Alle # tonen}}",
+      "showFewer": "Minder tonen",
       "skillCount": "{count, plural, =1 {1 skill} other {# skills}}",
       "skillKnowHowWritten": "Een skill is knowhow die één keer wordt opgeschreven en gedeeld door elke agent die hem nodig heeft - hoe terugbetalingen worden afgehandeld, wat de huisstijl is. Bewerk hem hier en elke gekoppelde agent gebruikt vanaf zijn volgende run de nieuwe versie.",
       "skills": "Skills",
@@ -9876,7 +10091,25 @@
       "testOptional": "Testen vóór het toepassen (optioneel)",
       "hiddenAgents": "{count, plural, one {# andere agent} other {# andere agents}}",
       "testOptionalShort": "Testen (optioneel)",
-      "compareShort": "Wijzigingen"
+      "compareShort": "Wijzigingen",
+      "quotesCredential": "Deze wijziging citeert inloggegevens en kan niet worden toegepast of getest. Verwerp haar en breng de wijziging handmatig aan."
+    },
+    "package": {
+      "title": "Pakket importeren",
+      "description": "Kies een vaardigheidsmap of ZIP met SKILL.md. Bestanden en metadata blijven behouden. Importeren voert geen scripts, tests of installaties uit.",
+      "directory": "Map kiezen",
+      "zip": "ZIP kiezen",
+      "limits": "8 MiB per bestand · 32 MiB per pakket · 1.024 bestanden.",
+      "reading": "Pakket lezen…",
+      "summary": "{count} bronbestanden · {size}",
+      "private": "Maakt een privévaardigheid met een volledige eerste versie. Bestaande vaardigheden worden niet overschreven.",
+      "apply": "Vaardigheid importeren",
+      "cancel": "Annuleren",
+      "imported": "Vaardigheid geïmporteerd",
+      "binary": "Binair",
+      "text": "Tekst",
+      "download": "Bestand downloaden",
+      "binaryHelp": "Binaire bestanden blijven ongewijzigd. Download dit bestand of vervang het door een upload."
     }
   },
   "states": {
@@ -9907,7 +10140,7 @@
     "emailAddress": "E-mailadres",
     "emptyMeansUnlimited": "Leeg betekent onbeperkt.",
     "emptyNoLimit": "leeg voor geen limiet.",
-    "enterAmountDollarsLeave": "Vul een bedrag in dollars in, of laat leeg voor geen limiet.",
+    "enterAmountDollarsLeave": "Voer een geldig bedrag in of laat het veld leeg voor geen limiet.",
     "howManyPeople": "Hoeveel personen",
     "inviteEmailed": "Gemaild naar {email}. De link hieronder is je eigen kopie, voor het geval de mail niet aankomt.",
     "inviteLinkLabel": "Uitnodigingslink",
@@ -9918,7 +10151,6 @@
     "inviteWithLink": "Uitnodigen met een link",
     "joinAs": "Lid worden als",
     "joined": "Lid sinds",
-    "limitUsd": "Limiet (USD)",
     "manageOrganizations": "Organisaties beheren",
     "member": "Lid",
     "monthlyLimitRemoved": "Maandlimiet verwijderd",
@@ -10030,7 +10262,7 @@
       "model": "Model",
       "modelHint": "Alleen gebruikt om verbeteringen voor te stellen op basis van gesprekken. Bewaking gebruikt het model van elke gekozen agent.",
       "modelRequired": "Kies het model waarop het draait voordat je het inschakelt.",
-      "label": "Limiet per persoon (USD per maand)",
+      "label": "Limiet per persoon ({currency} per maand)",
       "days": "Dagen",
       "timing": "Wanneer",
       "timingFixed": "Op een vast uur",
@@ -10041,7 +10273,7 @@
       "save": "Opslaan",
       "saved": "Achtergrondinstellingen opgeslagen",
       "off": "Achtergrondfuncties staan uit",
-      "invalid": "Vul een bedrag in dollars in, 0 of meer.",
+      "invalid": "Voer een niet-negatief bedrag in.",
       "welcome": "Welkomstbericht in chat-apps",
       "welcomeHint": "Een nieuw lid krijgt een direct bericht van je bots in Slack, Teams en Mattermost.",
       "welcomeText": "Bericht",
@@ -10064,7 +10296,7 @@
       "enabled": "Deze rol uitvoeren",
       "model": "Model",
       "modelHint": "Altijd zelf gekozen, nooit een standaard: deze rol geeft geld uit zonder dat iemand er op dat moment om vraagt.",
-      "budget": "Maandbudget (USD)",
+      "budget": "Maandbudget ({currency})",
       "noBudget": "Geen eigen limiet",
       "invalid": "Vul een getal van nul of meer in.",
       "modelRequired": "Kies het model waarop deze rol draait voordat je hem inschakelt.",
@@ -10633,7 +10865,7 @@
       "revoke": "Intrekken",
       "waitingDevice": "Wachten op computer ({count})"
     },
-    "budgetLabel": "Maandbudget (USD, optioneel)",
+    "budgetLabel": "Maandbudget ({currency}, optioneel)",
     "budgetCreatorOnly": "Alleen de persoon die deze routine maakte, kan de limiet verhogen of verwijderen zolang de routine namens die persoon draait.",
     "budgetHint": "Wat deze routine per maand mag uitgeven. Zodra het op is, pauzeert hij en begint hij opnieuw op de eerste van de maand. Het beperkt de limieten van de agent en de organisatie, het heft ze nooit op.",
     "budgetPlaceholder": "Geen eigen limiet",
@@ -11482,6 +11714,14 @@
           "description": "Start een aparte E2B-desktop voor deze run. Kies hieronder de E2B-sleutel van de organisatie; er is geen Sandbox-koppeling nodig.",
           "summary": "Een afgeschermde desktop gehost door E2B."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Deze run"
+        },
+        "conversation": {
+          "label": "Dit gesprek"
+        }
       }
     },
     "browser_use": {
@@ -11505,6 +11745,14 @@
           "label": "Deze computer (desktop-app)",
           "summary": "Een privébrowser op je gekoppelde computer.",
           "description": "Vereist een gekoppelde desktop-app en Lokale browser gekozen in deze chat. Je persoonlijke browsersessie wordt niet gedeeld."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Deze run"
+        },
+        "conversation": {
+          "label": "Dit gesprek"
         }
       }
     },
@@ -11572,7 +11820,8 @@
         "completed": "Je test is afgerond.",
         "failed": "Je test kon niet worden afgerond.",
         "cancelled": "Je test is geannuleerd.",
-        "budget_exceeded": "Je test is gestopt bij zijn budget."
+        "budget_exceeded": "Je test is gestopt bij zijn budget.",
+        "quote": "Je test is gestopt bij de prijs die je hebt geaccepteerd."
       },
       "questions": {
         "ready": "Je testvragen zijn geschreven en wachten op je review.",
@@ -13449,7 +13698,7 @@
     "addToGroupNothing": "Er is niets wat je met deze groep kunt delen - alles wat je mag bewerken, staat er al.",
     "addToGroupLevel": "Ze kunnen",
     "addToGroupShare": "{count, plural, =0 {Delen} =1 {1 delen} other {# delen}}",
-    "monthlyBudget": "Maandbudget (USD)",
+    "monthlyBudget": "Maandbudget ({currency})",
     "monthlyBudgetHint": "Runs die de leden van deze afdeling starten, stoppen zodra het is bereikt. De leider en de beheerders krijgen een melding bij 80%.",
     "noBudget": "Geen limiet",
     "thisMonth": "Deze maand",
@@ -14185,6 +14434,14 @@
       "prefer_native_browser": {
         "title": "De native lokale browser gebruiken",
         "description": "Gebruik een ingebed native tabblad voor lokaal surfen via de DOM. Schakel uit voor compatibiliteit met afgeschermd Chromium. Vision en overschrijvingen van taal en tijdzone gebruiken Chromium."
+      },
+      "session_lifetime": {
+        "title": "Sessieduur",
+        "description": "Sluit in privéwebchat de door de applicatie beheerde externe omgeving na een run die deze gebruikt, of behoud deze tussen berichten. Gekoppelde lokale apparaten en andere interfaces behouden hun bestaande sessiegedrag."
+      },
+      "session_idle_seconds": {
+        "title": "Inactiviteitslimiet (seconden)",
+        "description": "Beëindig de door de applicatie beheerde externe webchatomgeving na deze inactiviteit, begrensd door het implementatiebeleid. Alleen meekijken verlengt de sessie niet; het paneel sluiten koppelt alleen de weergave los."
       }
     },
     "channel_tools": {
@@ -14715,6 +14972,14 @@
       "preview": {
         "title": "Live voorbeeld",
         "description": "Toon de desktop live in de chat terwijl de agent hem bedient."
+      },
+      "session_lifetime": {
+        "title": "Sessieduur",
+        "description": "Sluit in privéwebchat de door de applicatie beheerde externe omgeving na een run die deze gebruikt, of behoud deze tussen berichten. Gekoppelde lokale apparaten en andere interfaces behouden hun bestaande sessiegedrag."
+      },
+      "session_idle_seconds": {
+        "title": "Inactiviteitslimiet (seconden)",
+        "description": "Beëindig de door de applicatie beheerde externe webchatomgeving na deze inactiviteit, begrensd door het implementatiebeleid. Alleen meekijken verlengt de sessie niet; het paneel sluiten koppelt alleen de weergave los."
       }
     },
     "phone_calls": {
@@ -14767,6 +15032,12 @@
       "platform_tools": {
         "title": "Platformtools doorgeven",
         "description": "Sta deze native runtime toe de tools aan te roepen die al tot deze AgenticOS-run zijn toegelaten. Rechten, budgetten, goedkeuringen en het screenen van resultaten van het platform blijven gelden. Vereist de goedgekeurde privécomputer van het lid dat de taak start."
+      }
+    },
+    "visuals": {
+      "preview_screenshot": {
+        "title": "Het model een afbeelding van de visual tonen",
+        "description": "Geef een schermafbeelding terug wanneer de agent een visual bekijkt. Schakel dit uit voor een model dat geen afbeeldingen kan lezen; de renderdiagnostiek blijft beschikbaar."
       }
     }
   },
@@ -14868,7 +15139,14 @@
     "nativeTake": "Overnemen",
     "nativeCloseTab": "Tabblad sluiten",
     "nativeViewport": "Browserpagina in de desktop-app",
-    "nativeDesktopOnly": "Dit tabblad is geopend in de gekoppelde desktop-app. Ga daar verder om de native browser ervan te gebruiken."
+    "nativeDesktopOnly": "Dit tabblad is geopend in de gekoppelde desktop-app. Ga daar verder om de native browser ervan te gebruiken.",
+    "youControl": "Jij bestuurt",
+    "agentControls": "Agent bestuurt",
+    "otherViewerControls": "Andere kijker bestuurt",
+    "viewOnly": "Alleen kijken",
+    "takingOverShort": "Overnemen…",
+    "openPages": "Geopende browserpagina’s",
+    "untitledPage": "Naamloze pagina"
   },
   "remoteAgents": {
     "optionalSettings": "Authenticatie en handle (optioneel)",
@@ -15058,8 +15336,9 @@
       "sharedWorkspace": "Gedeelde projectworkspace"
     },
     "tracking": {
-      "title": "Projecten automatisch bijhouden",
-      "description": "Maak een takentabel met opgeslagen weergaven en publiceer een privékopie van een gekozen agent als geplande tracker ervan.",
+      "options": "Opties voor de takentabel",
+      "title": "Taken automatisch bijwerken",
+      "description": "Maak een agent en een geplande routine die de voortgang via goedgekeurde bronnen controleren en de gedeelde takentabel van dit project bijwerken. Je kunt dezelfde tabel ook zelf bewerken.",
       "audience": "De routine handelt namens jou en schrijft haar rapporten in het gedeelde gesprek van dit project. De bronagent blijft ongewijzigd.",
       "baseAgent": "Bronagent die je kunt bewerken",
       "chooseAgent": "Een gepubliceerde agent kiezen",
@@ -15498,7 +15777,8 @@
         "judgeGradedTwice": "De beoordelaar heeft dit criterium meer dan eens beoordeeld, dus geen van beide beoordelingen telt.",
         "judgeUngraded": "De beoordelaar gaf geen score op de schaal voor dit criterium.",
         "judgeReasonEcho": "De beoordelaar herhaalde het criterium in plaats van te zeggen waarom het antwoord eraan voldoet.",
-        "judgeCounterUnsupported": "De beoordelaar keurde het antwoord goed als verschillend van het tegenvoorbeeld, hoewel het antwoord het herhaalt of de beoordelaar alleen citeerde wat de twee gemeen hebben."
+        "judgeCounterUnsupported": "De beoordelaar keurde het antwoord goed als verschillend van het tegenvoorbeeld, hoewel het antwoord het herhaalt of de beoordelaar alleen citeerde wat de twee gemeen hebben.",
+        "scriptCallsNotKept": "Een script in codemodus deed meer aanroepen dan zijn run bewaarde, dus zijn toolaanroepen zijn niet beoordeeld."
       },
       "scoreRun": "Toetsen aan een testgeval",
       "scoreRunBody": "Voer elke scorer die de dataset instelt uit op het antwoord van deze run. Het resultaat wordt bij de dataset bewaard.",
@@ -16717,7 +16997,7 @@
         "efficiencyHint": "Optionele plafonds tegenover de basislijn. Als je ze leeg laat, wordt er niets gecontroleerd.",
         "costRise": "Kosten per geslaagd testgeval mogen stijgen met (%)",
         "p95Rise": "p95-latentie mag stijgen met (%)",
-        "maxRunUsd": "Een run overslaan waarvan de volledige schatting hoger is dan ($)",
+        "maxRunUsd": "Een run overslaan waarvan de volledige schatting hoger is dan ({currency})",
         "maxRunUsdHint": "Inclusief herhalingen en de vorige versie. De werkelijke kosten kunnen afwijken; een lopende eval wordt niet door dit plafond gestopt.",
         "description": "Notitie",
         "estimateRun": "Eén run: ongeveer {amount} voor {count, plural, =1 {1 testgeval} other {# testgevallen}}.",
@@ -16852,12 +17132,14 @@
       "dismissAll": "Alles verwerpen",
       "verifyReport": "Wat de assistent van je bewerkingen vond",
       "skillCreated": "Skill {name} aangemaakt en aan het concept toegevoegd",
-      "working": "De runs lezen…"
+      "working": "De runs lezen…",
+      "checkQuotesCredential": "Een suggestie citeert inloggegevens, dus deze suggesties kunnen niet worden gecontroleerd. Haal de inloggegevens eruit door te bewerken waar dat kan, of wijs die suggestie af."
     },
     "suggestion": {
       "tool": "Tool {tool}",
       "instructions": "Instructies",
       "fromVerify": "Uit het verifiëren van je bewerkingen",
+      "reworded": "Anders geformuleerd bij de stap Wijzigingen",
       "status": {
         "accepted": "Opgenomen in het concept",
         "dismissed": "Verworpen"
@@ -16869,7 +17151,10 @@
       "accept": "Accepteren",
       "edit": "Bewerken",
       "dismiss": "Verwerpen",
-      "undo": "Ongedaan maken"
+      "undo": "Ongedaan maken",
+      "quotesCredential": "Deze suggestie citeert inloggegevens en kan zo niet worden geaccepteerd. Haal de inloggegevens eruit door te bewerken, of wijs de suggestie af.",
+      "quotesCredentialDismiss": "Deze suggestie citeert inloggegevens en kan niet worden geaccepteerd. Wijs haar af en breng de wijziging zelf aan.",
+      "quotesCredentialReadOnly": "Dit voorstel bevat inloggegevens en kan zo niet worden geaccepteerd."
     },
     "field": {
       "editLabel": "Jouw waarde",
@@ -17027,7 +17312,8 @@
       "liveHint": "Toepassen gaat meteen live: elke agent die het bestand leest, leest de nieuwe inhoud bij zijn volgende run.",
       "expects": "Verwacht: {effect}",
       "applied": "De wijziging op {name} toegepast",
-      "discarded": "De wijziging aan {name} verworpen"
+      "discarded": "De wijziging aan {name} verworpen",
+      "quotesCredential": "Deze wijziging citeert inloggegevens en kan niet worden toegepast of gecontroleerd. Verwerp haar en breng de wijziging handmatig aan."
     },
     "describe": {
       "open": "Maken met {name}"
@@ -17052,6 +17338,7 @@
         "no_change": "Het wijzigt niets",
         "unknown_tool": "De agent heeft zo'n tool niet",
         "invalid_tool_change": "Een toolnaam of -beschrijving die de agent niet kan gebruiken",
+        "hidden_characters": "De tekst bevat tekens die een mens niet kan zien",
         "not_a_target": "Niet iets wat de assistent mag wijzigen",
         "operation": "Geen wijziging die die instelling toestaat",
         "loosens_approval": "Het zou goedkeuring versoepelen",
@@ -17059,6 +17346,7 @@
         "unknown_capability": "Zo'n capability bestaat niet",
         "invalid_config": "De instellingen ervan zijn niet geldig",
         "does_not_apply": "Het past niet bij het concept",
+        "reaches_network": "Het voegt een capability toe die buiten deze deployment reikt. Voeg die toe in de Builder, waar de grenzen ervan worden ingesteld",
         "not_grantable": "Het voegt iets toe wat de persoon die het vroeg niet mag toekennen",
         "dismissed_before": "Iemand heeft het eerder verworpen",
         "unsupported": "Zei dat de bewerking ondersteund is, zonder bewijs dat kon worden gecontroleerd",
@@ -17229,6 +17517,9 @@
     "gapsLabel": "{count, plural, =1 {1 open kennislacune} other {# open kennislacunes}}"
   },
   "improvement": {
+    "acceptChanged": "De poging die je wilde accepteren is veranderd sinds je ernaar keek. De sessie is vernieuwd; bekijk hem opnieuw.",
+    "unmeasuredEdits": "Het concept bevatte wijzigingen van vóór de start van deze sessie. Publiceren brengt ook die live, en geen controle heeft ze gemeten.",
+    "publishUnmeasuredEdits": "Ook die wijzigingen publiceren",
     "attributionUnconfirmed": "Wijziging {number}: het resultaat is niet bevestigd.",
     "includeInTest": "Opnemen in de test",
     "includeChange": "Wijziging {number} opnemen in de test",
@@ -17283,7 +17574,7 @@
     "estimating": "De tijd en kosten schatten…",
     "sessionQuote": "Tot {cost} (schatting) om {answers, plural, one {# geselecteerd bronvoorbeeld} other {# geselecteerde bronvoorbeelden}} te sorteren. Elke poging daarna duurt ongeveer {minutes, plural, one {# minuut} other {# minuten}} en kost ruwweg {perRound}, met een nieuwe prijsschatting voordat je erop drukt; de limiet van {limit} begrenst de hele sessie.",
     "evidence": "Gebaseerd op {count, plural, one {# antwoord} other {# antwoorden}} met feedback.",
-    "budget": "Uitgavenlimiet van de sessie (USD)",
+    "budget": "Bestedingslimiet van de sessie ({currency})",
     "start": "Beginnen met verbeteren",
     "working": "Nog bezig…",
     "loading": "Het resultaat laden…",
@@ -17880,7 +18171,7 @@
       "search": "Varianten zoeken",
       "searchHint": "De helper schrijft veel versies van de instructies en scoort elk ervan op de trainingsvragen. De beste gaat naar Wijzigingen en wordt dan gecontroleerd zoals elke poging.",
       "tooFew": "Zoeken vereist minstens {needed} trainingsvragen; deze dataset heeft er {count, plural, =0 {geen} =1 {1} other {#}}. Voeg vragen toe of verbeter stap voor stap.",
-      "budget": "Zoekbudget (USD)",
+      "budget": "Zoekbudget ({currency})",
       "budgetHint": "Het zoeken stopt zodra de volgende variant niet meer zou passen. Het kan hoogstens met de ene variant die het aan het scoren is, over het budget gaan.",
       "gradingModel": "Model dat varianten beoordeelt",
       "datasetJudge": "Het beoordelaarsmodel van de dataset",
@@ -17930,7 +18221,9 @@
       "invalid": "De test kon de versies niet betrouwbaar vergelijken. Review de test voordat je conclusies trekt.",
       "noExamples": "Er zijn geen veranderde antwoorden om te tonen. Open de volledige test om elke vraag te zien."
     },
-    "permissionRuns": "Een Improve-sessie lezen vereist runs:view, en die heeft deze rol niet. Vraag een eigenaar van de organisatie om toegang."
+    "permissionRuns": "Een Improve-sessie lezen vereist runs:view, en die heeft deze rol niet. Vraag een eigenaar van de organisatie om toegang.",
+    "changeQuotesCredential": "Deze wijziging citeert inloggegevens en kan niet worden getest of toegepast. Laat haar weg.",
+    "selectionQuotesCredential": "Een gekozen wijziging citeert inloggegevens. Laat haar weg om de andere te testen."
   },
   "unsaved": {
     "title": "Je hebt niet-opgeslagen wijzigingen",
@@ -18024,8 +18317,8 @@
     "calls_per_hour": "Gesprekken per voortschrijdend uur",
     "calls_per_day": "Gesprekken per voortschrijdende 24 uur",
     "max_concurrent": "Gelijktijdige gesprekken",
-    "daily_budget_usd": "Dagelijks telefoniebudget (USD)",
-    "price_per_minute_usd": "Ruim geschat tarief per verbinding/minuut (USD)",
+    "daily_budget_usd": "Dagelijks telefoniebudget ({currency})",
+    "price_per_minute_usd": "Voorzichtig tarief per deel en minuut",
     "costHint": "Reken een marge voor Twilio-kosten en bestemmingen. Volledige minuten en mogelijke doorverbindingen worden vóór het bellen gereserveerd. Modelbudgetten gelden apart; schattingen zijn geen factuur.",
     "transferTargets": "Toegestane contacten voor doorverbinden",
     "saveRouting": "Telefoonroutering opslaan",
@@ -18289,6 +18582,8 @@
     "connectAnother": "Account toevoegen",
     "disconnect": "Ontkoppelen",
     "loadFailed": "Je abonnementsaccounts konden niet worden geladen",
+    "disabledTitle": "Abonnementen zijn hier niet ingeschakeld",
+    "disabledDescription": "Voor deze installatie is geen abonnementsgateway ingesteld. Vraag de beheerder deze in te schakelen voordat je een persoonlijk abonnement koppelt.",
     "retry": "Opnieuw proberen",
     "dialogTitle": "{name} koppelen",
     "deviceHelp": "Open de inlogpagina, voer deze code in en keur goed. Dit venster rondt vanzelf af.",
@@ -18632,7 +18927,7 @@
       "budgetTitle": "Wat is een comfortabele maandlimiet?",
       "budgetGuide": "Jij hebt het AI-gebruik in de hand. Kies een startbedrag of verschuif de schuifregelaar. Ik sla het pas op wanneer je verdergaat.",
       "unlimited": "Geen limiet",
-      "budgetSlider": "Maandbudget in Amerikaanse dollar",
+      "budgetSlider": "Schuifregelaar voor het maandbudget ({currency})",
       "budgetInvalid": "Kies een positief bedrag, of geen limiet.",
       "budgetHint": "Dit begrenst het bijgehouden AI-gebruik over de agents in deze organisatie. Het is geen abonnement of vooraf betaald tegoed. De facturatie van de provider staat daar los van.",
       "workspaceReadyTitle": "Klaar voor je eerste taak",
@@ -18744,6 +19039,46 @@
       "workflowBody": "Koppel tools aan benoemde functies en roep ze aan vanuit Python. Elke actie behoudt de eigen rechten, goedkeuringen en het uitvoeringslogboek.",
       "organizationTitle": "Organisatiestandaarden instellen",
       "organizationBody": "Configureer navigatie, catalogi, dashboard en meldingen per rol en bepaal de zichtbaarheid van kosten. Leden kunnen toegestane opties persoonlijk aanpassen."
+    },
+    "scopes": {
+      "progress": "Voortgang van de configuratie",
+      "stages": "Configuratiefasen",
+      "position": "Fase {current} van {total}",
+      "completed": "Voltooid",
+      "saveFailed": "Je configuratievoortgang kon niet worden opgeslagen. Probeer deze stap opnieuw.",
+      "allDoneTitle": "De configuratie is voltooid",
+      "allDoneHint": "De gedeelde configuratie is voltooid en je persoonlijke voortgang blijft bewaard. Bekijk een fase of open de app.",
+      "openApp": "Open de app",
+      "workspaceTitle": "Maak of kies een organisatie",
+      "workspaceHint": "De implementatie is ingesteld. Kies een bedrijfswerkruimte voor de gedeelde standaardinstellingen en ga daarna door met je persoonlijke configuratie.",
+      "loadFailed": "Configuratie kon niet worden geladen",
+      "deployment": {
+        "title": "Implementatie instellen",
+        "hint": "Gedeeld voor deze hele implementatie. Een applicatiebeheerder voltooit deze fase één keer.",
+        "short": "Implementatie"
+      },
+      "organization": {
+        "title": "Organisatie instellen",
+        "hint": "Gedeeld voor deze organisatie. Eén bevoegde persoon voltooit deze fase voor het team.",
+        "short": "Organisatie"
+      },
+      "personal": {
+        "title": "Je persoonlijke configuratie",
+        "hint": "Je profiel, verbindingen en voorkeuren. Deze voortgang is van jou.",
+        "short": "Persoonlijk"
+      },
+      "modelsShared": "Optionele gedeelde toegang tot providers hoort in de Vault met zichtbaarheid voor de organisatie. Deze stap wijzigt je persoonlijke modelkeuze niet.",
+      "toolsShared": "Optionele gedeelde toegang tot tools gebruikt MCP-verbindingen van de organisatie. Verbind privéaccounts later tijdens je persoonlijke configuratie.",
+      "openVault": "Open de Vault",
+      "openConnections": "Open MCP-verbindingen",
+      "returnToSetup": "De pagina opent in een nieuw tabblad. Keer daarna terug naar deze configuratie.",
+      "resourcesPermission": "Je hebt geen toestemming om deze gedeelde bronnen te bekijken. Je kunt doorgaan; een bevoegde persoon kan ze later configureren.",
+      "sharedReview": "Deze gedeelde fase is voltooid. Je geopende formulier blijft beschikbaar om te controleren. Ga verder wanneer je het wilt verlaten.",
+      "continueReview": "Ga naar de volgende fase",
+      "stageCompleted": "{stage} — Voltooid",
+      "continueShort": "Doorgaan",
+      "skipShort": "Overslaan",
+      "finishShort": "Afronden"
     }
   },
   "skillImprovement": {
@@ -18873,7 +19208,7 @@
       "continue": "Ermee verdergaan",
       "hidden": "{count, plural, =1 {Nog 1 agent die je niet kunt zien, gebruikt deze lijn.} other {Nog # agents die je niet kunt zien, gebruiken deze lijn.}}",
       "price": "Tot {cost} (schatting) tot het eerste voorstel; elke poging daarna ongeveer {perRound}, tot {rounds, plural, =1 {1 poging} other {# pogingen}}. De limiet van {limit} begrenst de hele sessie.",
-      "limit": "Uitgavenlimiet voor de hele sessie (USD)",
+      "limit": "Bestedingslimiet voor de hele sessie ({currency})",
       "limitHint": "Vooraf ingevuld voor het eerste voorstel en elke poging die het kan doen. Verlaag de limiet om eerder te stoppen; de sessie stopt vóór een stap die erover zou gaan.",
       "belowEstimate": "De limiet ligt onder wat de sessie kost tot het eerste voorstel, {cost}. Verhoog ze tot minstens dat bedrag.",
       "unaffordable": "Het budget van de organisatie dekt dit niet.",
@@ -18886,8 +19221,9 @@
     "understand": {
       "title": "Begrijpen",
       "loading": "Lezen wat er misging…",
-      "summary": "{count, plural, =0 {Geen probleem met de skill gevonden} =1 {1 probleem met de skill} other {# problemen met de skill}}{elsewhere, plural, =0 {} other {, # antwoorden waarvan het probleem elders ligt}}{fine, plural, =0 {} other {, # die in orde waren}}.",
+      "summary": "{count, plural, =0 {Geen probleem met de skill gevonden} =1 {1 probleem met de skill} other {# problemen met de skill}}{elsewhere, plural, =0 {} =1 {, 1 antwoord waarvan het probleem elders ligt} other {, # antwoorden waarvan het probleem elders ligt}}{fine, plural, =0 {} =1 {, 1 die in orde was} other {, # die in orde waren}}.",
       "usageUnknown": "{count, plural, =1 {1 antwoord dateert van voordat het laden van skills werd vastgelegd en wordt niet meegeteld.} other {# antwoorden dateren van voordat het laden van skills werd vastgelegd en worden niet meegeteld.}}",
+      "seedWithheld": "{count, plural, =1 {1 probleem uit de sessie van de agent is weggelaten: het citeert een antwoord op een vraag die de controle van deze skill beoordeelt.} other {# problemen uit de sessie van de agent zijn weggelaten: ze citeren antwoorden op vragen die de controle van deze skill beoordeelt.}}",
       "agent": "{name} ({runs})",
       "occursIn": "In {runs, plural, =1 {1 antwoord} other {# antwoorden}}, bij {agents}{hidden, plural, =0 {} =1 { en 1 agent die je niet kunt zien} other { en # agents die je niet kunt zien}}.",
       "hiddenExamples": "{count, plural, =1 {+1 verborgen voorbeeld} other {+# verborgen voorbeelden}}"
@@ -18997,7 +19333,7 @@
       "agents": "{count, plural, =0 {Geen agent die je kunt zien, leest deze lijn.} =1 {1 agent controleert het resultaat.} other {# agents controleren het resultaat.}}",
       "hidden": "{count, plural, =1 {Nog 1 agent die je niet kunt zien, leest deze lijn.} other {Nog # agents die je niet kunt zien, lezen deze lijn.}}",
       "price": "De teksten voor de conflicten voorstellen kost ongeveer {cost}. De prijsschatting voor de controle zie je bij Wijzigingen.",
-      "limit": "Uitgavenlimiet voor de sessie (USD)",
+      "limit": "Bestedingslimiet voor de sessie ({currency})",
       "limitHint": "Je kunt de limiet verhogen bij Wijzigingen, wanneer je de prijsschatting voor de controle ziet.",
       "unaffordable": "Het budget van de organisatie dekt dit niet.",
       "start": {
@@ -22066,6 +22402,22 @@
       "preview": "Alleen een voorbeeld van de indeling. Gegevens en rechten worden bij het openen per persoon bepaald.",
       "empty": "Deze rolstandaard bevat bewust geen kaarten.",
       "discard": "Wijzigingen verwerpen"
+    },
+    "rolePreview": {
+      "open": "Consolevoorbeeld openen",
+      "hint": "Rolstandaarden vóór persoonlijke keuzes. Navigatie gebruikt je huidige concept; dashboard, catalogi en meldingen gebruiken opgeslagen instellingen. Kaarten laden geen privégegevens.",
+      "navigation": "Navigatie",
+      "dashboard": "Dashboard",
+      "catalogs": "Catalogi",
+      "emptyDashboard": "Er worden geen dashboardkaarten getoond.",
+      "emptyNavigation": "Er worden geen hoofdnavigatie-items getoond.",
+      "wholeCatalog": "Alle items die bestaande rechten toestaan",
+      "approvedLimit": "{count, plural, =0 {Geen items} one {Maximaal # goedgekeurd item} other {Maximaal # goedgekeurde items}}",
+      "mcp_galleryAvailable": "Alleen door de organisatie verbonden servers",
+      "skill_galleryAvailable": "Alleen zichtbare geïnstalleerde Skills",
+      "shown": "Zichtbaar",
+      "hidden": "Verborgen",
+      "unavailable": "Niet beschikbaar met deze rechten"
     }
   },
   "modelSources": {
@@ -22117,6 +22469,49 @@
     "inProgress": "Bezig",
     "unknown": "Niet beschikbaar",
     "otherStep": "Configuratie"
+  },
+  "modelPricing": {
+    "title": "Prijzen",
+    "automaticAvailable": "Indicatieve automatische tarieven in USD per miljoen tokens. Het werkelijke tarief kan afhangen van verbruiksschijven of het door de provider gefactureerde bedrag.",
+    "automaticUnavailable": "Automatische tokenprijzen zijn niet beschikbaar. Na een aanvraag kan het door de provider gemelde bedrag wel worden vastgelegd.",
+    "input": "Invoertokens",
+    "output": "Uitvoertokens",
+    "cache_read": "Tokens gelezen uit de cache",
+    "cache_write": "Tokens geschreven naar de cache",
+    "cacheDefault": "Laat leeg om de invoerprijs te gebruiken.",
+    "overrideCurrency": "Aangepaste prijzen gebruiken (per miljoen tokens)",
+    "currency": "Prijsvaluta"
+  },
+  "currencies": {
+    "title": "Valuta en wisselkoersen",
+    "manualRates": "Voer het aantal valuta-eenheden per 1 USD in. Je stelt de koersen handmatig in. Geregistreerde kosten behouden de koers die gold toen ze werden gemaakt.",
+    "deploymentDefault": "Standaardvaluta voor organisaties",
+    "rate": "{currency} per USD",
+    "remove": "{currency} verwijderen",
+    "code": "Valutacode",
+    "newRate": "Eenheden per USD",
+    "add": "Valuta toevoegen",
+    "reset": "Standaardwaarden uit de omgeving gebruiken",
+    "organization": "Organisatievaluta",
+    "organizationHint": "Gebruik de standaardvaluta van de implementatie of kies een rapportagevaluta. Bestaande prijzen en limieten behouden hun oorspronkelijke eenheden.",
+    "inherit": "Overnemen ({currency})",
+    "rateUnavailable": "{currency} (wisselkoers niet beschikbaar)",
+    "loadFailed": "Valuta-instellingen konden niet worden geladen",
+    "retry": "Opnieuw proberen",
+    "saveFailed": "De valuta kon niet worden opgeslagen",
+    "amountInvalid": "Voer een geldig, niet-negatief bedrag in de rapportagevaluta in.",
+    "budgetLabel": "Budget ({currency})",
+    "limitLabel": "Limiet ({currency})",
+    "perMinuteLabel": "Prijs per minuut ({currency})",
+    "quoteHint": "Rapportagekoers: 1 USD = {rate} {currency}. Deze blijft vast tot de valutavoorkeur verandert; nieuwe modelkosten gebruiken de actuele prijskoersen.",
+    "spentOfLimit": "Deze maand {spent} van {limit} besteed.",
+    "spentNoLimit": "Deze maand {spent} besteed. Geen limiet.",
+    "amountPositive": "Voer een bedrag groter dan nul in.",
+    "amountMaximum": "Voer maximaal {amount} {currency} in.",
+    "switchOrganizationHint": "Schakel naar deze organisatie voordat u de limieten wijzigt. Rechten, uitgaven en rapportagekoers moeten bij dezelfde organisatie horen.",
+    "switchOrganization": "Naar deze organisatie schakelen",
+    "criterionLimit": "Kosten ≤ {amount}",
+    "criterionObserved": "Gemeten: {amount}; limiet: {limit}."
   },
   "portability": {
     "exportTitle": "Agent exporteren",
@@ -22245,6 +22640,7 @@
       "context_gone": "Het contextbestand bestaat niet meer.",
       "no_edit_context": "Wie dit heeft gestart, mag het contextbestand niet meer bewerken.",
       "unknown_skill_use": "Van geen enkele run in deze periode is bekend dat hij de skill heeft gebruikt. {runs, plural, one {# negatief beoordeelde of mislukte run is van voordat gebruik werd vastgelegd, dus of hij de skill gebruikte, is onbekend.} other {# negatief beoordeelde of mislukte runs zijn van voordat gebruik werd vastgelegd, dus of ze hem gebruikten, is onbekend.}}",
+      "hidden_characters": "De voorgestelde tekst bevat tekens die je niet kunt zien, dus hij is niet opgeslagen. Vraag het opnieuw.",
       "no_evidence": "Nog niets om van te leren: geen enkele run in deze periode is beoordeeld of mislukt. Verruim de periode, of kom terug als er antwoorden zijn beoordeeld.",
       "key_revoked": "De API-sleutel waarmee dit is gestart, is ingetrokken of bestaat niet meer, dus het is gestopt.",
       "not_a_member": "Wie dit heeft gestart, is geen lid meer.",

@@ -1,5 +1,5 @@
 ---
-source_sha: "80da2d54c72a"
+source_sha: "5a8cc4116f25"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -188,13 +188,31 @@ wiederverwendeten Baseline. Tatsächliche Kosten können abweichen. Jede
 Modellanfrage unterliegt weiterhin den Monatsbudgets; ein erschöpftes Budget
 beendet den Run als `budget_exceeded`.
 
-Ein Start kann `total_usd` als `quoted_usd` und die geschätzte
-`dataset_version` übergeben. Ist die aktuelle Startschätzung höher, lehnt der
-Server mit `409` ab. Der Architect übergibt beide Werte; die Freigabekarte zeigt
-das Angebot. Dies vergleicht Schätzungen und begrenzt nicht die endgültige
-Rechnung des Anbieters. Skill-Update-Prüfungen, Wissensentwürfe und Promotion-
-Wächter akzeptieren ebenfalls `quoted_usd`; `GET .../gate/estimate` bepreist die
-noch zu startenden Wächter.
+Ein Start kann `at_most_usd` aus der Schätzung (erste Antworten, Bewertung und alle
+Wiederholungen) als `quoted_usd` zurückgeben und `dataset_version` aus der Schätzung
+dazu. Der Start lehnt dann mit `409` ab, sobald der Run mehr als dieses Angebot
+kosten könnte. Der Startdialog der Konsole und der Architect übergeben immer beides,
+und die Freigabekarte des Architect zeigt diesen Preis. Dies vergleicht Schätzungen
+und begrenzt nicht die endgültige Rechnung des Anbieters. Skill-Update-Prüfungen,
+Wissensentwürfe und die Wächter einer Promotion-Schranke nehmen `quoted_usd` genauso,
+und `GET .../gate/estimate` bepreist die Wächter, die ein Lauf der Schranke starten würde.
+
+Der Run behält diesen Preis. Runs mit Angebot führen jeweils nur einen Versuch
+samt Bewertung aus; Runs ohne Angebot behalten ihre konfigurierte Parallelität.
+Vor der nächsten Antwort vergleicht der Worker die erfassten Ausgaben plus die
+Schätzung für Antwort und Bewertung mit dem Angebot. Vor einer kostenpflichtigen
+Bewertung addiert er außerdem die eingefrorene Bewertungsschätzung, die Rubrik,
+Referenz und fallspezifische Richterkriterien gemeinsam umfasst. Bestätigende
+Wiederholungen über dem Angebot werden nicht eingereiht. Eine Suite verwendet
+entsprechend ihre Grenze, eine Skill-Prüfungsstufe den vom vorherigen Schritt
+übrigen akzeptierten Höchstbetrag des Agenten.
+
+Ein gestoppter Run endet als `budget_exceeded`, behält Antworten und Bewertungen
+und nennt den akzeptierten Preis in Fehler und Benachrichtigung. Eine laufende
+Antwort oder Bewertung kann teurer als geschätzt sein und das Angebot übersteigen.
+Dies begrenzt den Start von Versuchen, nicht jede Anbieteranfrage: eine Antwort
+kann mehrere Modell- oder Werkzeuganfragen enthalten. Eine harte Grenze je
+Anbieteranfrage ist hier nicht implementiert.
 
 Ein eingereihter Wissensentwurf behält sein Angebot. Der Worker prüft die
 Schätzung vor Abruf oder Modellarbeit erneut und lehnt einen höheren oder
@@ -203,7 +221,8 @@ unbekannten Preis ab. Bestehende Clients und Jobs ohne Angebot bleiben unveränd
 Auch die geschätzte Ausgabengrenze einer Suite enthält Wiederholungen und bei
 Paaren beide Seiten. Die erste Veröffentlichungsschätzung enthält die bestehende
 Version als Baseline der nächsten Veröffentlichung, selbst bei nur einer Version.
-Diese Grenze entscheidet nur über den Start; sie stoppt keinen laufenden Test.
+Der Run behält die Grenze als seinen Preis und wird während des Laufs daran
+gehalten, wie ein Run mit Angebot.
 Jeder positive Kosten- oder Latenzanstieg von einer Baseline von null überschreitet
 jede Prozentgrenze.
 
@@ -235,7 +254,9 @@ Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingab
 
 Eine Verbesserungssitzung fixiert Dataset-Version, Kontrollanteil und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats, neue Fälle und ein geänderter Kontrollanteil ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
 
-Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat. Der Kontext früherer Versuche enthält begrenzte Auszüge aus höchstens sechs zuletzt gemessenen Versuchen, damit lange Änderungen an Anweisungen oder Skill-Inhalten nicht den Prompt des nächsten Vorschlags füllen.
+Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Von jedem früheren Versuch liest er das Urteil und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat, nie, was der Versuch geändert hat: Jeder Versuch legt seine eigenen Fragen zurück, neu gezogen, sodass eine frühere Änderung aus Fragen entstanden sein kann, an denen dieser Versuch gemessen wird.
+
+Die Kriterien, die ein früherer Versuch bewegt hat, zählen nur auf den Lernfragen dieses Versuchs; hat seine Prüfung keine davon bewertet, erfährt der Helfer das, statt Nullen zu sehen. Gelesen werden höchstens sechs zuletzt gemessene Versuche.
 
 Eine menschliche Entscheidung und **Entscheidung zurücknehmen** verwerfen abhängige Run-Vergleiche und berechnen gespeicherte Suite-Ergebnisse in derselben Transaktion neu. Run, Suite, Umgebungsschranke und Beförderungsdialog zeigen das korrigierte Urteil und die prüfende Person. Das Audit hält alte und neue Zustände sowie Zählwerte fest; ein geändertes Suite-Urteil erzeugt eine neue Benachrichtigung. Namen werden aus der aktuellen Organisationsmitgliedschaft aufgelöst und nicht in aufbewahrte Ergebnisse kopiert.
 
@@ -259,12 +280,22 @@ Organisation verlassen, den Zugriff auf den Agent oder das Dataset verloren oder
 wurde ihr Schlüssel widerrufen, schlägt der Run fehl, bevor er einen weiteren
 Fall beantwortet.
 
-Jeder Fall läuft **isoliert**, wie [Umgebungen](environments.md) beschreibt:
-Ein Tool mit einer Testverbindung in der Umgebung des Runs läuft gegen diese,
-ein Tool, von dem bekannt ist, dass es nur liest, läuft auf der normalen
-Verbindung, und alles, was ohne Testverbindung schreibt, wird nicht ausgeführt
-- der Aufruf und seine Argumente werden als beabsichtigter Aufruf behalten, den
-das Trajektorie-Scoring trotzdem bewertet.
+Jeder Fall läuft **isoliert**, wie [Umgebungen](environments.md#in-an-eval)
+beschreibt: Ein Tool mit einer Testverbindung in der Umgebung des Runs läuft
+gegen diese, ein Lesezugriff auf die eigenen Daten dieses Deployments läuft auf
+der normalen Verbindung, und alles, was schreibt oder von außerhalb des
+Deployments liest, wird nicht ausgeführt - der Aufruf und seine Argumente werden
+als beabsichtigter Aufruf behalten, den das Trajektorie-Scoring trotzdem
+bewertet.
+
+Das gilt auch für das Web. **Ein Eval eines Agents, der Seiten abruft, im Web
+sucht oder an den Agent eines anderen Systems delegiert, tut nichts davon
+live**: Das Modell erfährt, dass das Tool in einem isolierten Run nicht
+verfügbar ist, und antwortet ohne es. Ein Fall, der aus seiner Aufzeichnung
+beantwortet wird (siehe unten), bekommt weiterhin, was der ursprüngliche Run
+abgerufen hat. Der Bewerter ist nicht betroffen: Er liest nur die Wissensbasen,
+Context-Dateien und Skills, die die Plattform ihm übergibt, und all das bleibt
+drinnen.
 
 Jeder isolierte Versuch erhält einen temporären Workspace für seinen eigenen
 Run, auch wenn der Agent Dateien sonst pro Unterhaltung, Benutzer oder Agent
@@ -275,7 +306,9 @@ Ein Fall aus einer Conversation kann **aus der Aufzeichnung** des Runs
 beantwortet werden, aus dem er stammt (`from_recordings`): Ein Aufruf, der zur
 Aufzeichnung passt, bekommt das aufgezeichnete Ergebnis, einer, der nicht
 passt, wird zurückgehalten und als abweichend markiert. Ein Fall ohne
-verwendbare Aufzeichnung läuft isoliert ohne sie.
+verwendbare Aufzeichnung läuft isoliert ohne sie. Das Skript eines Agents im
+Code-Modus läuft erneut, und jeder Aufruf, den es macht, wird aus der
+Aufzeichnung beantwortet; der Fall führt diese Aufrufe unter dem Skript auf.
 
 ### Ein Entwurf zählt nie als Version { #a-draft-is-never-counted-as-a-version }
 
@@ -360,8 +393,9 @@ Jeder Versuch geht auf eine von vier Arten aus (`state` am Versuch):
   durchfallen lässt, auch wenn die Wiederholungen des Falls bestehen;
 - **unvollständig**, wenn der Provider nach seinen Wiederholungen gescheitert
   ist (ein Fehler 5xx, 408 oder 429 oder gar keine Antwort), ein Bewerter eine
-  Ausnahme geworfen hat, der Run abgebrochen wurde oder das Budget ausging, oder
-  seine Versuche unentschieden ausgingen;
+  Ausnahme geworfen hat, der Run abgebrochen wurde, das Budget ausging oder der
+  Run den Preis erreichte, mit dem er gestartet wurde, oder seine Versuche
+  unentschieden ausgingen;
 - Bewertung ohne erforderlichen Scorer, der einen Fall entscheiden kann: ergänze eine Prüfung, einen erwarteten Werkzeugaufruf oder Bewertungskriterien;
 
 Keiner der letzten beiden ist je bestanden; die Zusammenfassung zählt sie

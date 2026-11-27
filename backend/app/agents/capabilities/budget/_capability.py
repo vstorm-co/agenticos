@@ -28,7 +28,7 @@ total as a floor.
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Generator
+from collections.abc import Awaitable, Callable, Generator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from copy import copy
@@ -46,7 +46,9 @@ from pydantic_ai.models import ModelRequestContext
 from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
 
 from app.agents.model_resolver import otari_price_identity
+from app.core.currency import difference_usd, sum_usd
 from app.core.exceptions import BadRequestError
+from app.schemas.token_pricing import TokenPricing
 
 logger = logging.getLogger(__name__)
 
@@ -149,11 +151,17 @@ UNMETERED_PROVIDERS = frozenset(
 
 
 def price_request(
-    usage: RequestUsage | RunUsage, model_name: str, provider: str | None
+    usage: RequestUsage | RunUsage,
+    model_name: str,
+    provider: str | None,
+    *,
+    custom_pricing: TokenPricing | None = None,
+    exchange_rates: Mapping[str, Decimal] | None = None,
 ) -> Decimal | None:
     """What one model request cost, or `None` if the model is not priced.
 
-    Uses a validated provider-reported USD amount when available, otherwise
+    A profile override takes precedence, including an explicit zero. Without
+    one, uses a validated provider-reported USD amount when available, otherwise
     delegates to `genai-prices`, which Pydantic maintains and which the
     Pydantic AI stack already depends on. This used to be a hand-written table
     of nine models, and the table was wrong: Gemini 2.5 Pro charges
@@ -189,11 +197,22 @@ def price_request(
             back to another provider reports a model this hint does not match,
             so resolution is retried without it rather than mispricing.
     """
+    if custom_pricing is not None:
+        return custom_pricing.usd_cost(usage, exchange_rates)
+    if _profile_requests(usage, "profile_priced_requests"):
+        native = usage.cost
+        return (
+            native if isinstance(native, Decimal) and native.is_finite() and native >= 0 else None
+        )
+    if _profile_requests(usage, "profile_unpriced_requests"):
+        return None
     if provider in UNMETERED_PROVIDERS:
         # Subscription allowances have no verified per-token USD contract.
         return None
     if (reported := _provider_reported_cost(usage)) is not None:
         return reported
+    if _profile_requests(usage, "provider_unpriced_requests"):
+        return None
     for name, provider_id in _price_lookups(model_name, provider):
         try:
             return calc_price(usage, name, provider_id=provider_id).total_price
@@ -203,6 +222,11 @@ def price_request(
             logger.warning("Refused to price %s from usage %r", model_name, usage)
             return None
     return None
+
+
+def _profile_requests(usage: RequestUsage | RunUsage, field: str) -> int:
+    count = getattr(usage, field, 0)
+    return count if isinstance(count, int) and not isinstance(count, bool) and count > 0 else 0
 
 
 def _reported_requests(usage: RequestUsage | RunUsage) -> int:
@@ -318,6 +342,9 @@ class SpendEntry:
     no delegated row: :meth:`SpendLedger.billed_share_of` never reads `None`.
     """
 
+    custom_pricing: bool = False
+    """Whether a profile override supplied this entry, including invalid usage."""
+
 
 @dataclass(frozen=True)
 class SpendShare:
@@ -364,7 +391,7 @@ class SpendLedger:
 
     @property
     def total_usd(self) -> Decimal:
-        return sum((entry.cost_usd for entry in self.entries), Decimal(0))
+        return sum_usd(entry.cost_usd for entry in self.entries)
 
     @property
     def input_tokens(self) -> int:
@@ -439,7 +466,7 @@ class SpendLedger:
         """
         mine = [entry for entry in self.entries if matches(entry)]
         return SpendShare(
-            cost_usd=sum((entry.cost_usd for entry in mine), Decimal(0)),
+            cost_usd=sum_usd(entry.cost_usd for entry in mine),
             input_tokens=sum(entry.input_tokens for entry in mine),
             output_tokens=sum(entry.output_tokens for entry in mine),
             cache_read_tokens=sum(entry.cache_read_tokens for entry in mine),
@@ -477,8 +504,14 @@ class SpendLedger:
             if provider in {"github_copilot", "github-copilot"}
             else _provider_reported_cost(usage)
         )
+        custom_requests = _profile_requests(usage, "profile_priced_requests")
+        custom_unpriced = _profile_requests(usage, "profile_unpriced_requests")
         reported_requests = _reported_requests(usage)
-        incomplete = reported is not None and 0 < reported_requests < usage.requests
+        incomplete = (
+            custom_unpriced > 0
+            or _profile_requests(usage, "provider_unpriced_requests") > 0
+            or (0 < custom_requests + reported_requests < usage.requests)
+        )
         if cost is None:
             logger.warning("No price for model %s - run cost will be under-reported", model_name)
         elif incomplete:
@@ -492,7 +525,8 @@ class SpendLedger:
                 output_tokens=usage.output_tokens or 0,
                 cost_usd=cost if cost is not None else Decimal(0),
                 priced=cost is not None and not incomplete,
-                provider_reported=reported is not None,
+                custom_pricing=custom_requests + custom_unpriced > 0,
+                provider_reported=reported is not None and custom_requests + custom_unpriced == 0,
                 # The split the price was computed from, kept so a run can be
                 # reconciled with a provider's console (#2170).
                 cache_read_tokens=usage.cache_read_tokens or 0,
@@ -631,7 +665,13 @@ def guarded_by(guard: BudgetGuard) -> Generator[None]:
         _active_guard.reset(token)
 
 
-def require_ambient_price(provider: str, model_name: str) -> None:
+def require_ambient_price(
+    provider: str,
+    model_name: str,
+    *,
+    custom_pricing: TokenPricing | None = None,
+    exchange_rates: Mapping[str, Decimal] | None = None,
+) -> None:
     """Refuse a price-dependent provider request when a USD ceiling cannot be enforced.
 
     Called by providers whose new model IDs have no reviewed price snapshot.
@@ -640,9 +680,21 @@ def require_ambient_price(provider: str, model_name: str) -> None:
     guard = _active_guard.get()
     if guard is None or not guard.limits:
         return
+    probe = RequestUsage(input_tokens=1, output_tokens=1)
+    if custom_pricing is not None:
+        # Input includes cached tokens. Probe one token in each billing category.
+        probe = RequestUsage(
+            input_tokens=3, output_tokens=1, cache_read_tokens=1, cache_write_tokens=1
+        )
     if (
         guard.ledger.has_unpriced_models
-        or price_request(RequestUsage(input_tokens=1, output_tokens=1), model_name, provider)
+        or price_request(
+            probe,
+            model_name,
+            provider,
+            custom_pricing=custom_pricing,
+            exchange_rates=exchange_rates,
+        )
         is None
     ):
         raise BadRequestError(
@@ -772,6 +824,10 @@ class UsageSnapshot:
     cost: Decimal | None
     requests: int
     reported_requests: int
+    profile_priced_requests: int = 0
+    profile_unpriced_requests: int = 0
+    unmeasured_requests: int = 0
+    provider_unpriced_requests: int = 0
 
 
 def usage_counts(usage: RunUsage) -> UsageSnapshot:
@@ -789,6 +845,10 @@ def usage_counts(usage: RunUsage) -> UsageSnapshot:
         cost=usage.cost,
         requests=usage.requests,
         reported_requests=_reported_requests(usage),
+        profile_priced_requests=_profile_requests(usage, "profile_priced_requests"),
+        profile_unpriced_requests=_profile_requests(usage, "profile_unpriced_requests"),
+        unmeasured_requests=usage.unmeasured_requests,
+        provider_unpriced_requests=_profile_requests(usage, "provider_unpriced_requests"),
     )
 
 
@@ -803,9 +863,13 @@ def usage_delta(before: UsageSnapshot, usage: RunUsage) -> RunUsage | None:
     if after == before:
         return None
     reported_requests = after.reported_requests - before.reported_requests
+    profile_priced = after.profile_priced_requests - before.profile_priced_requests
+    profile_unpriced = after.profile_unpriced_requests - before.profile_unpriced_requests
+    provider_unpriced = after.provider_unpriced_requests - before.provider_unpriced_requests
     cost = (
-        after.cost - (before.cost or Decimal(0))
-        if after.cost is not None and (after.cost != before.cost or reported_requests > 0)
+        difference_usd(after.cost, before.cost or Decimal(0))
+        if after.cost is not None
+        and (after.cost != before.cost or reported_requests > 0 or profile_priced > 0)
         else None
     )
     delta = RunUsage(
@@ -814,10 +878,17 @@ def usage_delta(before: UsageSnapshot, usage: RunUsage) -> RunUsage | None:
         cache_read_tokens=after.cache_read_tokens - before.cache_read_tokens,
         cache_write_tokens=after.cache_write_tokens - before.cache_write_tokens,
         requests=after.requests - before.requests,
+        unmeasured_requests=after.unmeasured_requests - before.unmeasured_requests,
         cost=cost,
     )
     if reported_requests > 0:
         setattr(delta, "provider_reported_requests", reported_requests)  # noqa: B010 - SDK extra usage counter
+    if profile_priced > 0:
+        setattr(delta, "profile_priced_requests", profile_priced)  # noqa: B010 - SDK usage counter
+    if profile_unpriced > 0:
+        setattr(delta, "profile_unpriced_requests", profile_unpriced)  # noqa: B010 - SDK usage counter
+    if provider_unpriced > 0:
+        setattr(delta, "provider_unpriced_requests", provider_unpriced)  # noqa: B010 - SDK usage counter
     return delta
 
 
@@ -979,10 +1050,15 @@ class BudgetGuard(AbstractCapability[Any]):
         async with self.run_state.check:
             run_total = self.ledger.total_usd
             for limit in self.limits:
-                spent = await self._baseline_for(limit) + run_total
-                if spent >= limit.limit_usd or spent + cost_usd > limit.limit_usd:
+                spent = sum_usd((await self._baseline_for(limit), run_total))
+                if spent >= limit.limit_usd or sum_usd((spent, cost_usd)) > limit.limit_usd:
                     return limit
         return None
+
+    def _unpriced_override(self) -> bool:
+        return bool(self.limits) and any(
+            entry.custom_pricing and not entry.priced for entry in self.ledger.entries
+        )
 
     async def assert_within_budget(self) -> None:
         """Refuse the next request if the run has already reached a ceiling.
@@ -994,9 +1070,14 @@ class BudgetGuard(AbstractCapability[Any]):
         Raises:
             BudgetExceeded: A ceiling this run is under has been reached.
         """
+        if self._unpriced_override():
+            raise BadRequestError(
+                message="This request cannot enforce the active dollar budget because earlier custom-priced usage is incomplete. Start a new run with valid usage counts.",
+                details={"code": "CUSTOM_PRICING_INCOMPLETE"},
+            )
         limit = await self._first_exceeded()
         if limit is not None:
-            spent = await self._baseline_for(limit) + self.ledger.total_usd
+            spent = sum_usd((await self._baseline_for(limit), self.ledger.total_usd))
             raise BudgetExceeded(
                 limit_usd=limit.limit_usd,
                 spent_usd=spent,
@@ -1017,7 +1098,7 @@ class BudgetGuard(AbstractCapability[Any]):
         two calls priced at once can each fit and together pass the cap, which is
         the overshoot :class:`RunSpendState` already accepts for concurrent work.
         """
-        return await self._first_exceeded(cost_usd) is None
+        return not self._unpriced_override() and await self._first_exceeded(cost_usd) is None
 
     async def headroom(self) -> Decimal | None:
         """How much this run may still spend before the tightest cap binds, or `None` uncapped.
@@ -1030,7 +1111,10 @@ class BudgetGuard(AbstractCapability[Any]):
         async with self.run_state.check:
             remaining: Decimal | None = None
             for limit in self.limits:
-                left = limit.limit_usd - (await self._baseline_for(limit) + self.ledger.total_usd)
+                left = difference_usd(
+                    limit.limit_usd,
+                    sum_usd((await self._baseline_for(limit), self.ledger.total_usd)),
+                )
                 remaining = left if remaining is None else min(remaining, left)
         return None if remaining is None else max(remaining, Decimal(0))
 
@@ -1055,7 +1139,8 @@ class BudgetGuard(AbstractCapability[Any]):
         await self.assert_within_budget()
 
         try:
-            response = await handler(request_context)
+            with guarded_by(self):
+                response = await handler(request_context)
         except RefusedAfterAnswer as refused:
             if refused.response is not None:
                 self._record(refused.response)

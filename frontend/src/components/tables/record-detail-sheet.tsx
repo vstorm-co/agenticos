@@ -314,12 +314,7 @@ export function RecordDetailSheet({
         )}
         {record && canEdit && (
           <div className="border-border mt-auto border-t px-4 py-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-destructive"
-              onClick={() => setConfirmingDelete(true)}
-            >
+            <Button variant="destructive-ghost" size="sm" onClick={() => setConfirmingDelete(true)}>
               <Trash2 className="size-3.5" /> {t("delete")}
             </Button>
             <ConfirmDialog

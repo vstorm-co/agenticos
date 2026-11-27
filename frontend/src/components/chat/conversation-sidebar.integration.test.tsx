@@ -138,6 +138,7 @@ beforeEach(() => {
   useAuthStore.setState({ user: null });
   useChatListPreferencesStore.setState({ groupedByUser: {} });
   useChatSidebarStore.getState().close();
+  useChatPanelStore.setState({ browserOpen: false, filesOpen: false });
   urlParams = new URLSearchParams();
   window.history.replaceState({}, "", "/chat");
   useConversationStore.getState().reset();
@@ -1256,6 +1257,57 @@ describe("sidebar layout previews", () => {
     mount();
     await within(list()).findByRole("button", { name: /^Quarterly numbers$/ });
     expect(list()).toHaveAttribute("data-conversation-sidebar", "workspace");
+  });
+});
+
+describe("making temporary room for Browser", () => {
+  it("collapses wide desktop lists but respects reopening throughout the Browser session", async () => {
+    const bounds = vi
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockReturnValue(new DOMRect(0, 0, 1500, 800));
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Collapse conversations sidebar" });
+      act(() => useChatPanelStore.getState().setBrowserOpen(true));
+      await userEvent.click(screen.getByRole("button", { name: "Expand conversations sidebar" }));
+      act(() => useChatPanelStore.getState().setBrowserOpen(true));
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+      act(() => useChatPanelStore.getState().setBrowserOpen(false));
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+      act(() => useChatPanelStore.getState().setBrowserOpen(true));
+      expect(screen.getByRole("button", { name: "Expand conversations sidebar" })).toBeVisible();
+    } finally {
+      act(() => useChatPanelStore.getState().setBrowserOpen(false));
+      bounds.mockRestore();
+    }
+  });
+
+  it("keeps a deliberate collapse when Browser closes", async () => {
+    mount();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Collapse conversations sidebar" }),
+    );
+    act(() => useChatPanelStore.getState().setBrowserOpen(true));
+    act(() => useChatPanelStore.getState().setBrowserOpen(false));
+    expect(screen.getByRole("button", { name: "Expand conversations sidebar" })).toBeVisible();
+  });
+
+  it("leaves the phone conversation drawer open", async () => {
+    const previousWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 393 });
+    try {
+      mount();
+      await screen.findByRole("button", { name: "Collapse conversations sidebar" });
+      act(() => useChatSidebarStore.getState().open());
+      act(() => useChatPanelStore.getState().setBrowserOpen(true));
+      expect(useChatSidebarStore.getState().isOpen).toBe(true);
+      act(() => useChatSidebarStore.getState().close());
+      expect(screen.getByRole("button", { name: "Collapse conversations sidebar" })).toBeVisible();
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: previousWidth });
+      act(() => useChatPanelStore.getState().setBrowserOpen(false));
+      act(() => useChatSidebarStore.getState().close());
+    }
   });
 });
 

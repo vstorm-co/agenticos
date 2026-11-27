@@ -47,6 +47,7 @@ def _group(name: str = "Finance") -> SimpleNamespace:
         description=None,
         icon=None,
         monthly_budget_usd=None,
+        monetary_terms={},
         created_at=NOW,
     )
 

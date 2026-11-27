@@ -10,11 +10,17 @@ What it decides, per call:
 
 * **A tool with a test connection runs.** An environment can answer a binding
   with a test system (a sandbox CRM, a test mailbox); the call goes there.
-* **A read-only tool runs** on the normal connection. Capability tools declare
-  `read_only` in the registry. An MCP tool's `readOnlyHint` is its server's own
-  claim, so it counts only on a connection set to trust it.
-* **Anything else is blocked and recorded** as an intended call - the tool and
-  its arguments - which is what trajectory scoring judges. A tool that declares
+* **A read that stays inside the deployment runs** on the normal connection: a
+  registry tool listed in `LIVE_IN_ISOLATION`, or an MCP tool whose server says
+  it only reads (`readOnlyHint`) a closed world (`openWorldHint: false`) on a
+  connection set to trust what that server says.
+* **A read that reaches further is blocked and recorded.** Isolated runs execute
+  text nobody has reviewed yet - an Improve search's variants, a skill proposal
+  under check - and a read that dereferences a URL, queries a search engine or
+  asks a remote agent sends whatever the model puts into it. Being read-only
+  does not make a tool safe to run here; being on the list does.
+* **A write is blocked and recorded** as an intended call - the tool and its
+  arguments - which is what trajectory scoring judges. A tool that declares
   nothing writes.
 
 A run can also be answered from a **recording** of the run a case was taken
@@ -23,8 +29,19 @@ matched by its stable tool id, its normalized arguments and its occurrence among
 calls with that same id and arguments, and answered with what the original call
 returned. A call with no match is not executed and is
 recorded as divergent: serving it some other call's result would fabricate the
-very difference a comparison exists to measure. A read-only tool may run live
-instead where the run allows it; a writing one never does.
+very difference a comparison exists to measure. A read that stays inside the
+deployment may run live instead where the run allows it; nothing else ever does.
+
+Two kinds of tool would get past a guard that only wraps execution, and are
+closed where the agent is assembled instead: a tool the model provider runs on
+its own side (`kept_local` rebuilds the binding so the call comes here), and a
+remote agent behind the delegation tool (`IsolationGuard.remote_delegates`, with
+the delegate itself built so it cannot reach its endpoint).
+
+Code mode's `run_code` is let through, and is no way around any of this: the
+script runs in a sandbox with no network and no files, and every tool it calls
+comes back through this guard one call at a time, decided by the same rules.
+Nothing about a call made from a script is decided by the script having run.
 
 An isolated run has no approval channel, so a gated call is never parked: a
 parked run is resumed by rebuilding it, and nothing here is part of what a
@@ -36,21 +53,23 @@ import json
 import logging
 from collections import deque
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 from uuid import UUID
 
 from pydantic_ai import RunContext
 from pydantic_ai.capabilities import AbstractCapability, WrapToolExecuteHandler
+from pydantic_ai.exceptions import ToolFailed
 from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
 from pydantic_core import to_jsonable_python
 
 from app.agents.approval import refusal
-from app.agents.capabilities import LOAD_CAPABILITY
+from app.agents.capabilities import LOAD_CAPABILITY, CapabilityBinding
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ApprovalGate
 from app.agents.capabilities.knowledge import FoundPassage
+from app.agents.code_mode import CODE_MODE_ID
 from app.agents.deps import AgentDeps
 from app.agents.mcp import MCP_ISOLATION
 from app.agents.spec import AgentSpec
@@ -67,6 +86,74 @@ MAX_RECORDED_ARGS_CHARS = 32_000
 #: renamed onto one of these names keeps its own declaration.
 _FRAMEWORK_READS = frozenset({LOAD_CAPABILITY, "search_tools"})
 
+LIVE_IN_ISOLATION: frozenset[str] = frozenset(
+    {
+        "capability:artifacts.list_artifacts",
+        "capability:artifacts.read_artifact",
+        "capability:charts.create_chart",
+        "capability:code_execution.run_python",
+        "capability:context.list_context",
+        "capability:context.read_context",
+        "capability:conversation_search.read_conversation",
+        "capability:conversation_search.search_conversations",
+        "capability:knowledge.search_documents",
+        "capability:memory_files.list_memory",
+        "capability:memory_files.read_memory",
+        "capability:memory_files.recall",
+        "capability:planning.add_subtask",
+        "capability:planning.add_task",
+        "capability:planning.get_available_tasks",
+        "capability:planning.read_plan",
+        "capability:planning.remove_task",
+        "capability:planning.set_dependency",
+        "capability:planning.update_task_status",
+        "capability:planning.update_task_statuses",
+        "capability:planning.write_plan",
+        "capability:projects.search_projects",
+        "capability:projects.select_project_context",
+        "capability:projects.list_project_files",
+        "capability:projects.read_project_file",
+        "capability:sandbox.select_project_workspace",
+        "capability:sandbox.select_execution_target",
+        "capability:sandbox.glob",
+        "capability:sandbox.grep",
+        "capability:sandbox.ls",
+        "capability:sandbox.read_file",
+        "capability:skills.load_capability",
+        "capability:skills.read_skill_resource",
+        "capability:subagents.answer_subagent",
+        "capability:subagents.check_task",
+        "capability:subagents.create_agent",
+        "capability:subagents.delegate",
+        "capability:subagents.hard_cancel_task",
+        "capability:subagents.list_active_tasks",
+        "capability:subagents.send_message_to_subagent",
+        "capability:subagents.soft_cancel_task",
+        "capability:subagents.task",
+        "capability:subagents.wait_tasks",
+        "capability:tool_output_limits.read_tool_result",
+        "capability:workflows.get_workflow_run",
+        "capability:workflows.list_workflows",
+    }
+)
+"""The registry tools an isolated run executes on the normal connections.
+
+Each one reads this deployment's own data for the run's organization, under the
+run's own access, and sends nothing to a host the model can name. It is a list
+rather than a reading of `read_only`, because a read can still carry data out:
+`web_fetch` dereferences the URL the model wrote, `web_research` hands a query
+to a search engine, and the channel readers ask a chat platform's API. A tool
+declared tomorrow is held until somebody adds it here. Delegation is on it
+because a delegate of this deployment runs under the same isolation; a remote
+one is held by name (`IsolationGuard.remote_delegates`). That includes the
+specialist `create_agent` and `delegate` invent: it is built for the run with
+the run's isolation and no capability of its own, and nothing of it is stored -
+no agent row, no version, no binding - so nothing is left once the run ends.
+"""
+
+_DELEGATION = "capability:subagents.task"
+"""The delegation tool whose `subagent_type` may name a remote agent."""
+
 
 @dataclass(frozen=True)
 class ToolClass:
@@ -78,11 +165,18 @@ class ToolClass:
             a binding renaming it, and `tool:<name>` for everything else.
         read_only: Whether calling it changes nothing outside the run.
         test: Whether it reaches a test system the run's environment named.
+        live: Whether it may run on the normal connection in an isolated run -
+            a read that stays inside the deployment.
+        script: Whether it is code mode's `run_code`, which only runs a script:
+            every tool the script calls comes back through the guard and is
+            decided on its own, so the script itself is never the call held.
     """
 
     tool_id: str
     read_only: bool
     test: bool = False
+    live: bool = False
+    script: bool = False
 
 
 def capability_tools(
@@ -102,10 +196,13 @@ def capability_tools(
         definition = get_capability(binding.id)
         test = binding.id in test_bindings and definition.test_key_isolates
         for tool in definition.effective_tools(binding.tool_overrides):
+            tool_id = f"capability:{binding.id}.{tool.id}"
+            read_only = definition.tool_is_read_only(tool)
             tools[tool.name] = ToolClass(
-                tool_id=f"capability:{binding.id}.{tool.id}",
-                read_only=definition.tool_is_read_only(tool),
+                tool_id=tool_id,
+                read_only=read_only,
                 test=test,
+                live=read_only and tool_id in LIVE_IN_ISOLATION,
             )
     return tools
 
@@ -114,25 +211,52 @@ def classify(tool_def: ToolDefinition, tools: Mapping[str, ToolClass]) -> ToolCl
     """What one tool is, whoever contributed it.
 
     An MCP tool is recognised by the origin this deployment stamped on it, never
-    by its name, and is read-only only when its server says `readOnlyHint` and its
-    connection trusts the server to say so. A
-    registry tool is looked up by the name the model called. Anything else -
-    including a tool nothing declared - writes.
+    by its name. It is read-only only when its server says `readOnlyHint` and its
+    connection trusts the server to say so, and it stays inside what the server
+    reaches only when the same server also says `openWorldHint: false` - a
+    missing hint means an open world, as the protocol defines it. A registry
+    tool is looked up by the name the model called. Anything else - including a
+    tool nothing declared - writes.
     """
     metadata = tool_def.metadata or {}
     origin = metadata.get(MCP_ISOLATION)
     if isinstance(origin, dict):
         annotations = metadata.get("annotations") or {}
+        read_only = (
+            annotations.get("readOnlyHint") is True and origin.get("trust_read_only_hints") is True
+        )
         return ToolClass(
             tool_id=f"tool:{tool_def.name}",
-            read_only=annotations.get("readOnlyHint") is True
-            and origin.get("trust_read_only_hints") is True,
+            read_only=read_only,
             test=origin.get("test") is True,
+            live=read_only and annotations.get("openWorldHint") is False,
         )
+    if tool_def.capability_id == CODE_MODE_ID:
+        return ToolClass(tool_id=f"tool:{tool_def.name}", read_only=True, live=True, script=True)
     known = tools.get(tool_def.name)
     if known is not None:
         return known
-    return ToolClass(tool_id=f"tool:{tool_def.name}", read_only=tool_def.name in _FRAMEWORK_READS)
+    framework = tool_def.name in _FRAMEWORK_READS
+    return ToolClass(tool_id=f"tool:{tool_def.name}", read_only=framework, live=framework)
+
+
+def kept_local(binding: CapabilityBinding) -> CapabilityBinding:
+    """The binding as an isolated run builds it: with no tool the provider runs itself.
+
+    A tool the model provider executes on its own side never reaches the guard,
+    so it could neither be held nor recorded. Where the binding's configuration
+    hands a tool over, the same field is set to the value that keeps the tool
+    in this deployment - an ordinary call the guard then decides like any other.
+    A disabled binding builds nothing, so it is left as it was, unread: a stored
+    configuration an older schema accepted must not fail the run.
+    """
+    if not binding.enabled:
+        return binding
+    definition = get_capability(binding.capability_id)
+    declared = definition.provider_executed
+    if declared is None or not declared.tools_for(definition.validate_config(binding.config)):
+        return binding
+    return replace(binding, config={**binding.config, declared.field: declared.kept_local})
 
 
 def recorded_args(call: ToolCallPart) -> dict[str, Any]:
@@ -157,11 +281,17 @@ def normalized_args(args: Mapping[str, Any]) -> str:
 
 @dataclass(frozen=True)
 class RecordedCall:
-    """One call the original run made, and what it returned."""
+    """One call the original run made, and what it returned.
+
+    `failed` is a call a code-mode script made that raised in the original run: the
+    replay raises it again, so the script takes the branch it took then.
+    """
 
     tool_id: str
     args: str
     result: Any
+    failed: bool = False
+    omitted_script_calls: int = 0
 
 
 @dataclass
@@ -194,6 +324,8 @@ class CallRow:
     tool_name: str
     args: Mapping[str, Any]
     result: str
+    failed: bool = False
+    omitted_script_calls: int = 0
 
 
 def recorded_calls(
@@ -212,6 +344,8 @@ def recorded_calls(
             else f"tool:{row.tool_name}",
             args=normalized_args(row.args),
             result=row.result,
+            failed=row.failed,
+            omitted_script_calls=row.omitted_script_calls,
         )
         for row in rows
     ]
@@ -280,6 +414,14 @@ def _blocked_notice(name: str) -> str:
     )
 
 
+def _external_notice(name: str) -> str:
+    return (
+        f"Not available in an isolated run: `{name}` would reach outside this deployment, "
+        "and an evaluation sends nothing out. The call and its arguments were recorded; "
+        "nothing was sent. Answer without it."
+    )
+
+
 def _divergent_notice(name: str) -> str:
     return (
         "Not executed: this evaluation answers tools from a recorded conversation, and "
@@ -295,12 +437,17 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
     rather than refused for want of somebody to approve it. `approval` is that
     gate, asked which calls it would hold: a call it gates never reaches it here,
     because the refusal it would give leaves no record.
+
+    `remote_delegates` names this agent's delegates that are other systems'
+    agents: delegating to one sends the task over the network, so the call is
+    held as reaching outside although delegation itself stays on the list.
     """
 
     isolation: RunIsolation
     tools: Mapping[str, ToolClass] = field(default_factory=dict)
     agent_id: UUID | None = None
     approval: ApprovalGate | None = None
+    remote_delegates: frozenset[str] = frozenset()
 
     async def wrap_tool_execute(
         self,
@@ -313,6 +460,11 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
     ) -> Any:
         """Run, replay or hold one call, by what the tool is and what the run allows."""
         tool = classify(tool_def, self.tools)
+        if (
+            tool.tool_id == _DELEGATION
+            and call.args_as_dict().get("subagent_type") in self.remote_delegates
+        ):
+            tool = replace(tool, live=False)
         recording = self.isolation.recording
         if recording is not None:
             # The recording holds what the model sent; validated arguments carry
@@ -320,13 +472,25 @@ class IsolationGuard(AbstractCapability[AgentDeps]):
             recorded = recording.answer(tool.tool_id, call.args_as_dict())
             if recorded is not None:
                 self._intercept(call, tool, InterceptionOutcome.REPLAYED)
+                if recorded.omitted_script_calls:
+                    ctx.deps.code_continuations.omitted_script_calls[call.tool_call_id] = (
+                        recorded.omitted_script_calls
+                    )
+                if recorded.failed:
+                    raise ToolFailed(recorded.result)
                 return recorded.result
-            if not (tool.read_only and self.isolation.live_reads):
+            if not (tool.script or (tool.live and self.isolation.live_reads)):
                 self._intercept(call, tool, InterceptionOutcome.DIVERGENT)
                 return _divergent_notice(tool_def.name)
-        elif not (tool.read_only or tool.test):
-            self._intercept(call, tool, InterceptionOutcome.BLOCKED, InterceptionReason.WRITES)
-            return _blocked_notice(tool_def.name)
+        elif not tool.test:
+            if not tool.read_only:
+                self._intercept(call, tool, InterceptionOutcome.BLOCKED, InterceptionReason.WRITES)
+                return _blocked_notice(tool_def.name)
+            if not tool.live:
+                self._intercept(
+                    call, tool, InterceptionOutcome.BLOCKED, InterceptionReason.EXTERNAL
+                )
+                return _external_notice(tool_def.name)
         if self.approval is not None and self.approval.gates(tool_def):
             self._intercept(
                 call,

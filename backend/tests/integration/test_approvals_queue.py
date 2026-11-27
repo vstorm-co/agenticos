@@ -900,6 +900,7 @@ class TestDecidingTwiceIsRefused:
         from sqlalchemy import func, select
         from sqlalchemy.ext.asyncio import async_sessionmaker
 
+        from app.core.background import discard_deferred
         from app.core.exceptions import BadRequestError
         from app.db.models.audit_log import AppAdminAuditLog
 
@@ -952,6 +953,9 @@ class TestDecidingTwiceIsRefused:
                 b_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await b_task
+            # This test owns a raw session rather than the request lifecycle that
+            # normally starts or discards its deferred work after the transaction.
+            discard_deferred(session_a)
             await session_a.close()
 
         async with factory() as session:
@@ -1314,8 +1318,7 @@ class TestWhatAQueueReaderMaySeeOfAFact:
         return org, owner, asker, reader
 
     async def _read_as(self, db: AsyncSession, org: Organization, user: User, role: str):
-        ctx = AuthContext(user_id=user.id, organization_id=org.id, role=role)
-        [row], _ = await ApprovalService(db).list_approvals(ctx)
+        [row], _ = await ApprovalService(db).list_approvals(_approver(org, user, role))
         return row
 
     async def test_a_member_who_cannot_see_the_run_reads_only_the_audience(self, db) -> None:

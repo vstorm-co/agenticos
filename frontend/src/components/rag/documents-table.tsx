@@ -57,7 +57,8 @@ export function DocumentsTable({
   onLoadMore: () => void;
   onPreview: (doc: KBDocument) => void;
   onRemove: (doc: KBDocument) => void;
-  onRetry: (docId: string) => Promise<void>;
+  /** Index an imported original or retry a failed file with the pending upload settings. */
+  onRetry: (doc: KBDocument) => Promise<void>;
   onChooseFiles: () => void;
 }) {
   const t = useTranslations("pages.kb");
@@ -81,7 +82,9 @@ export function DocumentsTable({
     if (retryingId) return;
     setRetryingId(doc.id);
     try {
-      await onRetry(doc.id);
+      await onRetry(doc);
+    } catch (error) {
+      toast.error(getErrorMessage(error, tErrors));
     } finally {
       setRetryingId(null);
     }
@@ -180,7 +183,7 @@ export function DocumentsTable({
                     doc.status === "stored" ? "indexDocumentNamed" : "retryDocumentNamed",
                     { name: doc.filename },
                   )}
-                  title={t("indexDocumentHint")}
+                  title={t(doc.status === "stored" ? "indexDocumentHint" : "retryDocumentHint")}
                 >
                   {retryingId === doc.id ? (
                     <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -194,9 +197,9 @@ export function DocumentsTable({
               )}
               {mayEdit && (
                 <Button
-                  variant="ghost"
+                  variant="destructive-ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+                  className="h-8 w-8 p-0"
                   onClick={() => onRemove(doc)}
                   title={t("removeDocument")}
                   aria-label={t("removeDocument2")}

@@ -1,5 +1,5 @@
 ---
-source_sha: "80da2d54c72a"
+source_sha: "5a8cc4116f25"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -176,12 +176,30 @@ powtórzenia baseline'u, także użytego ponownie. Rzeczywisty koszt może się 
 Każde żądanie do modelu nadal podlega budżetom miesięcznym; wyczerpanie budżetu
 kończy run jako `budget_exceeded`.
 
-Start może odesłać `total_usd` z wyceny jako `quoted_usd` i wskazać jej
-`dataset_version`. Jeśli aktualny szacunek startu jest wyższy od tej kwoty,
-serwer zwraca `409`. Architekt przekazuje oba pola, a karta zatwierdzenia pokazuje
-wycenę. To porównanie szacunków, a nie twardy limit końcowego rachunku dostawcy.
-Sprawdzenia aktualizacji skilla, szkice wiedzy i strażnicy promocji też przyjmują
-`quoted_usd`; `GET .../gate/estimate` wycenia strażników oczekujących na start.
+Start może odesłać `at_most_usd` z wyceny (pierwsze odpowiedzi, ocenę i wszystkie
+powtórzenia) jako `quoted_usd`, a razem z nim `dataset_version` z wyceny. Start
+odmawia wtedy kodem `409`, gdy run mógłby kosztować więcej niż ta kwota. Dialog
+startu w konsoli i Architekt zawsze przekazują oba pola, a karta zatwierdzenia
+Architekta pokazuje tę cenę. To porównanie szacunków, a nie twardy limit końcowego
+rachunku dostawcy. Sprawdzenia aktualizacji skilla, szkice wiedzy i strażnicy
+bramki promocji przyjmują `quoted_usd` tak samo, a `GET .../gate/estimate` wycenia
+strażników, których uruchomiłby run bramki.
+
+Run zachowuje tę cenę. Runy z wyceną wykonują jedną próbę naraz, wraz z jej
+oceną; runy bez wyceny zachowują skonfigurowaną współbieżność. Przed kolejną
+odpowiedzią worker porównuje zapisany wydatek oraz szacowany koszt odpowiedzi i
+oceny z wyceną. Przed płatną oceną dodaje także zamrożony szacunek oceny,
+obejmujący razem rubrykę, odpowiedź referencyjną i kryteria sędziego w przypadku.
+Nie kolejkuje powtórek potwierdzających, które przekroczyłyby wycenę. Zestaw używa
+tak samo swojego progu, a etap sprawdzenia skilla kwoty pozostawionej przez
+poprzedni etap z zaakceptowanego maksimum agenta.
+
+Zatrzymany run kończy się jako `budget_exceeded`, zachowuje odpowiedzi i oceny,
+a błąd i powiadomienie podają zaakceptowaną cenę. Jedna trwająca odpowiedź lub
+ocena może kosztować więcej niż szacunek i zakończyć się ponad wyceną. Ograniczamy
+rozpoczynanie prób, nie każde żądanie do dostawcy: jedna odpowiedź agenta może
+zawierać kilka żądań do modelu lub narzędzi. Twardy limit pojedynczego żądania
+do dostawcy nie jest częścią tej zmiany.
 
 Szkic wiedzy w kolejce zachowuje uzgodnioną wycenę. Worker sprawdza ją ponownie
 przed pobieraniem danych lub pracą modelu i odmawia przy cenie wyższej albo
@@ -189,8 +207,9 @@ nieznanej. Istniejący klienci i zadania bez wyceny zachowują wcześniejsze dzi
 
 Próg szacowanego wydatku zestawu także obejmuje powtórzenia i obie strony
 porównania. Pierwszy szacunek publikacji uwzględnia istniejącą wersję jako
-baseline następnej publikacji, nawet gdy jest tylko jedna wersja. Ten próg
-wyłącznie decyduje o starcie; nie zatrzymuje trwającej ewaluacji. Każdy dodatni
+baseline następnej publikacji, nawet gdy jest tylko jedna wersja. Run zachowuje
+ten próg jako swoją cenę i trzyma się go w trakcie działania, tak jak run z
+wyceną. Każdy dodatni
 wzrost kosztu zaliczonego przypadku lub opóźnienia od zera przekracza każdy
 limit procentowy.
 
@@ -221,7 +240,9 @@ Kopie pytań treningowych lub materiału źródłowego są wykluczane według zn
 
 Sesja poprawy przypina wersję datasetu, udział kontroli i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy, przypadki ani zmieniony udział kontroli nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
 
-Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła. Kontekst wcześniejszych prób zawiera ograniczone fragmenty z najwyżej sześciu ostatnich zmierzonych prób, aby długie zmiany instrukcji lub treści skilla nie wypełniały promptu następnej propozycji.
+Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Z każdej wcześniejszej próby czyta werdykt i tylko liczbę pytań odłożonych, które naprawiła i zepsuła, nigdy to, co próba zmieniła: każda próba odkłada własne pytania, losowane od nowa, więc wcześniejsza zmiana mogła powstać z pytań, na których mierzy się ta próba.
+
+Kryteria, które przesunęła wcześniejsza próba, liczą się tylko na pytaniach treningowych tej próby; gdy jej test nie ocenił żadnego z nich, helper dostaje tę informację zamiast zer. Czytanych jest najwyżej sześć ostatnich zmierzonych prób.
 
 Decyzja człowieka i **Wycofaj decyzję** unieważniają zależne porównania runów i przeliczają zapisane wyniki suit w tej samej transakcji. Run, suita, bramka środowiska i dialog promocji pokazują poprawiony werdykt oraz osobę, która go przejrzała. Audyt zapisuje poprzednie i nowe statusy oraz liczby; zmiana werdyktu suity wysyła nowe powiadomienie. Nazwy osób są odczytywane z aktualnego członkostwa organizacji, bez kopiowania do zachowanych wyników.
 
@@ -243,12 +264,20 @@ uruchomiła ewaluację, opuściła organizację, straciła dostęp do agenta alb
 datasetu albo jej klucz został unieważniony, run kończy się błędem, zanim
 odpowie na kolejny przypadek.
 
-Każdy przypadek działa **w izolacji**, jak opisują [Środowiska](environments.md):
-narzędzie z testowym połączeniem w środowisku runa działa na nim, narzędzie, o
-którym wiadomo, że tylko czyta, działa na zwykłym połączeniu, a wszystko, co
-zapisuje bez testowego połączenia, nie jest wykonywane - wywołanie i jego
-argumenty są zachowywane jako zamierzone wywołanie, które ocenianie trajektorii
-nadal ocenia.
+Każdy przypadek działa **w izolacji**, jak opisują
+[Środowiska](environments.md#in-an-eval): narzędzie z testowym połączeniem w
+środowisku runa działa na nim, odczyt własnych danych tego wdrożenia działa na
+zwykłym połączeniu, a wszystko, co zapisuje albo czyta spoza wdrożenia, nie jest
+wykonywane - wywołanie i jego argumenty są zachowywane jako zamierzone
+wywołanie, które ocenianie trajektorii nadal ocenia.
+
+Dotyczy to także sieci. **Ewaluacja agenta, który pobiera strony, przeszukuje
+sieć albo deleguje do agenta innego systemu, nie robi niczego z tego na żywo**:
+model dowiaduje się, że narzędzie nie jest dostępne w runie w izolacji, i
+odpowiada bez niego. Przypadek, na który odpowiada się z nagrania, opisany
+niżej, nadal dostaje to, co pobrał oryginalny run. Sędziego to nie dotyczy:
+czyta tylko bazy wiedzy, pliki kontekstowe i skille, które przekazuje mu
+platforma, a wszystkie one zostają w środku.
 
 Każda izolowana próba korzysta z tymczasowego workspace przypisanego do własnego
 runu, nawet gdy agent zwykle współdzieli pliki według rozmowy, użytkownika lub
@@ -258,7 +287,9 @@ zwalniany po zakończeniu runu.
 Na przypadek wzięty z konwersacji można odpowiadać **z nagrania** runa, z
 którego pochodzi (`from_recordings`): wywołanie zgodne z nagraniem dostaje
 nagrany wynik, a niezgodne jest wstrzymywane i oznaczane jako rozbieżne.
-Przypadek bez użytecznego nagrania działa w izolacji bez niego.
+Przypadek bez użytecznego nagrania działa w izolacji bez niego. Skrypt agenta w
+trybie kodu działa ponownie, a każde jego wywołanie dostaje odpowiedź z nagrania;
+przypadek wymienia te wywołania pod skryptem.
 
 ### Wersja robocza nigdy nie liczy się jako wersja { #a-draft-is-never-counted-as-a-version }
 
@@ -339,8 +370,9 @@ Każda próba kończy się na jeden z czterech sposobów (`state` w próbie):
   provider odrzucił żądanie - co od razu oblewa suitę, nawet gdy ponowne próby
   tego przypadku przejdą;
 - **niekompletna**, gdy provider zawiódł mimo ponowień (błąd 5xx, 408 albo 429,
-  albo brak odpowiedzi), oceniający rzucił wyjątek, run anulowano albo skończył
-  się budżet, albo próby wyszły na remis;
+  albo brak odpowiedzi), oceniający rzucił wyjątek, run anulowano, skończył się
+  budżet albo run doszedł do ceny, z którą go uruchomiono, albo próby wyszły na
+  remis;
 - ocenianie bez wymaganego mechanizmu, który może rozstrzygnąć choć jeden przypadek: dodaj regułę, oczekiwane narzędzie albo kryteria;
 
 Żaden z dwóch ostatnich stanów nie jest zaliczeniem; podsumowanie liczy je

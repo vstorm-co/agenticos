@@ -7,17 +7,12 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.core.exceptions import NotFoundError
-from app.db.models.authoring import SpecProposalHunk
 from app.db.models.improvement import ImprovementVerdict
-from app.repositories import authoring_repo, improvement_repo
+from app.repositories import improvement_repo
 from app.schemas.eval_run import CriterionMoveRead
 from app.services.authoring_worker import _earlier_section
 from app.services.eval_run import EvalRunService
-from app.services.improvement_pipeline import (
-    EarlierAttempt,
-    ImprovementPipelineService,
-    _change_text,
-)
+from app.services.improvement_pipeline import EarlierAttempt, ImprovementPipelineService
 
 pytestmark = pytest.mark.anyio
 
@@ -36,60 +31,16 @@ def _move(name: str, before: int, after: int, graded: int = 4) -> CriterionMoveR
     )
 
 
-def _hunk(**fields: object) -> SpecProposalHunk:
-    return SpecProposalHunk(id=uuid.uuid4(), **fields)
-
-
-class TestChangeText:
-    def test_an_instructions_edit_reads_as_the_passage_it_replaced_and_the_text_kept(self):
-        hunk = _hunk(
-            kind="instructions", old_text="Be brief.", new_text="Be long.", edited_text="Be kind."
-        )
-
-        text = _change_text(hunk)
-
-        assert "In the instructions, replaced:" in text
-        assert "<old>\nBe brief.\n</old>" in text and "<new>\nBe kind.\n</new>" in text
-
-    def test_a_skill_passage_says_it_was_in_a_skill(self):
-        hunk = _hunk(kind="skill_body", old_text="a", new_text="b", edited_text=None)
-
-        assert _change_text(hunk).startswith("In a skill's body, replaced:")
-
-    def test_a_field_reads_as_its_operation_path_and_value(self):
-        hunk = _hunk(kind="spec_field", op="add", path="capabilities", new_value={"id": "clock"})
-
-        assert _change_text(hunk) == 'add capabilities: {"id": "clock"}'
-
-    def test_a_tool_reads_as_its_new_name_and_description(self):
-        hunk = _hunk(
-            kind="tool_override",
-            capability_id="knowledge",
-            tool_id="search",
-            new_name="find",
-            new_description="Search first",
-        )
-
-        assert (
-            _change_text(hunk) == "Tool knowledge/search: name 'find', description 'Search first'"
-        )
-
-    def test_anything_else_reads_as_its_kind_and_new_text(self):
-        hunk = _hunk(kind="create_skill", new_text="", new_description="Quote layout")
-
-        assert _change_text(hunk) == "create_skill: Quote layout"
-
-
 class TestEarlierSection:
     def test_a_first_attempt_reads_nothing_about_earlier_ones(self):
         assert _earlier_section([]) == ""
 
-    def test_each_attempt_says_what_it_changed_what_moved_and_only_how_many_held_out_broke(self):
+    def test_each_attempt_says_how_it_was_judged_and_never_what_it_changed(self):
+        """An earlier change was written from questions this attempt may be measured on."""
         attempts = [
             EarlierAttempt(
                 number=1,
                 verdict=ImprovementVerdict.REGRESSION,
-                changes=("add capabilities: {}",),
                 held_out=35,
                 fixed=0,
                 broken=2,
@@ -98,22 +49,33 @@ class TestEarlierSection:
             EarlierAttempt(
                 number=2,
                 verdict=ImprovementVerdict.NO_CHANGE,
-                changes=(),
                 held_out=35,
                 fixed=0,
                 broken=0,
                 criteria=(),
             ),
+            EarlierAttempt(
+                number=3,
+                verdict=ImprovementVerdict.NO_CHANGE,
+                held_out=35,
+                fixed=0,
+                broken=0,
+                criteria=None,
+            ),
         ]
 
         text = _earlier_section(attempts)
 
-        assert "None of these changes is in the draft above" in text
-        assert "## Attempt 1: regression\n- add capabilities: {}" in text
-        assert "On 35 held-out questions it fixed 0 and broke 2. Which ones stays hidden." in text
+        assert "What each changed is left out on purpose" in text
+        assert "None of their changes is in the draft above" in text
+        assert "## Attempt 1: regression\nOn 35 held-out questions it fixed 0 and broke 2." in text
+        assert "Which ones stays hidden." in text
         assert "- [judge] Names the next price band: 1/4 -> 4/4" in text
         assert "## Attempt 2: no_change" in text
-        assert "No criterion moved on the questions it learned from." in text
+        assert "No criterion moved on this attempt's training questions." in text
+        assert "## Attempt 3: no_change" in text
+        assert "No criteria on this attempt's training questions." in text
+        assert "0/0" not in text
 
 
 class TestEarlierAttempts:
@@ -136,18 +98,13 @@ class TestEarlierAttempts:
     async def test_only_measured_attempts_before_the_one_being_written_are_read(
         self, monkeypatch, mock_db_session, ctx
     ):
-        kept, other = (
-            _hunk(kind="spec_field", op="set", path="x", new_value=1),
-            _hunk(kind="spec_field", op="set", path="y", new_value=2),
-        )
         iterations = [
-            self._iteration(1, included_hunk_ids=[kept.id]),
+            self._iteration(1),
             self._iteration(2, verdict=None),
             self._iteration(3, batch_id=None),
             self._iteration(4),
         ]
         monkeypatch.setattr(improvement_repo, "list_iterations", AsyncMock(return_value=iterations))
-        monkeypatch.setattr(authoring_repo, "list_hunks", AsyncMock(return_value=[kept, other]))
         compare = AsyncMock(
             return_value=SimpleNamespace(
                 verdict="worse",
@@ -159,65 +116,69 @@ class TestEarlierAttempts:
             )
         )
         monkeypatch.setattr(EvalRunService, "compare", compare)
+        learning = [uuid.uuid4(), uuid.uuid4()]
 
         (attempt,) = await ImprovementPipelineService(mock_db_session).earlier_attempts(
-            ctx, uuid.uuid4(), before=4
+            ctx, uuid.uuid4(), before=4, learns_from=learning
         )
 
         assert (attempt.number, attempt.verdict) == (1, ImprovementVerdict.REGRESSION)
-        assert attempt.changes == ("set x: 1",)
         assert (attempt.held_out, attempt.fixed, attempt.broken) == (5, 1, 2)
+        assert attempt.criteria is not None
         assert [move.name for move in attempt.criteria] == ["moved", "net unchanged"]
-        assert compare.await_args.kwargs == {"training_only": True}
+        assert compare.await_args.kwargs == {"training_only": True, "within": learning}
 
     @pytest.mark.parametrize(
         "compared",
         [
             AsyncMock(side_effect=NotFoundError(message="gone")),
             AsyncMock(return_value=SimpleNamespace(verdict="invalid", criteria=[_move("m", 0, 1)])),
+            AsyncMock(
+                return_value=SimpleNamespace(
+                    verdict="no_difference", criteria=[_move("m", 0, 0, 0)]
+                )
+            ),
+            AsyncMock(return_value=SimpleNamespace(verdict="no_difference", criteria=[])),
         ],
     )
-    async def test_a_check_that_cannot_be_read_or_did_not_measure_moves_no_criterion(
+    async def test_a_check_that_graded_none_of_the_questions_learned_from_says_so(
         self, monkeypatch, mock_db_session, ctx, compared
     ):
+        """Zeros would read as a result; the check simply did not measure these questions."""
         monkeypatch.setattr(
             improvement_repo,
             "list_iterations",
             AsyncMock(return_value=[self._iteration(1, verdict_detail=None)]),
         )
-        monkeypatch.setattr(authoring_repo, "list_hunks", AsyncMock(return_value=[]))
         monkeypatch.setattr(EvalRunService, "compare", compared)
 
         (attempt,) = await ImprovementPipelineService(mock_db_session).earlier_attempts(
-            ctx, uuid.uuid4(), before=2
+            ctx, uuid.uuid4(), before=2, learns_from=[uuid.uuid4()]
         )
 
-        assert attempt.criteria == ()
+        assert attempt.criteria is None
         assert (attempt.held_out, attempt.fixed, attempt.broken) == (0, 0, 0)
 
-    async def test_an_attempt_without_a_check_run_moves_no_criterion(
-        self, monkeypatch, mock_db_session, ctx
+    @pytest.mark.parametrize(
+        ("eval_run_ids", "learns_from"), [([], [uuid.uuid4()]), ([uuid.uuid4()], None)]
+    )
+    async def test_with_no_check_or_nothing_to_learn_from_no_criterion_is_read(
+        self, monkeypatch, mock_db_session, ctx, eval_run_ids, learns_from
     ):
         monkeypatch.setattr(
             improvement_repo,
             "list_iterations",
-            AsyncMock(return_value=[self._iteration(1, eval_run_ids=[])]),
+            AsyncMock(return_value=[self._iteration(1, eval_run_ids=eval_run_ids)]),
         )
-        monkeypatch.setattr(authoring_repo, "list_hunks", AsyncMock(return_value=[]))
+        compare = AsyncMock()
+        monkeypatch.setattr(EvalRunService, "compare", compare)
 
         (attempt,) = await ImprovementPipelineService(mock_db_session).earlier_attempts(
-            ctx, uuid.uuid4(), before=2
+            ctx, uuid.uuid4(), before=2, learns_from=learns_from
         )
 
-        assert attempt.criteria == ()
-
-
-def test_a_large_instruction_replacement_is_an_explicit_bounded_excerpt():
-    text = _change_text(_hunk(kind="instructions", old_text="a" * 100_000, new_text="b" * 100_000))
-    assert len(text) < 4100
-    assert "change excerpt clipped" in text
-    assert text.startswith("In the instructions") and text.endswith("</new>")
-    assert all(text.count(tag) == 1 for tag in ("<old>", "</old>", "<new>", "</new>"))
+        assert attempt.criteria is None
+        compare.assert_not_awaited()
 
 
 def test_earlier_attempts_have_a_total_prompt_bound_and_keep_recent_evidence():
@@ -225,11 +186,10 @@ def test_earlier_attempts_have_a_total_prompt_bound_and_keep_recent_evidence():
         EarlierAttempt(
             number=n,
             verdict=ImprovementVerdict.NO_CHANGE,
-            changes=("x" * 5000,) * 20,
             held_out=10,
             fixed=0,
             broken=0,
-            criteria=(),
+            criteria=tuple(_move("x" * 200, 0, 1) for _ in range(20)),
         )
         for n in range(10)
     ]
@@ -240,19 +200,6 @@ def test_earlier_attempts_have_a_total_prompt_bound_and_keep_recent_evidence():
     assert "clipped" in text
 
 
-def test_an_unchanged_tool_name_remains_absent_in_the_change_description():
-    text = _change_text(
-        _hunk(
-            kind="tool_override",
-            capability_id="knowledge",
-            tool_id="search",
-            new_name=None,
-            new_description="Search first",
-        )
-    )
-    assert "name None," in text
-
-
 def test_retry_evidence_distinguishes_equal_names_from_different_scorers():
     judge = _move("Validity", 1, 2).model_copy(update={"fixed_confirmed": 1})
     check = _move("Validity", 2, 1).model_copy(update={"scorer": "check", "broken_confirmed": 1})
@@ -261,7 +208,6 @@ def test_retry_evidence_distinguishes_equal_names_from_different_scorers():
             EarlierAttempt(
                 number=1,
                 verdict=ImprovementVerdict.CRITERIA_WORSE,
-                changes=(),
                 held_out=5,
                 fixed=0,
                 broken=0,

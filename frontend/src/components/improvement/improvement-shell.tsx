@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -8,7 +10,6 @@ import { ChevronLeft, ChevronRight, CircleDot, Loader2, MoreHorizontal } from "l
 import { useLocale, useTranslations } from "next-intl";
 
 import { useFailureWords } from "@/components/authoring/failure-words";
-import { usd } from "@/components/evals/format";
 import {
   Tabs,
   TabsContent,
@@ -380,6 +381,7 @@ function SessionLine({ session, working }: { session: Improvement; working: bool
   const t = useTranslations("improvement");
   const stop = stopOf(session);
   const locale = useLocale();
+  const money = useMoney();
   const finishedAttempt =
     session.status === "stopped" && ATTEMPT_RESULT_REASONS.includes(session.stop_reason ?? "");
   const used = Math.min(
@@ -408,8 +410,8 @@ function SessionLine({ session, working }: { session: Improvement; working: bool
       <span aria-hidden>·</span>
       <span>
         {t(isClosed(session) ? "record.spent" : "spend", {
-          spent: usd(session.spent_usd, locale),
-          budget: usd(session.budget_usd, locale),
+          spent: money.cost(session.spent_usd, locale),
+          budget: money.cost(session.budget_usd, locale),
         })}
       </span>
       {!isClosed(session) && (

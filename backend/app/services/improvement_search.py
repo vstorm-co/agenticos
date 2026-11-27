@@ -50,6 +50,7 @@ from app.agents.system_agents import IMPROVER, with_dataset_guidance
 from app.agents.untrusted_text import fenced_section
 from app.core.config import settings
 from app.core.exceptions import AppException, AuthenticationError, AuthorizationError
+from app.core.hidden_text import Proposed, holds_refused
 from app.core.permissions import AuthContext
 from app.core.redaction import redact_secrets
 from app.db.models.agent import Agent, AgentStatus
@@ -70,7 +71,6 @@ from app.db.models.improvement import (
     SearchVariantStatus,
     VariantFailure,
 )
-from app.db.models.intercepted_tool_call import InterceptionOutcome
 from app.db.session import get_worker_db_context
 from app.repositories import (
     agent_repo,
@@ -88,12 +88,12 @@ from app.services.agent_runner import AgentRunnerService
 from app.services.api_key import job_context
 from app.services.background_jobs import enqueue
 from app.services.eval_run import EvalRunService, scoring_hash, spec_hash
-from app.services.eval_run_worker import trajectory
+from app.services.eval_run_worker import held_back
 from app.services.improvement_data import split_seed
 from app.services.improvement_states import SEARCH_CHOICES
 from app.services.message_history import HistoryMessage, build_message_history
 from app.services.model_profile import ModelProfileService
-from app.services.scorers import CaseView, ScoredAnswer, ScoredCall
+from app.services.scorers import CaseView, ScoredAnswer, every_call_kept, scored_calls
 from app.services.scoring import ScoringService
 from app.services.system_agent_runner import SystemAgentRunner
 from app.services.transcript import RecordedToolCall
@@ -179,7 +179,7 @@ unanswered by the model, which is tried again up to `MAX_PROPOSAL_ATTEMPTS` time
 class InstructionVariant(BaseModel):
     """One complete rewrite of the instructions."""
 
-    instructions: str = Field(min_length=1, max_length=MAX_VARIANT_CHARS)
+    instructions: Proposed = Field(min_length=1, max_length=MAX_VARIANT_CHARS)
     rationale: str = Field(default="", max_length=1000)
 
 
@@ -212,6 +212,16 @@ def case_share(results: Sequence[ScorerResult]) -> float | None:
     if not graded:
         return None
     return sum(1 for r in graded if r.status == "pass") / len(graded)
+
+
+def usable_variant(seed: str, variant: str) -> bool:
+    """Whether a rewrite may be answered with: it keeps the seed's placeholders, changes
+    something, and carries no character a person reading the winner could not see."""
+    return (
+        keeps_placeholders(seed, variant)
+        and not holds_refused(variant)
+        and variant.strip() != seed.strip()
+    )
 
 
 def keeps_placeholders(seed: str, variant: str) -> bool:
@@ -938,17 +948,10 @@ class SearchWorker:
             intercepted = await intercepted_tool_call_repo.list_for_run(
                 db, run_id=agent_run.id, organization_id=self.organization_id
             )
-            rows = trajectory(calls, intercepted)
             answer = ScoredAnswer(
                 text=output,
-                calls=tuple(
-                    ScoredCall(
-                        tool=call.tool_name,
-                        args=call.args,
-                        blocked=row["outcome"] == InterceptionOutcome.BLOCKED.value,
-                    )
-                    for call, row in zip(calls, rows, strict=True)
-                ),
+                calls=scored_calls(calls, blocked=held_back(intercepted)),
+                calls_kept=every_call_kept(calls),
                 cost_usd=agent_run.cost_usd,
                 latency_ms=None,
                 run_id=agent_run.id,
@@ -1136,8 +1139,7 @@ class SearchWorker:
             kept = [
                 variant
                 for variant in proposed.variants
-                if keeps_placeholders(unit.seed, variant.instructions)
-                and variant.instructions.strip() != unit.seed.strip()
+                if usable_variant(unit.seed, variant.instructions)
             ][: unit.count]
             parent = unit.parent_ids[0] if unit.parent_ids else None
             await improvement_repo.add_variants(
@@ -1369,7 +1371,13 @@ async def _longer_instructions_usd(
     usage = RunUsage(input_tokens=(extra + 3) // 4, output_tokens=0)
     if spec.model_profile_id is not None:
         model = await ModelProfileService(db).resolve(ctx, profile_id=spec.model_profile_id)
-        priced = price_request(usage, model.model, model.provider)
+        priced = price_request(
+            usage,
+            model.model,
+            model.provider,
+            custom_pricing=model.credential.custom_pricing,
+            exchange_rates=model.credential.exchange_rates,
+        )
         if priced is not None:
             return Decimal(priced)
     return (
@@ -1395,7 +1403,13 @@ async def _proposal_price(
     )
     if model_profile_id is not None:
         model = await ModelProfileService(db).resolve(ctx, profile_id=model_profile_id)
-        priced = price_request(usage, model.model, model.provider)
+        priced = price_request(
+            usage,
+            model.model,
+            model.provider,
+            custom_pricing=model.credential.custom_pricing,
+            exchange_rates=model.credential.exchange_rates,
+        )
         if priced is not None:
             return Decimal(priced)
     return settings.EVAL_FALLBACK_CASE_COST_USD * count

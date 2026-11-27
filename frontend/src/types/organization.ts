@@ -47,7 +47,7 @@ export type ProactiveTiming = "fixed" | "before_work";
 export interface ProactivityChanges {
   proactive_enabled?: boolean;
   proactive_model_profile_id?: string | null;
-  proactive_limit_usd?: number;
+  proactive_limit_usd?: string | number;
   proactive_days?: number[];
   proactive_hour?: number;
   proactive_timing?: ProactiveTiming;
@@ -77,6 +77,7 @@ export interface Organization {
   console_role_defaults?: Partial<Record<OrgRole, ConsoleRoleDefaults>>;
   console_notices?: ConsoleNotices;
   chat_cost_visibility?: ChatCostVisibility;
+  currency?: string | null;
   chat_home_defaults?: ChatHomeOverrides | null;
   onboarding_reminders?: OnboardingReminderOverrides | null;
   id: string;

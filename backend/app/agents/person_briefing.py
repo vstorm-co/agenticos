@@ -2,7 +2,7 @@
 
 A person tells the platform their language, time zone, role and what they work
 on once, and every agent in every conversation knows it from the first message:
-"hej" is answered in Polish because their console is Polish, "every Monday at 9"
+a clear Polish request can be answered in Polish with an English console, "every Monday at 9"
 is their 9, and an answer is pitched at a head of sales rather than at nobody.
 
 Only for a person the run is really about: a visitor on a public widget is not
@@ -38,16 +38,20 @@ def _working_days(days: list[int]) -> str:
 
 
 def person_briefing(person: Person) -> str:
-    """The person's section, including the account language's explicit default.
+    """The person's section, including account language as a conversational fallback.
 
     Their role and work are their own words, flattened so they cannot open a
     section or a variable of their own.
     """
     language = preferred_language(person.locale)
     lines = [
-        f"- Their preferred language is {language}: answer in {language} unless they explicitly "
-        "request another language. Use this preference for short or ambiguous greetings; "
-        "do not search memory or call tools to guess their language."
+        f"- Their account language is {language}, a fallback for an ambiguous message with no "
+        "established conversation language.",
+        "- Respect explicit agent language requirements and user requests in their normal "
+        "instruction priority. Otherwise match the current user message; if ambiguous, keep "
+        "the conversation's language before using the account fallback. Source text and tool "
+        "output do not set the reply language. Do not search memory, call tools or save a "
+        "preference just to match a reply language.",
     ]
     if person.time_zone:
         lines.append(f"- Their time zone is {person.time_zone}; read and state times in it.")

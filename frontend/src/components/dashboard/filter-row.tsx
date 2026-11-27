@@ -48,9 +48,13 @@ export function FilterRow({
         {filterable.length > 1 ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                className="touch:min-h-11 touch:min-w-11 gap-1.5 max-sm:size-11 max-sm:px-0"
+              >
                 <ListFilter className="size-3.5" aria-hidden />
-                {t("sectionsFilter.label")}
+                <span className="max-sm:sr-only">{t("sectionsFilter.label")}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">

@@ -27,6 +27,7 @@ import {
   DialogTitle,
   DialogDescription,
   Badge,
+  ChoiceGroup,
   Button,
   ListCard,
   ListCardEmpty,
@@ -140,30 +141,17 @@ export function InboxPage() {
             <span id="inbox-filter-label" className="sr-only">
               {t("filterLabel")}
             </span>
-            <div
-              className="hidden flex-wrap items-center gap-1 sm:flex"
-              role="group"
-              aria-label={t("filterLabel")}
-            >
-              {FILTERS.map((value) => {
-                const Icon = FILTER_ICONS[value];
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    aria-pressed={filter === value}
-                    onClick={() => setFilter(value === "all" ? null : value)}
-                    className={
-                      filter === value
-                        ? "bg-accent text-foreground inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium"
-                        : "text-muted-foreground hover:text-foreground inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm"
-                    }
-                  >
-                    <Icon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
-                    {t(`filter.${value}`)}
-                  </button>
-                );
-              })}
+            <div className="hidden sm:block">
+              <ChoiceGroup
+                labelledBy="inbox-filter-label"
+                value={filter}
+                options={FILTERS.map((value) => ({
+                  value,
+                  label: t(`filter.${value}`),
+                  icon: FILTER_ICONS[value],
+                }))}
+                onChange={(value) => setFilter(value === "all" ? null : value)}
+              />
             </div>
             <div className="sm:hidden">
               <Select
@@ -195,7 +183,13 @@ export function InboxPage() {
         }
       >
         {showsQuestions && <QuestionsWaiting questions={questions} />}
-        {showsApprovals && <ApprovalsWaiting tools={pending.tools} steps={pending.steps} />}
+        {showsApprovals && (
+          <ApprovalsWaiting
+            tools={pending.tools}
+            steps={pending.steps}
+            decidesAll={pending.decidesAll}
+          />
+        )}
         {filter === "done" ? (
           <Decided />
         ) : isLoading || (showsUrgent && questions.isLoading) ? (

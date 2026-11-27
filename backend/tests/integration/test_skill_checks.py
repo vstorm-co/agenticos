@@ -125,6 +125,8 @@ class FakeEvals:
     dataset; one asking named questions compares those."""
     started: list[tuple[uuid.UUID, Any]] = field(default_factory=list)
     served: list[Any] = field(default_factory=list)
+    held: list[Decimal | None] = field(default_factory=list)
+    """The price each started run was held to, in the order they started."""
 
     def install(self, monkeypatch: pytest.MonkeyPatch) -> None:
         fake = self
@@ -150,7 +152,7 @@ class FakeEvals:
                 org_remaining_usd=fake.org_left,
             )
 
-        async def start(_self, ctx, agent_id, request, *, candidate_skills=None, **_):
+        async def start(_self, ctx, agent_id, request, *, candidate_skills=None, **kwargs):
             if agent_id in fake.refuse_start:
                 raise BadRequestError(message="Cannot start", details=fake.start_refusal)
             dataset = await dataset_repo.get(
@@ -190,6 +192,7 @@ class FakeEvals:
             )
             fake.started.append((agent_id, request))
             fake.served.append(candidate_skills)
+            fake.held.append(kwargs.get("hold_usd"))
             return SimpleNamespace(id=run_id)
 
         async def compare(_self, _ctx, run_id, *, holdout_minimum=True, **_):
@@ -665,7 +668,9 @@ class TestTheRule:
         assert states == {"A": "better", "B": "no_change", "C": "no_change"}
         assert (read.status, read.verdict) == (CheckStatus.DONE, CheckVerdict.PASSED)
         assert read.outcomes[0] is CheckOutcome.APPLY
-        assert read.candidate == NEW
+        assert read.candidate == NEW.model_copy(
+            update={"manifest_metadata": lab.skill.manifest_metadata or {}}
+        )
 
     async def test_one_agent_worse_blocks_and_offers_the_four_ways(self, db, monkeypatch):
         lab = await _lab(db)
@@ -1735,6 +1740,44 @@ class TestProposalDecisions:
             conversation_id=None,
             fork_id=None,
         )
+
+    @pytest.mark.security
+    @pytest.mark.parametrize(
+        "hidden",
+        [
+            {"content": "An order number\u202e counts as a receipt."},
+            {"name": "refunds\u2066"},
+            {"resources": {"notes.md": "Ask for it.\U000e0041"}},
+        ],
+        ids=["content", "name", "resource"],
+    )
+    async def test_a_change_holding_hidden_text_is_neither_checked_nor_applied(
+        self, db, monkeypatch, hidden
+    ):
+        """A model never reads it in a check, and Apply never writes it into the skill."""
+        from sqlalchemy import func, select
+
+        from app.db.models.skill_check import SkillCheck
+
+        lab = await _lab(db)
+        proposal = await self._proposal(db, lab)
+        for column, value in hidden.items():
+            setattr(proposal, column, value)
+        await db.flush()
+
+        with pytest.raises(BadRequestError, match="cannot see") as refused:
+            await SkillCheckService(db).start(
+                lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id)
+            )
+        with pytest.raises(BadRequestError, match="cannot see"):
+            await SkillProposalService(db).apply(
+                lab.ctx, proposal.id, ProposalDecision(revision=proposal.revision)
+            )
+
+        assert refused.value.details == {"proposal_id": proposal.id, "reason": "hidden_characters"}
+        assert await db.scalar(select(func.count()).select_from(SkillCheck)) == 0
+        await db.refresh(lab.skill)
+        assert lab.skill.content != "An order number\u202e counts as a receipt."
 
     async def test_applying_without_a_check_updates_the_skill(self, db, monkeypatch):
         lab = await _lab(db)

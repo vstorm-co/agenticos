@@ -26,7 +26,8 @@ interface IngestionDialogProps {
   onOpenChange: (open: boolean) => void;
   /** The collection's configuration as the server currently holds it. */
   config: IngestionConfig;
-  collectionName: string;
+  /** Human-facing knowledge-base name; API addressing stays in the save callback. */
+  knowledgeBaseName: string;
   onSave: (config: IngestionConfig) => Promise<unknown>;
 }
 
@@ -42,7 +43,7 @@ export function IngestionDialog({
   open,
   onOpenChange,
   config,
-  collectionName,
+  knowledgeBaseName,
   onSave,
 }: IngestionDialogProps) {
   const tErrors = useTranslations("errors");
@@ -65,7 +66,11 @@ export function IngestionDialog({
     }
   }
 
-  const problems = ingestionProblems(draft, t);
+  const [draftInvalid, setDraftInvalid] = useState(false);
+  const problems = {
+    ...ingestionProblems(draft, t),
+    ...(draftInvalid ? { docling_ocr_languages: t("doclingLanguageInvalid") } : {}),
+  };
   const changed = !sameIngestion(draft, config);
   const canSave = changed && Object.keys(problems).length === 0;
 
@@ -99,8 +104,8 @@ export function IngestionDialog({
           <DialogTitle>{t("ingestionSettings")}</DialogTitle>
           <DialogDescription>
             {t.rich("ingestionSettingsDescription", {
-              name: collectionName,
-              mono: (chunks) => <span className="text-foreground font-mono text-xs">{chunks}</span>,
+              name: knowledgeBaseName,
+              mono: (chunks) => <span className="text-foreground font-medium">{chunks}</span>,
             })}
           </DialogDescription>
         </DialogHeader>
@@ -111,6 +116,7 @@ export function IngestionDialog({
             value={draft}
             onChange={setDraft}
             errors={{ ...problems, ...errors }}
+            onDraftInvalid={setDraftInvalid}
             disabled={isSaving}
           />
         </div>

@@ -1,5 +1,5 @@
 ---
-source_sha: "3b896741cc56"
+source_sha: "57382ae4b40b"
 ---
 
 # Konfiguracja { #configuration }
@@ -91,7 +91,9 @@ Konfiguracja odrzuca nieustawiony `VAULT_MASTER_KEY` poza `local`/`development`.
 | `CHAT_PROMPT_TEXT_MAX_CHARS` | `200000` | Limit na plik dla sparsowanego tekstu wklejanego do promptu bez workspace'u |
 | `CHAT_TURN_TEXT_MAX_CHARS` | `500000` | Zbiorczy limit tekstu załączników w jednej turze |
 | `DEFAULT_ORG_MONTHLY_BUDGET_USD` | `100` | Miesięczny sufit wydatków, z którym startuje **nowa** organizacja, w USD, żeby nie była o jednego rozbieganego agenta od zaskakującego rachunku. Obowiązuje tylko przy tworzeniu; istniejące organizacje pozostają nietknięte i każdej organizacji można później wyczyścić limit. Musi być dodatni; zostaw **pusty**, aby organizacje startowały bez limitu (starsza postawa opt-in) |
-| `STAV_NOK_PER_USD` | puste | Kurs NOK za USD utrzymywany przez operatora do kosztów naliczonych przez Stav. Skończony i dodatni; np. `10` dzieli NOK przez 10 (przykład, nie bieżący kurs). USD nie wymaga ustawienia. Kurs nie jest pobierany; bez przeliczenia używany jest katalog cen, a nieznane modele pozostają częściowo wycenione |
+| `STAV_NOK_PER_USD` | puste | Kurs NOK za USD utrzymywany przez operatora do kosztów naliczonych przez Stav. Skończony i dodatni; np. `10` dzieli NOK przez 10 (przykład, nie bieżący kurs). Kwoty w USD i rachunki na kwotę zero nie wymagają kursu. Prawidłowa niezerowa kwota bez dostępnego kursu zachowuje pierwotną kwotę i walutę, pozostaje niewyceniona i blokuje kolejne żądania z limitem; nie zastępuje jej cena katalogowa |
+| `DEFAULT_ORG_CURRENCY` | `USD` | Domyślna waluta organizacji, gdy ustawienia wdrożenia jej nie nadpisują. Domyślnie USD; waluta musi mieć kurs. Nie zmienia jednostek istniejących cen ani limitów USD. |
+| `CURRENCY_RATES` | `{"USD":"1"}` | Obiekt JSON jednostek waluty za USD, np. `{"USD":"1","EUR":"0.9","PLN":"4"}`. USD musi wynosić dokładnie 1; kursy muszą być skończone i dodatnie. Ustawienia administracyjne nadpisują ten dokument. |
 
 Aby wysyłać grafiki na kanały w produkcji, ustaw `VISUAL_RENDER_CDP_URL=http://visual-render:9222` i `BROWSER_CDP_ALLOWED_HOSTS=["visual-render"]` w `backend/.env`. `scripts/deploy.sh` włącza wtedy profil `visuals` w `docker-compose-prod.yml`; przy ręcznym uruchomieniu dodaj `--profile visuals`.
 
@@ -746,14 +748,17 @@ przypina tutaj każdy plik compose.
 
 Nic tutaj. Każda kolekcja sama wskazuje providera, przez którego embeduje,
 model, oraz albo klucz w vaulcie organizacji, który za to płaci, albo — dla
-bezkluczowego providera `ollama` — **usługę lokalną**, wiersz w
+bezkluczowego providera `ollama` — **połączenie usługi**, wiersz w
 Knowledge → Integrations mówiący, gdzie odpowiada Ollama wdrożenia albo
-organizacji. Zobacz [Przetwarzanie plików](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
+organizacji. Własny provider `openai_compatible` też bierze połączenie, z modelem wpisanym jako tekst
+i opcjonalnym kluczem z vaultu organizacji; klucz może mieć tylko połączenie należące do organizacji,
+połączenie, które go ma, nie może go stracić, a połączenie ogólnowdrożeniowe jest bezkluczowe. API to
+`/api/v1/service-connections`. Zobacz [Przetwarzanie plików](file-processing.md#embeddings-the-model-whose-endpoint-answers-and-whose-key-pays).
 
 Były tu kiedyś dwie zmienne. `EMBEDDING_MODEL` preselekcjonowała model dla nowych
 kolekcji i została usunięta: formularz oferuje modele, które serwuje wybrany
 provider. `EMBEDDING_OLLAMA_BASE_URL` wskazywała jedną Ollamę dla całego
-wdrożenia, a teraz jest usługą lokalną, per organizacja albo ogólnowdrożeniową.
+wdrożenia, a teraz jest połączeniem usługi, per organizacja albo ogólnowdrożeniową.
 
 ### Parsowanie dokumentów — konfigurowane per kolekcja, nie tutaj { #document-parsing-configured-per-collection-not-here }
 
@@ -774,7 +779,7 @@ Dwie rzeczy, które kiedyś tu zostawały, są teraz wierszami w produkcie. Kluc
 LlamaParse to wpis w vaulcie, wskazywany przez konfigurację ingestii kolekcji
 (`llamaparse_secret_id`), a kolekcja na LlamaParse bez niego jest odrzucana już
 przy formularzu — `LLAMAPARSE_API_KEY` zniknęła. Serwer OCR, do którego LiteParse
-wysyła strony, to usługa lokalna rodzaju `ocr` w Knowledge → Integrations,
+wysyła strony, to połączenie usługi rodzaju `ocr` w Knowledge → Integrations,
 wybierana per kolekcja (`ocr_endpoint_id`), zarejestrowana przez operatora
 organizacji albo — dla wszystkich organizacji — przez administratora wdrożenia;
 `LITEPARSE_OCR_SERVER_URL` też zniknęła. Żadna z nich nie była widoczna dla
@@ -1714,3 +1719,14 @@ inni, ustaw własny `SUBSCRIPTION_GATEWAY_TOKEN` w `.env`.
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 
 Ustaw `GITHUB_COPILOT_OAUTH_CLIENT_ID` (domyślnie puste) na identyfikator własnej aplikacji OAuth wdrożenia i włącz w niej device flow. Bez niego osobiste logowanie Copilot jest odrzucane. To ustawienie jest odrębne od GitHub Models i poświadczeń konektora GitHub. Autoryzacja GitHub nie ustala uprawnień Copilot; musi przejść także sprawdzenie modeli czatu dla konta. Wygasające zgody GitHub App i własne bramy Enterprise nie są obsługiwane. Zobacz [konta Copilot](models.md#github-copilot-accounts).
+
+## Środowiska prywatnego czatu { #conversation-environment-limits }
+
+| Ustawienie | Domyślnie | Znaczenie |
+| --- | --- | --- |
+| `CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS` | `900` | Limit retencji bezczynności Browser use i Computer use: 60–86400 sekund. Panel pokazuje mniejszą wartość z tego limitu i `session_idle_seconds` capability. |
+| `CONVERSATION_ENVIRONMENTS_PER_USER` | `4` | Liczba środowisk członka organizacji: 1–100. Znane zdalne zasoby czekające na usunięcie liczą się aż do skutecznego sprzątania. |
+
+Bindingi wybierają `session_lifetime` (`run` lub `conversation`). Istniejące bindingi bez nowych pól zachowują czas życia run; nowe bindingi konsoli jawnie wybierają rozmowę i 900 sekund. Ręcznie otwarte środowisko run kończy się po runie, który faktycznie go użył. Zwiększając limit bezczynności, uwzględnij koszt zasobu u dostawcy. Otwarcie i oglądanie środowiska nie wymaga wywołania modelu.
+
+Worker musi działać dla provisioningu, kontroli wygasania i trwałego sprzątania. Stale podłączony właściciel przeglądarki w API/workerze egzekwuje politykę ruchu wychodzącego; utrata właściciela celowo usuwa izolowany kontekst. Restart może zatem zakończyć przeglądarkę przed upływem bezczynności, zamiast odtwarzać sesję bez ochrony lub kopiować jej stan. Zobacz [czas życia przeglądarki i pulpitu](sandbox.pl.md#conversation-environments).

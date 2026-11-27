@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { AvatarFace } from "@/components/ui/avatar-face";
 import { ArrowRight, Building2, CheckCircle2, ArrowUpRight } from "lucide-react";
 import { BrandMark } from "@/components/branding/brand-mark";
@@ -21,8 +22,20 @@ import { useStartVariant } from "./start-experience";
 import { StartMember } from "./start-member";
 import { StartSkeleton } from "./start-skeleton";
 import { StartFinish } from "./start-finish";
+import { StartScopedHub } from "./start-scoped-hub";
+import { StartDeploymentEntry } from "./start-deployment-entry";
 
-export function StartHub() {
+export function StartHub({ invitation }: { invitation?: ReactNode }) {
+  const { activeOrgId } = useOrganizations();
+  const appAdmin = useAuthStore((state) => state.user?.is_app_admin === true);
+  return appAdmin && activeOrgId === null ? (
+    <StartDeploymentEntry />
+  ) : (
+    <OrganizationStartHub invitation={invitation} />
+  );
+}
+
+function OrganizationStartHub({ invitation }: { invitation?: ReactNode }) {
   const { activeOrg } = useOrganizations();
   const variant = useStartVariant();
   const appAdmin = useAuthStore((state) => state.user?.is_app_admin === true);
@@ -31,6 +44,25 @@ export function StartHub() {
   const state = useStart();
   const t = useTranslations("start");
   const { appName } = useBranding();
+  if (state.isLoading) return <StartSkeleton view="workspace" />;
+  if (state.error)
+    return (
+      <ErrorState
+        title={t("loadFailed")}
+        cta={{ label: t("retry"), onClick: () => void state.refetch() }}
+      />
+    );
+  if (state.data?.scopes) {
+    if (permissions.error)
+      return (
+        <ErrorState
+          title={t("loadFailed")}
+          cta={{ label: t("retry"), onClick: () => void permissions.refetch() }}
+        />
+      );
+    if (!permissions.isLoaded) return <StartSkeleton view="workspace" />;
+    return <StartScopedHub data={state.data}>{invitation}</StartScopedHub>;
+  }
   if (
     appAdmin ||
     (activeOrg &&

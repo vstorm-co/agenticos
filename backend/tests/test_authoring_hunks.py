@@ -7,6 +7,8 @@ made since. Undo holds to the same rule on what Accept wrote.
 
 from typing import Any
 
+import pytest
+
 from app.agents.capabilities import ToolOverride
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.db.models.authoring import SpecProposalHunk
@@ -152,6 +154,64 @@ class TestApplying:
         assert hunks.apply_text(moved, hunk, hunk.new_text) == (
             "Hand off to a human.\nAnswer refunds and returns."
         )
+
+    def test_a_short_passage_is_not_followed_into_another_sentence(self):
+        """A change of `$100` whose sentence was edited does not land on another line
+        that only quotes the same amount."""
+        base = "Refunds over $100 need approval.\nShare codes freely."
+        hunk = _anchored(base, _change("$100", "$500"))
+        edited = "Refunds need approval.\nShare codes worth $100 freely."
+
+        assert hunks.apply_text(edited, hunk, hunk.new_text) is None
+
+    def test_a_whole_line_is_followed_only_while_it_is_still_a_whole_line(self):
+        hunk = _anchored(BASE, _change("Answer refunds.", "Answer refunds and returns."))
+
+        assert hunks.apply_text("Hand off. Answer refunds. Close.", hunk, hunk.new_text) is None
+        assert hunks.apply_text("Answer refunds.\nBe kind.", hunk, hunk.new_text) == (
+            "Answer refunds and returns.\nBe kind."
+        )
+
+    def test_a_short_passage_next_to_a_change_accepted_before_it_still_applies(self):
+        """Two changes a few characters apart: once the first is written, the second keeps
+        one side of its surroundings, and lands where it was meant to."""
+        base = "Reply with exactly PONG-BEFORE and nothing else."
+        first = _anchored(base, _change("PONG-BEFORE", "PONG-AFTER"))
+        second = _anchored(base, _change("and nothing else.", "and nothing else, in one line."))
+        written = hunks.apply_text(base, first, first.new_text)
+        assert written == "Reply with exactly PONG-AFTER and nothing else."
+
+        assert hunks.apply_text(written, second, second.new_text) == (
+            "Reply with exactly PONG-AFTER and nothing else, in one line."
+        )
+
+    def test_a_windows_line_break_ends_a_whole_line(self):
+        base = "Be brief.\r\nAnswer refunds.\r\nBe kind."
+        hunk = _anchored(base, _change("Answer refunds.", "Answer refunds and returns."))
+
+        assert hunks.apply_text("Hand off.\r\nAnswer refunds.", hunk, hunk.new_text) == (
+            "Hand off.\r\nAnswer refunds and returns."
+        )
+        assert hunks.apply_text("Hand off.\r\nAnswer refunds.\r\nClose.", hunk, hunk.new_text) == (
+            "Hand off.\r\nAnswer refunds and returns.\r\nClose."
+        )
+
+    def test_a_long_passage_is_followed_wherever_it_moved(self):
+        passage = "refunds over a hundred dollars need a manager"
+        assert len(passage) >= hunks.MOVED_MIN_CHARS
+        base = f"Be brief. Say that {passage}, always."
+        hunk = _anchored(base, _change(passage, "refunds need a manager"))
+        moved = f"Hand off.\nNote: {passage}. Be brief."
+
+        assert hunks.apply_text(moved, hunk, hunk.new_text) == (
+            "Hand off.\nNote: refunds need a manager. Be brief."
+        )
+
+    def test_undo_does_not_follow_a_short_accepted_text_into_another_sentence(self):
+        base = "Refunds over $100 need approval.\nShare codes freely."
+        hunk = _anchored(base, _change("$100", "$500"), accepted_text="$500")
+
+        assert hunks.undo_text("Refunds need approval.\nCodes worth $500.", hunk) is None
 
     def test_a_passage_edited_away_or_now_ambiguous_is_stale(self):
         hunk = _anchored(BASE, _change("Answer refunds.", "Answer refunds and returns."))
@@ -357,7 +417,11 @@ def test_a_stored_capability_is_gated_again_whoever_wrote_the_row():
     """A row staged before the rule, or by a writer that never passed staging, is
     still written with every tool that writes asking for approval."""
     spec = AgentSpec(name="Clerk", instructions="Answer.")
-    stored = {"id": "sandbox", "approval": "required", "tool_approval": {"execute": "never"}}
+    stored = {
+        "id": "artifacts",
+        "approval": "required",
+        "tool_approval": {"read_artifact": "required"},
+    }
     hunk = _hunk(kind="spec_field", path="capabilities", op="add", new_value=stored)
 
     projected, skipped = hunks.projection(spec, [hunk])
@@ -365,11 +429,22 @@ def test_a_stored_capability_is_gated_again_whoever_wrote_the_row():
     assert skipped == []
     (binding,) = projected.capabilities
     assert binding.tool_approval == {
-        "execute": "required",
-        "write_file": "required",
-        "edit_file": "required",
+        "read_artifact": "required",
+        "publish_artifact": "required",
+        "export_artifact": "required",
+        "share_artifact": "required",
     }
     assert hunks.apply_field(spec, hunk, stored) == projected
+
+
+@pytest.mark.security
+def test_a_stored_capability_that_loosens_a_tool_is_left_out_rather_than_written():
+    spec = AgentSpec(name="Clerk", instructions="Answer.")
+    loosening = {"id": "artifacts", "tool_approval": {"publish_artifact": "never"}}
+    hunk = _hunk(kind="spec_field", path="capabilities", op="add", new_value=loosening)
+
+    assert hunks.projection(spec, [hunk]) == (spec, [hunk])
+    assert not hunks.applies(spec, hunk)
 
 
 def test_identical_skill_proposals_keep_a_stable_candidate_identity_without_tool_grants():
@@ -489,3 +564,41 @@ def test_the_improver_reads_each_skill_by_its_line_and_only_used_bodies():
     assert "- billing (a fork)" in section
     assert "Body of returns" in section and "Body of shipping" not in section
     assert _skills_section(spec, [], set()) == ""
+
+
+def test_a_candidate_hashes_the_same_whether_its_row_was_gated_or_not():
+    """Accept compares the projection with the hash its check stored; a stored add with or
+    without its tools' approvals projects to one spec, so the read's gated value and the
+    row it came from cannot disagree about what was measured."""
+    from app.services.authoring_fields import as_accepted
+    from app.services.eval_run import spec_hash
+
+    spec = AgentSpec(name="Clerk", instructions="Answer.")
+    raw = _hunk(kind="spec_field", path="capabilities", op="add", new_value={"id": "artifacts"})
+    shown = _hunk(
+        kind="spec_field",
+        path="capabilities",
+        op="add",
+        new_value=as_accepted("capabilities", "add", {"id": "artifacts"}),
+    )
+
+    assert spec_hash(hunks.projection(spec, [raw])[0]) == spec_hash(
+        hunks.projection(spec, [shown])[0]
+    )
+
+
+def test_a_person_s_wording_keeps_its_whitespace_as_typed():
+    """Whitespace at either end of a passage is part of it: a trailing newline keeps the
+    next line on its own line."""
+    from app.schemas.authoring import HunkDecision
+    from app.schemas.improvement import ChangeEdit
+
+    accepted = HunkDecision(action="accept", text="Cite the refund policy.\n")
+    edited = ChangeEdit(edited_text="  Cite the refund policy.\n")
+
+    assert accepted.text == "Cite the refund policy.\n"
+    assert edited.edited_text == "  Cite the refund policy.\n"
+    hunk = _anchored(BASE, _change(new="Cite the policy.\n", after="refunds.\n"))
+    assert hunks.apply_text(BASE, hunk, accepted.text) == (
+        "Be brief.\nAnswer refunds.\nCite the refund policy.\nBe brief.\nHand off to a human."
+    )
