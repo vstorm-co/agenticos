@@ -53,7 +53,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function setup() {
+function setup(enabled = true) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   clients.push(client);
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -61,7 +61,7 @@ function setup() {
   );
   return {
     client,
-    ...renderHook(() => useConversationEnvironments("chat", agent, true), { wrapper }),
+    ...renderHook(() => useConversationEnvironments("chat", agent, enabled), { wrapper }),
   };
 }
 
@@ -131,5 +131,119 @@ it.each(["starting", "ready"] as const)(
     await waitFor(() => expect(result.current.items?.[0]).toEqual(live));
     expect(apiClient.post).not.toHaveBeenCalled();
     expect(apiClient.delete).not.toHaveBeenCalled();
+  },
+);
+
+it("cancels an unfinished initial read before a fresh activity readiness request", async () => {
+  const earlier = deferred<ConversationEnvironmentList>();
+  const latest = deferred<ConversationEnvironmentList>();
+  vi.mocked(apiClient.get).mockReturnValueOnce(earlier.promise).mockReturnValueOnce(latest.promise);
+  const { result, client } = setup();
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledOnce());
+  let refresh: ReturnType<typeof result.current.refresh> | undefined;
+  act(() => {
+    refresh = result.current.refresh();
+  });
+  await waitFor(() => expect(apiClient.get).toHaveBeenCalledTimes(2));
+  const owned = { ...first, control: "human" as const };
+  await act(async () => {
+    latest.resolve(listed(owned));
+    await refresh;
+  });
+  expect(client.getQueryData<ConversationEnvironmentList>(key)?.items[0]).toEqual(owned);
+  await act(async () => {
+    earlier.resolve(listed({ ...first, id: null, state: "not_started" }));
+    await earlier.promise;
+  });
+  await waitFor(() => expect(result.current.items?.[0]).toEqual(owned));
+  expect(apiClient.post).not.toHaveBeenCalled();
+});
+
+it("does not admit an obsolete actor's retained refresh callback", async () => {
+  const { result, client } = setup(false);
+  const previousRefresh = result.current.refresh;
+  act(() =>
+    useAuthStore.setState({
+      user: {
+        id: "other-actor",
+        email: "other@example.com",
+        is_active: true,
+        created_at: "2026-01-01",
+      },
+    }),
+  );
+  await waitFor(() => expect(result.current.refresh).not.toBe(previousRefresh));
+  expect(await previousRefresh()).toBeNull();
+  expect(apiClient.get).not.toHaveBeenCalled();
+  await act(async () => {
+    await result.current.refresh();
+  });
+  expect(client.getQueryData(key)).toBeUndefined();
+  const otherKey = qk.conversationEnvironments.context(
+    "owner",
+    "other-actor",
+    "org-one",
+    "chat",
+    agent,
+  );
+  expect(client.getQueryData<ConversationEnvironmentList>(otherKey)?.items[0]).toEqual(first);
+  expect(apiClient.get).toHaveBeenCalledOnce();
+  expect(apiClient.post).not.toHaveBeenCalled();
+});
+
+it("rechecks authority after cancellation before starting a fresh request", async () => {
+  const { result, client } = setup(false);
+  const cancelled = deferred<void>();
+  vi.spyOn(client, "cancelQueries").mockReturnValueOnce(cancelled.promise);
+  let refresh: ReturnType<typeof result.current.refresh> | undefined;
+  act(() => {
+    refresh = result.current.refresh();
+  });
+  act(() => useOrgStore.setState({ activeOrgId: "org-two" }));
+  await act(async () => {
+    cancelled.resolve();
+    expect(await refresh).toBeNull();
+  });
+  expect(apiClient.get).not.toHaveBeenCalled();
+  expect(client.getQueryData(key)).toBeUndefined();
+});
+
+it("returns a read failure explicitly instead of claiming an empty successful environment list", async () => {
+  const failure = new Error("Controlled readiness refusal");
+  vi.mocked(apiClient.get).mockRejectedValue(failure);
+  const { result } = setup(false);
+  let response: Awaited<ReturnType<typeof result.current.refresh>> | undefined;
+  await act(async () => {
+    response = await result.current.refresh();
+  });
+  expect(response).toEqual({ data: undefined, error: failure });
+  await waitFor(() => expect(result.current.error).toBe(failure));
+  expect(apiClient.post).not.toHaveBeenCalled();
+});
+
+it.each([false, true])(
+  "discards a completed old-scope readiness read (failed: %s)",
+  async (failed) => {
+    const pending = Promise.withResolvers<ConversationEnvironmentList>();
+    vi.mocked(apiClient.get).mockReturnValueOnce(pending.promise);
+    const { result, client } = setup(false);
+    const previousRefresh = result.current.refresh;
+    let response: ReturnType<typeof previousRefresh> | undefined;
+    act(() => {
+      response = previousRefresh();
+    });
+    await waitFor(() => expect(apiClient.get).toHaveBeenCalledOnce());
+    act(() => useOrgStore.setState({ activeOrgId: "org-two" }));
+    await waitFor(() => expect(result.current.refresh).not.toBe(previousRefresh));
+    await act(async () => {
+      if (failed) pending.reject(new Error("Controlled old-scope refusal"));
+      else pending.resolve(listed(first));
+      expect(await response).toBeNull();
+    });
+    const nextKey = qk.conversationEnvironments.context("owner", "actor", "org-two", "chat", agent);
+    expect(client.getQueryData(nextKey)).toBeUndefined();
+    expect(result.current.items).toBeUndefined();
+    expect(apiClient.get).toHaveBeenCalledOnce();
+    expect(apiClient.post).not.toHaveBeenCalled();
   },
 );

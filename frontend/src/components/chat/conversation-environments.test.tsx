@@ -1,14 +1,10 @@
 import { useState, type ComponentProps } from "react";
-import type { QueryObserverSuccessResult } from "@tanstack/react-query";
 import type { ConversationEnvironmentView } from "./conversation-environment-view";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useConversationEnvironments } from "@/hooks/use-conversation-environments";
-import type {
-  ConversationEnvironment,
-  ConversationEnvironmentList,
-} from "@/lib/conversation-environments-api";
+import type { ConversationEnvironment } from "@/lib/conversation-environments-api";
 import { ChatWorkspaceProvider, useRequiredChatWorkspace } from "./chat-workspace-context";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { ConversationEnvironments } from "./conversation-environments";
@@ -180,36 +176,8 @@ it("holds the loading geometry until a readiness read arrives", async () => {
   expect(api.start).not.toHaveBeenCalled();
 });
 
-function readResult(
-  items = api.items ?? [],
-): QueryObserverSuccessResult<ConversationEnvironmentList, Error> {
-  return {
-    data: { items },
-    dataUpdatedAt: 1,
-    error: null,
-    errorUpdatedAt: 0,
-    failureCount: 0,
-    failureReason: null,
-    errorUpdateCount: 0,
-    isError: false,
-    isFetched: true,
-    isFetchedAfterMount: true,
-    isFetching: false,
-    isLoading: false,
-    isPending: false,
-    isLoadingError: false,
-    isInitialLoading: false,
-    isPaused: false,
-    isPlaceholderData: false,
-    isRefetchError: false,
-    isRefetching: false,
-    isStale: false,
-    isSuccess: true,
-    isEnabled: true,
-    status: "success",
-    fetchStatus: "idle",
-    refetch: api.refresh,
-  };
+function readResult(items = api.items ?? []): NonNullable<Awaited<ReturnType<typeof api.refresh>>> {
+  return { data: { items }, error: null };
 }
 
 it("keeps a legacy browser activity visible after a read finds no owned environment", async () => {
@@ -308,10 +276,6 @@ it("keeps legacy activity when readiness fails despite a cached owned target", a
   vi.mocked(api.refresh).mockResolvedValue({
     ...readResult(),
     error: new Error("Controlled read refusal"),
-    isError: true,
-    isSuccess: false,
-    isRefetchError: true,
-    status: "error",
   });
   useBrowserPanelStore.getState().open("legacy-call", true);
   render(<Harness />);
@@ -342,5 +306,14 @@ it("refreshes an already selected owned browser when another activity call arriv
   await act(async () => useBrowserPanelStore.getState().open("second-call", true));
   expect(api.refresh).toHaveBeenCalledTimes(2);
   expect(screen.getByTestId("routing")).toHaveTextContent("browser:browser");
+  expect(api.start).not.toHaveBeenCalled();
+});
+
+it("keeps legacy activity when the refresh was cancelled by a scope change", async () => {
+  vi.mocked(api.refresh).mockResolvedValue(null);
+  useBrowserPanelStore.getState().open("legacy-call", true);
+  render(<Harness />);
+  await act(async () => {});
+  expect(screen.getByTestId("routing")).toHaveTextContent("browser:activity");
   expect(api.start).not.toHaveBeenCalled();
 });

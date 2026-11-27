@@ -66,6 +66,7 @@ export function ConversationEnvironments({
     if (!browserActive || conversationId === null) return;
     let current = true;
     void refresh().then((result) => {
+      if (result === null) return;
       const owned = result.data?.items.find((item) => item.kind === "browser");
       if (
         current &&
