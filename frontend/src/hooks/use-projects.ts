@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import {
+  skipToken,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -254,6 +255,7 @@ export function useProjectOfConversation(conversationId: string | null) {
 export function useProjectChatCount(projectId: string): number | undefined {
   const { data } = useQuery<InfiniteData<ProjectChatList>, Error, number | undefined>({
     queryKey: qk.conversations.inProject(projectId),
+    queryFn: skipToken,
     enabled: false,
     select: (listing) => listing.pages[0]?.total,
   });
