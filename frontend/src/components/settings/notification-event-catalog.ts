@@ -204,6 +204,12 @@ export const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     channels: ["in_app", "email", "push"],
   },
   {
+    eventType: "memory_deadline_change",
+    words: "prefMemoryDeadlineChange",
+    icon: Bell,
+    channels: ["in_app"],
+  },
+  {
     eventType: "workflow_log_alert",
     words: "prefWorkflowLogAlert",
     icon: Bell,

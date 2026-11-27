@@ -27,6 +27,9 @@ Two things are versioned separately from this file and worth knowing about:
 - Choose a separate Memory maintenance model during bootstrap with `--memory-maintenance-model`.
 - Browse previous versions of personal Notes, restore a version, and let Memory Maintenance update individual opted-in notes from private conversations.
 
+- Route shared commitment deadline changes to Inbox with a versioned rule, a shadow mode and recipient access checks.
+- Merge and restore business object aliases with an audit trail, and resume an exact-identity backfill from its last completed batch.
+
 ### Fixed
 
 - Preserve validity dates when publishing memories and rank relevant memories before limiting the result set.

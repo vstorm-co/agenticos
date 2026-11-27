@@ -271,6 +271,14 @@ export function wordedSummary(params: Record<string, string>, t: Translate): str
       return t("kind.usageReport", { name: v("org_name") });
     case "agent_usage_report":
       return t("kind.usageReport", { name: v("agent_name") });
+    case "memory_deadline_change":
+      return t("kind.memoryDeadlineChange", {
+        name: v("object_name"),
+        change: v("change"),
+        source: v("source"),
+        before: v("before") || "—",
+        after: v("after") || "—",
+      });
     case "workflow_log_alert":
       return logAlert(v, t);
     case "coalesced": {

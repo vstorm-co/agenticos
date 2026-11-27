@@ -203,6 +203,7 @@ class MemoryObjectRead(BaseSchema):
     id: UUID
     kind: MemoryObjectKind
     name: str
+    external_key: str | None = None
 
 
 class MemoryObjectPage(BaseSchema):
@@ -214,6 +215,73 @@ class MemoryObjectTimeline(BaseSchema):
     object: MemoryObjectRead
     items: list[MemoryClaimRead]
     next_cursor: UUID | None = None
+
+
+class MemoryObjectMergeCreate(BaseSchema):
+    source_id: UUID
+    confirmed: Literal[True]
+
+
+class MemoryObjectMergeRead(BaseSchema):
+    id: UUID
+    source: MemoryObjectRead
+    target_id: UUID
+    merged_at: datetime
+
+
+class MemoryObjectMergePage(BaseSchema):
+    items: list[MemoryObjectMergeRead]
+    next_cursor: UUID | None = None
+
+
+class MemoryObjectBackfillRead(BaseSchema):
+    cutoff: datetime
+    scanned: int
+    linked: int
+    completed_at: datetime | None
+
+
+class MemoryObjectBackfillRun(BaseSchema):
+    restart: bool = False
+
+
+class MemoryObjectBackfillAdvance(MemoryObjectBackfillRun):
+    limit: int = Field(default=100, ge=1, le=200)
+
+
+MemoryInboxMode = Literal["off", "shadow", "live"]
+MemoryInboxSource = Literal["gmail", "webhook", "reviewed"]
+MemoryInboxChange = Literal["changed", "cancelled", "review"]
+
+
+class MemoryInboxRuleUpdate(BaseSchema):
+    expected_version: int = Field(ge=0)
+    mode: MemoryInboxMode
+    recipient_ids: list[UUID] = Field(max_length=50)
+    sources: list[MemoryInboxSource] = Field(max_length=3)
+    include_review: bool = False
+
+
+class MemoryInboxRuleRead(BaseSchema):
+    version: int
+    mode: MemoryInboxMode
+    recipient_ids: list[UUID]
+    sources: list[MemoryInboxSource]
+    include_review: bool
+
+
+class MemoryInboxDecisionCount(BaseSchema):
+    change: MemoryInboxChange
+    outcome: Literal["shadow", "delivered", "muted"]
+    count: int
+
+
+class MemoryInboxContext(BaseSchema):
+    claim_id: UUID
+    previous_id: UUID
+    change: MemoryInboxChange
+    source: MemoryInboxSource
+    source_event_id: UUID | None = None
 
 
 class MemoryClaimShare(BaseSchema):

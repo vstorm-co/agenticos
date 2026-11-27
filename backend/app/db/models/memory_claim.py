@@ -22,8 +22,17 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -59,6 +68,62 @@ class MemoryObject(Base, TimestampMixin):
     kind: Mapped[str] = mapped_column(String(24), nullable=False)
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     identity_key: Mapped[str] = mapped_column(String(300), nullable=False)
+
+    @property
+    def external_key(self) -> str | None:
+        prefix, _, key = self.identity_key.partition(":")
+        return key if prefix == "external" else None
+
+
+class MemoryObjectMerge(Base):
+    """A reviewed alias. Claims retain their original object IDs through a merge and undo."""
+
+    __tablename__ = "memory_object_merges"
+    __table_args__ = (
+        CheckConstraint("source_id <> target_id", name="distinct_objects"),
+        Index(
+            "uq_memory_object_merges_active_source",
+            "source_id",
+            unique=True,
+            postgresql_where=text("undone_at IS NULL"),
+        ),
+        Index(
+            "ix_memory_object_merges_active_target",
+            "target_id",
+            "source_id",
+            postgresql_where=text("undone_at IS NULL"),
+        ),
+        Index("ix_memory_object_merges_source", "source_id"),
+        Index("ix_memory_object_merges_target", "target_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    source_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("memory_objects.id", ondelete="CASCADE")
+    )
+    target_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("memory_objects.id", ondelete="CASCADE")
+    )
+    merged_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+    undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class MemoryObjectBackfill(Base):
+    """Progress through one tenant's bounded legacy snapshot."""
+
+    __tablename__ = "memory_object_backfills"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), primary_key=True
+    )
+    cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    cursor_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cursor_id: Mapped[uuid.UUID | None]
+    scanned: Mapped[int] = mapped_column(server_default="0")
+    linked: Mapped[int] = mapped_column(server_default="0")
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class MemoryClaim(Base, TimestampMixin):
@@ -134,6 +199,13 @@ class MemoryClaim(Base, TimestampMixin):
         Index("ix_memory_claims_agent", "agent_id"),
         Index("ix_memory_claims_object", "object_id", "observed_at", "id"),
         Index(
+            "ix_memory_claims_object_backfill",
+            "organization_id",
+            "created_at",
+            "id",
+            postgresql_where=text("object_id IS NULL"),
+        ),
+        Index(
             "uq_memory_claims_consolidation",
             "organization_id",
             "scope_key",
@@ -145,6 +217,53 @@ class MemoryClaim(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<MemoryClaim({self.scope_key}, {self.subject}, {self.status})>"
+
+
+class MemoryInboxRule(Base):
+    """An editor-reviewed routing rule for changes to shared commitment deadlines."""
+
+    __tablename__ = "memory_inbox_rules"
+    __table_args__ = (
+        CheckConstraint("mode IN ('off', 'shadow', 'live')", name="mode"),
+        CheckConstraint("cardinality(recipient_ids) <= 50", name="recipient_limit"),
+    )
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), primary_key=True
+    )
+    version: Mapped[int] = mapped_column(server_default="0")
+    mode: Mapped[str] = mapped_column(String(8), server_default="off")
+    recipient_ids: Mapped[list[uuid.UUID]] = mapped_column(
+        ARRAY(PG_UUID(as_uuid=True)), server_default=text("'{}'")
+    )
+    sources: Mapped[list[str]] = mapped_column(ARRAY(String(16)), server_default=text("'{}'"))
+    include_review: Mapped[bool] = mapped_column(server_default="false")
+
+
+class MemoryInboxDecision(Base):
+    """A receipt independent of Inbox retention, atomically written with a card."""
+
+    __tablename__ = "memory_inbox_decisions"
+    __table_args__ = (
+        CheckConstraint("outcome IN ('shadow', 'delivered', 'muted')", name="outcome"),
+        Index("ix_memory_inbox_decisions_org_rule", "organization_id", "rule_version"),
+        Index("ix_memory_inbox_decisions_recipient", "recipient_id"),
+    )
+
+    claim_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("memory_claims.id", ondelete="CASCADE"), primary_key=True
+    )
+    rule_version: Mapped[int] = mapped_column(primary_key=True)
+    policy_version: Mapped[int] = mapped_column(primary_key=True)
+    revision_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    recipient_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    change: Mapped[str] = mapped_column(String(16), primary_key=True)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    outcome: Mapped[str] = mapped_column(String(16))
 
 
 class MemoryClaimEvidence(Base):

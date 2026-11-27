@@ -25,7 +25,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import record_audit
+from app.core.audit import current_impersonator, record_audit
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -41,15 +41,21 @@ from app.core.memory_keys import (
     organization_owner_key,
     person_owner_key,
 )
-from app.core.permissions import AuthContext, Perm, Scope
+from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.memory import AgentMemoryFile
-from app.db.models.memory_claim import MemoryClaim
+from app.db.models.memory_claim import (
+    MemoryClaim,
+    MemoryObject,
+    MemoryObjectBackfill,
+    MemoryObjectMerge,
+)
 from app.repositories import (
     agent_repo,
     audit_log_repo,
     group_repo,
+    member_repo,
     memory_claim,
     memory_repo,
     organization_repo,
@@ -68,6 +74,9 @@ from app.schemas.memory import (
     MemoryClaimShare,
     MemoryConflictResolve,
     MemoryErasureResult,
+    MemoryInboxDecisionCount,
+    MemoryInboxRuleRead,
+    MemoryInboxRuleUpdate,
     MemoryLibrary,
     MemoryNoteAutoUpdate,
     MemoryNoteEdit,
@@ -77,7 +86,13 @@ from app.schemas.memory import (
     MemoryNoteRevisionList,
     MemoryNoteRevisionRead,
     MemoryNoteShare,
+    MemoryObjectBackfillAdvance,
+    MemoryObjectBackfillRead,
+    MemoryObjectBackfillRun,
     MemoryObjectKind,
+    MemoryObjectMergeCreate,
+    MemoryObjectMergePage,
+    MemoryObjectMergeRead,
     MemoryObjectPage,
     MemoryObjectRead,
     MemoryObjectTimeline,
@@ -85,8 +100,11 @@ from app.schemas.memory import (
     SharedMemoryNoteRead,
 )
 from app.services.access import AGENT, resolve_access
+from app.services.background_jobs import enqueue
 from app.services.dataset import DatasetService
 from app.services.memory import _claims
+from app.services.memory_inbox_policy import queue_inbox_change
+from app.worker.jobs import BACKFILL_MEMORY_OBJECTS, BackfillMemoryObjects
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +139,27 @@ def _claim_read(row: MemoryClaim, names: dict[UUID, str]) -> MemoryClaimRead:
         derived_from_count=0 if scope in ("organization", "group") else len(row.derived_from or []),
         episode=DecisionEpisode.model_validate(row.episode) if row.episode is not None else None,
     )
+
+
+def _merge_read(merge: MemoryObjectMerge, source: MemoryObject) -> MemoryObjectMergeRead:
+    return MemoryObjectMergeRead(
+        id=merge.id,
+        source=MemoryObjectRead.model_validate(source, from_attributes=True),
+        target_id=merge.target_id,
+        merged_at=merge.merged_at,
+    )
+
+
+def _backfill_parent_ids(claim: MemoryClaim) -> set[UUID]:
+    if len(claim.derived_from) > 100:
+        return set()
+    try:
+        ids = {UUID(str(parent)) for parent in claim.derived_from}
+    except ValueError:
+        return set()
+    if claim.supersedes_id is not None:
+        ids.add(claim.supersedes_id)
+    return ids
 
 
 class MemoryService:
@@ -199,8 +238,14 @@ class MemoryService:
         q: str,
         cursor: UUID | None,
         limit: int,
+        merge_target: UUID | None = None,
     ) -> MemoryObjectPage:
         keys = await self._library_keys(ctx, library)
+        if merge_target is not None:
+            target = await self._object(ctx, keys, merge_target, follow_merge=True)
+            keys = [target.scope_key]
+            kind = MemoryObjectRead.model_validate(target, from_attributes=True).kind
+            merge_target = target.id
         rows = await memory_claim.list_objects(
             self.db,
             organization_id=ctx.organization_id,
@@ -209,6 +254,7 @@ class MemoryService:
             q=q.strip(),
             cursor=cursor,
             limit=limit + 1,
+            merge_target=merge_target,
         )
         return MemoryObjectPage(
             items=[
@@ -231,11 +277,7 @@ class MemoryService:
         keys = await self._library_keys(ctx, library)
         if known_at is not None and as_of is None:
             raise BadRequestError(message="Choose an effective date before setting known_at")
-        entity = await memory_claim.get_object(
-            self.db, organization_id=ctx.organization_id, object_id=object_id, scope_keys=keys
-        )
-        if entity is None:
-            raise NotFoundError(message="Memory object not found")
+        entity = await self._object(ctx, keys, object_id, follow_merge=True)
         rows = await memory_claim.object_claims(
             self.db,
             organization_id=ctx.organization_id,
@@ -267,6 +309,318 @@ class MemoryService:
             ],
             next_cursor=rows[limit - 1].id if len(rows) > limit else None,
         )
+
+    async def _object(
+        self, ctx: AuthContext, keys: list[str], object_id: UUID, *, follow_merge: bool = False
+    ) -> MemoryObject:
+        entity = await memory_claim.get_object(
+            self.db,
+            organization_id=ctx.organization_id,
+            object_id=object_id,
+            scope_keys=keys,
+            follow_merge=follow_merge,
+        )
+        if entity is None:
+            raise NotFoundError(message="Memory object not found")
+        return entity
+
+    async def _object_edit_keys(self, ctx: AuthContext, library: MemoryLibrary) -> list[str]:
+        keys = await self._library_keys(ctx, library)
+        if current_impersonator() is not None or (
+            library == "organization" and ctx.scope_for(Perm.CONTEXT_EDIT) != Scope.ALL
+        ):
+            raise AuthorizationError(message="Editing shared memory objects requires context:edit")
+        return keys
+
+    async def object_merges(
+        self,
+        ctx: AuthContext,
+        *,
+        library: MemoryLibrary,
+        target_id: UUID,
+        cursor: UUID | None,
+        limit: int,
+    ) -> MemoryObjectMergePage:
+        keys = await self._library_keys(ctx, library)
+        target = await self._object(ctx, keys, target_id, follow_merge=True)
+        rows = await memory_claim.active_object_merges(
+            self.db,
+            target_id=target.id,
+            cursor=cursor,
+            limit=limit + 1,
+        )
+        return MemoryObjectMergePage(
+            items=[_merge_read(merge, source) for merge, source in rows[:limit]],
+            next_cursor=rows[limit - 1][0].id if len(rows) > limit else None,
+        )
+
+    async def merge_objects(
+        self,
+        ctx: AuthContext,
+        *,
+        library: MemoryLibrary,
+        target_id: UUID,
+        data: MemoryObjectMergeCreate,
+    ) -> MemoryObjectMergeRead:
+        keys = await self._object_edit_keys(ctx, library)
+        target = await self._object(ctx, keys, target_id)
+        await _claims._hold_scope(
+            self.db, organization_id=ctx.organization_id, scope_key=target.scope_key
+        )
+        target = await self._object(ctx, keys, target_id)
+        source = await self._object(ctx, keys, data.source_id)
+        if (
+            target.id == source.id
+            or target.kind != source.kind
+            or target.scope_key != source.scope_key
+        ):
+            raise BadRequestError(message="Choose distinct objects of the same type and audience")
+        merge = await memory_claim.merge_objects(self.db, source_id=source.id, target_id=target.id)
+        if merge is None:
+            raise ConflictError(
+                message="Undo the existing merge before making this object an alias"
+            )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.object.merged",
+            target_type="memory_object_merge",
+            target_id=str(merge.id),
+            details={"source_id": str(source.id), "target_id": str(target.id)},
+        )
+        return _merge_read(merge, source)
+
+    async def undo_object_merge(
+        self,
+        ctx: AuthContext,
+        *,
+        library: MemoryLibrary,
+        target_id: UUID,
+        merge_id: UUID,
+    ) -> None:
+        keys = await self._object_edit_keys(ctx, library)
+        target = await self._object(ctx, keys, target_id, follow_merge=True)
+        await _claims._hold_scope(
+            self.db, organization_id=ctx.organization_id, scope_key=target.scope_key
+        )
+        target = await self._object(ctx, keys, target_id, follow_merge=True)
+        merge = await memory_claim.active_merge(self.db, merge_id=merge_id, target_id=target.id)
+        if merge is None:
+            raise NotFoundError(message="Active memory object merge not found")
+        await memory_claim.undo_object_merge(self.db, merge)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.object.merge_undone",
+            target_type="memory_object_merge",
+            target_id=str(merge.id),
+            details={"target_id": str(target.id)},
+        )
+
+    @staticmethod
+    def _require_memory_owner(ctx: AuthContext) -> None:
+        if (
+            ctx.role != OrgRoleName.OWNER
+            or not ctx.acts_in_person
+            or ctx.key_scopes is not None
+            or ctx.subject_is_publisher_fallback
+            or current_impersonator() is not None
+        ):
+            raise AuthorizationError(
+                message="This operation requires a signed-in organization owner"
+            )
+
+    async def object_backfill_status(self, ctx: AuthContext) -> MemoryObjectBackfillRead | None:
+        self._require_memory_owner(ctx)
+        state = await memory_claim.backfill_state(self.db, organization_id=ctx.organization_id)
+        return (
+            MemoryObjectBackfillRead.model_validate(state, from_attributes=True) if state else None
+        )
+
+    async def _start_object_backfill(
+        self,
+        organization_id: UUID,
+        *,
+        restart: bool,
+    ) -> MemoryObjectBackfill:
+        state = await memory_claim.backfill_state(
+            self.db, organization_id=organization_id, start=True
+        )
+        assert state is not None  # The repository creates and locks the tenant checkpoint.
+        if restart:
+            if state.completed_at is None:
+                raise ConflictError(message="Resume the active backfill before starting a new scan")
+            state.cutoff = datetime.now(UTC)
+            state.cursor_at = state.cursor_id = state.completed_at = None
+            state.scanned = state.linked = 0
+        return state
+
+    async def _queue_object_backfill(
+        self,
+        state: MemoryObjectBackfill,
+        *,
+        requested_by: UUID,
+    ) -> None:
+        key = f"memory-object-backfill:{state.organization_id}"
+        await enqueue(
+            self.db,
+            BACKFILL_MEMORY_OBJECTS,
+            BackfillMemoryObjects(
+                organization_id=state.organization_id,
+                requested_by=requested_by,
+                cutoff=state.cutoff,
+            ),
+            organization_id=state.organization_id,
+            dedupe_key=f"{key}:{state.cutoff.isoformat()}:{requested_by}",
+            concurrency_key=key,
+        )
+
+    async def run_object_backfill(
+        self,
+        ctx: AuthContext,
+        data: MemoryObjectBackfillRun,
+    ) -> MemoryObjectBackfillRead:
+        self._require_memory_owner(ctx)
+        state = await self._start_object_backfill(ctx.organization_id, restart=data.restart)
+        if state.completed_at is None:
+            await self._queue_object_backfill(state, requested_by=ctx.subject_id)
+        return MemoryObjectBackfillRead.model_validate(state, from_attributes=True)
+
+    async def continue_object_backfill(self, payload: BackfillMemoryObjects) -> int:
+        member = await member_repo.get_active(
+            self.db,
+            organization_id=payload.organization_id,
+            user_id=payload.requested_by,
+        )
+        if member is None or member.role != OrgRoleName.OWNER:
+            return 0
+        state = await self._start_object_backfill(payload.organization_id, restart=False)
+        if state.cutoff != payload.cutoff or state.completed_at is not None:
+            return 0
+        before = state.scanned
+        await self._scan_object_backfill(state, limit=200)
+        if state.completed_at is None:
+            await self._queue_object_backfill(state, requested_by=payload.requested_by)
+        return state.scanned - before
+
+    async def advance_object_backfill(
+        self,
+        ctx: AuthContext,
+        data: MemoryObjectBackfillAdvance,
+    ) -> MemoryObjectBackfillRead:
+        self._require_memory_owner(ctx)
+        state = await self._start_object_backfill(ctx.organization_id, restart=data.restart)
+        if state.completed_at is None:
+            await self._scan_object_backfill(state, limit=data.limit)
+        return MemoryObjectBackfillRead.model_validate(state, from_attributes=True)
+
+    async def _scan_object_backfill(self, state: MemoryObjectBackfill, *, limit: int) -> None:
+        rows = await memory_claim.unlinked_object_page(self.db, state, limit=limit)
+        parents = {claim.id: _backfill_parent_ids(claim) for claim in rows}
+        external = await memory_claim.external_objects_for_claims(
+            self.db,
+            organization_id=state.organization_id,
+            claim_ids=set().union(*parents.values()),
+        )
+        links: dict[UUID, UUID] = {}
+        for claim in rows:
+            claim_parents = parents[claim.id]
+            if not claim_parents or not claim_parents <= external.keys():
+                continue
+            identities = {external[parent] for parent in claim_parents}
+            if len(identities) == 1:
+                scope, agent, subject, object_id = identities.pop()
+                if (scope, agent, subject) == (claim.scope_key, claim.agent_id, claim.subject):
+                    links[claim.id] = object_id
+        await memory_claim.link_backfilled_claims(
+            self.db,
+            organization_id=state.organization_id,
+            links=links,
+        )
+        state.linked += len(links)
+        if rows:
+            state.cursor_at, state.cursor_id = rows[-1].created_at, rows[-1].id
+            state.scanned += len(rows)
+        if len(rows) < limit:
+            state.completed_at = datetime.now(UTC)
+        await self.db.flush()
+
+    async def inbox_rule(self, ctx: AuthContext) -> MemoryInboxRuleRead:
+        self._require_memory_owner(ctx)
+        row = await memory_claim.inbox_rule(self.db, organization_id=ctx.organization_id)
+        if row is None:
+            return MemoryInboxRuleRead(
+                version=0,
+                mode="off",
+                sources=["gmail", "webhook", "reviewed"],
+                recipient_ids=[],
+                include_review=False,
+            )
+        return MemoryInboxRuleRead.model_validate(row, from_attributes=True)
+
+    async def update_inbox_rule(
+        self,
+        ctx: AuthContext,
+        data: MemoryInboxRuleUpdate,
+    ) -> MemoryInboxRuleRead:
+        self._require_memory_owner(ctx)
+        recipient_ids = sorted(set(data.recipient_ids))
+        sources = sorted({str(source) for source in data.sources})
+        if data.mode != "off" and (not recipient_ids or not sources):
+            raise BadRequestError(message="Select at least one active recipient and source")
+        active = await member_repo.get_active_ids(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_ids=recipient_ids,
+        )
+        if len(active) != len(recipient_ids):
+            raise BadRequestError(message="Inbox recipients must be active organization members")
+        rule = await memory_claim.inbox_rule(
+            self.db, organization_id=ctx.organization_id, edit=True
+        )
+        assert rule is not None  # The repository creates and locks the tenant's rule on first edit.
+        if rule.version != data.expected_version:
+            raise ConflictError(message="The Inbox rule changed; reload before editing it")
+        rule.version += 1
+        rule.mode = data.mode
+        rule.recipient_ids = recipient_ids
+        rule.sources = sources
+        rule.include_review = data.include_review
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.inbox_rule.updated",
+            target_type="organization",
+            target_id=str(ctx.organization_id),
+            details={
+                "version": rule.version,
+                "mode": rule.mode,
+                "recipient_count": len(recipient_ids),
+            },
+        )
+        await self.db.flush()
+        return MemoryInboxRuleRead.model_validate(rule, from_attributes=True)
+
+    async def inbox_decision_counts(
+        self,
+        ctx: AuthContext,
+        version: int,
+    ) -> list[MemoryInboxDecisionCount]:
+        self._require_memory_owner(ctx)
+        rows = await memory_claim.inbox_decision_counts(
+            self.db,
+            organization_id=ctx.organization_id,
+            rule_version=version,
+        )
+        return [
+            MemoryInboxDecisionCount.model_validate(
+                {"change": change, "outcome": outcome, "count": count}
+            )
+            for change, outcome, count in rows
+        ]
 
     async def _publication_target(self, ctx: AuthContext, group_id: UUID | None) -> str:
         await self._library_keys(ctx, "personal")
@@ -410,6 +764,14 @@ class MemoryService:
         peers = await self._conflict_candidates(claim, lock=True)
         if not peers or {row.id for row in peers} != set(data.candidate_ids):
             raise ConflictError(message="Memory conflict changed; reload before resolving it")
+        previous = None
+        if claim.status == "disputed" and claim.subject == "deadline":
+            alternatives = [row for row in peers if row.id != claim.id]
+            accepted = await memory_claim.previously_accepted(
+                self.db,
+                candidate_ids=[row.id for row in alternatives],
+            )
+            previous = next((row for row in reversed(alternatives) if row.id in accepted), None)
         now = datetime.now(UTC)
         for row in peers:
             if row.id == claim_id:
@@ -421,6 +783,7 @@ class MemoryService:
         await memory_claim.bump_revision(
             self.db, organization_id=ctx.organization_id, scope_key=claim.scope_key
         )
+        await queue_inbox_change(self.db, claim=claim, previous=previous)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,

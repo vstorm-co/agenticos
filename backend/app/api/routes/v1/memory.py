@@ -37,6 +37,9 @@ from app.schemas.memory import (
     MemoryClaimShare,
     MemoryConflictResolve,
     MemoryErasureResult,
+    MemoryInboxDecisionCount,
+    MemoryInboxRuleRead,
+    MemoryInboxRuleUpdate,
     MemoryLibrary,
     MemoryNoteAutoUpdate,
     MemoryNoteEdit,
@@ -46,7 +49,13 @@ from app.schemas.memory import (
     MemoryNoteRevisionList,
     MemoryNoteShare,
     MemoryNoteUpdate,
+    MemoryObjectBackfillAdvance,
+    MemoryObjectBackfillRead,
+    MemoryObjectBackfillRun,
     MemoryObjectKind,
+    MemoryObjectMergeCreate,
+    MemoryObjectMergePage,
+    MemoryObjectMergeRead,
     MemoryObjectPage,
     MemoryObjectTimeline,
     SharedMemoryNotePage,
@@ -65,9 +74,111 @@ async def memory_objects(
     q: str = Query("", max_length=160),
     cursor: UUID | None = Query(None),
     limit: int = Query(30, ge=1, le=100),
+    merge_target: UUID | None = Query(None),
 ) -> Any:
     """Browse business objects in the caller's personal or shared library."""
-    return await service.objects(ctx, library=library, kind=kind, q=q, cursor=cursor, limit=limit)
+    return await service.objects(
+        ctx,
+        library=library,
+        kind=kind,
+        q=q,
+        cursor=cursor,
+        limit=limit,
+        merge_target=merge_target,
+    )
+
+
+@router.get("/inbox-rule", response_model=MemoryInboxRuleRead)
+async def memory_inbox_rule(service: MemorySvc, ctx: Auth) -> Any:
+    """Read the organization's versioned commitment deadline routing rule."""
+    return await service.inbox_rule(ctx)
+
+
+@router.put("/inbox-rule", response_model=MemoryInboxRuleRead)
+async def set_memory_inbox_rule(data: MemoryInboxRuleUpdate, service: MemorySvc, ctx: Auth) -> Any:
+    """Set the sources, recipients and delivery or shadow mode for new changes."""
+    return await service.update_inbox_rule(ctx, data)
+
+
+@router.get("/inbox-rule/decisions", response_model=list[MemoryInboxDecisionCount])
+async def memory_inbox_decisions(
+    service: MemorySvc,
+    ctx: Auth,
+    version: int = Query(ge=1),
+) -> Any:
+    """Summarize the rule's outcomes without disclosing object or source content."""
+    return await service.inbox_decision_counts(ctx, version)
+
+
+@router.get("/object-backfill", response_model=MemoryObjectBackfillRead | None)
+async def object_backfill_status(service: MemorySvc, ctx: Auth) -> Any:
+    """Read the organization's last committed object backfill checkpoint."""
+    return await service.object_backfill_status(ctx)
+
+
+@router.post(
+    "/object-backfill/run",
+    response_model=MemoryObjectBackfillRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def run_object_backfill(
+    data: MemoryObjectBackfillRun,
+    service: MemorySvc,
+    ctx: Auth,
+) -> Any:
+    """Queue the next batch and resume processing from the committed checkpoint."""
+    return await service.run_object_backfill(ctx, data)
+
+
+@router.post("/object-backfill/advance", response_model=MemoryObjectBackfillRead)
+async def advance_object_backfill(
+    data: MemoryObjectBackfillAdvance, service: MemorySvc, ctx: Auth
+) -> Any:
+    """Advance one bounded batch; repeat until completed_at is set."""
+    return await service.advance_object_backfill(ctx, data)
+
+
+@router.get("/objects/{object_id}/merges", response_model=MemoryObjectMergePage)
+async def memory_object_merges(
+    object_id: UUID,
+    service: MemorySvc,
+    ctx: Auth,
+    library: MemoryLibrary = Query("personal"),
+    cursor: UUID | None = Query(None),
+    limit: int = Query(30, ge=1, le=100),
+) -> Any:
+    """List active identity aliases for an object."""
+    return await service.object_merges(
+        ctx, library=library, target_id=object_id, cursor=cursor, limit=limit
+    )
+
+
+@router.post(
+    "/objects/{object_id}/merges",
+    response_model=MemoryObjectMergeRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def merge_memory_objects(
+    object_id: UUID,
+    data: MemoryObjectMergeCreate,
+    service: MemorySvc,
+    ctx: Auth,
+    library: MemoryLibrary = Query("personal"),
+) -> Any:
+    """Use this object as the primary identity for another object in the same audience."""
+    return await service.merge_objects(ctx, library=library, target_id=object_id, data=data)
+
+
+@router.delete("/objects/{object_id}/merges/{merge_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def undo_memory_object_merge(
+    object_id: UUID,
+    merge_id: UUID,
+    service: MemorySvc,
+    ctx: Auth,
+    library: MemoryLibrary = Query("personal"),
+) -> None:
+    """Restore each object with the claims filed under its original identity."""
+    await service.undo_object_merge(ctx, library=library, target_id=object_id, merge_id=merge_id)
 
 
 @router.get("/objects/{object_id}", response_model=MemoryObjectTimeline)

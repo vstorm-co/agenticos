@@ -40,6 +40,7 @@ from app.repositories import memory_claim as claim_repo
 from app.repositories.memory_claim import ClaimScope
 from app.schemas.decision_episode import DecisionEpisode
 from app.schemas.memory import MemoryObjectRef, MemoryValue
+from app.services.memory_inbox_policy import queue_inbox_change
 
 MAX_STATEMENT = 600
 PROFILE_CLAIMS = 20
@@ -275,6 +276,7 @@ async def remember(
             message="A future correction is already scheduled for this subject; retract it before replacing it",
             details={"subject": topic},
         )
+    previous_accepted = next((row for row in reversed(live) if row.status == "current"), None)
     status = "current"
     supersedes: MemoryClaim | None = None
     disputed = False
@@ -322,6 +324,7 @@ async def remember(
         episode=episode_data,
     )
     await claim_repo.bump_revision(db, organization_id=organization_id, scope_key=scope.scope_key)
+    await queue_inbox_change(db, claim=claim, previous=previous_accepted)
     return Remembered(claim, created=True, disputed=disputed)
 
 

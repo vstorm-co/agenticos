@@ -203,6 +203,7 @@ export interface MemoryObject {
   id: string;
   kind: MemoryObjectKind;
   name: string;
+  external_key?: string | null;
 }
 
 export interface MemoryCursorPage<T> {
@@ -238,8 +239,10 @@ export function getMemoryObjects(
   q: string,
   kind: MemoryObjectKind | "all",
   cursor: string | null,
+  mergeTarget?: string,
 ) {
   const query = new URLSearchParams({ library, q });
+  if (mergeTarget) query.set("merge_target", mergeTarget);
   if (kind !== "all") query.set("kind", kind);
   if (cursor) query.set("cursor", cursor);
   return apiClient.get<MemoryCursorPage<MemoryObject>>(`${ROOT}/objects?${query}`);
@@ -302,4 +305,77 @@ export function amendHistoricalClaim(id: string, statement: string, episode?: De
     episode,
     historical: true,
   });
+}
+
+export interface MemoryObjectMerge {
+  id: string;
+  source: MemoryObject;
+  target_id: string;
+  merged_at: string;
+}
+
+export function getMemoryObjectMerges(library: MemoryLibrary, id: string, cursor: string | null) {
+  const query = new URLSearchParams({ library });
+  if (cursor) query.set("cursor", cursor);
+  return apiClient.get<MemoryCursorPage<MemoryObjectMerge>>(
+    `${ROOT}/objects/${id}/merges?${query}`,
+  );
+}
+
+export function mergeMemoryObject(library: MemoryLibrary, id: string, sourceId: string) {
+  return apiClient.post<MemoryObjectMerge>(`${ROOT}/objects/${id}/merges?library=${library}`, {
+    source_id: sourceId,
+    confirmed: true,
+  });
+}
+
+export function undoMemoryObjectMerge(library: MemoryLibrary, id: string, mergeId: string) {
+  return apiClient.delete<void>(`${ROOT}/objects/${id}/merges/${mergeId}?library=${library}`);
+}
+
+export const MEMORY_INBOX_SOURCES = ["gmail", "webhook", "reviewed"] as const;
+export const MEMORY_INBOX_MODES = ["off", "shadow", "live"] as const;
+
+export interface MemoryInboxRule {
+  version: number;
+  mode: (typeof MEMORY_INBOX_MODES)[number];
+  sources: (typeof MEMORY_INBOX_SOURCES)[number][];
+  recipient_ids: string[];
+  include_review: boolean;
+}
+
+interface MemoryInboxDecision {
+  change: "changed" | "cancelled" | "review";
+  outcome: "shadow" | "delivered" | "muted";
+  count: number;
+}
+
+export function getMemoryInboxRule() {
+  return apiClient.get<MemoryInboxRule>(`${ROOT}/inbox-rule`);
+}
+
+export function setMemoryInboxRule({ version, ...settings }: MemoryInboxRule) {
+  return apiClient.put<MemoryInboxRule>(`${ROOT}/inbox-rule`, {
+    expected_version: version,
+    ...settings,
+  });
+}
+
+export function getMemoryInboxDecisions(version: number) {
+  return apiClient.get<MemoryInboxDecision[]>(`${ROOT}/inbox-rule/decisions?version=${version}`);
+}
+
+interface MemoryObjectBackfill {
+  cutoff: string;
+  completed_at: string | null;
+  scanned: number;
+  linked: number;
+}
+
+export function getMemoryObjectBackfill() {
+  return apiClient.get<MemoryObjectBackfill | null>(`${ROOT}/object-backfill`);
+}
+
+export function runMemoryObjectBackfill(restart: boolean) {
+  return apiClient.post<MemoryObjectBackfill>(`${ROOT}/object-backfill/run`, { restart });
 }

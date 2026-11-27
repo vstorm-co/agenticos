@@ -26,6 +26,7 @@ import { qk } from "@/lib/query-keys";
 import { useOrgStore } from "@/stores";
 import { ClaimEditor } from "./claim-editor";
 import { MemoryPager, MemoryRow } from "./memory-list";
+import { MemoryObjectMerge } from "./memory-object-merge";
 
 const KINDS = ["all", "person", "company", "project", "commitment"] as const;
 
@@ -246,6 +247,8 @@ function ObjectTimeline({
   onClose: () => void;
 }) {
   const t = useTranslations("pages.memory.library");
+  const operationText = useTranslations("pages.memory.operations");
+  const [mergesOpen, setMergesOpen] = useState(false);
   const asOfId = useId();
   const knownAtId = useId();
   const org = useOrgStore((state) => state.activeOrgId) ?? "current";
@@ -299,6 +302,22 @@ function ObjectTimeline({
           />
         </div>
       </fieldset>
+      {timeline.data?.object && (
+        <details
+          className="border-b px-3 py-2"
+          onToggle={(event) => setMergesOpen(event.currentTarget.open)}
+        >
+          <summary className="cursor-pointer text-sm">{operationText("aliases")}</summary>
+          {mergesOpen && (
+            <MemoryObjectMerge
+              key={timeline.data.object.id}
+              org={org}
+              library={library}
+              object={timeline.data.object}
+            />
+          )}
+        </details>
+      )}
       {timeline.isPending ? (
         <LoadingState variant="skeleton-list" rows={3} />
       ) : timeline.error ? (

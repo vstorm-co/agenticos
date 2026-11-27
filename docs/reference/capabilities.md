@@ -500,6 +500,38 @@ set of candidates changes, the editor reviews the updated list.
 One switch, **Allow personal memory**, drops the per-person store entirely for
 compliance or privacy; the notes kept in group chats stay.
 
+### Object aliases and backfill { #memory-object-operations }
+
+In an object's timeline, open **Object aliases** to review another object of
+the same type and audience before merging it. Personal merges belong to the
+memory owner. Shared merges require organization-wide `context:edit` and
+access to both identities. The primary timeline shows the histories together,
+and links to the alias open that timeline. Each claim keeps its original
+object and source. **Undo merge** restores the separate histories, including
+claims added after the merge. Both actions are audited. To move an identity
+that already has aliases, undo those links first.
+
+An organization owner can start or resume **Object backfill** under
+**Organization → Inbox & backfill**. A worker commits each bounded batch with
+its checkpoint, then queues the next batch. Backfill links an older claim only
+when all its recorded predecessors identify the same external object in the
+same audience, agent and property. Ambiguous or unlinked claims stay
+available in Memories. The backfill keeps their content, sources and
+timestamps and creates no Inbox cards.
+
+### Commitment changes in Inbox { #memory-inbox }
+
+An organization owner configures the sources and recipients under
+**Organization → Inbox & backfill**. The rule covers changed or cancelled
+deadlines on shared commitments and optionally routes disputed dates for
+review. It starts off. Shadow mode records counts by result and rule version.
+Live mode writes a card with the previous and new date, the source and a
+link to the object timeline. The worker rechecks the current revision,
+mailbox grant, organization membership and group access. Inbox also checks
+access each time it shows a card. Retries for the same revision, rule and
+recipient settle once. A workflow may still use its own notification step
+for a separate action.
+
 ### Facts, preferences and decisions { #memory-claims }
 
 Beside notes an agent can record **claims**: one durable fact, preference or

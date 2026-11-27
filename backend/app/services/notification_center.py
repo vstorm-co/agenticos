@@ -39,11 +39,13 @@ from app.repositories import notification as notification_repo
 from app.repositories import notification_route as route_repo
 from app.repositories import project as project_repo
 from app.repositories import workflow as workflow_repo
+from app.schemas.memory import MemoryInboxContext
 from app.schemas.notification import CriterionSources
 from app.services import rate_limit
 from app.services.access import ARTIFACT, PROJECT, WORKFLOW, resolve_access
 from app.services.collection_access import readable_kb
 from app.services.criterion_access import criterion_source_access, readable_criterion_skill_ids
+from app.services.memory_inbox_policy import InboxWording, inbox_wording
 from app.services.notification_catalog import ContentGate, content_gate_for, is_mandatory
 from app.services.outcome import OutcomeService
 from app.services.push import PushService
@@ -146,6 +148,8 @@ def _build_togglable_pairs() -> frozenset[tuple[NotificationEventType, Notificat
         if is_mandatory(event_type):
             continue
         pairs.add((event_type, NotificationChannel.IN_APP))
+        if event_type is NotificationEventType.MEMORY_DEADLINE_CHANGE:
+            continue
         pairs.add((event_type, NotificationChannel.PUSH))
         pairs.update((event_type, channel) for channel in CHAT_NOTIFICATION_CHANNELS)
         if event_type not in LEGACY_EMAIL_COLUMN:
@@ -400,6 +404,7 @@ class _Gate:
     visible: bool
     strip_context_url: bool = False
     summary_override: str | None = None
+    wording_override: dict[str, str] | None = None
 
 
 @dataclass
@@ -419,6 +424,7 @@ class _GateCache:
     project_visible_by_id: dict[uuid.UUID, bool] = field(default_factory=dict)
     conversation_visible_by_id: dict[uuid.UUID, bool] = field(default_factory=dict)
     criterion_visible_by_id: dict[uuid.UUID, bool] = field(default_factory=dict)
+    memory_wording_by_id: dict[uuid.UUID, InboxWording] = field(default_factory=dict)
 
 
 class NotificationCenterService:
@@ -1276,6 +1282,7 @@ class NotificationCenterService:
         project_ids: set[uuid.UUID] = set()
         conversation_ids: set[uuid.UUID] = set()
         criterion_sources: dict[uuid.UUID, CriterionSources] = {}
+        memory_contexts: dict[uuid.UUID, MemoryInboxContext] = {}
         for notification in notifications:
             context = notification.render_context or {}
             if "project_id" in context:
@@ -1294,6 +1301,13 @@ class NotificationCenterService:
             ):
                 with contextlib.suppress(ValueError):
                     conversation_ids.add(uuid.UUID(str(context.get("resource_id"))))
+            if (
+                gate is ContentGate.SHARED_MEMORY
+                and notification.organization_id == ctx.organization_id
+                and ctx.has(Perm.CONTEXT_VIEW)
+            ):
+                with contextlib.suppress(ValidationError):
+                    memory_contexts[notification.id] = MemoryInboxContext.model_validate(context)
             if gate is ContentGate.WORKFLOWS_VIEW:
                 with contextlib.suppress(ValueError):
                     workflow_ids.add(
@@ -1369,6 +1383,16 @@ class NotificationCenterService:
             if datasets
             else set()
         )
+        memory_wording = (
+            await inbox_wording(
+                self.db,
+                organization_id=ctx.organization_id,
+                user_id=ctx.user_id,
+                contexts=memory_contexts,
+            )
+            if ctx.user_id is not None and memory_contexts
+            else {}
+        )
         return _GateCache(
             kb_by_id=kb_by_id,
             kb_access_by_id=kb_access_by_id,
@@ -1381,6 +1405,7 @@ class NotificationCenterService:
                 notification_id: source.dataset_id in datasets and set(source.skill_ids) <= skills
                 for notification_id, source in criterion_sources.items()
             },
+            memory_wording_by_id=memory_wording,
         )
 
     async def _conversation_visibility(
@@ -1467,6 +1492,13 @@ class NotificationCenterService:
             return _Gate(visible=self._announcement_visible(notification, cache))
         if gate is ContentGate.ARTIFACTS_VIEW:
             return _Gate(visible=self._artifact_visible(ctx, notification, cache))
+        if gate is ContentGate.SHARED_MEMORY:
+            words = cache.memory_wording_by_id.get(notification.id)
+            return (
+                _Gate(visible=True, summary_override=words.summary, wording_override=words.params)
+                if words is not None
+                else _Gate(visible=False)
+            )
         if gate is ContentGate.WORKFLOWS_VIEW:
             return _Gate(visible=self._workflow_visible(ctx, notification, cache))
         raise AssertionError(f"unhandled content gate: {gate}")  # pragma: no cover

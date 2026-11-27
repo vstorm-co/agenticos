@@ -1,5 +1,5 @@
 ---
-source_sha: "7e2b4bb75313"
+source_sha: "90464e1b5b5c"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -534,6 +534,39 @@ de candidatos, se revisa de nuevo.
 Un interruptor, **Allow personal memory**, elimina por completo el almacén por
 persona, por motivos de cumplimiento o de privacidad; las notas guardadas en chats
 de grupo se quedan.
+
+### Alias de objetos y actualización del historial { #memory-object-operations }
+
+Abre **Alias del objeto** en su historial y revisa el segundo objeto del
+mismo tipo y ámbito antes de fusionarlo. En la biblioteca personal, decide el
+dueño. La biblioteca compartida exige `context:edit` para toda la organización y
+acceso a las dos identidades. El historial principal muestra ambos historiales.
+Los enlaces al alias también llevan allí. Cada entrada conserva su objeto y
+fuente. **Deshacer la fusión** separa también las entradas posteriores a la unión.
+Ambas operaciones quedan auditadas. Desvincula los alias antes de mover su objeto.
+
+El propietario de la organización inicia o reanuda la actualización en
+**Organización → Bandeja de entrada y actualización**. El worker guarda el
+punto de reanudación con cada lote acotado y encola el siguiente. Una entrada
+antigua se asocia solo si todos sus predecesores indican el mismo objeto
+externo, ámbito, agente y propiedad. Las entradas ambiguas siguen accesibles
+en Memories. La actualización conserva el contenido, las fuentes y las fechas.
+No genera tarjetas en la bandeja de entrada.
+
+### Cambios de compromisos en la bandeja { #memory-inbox }
+
+El propietario de la organización elige fuentes y destinatarios en
+**Organización → Bandeja de entrada y actualización**. La regla cubre
+fechas límite modificadas o canceladas de compromisos compartidos. También
+puede enviar fechas en disputa a revisión. Al principio está desactivada.
+
+El modo de prueba cuenta los resultados por versión de la regla. El modo
+activo muestra una tarjeta con la fecha anterior y la nueva, la fuente y un
+enlace al historial. El worker verifica la revisión, el acceso al buzón y
+la pertenencia a la organización y al grupo. La bandeja vuelve a comprobar
+el acceso al mostrar la tarjeta. Cada revisión, regla y destinatario se
+procesan una vez. Un workflow puede usar su propio paso de notificación para
+una acción distinta.
 
 ### Hechos, preferencias y decisiones { #memory-claims }
 

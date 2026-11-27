@@ -7,6 +7,9 @@ import {
   amendHistoricalClaim,
   getMemoryClaimDetail,
   getMemoryObjects,
+  getMemoryObjectMerges,
+  mergeMemoryObject,
+  undoMemoryObjectMerge,
   getMemoryTimeline,
   getSharedClaims,
   getSharedNotes,
@@ -43,6 +46,9 @@ vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ scopeOf }) 
 vi.mock("@/lib/memory-api", () => ({
   amendHistoricalClaim: vi.fn(),
   getMemoryObjects: vi.fn(),
+  getMemoryObjectMerges: vi.fn(),
+  mergeMemoryObject: vi.fn(),
+  undoMemoryObjectMerge: vi.fn(),
   getMemoryTimeline: vi.fn(),
   getMemoryClaimDetail: vi.fn(),
   getSharedClaims: vi.fn(),
@@ -354,4 +360,37 @@ it("labels a dated timeline as historical and reports unavailable evidence", asy
   await user.click(await screen.findByText(record.statement));
   expect(screen.getByText(/historical/i, { selector: "p" })).toBeVisible();
   expect(await screen.findByText("evidenceUnavailable")).toBeVisible();
+});
+
+it("lets a shared memory editor review an alias and undo it from the original timeline", async () => {
+  const target = { id: "atlas", kind: "company", name: "Atlas" } as const;
+  const source = { id: "alias", kind: "company", name: "Atlas LLC" } as const;
+  const association = {
+    id: "merge-1",
+    source,
+    target_id: target.id,
+    merged_at: "2026-11-27T00:00:00Z",
+  };
+  vi.mocked(getMemoryTimeline).mockResolvedValue({ object: target, items: [], next_cursor: null });
+  vi.mocked(getMemoryObjectMerges).mockResolvedValue({ items: [], next_cursor: null });
+  vi.mocked(getMemoryObjects).mockResolvedValue({ items: [source], next_cursor: null });
+  vi.mocked(mergeMemoryObject).mockImplementation(async () => {
+    vi.mocked(getMemoryObjectMerges).mockResolvedValue({ items: [association], next_cursor: null });
+    return association;
+  });
+  vi.mocked(undoMemoryObjectMerge).mockImplementation(async () => {
+    vi.mocked(getMemoryObjectMerges).mockResolvedValue({ items: [], next_cursor: null });
+  });
+  scopeOf.mockReturnValue("all");
+  const user = userEvent.setup();
+  mount(<MemoryObjectLibrary library="organization" initialObject={target.id} />);
+  fireEvent.click(await screen.findByText("aliases"));
+  const aliasSelect = await screen.findByRole("combobox", { name: "chooseAlias" });
+  await screen.findByRole("option", { name: "Atlas LLC" });
+  await user.selectOptions(aliasSelect, source.id);
+  await user.click(screen.getByRole("button", { name: "merge" }));
+  expect(mergeMemoryObject).toHaveBeenCalledWith("organization", target.id, source.id);
+  await user.click(await screen.findByRole("button", { name: "undoNamed" }));
+  expect(undoMemoryObjectMerge).toHaveBeenCalledWith("organization", target.id, association.id);
+  await waitFor(() => expect(screen.queryByRole("button", { name: "undoNamed" })).toBeNull());
 });

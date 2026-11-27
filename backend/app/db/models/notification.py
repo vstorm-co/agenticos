@@ -71,6 +71,7 @@ class NotificationEventType(enum.StrEnum):
     CASE_GENERATION_FINISHED = "case_generation_finished"
     # A workflow's log crossed an alert rule's threshold in its window.
     WORKFLOW_LOG_ALERT = "workflow_log_alert"
+    MEMORY_DEADLINE_CHANGE = "memory_deadline_change"
 
 
 class NotificationChannel(enum.StrEnum):
@@ -199,7 +200,7 @@ class Notification(Base, TimestampMixin):
             "'artifact_owner_changed', 'artifact_share_requested', "
             "'capability_requested', 'suggestion', 'finding', 'improvement_finished', "
             "'eval_suite_reevaluated', 'eval_run_finished', 'case_generation_finished', "
-            "'workflow_log_alert')",
+            "'workflow_log_alert', 'memory_deadline_change')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

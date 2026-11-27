@@ -98,6 +98,19 @@ export const qk = {
     all: (orgId: string) => ["memory", orgId] as const,
     /** One page of what the agents in one organization have written about the caller. */
     mine: (orgId: string, skip: number, q = "") => ["memory", orgId, "mine", skip, q] as const,
+    inboxRule: (orgId: string) => ["memory", orgId, "inbox-rule"] as const,
+    inboxDecisions: (orgId: string, version: number) =>
+      ["memory", orgId, "inbox-decisions", version] as const,
+    objectBackfill: (orgId: string) => ["memory", orgId, "object-backfill"] as const,
+    objectAliases: (orgId: string, library: string, id: string, cursor: string | null) =>
+      ["memory", orgId, "aliases", library, id, cursor] as const,
+    objectMergeCandidates: (
+      orgId: string,
+      library: string,
+      id: string,
+      q: string,
+      cursor: string | null,
+    ) => ["memory", orgId, "merge-candidates", library, id, q, cursor] as const,
     noteRevisions: (orgId: string, noteId: string, skip: number) =>
       ["memory", orgId, "note-revisions", noteId, skip] as const,
     /** The claims recorded about the caller; history adds what they replaced. */

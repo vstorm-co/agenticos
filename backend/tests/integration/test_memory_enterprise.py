@@ -8,17 +8,19 @@ from pathlib import Path
 
 import pytest
 from pydantic import AwareDatetime, BaseModel, TypeAdapter
-from sqlalchemy import select
+from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.memory_keys import organization_owner_key, person_owner_key, room_owner_key
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent
+from app.db.models.background_job import BackgroundJob
 from app.db.models.group import Group, GroupMember
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.memory import AgentMemoryFile
 from app.db.models.memory_claim import MemoryClaim, MemoryMailEvent
+from app.db.models.notification import Notification, NotificationChannel, NotificationEventType
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.db.models.workflow_exposure import WorkflowWebhookDelivery
@@ -30,14 +32,29 @@ from app.schemas.memory import (
     MemoryClaimCorrect,
     MemoryClaimShare,
     MemoryConflictResolve,
+    MemoryInboxRuleUpdate,
     MemoryNoteShare,
+    MemoryObjectBackfillAdvance,
+    MemoryObjectBackfillRun,
+    MemoryObjectKind,
+    MemoryObjectMergeCreate,
     MemoryObjectRef,
 )
+from app.schemas.notification import NotificationRead
 from app.services.memory import MemoryService, claims, runtime
 from app.services.memory.sources import SourceObservation, apply_observation
 from app.services.memory.workflow import MemoryObservationConfig, record_observation
+from app.services.memory_inbox import deliver_memory_inbox
+from app.services.notification_center import NotificationCenterService
 from app.services.portals.base import PolledEvent
 from app.services.workflow_exposure import WorkflowExposureService
+from app.worker.jobs import (
+    BACKFILL_MEMORY_OBJECTS,
+    DELIVER_MEMORY_INBOX,
+    BackfillMemoryObjects,
+    DeliverMemoryInbox,
+)
+from app.worker.tasks import memory_tasks
 from app.workflows.graph.model import Edge, WorkflowGraph
 from tests.integration.test_workflow_exposures import _publish, _signed, _step, _webhook, _workflow
 
@@ -1066,6 +1083,34 @@ async def test_signed_crm_delivery_runs_the_workflow_action(
         ("webhook", body["quote"]),
     ]
 
+    store = MemoryService(db)
+    await store.update_inbox_rule(
+        ctx,
+        MemoryInboxRuleUpdate(
+            expected_version=0,
+            mode="live",
+            sources=["webhook"],
+            recipient_ids=[owner.id],
+        ),
+    )
+    revision = await admit(
+        "crm-revision",
+        {
+            **body,
+            "value": "2026-12-04",
+            "quote": "target_date=2026-12-04",
+            "effective_at": "2026-10-05T09:00:00Z",
+        },
+    )
+    with dispatch(revision):
+        changed = await _handler.handle(_CONFIG, None)
+        assert isinstance(changed, Completed) and changed.output.changed
+    (delivery,) = await _inbox_jobs(db, org)
+    assert await deliver_memory_inbox(db, delivery) == 1
+    _, gates, _ = await NotificationCenterService(db).list_inbox(ctx, after=None, limit=10)
+    (gate,) = gates.values()
+    assert gate.wording_override and gate.wording_override["source"] == "webhook"
+
     bad = await admit("crm-2", {**body, "object_key": "business:other-company"})
     with dispatch(bad):
         failed = await _handler.handle(_CONFIG, None)
@@ -1189,3 +1234,608 @@ async def test_memory_workflow_validate_publish_permissions_and_properties(
     with pytest.raises(ValueError, match="Choose a valid business property"):
         MemoryObservationConfig.model_validate({**_CONFIG.model_dump(), "subject": "."})
     assert isinstance(await _handler.handle(None, None), Failed)
+
+
+async def _inbox_jobs(db: AsyncSession, org: Organization) -> list[DeliverMemoryInbox]:
+    jobs = await db.scalars(
+        select(BackgroundJob)
+        .where(
+            BackgroundJob.organization_id == org.id, BackgroundJob.kind == DELIVER_MEMORY_INBOX.kind
+        )
+        .order_by(BackgroundJob.created_at, BackgroundJob.run_after)
+    )
+    return [DeliverMemoryInbox.model_validate(row.payload) for row in jobs]
+
+
+async def test_workflow_memory_inbox_shadow_live_cancellation_and_revocation(
+    db: AsyncSession,
+) -> None:
+    org, owner, reader, ctx, grant = await _mail(db)
+    store = MemoryService(db)
+    viewer = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
+    initial = await store.inbox_rule(ctx)
+    assert initial.version == 0 and initial.mode == "off"
+    draft = MemoryInboxRuleUpdate(
+        expected_version=0,
+        mode="shadow",
+        sources=["gmail"],
+        recipient_ids=[owner.id, reader.id],
+    )
+    with pytest.raises(AuthorizationError):
+        await store.update_inbox_rule(viewer, draft)
+    with pytest.raises(BadRequestError, match="active organization members"):
+        await store.update_inbox_rule(
+            ctx, draft.model_copy(update={"recipient_ids": [uuid.uuid4()]})
+        )
+    shadow = await store.update_inbox_rule(ctx, draft)
+    with pytest.raises(ConflictError):
+        await store.update_inbox_rule(ctx, draft)
+
+    now = datetime.now(UTC)
+    await _admit(
+        db,
+        grant,
+        _delivery("inbox-a", "Deadline: 2026-12-01", received=now - timedelta(minutes=6)),
+        _delivery("inbox-b", "Deadline: 2026-12-03", received=now - timedelta(minutes=5)),
+        _delivery("inbox-same", "Deadline: 2026-12-03", received=now - timedelta(minutes=4)),
+        _delivery("inbox-cancel", "Deadline: cancelled", received=now - timedelta(minutes=3)),
+        _delivery("inbox-c", "Deadline: 2026-12-15", received=now - timedelta(minutes=2)),
+    )
+    await _apply(db, org, ctx, "inbox-a")
+    assert await _inbox_jobs(db, org) == []
+    await _apply(db, org, ctx, "inbox-b")
+    await _apply(db, org, ctx, "inbox-same")
+    (job,) = await _inbox_jobs(db, org)
+    assert job.change == "changed"
+    assert await deliver_memory_inbox(db, job) == 0
+    assert await deliver_memory_inbox(db, job) == 0
+    results = await store.inbox_decision_counts(ctx, shadow.version)
+    assert [(row.change, row.outcome, row.count) for row in results] == [("changed", "shadow", 2)]
+    center = NotificationCenterService(db)
+    assert (await center.list_inbox(ctx, after=None, limit=10))[0] == []
+
+    active = await store.update_inbox_rule(
+        ctx,
+        draft.model_copy(update={"expected_version": shadow.version, "mode": "live"}),
+    )
+    assert await store.inbox_rule(ctx) == active
+    await _apply(db, org, ctx, "inbox-cancel")
+    cancel = next(job for job in await _inbox_jobs(db, org) if job.change == "cancelled")
+    assert cancel.rule_version == active.version
+    assert await deliver_memory_inbox(db, cancel) == 2
+    assert await deliver_memory_inbox(db, cancel) == 0
+    assert await deliver_memory_inbox(db, job) == 0
+    cards, gates, _ = await center.list_inbox(viewer, after=None, limit=10)
+    assert len(cards) == 1
+    card = cards[0]
+    assert card.event_type == NotificationEventType.MEMORY_DEADLINE_CHANGE
+    assert card.render_context is not None and "before" not in card.render_context
+    gate = gates[card.id]
+    visible = NotificationRead.from_row(
+        card,
+        strip_context_url=gate.strip_context_url,
+        summary_override=gate.summary_override,
+        wording_override=gate.wording_override,
+    )
+    assert visible.wording_params is not None
+    assert visible.wording_params["before"] == "2026-12-03"
+    assert visible.wording_params["after"] == ""
+    assert visible.wording_params["source"] == "gmail"
+    assert card.context_url and card.context_url.startswith(
+        "/settings/memory?library=organization&object="
+    )
+    # Even after normal Inbox retention removes the row, the delivery receipt survives.
+    await db.delete(card)
+    await db.flush()
+    assert await deliver_memory_inbox(db, cancel) == 0
+
+    owner.is_active = False
+    await db.flush()
+    assert (await center.list_inbox(ctx, after=None, limit=10))[0] == []
+    owner.is_active = True
+    await db.flush()
+    await _apply(db, org, ctx, "inbox-c")
+    newest = next(
+        pending
+        for pending in await _inbox_jobs(db, org)
+        if pending.claim_id not in (cancel.claim_id, job.claim_id)
+    )
+    grant.authorization_generation = uuid.uuid4()
+    await db.flush()
+    assert await deliver_memory_inbox(db, newest) == 0
+    assert (await center.list_inbox(ctx, after=None, limit=10))[0] == []
+    assert (
+        len(
+            list(
+                await db.scalars(select(Notification).where(Notification.organization_id == org.id))
+            )
+        )
+        == 1
+    )
+
+
+async def test_merge_timeline_keeps_evidence_and_is_reversible(db: AsyncSession) -> None:
+    org, owner, reader = await _org(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    viewer = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
+    store = MemoryService(db)
+    scope = ClaimScope(organization_owner_key(org.id))
+
+    async def remember(name: str, key: str, statement: str) -> MemoryClaim:
+        return (
+            await claims.remember(
+                db,
+                organization_id=org.id,
+                scope=scope,
+                statement=statement,
+                object_ref=MemoryObjectRef(kind="company", name=name, external_key=key),
+            )
+        ).claim
+
+    canonical = await remember("Atlas", "crm:atlas", "Canonical claim")
+    alias = await remember("Atlas LLC", "erp:atlas", "Alias claim")
+    third = await remember("Atlas Group", "crm:atlas-group", "Unrelated claim")
+    assert canonical.object_id and alias.object_id and third.object_id
+    target, source = canonical.object_id, alias.object_id
+    review = MemoryObjectMergeCreate(source_id=source, confirmed=True)
+    with pytest.raises(AuthorizationError):
+        await store.merge_objects(viewer, library="organization", target_id=target, data=review)
+    with pytest.raises(BadRequestError):
+        await store.merge_objects(
+            ctx,
+            library="organization",
+            target_id=source,
+            data=review,
+        )
+
+    merged = await store.merge_objects(ctx, library="organization", target_id=target, data=review)
+    with pytest.raises(ConflictError):
+        await store.merge_objects(
+            ctx,
+            library="organization",
+            target_id=third.object_id,
+            data=review,
+        )
+    recorded = await store.object_merges(
+        ctx, library="organization", target_id=target, cursor=None, limit=10
+    )
+    candidates = await store.objects(
+        ctx,
+        library="organization",
+        kind=None,
+        q="",
+        cursor=None,
+        limit=10,
+        merge_target=target,
+    )
+    assert [(item.id, item.external_key) for item in candidates.items] == [
+        (third.object_id, "crm:atlas-group"),
+    ]
+    assert [row.source.id for row in recorded.items] == [source]
+    more = await remember("Atlas LLC", "erp:atlas", "Filed after merge")
+    page = await store.objects(
+        ctx, library="organization", kind="company", q="Atlas LLC", cursor=None, limit=10
+    )
+    assert [entity.id for entity in page.items] == [target]
+
+    async def timeline(object_id: uuid.UUID, cursor: uuid.UUID | None = None, limit: int = 10):
+        return await store.object_timeline(
+            viewer,
+            library="organization",
+            object_id=object_id,
+            as_of=None,
+            known_at=None,
+            cursor=cursor,
+            limit=limit,
+        )
+
+    page_one = await timeline(source, limit=1)
+    assert page_one.object.id == target and page_one.next_cursor
+    page_two = await timeline(target, cursor=page_one.next_cursor)
+    assert {row.id for row in page_one.items + page_two.items} == {canonical.id, alias.id, more.id}
+    assert more.object_id == source
+    await store.undo_object_merge(ctx, library="organization", target_id=target, merge_id=merged.id)
+    assert {row.id for row in (await timeline(source)).items} == {alias.id, more.id}
+    assert [row.id for row in (await timeline(target)).items] == [canonical.id]
+    with pytest.raises(NotFoundError):
+        await store.undo_object_merge(
+            ctx, library="organization", target_id=target, merge_id=merged.id
+        )
+
+
+async def test_backfill_resumes_and_links_only_exact_same_scope_lineage(db: AsyncSession) -> None:
+    org, owner, reader = await _org(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    store = MemoryService(db)
+    scope = ClaimScope(person_owner_key(owner.id))
+    original = (
+        await claims.remember(
+            db,
+            organization_id=org.id,
+            scope=scope,
+            subject="status",
+            statement="Atlas is active",
+            object_ref=MemoryObjectRef(kind="company", name="Atlas", external_key="crm:atlas"),
+        )
+    ).claim
+    exact = await memory_claim.create(
+        db,
+        organization_id=org.id,
+        scope_key=scope.scope_key,
+        subject="status",
+        supersedes_id=original.id,
+        statement="Updated Atlas status",
+        created_at=datetime.now(UTC) - timedelta(minutes=2),
+    )
+    other_scope = await memory_claim.create(
+        db,
+        organization_id=org.id,
+        scope_key=person_owner_key(reader.id),
+        subject="status",
+        derived_from=[str(original.id)],
+        statement="Updated Atlas status",
+        created_at=datetime.now(UTC) - timedelta(minutes=1),
+    )
+    name_only = await memory_claim.create(
+        db,
+        organization_id=org.id,
+        scope_key=scope.scope_key,
+        subject="status",
+        statement=original.statement,
+    )
+
+    two = (
+        await claims.remember(
+            db,
+            organization_id=org.id,
+            scope=scope,
+            statement="Atlas VC is active",
+            subject="status",
+            object_ref=MemoryObjectRef(
+                kind="company", name="Atlas VC", external_key="crm:atlas-vc"
+            ),
+        )
+    ).claim
+    ambiguous = await memory_claim.create(
+        db,
+        organization_id=org.id,
+        scope_key=scope.scope_key,
+        subject="status",
+        derived_from=[str(original.id), str(two.id)],
+        statement="Which Atlas?",
+    )
+    malformed = await memory_claim.create(
+        db,
+        organization_id=org.id,
+        scope_key=scope.scope_key,
+        derived_from=["legacy-event"],
+        statement="Malformed lineage",
+    )
+    extensive = await memory_claim.create(
+        db,
+        organization_id=org.id,
+        scope_key=scope.scope_key,
+        subject="status",
+        derived_from=[str(original.id)] * 101,
+        statement="Unbounded lineage",
+    )
+    assert await store.object_backfill_status(ctx) is None
+    with pytest.raises(AuthorizationError):
+        await store.advance_object_backfill(
+            AuthContext(user_id=reader.id, organization_id=org.id, role="viewer"),
+            MemoryObjectBackfillAdvance(limit=1),
+        )
+    first = await store.advance_object_backfill(ctx, MemoryObjectBackfillAdvance(limit=1))
+    assert (first.scanned, first.linked, first.completed_at) == (1, 1, None)
+    assert await MemoryService(db).object_backfill_status(ctx) == first
+    last = await MemoryService(db).advance_object_backfill(
+        ctx, MemoryObjectBackfillAdvance(limit=10)
+    )
+    assert (last.scanned, last.linked) == (6, 1)
+    assert last.completed_at is not None
+    assert await store.advance_object_backfill(ctx, MemoryObjectBackfillAdvance()) == last
+    await db.refresh(exact)
+    assert exact.object_id == original.object_id
+    assert exact.updated_at is None
+    assert all(
+        row.object_id is None for row in (other_scope, name_only, ambiguous, malformed, extensive)
+    )
+    assert exact.supersedes_id == original.id and exact.statement == "Updated Atlas status"
+    assert await _inbox_jobs(db, org) == []
+
+
+async def test_backfill_worker_uses_committed_cursor_and_fences_old_owner(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    org, owner, reader = await _org(db)
+    operator = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    reader_id = reader.id
+    store = MemoryService(db)
+
+    @asynccontextmanager
+    async def current_db():
+        yield db
+
+    monkeypatch.setattr(memory_tasks, "get_db_context", current_db)
+    await db.execute(
+        insert(MemoryClaim),
+        [
+            {
+                "organization_id": org.id,
+                "scope_key": person_owner_key(owner.id),
+                "statement": f"Legacy claim {i}",
+            }
+            for i in range(201)
+        ],
+    )
+    state = await store.run_object_backfill(operator, MemoryObjectBackfillRun())
+    assert (state.scanned, state.linked, state.completed_at) == (0, 0, None)
+    with pytest.raises(ConflictError):
+        await store.run_object_backfill(operator, MemoryObjectBackfillRun(restart=True))
+    await store.run_object_backfill(operator, MemoryObjectBackfillRun())
+
+    async def take_job() -> BackfillMemoryObjects:
+        row = (
+            await db.execute(
+                select(BackgroundJob).where(
+                    BackgroundJob.organization_id == org.id,
+                    BackgroundJob.kind == BACKFILL_MEMORY_OBJECTS.kind,
+                    BackgroundJob.status == "queued",
+                )
+            )
+        ).scalar_one()
+        row.status = "running"
+        await db.flush()
+        return BackfillMemoryObjects.model_validate(row.payload)
+
+    first = await take_job()
+    assert await memory_tasks.backfill_memory_objects(first) == 200
+    running = await db.scalar(
+        select(BackgroundJob).where(
+            BackgroundJob.organization_id == org.id,
+            BackgroundJob.kind == BACKFILL_MEMORY_OBJECTS.kind,
+            BackgroundJob.status == "running",
+        )
+    )
+    assert running is not None
+    running.status = "succeeded"
+    await db.flush()
+    following = await take_job()
+    assert first.cutoff == following.cutoff
+    assert (
+        await memory_tasks.backfill_memory_objects(
+            following.model_copy(update={"requested_by": reader_id}),
+        )
+        == 0
+    )
+    status = await store.object_backfill_status(operator)
+    assert status is not None and status.scanned == 200 and status.completed_at is None
+    assert await memory_tasks.backfill_memory_objects(following) == 1
+    done = await store.object_backfill_status(operator)
+    assert done is not None and done.scanned == 201 and done.completed_at is not None
+    assert await store.run_object_backfill(operator, MemoryObjectBackfillRun()) == done
+    empty, empty_owner, _ = await _org(db)
+    empty_ctx = AuthContext(user_id=empty_owner.id, organization_id=empty.id, role="owner")
+    no_rows = await store.advance_object_backfill(empty_ctx, MemoryObjectBackfillAdvance())
+    assert no_rows.completed_at is not None and no_rows.scanned == 0
+    new = await store.run_object_backfill(operator, MemoryObjectBackfillRun(restart=True))
+    assert new.cutoff > first.cutoff and new.scanned == 0
+    assert await memory_tasks.backfill_memory_objects(following) == 0
+
+
+async def test_inbox_rechecks_group_access_before_delivery_and_read(db: AsyncSession) -> None:
+    org, owner, reader = await _org(db)
+    operator = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    watcher = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
+    store = MemoryService(db)
+    draft = MemoryInboxRuleUpdate(
+        expected_version=0,
+        mode="live",
+        recipient_ids=[reader.id],
+        sources=["reviewed"],
+        include_review=True,
+    )
+    await store.update_inbox_rule(operator, draft)
+    group = Group(organization_id=org.id, name="Sales")
+    db.add(group)
+    await db.flush()
+    seats = [
+        GroupMember(group_id=group.id, user_id=owner.id),
+        GroupMember(group_id=group.id, user_id=reader.id),
+    ]
+    db.add_all(seats)
+    await db.flush()
+    scope = ClaimScope(f"group:{group.id}")
+    ref = MemoryObjectRef(kind="commitment", name="Sales handoff", external_key="crm:handoff")
+
+    async def remember(value: str, *, reviewed: bool = True) -> MemoryClaim:
+        return (
+            await claims.remember(
+                db,
+                organization_id=org.id,
+                scope=scope,
+                object_ref=ref,
+                subject="deadline",
+                value=value,
+                statement=f"Deadline: {value}",
+                origin="person" if reviewed else "agent",
+                author_user_id=owner.id if reviewed else None,
+                reviewed_publication=reviewed,
+            )
+        ).claim
+
+    first = await remember("2026-12-01")
+    update = await remember("2026-12-02")
+    (job,) = await _inbox_jobs(db, org)
+    assert job.claim_id == update.id and job.previous_id == first.id
+    assert await deliver_memory_inbox(db, job) == 1
+    center = NotificationCenterService(db)
+    assert len((await center.list_inbox(watcher, after=None, limit=10))[0]) == 1
+    await db.delete(seats[1])
+    await db.flush()
+    assert (await center.list_inbox(watcher, after=None, limit=10))[0] == []
+    assert (await center.unread_count(watcher)).count == 0
+    denied = await remember("2026-12-03")
+    second = next(job for job in await _inbox_jobs(db, org) if job.claim_id == denied.id)
+    assert await deliver_memory_inbox(db, second) == 0
+
+
+async def test_inbox_sends_review_then_accepted_change_for_one_claim(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    org, owner, reader, ctx, grant = await _mail(db)
+    store = MemoryService(db)
+    rule = await store.update_inbox_rule(
+        ctx,
+        MemoryInboxRuleUpdate(
+            expected_version=0,
+            mode="live",
+            sources=["reviewed"],
+            recipient_ids=[reader.id],
+            include_review=True,
+        ),
+    )
+    await _admit(db, grant, _delivery("paired-inbox", "Deadline: 2026-12-01"))
+    await _apply(db, org, ctx, "paired-inbox")
+    private = await _chat_deadline(db, org, owner, "2026-12-02", monkeypatch)
+    disputed = await store.publish_claim(ctx, private, MemoryClaimShare(confirmed=True))
+    (needs_review,) = await _inbox_jobs(db, org)
+    assert (needs_review.change, needs_review.claim_id) == ("review", disputed.id)
+
+    @asynccontextmanager
+    async def current_db():
+        yield db
+
+    monkeypatch.setattr(memory_tasks, "get_db_context", current_db)
+    assert await memory_tasks.notify_memory_change(needs_review) == 1
+    detail = await store.shared_claim_detail(ctx, disputed.id)
+    await store.resolve_shared_conflict(
+        ctx,
+        disputed.id,
+        MemoryConflictResolve(candidate_ids=[row.id for row in detail.conflicts]),
+    )
+    change = next(job for job in await _inbox_jobs(db, org) if job.change == "changed")
+    assert (
+        change.claim_id == needs_review.claim_id and change.revision_at > needs_review.revision_at
+    )
+    assert await deliver_memory_inbox(db, needs_review) == 0
+    assert await deliver_memory_inbox(db, change) == 1
+    counts = await store.inbox_decision_counts(ctx, rule.version)
+    assert [(row.change, row.outcome, row.count) for row in counts] == [
+        ("changed", "delivered", 1),
+        ("review", "delivered", 1),
+    ]
+
+
+async def test_policy_skips_non_deadline_changes_and_survives_inbox_mute(db: AsyncSession) -> None:
+    org, owner, reader = await _org(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    store = MemoryService(db)
+    center = NotificationCenterService(db)
+    reader_ctx = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
+    rule_data = MemoryInboxRuleUpdate(
+        expected_version=0,
+        mode="live",
+        sources=["reviewed"],
+        recipient_ids=[reader.id],
+    )
+    with pytest.raises(BadRequestError, match="at least one"):
+        await store.update_inbox_rule(ctx, rule_data.model_copy(update={"recipient_ids": []}))
+    rule = await store.update_inbox_rule(ctx, rule_data)
+    scope = ClaimScope(organization_owner_key(org.id))
+
+    async def record(
+        value: str, *, object_kind: MemoryObjectKind = "commitment", accepted: bool = True
+    ):
+        # Both reviewed and unreviewed changes may be observed, but only sources
+        # approved by the organization rule can produce a card.
+        ref = MemoryObjectRef(kind=object_kind, name="Atlas")
+        return (
+            await claims.remember(
+                db,
+                organization_id=org.id,
+                scope=scope,
+                object_ref=ref,
+                value=value,
+                statement=f"Observed {value}",
+                subject="deadline",
+                origin="person" if accepted else "agent",
+                corrects=not accepted,
+                author_user_id=owner.id if accepted else None,
+            )
+        ).claim
+
+    await record("2026-12-01")
+    await record("2026-W09-1")
+    await record("2026-02-31")
+    await record("2026-12-02")
+    await record("2026-12-03", accepted=False)
+    assert await _inbox_jobs(db, org) == []
+
+    await record("2026-12-01", object_kind="company")
+    unrelated = await record("2026-12-02", object_kind="company")
+    muted = await record("2026-12-04")
+    jobs = {job.claim_id: job for job in await _inbox_jobs(db, org)}
+    assert await deliver_memory_inbox(db, jobs[unrelated.id]) == 0
+    assert (
+        await deliver_memory_inbox(db, jobs[muted.id].model_copy(update={"policy_version": 0})) == 0
+    )
+    await center.update_preference(
+        reader_ctx,
+        event_type=NotificationEventType.MEMORY_DEADLINE_CHANGE,
+        channel=NotificationChannel.IN_APP,
+        enabled=False,
+    )
+    assert await deliver_memory_inbox(db, jobs[muted.id]) == 0
+    assert (await center.list_inbox(reader_ctx, after=None, limit=10))[0] == []
+    counts = await store.inbox_decision_counts(ctx, rule.version)
+    assert [(row.change, row.outcome, row.count) for row in counts] == [("changed", "muted", 1)]
+
+    newer = await record("2026-12-05")
+    pending = next(job for job in await _inbox_jobs(db, org) if job.claim_id == newer.id)
+    await memory_claim.set_status(
+        db, newer, "current", effective_to=datetime.now(UTC) + timedelta(days=1)
+    )
+    assert await deliver_memory_inbox(db, pending) == 0
+    assert await store.inbox_decision_counts(ctx, rule.version) == counts
+
+
+async def test_inbox_checks_the_still_authorized_source_at_delivery(
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    org, owner, reader, ctx, grant = await _mail(db)
+    store = MemoryService(db)
+    await store.update_inbox_rule(
+        ctx,
+        MemoryInboxRuleUpdate(
+            expected_version=0,
+            mode="live",
+            sources=["gmail"],
+            recipient_ids=[reader.id],
+        ),
+    )
+    await _admit(
+        db,
+        grant,
+        _delivery("scope-a", "Deadline: 2026-12-01"),
+        _delivery("scope-b", "Deadline: 2026-12-02"),
+    )
+    await _apply(db, org, ctx, "scope-a")
+    await _apply(db, org, ctx, "scope-b")
+    (job,) = await _inbox_jobs(db, org)
+    private = await _chat_deadline(db, org, owner, "2026-12-02", monkeypatch)
+    shared = await store.publish_claim(ctx, private, MemoryClaimShare(confirmed=True))
+    assert shared.id == job.claim_id
+    assert await deliver_memory_inbox(db, job) == 1
+    assert await deliver_memory_inbox(db, job) == 0
+    member = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
+    center = NotificationCenterService(db)
+    _, gates, _ = await center.list_inbox(member, after=None, limit=10)
+    (gate,) = gates.values()
+    assert gate.wording_override and gate.wording_override["source"] == "gmail"
+    grant.is_enabled = False
+    await db.flush()
+    assert (await center.list_inbox(member, after=None, limit=10))[0] == []

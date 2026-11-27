@@ -1,5 +1,5 @@
 ---
-source_sha: "7e2b4bb75313"
+source_sha: "90464e1b5b5c"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -548,6 +548,39 @@ die Auswahl, wird sie erneut geprüft.
 Ein Schalter, **Allow personal memory**, streicht den personenbezogenen Speicher
 vollständig, aus Compliance- oder Datenschutzgründen; die in Gruppenchats
 geführten Notizen bleiben.
+
+### Objektaliase und Nachpflege { #memory-object-operations }
+
+Öffne **Objektaliase** im Verlauf und prüfe das zweite Objekt desselben
+Typs und derselben Zielgruppe vor dem Zusammenführen. In der persönlichen
+Bibliothek entscheidet der Eigentümer. In der gemeinsamen Bibliothek sind
+organisationsweites `context:edit` und Zugriff auf beide Objekte erforderlich.
+Der primäre Verlauf zeigt beide Historien. Auch Links zum Alias führen dorthin.
+Jeder Eintrag behält sein Objekt und seine Quelle. **Zusammenführung rückgängig
+machen** trennt auch die seitdem hinzugekommenen Einträge. Beide Aktionen
+werden protokolliert. Löse bestehende Aliase, bevor du ihr Ziel verschiebst.
+
+Der Organisationseigentümer startet oder setzt die **Nachpflege** unter
+**Organisation → Posteingang und Nachpflege** fort. Der Worker speichert den
+Fortschritt mit jeder begrenzten Gruppe und reiht die nächste ein. Ältere
+Einträge werden nur verknüpft, wenn alle gespeicherten Vorgänger dasselbe
+externe Objekt, dieselbe Zielgruppe, denselben Agenten und dieselbe Eigenschaft
+bezeichnen. Ungeklärte Einträge bleiben in Erinnerungen. Die Nachpflege
+erhält Inhalte, Quellen und Zeitstempel und erzeugt keine Posteingangskarten.
+
+### Änderungen von Verpflichtungen im Posteingang { #memory-inbox }
+
+Der Organisationseigentümer konfiguriert Quellen und Empfänger unter
+**Organisation → Posteingang und Nachpflege**. Die Regel gilt für geänderte
+und abgesagte Fristen gemeinsamer Verpflichtungen. Auf Wunsch meldet sie
+umstrittene Termine zur Prüfung. Sie ist zunächst aus. Im Testlauf werden
+Ergebnisse nach Regelversion gezählt. Im aktiven Modus zeigt die Karte die
+bisherige und neue Frist, die Quelle und einen Link zum Objektverlauf. Der
+Worker prüft die aktuelle Revision, den Postfachzugriff sowie Organisations-
+und Gruppenmitgliedschaft. Der Posteingang prüft die Rechte erneut beim
+Anzeigen. Wiederholungen für dieselbe Revision, Regel und Person werden
+einmal verarbeitet. Ein Workflow kann für eine separate Aktion weiterhin
+seinen eigenen Benachrichtigungsschritt verwenden.
 
 ### Fakten, Vorlieben und Entscheidungen { #memory-claims }
 

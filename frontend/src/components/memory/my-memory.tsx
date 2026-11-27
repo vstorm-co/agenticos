@@ -9,6 +9,7 @@ import { useAgents } from "@/hooks/use-agents";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useOrgStore } from "@/stores";
 import { MyClaims } from "./my-claims";
+import { MemoryOperations } from "./memory-operations";
 import { MyNotes } from "./my-notes";
 import {
   MemoryObjectLibrary,
@@ -44,6 +45,8 @@ function MemoryWorkspace({
 }) {
   const t = useTranslations("pages.memory.browser");
   const libraryText = useTranslations("pages.memory.library");
+  const operationsText = useTranslations("pages.memory.operations");
+  const [operations, setOperations] = useState(false);
   const [library, setLibrary] = useState<MemoryLibrary>(initialLibrary ?? "personal");
   const [objects, setObjects] = useState(Boolean(initialObject));
   const [linkedObject, setLinkedObject] = useState(initialObject);
@@ -95,7 +98,20 @@ function MemoryWorkspace({
             {t("notes")}
           </TabsTrigger>
         </TabsList>
+        {activeLibrary === "organization" && permissions.role === "owner" && (
+          <Button
+            size="sm"
+            variant="outline"
+            aria-expanded={operations}
+            onClick={() => setOperations(!operations)}
+          >
+            {operationsText("title")}
+          </Button>
+        )}
       </div>
+      {operations && activeLibrary === "organization" && permissions.role === "owner" && (
+        <MemoryOperations />
+      )}
       <TabsContent value="memories" className="mt-0 flex min-h-0 flex-1 flex-col">
         <div className="mb-2 flex gap-2" role="group" aria-label={libraryText("memoriesView")}>
           <Button

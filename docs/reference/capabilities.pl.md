@@ -1,5 +1,5 @@
 ---
-source_sha: "7e2b4bb75313"
+source_sha: "90464e1b5b5c"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -523,6 +523,36 @@ a decyzja trafia do audytu. Zmiana kandydatów wymaga ponownego przeglądu.
 Jeden przełącznik, **Allow personal memory**, znosi magazyn osobowy w całości ze
 względu na zgodność albo prywatność; notatki prowadzone na czatach grupowych
 zostają.
+
+### Aliasy i uzupełnianie obiektów { #memory-object-operations }
+
+W osi czasu obiektu otwórz **Aliasy obiektu** i sprawdź drugi obiekt tego
+samego typu i zakresu przed scaleniem. Pamięć osobistą scala jej właściciel.
+Scalanie pamięci wspólnej wymaga `context:edit` w całej organizacji i dostępu
+do obu obiektów. Główna oś czasu pokazuje obie historie. Prowadzą do niej też
+linki do aliasu. Każdy wpis zachowuje pierwotny obiekt i źródło. **Cofnij
+scalenie** rozdziela historie, w tym wpisy zapisane po scaleniu. Obie operacje
+są audytowane. Przed przeniesieniem obiektu z aliasami cofnij jego połączenia.
+
+Właściciel organizacji uruchamia lub wznawia **Uzupełnianie obiektów** w
+**Organizacja → Inbox i backfill**. Worker zatwierdza każdą ograniczoną partię
+z punktem wznowienia i kolejkuje następną. Starszy wpis zostaje powiązany tylko
+wtedy, gdy wszyscy zapisani poprzednicy wskazują ten sam zewnętrzny obiekt,
+zakres dostępu, agenta i właściwość. Niepowiązane i niejednoznaczne wpisy
+pozostają w Memories. Uzupełnianie zachowuje ich treść, źródła i daty oraz
+nie tworzy kart w Inbox.
+
+### Zmiany zobowiązań w Inbox { #memory-inbox }
+
+Właściciel organizacji ustawia źródła i odbiorców w **Organizacja → Inbox i
+backfill**. Reguła obejmuje zmienione lub anulowane terminy wspólnych
+zobowiązań. Może też kierować sprzeczne daty do sprawdzenia. Domyślnie jest
+wyłączona. Tryb próbny zapisuje liczniki według wyniku i wersji reguły. Tryb
+aktywny tworzy kartę z poprzednią i nową datą, źródłem oraz linkiem do osi
+czasu obiektu. Worker sprawdza aktualną rewizję, uprawnienia do skrzynki,
+członkostwo w organizacji i dostęp grupowy. Inbox ponawia kontrolę przy każdym
+wyświetleniu karty. Ponowienia dla tej samej rewizji, reguły i odbiorcy
+rozliczają się raz. Workflow może użyć własnego kroku powiadomień do osobnej akcji.
 
 ### Fakty, preferencje i decyzje { #memory-claims }
 
