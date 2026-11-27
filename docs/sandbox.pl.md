@@ -1,5 +1,5 @@
 ---
-source_sha: "e65a7be06cdf"
+source_sha: "24de58a4846a"
 ---
 
 # Sandbox { #the-sandbox }
@@ -86,9 +86,9 @@ odzyskania systemu plików; nie uruchamia pustego zamiennika.
 
 Natywny magazyn projektu wymaga trwałych rozszerzonych atrybutów i atomowych twardych
 dowiązań; obsługiwane są zweryfikowany magazyn Linux oraz state w bazie. Bind mounty
-macOS mogą odmawiać wymagań natywnych. Dowiązania symboliczne i zmiany właściciela
-nie są obsługiwane. [Projekty](projects.md#what-an-agent-gets-in-a-project) opisują
-dostęp przez dzierżawę i opcjonalnego jawnego wykonawcę projektu.
+macOS mogą odmawiać wymagań natywnych. Dowiązania symboliczne i zmiany właściciela nie
+są obsługiwane. [Projekty](projects.md#what-an-agent-gets-in-a-project) opisują dostęp
+przez dzierżawę i opcjonalnego jawnego wykonawcę projektu.
 
 ### Usługa i backend zmieniają się razem { #the-service-and-the-backend-move-together }
 
@@ -856,3 +856,8 @@ Konteksty przeglądarki są izolowane dla właściciela i rozmowy. Pulpit ma zak
 Przejęcie sterowania, faktyczne ręczne wejście i oddanie sterowania są aktywnością. Bierny podgląd i heartbeaty ręcznego sterowania nie przesuwają terminu bezczynności; aktywny sterujący agent chroni trwającą pracę. Starsze przeglądanie w trybie run bez ręcznie przygotowanej karty zachowuje dotychczasową przeglądarkę na turę i checkpoint adresów/cookies. Ręcznie przygotowana karta run zachowuje natomiast dokładnie swój żywy DOM do zakończenia runu, który jej używa.
 
 Pulpit zachowywany w sandboxie wymaga kontenerowego executora o zakresie konwersacji, użytkownika, agenta lub projektu. Istniejące pulpity o czasie życia jednego uruchomienia, korzystające z efemerycznych executorów run/channel, zachowują dotychczasową fabrykę uruchomienia i nie mogą być otwierane ręcznie między uruchomieniami. End i wygaśnięcie bezczynności zamykają własny widok oraz sesję sterowania; nie niszczą współdzielonego daemona ani kontenera workspace, których cykl życia zależy od osobnej konfiguracji. Własne konteksty przeglądarki i oddzielne pulpity E2B są usuwane.
+
+Zachowany prywatny pulpit Docker może utrzymywać osobną [ścieżkę plików
+projektu](projects.pl.md#what-an-agent-gets-in-a-project) po zakończeniu runu agenta.
+Pierwsze rzeczywiste narzędzie projektu może przygotować pulpit. Operacje na plikach nie
+przedłużają bezczynności; zakończenie środowiska cofa dostęp do ścieżki.

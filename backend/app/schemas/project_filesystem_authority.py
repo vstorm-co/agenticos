@@ -43,7 +43,7 @@ class ProjectFilesystemBindingRead(BaseModel):
 
 
 class ProjectFilesystemLeaseRead(BaseModel):
-    """One immutable run directory inside a sandbox's mounted filesystem."""
+    """One immutable owner directory inside a sandbox's mounted filesystem."""
 
     id: UUID
     project_id: UUID

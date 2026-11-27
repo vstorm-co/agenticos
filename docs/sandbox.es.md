@@ -1,5 +1,5 @@
 ---
-source_sha: "e65a7be06cdf"
+source_sha: "24de58a4846a"
 ---
 
 # La sandbox { #the-sandbox }
@@ -87,10 +87,11 @@ agente hasta recuperar explícitamente el sistema de archivos; no crea un reempl
 vacío.
 
 El almacenamiento nativo necesita atributos extendidos duraderos y enlaces duros
-atómicos; son compatibles el almacenamiento Linux verificado y el proveedor state
-en base de datos. Los bind mounts de macOS pueden rechazar los requisitos nativos.
-No se admiten enlaces simbólicos ni cambios de propietario. [Proyectos](projects.md#what-an-agent-gets-in-a-project)
-describe el acceso por concesión y el ejecutor explícito opcional del proyecto.
+atómicos; son compatibles el almacenamiento Linux verificado y el proveedor state en
+base de datos. Los bind mounts de macOS pueden rechazar los requisitos nativos. No se
+admiten enlaces simbólicos ni cambios de propietario.
+[Proyectos](projects.md#what-an-agent-gets-in-a-project) describe el acceso por
+concesión y el ejecutor explícito opcional del proyecto.
 
 ### El servicio y el backend cambian juntos { #the-service-and-the-backend-move-together }
 
@@ -877,3 +878,9 @@ Los contextos del navegador se aíslan por propietario y conversación. El escri
 Tomar el control, introducir datos manualmente y devolver el control cuentan como actividad. Los frames pasivos y los heartbeats del control humano no amplían la inactividad; un controlador agente activo protege el trabajo en curso. La navegación heredada por run sin destino preparado manualmente conserva su navegador por turno y los checkpoints de URL/cookies. Un destino por run preparado manualmente mantiene en cambio su DOM vivo exacto hasta que termina un run que lo utiliza.
 
 Un escritorio de sandbox conservado requiere un ejecutor en contenedor con ámbito de conversación, usuario, agente o proyecto. Los escritorios existentes con duración por ejecución que usan ejecutores efímeros run/channel conservan su fábrica original por ejecución y no pueden abrirse manualmente entre ejecuciones. End y el vencimiento por inactividad cierran la vista propia y la sesión de control; no destruyen un daemon compartido ni el contenedor del espacio de trabajo, cuyo ciclo de vida depende de su propia configuración. Los contextos de navegador propios y los escritorios E2B separados se eliminan.
+
+Un escritorio Docker privado conservado puede mantener una [ruta de archivos del
+proyecto](projects.es.md#what-an-agent-gets-in-a-project) después de terminar la
+ejecución del agente. La primera herramienta real del proyecto puede preparar el
+escritorio. El acceso a archivos no amplía la inactividad; terminar el entorno revoca la
+ruta.

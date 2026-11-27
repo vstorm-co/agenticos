@@ -49,6 +49,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Keep a separate live Project-files path in retained private Docker desktops, so an editor opened by an agent can still save after its run ends. The first actual Project file or command tool prepares the configured desktop; idle file traffic never extends the session.
+
 - Import complete skill folders or ZIP packages with a reviewed preview, preserved inert frontmatter and exact binary resources across versions, workspace files and portable exports. Import never executes code or installs dependencies.
 
 - **Arrange the Skills page** by agent, by origin or by category, or keep the plain grid. The default is **No sections**; By agent has a section per agent whose published version uses a skill, then **Drafted only** and **Not used by an agent you can see**; a skill several agents use sits under each. By origin splits the organization's skills, private ones, the platform library and each skill gallery industry. Each section shows its count, folds closed and pages through the rest with **Show all**, under the same search and filters; the choice stays in the address as `?arrange=`. Arranging grants nothing: a section holds only skills the reader can already see. Over the API, `GET /api/v1/skills/sections?arrange=agent|origin|category` returns the counted sections, `GET /api/v1/skills?section=<key>` pages through one, and skill summaries carry `gallery_industry`. The category filter and its choices now ignore letter case, so `Security` and `security` are one shelf (#3281).
@@ -170,6 +172,8 @@ Two things are versioned separately from this file and worth knowing about:
 - An app-scoped knowledge base is checked as itself when it is created or edited: its parser connection and OCR server must be deployment-wide and it cannot use a LlamaParse key, because its syncs resolve them with no organization. Before, a connection only the creator's organization could see was accepted and every sync then failed to find it.
 
 ### Upgrading
+
+- Apply `0383_environment_project_files.py` for independently owned desktop Project mounts. Existing run leases keep their RUNNING/expiry checks. Environment paths require fresh live owner, capability, executor and Project authority on every filesystem operation; End or idle expiry revokes them. End retained desktops and drain cleanup before downgrading: the migration refuses while any desktop resource journal remains. It then deletes environment leases without reviving old run paths; reopen the desktop after an upgrade or rollback.
 
 - Upgrade croniter to 7 after migration `0376_croniter7_schedules.py` makes stored maximum-step expressions explicit, preserving routine, workflow and eval cadences and next-fire instants. Stop old API and workers first. New and explicitly edited expressions use croniter 7 semantics: `59/15` selects minute 59; use `*/15` for every 15 minutes. Unrepresentable executable schedules refuse migration with their owning row; unfinished drafts remain editable. Downgrade keeps new maximum-only steps as single values. Nonexistent local times during daylight-saving gaps are skipped.
 

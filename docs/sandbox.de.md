@@ -1,5 +1,5 @@
 ---
-source_sha: "e65a7be06cdf"
+source_sha: "24de58a4846a"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -87,11 +87,12 @@ Projektbefehle statt andere Dateien zu verwenden. Ein Helferneustart macht alte
 NFS-Handles ungültig und stoppt den Agenten bis zur expliziten Wiederherstellung;
 es wird kein leerer Ersatz gestartet.
 
-Nativer Projektspeicher benötigt dauerhafte erweiterte Attribute und atomare
-Hardlinks; geprüfter Linux-Speicher und der datenbankgestützte State-Provider werden
-unterstützt. macOS-Bind-Mounts können die nativen Anforderungen verweigern. Symlinks
-und Eigentümerwechsel werden nicht unterstützt. [Projekte](projects.md#what-an-agent-gets-in-a-project)
-beschreibt Lease-Zugriff und den optionalen expliziten Projekt-Executor.
+Nativer Projektspeicher benötigt dauerhafte erweiterte Attribute und atomare Hardlinks;
+geprüfter Linux-Speicher und der datenbankgestützte State-Provider werden unterstützt.
+macOS-Bind-Mounts können die nativen Anforderungen verweigern. Symlinks und
+Eigentümerwechsel werden nicht unterstützt.
+[Projekte](projects.md#what-an-agent-gets-in-a-project) beschreibt Lease-Zugriff und den
+optionalen expliziten Projekt-Executor.
 
 ### Dienst und Backend ändern sich gemeinsam { #the-service-and-the-backend-move-together }
 
@@ -899,3 +900,8 @@ Browserkontexte sind je Eigentümer und Unterhaltung isoliert. Ein Desktop folgt
 Kontrollübernahme, tatsächliche manuelle Eingaben und Kontrollrückgabe gelten als Aktivität. Passive Frames und Heartbeats menschlicher Steuerung verlängern die Leerlauffrist nicht; ein aktiver Agententreiber schützt laufende Arbeit. Bisheriges Run-Browsing ohne manuell vorbereitetes Ziel behält den Browser pro Turn sowie URL-/Cookie-Checkpoints. Ein manuell vorbereitetes Run-Ziel bewahrt dagegen seinen exakten Live-DOM bis zum Ende eines Runs, der es verwendet.
 
 Ein beibehaltener Sandbox-Desktop benötigt einen containerbasierten Executor im Gesprächs-, Benutzer-, Agenten- oder Projektbereich. Bestehende Desktops mit Laufzeit pro Ausführung und kurzlebigen run/channel-Executoren behalten ihre bisherige Factory pro Ausführung; sie lassen sich zwischen Ausführungen nicht manuell öffnen. End und das Leerlaufende schließen die eigene Ansicht und Steuerungssitzung. Sie zerstören keinen gemeinsam genutzten Daemon oder Workspace-Container, dessen Lebenszyklus einer eigenen Konfiguration folgt. Eigene Browserkontexte und separate E2B-Desktops werden entfernt.
+
+Ein erhaltener privater Docker-Desktop kann nach dem Agentenlauf einen eigenen
+[Projektdateipfad](projects.de.md#what-an-agent-gets-in-a-project) behalten. Das erste
+tatsächliche Projektwerkzeug kann diesen Desktop vorbereiten. Dateizugriffe verlängern
+den Leerlauf nicht; das Beenden der Umgebung widerruft den Pfad.

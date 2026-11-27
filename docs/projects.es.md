@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "b3e1868645f3"
+source_sha: "c596c00e8a9e"
 ---
 
 # Proyectos { #projects }
@@ -133,6 +133,29 @@ actual y generación del workspace. Se rechazan enlaces simbólicos y cambios de
 propietario. Reiniciar el exportador invalida los handles NFS: la ejecución se detiene
 hasta recuperar explícitamente el sistema de archivos del sandbox, conservando su
 workspace propio sin sustituirlo silenciosamente por uno vacío.
+
+Para un escritorio de Computer use conservado por conversación en un workspace Docker
+privado con montaje, la interfaz recibe una ruta de entorno independiente e inmutable
+desde el primer uso. La primera herramienta real de archivos o ejecución del proyecto
+puede preparar el escritorio; ver el chat o iniciar un modelo no lo hace. `PROJECT_DIR`
+indica esa misma ruta antes de abrir una aplicación gráfica desde la shell.
+
+Terminar la ejecución revoca su concesión independiente, mientras un editor abierto en
+el escritorio activo puede seguir guardando mediante la ruta del entorno. Cada solicitud
+comprueba de nuevo el propietario actual, la capability publicada, el ejecutor exacto,
+el acceso al proyecto y su generación. End, la caducidad por inactividad o la revocación
+bloquean la ruta inmediatamente. El tráfico de archivos no amplía el plazo de
+inactividad. Otro proyecto no puede sustituir al proyecto de esa ruta.
+
+Los ejecutores compartidos por agente, usuario o canal no reciben este montaje privado;
+la ejecución directa del proyecto mantiene su política explícita de uso compartido.
+
+La migración `0383_environment_project_files.py` añade este propietario independiente;
+al revertirla se eliminan las rutas de entorno sin convertirlas en permisos de
+ejecución. Termina los escritorios conservados y espera a sus tareas de limpieza antes
+de revertir; la migración lo impide mientras quede un registro de recurso de escritorio.
+Vuelve a abrir el escritorio después de actualizar o revertir, en vez de reactivar su
+ruta anterior.
 
 `transfer_project_file` sigue disponible como copia explícita opcional de bytes para
 un resultado separado u otro destino compatible. Admite binarios de hasta 8 MiB y

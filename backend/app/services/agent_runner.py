@@ -5863,6 +5863,29 @@ class AgentRunnerService:
             and not organization_mcp_only
         ):
             from app.services.conversation_environment_agent import AgentEnvironment
+            from app.services.conversation_environment_delegates import (
+                NESTED_DESKTOP_AUTHORITY,
+                NestedDesktopAuthority,
+                SharedDesktopWorkspace,
+            )
+
+            shared_desktop = None
+            if (
+                workspace is not None
+                and workspace.kind == "service"
+                and workspace.connection_id is not None
+            ):
+                if workspace.connection_fingerprint is None:
+                    raise ConflictError(
+                        message="The shared executor has no verified connection identity"
+                    )
+                shared_desktop = SharedDesktopWorkspace(
+                    workspace.connection_id,
+                    workspace.scope_key,
+                    workspace.connection_fingerprint,
+                    "project" if workspace.scope == "project" else "agent",
+                    project.id if workspace.scope == "project" and project is not None else None,
+                )
 
             def owned_environment(kind: Literal["browser", "desktop"]) -> AgentEnvironment:
                 return AgentEnvironment(
@@ -5873,34 +5896,10 @@ class AgentRunnerService:
                     run_id=run.id,
                     target=project_execution_target or "agent",
                     kind=kind,
+                    workspace=shared_desktop if kind == "desktop" else None,
                 )
 
-            from app.services.conversation_environment_delegates import (
-                NESTED_DESKTOP_AUTHORITY,
-                NestedDesktopAuthority,
-                SharedDesktopWorkspace,
-            )
-
             if _delegation_config(spec) is not None:
-                shared_desktop = None
-                if (
-                    workspace is not None
-                    and workspace.kind == "service"
-                    and workspace.connection_id is not None
-                ):
-                    if workspace.connection_fingerprint is None:
-                        raise ConflictError(
-                            message="The shared executor has no verified connection identity"
-                        )
-                    shared_desktop = SharedDesktopWorkspace(
-                        workspace.connection_id,
-                        workspace.scope_key,
-                        workspace.connection_fingerprint,
-                        "project" if workspace.scope == "project" else "agent",
-                        project.id
-                        if workspace.scope == "project" and project is not None
-                        else None,
-                    )
                 resources[NESTED_DESKTOP_AUTHORITY] = NestedDesktopAuthority(
                     ctx,
                     agent.id,
@@ -5914,7 +5913,19 @@ class AgentRunnerService:
             if "local_browser_session" not in resources:
                 resources["conversation_browser"] = owned_environment("browser").browser()
             if "local_computer_session" not in resources:
-                resources["conversation_desktop"] = owned_environment("desktop").desktop()
+                desktop_environment = owned_environment("desktop")
+                resources["conversation_desktop"] = desktop_environment.desktop()
+                from app.services.conversation_environment_project_files import (
+                    retained_project_mount,
+                )
+
+                if project_workspace is not None and retained_project_mount(spec, secrets):
+                    project_workspace.environment_project_directory = (
+                        desktop_environment.project_directory
+                    )
+                    project_workspace.finish_environment_project_directory = (
+                        desktop_environment.finish
+                    )
 
         built = build_agent(
             spoken_spec if voice is not None else spec,

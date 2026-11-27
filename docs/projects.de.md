@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "b3e1868645f3"
+source_sha: "c596c00e8a9e"
 ---
 
 # Projekte { #projects }
@@ -133,6 +133,30 @@ aktuelle Zugriffsrechte und die Workspace-Generation. Symlinks und Änderungen d
 Eigentümers werden abgelehnt. Ein Exporter-Neustart macht NFS-Handles ungültig: Die
 Ausführung stoppt bis zur expliziten Wiederherstellung des Sandbox-Dateisystems.
 Der eigene Workspace bleibt erhalten und wird nicht still durch einen leeren ersetzt.
+
+Für einen über die Unterhaltung erhaltenen Computer-use-Desktop in einem privaten
+Docker-Unterhaltungs-Workspace mit Mount erhält die GUI ab der ersten Nutzung einen
+eigenen unveränderlichen Umgebungspfad. Das erste tatsächlich verwendete Projektdatei-
+oder Ausführungswerkzeug kann den Desktop vorbereiten; das Anzeigen des Chats oder
+Starten eines Modells tut dies nicht. `PROJECT_DIR` bezeichnet dann denselben
+Umgebungspfad, bevor eine aus der Shell gestartete GUI-App geöffnet wird.
+
+Das Laufende widerruft die separate Lauf-Lease, während ein bereits im aktiven Desktop
+geöffneter Editor weiter über den Umgebungspfad speichern kann. Jede Dateisystemanfrage
+prüft den aktuellen Eigentümer, die veröffentlichte Capability, den genauen Executor
+sowie Projektzugriff und Generation erneut. End, Leerlaufablauf oder entzogene Rechte
+sperren den Pfad sofort. Dateizugriffe verlängern die Leerlaufzeit nicht. Ein anderes
+Projekt kann das Projekt dieses Pfads nicht ersetzen.
+
+Nach Agent, Benutzer oder Kanal geteilte Executoren erhalten diesen privaten Mount
+nicht; direkte Projektausführung behält ihre ausdrückliche Freigaberegel.
+
+Die Migration `0383_environment_project_files.py` fügt diesen separaten Eigentümer
+hinzu; ein Downgrade entfernt Umgebungspfade, ohne sie in Laufberechtigungen
+umzuwandeln. Beende erhaltene Desktops vor dem Downgrade und lasse ihre Bereinigungsjobs
+abschließen; die Migration verweigert ihn, solange ein Desktop-Ressourcenjournal
+besteht. Öffne den Desktop nach Upgrade oder Rollback neu, statt den alten Pfad
+wiederzubeleben.
 
 `transfer_project_file` bleibt eine optionale explizite Bytekopie für ein getrenntes
 Ergebnis oder ein anderes unterstütztes Speicherziel. Binärdateien bis 8 MiB liefern

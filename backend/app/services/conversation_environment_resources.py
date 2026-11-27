@@ -77,6 +77,7 @@ class DesktopEnvironmentResource(BaseModel):
     connection_id: UUID | None = None
     connection_fingerprint: str | None = None
     workspace_root: str | None = None
+    project_lease_id: UUID | None = Field(default=None, exclude_if=lambda lease: lease is None)
     credential: str = Field(default="", repr=False)
     daemon_url: str = Field(default="", repr=False)
     width: int = Field(ge=640, le=1920)

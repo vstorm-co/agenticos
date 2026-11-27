@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "b3e1868645f3"
+source_sha: "c596c00e8a9e"
 ---
 
 # Projekty { #projects }
@@ -129,6 +129,29 @@ aktualny dostęp i generację workspace. Dowiązania symboliczne i zmiany właś
 są odmawiane. Restart eksportera unieważnia uchwyty NFS: wykonywanie zatrzymuje się
 do jawnego odzyskania systemu plików sandboxa, z zachowaniem jego własnego workspace,
 bez podmiany na puste środowisko.
+
+Dla pulpitu Computer use zachowywanego w rozmowie, w prywatnym workspace Docker z
+montowaniem plików, GUI otrzymuje od pierwszego użycia osobną, niezmienną ścieżkę
+środowiska. Pierwsze rzeczywiste narzędzie plików lub poleceń projektu może przygotować
+pulpit; samo oglądanie czatu lub uruchomienie modelu tego nie robi. `PROJECT_DIR`
+wskazuje wtedy tę samą ścieżkę środowiska, zanim otworzy się aplikacja GUI uruchomiona z
+powłoki.
+
+Koniec runu cofa jego osobną dzierżawę, ale edytor otwarty w aktywnym pulpicie nadal
+może zapisywać przez ścieżkę środowiska. Każda operacja ponownie sprawdza właściciela,
+opublikowaną capability, konkretny executor, dostęp do projektu i jego generację. End,
+wygaśnięcie bezczynności lub cofnięcie uprawnień natychmiast blokuje tę ścieżkę. Ruch
+plików nie przedłuża czasu bezczynności. Inny projekt nie może zastąpić projektu
+przypisanego do ścieżki.
+
+Executory współdzielone dla agenta, użytkownika lub kanału nie otrzymują tego prywatnego
+montowania; bezpośrednie wykonanie w projekcie zachowuje jawne zasady współdzielenia.
+
+Migracja `0383_environment_project_files.py` dodaje osobnego właściciela; downgrade
+usuwa ścieżki środowisk bez zamiany na uprawnienia runu. Przed downgrade zakończ
+zachowane pulpity i poczekaj na zadania ich sprzątania; migracja odmawia, gdy pozostaje
+dziennik zasobu pulpitu. Po aktualizacji lub rollbacku otwórz pulpit ponownie zamiast
+przywracać starą ścieżkę.
 
 `transfer_project_file` pozostaje opcjonalną jawną kopią bajtów dla osobnego wyniku
 lub innego obsługiwanego magazynu. Obsługuje pliki binarne do 8 MiB i zwraca ścieżki,

@@ -81,10 +81,10 @@ using different files. A helper restart makes old NFS handles stale and stops th
 agent until explicit filesystem recovery; it does not start an empty replacement.
 
 Native project storage requires durable extended attributes and atomic hard links;
-verified Linux storage and the database-backed state provider are supported. macOS
-bind mounts can refuse the native requirements. Symlinks and ownership changes are
-not supported. See [Projects](projects.md#what-an-agent-gets-in-a-project) for live
-lease access and the optional explicit project executor.
+verified Linux storage and the database-backed state provider are supported. macOS bind
+mounts can refuse the native requirements. Symlinks and ownership changes are not
+supported. See [Projects](projects.md#what-an-agent-gets-in-a-project) for live lease
+access and the optional explicit project executor.
 
 ### The service and the backend move together
 
@@ -825,3 +825,8 @@ Browser contexts are isolated per owner and conversation. A desktop follows its 
 Taking control, actual manual input and giving control back count as activity. Passive frames and human-control heartbeats do not extend the idle deadline; an active agent driver protects ongoing work. Legacy run-mode browsing without a manually prepared target keeps its existing per-turn browser and URL/cookie checkpoint behavior. A manually prepared run-mode target instead preserves its exact live DOM until a run that uses it ends.
 
 A retained sandbox desktop requires a conversation-, user-, agent- or project-scoped container-backed executor. Existing run-lifetime desktops using ephemeral run/channel executors keep their original per-run factory and cannot be opened manually between runs. End and idle expiry close the owned view and control session; they do not destroy a shared daemon or workspace container, whose lifecycle follows its own configuration. Owned browser contexts and separate E2B desktops are disposed.
+
+A retained private Docker desktop can keep a separate [Project files
+path](projects.md#what-an-agent-gets-in-a-project) after its agent run ends. The first
+actual Project tool may prepare that desktop. Its file requests never extend idle
+expiry; ending the environment revokes the path.

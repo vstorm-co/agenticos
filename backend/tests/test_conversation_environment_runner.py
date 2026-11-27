@@ -113,3 +113,61 @@ async def test_root_shared_scope_captures_original_executor_fingerprint_without_
         assert nested.workspace.connection_fingerprint == "original-connection"
         assert nested.workspace.scope_key == opened.scope_key
     resolve.assert_not_awaited()
+
+
+@pytest.mark.parametrize("lifetime", ["run", "conversation"])
+async def test_project_mount_is_lazy_and_only_retained_desktop_gets_the_environment_directory(
+    case, monkeypatch, lifetime
+):
+    from app.agents.spec import AgentSpec, CapabilityBindingSpec
+    from app.services.conversation_environment_agent import AgentEnvironment
+    from app.services.sandbox_workspace import OpenWorkspace
+    from tests.workspaces import document_workspace
+
+    agent, previous, version = case.runnable.return_value
+    current = AgentSpec(
+        name=previous.name,
+        model_profile_id=previous.model_profile_id,
+        capabilities=[
+            CapabilityBindingSpec(
+                id="sandbox", config={"backend": "service", "session_scope": "conversation"}
+            ),
+            CapabilityBindingSpec(
+                id="computer_use", config={"desktop": "sandbox", "session_lifetime": lifetime}
+            ),
+        ],
+    )
+    case.runnable.return_value = agent, current, version
+    opened = OpenWorkspace(
+        workspace=document_workspace(),
+        kind="service",
+        scope="conversation",
+        scope_key="actual-executor",
+        row_id=uuid4(),
+        connection_id=uuid4(),
+        connection_fingerprint="captured-parent-A",
+    )
+    case.opened.return_value = opened
+    monkeypatch.setattr(case.service, "_workspace_shared", AsyncMock(return_value=False))
+    monkeypatch.setattr(
+        "app.services.attachments.chat_file_repo.left_by_interrupted_turns",
+        AsyncMock(return_value=[]),
+    )
+    acquire = AsyncMock()
+    monkeypatch.setattr(AgentEnvironment, "acquire", acquire)
+    prepared = await case.service.prepare(
+        _ctx(), uuid4(), surface=RunSurface.WEB, conversation_id=uuid4()
+    )
+    selector = prepared.project_workspace
+    assert selector is not None
+    if lifetime == "conversation":
+        assert selector.environment_project_directory is not None
+        assert selector.finish_environment_project_directory is not None
+        assert (
+            selector.environment_project_directory.__self__.workspace.connection_fingerprint
+            == "captured-parent-A"
+        )
+    else:
+        assert selector.environment_project_directory is None
+        assert selector.finish_environment_project_directory is None
+    acquire.assert_not_awaited()

@@ -3,10 +3,11 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import exists, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.models.conversation_environment import ConversationEnvironment
 from app.db.models.project_filesystem import ProjectFilesystemBinding, ProjectFilesystemLease
 
 
@@ -82,7 +83,16 @@ async def live_leases(
             ProjectFilesystemLease.binding_id == binding.id,
             ProjectFilesystemLease.organization_id == binding.organization_id,
             ProjectFilesystemLease.revoked_at.is_(None),
-            ProjectFilesystemLease.expires_at > now,
+            or_(
+                (ProjectFilesystemLease.environment_id.is_(None))
+                & (ProjectFilesystemLease.expires_at > now),
+                exists().where(
+                    ConversationEnvironment.id == ProjectFilesystemLease.environment_id,
+                    ConversationEnvironment.organization_id == binding.organization_id,
+                    ConversationEnvironment.state.in_(("starting", "ready")),
+                    ConversationEnvironment.expires_at > now,
+                ),
+            ),
         )
         .order_by(ProjectFilesystemLease.created_at, ProjectFilesystemLease.id)
         .limit(64)
@@ -126,4 +136,16 @@ async def revoke_lease(
             ProjectFilesystemLease.revoked_at.is_(None),
         )
         .values(revoked_at=now)
+    )
+
+
+async def environment_lease(
+    db: AsyncSession, *, binding_id: UUID, environment_id: UUID
+) -> ProjectFilesystemLease | None:
+    """Find the immutable path, including a revoked row which must never revive."""
+    return await db.scalar(
+        select(ProjectFilesystemLease).where(
+            ProjectFilesystemLease.binding_id == binding_id,
+            ProjectFilesystemLease.environment_id == environment_id,
+        )
     )

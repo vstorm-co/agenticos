@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import AsyncExitStack, asynccontextmanager
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import anyio
@@ -26,6 +27,7 @@ from app.agents.capabilities.computer_use._backends import (
     NativeAction,
 )
 from app.agents.capabilities.computer_use._desktop_apps import App
+from app.agents.capabilities.sandbox import WorkspaceIdentity
 from app.core.exceptions import ConflictError
 from app.core.permissions import AuthContext
 from app.db.models.conversation_environment import ConversationEnvironment
@@ -40,18 +42,25 @@ from app.services import conversation_environment_runtime as runtime
 from app.services.conversation_environment_driver import EnvironmentDriver
 from app.services.conversation_environment_policy import (
     BrowserEnvironmentSettings,
+    DesktopEnvironmentSettings,
     EnvironmentNotReady,
     EnvironmentSettings,
     authority,
     legacy_run_desktop,
     require_environment_run,
+    settings_for,
 )
 from app.services.conversation_environment_resources import (
     BrowserEnvironmentResource,
     EnvironmentResource,
 )
 from app.services.conversation_environments import ConversationEnvironmentService, personal_owner
+from app.services.run_project_workspace import RunProjectWorkspace
+from app.services.sandbox_workspace import OpenWorkspace, SandboxWorkspaceService
 from app.worker.jobs import ConversationEnvironmentPayload
+
+if TYPE_CHECKING:
+    from app.services.conversation_environment_delegates import SharedDesktopWorkspace
 
 
 class AgentEnvironment:
@@ -67,6 +76,7 @@ class AgentEnvironment:
         run_id: UUID,
         target: ProjectExecutionTarget,
         kind: ConversationEnvironmentKind,
+        workspace: SharedDesktopWorkspace | None = None,
     ) -> None:
         self.ctx = ctx
         self.conversation_id = conversation_id
@@ -75,6 +85,9 @@ class AgentEnvironment:
         self.run_id = run_id
         self.target = target
         self.kind = kind
+        self.workspace = workspace
+        self._routing_workspace: RunProjectWorkspace | None = None
+        self._opened_workspace: OpenWorkspace | None = None
         self.environment_id: UUID | None = None
         self.driver: EnvironmentDriver | None = None
         self._lock = asyncio.Lock()
@@ -91,6 +104,7 @@ class AgentEnvironment:
             if self._fallback:
                 return False
             payload: ConversationEnvironmentPayload | None = None
+            checked: DesktopEnvironmentSettings | None = None
             async with get_db_context() as db:
                 service = ConversationEnvironmentService(db)
                 if self.kind == "desktop":
@@ -109,6 +123,16 @@ class AgentEnvironment:
                     if await legacy_run_desktop(db, admitted):
                         self._fallback = True
                         return False
+                    if (
+                        self.workspace is not None
+                        or self._routing_workspace is not None
+                        or self._opened_workspace is not None
+                    ):
+                        configured = await settings_for(db, admitted, "desktop")
+                        if isinstance(
+                            configured, DesktopEnvironmentSettings
+                        ) and await self._check_executor(db, configured):
+                            checked = configured
                 state = await service.read(
                     self.ctx, self.conversation_id, self.agent_id, self.kind, self.target
                 )
@@ -149,6 +173,12 @@ class AgentEnvironment:
                             message="The environment is still starting. Wait until it is ready."
                         )
                     payload = service.payload(row)
+                if checked is not None and state.id is not None:
+                    current = await environments.for_worker(db, state.id)
+                    if current is None or current.fingerprint != checked.fingerprint:
+                        raise EnvironmentNotReady(
+                            "environment_changed", "The admitted desktop executor changed."
+                        )
                 self.environment_id = state.id
             if payload is not None:
                 # A real RUNNING row already exists. Provider effects happen only
@@ -169,6 +199,67 @@ class AgentEnvironment:
                 raise
             self.driver = driver
             return True
+
+    async def _check_executor(
+        self, db: AsyncSession, configured: DesktopEnvironmentSettings
+    ) -> bool:
+        """Bind sandbox adoption to captured physical identity, never a fresh replacement."""
+        if configured.connection_fingerprint is None:
+            return False
+        routing = (
+            None if self._routing_workspace is None else self._routing_workspace.desktop_selection()
+        )
+        if routing is not None and routing.target != self.target:
+            raise EnvironmentNotReady(
+                "environment_changed", "The desktop execution target changed."
+            )
+        captured = self.workspace
+        opened = self._opened_workspace if routing is None else routing.opened
+        if opened is not None:
+            if opened.connection_id is None or opened.connection_fingerprint is None:
+                raise EnvironmentNotReady(
+                    "environment_changed", "The original desktop executor has no captured identity."
+                )
+            from app.services.conversation_environment_delegates import SharedDesktopWorkspace
+
+            captured = SharedDesktopWorkspace(
+                opened.connection_id,
+                opened.scope_key,
+                opened.connection_fingerprint,
+                self.target,
+                None if routing is None else routing.project_id,
+            )
+        if captured is None:
+            return False
+        admitted = configured.authority
+        service = SandboxWorkspaceService(db)
+        selected = await service.resolve_live_execution(
+            admitted.ctx,
+            spec=admitted.spec,
+            identity=WorkspaceIdentity(
+                organization_id=admitted.ctx.organization_id,
+                agent_id=self.agent_id,
+                run_id=self.run_id,
+                conversation_id=self.conversation_id,
+                user_id=str(admitted.ctx.user_id),
+                project_id=admitted.conversation.project_id,
+            ),
+            execution_target=self.target,
+            selected_project_id=None if routing is None else routing.project_id,
+            selected_generation=None if routing is None else routing.project_generation,
+        )
+        if (
+            captured.execution_target != self.target
+            or captured.connection_fingerprint != configured.connection_fingerprint
+            or captured.connection_id != selected.resolved.row.id
+            or captured.scope_key != selected.key
+            or service.environment_connection_fingerprint(selected.resolved)
+            != configured.connection_fingerprint
+        ):
+            raise EnvironmentNotReady(
+                "environment_changed", "The original desktop executor changed."
+            )
+        return True
 
     async def live(
         self, db: AsyncSession
@@ -358,11 +449,56 @@ class AgentEnvironment:
                 raise ConflictError(message="The browser driver was released")
             yield DrivenPage(page, self.driver, resource.environment_id)
 
+    async def project_directory(
+        self,
+        binding_id: UUID,
+        project_id: UUID,
+        generation: UUID | None,
+        opened: OpenWorkspace | None = None,
+    ) -> str:
+        """Use the GUI's stable Project path from the first actual tool operation."""
+        from app.services.conversation_environment_project_files import directory
+
+        self._opened_workspace = opened
+        async with get_db_context() as db:
+            admitted = await authority(
+                db,
+                self.ctx,
+                conversation_id=self.conversation_id,
+                agent_id=self.agent_id,
+                execution_target=self.target,
+            )
+            if (
+                admitted.execution_target != "agent"
+                or admitted.project is None
+                or admitted.project.id != project_id
+                or admitted.project.workspace_generation != generation
+            ):
+                raise EnvironmentNotReady(
+                    "environment_changed",
+                    "The retained desktop uses a different Project selection.",
+                )
+        if not await self.acquire() or self.environment_id is None:
+            raise EnvironmentNotReady(
+                "workspace_unavailable", "No retained desktop Project mount is available."
+            )
+        async with get_db_context() as db:
+            return await directory(
+                db,
+                ctx=self.ctx,
+                environment_id=self.environment_id,
+                binding_id=binding_id,
+                project_id=project_id,
+                generation=generation,
+            )
+
     def desktop(self) -> ComputerFactoryDecorator:
         return ComputerFactoryDecorator(self.wrap_computer)
 
     def wrap_computer(self, fallback: ComputerFactory) -> ComputerFactory:
         async def open_computer(workspace: Workspace) -> Computer:
+            if isinstance(workspace, RunProjectWorkspace):
+                self._routing_workspace = workspace
             if not await self.acquire():
                 return await fallback(workspace)
             stack = AsyncExitStack()

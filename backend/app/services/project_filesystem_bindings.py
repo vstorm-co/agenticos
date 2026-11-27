@@ -7,6 +7,7 @@ opens a Project directory, and the gateway reauthorizes it on every operation.
 import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from pydantic import SecretStr
@@ -25,6 +26,9 @@ from app.schemas.project_filesystem_authority import (
     ProjectFilesystemCredential,
     ProjectFilesystemLeaseRead,
 )
+
+if TYPE_CHECKING:
+    from app.worker.jobs import ConversationEnvironmentPayload
 
 LEASE_SECONDS = 90
 """An orphaned run's mount expires even before the normal run reaper finds it."""
@@ -174,6 +178,13 @@ class ProjectFilesystemBindingService:
                     path=f"/project/{previous.id}",
                     expires_at=previous.expires_at,
                 )
+            if (
+                previous.environment_id is not None
+                and previous.actor_id == actor.user_id
+                and previous.project_id == project_id
+                and previous.workspace_generation == generation
+            ):
+                continue
             raise AlreadyExistsError(
                 message="This sandbox is already using another Project filesystem lease",
                 details={},
@@ -200,6 +211,88 @@ class ProjectFilesystemBindingService:
             expires_at=lease.expires_at,
         )
 
+    async def issue_environment_lease(
+        self,
+        *,
+        binding_id: UUID,
+        payload: ConversationEnvironmentPayload,
+        attempt: int,
+        project_id: UUID,
+        generation: UUID | None,
+    ) -> ProjectFilesystemLeaseRead:
+        """Admit the GUI's stable path while STARTING; RPCs require fresh READY.
+
+        A same-person, same-conversation run path may coexist for the same
+        Project generation. Neither path aliases or renews the other's owner.
+        The environment expiry is authoritative, so filesystem reads never
+        extend its idle timeout.
+        """
+        from app.services.conversation_environment_project_files import starting
+
+        binding = await binding_repo.binding_by_id(self.db, binding_id)
+        if (
+            binding is None
+            or binding.organization_id != payload.organization_id
+            or binding.revoked_at is not None
+        ):
+            raise AuthorizationError(message="The desktop filesystem binding is unavailable")
+        # Resolve project/environment authority before locking the binding,
+        # matching ordinary run admission's project-before-binding lock order.
+        environment, authority = await starting(
+            self.db,
+            binding=binding,
+            payload=payload,
+            attempt=attempt,
+            project_id=project_id,
+            generation=generation,
+        )
+        locked = await binding_repo.binding_by_id(self.db, binding_id, for_update=True)
+        if locked is None or locked.revoked_at is not None:
+            raise AuthorizationError(message="The desktop filesystem binding was revoked")
+        actor_id = authority.actor.user_id
+        if actor_id is None:
+            raise AuthorizationError(message="The desktop filesystem owner is unavailable")
+        previous = await binding_repo.environment_lease(
+            self.db, binding_id=binding_id, environment_id=environment.id
+        )
+        if previous is not None:
+            if (
+                previous.revoked_at is not None
+                or previous.project_id != project_id
+                or previous.workspace_generation != generation
+                or previous.actor_id != actor_id
+                or ProjectFilesystemAuthority.model_validate_json(previous.authority_json)
+                != authority
+            ):
+                raise AuthorizationError(message="The desktop filesystem path cannot be reassigned")
+            return _read(previous, expires_at=environment.expires_at)
+        for active in await binding_repo.live_leases(
+            self.db, binding=locked, now=datetime.now(UTC)
+        ):
+            if (
+                active.run_id is None
+                or active.actor_id != actor_id
+                or active.project_id != project_id
+                or active.workspace_generation != generation
+            ):
+                raise AlreadyExistsError(message="This sandbox is using another Project mount")
+        lease = await binding_repo.create_lease(
+            self.db,
+            lease=ProjectFilesystemLease(
+                id=uuid4(),
+                organization_id=locked.organization_id,
+                binding_id=binding_id,
+                project_id=project_id,
+                workspace_generation=generation,
+                run_id=None,
+                environment_id=environment.id,
+                actor_id=actor_id,
+                authority_json=authority.model_dump_json(),
+                expires_at=environment.expires_at,
+            ),
+        )
+        return _read(lease, expires_at=environment.expires_at)
+
     async def renew(self, *, lease_id: UUID, run_id: UUID, organization_id: UUID) -> None:
         now = datetime.now(UTC)
         renewed = await binding_repo.renew_lease(
@@ -225,3 +318,13 @@ class ProjectFilesystemBindingService:
 
 def _digest(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _read(lease: ProjectFilesystemLease, *, expires_at: datetime) -> ProjectFilesystemLeaseRead:
+    return ProjectFilesystemLeaseRead(
+        id=lease.id,
+        project_id=lease.project_id,
+        workspace_generation=lease.workspace_generation,
+        path=f"/project/{lease.id}",
+        expires_at=expires_at,
+    )

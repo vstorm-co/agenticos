@@ -126,6 +126,28 @@ A restarted exporter invalidates its NFS handles: execution stops until the sand
 filesystem is explicitly recovered, preserving its own workspace rather than
 silently replacing it with an empty one.
 
+For a conversation-retained Computer use desktop on a mount-enabled private Docker
+conversation workspace, the GUI receives a separate immutable environment path from its
+first use. Its first actual Project file or execute tool can prepare the desktop; merely
+viewing chat or starting a model does not. `PROJECT_DIR` then names the same environment
+path before any shell-launched GUI app opens.
+
+Ending the agent run revokes its separate run lease, while an editor already open in the
+live desktop can still save through the environment path. Every filesystem request
+rechecks the current owner, published capability, exact executor, Project access and
+generation. End, idle expiry or revoked authority denies that path immediately.
+Filesystem traffic does not extend idle time. Another Project cannot replace the path's
+Project.
+
+Agent-, user- and channel-shared executors do not receive this private mount; direct
+Project execution retains its explicit sharing policy.
+
+Migration `0383_environment_project_files.py` adds this separate owner; downgrading
+removes environment paths without converting them into run authority. End retained
+desktops and drain their cleanup jobs before downgrading; the migration refuses while a
+desktop provider journal remains. Reopen the desktop after an upgrade or rollback rather
+than reviving its old path.
+
 `transfer_project_file` remains an optional explicit byte copy for a separate result
 or another supported storage target. It accepts binary files up to 8 MiB and returns
 paths, size and a SHA-256 receipt. An existing destination requires its current

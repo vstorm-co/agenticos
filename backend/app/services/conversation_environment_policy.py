@@ -86,6 +86,7 @@ class DesktopEnvironmentSettings:
     config: ComputerUseConfig
     fingerprint: str
     credential: str = field(repr=False)
+    connection_fingerprint: str | None = None
 
 
 type EnvironmentSettings = BrowserEnvironmentSettings | DesktopEnvironmentSettings
@@ -281,6 +282,7 @@ async def settings_for(
                 ).encode()
             ).hexdigest()
             return BrowserEnvironmentSettings(admitted, config, fingerprint, endpoint, route)
+        connection_fingerprint = None
         desktop = ComputerUseConfig.model_validate(binding.config)
         if desktop.desktop == "local":
             raise EnvironmentNotReady(
@@ -316,7 +318,9 @@ async def settings_for(
             fingerprint = hashlib.sha256(
                 f"{fingerprint}:{connection_fingerprint}".encode()
             ).hexdigest()
-        return DesktopEnvironmentSettings(admitted, desktop, fingerprint, credential)
+        return DesktopEnvironmentSettings(
+            admitted, desktop, fingerprint, credential, connection_fingerprint
+        )
     except (ValidationError, ValueError) as exc:
         raise EnvironmentNotReady(
             "connection_unavailable",

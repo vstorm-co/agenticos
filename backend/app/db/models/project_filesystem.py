@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -14,6 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.schema import conv
 
 from app.db.base import Base, TimestampMixin
 
@@ -58,10 +60,15 @@ class ProjectFilesystemBinding(Base, TimestampMixin):
 
 
 class ProjectFilesystemLease(Base, TimestampMixin):
-    """An immutable Project/generation path authorized for one admitted run."""
+    """An immutable Project path owned by one real run or retained environment."""
 
     __tablename__ = "project_filesystem_leases"
     __table_args__ = (
+        CheckConstraint(
+            "(run_id IS NOT NULL AND environment_id IS NULL) OR "
+            "(run_id IS NULL AND environment_id IS NOT NULL)",
+            name=conv("ck_project_filesystem_lease_owner"),
+        ),
         ForeignKeyConstraint(
             ["organization_id", "binding_id"],
             ["project_filesystem_bindings.organization_id", "project_filesystem_bindings.id"],
@@ -81,8 +88,17 @@ class ProjectFilesystemLease(Base, TimestampMixin):
         PG_UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
     workspace_generation: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True))
-    run_id: Mapped[uuid.UUID] = mapped_column(
+    run_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("agent_runs.id", ondelete="CASCADE"), index=True
+    )
+    environment_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey(
+            "conversation_environments.id",
+            ondelete="CASCADE",
+            name="fk_project_filesystem_environment",
+        ),
+        index=True,
     )
     actor_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), index=True

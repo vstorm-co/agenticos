@@ -30,10 +30,21 @@ async def test_environment_journal_migration_matches_models_and_guards_destructi
     assert migration.down_revision == "0375_merge_service_connections"
     tables = {"conversation_environments", "conversation_environment_drivers"}
 
+    # A later migration owns a foreign key into this journal. Reverse that
+    # dependency before exercising this older revision in isolation.
+    owner_path = path.with_name("0383_environment_project_files.py")
+    owner_spec = importlib.util.spec_from_file_location(
+        "environment_project_files_owner", owner_path
+    )
+    assert owner_spec is not None and owner_spec.loader is not None
+    owner = importlib.util.module_from_spec(owner_spec)
+    owner_spec.loader.exec_module(owner)
+
     def cycle(session: Session):
         connection = session.connection()
         context = MigrationContext.configure(connection, opts={"target_metadata": Base.metadata})
         with Operations.context(context):
+            owner.downgrade()
             migration.downgrade()
             assert not tables.intersection(inspect(connection).get_table_names())
             migration.upgrade()
@@ -75,5 +86,6 @@ async def test_environment_journal_migration_matches_models_and_guards_destructi
             migration.downgrade()
             assert not tables.intersection(inspect(connection).get_table_names())
             migration.upgrade()
+            owner.upgrade()
 
     await db.run_sync(cycle)

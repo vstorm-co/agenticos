@@ -66,6 +66,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.permissions import AuthContext, OrgRoleName
+from app.db.models.sandbox_connection import SandboxConnection
 from app.repositories import agent_workspace as workspace_repo
 from app.services import sandbox_workspace
 from app.services.sandbox_connection import ResolvedConnection, SandboxConnectionService
@@ -150,12 +151,14 @@ def _resolved(
     and the resolution half in `tests/test_sandbox_connections.py`; here the
     question is only what the workspace service does with the answer.
     """
-    row = MagicMock()
-    row.id = uuid4()
-    row.kind = kind
-    row.base_url = base_url
-    row.default_runtime = default_runtime
-    row.name = "Local Docker"
+    row = SandboxConnection(
+        id=uuid4(),
+        kind=kind,
+        base_url=base_url,
+        default_runtime=default_runtime,
+        name="Local Docker",
+        secure_access=False,
+    )
     return ResolvedConnection(row=row, token=token)
 
 

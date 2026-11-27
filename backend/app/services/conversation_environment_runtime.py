@@ -334,9 +334,12 @@ async def _provision_desktop(
             workspace_id, connection_id = opened.row_id, opened.connection_id
             if isinstance(opened.workspace, RecordingWorkspace):
                 opened = replace(opened, workspace=opened.workspace.wrapped)
-            if opened.connection_fingerprint is None:
+            if opened.connection_fingerprint is None or (
+                resolved.connection_fingerprint is not None
+                and opened.connection_fingerprint != resolved.connection_fingerprint
+            ):
                 raise EnvironmentNotReady(
-                    "environment_changed", "The desktop connection identity is unavailable."
+                    "environment_changed", "The admitted desktop connection identity changed."
                 )
             resource.connection_fingerprint = opened.connection_fingerprint
         initial = opened.workspace.ref
@@ -352,9 +355,29 @@ async def _provision_desktop(
         # a desktop reset while the provider has not returned a session reference.
         await _retain(resource, key, store)
         async with drive(key):
+            from app.services.conversation_environment_project_files import (
+                ProjectDesktopWorkspace,
+                prepare,
+            )
+
+            lease_id = await prepare(
+                resolved,
+                resource,
+                binding_id=opened.filesystem_binding_id,
+                scope=opened.scope,
+                payload=payload,
+                attempt=attempt,
+            )
+            if lease_id is not None:
+                await _retain(resource, key, store)
+            desktop_workspace = (
+                opened.workspace
+                if lease_id is None
+                else ProjectDesktopWorkspace(opened.workspace, lease_id)
+            )
             started = True
             await open_sandbox_desktop(
-                opened.workspace, width=config.screen_width, height=config.screen_height
+                desktop_workspace, width=config.screen_width, height=config.screen_height
             )
             ref = opened.workspace.ref
             if ref is None or (initial is not None and ref != initial):
@@ -509,6 +532,10 @@ async def open_view(
             raise EnvironmentNotReady(
                 "environment_changed", "The original desktop working directory changed."
             )
+        if resource.project_lease_id is not None:
+            from app.services.conversation_environment_project_files import ProjectDesktopWorkspace
+
+            workspace = ProjectDesktopWorkspace(workspace, resource.project_lease_id)
         yield DesktopEnvironmentView(SandboxComputer(workspace), resource.width, resource.height)
     finally:
         if transport is not None:
