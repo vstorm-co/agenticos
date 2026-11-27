@@ -114,6 +114,7 @@ import type {
 } from "@/types/tables";
 
 const VISIBILITY_ICON = { private: Lock, team: Users, org: Building2 } as const;
+const ALL_RECORDS_VIEW_ID = "all";
 const VIEW_TABS = [
   { kind: "table", icon: Table2 },
   { kind: "kanban", icon: SquareKanban },
@@ -143,6 +144,11 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const [tabParam, setTabParam] = useUrlState("view");
   const setTab = (next: ViewKind) => setTabParam(next);
   const [viewIdParam, setViewIdParam] = useUrlState("viewId");
+  const [formatSelection, setFormatSelection] = useState<{
+    tableId: string;
+    views: Partial<Record<ViewKind, string>>;
+  }>({ tableId: id, views: {} });
+  const formatViews = formatSelection.tableId === id ? formatSelection.views : {};
 
   const {
     table,
@@ -183,7 +189,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const [page, setPage] = useState(0);
   const DEFAULT_SORT: RecordSort = { by: "created_at", direction: "asc" };
   const defaultView = useTableDefaultView(id);
-  const effectiveViewId = viewIdParam ?? (tabParam === null ? table?.default_view_id : null);
+  const effectiveViewId = viewIdParam ?? table?.default_view_id;
   const requestedView = views.find((view) => view.id === effectiveViewId) ?? null;
   const tab = tabParam === null && requestedView ? requestedView.kind : parseTab(tabParam);
   const activeView = requestedView?.kind === tab ? requestedView : null;
@@ -199,11 +205,19 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   const search = useDebounced(searchDraft).trim() || null;
   // A board groups by its view's column, or - with no view saying so - by the
   // column picked above it, so a board is one choice away rather than a dead end.
-  const [groupPick, setGroupPick] = useState<string | null>(null);
+  const [groupPick, setGroupPick] = useState<{
+    tableId: string;
+    viewId: string | undefined;
+    columnId: string;
+  } | null>(null);
   const liveColumns = table?.columns.filter((column) => !column.archived) ?? [];
   const groupable = liveColumns.filter((column) => column.type === "single_select");
   const groupBy =
-    groupPick ?? activeView?.config.group_by ?? (groupable.length === 1 ? groupable[0]!.id : null);
+    (groupPick?.tableId === id && groupPick.viewId === activeView?.id
+      ? groupPick.columnId
+      : null) ??
+    activeView?.config.group_by ??
+    (groupable.length === 1 ? groupable[0]!.id : null);
 
   // `sort` is the grid's own working sort, seeded from the active view's
   // stored one each time the view changes - re-seeded from render, not a
@@ -222,7 +236,6 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     setSearchDraft(activeView?.config.search ?? "");
     setVisible(activeView?.config.visible_columns ?? null);
     setDisplay(activeView?.config.display ?? DEFAULT_TABLE_DISPLAY);
-    setGroupPick(null);
   }
 
   // A condition still being written narrows nothing yet.
@@ -263,7 +276,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
   });
   const matching = useTableRecordCount(id, { filters: applied, search });
 
-  if (isLoading || (!!table?.default_view_id && !viewIdParam && !tabParam && viewsLoading))
+  if (isLoading || (!!effectiveViewId && effectiveViewId !== ALL_RECORDS_VIEW_ID && viewsLoading))
     return <LoadingState variant="pending" />;
   if (error || !table)
     return (
@@ -294,11 +307,21 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
     group_by: tab === "kanban" ? groupBy : (activeView?.config.group_by ?? null),
   };
   const groupingPending = createView.isPending || updateView.isPending;
+  const changeFormat = (next: ViewKind) => {
+    if (next === tab) return;
+    setFormatSelection({
+      tableId: id,
+      views: { ...formatViews, [tab]: activeView?.id ?? ALL_RECORDS_VIEW_ID },
+    });
+    // Keep each format's saved selection; a format switch never writes view config.
+    setViewIdParam(formatViews[next] ?? null);
+    setTab(next);
+  };
   const chooseGrouping = async (columnId: string) => {
     const column = groupable.find((column) => column.id === columnId);
     if (!column) return;
     if (!canEdit) {
-      setGroupPick(columnId);
+      setGroupPick({ tableId: id, viewId: activeView?.id, columnId });
       return;
     }
     try {
@@ -529,7 +552,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
                 {t("formatLabel")}
               </span>
               <div className="sm:hidden">
-                <Select value={tab} onValueChange={(next) => setTab(parseTab(next))}>
+                <Select value={tab} onValueChange={(next) => changeFormat(parseTab(next))}>
                   <SelectTrigger aria-label={t("formatLabel")} className="w-24 text-[13px]">
                     <SelectValue />
                   </SelectTrigger>
@@ -547,7 +570,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               </div>
               <Tabs
                 value={tab}
-                onValueChange={(next) => setTab(parseTab(next))}
+                onValueChange={(next) => changeFormat(parseTab(next))}
                 className="hidden sm:block"
               >
                 <TabsList
@@ -572,8 +595,15 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               views={views}
               activeViewId={activeView?.id ?? null}
               onSelect={(value) => {
-                setViewIdParam(value);
-                setTab(views.find((view) => view.id === value)?.kind ?? tab);
+                const next = views.find((view) => view.id === value)?.kind ?? tab;
+                if (next !== tab) {
+                  setFormatSelection({
+                    tableId: id,
+                    views: { ...formatViews, [tab]: activeView?.id ?? ALL_RECORDS_VIEW_ID },
+                  });
+                }
+                setViewIdParam(value ?? ALL_RECORDS_VIEW_ID);
+                setTab(next);
               }}
               canCreate={canEdit}
               onCreate={async (name, visibility) => {

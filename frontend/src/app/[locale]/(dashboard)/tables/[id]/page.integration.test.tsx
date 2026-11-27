@@ -1155,6 +1155,109 @@ describe("the table detail page", () => {
     expect(screen.getByRole("button", { name: "Default view" })).toBeDisabled();
   });
 
+  it("uses the default Kanban for an explicit format URL, including after reload", async () => {
+    serve({ tableFixture: table({ default_view_id: "v-kanban" }) });
+    arriveAt("view=kanban");
+    const page = renderPage();
+    expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c2");
+    await userEvent.click(screen.getByRole("combobox", { name: "Select a kanban view" }));
+    await userEvent.click(screen.getByRole("option", { name: "All records" }));
+    expect(screen.getByRole("combobox", { name: "Select a kanban view" })).toHaveTextContent(
+      "All records",
+    );
+    await userEvent.click(screen.getByRole("tab", { name: "List" }));
+    await screen.findByTestId("list-view");
+    await userEvent.click(screen.getByRole("tab", { name: "Kanban" }));
+    expect(screen.getByRole("combobox", { name: "Select a kanban view" })).toHaveTextContent(
+      "All records",
+    );
+    const query = window.location.search.slice(1);
+    expect(new URLSearchParams(query).get("viewId")).toBe("all");
+    page.unmount();
+    arriveAt(query);
+    renderPage();
+    expect(await screen.findByRole("combobox", { name: "Select a kanban view" })).toHaveTextContent(
+      "All records",
+    );
+  });
+
+  it("restores Kanban through the phone format selector without changing its saved view", async () => {
+    serve({ tableFixture: table({ default_view_id: "v-kanban" }) });
+    renderPage();
+    await screen.findByTestId("kanban-view");
+    await userEvent.click(screen.getByRole("combobox", { name: "Format" }));
+    await userEvent.click(screen.getByRole("option", { name: "List" }));
+    await screen.findByTestId("list-view");
+    await userEvent.click(screen.getByRole("combobox", { name: "Format" }));
+    await userEvent.click(screen.getByRole("option", { name: "Kanban" }));
+    expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c2");
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
+  it.each(["List", "Table"])(
+    "restores the default Kanban after switching to %s",
+    async (format) => {
+      const extra = { ...table().columns[1]!, id: "c4", label: "Priority" };
+      serve({
+        tableFixture: table({ default_view_id: "v-kanban", columns: [...table().columns, extra] }),
+      });
+      await act(async () => {
+        renderPage();
+      });
+      expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c2");
+      await userEvent.click(screen.getByRole("tab", { name: format }));
+      await userEvent.click(screen.getByRole("tab", { name: "Kanban" }));
+      expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c2");
+      expect(apiClient.patch).not.toHaveBeenCalled();
+    },
+  );
+
+  it("restores each format's selected saved view instead of losing Kanban grouping", async () => {
+    const fixture = views();
+    fixture.items.push({
+      ...fixture.items[1]!,
+      id: "v-list",
+      kind: "list",
+      name: "List by customer",
+    });
+    const extra = { ...table().columns[1]!, id: "c4", label: "Priority" };
+    serve({ tableFixture: table({ columns: [...table().columns, extra] }), viewsFixture: fixture });
+    arriveAt("view=kanban&viewId=v-kanban");
+    await act(async () => {
+      renderPage();
+    });
+    await screen.findByTestId("kanban-view");
+    await userEvent.click(screen.getByRole("tab", { name: "List" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "Select a list view" }));
+    await userEvent.click(screen.getByRole("option", { name: "List by customer" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Kanban" }));
+    expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c2");
+    expect(new URLSearchParams(window.location.search).get("viewId")).toBe("v-kanban");
+    await userEvent.click(screen.getByRole("tab", { name: "List" }));
+    expect(screen.getByRole("combobox", { name: "Select a list view" })).toHaveTextContent(
+      "List by customer",
+    );
+    expect(new URLSearchParams(window.location.search).get("viewId")).toBe("v-list");
+    expect(apiClient.patch).not.toHaveBeenCalled();
+  });
+
+  it("remembers a nondefault Kanban when the saved-view picker switches formats directly", async () => {
+    const fixture = views();
+    fixture.items.push({ ...fixture.items[0]!, id: "v-other", name: "Other board" });
+    serve({ tableFixture: table({ default_view_id: "v-kanban" }), viewsFixture: fixture });
+    arriveAt("view=kanban&viewId=v-other");
+    renderPage();
+    await screen.findByTestId("kanban-view");
+    await userEvent.click(screen.getByRole("combobox", { name: "Select a kanban view" }));
+    await userEvent.click(screen.getByRole("option", { name: "By customer" }));
+    await screen.findByTestId("grid-view");
+    await userEvent.click(screen.getByRole("tab", { name: "Kanban" }));
+    expect(await screen.findByRole("combobox", { name: "Select a kanban view" })).toHaveTextContent(
+      "Other board",
+    );
+    expect(new URLSearchParams(window.location.search).get("viewId")).toBe("v-other");
+  });
+
   it("sets the current Kanban and its grouping as the default", async () => {
     serve();
     arriveAt("view=kanban&viewId=v-kanban");
@@ -1277,6 +1380,10 @@ describe("the table detail page", () => {
     await userEvent.click(screen.getByRole("combobox", { name: "Group by" }));
     await userEvent.click(screen.getByRole("option", { name: "Priority" }));
     expect(screen.getByTestId("kanban-view")).toHaveAttribute("data-group-by", "c4");
+    await userEvent.click(screen.getByRole("tab", { name: "List" }));
+    await screen.findByTestId("list-view");
+    await userEvent.click(screen.getByRole("tab", { name: "Kanban" }));
+    expect(await screen.findByTestId("kanban-view")).toHaveAttribute("data-group-by", "c4");
     expect(apiClient.patch).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Set as default" })).not.toBeInTheDocument();
   });

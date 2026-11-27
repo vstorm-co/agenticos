@@ -105,6 +105,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep each table format's selected view when switching between Kanban, List and Table, preserving Kanban grouping and explicitly selected All records views.
+
 - Center empty full-height catalogs in their available body, let dataset settings use the full workspace width, and align result sections with the console's keyboard-accessible tab design.
 
 - Keep the project task table as the primary action and put optional automatic tracking setup in its adjacent options menu.
