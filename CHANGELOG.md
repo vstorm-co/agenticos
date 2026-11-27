@@ -42,6 +42,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Rank historical memory by the status known at the requested time and resume consolidation by property after a worker interruption.
 - Preserve unrelated note content when maintenance replaces an exact block and verify literal typed values and dates against the source quote.
+- Keep memory erasure from scanning the ledger for every deleted claim by indexing references to superseded claims.
 
 - Preserve typed values in memory corrections, refresh external object labels, and extract the same property on distinct objects from one conversation.
 - Preserve validity dates when publishing memories and rank relevant memories before limiting the result set.

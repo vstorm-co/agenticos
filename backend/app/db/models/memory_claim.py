@@ -200,6 +200,11 @@ class MemoryClaim(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_memory_claims_scope", "organization_id", "scope_key", "status"),
         Index("ix_memory_claims_agent", "agent_id"),
+        Index(
+            "ix_memory_claims_supersedes",
+            "supersedes_id",
+            postgresql_where=text("supersedes_id IS NOT NULL"),
+        ),
         Index("ix_memory_claims_object", "object_id", "observed_at", "id"),
         Index("ix_memory_claims_related_object", "related_object_id", "observed_at", "id"),
         CheckConstraint(
