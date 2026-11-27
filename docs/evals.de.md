@@ -1,5 +1,5 @@
 ---
-source_sha: "3c30726119b1"
+source_sha: "8e8db1435b59"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -197,12 +197,16 @@ und begrenzt nicht die endgültige Rechnung des Anbieters. Skill-Update-Prüfung
 Wissensentwürfe und die Wächter einer Promotion-Schranke nehmen `quoted_usd` genauso,
 und `GET .../gate/estimate` bepreist die Wächter, die ein Lauf der Schranke starten würde.
 
-Der Run behält diesen Preis, und sein Worker hält ihn während des ganzen Laufs
-daran. Vor jeder Antwort zählt er die laufenden Antworten und die nächste zum
-Preis der Schätzung pro Antwort samt Bewertung und beginnt keine, die den Run
-über den Preis brächte. Der Bewerter bewertet keine Antwort, die ihn schon
-darüber gebracht hat, und bestätigende Wiederholungen, die es täten, werden
-nicht eingereiht. Der Run einer Suite wird ebenso an der Grenze der Suite
+Der Run behält diesen Preis zusammen mit dem, was die Schätzung für eine
+Antwort jeder Seite und eine Bewertung angesetzt hat, und sein Worker hält ihn
+während des ganzen Laufs daran. Vor jeder Antwort addiert er, was der Run
+ausgegeben hat, was seine laufenden Antworten reservieren (den Preis ihrer Seite
+oder ihre Ausgaben, falls höher, und eine Bewertung) und die nächste Antwort,
+und beginnt keine, die den Run über den Preis brächte. Der Bewerter bewertet
+keine Antwort, wenn die Bewertung ihn überschritte, und bestätigende
+Wiederholungen, die es täten, werden nicht eingereiht.
+
+Der Run einer Suite wird ebenso an der Grenze der Suite
 gehalten, und eine Stufe einer Skill-Prüfung an dem, was die vorige Stufe vom
 akzeptierten Höchstbetrag des Agenten übrig ließ.
 

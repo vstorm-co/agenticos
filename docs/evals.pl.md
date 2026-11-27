@@ -1,5 +1,5 @@
 ---
-source_sha: "3c30726119b1"
+source_sha: "8e8db1435b59"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -185,11 +185,14 @@ rachunku dostawcy. Sprawdzenia aktualizacji skilla, szkice wiedzy i strażnicy
 bramki promocji przyjmują `quoted_usd` tak samo, a `GET .../gate/estimate` wycenia
 strażników, których uruchomiłby run bramki.
 
-Run zachowuje tę cenę, a jego worker trzyma go jej przez cały czas działania.
-Przed każdą odpowiedzią liczy odpowiedzi już trwające i następną po cenie z
-wyceny za odpowiedź wraz z oceną i nie zaczyna żadnej, która wyprowadziłaby run
-ponad cenę. Sędzia nie ocenia odpowiedzi, która już ją przekroczyła, a
+Run zachowuje tę cenę razem z tym, na ile wycena oszacowała jedną odpowiedź
+każdej strony i jedną ocenę, a jego worker trzyma go jej przez cały czas
+działania. Przed każdą odpowiedzią dodaje to, co run wydał, to, co rezerwują
+odpowiedzi już trwające (cenę ich strony albo to, co wydały, jeśli więcej, oraz
+ocenę), i następną odpowiedź, i nie zaczyna żadnej, która wyprowadziłaby run
+ponad cenę. Sędzia nie ocenia odpowiedzi, gdy ocena by ją przekroczyła, a
 potwierdzające powtórzenia, które by ją przekroczyły, nie trafiają do kolejki.
+
 Run zestawu trzyma się tak samo progu zestawu, a etap sprawdzenia skilla tego,
 co poprzedni etap zostawił z zaakceptowanej kwoty maksymalnej agenta.
 

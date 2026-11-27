@@ -168,13 +168,16 @@ provider's eventual bill. Skill update checks, knowledge drafts and a promotion
 gate's guards take a `quoted_usd` the same way, and `GET .../gate/estimate` prices
 the guards a gate run would start.
 
-The run keeps that price, and its worker holds the run to it while it runs.
-Before each answer it counts the answers already under way, and the next, at
-the estimate's price per answer and its grading, and starts none that would
-take the run past the price. A judge does not grade an answer that has already
-taken it past, and confirming reruns that would are not queued. A suite's run is
-held to the suite's ceiling the same way, and a skill check's stage to what its
-earlier stage left of the agent's accepted most.
+The run keeps that price, with what the estimate priced one answer of each side
+and one grading at, and its worker holds the run to it while it runs. Before
+each answer it adds what the run spent, what its answers under way reserve -
+their side's price or what they spent, whichever is more, and a grading - and
+the next answer, and starts none that would take the run past the price. A
+judge does not grade an answer when that would, and confirming reruns that
+would are not queued.
+
+A suite's run is held to the suite's ceiling the same way, and a skill check's
+stage to what its earlier stage left of the agent's accepted most.
 
 A run held there ends `budget_exceeded` and keeps what it answered and graded.
 Its error names the price, and a test started by hand tells its starter that it

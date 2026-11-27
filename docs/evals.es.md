@@ -1,5 +1,5 @@
 ---
-source_sha: "3c30726119b1"
+source_sha: "8e8db1435b59"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -180,12 +180,16 @@ proveedor. Las comprobaciones de actualización de skills, los borradores de
 conocimiento y los guardias de una puerta de promoción aceptan `quoted_usd` igual, y
 `GET .../gate/estimate` pone precio a los guardias que iniciaría la puerta.
 
-El run conserva ese precio y su worker lo mantiene en él mientras se ejecuta.
-Antes de cada respuesta cuenta las respuestas en curso y la siguiente al precio
-de la estimación por respuesta y su calificación, y no inicia ninguna que
-llevaría el run por encima del precio. El juez no califica una respuesta que ya
-lo ha superado, y las repeticiones de confirmación que lo superarían no se ponen
-en cola. El run de una suite se mantiene igual en el límite de la suite, y una
+El run conserva ese precio, junto con lo que la estimación asignó a una
+respuesta de cada lado y a una calificación, y su worker lo mantiene en él
+mientras se ejecuta. Antes de cada respuesta suma lo que el run gastó, lo que
+reservan las respuestas en curso (el precio de su lado o lo que gastaron, si es
+mayor, más una calificación) y la siguiente respuesta, y no inicia ninguna que
+llevaría el run por encima del precio. El juez no califica una respuesta cuando
+la calificación lo superaría, y las repeticiones de confirmación que lo
+superarían no se ponen en cola.
+
+El run de una suite se mantiene igual en el límite de la suite, y una
 etapa de una comprobación de skill en lo que la etapa anterior dejó del máximo
 aceptado para el agente.
 
