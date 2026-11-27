@@ -19,6 +19,7 @@ from app.schemas.authoring import HunkDecision, ProposalCheck
 from app.schemas.dataset import DatasetCaseCreate, DatasetUpdate
 from app.services.authoring import AuthoringService
 from app.services.dataset import DatasetService
+from app.services.eval_run import EvalRunService
 from tests.integration.test_authoring import (
     COMMENT,
     _another_request_comparing,
@@ -146,6 +147,35 @@ async def test_showing_the_gate_keeps_a_checks_verdict_while_another_request_com
     accepted = await service.decide(ctx, agent.id, model.id, HunkDecision(action="accept"))
     await db.refresh(run)
     assert run.outcome_at is not None and run.outcome_at > kept_at
+    assert accepted.draft_spec["model_profile_id"] == model.new_value
+
+
+@pytest.mark.security
+async def test_showing_the_gate_of_a_measured_check_compares_nothing_again(db, monkeypatch):
+    ctx, agent, dataset, service, model, _ = await _model_and_window(db)
+    await _checked(db, ctx, agent, dataset, service)
+    batch = await authoring_repo.get_open_batch(
+        db, organization_id=ctx.organization_id, agent_id=agent.id
+    )
+    assert batch is not None
+    run = await db.get(EvalRun, batch.check_eval_run_ids[-1])
+    assert run is not None and run.proposal_check is not None
+    assert run.proposal_check.get("measurement") is not None
+    assert await _blocked(ctx, agent, service, model.id) is None
+    compared = 0
+    comparison = EvalRunService._comparison
+
+    async def counted(self, *args, **kwargs):
+        nonlocal compared
+        compared += 1
+        return await comparison(self, *args, **kwargs)
+
+    monkeypatch.setattr(EvalRunService, "_comparison", counted)
+
+    shown = [await _blocked(ctx, agent, service, model.id) for _ in range(3)]
+
+    assert (shown, compared) == ([None, None, None], 0)
+    accepted = await service.decide(ctx, agent.id, model.id, HunkDecision(action="accept"))
     assert accepted.draft_spec["model_profile_id"] == model.new_value
 
 
