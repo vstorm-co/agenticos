@@ -29,7 +29,7 @@ class EnvironmentDriver:
         self,
         resource_key: str,
         ctx: AuthContext,
-        control: Literal["human", "agent"],
+        control: Literal["human", "agent", "layout"],
         check_authority: Callable[[AsyncSession], Awaitable[None]],
         *,
         on_acquired: Callable[[AsyncSession], Awaitable[None]] | None = None,

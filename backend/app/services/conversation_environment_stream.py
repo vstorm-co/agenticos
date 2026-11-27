@@ -17,7 +17,13 @@ from app.agents.browser_events import BrowserCommand, BrowserEvent
 from app.agents.capabilities.browser_use._endpoint import EndpointError
 from app.agents.capabilities.browser_use._page import DomainRefused
 from app.agents.capabilities.computer_use._backends import ComputerError
-from app.core.exceptions import AppException, AuthorizationError, NotFoundError
+from app.core.exceptions import (
+    AppException,
+    AuthorizationError,
+    BadRequestError,
+    ConflictError,
+    NotFoundError,
+)
 from app.core.permissions import AuthContext
 from app.db.models.conversation_environment import ConversationEnvironment
 from app.db.session import get_db_context
@@ -160,6 +166,48 @@ async def stream_environment(
             )
             await anyio.sleep(1)
 
+    async def resize_browser(
+        ctx: AuthContext,
+        row: ConversationEnvironment,
+        resolved: EnvironmentSettings,
+        command: BrowserCommand,
+    ) -> None:
+        # Fitting an idle view is layout, not a human takeover or paid activity.
+        # The same physical lease still fences it against an agent or another tab.
+        if row.kind != "browser":
+            raise BadRequestError(message="This desktop cannot resize its physical screen")
+        async with get_db_context() as db:
+            current = await ConversationEnvironmentService(db).read(
+                ctx, conversation_id, resolved.authority.agent.id, "browser", execution_target
+            )
+        if not current.can_control:
+            await refresh(force=True)
+            return
+        if driver is not None:
+            await driver.require()
+            await refresh()
+            async with view_lock:
+                await runtime.perform(view, command)
+            return
+        if row.resource_key is None:
+            raise NotFoundError(message="The environment has no live resource")
+        candidate = EnvironmentDriver(row.resource_key, ctx, "layout", check_driver)
+        try:
+            try:
+                await candidate.acquire()
+            except ConflictError:
+                # An authoritative busy state lets the viewer defer its latest fit
+                # until idle; resizing must never steal control or spin on retries.
+                await refresh(force=True)
+                return
+            await candidate.require()
+            await refresh()
+            async with view_lock:
+                await runtime.perform(view, command)
+        finally:
+            await candidate.close()
+        await refresh(force=True)
+
     async def commands() -> None:
         nonlocal driver
         while True:
@@ -174,7 +222,7 @@ async def stream_environment(
                 continue
             try:
                 async with get_db_context() as db:
-                    ctx, (row, _, _) = await resolve(db)
+                    ctx, (row, resolved, _) = await resolve(db)
                 if command.type == "take_over":
                     if driver is None:
                         if row.resource_key is None:
@@ -190,6 +238,8 @@ async def stream_environment(
                         await driver.require()
                     await event("browser_held", by_user_id=str(ctx.subject_id))
                     await refresh(force=True, touch=True)
+                elif command.type == "resize":
+                    await resize_browser(ctx, row, resolved, command)
                 elif command.type == "give_back":
                     if driver is not None:
                         await driver.close()

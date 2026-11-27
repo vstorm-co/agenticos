@@ -1,5 +1,5 @@
 ---
-source_sha: "24de58a4846a"
+source_sha: "02102d3462c1"
 ---
 
 # Sandbox { #the-sandbox }
@@ -842,6 +842,8 @@ Backend `state` wlicza pliki i puste katalogi do limitu przechowywania, równie�
 Instrukcje workbench wyjaśniają agentom, że polecenia działają w POSIX `/bin/sh`, a nie w Bashu. Na przykład `mkdir -p sources inbox notes` tworzy trzy foldery; ta powłoka nie rozwija `{sources,inbox,notes}`. Aktywny wykonawca zachowuje własny katalog roboczy. Przy dostępie na żywo `PROJECT_DIR` wskazuje `/project/<UUID dzierżawy>`; używaj tej ścieżki dla wspólnych plików projektu. Katalog domowy (`~`) jest poza nimi. Każde polecenie uruchamia nowy proces, więc zmienne powłoki i zmiany katalogu nie przechodzą do kolejnego wywołania. Agent ma sprawdzać błędy i pliki przed zgłoszeniem powodzenia.
 
 ## Czas życia przeglądarki i pulpitu w rozmowie { #conversation-environments }
+
+Uprawniony obserwator przeglądarki dopasowuje bezczynną stronę do faktycznej szerokości, wysokości i gęstości pikseli panelu. Każde dopasowanie chroni krótka, wyłączna dzierżawa sterownika fizycznego; nie przyznaje ona prawa do wpisywania danych ani nie przedłuża czasu bezczynności. Gdy steruje agent lub inny obserwator, dopasowanie czeka na potwierdzony stan bezczynności; obraz zachowuje w tym czasie proporcje. Fizyczny ekran pulpitu nie jest skalowany zdalnie. Pasek narzędzi wskazuje, kto steruje, i pokazuje tekstowe przyciski przejęcia oraz oddania kontroli.
 
 `browser_use` i `computer_use` konfigurują `session_lifetime` (`run` lub `conversation`) oraz `session_idle_seconds` (60–86400). Brak pól w istniejącym bindingu zachowuje `run`; publikacja starej specyfikacji nie włącza ukrytego dłuższego naliczania. Nowe bindingi w konsoli jawnie wybierają `conversation` i 900 sekund; autor może to zmienić. `CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS` ogranicza efektywny czas bezczynności widoczny w panelu. `CONVERSATION_ENVIRONMENTS_PER_USER` ogranicza liczbę środowisk osoby, wliczając znane zasoby czekające na sprzątanie.
 

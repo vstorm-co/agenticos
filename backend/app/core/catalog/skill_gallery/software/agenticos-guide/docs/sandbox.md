@@ -824,6 +824,8 @@ Browser contexts are isolated per owner and conversation. A desktop follows its 
 
 Taking control, actual manual input and giving control back count as activity. Passive frames and human-control heartbeats do not extend the idle deadline; an active agent driver protects ongoing work. Legacy run-mode browsing without a manually prepared target keeps its existing per-turn browser and URL/cookie checkpoint behavior. A manually prepared run-mode target instead preserves its exact live DOM until a run that uses it ends.
 
+An authorized browser viewer fits an idle page to the actual panel width, height and pixel density. A short exclusive physical driver lease protects each fit, without granting human input or extending idle expiry. While an agent or another viewer controls the page, fitting waits for an authoritative idle state; the image keeps its proportions in the meantime. Physical desktop screens are not resized. The toolbar names who controls the view and shows text actions for taking over and handing control back.
+
 A retained sandbox desktop requires a conversation-, user-, agent- or project-scoped container-backed executor. Existing run-lifetime desktops using ephemeral run/channel executors keep their original per-run factory and cannot be opened manually between runs. End and idle expiry close the owned view and control session; they do not destroy a shared daemon or workspace container, whose lifecycle follows its own configuration. Owned browser contexts and separate E2B desktops are disposed.
 
 A retained private Docker desktop can keep a separate [Project files

@@ -172,3 +172,32 @@ def test_environment_repr_excludes_encrypted_cleanup_credentials():
     )
     assert "private-sealed-credential" not in repr(row)
     assert str(row.id) in repr(row)
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "control, expected", [("layout", "none"), ("human", "human"), ("agent", "agent")]
+)
+async def test_layout_is_idle_without_misclassifying_a_deleted_human_actor(
+    monkeypatch, control, expected
+):
+    row = ConversationEnvironment(
+        id=uuid4(),
+        kind="browser",
+        state="ready",
+        resource_key="physical",
+        expires_at=datetime.now(UTC) + timedelta(minutes=5),
+    )
+    held = ConversationEnvironmentDriver(
+        resource_key="physical",
+        control=control,
+        actor_user_id=None,
+        lease_token=uuid4(),
+        lease_until=datetime.now(UTC) + timedelta(minutes=1),
+    )
+    monkeypatch.setattr(lifecycle.environments, "driver", AsyncMock(return_value=held))
+    read = await lifecycle.ConversationEnvironmentService(AsyncMock())._read(
+        row, uuid4(), "browser", "agent"
+    )
+    assert read.control == expected
+    assert read.can_control is (control != "agent")

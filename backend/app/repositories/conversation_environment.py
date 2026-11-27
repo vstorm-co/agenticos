@@ -127,7 +127,7 @@ async def claim_driver(
     organization_id: UUID,
     user_id: UUID | None,
     token: UUID,
-    control: Literal["human", "agent"],
+    control: Literal["human", "agent", "layout"],
     now: datetime,
     lease_until: datetime,
 ) -> bool:

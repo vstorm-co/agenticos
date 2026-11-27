@@ -11769,7 +11769,12 @@
     "nativeTake": "Przejmij",
     "nativeCloseTab": "Zamknij kartę",
     "nativeViewport": "Natywna strona przeglądarki",
-    "nativeDesktopOnly": "Ta karta jest otwarta w sparowanej aplikacji desktopowej. Kontynuuj tam, aby używać natywnej przeglądarki."
+    "nativeDesktopOnly": "Ta karta jest otwarta w sparowanej aplikacji desktopowej. Kontynuuj tam, aby używać natywnej przeglądarki.",
+    "youControl": "Ty sterujesz",
+    "agentControls": "Steruje agent",
+    "otherViewerControls": "Steruje inny użytkownik",
+    "viewOnly": "Tylko podgląd",
+    "takingOverShort": "Przejmowanie…"
   },
   "remoteAgents": {
     "optionalSettings": "Uwierzytelnianie i identyfikator (opcjonalne)",

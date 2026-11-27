@@ -377,3 +377,71 @@ it("forgets a held hint when current state releases control and refuses callback
   });
   expect(socket.sendMessage).not.toHaveBeenCalled();
 });
+
+it("fits only fresh idle browser viewers while preserving every human-input gate", () => {
+  const resize = { type: "resize", width: 640, height: 1500, scale: 2 } as const;
+  const { result, rerender } = renderHook(
+    ({ selected, visible }) => useLiveConversationEnvironment("chat", selected, visible),
+    { initialProps: { selected: environment, visible: true } },
+  );
+  act(() => result.current.send(resize));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(view);
+  act(() => {
+    result.current.send(resize);
+    result.current.send({ type: "click", x: 1, y: 2 });
+  });
+  expect(socket.sendMessage).toHaveBeenCalledExactlyOnceWith(resize);
+  for (const control of ["agent", "human"] as const) {
+    act(() =>
+      emit({
+        type: "environment_state",
+        data: { ...environment, control, can_control: control !== "agent" },
+      }),
+    );
+    act(() => result.current.send(resize));
+    expect(socket.sendMessage).toHaveBeenCalledTimes(1);
+  }
+  act(() => held());
+  act(() => result.current.send(resize));
+  expect(socket.sendMessage).toHaveBeenCalledTimes(2);
+  rerender({ selected: environment, visible: false });
+  act(() => result.current.send(resize));
+  expect(socket.sendMessage).toHaveBeenCalledTimes(2);
+  rerender({ selected: environment, visible: true });
+  act(() => result.current.send(resize));
+  expect(socket.sendMessage).toHaveBeenCalledTimes(2);
+  act(view);
+  act(() => result.current.send(resize));
+  expect(socket.sendMessage).toHaveBeenCalledTimes(3);
+});
+
+it("does not turn desktop/view-only snapshots into viewer resize authority", () => {
+  const { result } = renderHook(() =>
+    useLiveConversationEnvironment("chat", { ...environment, kind: "desktop" }, true),
+  );
+  act(() => {
+    emit({ type: "environment_state", data: { ...environment, kind: "desktop" } });
+    opened();
+    emit(picture());
+  });
+  act(() => result.current.send({ type: "resize", width: 640, height: 900, scale: 1 }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() => {
+    emit({
+      type: "environment_state",
+      data: { ...environment, kind: "desktop", control: "human" },
+    });
+    held();
+  });
+  act(() => result.current.send({ type: "resize", width: 640, height: 900, scale: 1 }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() =>
+    emit({
+      type: "environment_state",
+      data: { ...environment, kind: "desktop", can_control: false },
+    }),
+  );
+  act(() => result.current.send({ type: "resize", width: 640, height: 900, scale: 1 }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+});

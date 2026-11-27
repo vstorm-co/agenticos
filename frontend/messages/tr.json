@@ -14182,7 +14182,12 @@
     "nativeTake": "Kontrolü al",
     "nativeCloseTab": "Sekmeyi kapat",
     "nativeViewport": "Native browser sayfası",
-    "nativeDesktopOnly": "Bu sekme eşleştirilmiş desktop app'te açık. Native browser'ını kullanmak için orada devam edin."
+    "nativeDesktopOnly": "Bu sekme eşleştirilmiş desktop app'te açık. Native browser'ını kullanmak için orada devam edin.",
+    "youControl": "Kontrol sizde",
+    "agentControls": "Aracı kontrol ediyor",
+    "otherViewerControls": "Başka kullanıcı kontrol ediyor",
+    "viewOnly": "Yalnızca görüntüleme",
+    "takingOverShort": "Kontrol alınıyor…"
   },
   "remoteAgents": {
     "optionalSettings": "Kimlik doğrulama ve tanıtıcı (isteğe bağlı)",

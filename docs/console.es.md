@@ -1,5 +1,5 @@
 ---
-source_sha: "e0311806e607"
+source_sha: "fc5f1d952ccd"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -817,16 +817,24 @@ copiar, que copia texto plano; varias variantes de un borrador son pestañas en 
 misma tarjeta. El **Copiar** propio de un mensaje incluye también sus borradores.
 
 **Ver un recorrido.** El [navegador web](reference/capabilities.md#browser-automation)
-se abre automáticamente en un panel lateral a toda altura junto al chat.
-En pantallas estrechas ocupa toda la pantalla. Al cerrar el panel queda
-un enlace compacto en la conversación para volver a abrirlo. Las tarjetas de
-páginas visitadas muestran el icono del sitio, el dominio y el título, también
-al volver a abrir la conversación. Cada respuesta conserva una tarjeta por pestaña
-del navegador; los clics, las nuevas lecturas y volver atrás actualizan esa tarjeta.
-La barra de pestañas del panel cambia de página. Al terminar queda la última imagen. **Reanudar sesión** pide al
-agente restaurar la sesión privada, disponible durante una hora como máximo. Las páginas
-remotas se cierran tras cada ejecución. Reanudar carga las URL, cookies y local storage,
-pero no formularios sin guardar ni memoria JavaScript. El agente lee nuevos números de elementos.
+abre un panel a toda altura junto a la conversación cuando hay espacio. En escritorio contrae
+temporalmente la lista de conversaciones; puedes abrirla de nuevo, y cerrar Browser
+restaura el diseño anterior. En el teléfono el panel ocupa toda la pantalla.
+El navegador propio se adapta al panel mientras nadie más lo controla; durante el
+trabajo del agent o el control de otra persona, la imagen conserva sus proporciones.
+
+Cada respuesta conserva un enlace compacto por pestaña del navegador, con icono,
+título y dominio. La navegación actualiza ese enlace en lugar de añadir tarjetas.
+El enlace abre el mismo panel. Los mensajes intermedios y los pasos de herramientas
+comparten una línea de actividad desplegable; la respuesta final y las preguntas
+permanecen visibles.
+
+Un [entorno de conversación](sandbox.md#conversation-environments) conserva la página
+activa hasta **End** o el límite de inactividad. La navegación anterior con duración
+de run cierra la página al terminar el run. **Reanudar sesión** puede restaurar su
+checkpoint privado durante una hora como máximo: URL, cookies y local storage,
+pero no formularios sin guardar ni memoria JavaScript. El agent lee nuevos números
+de elementos.
 
 **Tomar el control de un recorrido.** Mientras un recorrido está en curso, **Take over**
 en la barra del navegador detiene al agent tras su paso actual y te da la página, en la
@@ -1167,9 +1175,10 @@ La consola habla inglés, polaco, alemán, turco, francés, neerlandés y portug
 tarjeta del recorrido ofrece los siete, y
 el menú de la cuenta cambia el idioma en cualquier momento; la elección se guarda
 en tu cuenta, así que la consola se abre en él en cada dispositivo en el que
-inicias sesión. También puedes pedírselo a un agent - "cambia a inglés" - y la
-página cambia mientras responde, sin recargar. Todos los agents responden en él
-salvo que pidas explícitamente otro idioma.
+inicias sesión. También puedes pedir expresamente a un agente que cambie el idioma de la interfaz.
+Pedir una respuesta en otro idioma no cambia por sí solo este ajuste de la cuenta.
+
+Las respuestas respetan los requisitos explícitos de idioma en las instrucciones del agente y las peticiones explícitas del usuario según su prioridad. En los demás casos siguen el mensaje actual del usuario; si es ambiguo, mantienen el idioma ya establecido de la conversación. El idioma guardado en la cuenta solo sirve como alternativa para un saludo breve o ambiguo sin idioma establecido: no convierte una petición claramente escrita en polaco en una respuesta en inglés. Los documentos fuente y las salidas de herramientas no eligen el idioma de la respuesta.
 
 Las palabras del producto - agent, skill, run, budget, MCP y el
 resto de la lista de [traducir](howto/translate.md) - siguen en inglés en todos
@@ -1364,7 +1373,7 @@ Studio es el diseño predeterminado en `/onboarding`; los otros diseños siguen 
 
 Studio mantiene el encabezado y las acciones inferiores en su sitio al cambiar de paso. La galería de avatares centra la vista previa al arrastrar o usar las flechas; solo elegirla guarda la selección. El movimiento reducido desactiva el resorte y las transiciones entre pasos. La configuración pendiente se recuerda únicamente en la barra lateral, sin un segundo banner sobre el espacio de trabajo.
 
-Las cuentas nuevas abren `/onboarding` tras registrarse con contraseña o iniciar sesión por primera vez mediante OAuth o directorio, incluido el registro desde una invitación. El idioma y la apariencia preceden a la configuración del espacio; aquí también se pueden revisar y aceptar invitaciones. Unirse requiere una decisión explícita. El idioma se guarda en la cuenta y se entrega a los agentes mediante `{{language}}` y el contexto de la persona. Una petición explícita de otro idioma tiene prioridad.
+Las cuentas nuevas abren `/onboarding` tras registrarse con contraseña o iniciar sesión por primera vez mediante OAuth o directorio, incluido el registro desde una invitación. El idioma y la apariencia preceden a la configuración del espacio; aquí también se pueden revisar y aceptar invitaciones. Unirse requiere una decisión explícita. El idioma se guarda en la cuenta y se entrega a los agentes mediante `{{language}}` y el contexto de la persona. Sirve como alternativa para el idioma de respuesta, no como obligación de usar el idioma de la interfaz en cada mensaje.
 
 Después de las suscripciones, la configuración del modelo muestra primero el proveedor, luego su conexión y modelo. Las suscripciones personales permanecen en el paso anterior. Las herramientas empiezan con servicios sugeridos; **Explorar todos los servicios** abre el catálogo MCP completo.
 

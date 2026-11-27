@@ -226,6 +226,7 @@ def clock_case(case, monkeypatch):
     class Driver:
         def __init__(self, _key, _ctx, _control, check):
             self.check = check
+            self.control = _control
             self.closed = 0
             clock.driver = self
 
@@ -389,3 +390,199 @@ async def test_repeated_takeover_rechecks_the_existing_socket_lease_before_ack(
     ]
     assert len(held) == 1
     require.assert_awaited_once()
+
+
+async def test_idle_browser_fit_uses_short_exclusive_lease_without_human_ack_or_idle_touch(
+    clock_case,
+):
+    case, clock = clock_case
+    case.row.kind = case.read.kind = "browser"
+    expires = case.row.expires_at
+    resize = {"type": "resize", "width": 640, "height": 900, "scale": 2}
+    case.socket.receive_text.side_effect = [
+        json.dumps(resize),
+        json.dumps({"type": "click", "x": 1, "y": 2}),
+        WebSocketDisconnect(),
+    ]
+    await run(case)
+    assert stream.runtime.perform.await_count == 1
+    assert stream.runtime.perform.await_args.args[1].model_dump(include=set(resize)) == resize
+    assert clock.driver.closed == 1 and clock.driver.control == "layout"
+    assert clock.touches == [] and case.row.expires_at == expires
+    kinds = [frame["data"]["kind"] for frame in case.frames if frame["type"] == "browser_event"]
+    assert "browser_held" not in kinds
+    assert "browser_control_error" in kinds, "Resizing does not grant permission to send input"
+
+
+@pytest.mark.parametrize("control", ["agent", "human"])
+async def test_viewer_fit_cannot_displace_a_busy_physical_driver(clock_case, monkeypatch, control):
+    from app.core.exceptions import ConflictError
+
+    case, clock = clock_case
+    case.row.kind = case.read.kind = "browser"
+    case.read.control = control
+    monkeypatch.setattr(
+        stream.EnvironmentDriver, "acquire", AsyncMock(side_effect=ConflictError(message="Busy"))
+    )
+    case.socket.receive_text.side_effect = [
+        json.dumps({"type": "resize", "width": 640, "height": 900}),
+        WebSocketDisconnect(),
+    ]
+    await run(case)
+    assert clock.driver.closed == 1
+    assert clock.touches == []
+    stream.runtime.perform.assert_not_awaited()
+    assert not any(
+        frame["data"]["kind"] in ("browser_held", "browser_control_error")
+        for frame in case.frames
+        if frame["type"] == "browser_event"
+    )
+    assert case.frames[-1]["type"] == "environment_state" or any(
+        frame["type"] == "environment_state" and frame["data"]["control"] == control
+        for frame in case.frames
+    )
+
+
+async def test_view_only_browser_fit_does_not_claim_control(clock_case, monkeypatch):
+    case, clock = clock_case
+    case.row.kind = case.read.kind = "browser"
+    case.read.can_control = False
+    acquire = AsyncMock()
+    monkeypatch.setattr(stream.EnvironmentDriver, "acquire", acquire)
+    case.socket.receive_text.side_effect = [
+        json.dumps({"type": "resize", "width": 640, "height": 900}),
+        WebSocketDisconnect(),
+    ]
+    await run(case)
+    acquire.assert_not_awaited()
+    assert clock.driver is None and clock.touches == []
+    stream.runtime.perform.assert_not_awaited()
+
+
+async def test_browser_fit_provider_failure_releases_temporary_lease_and_hides_details(clock_case):
+    from app.agents.capabilities.computer_use._backends import ComputerError
+
+    case, clock = clock_case
+    case.row.kind = case.read.kind = "browser"
+    stream.runtime.perform.side_effect = ComputerError("private-provider-secret")
+    case.socket.receive_text.side_effect = [
+        json.dumps({"type": "resize", "width": 640, "height": 900}),
+        WebSocketDisconnect(),
+    ]
+    await run(case)
+    assert clock.driver.closed == 1 and clock.touches == []
+    assert "private-provider-secret" not in json.dumps(case.frames)
+    assert any(
+        frame["data"]["kind"] == "browser_control_error"
+        for frame in case.frames
+        if frame["type"] == "browser_event"
+    )
+
+
+async def test_browser_fit_reuses_only_its_already_held_socket_lease(clock_case):
+    case, clock = clock_case
+    case.row.kind = case.read.kind = "browser"
+    case.socket.receive_text.side_effect = [
+        json.dumps({"type": "take_over"}),
+        json.dumps({"type": "resize", "width": 640, "height": 900}),
+        WebSocketDisconnect(),
+    ]
+    await run(case)
+    assert clock.driver.closed == 1
+    assert len(clock.touches) == 1, "Automatic fit is not another paid idle extension"
+    assert stream.runtime.perform.await_count == 1
+
+
+async def test_desktop_fit_is_explicitly_unsupported_without_claiming_control(clock_case):
+    case, clock = clock_case
+    case.socket.receive_text.side_effect = [
+        json.dumps({"type": "resize", "width": 640, "height": 900}),
+        WebSocketDisconnect(),
+    ]
+    await run(case)
+    assert clock.driver is None and clock.touches == []
+    stream.runtime.perform.assert_not_awaited()
+    assert any(
+        frame["data"]["kind"] == "browser_control_error"
+        for frame in case.frames
+        if frame["type"] == "browser_event"
+    )
+
+
+async def test_cancelling_viewport_fit_releases_its_temporary_driver(clock_case):
+    case, clock = clock_case
+    case.row.kind = case.read.kind = "browser"
+    entered = anyio.Event()
+
+    async def apply(_view, _command):
+        entered.set()
+        await anyio.sleep_forever()
+
+    stream.runtime.perform.side_effect = apply
+    case.socket.receive_text.side_effect = [
+        json.dumps({"type": "resize", "width": 640, "height": 900})
+    ]
+    async with anyio.create_task_group() as tasks:
+        tasks.start_soon(run, case)
+        await entered.wait()
+        tasks.cancel_scope.cancel()
+    assert clock.driver.closed == 1
+    assert clock.touches == [] and case.closed == [True]
+
+
+async def test_fit_requires_a_retained_physical_resource_key(clock_case):
+    case, clock = clock_case
+    case.row.kind = case.read.kind = "browser"
+    case.row.resource_key = None
+    case.socket.receive_text.side_effect = [
+        json.dumps({"type": "resize", "width": 640, "height": 900}),
+        WebSocketDisconnect(),
+    ]
+    await run(case)
+    assert clock.driver is None
+    stream.runtime.perform.assert_not_awaited()
+
+
+@pytest.mark.parametrize("already_held", [False, True])
+async def test_fit_reopens_the_current_resource_after_its_driver_claim_before_resizing(
+    clock_case, monkeypatch, already_held
+):
+    case, clock = clock_case
+    case.row.kind = case.read.kind = "browser"
+    original = stream.runtime.DesktopEnvironmentView(AsyncMock(), 1280, 800)
+    selected = stream.runtime.DesktopEnvironmentView(AsyncMock(), 1280, 800)
+    attachments = []
+    detached = []
+
+    @asynccontextmanager
+    async def attach(resource, _resolved):
+        view = selected if resource.daemon_url.endswith("selected") else original
+        attachments.append(view)
+        try:
+            yield view
+        finally:
+            detached.append(view)
+
+    require = stream.EnvironmentDriver.require
+
+    async def select_after_claim(driver):
+        await require(driver)
+        case.row.resource_ciphertext = "sealed-selected-target"
+        case.resource = case.resource.model_copy(update={"daemon_url": "http://private-selected"})
+
+    monkeypatch.setattr(stream.runtime, "open_view", attach)
+    monkeypatch.setattr(stream.EnvironmentDriver, "require", select_after_claim)
+    commands = [json.dumps({"type": "take_over"})] if already_held else []
+    commands += [
+        json.dumps({"type": "resize", "width": 640, "height": 1500}),
+        WebSocketDisconnect(),
+    ]
+    case.socket.receive_text.side_effect = commands
+    await run(case)
+    assert len(attachments) >= 2 and attachments[0] is original
+    assert all(view is selected for view in attachments[1:])
+    assert detached == attachments
+    assert stream.runtime.perform.await_count == 1
+    assert stream.runtime.perform.await_args.args[0] is selected
+    assert stream.runtime.perform.await_args.args[1].height == 1500
+    assert clock.driver.closed == 1

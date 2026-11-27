@@ -1,5 +1,5 @@
 ---
-source_sha: "24de58a4846a"
+source_sha: "02102d3462c1"
 ---
 
 # Der Sandbox { #the-sandbox }
@@ -898,6 +898,8 @@ Physische Steuerungsleases serialisieren menschliche und Agenteneingaben, auch b
 Browserkontexte sind je Eigentümer und Unterhaltung isoliert. Ein Desktop folgt dagegen dem konfigurierten Workspace- oder Projektumfang: Ein agentenweiter oder sonst gemeinsam genutzter Executor besitzt eine gemeinsame physische Oberfläche. Die Steuerungslease serialisiert Eingaben und macht den Desktop nicht privat. Das Eigentümermenü schützt die Anbindung dieser Chatansicht, nicht den Bildschirminhalt eines bewusst gemeinsam genutzten Executors.
 
 Kontrollübernahme, tatsächliche manuelle Eingaben und Kontrollrückgabe gelten als Aktivität. Passive Frames und Heartbeats menschlicher Steuerung verlängern die Leerlauffrist nicht; ein aktiver Agententreiber schützt laufende Arbeit. Bisheriges Run-Browsing ohne manuell vorbereitetes Ziel behält den Browser pro Turn sowie URL-/Cookie-Checkpoints. Ein manuell vorbereitetes Run-Ziel bewahrt dagegen seinen exakten Live-DOM bis zum Ende eines Runs, der es verwendet.
+
+Ein berechtigter Browser-Betrachter passt eine inaktive Seite an die tatsächliche Breite, Höhe und Pixeldichte des Panels an. Eine kurze exklusive Treiber-Lease schützt jede Anpassung, ohne Eingaberechte zu vergeben oder die Leerlauffrist zu verlängern. Während ein Agent oder ein anderer Betrachter steuert, wartet die Anpassung auf einen bestätigten Leerlaufzustand; das Bild behält seine Proportionen. Physische Desktop-Bildschirme werden nicht verändert. Die Werkzeugleiste benennt die Steuerung und zeigt beschriftete Aktionen für Übernahme und Rückgabe.
 
 Ein beibehaltener Sandbox-Desktop benötigt einen containerbasierten Executor im Gesprächs-, Benutzer-, Agenten- oder Projektbereich. Bestehende Desktops mit Laufzeit pro Ausführung und kurzlebigen run/channel-Executoren behalten ihre bisherige Factory pro Ausführung; sie lassen sich zwischen Ausführungen nicht manuell öffnen. End und das Leerlaufende schließen die eigene Ansicht und Steuerungssitzung. Sie zerstören keinen gemeinsam genutzten Daemon oder Workspace-Container, dessen Lebenszyklus einer eigenen Konfiguration folgt. Eigene Browserkontexte und separate E2B-Desktops werden entfernt.
 

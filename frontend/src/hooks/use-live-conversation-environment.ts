@@ -184,11 +184,27 @@ export function useLiveConversationEnvironment(
         status === "live" &&
         ready &&
         canControl &&
-        (command.type === "take_over" ? control !== "agent" : control === "human" && holding)
+        (command.type === "take_over"
+          ? control !== "agent"
+          : command.type === "resize"
+            ? environment.kind === "browser" &&
+              (control === "none" || (control === "human" && holding))
+            : control === "human" && holding)
       )
         sendMessage(command);
     },
-    [socketScope, authenticated, enabled, status, ready, canControl, control, holding, sendMessage],
+    [
+      socketScope,
+      authenticated,
+      enabled,
+      status,
+      ready,
+      canControl,
+      control,
+      holding,
+      environment.kind,
+      sendMessage,
+    ],
   );
   const retry = useCallback(() => {
     if (!authenticated || !enabled || environment.id === null || environment.state !== "ready")

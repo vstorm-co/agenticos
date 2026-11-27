@@ -247,3 +247,41 @@ async def test_dom_tools_keep_streaming_and_capture_only_the_final_frame(
         assert shots == []
     assert len(shots) == 1
     assert [event.kind for event in events][-2:] == ["browser_frame", "browser_finished"]
+
+
+@pytest.mark.security
+async def test_retained_observer_preserves_the_active_targets_viewport_and_input_scale(
+    isolated_chromium: tuple[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.agents.capabilities.browser_use._page import BrowserTarget
+
+    endpoint, address = isolated_chromium
+    monkeypatch.setattr(settings, "BROWSER_EGRESS_PROXY", "")
+    retained: list[BrowserTarget] = []
+
+    async def keep(target: BrowserTarget) -> None:
+        retained.append(target)
+
+    policy = PagePolicy(allowed_domains=["127.0.0.1"], candidate_cap=100, preview_width=1000)
+    async with open_page(cdp_url=endpoint, start_url=address, policy=policy, keep=keep) as owner:
+        await owner.resize(640, 1300, 2)
+        before = await owner._evaluate(
+            "({width:innerWidth,height:innerHeight,scale:devicePixelRatio})"
+        )
+        assert before["value"] == {"width": 640, "height": 1300, "scale": 2}
+        observer_policy = PagePolicy(
+            allowed_domains=["127.0.0.1"], candidate_cap=100, preview_width=400
+        )
+        async with open_page(
+            cdp_url=endpoint, start_url=None, policy=observer_policy, retained=retained[0]
+        ) as observer:
+            after = await owner._evaluate(
+                "({width:innerWidth,height:innerHeight,scale:devicePixelRatio})"
+            )
+            assert after["value"] == before["value"]
+            assert (observer._width, observer._height, observer._scale) == (640, 1300, 2)
+            await observer.click_at(200, 30)
+            await observer.insert_text("retained-viewport")
+            assert (await owner._evaluate("document.querySelector('#name').value"))[
+                "value"
+            ] == "retained-viewport"

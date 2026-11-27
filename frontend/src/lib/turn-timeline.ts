@@ -77,11 +77,31 @@ export type PartRun =
 type WorkPartGroup =
   { kind: "work"; runs: [PartRun, ...PartRun[]] } | { kind: "visible"; run: PartRun };
 
-/** Text, questions and explicit cards break the work rail and keep their position. */
-export function groupWorkParts(runs: PartRun[]): WorkPartGroup[] {
+/** Keep questions/cards visible; browser narration can join the work it introduces. */
+export function groupWorkParts(
+  runs: PartRun[],
+  { foldProgress = false }: { foldProgress?: boolean } = {},
+): WorkPartGroup[] {
+  const progress = new Set<PartRun>();
+  if (foldProgress) {
+    let workAhead = false;
+    for (let index = runs.length - 1; index >= 0; index -= 1) {
+      const run = runs[index]!;
+      if (run.kind === "other" && run.part.type === "text") {
+        if (workAhead) progress.add(run);
+      } else {
+        workAhead =
+          (run.kind === "tools" && !isQuestionRun(run)) ||
+          (run.kind === "other" && run.part.type === "thinking");
+      }
+    }
+  }
   const groups: WorkPartGroup[] = [];
   for (const run of runs) {
-    if (isQuestionRun(run) || (run.kind === "other" && run.part.type !== "thinking")) {
+    if (
+      isQuestionRun(run) ||
+      (run.kind === "other" && run.part.type !== "thinking" && !progress.has(run))
+    ) {
       groups.push({ kind: "visible", run });
       continue;
     }

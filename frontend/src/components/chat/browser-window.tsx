@@ -20,6 +20,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import type { BrowserCommand } from "@/hooks/use-live-browse";
+import type { ConversationEnvironment } from "@/lib/conversation-environments-api";
 import { isRunning, type Browse } from "@/lib/browse";
 import { cn } from "@/lib/utils";
 import {
@@ -203,7 +204,7 @@ const FIT_SETTLE_MS = 250;
  */
 function useFitPage(control: BrowseControl | null) {
   const ref = useRef<HTMLDivElement>(null);
-  const [asked, setAsked] = useState<number | null>(null);
+  const [asked, setAsked] = useState<{ width: number; height: number } | null>(null);
   const send = control?.send;
   useEffect(() => {
     const element = ref.current;
@@ -219,7 +220,7 @@ function useFitPage(control: BrowseControl | null) {
       const size = `${width}x${height}@${scale}`;
       if (size === last) return;
       last = size;
-      setAsked(width * scale);
+      setAsked({ width: width * scale, height: height * scale });
       send({ type: "resize", width, height, scale });
     };
     const observer = new ResizeObserver(() => {
@@ -240,8 +241,8 @@ function useFitPage(control: BrowseControl | null) {
 const FIRST_FIT_MS = 6000;
 
 /**
- * Whether the picture can be shown: once a frame has arrived at the width this
- * window asked for, or once waiting for one has taken too long.
+ * Whether the picture can be shown: once a frame has arrived at both dimensions
+ * this window asked for, or once waiting for one has taken too long.
  *
  * The browser opens the tab at a default size and the window's own arrives a
  * moment later, applied between the agent's steps - so the first frames are a
@@ -250,7 +251,11 @@ const FIRST_FIT_MS = 6000;
  * difference between a browser opening and a thumbnail being swapped. Latched:
  * once shown, a later frame of another size (the window resized) shows too.
  */
-function useFitted(image: string | null, asked: number | null, waiting: boolean): boolean {
+function useFitted(
+  image: string | null,
+  asked: { width: number; height: number } | null,
+  waiting: boolean,
+): boolean {
   const [fitted, setFitted] = useState(false);
   useEffect(() => {
     if (!waiting || fitted) return;
@@ -262,7 +267,11 @@ function useFitted(image: string | null, asked: number | null, waiting: boolean)
     const probe = new Image();
     probe.onload = () => {
       // Within a couple of pixels: a scrollbar or rounding is not a wrong size.
-      if (Math.abs(probe.naturalWidth - asked) <= 2) setFitted(true);
+      if (
+        Math.abs(probe.naturalWidth - asked.width) <= 2 &&
+        Math.abs(probe.naturalHeight - asked.height) <= 2
+      )
+        setFitted(true);
     };
     probe.src = image;
   }, [image, asked, waiting, fitted]);
@@ -285,6 +294,7 @@ function useFitted(image: string | null, asked: number | null, waiting: boolean)
 export function BrowserWindow({
   browse,
   surface = "browser",
+  controlState,
   control,
   onClose,
   maximized,
@@ -298,6 +308,8 @@ export function BrowserWindow({
 }: {
   browse: Browse;
   surface?: "browser" | "desktop";
+  /** Fresh physical control state for a retained environment, distinct from this socket’s own ACK. */
+  controlState?: ConversationEnvironment["control"];
   control: BrowseControl | null;
   onClose?: () => void;
   maximized?: boolean;
@@ -328,8 +340,20 @@ export function BrowserWindow({
   const secure = browse.url?.startsWith("https:") ?? false;
   const canDrive = active && running && control !== null && control.canControl;
   const showNavigation = browse.navigable && (canDrive || menuItems !== undefined);
-  const { ref: pageRef, asked } = useFitPage(canDrive ? control : null);
-  const fitted = useFitted(browse.image, asked, waitForFit && canDrive);
+  const canFit =
+    canDrive &&
+    surface === "browser" &&
+    (controlState === undefined || controlState === "none" || hold.holding);
+  const { ref: pageRef, asked } = useFitPage(canFit ? control : null);
+  const fitted = useFitted(browse.image, asked, waitForFit && canFit);
+  const controlLabel =
+    hold.holding && canDrive
+      ? tb("youControl")
+      : controlState === "human" || hold.someoneElse
+        ? tb("otherViewerControls")
+        : controlState === "agent" || (controlState === undefined && running)
+          ? tb("agentControls")
+          : tb("viewOnly");
   // Pointing at the page and driving it are two gestures on one picture; while
   // somebody holds the tab, a click is theirs to send to it.
   const canComment = onComment !== undefined && browse.image !== null && fitted && !hold.holding;
@@ -343,7 +367,7 @@ export function BrowserWindow({
         <div
           className={cn(
             "flex min-w-0 flex-1 items-center",
-            showNavigation && "basis-full @min-[420px]/browser-window:basis-auto",
+            showNavigation && "basis-full @min-[640px]/browser-window:basis-auto",
           )}
         >
           {showNavigation ? (
@@ -386,7 +410,13 @@ export function BrowserWindow({
             </div>
           )}
         </div>
-        <div className="ml-auto flex shrink-0 items-center gap-0.5">
+        <div className="ml-auto flex w-full shrink-0 items-center gap-2 @min-[640px]/browser-window:w-auto">
+          <span
+            role="status"
+            className="text-muted-foreground mr-auto min-w-0 text-xs @min-[640px]/browser-window:mr-0"
+          >
+            {controlLabel}
+          </span>
           {browse.outcome && <OutcomeBadge outcome={browse.outcome} />}
           {canDrive &&
             (hold.holding ? (
@@ -403,8 +433,9 @@ export function BrowserWindow({
                 className="bg-foreground text-background hover:bg-foreground/90 flex h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-medium pointer-coarse:min-h-11 pointer-coarse:min-w-11"
               >
                 <Undo2 className="size-4" aria-hidden />
+                <span>{tb("giveBack")}</span>
               </button>
-            ) : hold.someoneElse ? null : (
+            ) : hold.someoneElse || controlState === "human" ? null : (
               <button
                 type="button"
                 aria-label={hold.waiting ? tb("takingOver") : tb("takeOver")}
@@ -414,6 +445,7 @@ export function BrowserWindow({
                 className="bg-foreground text-background hover:bg-foreground/90 flex h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-medium disabled:opacity-60 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
               >
                 <Hand className="size-4" aria-hidden />
+                <span>{hold.waiting ? tb("takingOverShort") : tb("takeOver")}</span>
               </button>
             ))}
           {canComment && (

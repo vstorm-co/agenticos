@@ -164,3 +164,18 @@ async def test_release_timeout_does_not_block_process_shutdown(case, monkeypatch
     drivers.environments.release_driver.side_effect = blocked
     await driver.close()
     assert "environment_driver_release_timed_out" in caplog.text
+
+
+async def test_layout_claim_keeps_real_actor_and_uses_the_same_exclusion_token(case):
+    driver, check = case
+    layout = drivers.EnvironmentDriver(driver.resource_key, driver.ctx, "layout", check)
+    try:
+        await layout.acquire()
+        await layout.require()
+        claimed = drivers.environments.claim_driver.await_args.kwargs
+        assert claimed["control"] == "layout"
+        assert claimed["user_id"] == driver.ctx.user_id
+        assert claimed["token"] == layout.token
+    finally:
+        await layout.close()
+    assert drivers.environments.release_driver.await_args.kwargs["token"] == layout.token

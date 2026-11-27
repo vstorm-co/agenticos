@@ -91,7 +91,7 @@ class ConversationEnvironmentDriver(Base, TimestampMixin):
 
     __tablename__ = "conversation_environment_drivers"
     __table_args__ = (
-        CheckConstraint("control IN ('human', 'agent')", name="control"),
+        CheckConstraint("control IN ('human', 'agent', 'layout')", name="control"),
         Index("conversation_environment_drivers_expiry_idx", "lease_until"),
     )
 

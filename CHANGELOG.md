@@ -105,6 +105,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep Browser work in one expandable activity line with compact page shortcuts, and temporarily fold the desktop conversation list while preserving explicit reopening and the main navigation.
+
+- Treat account language as a fallback for ambiguous messages instead of overriding a clear conversation language; preserve explicit agent language requirements and user requests.
+- Fit an idle live browser to its actual panel viewport without stretching screenshots, stealing control or prolonging paid idle time. Keep busy viewers read-only until control is released, and show explicit control status with labeled takeover and hand-back actions.
+
 - Keep each table format's selected view when switching between Kanban, List and Table, preserving Kanban grouping and explicitly selected All records views.
 
 - Center empty full-height catalogs in their available body, let dataset settings use the full workspace width, and align result sections with the console's keyboard-accessible tab design.
@@ -199,6 +204,8 @@ Two things are versioned separately from this file and worth knowing about:
 - An app-scoped knowledge base is checked as itself when it is created or edited: its parser connection and OCR server must be deployment-wide and it cannot use a LlamaParse key, because its syncs resolve them with no organization. Before, a connection only the creator's organization could see was accepted and every sync then failed to find it.
 
 ### Upgrading
+
+- Apply `0384_environment_layout_driver.py` with the old API and workers stopped, then restart them after migration. The physical driver CHECK now admits a short internal layout lease for idle browser fitting; older processes must not read these tokens. Downgrade waits for live layout work to finish and removes only expired layout tokens.
 
 - Apply `0383_environment_project_files.py` for independently owned desktop Project mounts. Existing run leases keep their RUNNING/expiry checks. Environment paths require fresh live owner, capability, executor and Project authority on every filesystem operation; End or idle expiry revokes them. End retained desktops and drain cleanup before downgrading: the migration refuses while any desktop resource journal remains. It then deletes environment leases without reviving old run paths; reopen the desktop after an upgrade or rollback.
 

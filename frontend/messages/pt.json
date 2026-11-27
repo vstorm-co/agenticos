@@ -15138,7 +15138,12 @@
     "nativeTake": "Assumir controle",
     "nativeCloseTab": "Fechar aba",
     "nativeViewport": "Página do navegador nativo",
-    "nativeDesktopOnly": "Esta aba está aberta no aplicativo de desktop pareado. Continue por lá para usar o navegador nativo."
+    "nativeDesktopOnly": "Esta aba está aberta no aplicativo de desktop pareado. Continue por lá para usar o navegador nativo.",
+    "youControl": "Você controla",
+    "agentControls": "O agente controla",
+    "otherViewerControls": "Outro usuário controla",
+    "viewOnly": "Somente visualização",
+    "takingOverShort": "Assumindo…"
   },
   "remoteAgents": {
     "optionalSettings": "Autenticação e identificador (opcional)",

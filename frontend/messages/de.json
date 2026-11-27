@@ -14940,7 +14940,12 @@
     "nativeTake": "Übernehmen",
     "nativeCloseTab": "Tab schließen",
     "nativeViewport": "Native Browserseite",
-    "nativeDesktopOnly": "Dieser Tab ist in der gekoppelten Desktop-App geöffnet. Verwende dort den nativen Browser."
+    "nativeDesktopOnly": "Dieser Tab ist in der gekoppelten Desktop-App geöffnet. Verwende dort den nativen Browser.",
+    "youControl": "Du steuerst",
+    "agentControls": "Agent steuert",
+    "otherViewerControls": "Andere Person steuert",
+    "viewOnly": "Nur ansehen",
+    "takingOverShort": "Übernahme…"
   },
   "remoteAgents": {
     "optionalSettings": "Authentifizierung und Kennung (optional)",

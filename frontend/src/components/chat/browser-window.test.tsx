@@ -401,10 +401,11 @@ describe("BrowserWindow - the address bar", () => {
 
 describe("BrowserWindow - the first picture, at the window's own size", () => {
   /** An image whose decoded width the test chooses, since jsdom decodes nothing. */
-  function decodesAt(width: number) {
+  function decodesAt(width: number, height = width) {
     class Decoded {
       onload: (() => void) | null = null;
       naturalWidth = width;
+      naturalHeight = height;
       set src(_value: string) {
         queueMicrotask(() => this.onload?.());
       }
@@ -430,6 +431,24 @@ describe("BrowserWindow - the first picture, at the window's own size", () => {
       <BrowserWindow
         browse={browse({ image: "data:image/jpeg;base64,FITTED" })}
         control={control()}
+        waitForFit
+      />,
+    );
+    await act(async () => {});
+    expect(screen.getByRole("img")).toBeVisible();
+  });
+
+  it("waits for actual available height, not just matching screenshot width", async () => {
+    decodesAt(320, 160);
+    const live = control();
+    const view = render(<BrowserWindow browse={browse()} control={live} waitForFit />);
+    await act(async () => {});
+    expect(screen.queryByRole("img")).toBeNull();
+    decodesAt(320, 320);
+    view.rerender(
+      <BrowserWindow
+        browse={browse({ image: "data:image/jpeg;base64,TALL" })}
+        control={live}
         waitForFit
       />,
     );
@@ -610,4 +629,58 @@ it("allows an explicit retry after a takeover was refused", async () => {
   );
   expect(screen.getByRole("alert")).toHaveTextContent("The environment is currently unavailable.");
   expect(screen.getByRole("button", { name: "Take over" })).toBeEnabled();
+});
+
+it("shows explicit control status and text actions without granting input to viewers", () => {
+  const live = control();
+  const view = render(<BrowserWindow browse={browse()} control={live} controlState="none" />);
+  expect(screen.getByText("View only")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Take over" })).toHaveTextContent("Take over");
+  view.rerender(<BrowserWindow browse={browse()} control={null} controlState="agent" />);
+  expect(screen.getByText("Agent controls")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Take over" })).toBeNull();
+  view.rerender(<BrowserWindow browse={browse()} control={live} controlState="human" />);
+  expect(screen.getByText("Another viewer controls")).toBeVisible();
+  view.rerender(
+    <BrowserWindow
+      browse={browse({ heldById: "u1", heldBy: "Ada" })}
+      control={live}
+      controlState="human"
+    />,
+  );
+  expect(screen.getByText("You control")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Hand it back" })).toHaveTextContent("Hand it back");
+});
+
+it("never tries to resize a physical desktop screen", () => {
+  const live = control();
+  render(
+    <BrowserWindow
+      browse={browse({ heldById: "u1", heldBy: "Ada" })}
+      control={live}
+      surface="desktop"
+      controlState="human"
+    />,
+  );
+  expect(live.send).not.toHaveBeenCalled();
+});
+
+it("fits latest geometry after busy control becomes idle without replacing the picture", () => {
+  const live = control();
+  const page = browse();
+  const view = render(<BrowserWindow browse={page} control={live} controlState="human" />);
+  const image = screen.getByRole("img");
+  expect(live.send).not.toHaveBeenCalled();
+  const area = image.closest(".relative.min-h-0");
+  if (!(area instanceof HTMLElement)) throw new Error("Missing page area");
+  Object.defineProperty(area, "clientWidth", { value: 640, configurable: true });
+  Object.defineProperty(area, "clientHeight", { value: 1500, configurable: true });
+  view.rerender(<BrowserWindow browse={page} control={live} controlState="none" />);
+  expect(live.send).toHaveBeenCalledExactlyOnceWith({
+    type: "resize",
+    width: 640,
+    height: 1500,
+    scale: 1,
+  });
+  expect(screen.getByRole("img")).toBe(image);
 });

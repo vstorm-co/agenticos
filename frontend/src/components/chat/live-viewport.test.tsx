@@ -107,3 +107,13 @@ describe("LiveViewport - the agent's page, and the page itself while it is yours
     expect(onCommand).not.toHaveBeenCalled();
   });
 });
+
+it("maps a tall proportional viewport to native screenshot pixels without cropping", () => {
+  const { onCommand } = setup(true);
+  const image = screen.getByRole("img");
+  Object.defineProperty(image, "naturalWidth", { value: 640 });
+  Object.defineProperty(image, "naturalHeight", { value: 1500 });
+  image.getBoundingClientRect = () => new DOMRect(0, 0, 320, 750);
+  fireEvent.click(image, { clientX: 160, clientY: 600 });
+  expect(onCommand).toHaveBeenCalledWith({ type: "click", x: 320, y: 1200 });
+});

@@ -348,7 +348,10 @@ class ConversationEnvironmentService:
         )
         control: ConversationEnvironmentControl = (
             "none"
-            if state not in ("starting", "ready") or held is None or held.lease_until <= now
+            if state not in ("starting", "ready")
+            or held is None
+            or held.lease_until <= now
+            or held.control == "layout"
             else _CONTROL.validate_python(held.control)
         )
         return ConversationEnvironmentRead(

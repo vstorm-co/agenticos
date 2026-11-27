@@ -1,5 +1,5 @@
 ---
-source_sha: "e0311806e607"
+source_sha: "fc5f1d952ccd"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -844,17 +844,23 @@ kopiert; mehrere Varianten eines Entwurfs sind Tabs in derselben Karte. Das eige
 **Kopieren** einer Nachricht enthält auch ihre Entwürfe.
 
 **Einem Durchlauf zusehen.** Der [Webbrowser](reference/capabilities.md#browser-automation)
-öffnet sich automatisch in einem Panel in voller Höhe neben dem Gespräch.
-Auf schmalen Bildschirmen nutzt er das Vollbild. Nach dem Schließen bleibt
-ein kompakter Link im Gespräch, um das Panel erneut zu öffnen. Karten besuchter
-Seiten zeigen das Website-Symbol, die Domain und den Seitentitel, auch nach dem
-erneuten Öffnen des Gesprächs. Jede Antwort behält eine Karte pro Browser-Tab;
-Klicks, erneutes Lesen und Zurückgehen aktualisieren diese Karte.
-Die Tableiste im Panel wechselt zwischen den Seiten. Nach dem Lauf bleibt das letzte Bild. **Sitzung fortsetzen** bittet den
-Agent, den privaten Sitzungsstand wiederherzustellen, bis zu einer Stunde lang.
-Remote-Seiten schließen nach jedem Lauf. Fortsetzen lädt URLs, Cookies und Local
-Storage neu, aber keine ungespeicherten Formulare oder JavaScript-Zustände. Der Agent
-liest die Elementnummern erneut.
+öffnet bei ausreichend Platz ein hohes Panel neben dem Gespräch. Auf dem Desktop klappt er die Gesprächsliste
+vorübergehend ein. Sie können sie wieder öffnen; beim Schließen von Browser wird das
+vorherige Layout wiederhergestellt. Auf dem Telefon füllt das Panel den Bildschirm.
+Der eigene Browser passt sich an das Panel an, solange niemand anders steuert.
+Während der Arbeit des Agents oder der Steuerung durch eine andere Person behält das
+Bild seine Proportionen.
+
+Jede Antwort behält einen kompakten Seitenlink pro Browser-Tab mit Symbol, Titel und
+Domain. Navigation aktualisiert diesen Link statt weitere Karten anzulegen. Der Link
+öffnet dasselbe Panel. Zwischenmeldungen und Werkzeugschritte teilen sich eine
+aufklappbare Aktivitätszeile; die abschließende Antwort und Fragen bleiben sichtbar.
+
+Eine [Umgebung für das Gespräch](sandbox.md#conversation-environments) behält die
+Live-Seite bis **End** oder zum Leerlauflimit. Älteres Browsing mit Run-Lebensdauer
+schließt die Seite nach dem Run. **Sitzung fortsetzen** kann den privaten Checkpoint
+bis zu einer Stunde wiederherstellen: URLs, Cookies und Local Storage, aber keine
+ungespeicherten Formulare oder JavaScript-Speicher. Der Agent liest neue Elementnummern.
 
 **Einen Durchlauf übernehmen.** Während ein Durchlauf läuft, pausiert **Übernehmen** in
 der Symbolleiste des Browsers den Agent nach seinem laufenden Schritt und gibt Ihnen die
@@ -1213,10 +1219,11 @@ brasilianisches Portugiesisch. Die erste Karte des Rundgangs bietet alle sieben 
 Kontomenü wechselt die Sprache jederzeit;
 die Wahl wird in Ihrem
 Konto gespeichert, sodass die Konsole auf jedem Gerät, auf dem Sie sich anmelden,
-in ihr öffnet. Sie können auch einen Agent bitten - "auf Englisch umstellen" -, und
-die Seite wechselt, während er antwortet, ohne Neuladen. Jeder Agent antwortet in
-ihr, außer Sie bitten ausdrücklich um eine andere Sprache. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
+in ihr öffnet. Sie können einen Agent auch ausdrücklich bitten, die Oberflächensprache zu ändern.
+Die Bitte um eine Antwort in einer anderen Sprache ändert diese Kontoeinstellung nicht automatisch. Produktwörter - Agent, Skill, Run, Budget, MCP und der Rest der Liste
 unter [Übersetzen](howto/translate.md) - bleiben in jeder Sprache Englisch.
+
+Antworten beachten ausdrückliche Sprachvorgaben in den Agentenanweisungen und ausdrückliche Benutzerwünsche gemäß ihrer Priorität. Ansonsten folgen sie der aktuellen Benutzernachricht; ist sie mehrdeutig, bleibt die bisherige Gesprächssprache erhalten. Die gespeicherte Kontosprache dient nur als Rückfall für eine kurze oder mehrdeutige Begrüßung ohne festgelegte Gesprächssprache. Sie macht aus einer klaren polnischen Anfrage keine englische Antwort. Quelldokumente und Werkzeugausgaben bestimmen nicht die Antwortsprache.
 
 Dieselbe Karte fragt, was Sie tun, und **Einstellungen → Profil (Settings →
 Profile)** hält den Rest dessen, was Agents über Sie wissen: Ihre Rolle, woran Sie
@@ -1413,7 +1420,7 @@ Studio ist unter `/onboarding` der Standard; die anderen Layouts bleiben über V
 
 Studio behält Überschrift und untere Aktionen beim Schrittwechsel an ihrer Position. Die Avatar-Galerie rastet nach Ziehen oder Blättern mit den Pfeiltasten auf einer mittigen Vorschau ein; erst die Auswahl speichert sie. Reduzierte Bewegung deaktiviert Federbewegung und Schrittübergänge. An unvollständige Einrichtung erinnert nur die Seitenleiste, ohne zweites Banner über dem Arbeitsbereich.
 
-Neue Konten öffnen `/onboarding` nach der Passwortregistrierung oder der ersten OAuth- oder Verzeichnisanmeldung, auch bei Registrierung über eine Einladung. Sprache und Erscheinungsbild kommen vor der Workspace-Einrichtung; hier lassen sich auch Einladungen prüfen und annehmen. Der Beitritt bleibt eine ausdrückliche Entscheidung. Die Sprache wird im Konto gespeichert und über `{{language}}` sowie das Personenbriefing an Agenten übergeben. Eine ausdrückliche Bitte um eine andere Sprache hat Vorrang.
+Neue Konten öffnen `/onboarding` nach der Passwortregistrierung oder der ersten OAuth- oder Verzeichnisanmeldung, auch bei Registrierung über eine Einladung. Sprache und Erscheinungsbild kommen vor der Workspace-Einrichtung; hier lassen sich auch Einladungen prüfen und annehmen. Der Beitritt bleibt eine ausdrückliche Entscheidung. Die Sprache wird im Konto gespeichert und über `{{language}}` sowie das Personenbriefing an Agenten übergeben. Sie ist ein Rückfall für die Antwortsprache, keine Pflicht, jede Nachricht in der Oberflächensprache zu beantworten.
 
 Nach den Abonnements zeigt die Modelleinrichtung zuerst den Anbieter, dann dessen Verbindung und Modell. Persönliche Abonnements bleiben im vorherigen Schritt. Werkzeuge beginnen mit vorgeschlagenen Diensten; **Alle Dienste durchsuchen** öffnet den vollständigen MCP-Katalog.
 

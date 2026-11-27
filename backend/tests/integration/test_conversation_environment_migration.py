@@ -40,10 +40,18 @@ async def test_environment_journal_migration_matches_models_and_guards_destructi
     owner = importlib.util.module_from_spec(owner_spec)
     owner_spec.loader.exec_module(owner)
 
+    layout_spec = importlib.util.spec_from_file_location(
+        "environment_layout_driver", path.with_name("0384_environment_layout_driver.py")
+    )
+    assert layout_spec is not None and layout_spec.loader is not None
+    layout = importlib.util.module_from_spec(layout_spec)
+    layout_spec.loader.exec_module(layout)
+
     def cycle(session: Session):
         connection = session.connection()
         context = MigrationContext.configure(connection, opts={"target_metadata": Base.metadata})
         with Operations.context(context):
+            layout.downgrade()
             owner.downgrade()
             migration.downgrade()
             assert not tables.intersection(inspect(connection).get_table_names())
@@ -87,5 +95,6 @@ async def test_environment_journal_migration_matches_models_and_guards_destructi
             assert not tables.intersection(inspect(connection).get_table_names())
             migration.upgrade()
             owner.upgrade()
+            layout.upgrade()
 
     await db.run_sync(cycle)

@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import anyio
 import pytest
@@ -706,3 +706,122 @@ async def test_held_preview_does_not_capture_for_a_disconnected_viewer() -> None
         remember=None,
     )
     assert target.shots == 0
+
+
+async def test_retained_viewport_reads_actual_scale_without_emulation_writes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = AsyncMock()
+    target = CdpPage(
+        client, "owned-tab", PagePolicy(allowed_domains=None, candidate_cap=100, preview_width=1000)
+    )
+    monkeypatch.setattr(
+        target,
+        "_evaluate",
+        AsyncMock(return_value={"value": {"width": 640, "height": 1300, "scale": 2}}),
+    )
+    await target._read_viewport()
+    assert (target._width, target._height, target._scale) == (640, 1300, 2)
+    client.send.Emulation.setDeviceMetricsOverride.assert_not_awaited()
+    await target.click_at(320, 600)
+    for call in client.send.Input.dispatchMouseEvent.await_args_list:
+        assert call.kwargs["params"]["x"] == 160
+        assert call.kwargs["params"]["y"] == 300
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        {"width": True, "height": 800, "scale": 1},
+        {"width": 640, "height": 0, "scale": 1},
+        {"width": 640, "height": 800, "scale": float("nan")},
+    ],
+)
+async def test_invalid_retained_viewport_is_refused_instead_of_guessing_or_resetting(
+    monkeypatch: pytest.MonkeyPatch, value: object
+) -> None:
+    client = AsyncMock()
+    target = CdpPage(
+        client, "owned-tab", PagePolicy(allowed_domains=None, candidate_cap=100, preview_width=1000)
+    )
+    monkeypatch.setattr(target, "_evaluate", AsyncMock(return_value={"value": value}))
+    with pytest.raises(EndpointError, match="invalid viewport dimensions"):
+        await target._read_viewport()
+    client.send.Emulation.setDeviceMetricsOverride.assert_not_awaited()
+
+
+@pytest.mark.parametrize("response", [None, ["invalid-outer-response"]])
+async def test_retained_viewport_refuses_malformed_outer_protocol_response(
+    monkeypatch: pytest.MonkeyPatch, response: object
+) -> None:
+    client = AsyncMock()
+    target = CdpPage(
+        client, "owned-tab", PagePolicy(allowed_domains=None, candidate_cap=100, preview_width=1000)
+    )
+    monkeypatch.setattr(target, "_evaluate", AsyncMock(return_value=response))
+    with pytest.raises(EndpointError, match="invalid viewport dimensions"):
+        await target._read_viewport()
+    client.send.Emulation.setDeviceMetricsOverride.assert_not_awaited()
+
+
+@pytest.mark.security
+@pytest.mark.parametrize("retained", [False, True])
+async def test_observer_attach_preserves_existing_holder_emulation_but_new_targets_initialize(
+    monkeypatch: pytest.MonkeyPatch, retained: bool
+) -> None:
+    from app.agents.capabilities.browser_use import _page as module
+    from app.agents.capabilities.browser_use._route import BrowserRoute
+
+    client = MagicMock()
+    target = module.BrowserTarget(context_id="context", target_id="target")
+    client.send.Target.getTargetInfo = AsyncMock(
+        return_value={
+            "targetInfo": {"browserContextId": "context", "targetId": "target", "type": "page"}
+        }
+    )
+    client.send.Target.createBrowserContext = AsyncMock(
+        return_value={"browserContextId": "context"}
+    )
+    client.send.Target.createTarget = AsyncMock(return_value={"targetId": "target"})
+    client.send.Target.attachToTarget = AsyncMock(return_value={"sessionId": "session"})
+    client.send.Target.closeTarget = AsyncMock()
+    client.send.Target.disposeBrowserContext = AsyncMock()
+    client.send.Page.enable = AsyncMock()
+    client.send.Page.addScriptToEvaluateOnNewDocument = AsyncMock()
+    client.send.Browser.getVersion = AsyncMock(
+        return_value={"userAgent": "Chrome/140", "product": "Chrome/140"}
+    )
+    methods = [
+        "setDeviceMetricsOverride",
+        "setUserAgentOverride",
+        "setLocaleOverride",
+        "setTimezoneOverride",
+    ]
+    for method in methods:
+        setattr(client.send.Emulation, method, AsyncMock())
+
+    @asynccontextmanager
+    async def connected(_url: str, _route: BrowserRoute | None) -> AsyncGenerator[MagicMock]:
+        yield client
+
+    policy = AsyncMock()
+    monkeypatch.setattr(module, "_browser_client", connected)
+    monkeypatch.setattr(module, "_intercept", policy)
+    monkeypatch.setattr(CdpPage, "navigate", AsyncMock())
+    monkeypatch.setattr(
+        CdpPage,
+        "_evaluate",
+        AsyncMock(return_value={"value": {"width": 640, "height": 1300, "scale": 2}}),
+    )
+    async with module.open_page(
+        cdp_url="http://private-browser",
+        start_url=None if retained else "https://example.test",
+        policy=PagePolicy(allowed_domains=None, candidate_cap=100, preview_width=1000),
+        route=BrowserRoute(locale="pl-PL", timezone="Europe/Warsaw"),
+        retained=target if retained else None,
+    ):
+        for method in methods:
+            operation = getattr(client.send.Emulation, method)
+            assert operation.await_count == (0 if retained else 1)
+        policy.assert_awaited_once()

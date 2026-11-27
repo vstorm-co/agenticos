@@ -777,15 +777,22 @@ part has its own copy icon, which copies plain text; several variants of one dra
 are tabs in the same card. A message's own **Copy** includes its drafts.
 
 **Watching a browse.** The [web browser](reference/capabilities.md#browser-automation)
-opens automatically in a full-height side panel while the transcript scrolls.
-On narrow screens it opens full screen. Closing the panel leaves a compact link
-in the conversation to reopen it. Visited-page cards show the site icon, domain
-and page title, including when the conversation is reopened. Each answer keeps
-one card per browser tab; clicks, rereads and going back update that card.
-The panel's tab strip switches between pages. After the run, the last image remains. **Resume session** asks the
-agent to restore the private conversation checkpoint, available for up to one hour.
-Remote pages close after each run; resuming reloads URLs, cookies and local storage,
-not unsaved forms or JavaScript memory. The agent reads fresh element numbers.
+opens in a full-height panel beside the transcript when space allows. On desktop it temporarily folds
+the conversation list; you can reopen that list, and closing Browser restores the
+previous layout. On a phone the panel fills the screen. The owned browser fits the
+available panel while nobody else is driving; during agent work or another person's
+control, its image keeps its proportions.
+
+Each answer keeps one compact page link per browser tab, with the site icon, title
+and domain. Navigation updates that link instead of adding another card. Opening it
+returns to the same browser panel. Intermediate narration and tool steps share one
+expandable activity line; the final answer and questions stay visible.
+
+A [conversation-lifetime environment](sandbox.md#conversation-environments) keeps its
+live page until **End** or the idle limit. Legacy run-lifetime browsing closes after
+the run; **Resume session** can restore its private checkpoint for up to one hour.
+That checkpoint reloads URLs, cookies and local storage, not unsaved forms or
+JavaScript memory. The agent reads fresh element numbers.
 
 **Taking a browse over.** While a browse runs, **Take over** in the browser's toolbar
 pauses the agent after its current step and hands you the page, in the same window:
@@ -1109,10 +1116,12 @@ The console speaks English, Polish, German, Turkish, French, Dutch and Brazilian
 walkthrough's first card offers all seven, and
 the account menu changes the language at any time; the choice is kept on your
 account, so the console opens in it on every device you sign in on. You can also
-ask an agent - "switch to English" - and the page changes as it answers, without a
-reload. Every agent answers in it unless you explicitly request another language. Product
+explicitly ask an agent to change the interface language. Asking for a reply in
+another language does not itself change this account setting. Product
 words - agent, skill, run, budget, MCP and the rest of the list in
 [translating](howto/translate.md) - stay English in every language.
+
+Agent replies follow explicit language requirements in the agent's instructions and explicit user requests according to their priority. Otherwise they follow the current user message, keeping the established conversation language when that message is ambiguous. The saved account language is a fallback for a short or ambiguous greeting with no established conversation language; it does not turn a clear Polish request into an English reply. Source documents and tool output do not choose the reply language.
 
 The same card asks what you do, and **Settings → Profile** keeps the rest of what
 agents know about you: your role, what you work on and your time zone. Every agent
@@ -1300,7 +1309,7 @@ Studio is the default at `/onboarding`. The other layouts remain available throu
 
 Studio keeps its heading and bottom actions in place while the current step moves between them. The avatar gallery snaps to a centered preview when dragged or browsed with the arrow keys; selecting a preview saves it. Reduced motion removes the spring and step movement. Unfinished setup is offered only in the sidebar, without a second banner across the workspace.
 
-New accounts open `/onboarding` after password registration or their first OAuth or directory sign-in, including registration from an invitation. Language and appearance come before workspace setup; addressed invitations can be reviewed and accepted here. Joining remains an explicit choice. Language is saved on the account and supplied to agents through `{{language}}` and the person briefing. An explicit request for another language takes precedence.
+New accounts open `/onboarding` after password registration or their first OAuth or directory sign-in, including registration from an invitation. Language and appearance come before workspace setup; addressed invitations can be reviewed and accepted here. Joining remains an explicit choice. Language is saved on the account and supplied to agents through `{{language}}` and the person briefing. It is a reply-language fallback, not a requirement to use the interface language for every message.
 
 After subscriptions, model setup presents a provider first, then its connection and model. Personal subscriptions remain in their previous step. Tools start with suggested services; **Browse all services** opens the complete MCP catalog.
 

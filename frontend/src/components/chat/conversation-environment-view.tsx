@@ -256,6 +256,7 @@ function EnvironmentView({
           >
             <BrowserWindow
               surface={environment.kind}
+              controlState={authority.control}
               active={visible && hasView}
               browse={
                 authority.kind === "desktop" ? { ...live.browse, navigable: false } : live.browse

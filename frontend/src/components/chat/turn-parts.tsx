@@ -213,7 +213,8 @@ export function TurnParts({
     );
 
   const active = !failed && (isStreaming || waiting !== undefined);
-  const groups = groupWorkParts(runs);
+  const browserCalls = browseCalls(runs);
+  const groups = groupWorkParts(runs, { foldProgress: browserCalls.length > 0 });
   const workCount = groups.filter((group) => group.kind === "work").length;
   const lastWork = groups.findLast((group) => group.kind === "work");
   const firstBrowserWork = groups.find(
@@ -221,7 +222,6 @@ export function TurnParts({
   );
   // Tab selection spans narration and reasoning groups. Resolve the whole turn
   // in one stable location so a later page updates its card instead of copying it.
-  const browserCalls = browseCalls(runs);
   const outputIds = new Set(
     producedCalls(
       runs.flatMap((run) =>

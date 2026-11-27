@@ -39,11 +39,11 @@ function event(kind: string, extra: Record<string, unknown> = {}) {
 function state(extra: Partial<ConversationEnvironment> = {}) {
   emit({ type: "environment_state", data: { ...environment, ...extra } });
 }
-function open() {
+function open(kind: ConversationEnvironment["kind"] = "desktop") {
   render(
     <ConversationEnvironmentView
       conversationId="chat"
-      environment={environment}
+      environment={{ ...environment, kind }}
       visible
       onState={vi.fn().mockResolvedValue(undefined)}
       onStart={vi.fn()}
@@ -53,7 +53,7 @@ function open() {
       isEnding={false}
     />,
   );
-  state();
+  state({ kind });
   event("browser_opened");
   event("browser_frame", { image: "data:image/jpeg;base64,AA==", title: "Desktop" });
 }
@@ -100,15 +100,17 @@ it("does not give another holder, agent control or a forbidden socket interactiv
   expect(screen.queryByRole("application")).not.toBeInTheDocument();
 });
 
-it("does not resize again for equivalent authority frames that only update expiry", () => {
-  open();
-  state({ control: "human" });
-  event("browser_held", { by_user_id: "owner" });
+it("fits idle and acknowledged browsers, not equivalent authority frames that only update expiry", () => {
+  open("browser");
   const resizes = () =>
     socket.sendMessage.mock.calls.filter(([command]) => command.type === "resize");
   expect(resizes()).toHaveLength(1);
-  for (const day of [1, 2, 3]) {
-    state({ control: "human", expires_at: `2026-12-0${day}T00:00:00Z` });
-  }
+  state({ kind: "browser", control: "human" });
   expect(resizes()).toHaveLength(1);
+  event("browser_held", { by_user_id: "owner" });
+  expect(resizes()).toHaveLength(2);
+  for (const day of [1, 2, 3]) {
+    state({ kind: "browser", control: "human", expires_at: `2026-12-0${day}T00:00:00Z` });
+  }
+  expect(resizes()).toHaveLength(2);
 });

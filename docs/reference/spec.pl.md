@@ -1,5 +1,5 @@
 ---
-source_sha: "0ed38379a333"
+source_sha: "844c384e6bc4"
 ---
 
 # Spec agenta { #the-agent-spec }
@@ -21,7 +21,9 @@ systemową, którą zna platforma (data i godzina, zalogowana osoba i jej
 który zegar czyta `{{current_time}}`. Publikacja odrzuca nazwę, która nie jest
 żadną z nich.
 
-`{{language}}` to zapisany język konta osoby, w imieniu której działa run, podany jako nazwa języka (English, Polish, German, Turkish, French, Dutch lub Brazilian Portuguese). Gdy run nie ma osoby albo obsługiwanej preferencji, wartością jest English; runy bez nadzoru nie przejmują języka autora publikacji. Agenci otrzymują tę preferencję także w briefingu osoby: krótkie lub niejednoznaczne powitania jej nie zmieniają, a jawna prośba o inny język ma pierwszeństwo.
+`{{language}}` to zapisany język konta osoby, w imieniu której działa run, podany jako nazwa języka (English, Polish, German, Turkish, French, Dutch lub Brazilian Portuguese). Gdy run nie ma osoby albo obsługiwanej preferencji, wartością jest English; runy bez nadzoru nie przejmują języka autora publikacji.
+
+Briefing osoby traktuje tę wartość jako rezerwę: jawne wymagania językowe agenta i prośby użytkownika zachowują priorytet instrukcji; poza tym odpowiedź podąża za bieżącą wiadomością, przy niejednoznaczności za ustalonym językiem rozmowy, a dopiero potem za preferencją konta. Cytowane źródła i wyniki narzędzi nie ustalają języka odpowiedzi. Opublikowane instrukcje pozostają niezmienne: jeśli starsza kopia AgenticOS jawnie nakazuje język konta, przejrzyj ją i opublikuj nową wersję, aby zastosować ten domyślny wybór języka rozmowy. Zachowaj celowe instrukcje agentów o stałym języku.
 
 ::: app.agents.spec.PromptVariableSpec
 

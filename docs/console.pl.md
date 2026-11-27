@@ -1,5 +1,5 @@
 ---
-source_sha: "e0311806e607"
+source_sha: "fc5f1d952ccd"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -795,16 +795,22 @@ kopiuje zwykły tekst; kilka wariantów jednej wersji roboczej to zakładki w je
 karcie. Własne **Kopiuj** wiadomości obejmuje też jej wersje robocze.
 
 **Oglądanie przeglądania.** [Przeglądarka](reference/capabilities.md#browser-automation)
-otwiera się automatycznie w pełnym panelu obok przewijanej rozmowy.
-Na wąskim ekranie zajmuje cały widok. Po zamknięciu panelu zostaje w rozmowie
-mały przycisk do ponownego otwarcia. Karty odwiedzonych stron pokazują ikonę,
-domenę i tytuł, także po ponownym otwarciu rozmowy. Każda odpowiedź ma jeden
-kafelek na kartę przeglądarki; kliknięcia, ponowne odczyty i powroty aktualizują ten kafelek. Pasek kart w panelu
-przełącza strony. Po zakończeniu
-zostaje ostatni obraz. **Wznów sesję** prosi agenta o odtworzenie prywatnej sesji,
-dostępnej przez maksymalnie godzinę. Zdalne strony zamykają się po każdym runie;
-wznowienie wczytuje adresy, cookies i local storage, ale nie niezapisane formularze
-ani pamięć JavaScript. Agent odczytuje nowe numery elementów.
+otwiera pełny panel obok rozmowy, gdy jest na to miejsce. Na desktopie tymczasowo zwija listę rozmów;
+możesz ją ponownie rozwinąć, a zamknięcie Browser przywraca poprzedni układ.
+Na telefonie panel zajmuje cały ekran. Własna przeglądarka dopasowuje się do panelu,
+gdy nikt inny nią nie steruje. Podczas pracy agenta lub sterowania przez inną osobę
+obraz zachowuje proporcje.
+
+Każda odpowiedź zachowuje jeden mały link na kartę przeglądarki, z ikoną strony,
+tytułem i domeną. Nawigacja aktualizuje ten link zamiast dodawać kolejną kartę.
+Link otwiera ten sam panel. Zapowiedzi i kroki narzędzi są pod jednym rozwijanym
+wierszem pracy; końcowa odpowiedź i pytania pozostają widoczne.
+
+[Środowisko na czas rozmowy](sandbox.md#conversation-environments) zachowuje żywą
+stronę do **End** lub limitu bezczynności. Starszy tryb na czas runu zamyka stronę
+po jego zakończeniu. **Wznów sesję** może odtworzyć prywatny checkpoint przez maksymalnie
+godzinę: adresy, cookies i local storage, ale nie niezapisane formularze ani pamięć
+JavaScript. Agent odczytuje nowe numery elementów.
 
 **Przejmowanie przeglądania.** Gdy przeglądanie trwa, **Przejmij** w pasku przeglądarki
 zatrzymuje agenta po bieżącym kroku i oddaje ci stronę, w tym samym oknie: klikaj, pisz,
@@ -1137,10 +1143,11 @@ Konsola mówi po angielsku, polsku, niemiecku, turecku, francusku,
 niderlandzku i po portugalsku w odmianie brazylijskiej. Pierwsza karta przewodnika proponuje je wszystkie, a menu konta
 zmienia język w każdej chwili; wybór jest zapisywany na twoim
 koncie, więc konsola otwiera się w nim na każdym urządzeniu, na którym się
-logujesz. Możesz też poprosić agenta - "przełącz na angielski" - a strona zmieni
-się, gdy odpowie, bez przeładowania. Każdy agent odpowiada w nim, chyba że
-jawnie poprosisz o inny język. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
+logujesz. Możesz też jawnie poprosić agenta o zmianę języka interfejsu. Sama prośba
+o odpowiedź w innym języku nie zmienia tego ustawienia konta. Słowa produktu - agent, skill, run, budget, MCP i reszta listy z
 [tłumaczenia](howto/translate.md) - zostają angielskie w każdym języku.
+
+Odpowiedzi agenta respektują jawne wymagania językowe jego instrukcji i jawne prośby użytkownika zgodnie z ich priorytetem. W pozostałych przypadkach podążają za bieżącą wiadomością użytkownika, a przy wiadomości niejednoznacznej zachowują ustalony język rozmowy. Zapisany język konta jest rezerwą dla krótkiego lub niejednoznacznego powitania bez ustalonego języka rozmowy; nie zamienia jasnej polskiej prośby w angielską odpowiedź. Dokumenty źródłowe i wyniki narzędzi nie wybierają języka odpowiedzi.
 
 Ta sama karta pyta, czym się zajmujesz, a **Ustawienia → Profil (Settings →
 Profile)** trzymają resztę tego, co agenci o tobie wiedzą: twoją rolę, nad czym
@@ -1326,7 +1333,7 @@ Studio jest domyślne pod `/onboarding`; pozostałe układy pozostają dostępne
 
 Studio zachowuje położenie nagłówka i dolnych przycisków podczas zmiany kroku. Galeria avatarów ustawia podgląd na środku po przeciągnięciu lub użyciu strzałek; dopiero wybranie podglądu go zapisuje. Ograniczenie ruchu wyłącza sprężyste przejścia galerii i ruch kroków. Przypomnienie o niedokończonej konfiguracji pozostaje wyłącznie w pasku bocznym, bez drugiego banera nad obszarem pracy.
 
-Nowe konta otwierają `/onboarding` po rejestracji hasłem lub pierwszym logowaniu OAuth albo katalogowym, również przy rejestracji z zaproszenia. Język i wygląd poprzedzają konfigurację przestrzeni; tutaj można też sprawdzić i przyjąć zaproszenia. Dołączenie wymaga świadomego wyboru. Język zapisuje się na koncie i trafia do agentów przez `{{language}}` oraz briefing osoby. Jawna prośba o inny język ma pierwszeństwo.
+Nowe konta otwierają `/onboarding` po rejestracji hasłem lub pierwszym logowaniu OAuth albo katalogowym, również przy rejestracji z zaproszenia. Język i wygląd poprzedzają konfigurację przestrzeni; tutaj można też sprawdzić i przyjąć zaproszenia. Dołączenie wymaga świadomego wyboru. Język zapisuje się na koncie i trafia do agentów przez `{{language}}` oraz briefing osoby. To rezerwa przy wyborze języka odpowiedzi, a nie nakaz używania języka interfejsu w każdej wiadomości.
 
 Po subskrypcjach konfiguracja modelu pokazuje najpierw dostawcę, następnie połączenie i model. Subskrypcje osobiste pozostają w poprzednim kroku. Narzędzia zaczynają od sugerowanych usług; **Przeglądaj wszystkie usługi** otwiera pełny katalog MCP.
 

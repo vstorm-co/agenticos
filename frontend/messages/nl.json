@@ -15138,7 +15138,12 @@
     "nativeTake": "Overnemen",
     "nativeCloseTab": "Tabblad sluiten",
     "nativeViewport": "Browserpagina in de desktop-app",
-    "nativeDesktopOnly": "Dit tabblad is geopend in de gekoppelde desktop-app. Ga daar verder om de native browser ervan te gebruiken."
+    "nativeDesktopOnly": "Dit tabblad is geopend in de gekoppelde desktop-app. Ga daar verder om de native browser ervan te gebruiken.",
+    "youControl": "Jij bestuurt",
+    "agentControls": "Agent bestuurt",
+    "otherViewerControls": "Andere kijker bestuurt",
+    "viewOnly": "Alleen kijken",
+    "takingOverShort": "Overnemen…"
   },
   "remoteAgents": {
     "optionalSettings": "Authenticatie en handle (optioneel)",

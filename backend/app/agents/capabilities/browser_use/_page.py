@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 import anyio
-from pydantic import BaseModel, Field, JsonValue, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, ValidationError
 
 if TYPE_CHECKING:
     from cdp_use import CDPClient
@@ -697,6 +697,14 @@ class _History(BaseModel):
     entries: list[_HistoryEntry]
 
 
+class _Viewport(BaseModel):
+    model_config = ConfigDict(strict=True, extra="forbid")
+
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    scale: float = Field(gt=0, allow_inf_nan=False)
+
+
 class CdpPage:
     """A page driven over CDP, implementing the loop's `PageSession`.
 
@@ -721,8 +729,23 @@ class CdpPage:
         # a watching window's `resize` changes.
         self._width = policy.preview_width
         self._height = round(policy.preview_width * _VIEWPORT_RATIO)
-        self._scale = 1
+        self._scale: float = 1
         self._streaming = False
+
+    async def _read_viewport(self) -> None:
+        # Observers adopt the physical target's scale rather than resetting an
+        # agent's or another holder's responsive layout when they attach.
+        try:
+            observed = TypeAdapter(dict[str, JsonValue]).validate_python(
+                await self._evaluate(
+                    "({width:innerWidth,height:innerHeight,scale:devicePixelRatio})"
+                ),
+                strict=True,
+            )
+            viewport = _Viewport.model_validate(observed.get("value"))
+        except ValidationError as exc:
+            raise EndpointError("The browser returned invalid viewport dimensions.") from exc
+        self._width, self._height, self._scale = viewport.width, viewport.height, viewport.scale
 
     async def _evaluate(  # pragma: no cover - needs a live browser
         self, expression: str, *, await_promise: bool = False
@@ -1556,20 +1579,21 @@ async def open_page(  # pragma: no cover - needs a live browser
             # Look like the browser a person runs: no `Headless` in the user agent of
             # a headless shell, and no `SwiftShader` in the WebGL renderer of one
             # drawing in software.
-            locale = route.locale if route else None
-            override = user_agent_override(await client.send.Browser.getVersion(), locale)
-            if override is not None:
-                await client.send.Emulation.setUserAgentOverride(
-                    params=override, session_id=session
-                )
-            if locale is not None:
-                await client.send.Emulation.setLocaleOverride(
-                    params={"locale": locale.replace("-", "_")}, session_id=session
-                )
-            if route is not None and route.timezone is not None:
-                await client.send.Emulation.setTimezoneOverride(
-                    params={"timezoneId": route.timezone}, session_id=session
-                )
+            if retained is None:
+                locale = route.locale if route else None
+                override = user_agent_override(await client.send.Browser.getVersion(), locale)
+                if override is not None:
+                    await client.send.Emulation.setUserAgentOverride(
+                        params=override, session_id=session
+                    )
+                if locale is not None:
+                    await client.send.Emulation.setLocaleOverride(
+                        params={"locale": locale.replace("-", "_")}, session_id=session
+                    )
+                if route is not None and route.timezone is not None:
+                    await client.send.Emulation.setTimezoneOverride(
+                        params={"timezoneId": route.timezone}, session_id=session
+                    )
             await _intercept(client, session, route, policy.allowed_domains)
             await client.send.Page.addScriptToEvaluateOnNewDocument(
                 params={"source": _STEALTH_JS}, session_id=session
@@ -1583,21 +1607,18 @@ async def open_page(  # pragma: no cover - needs a live browser
             await client.send.Page.addScriptToEvaluateOnNewDocument(
                 params={"source": _SAME_TAB_JS}, session_id=session
             )
-            # The viewport, before anything is loaded. A headless Chromium defaults to
-            # 800x600, which decides more than how the pictures look: the element
-            # table holds what is *on screen*, so a short viewport hides a search box
-            # below the fold and the loop spends a step scrolling to what a person
-            # would have seen without moving. `preview_width` sets both, so the frame
-            # a person watches is the page the model was shown.
-            await client.send.Emulation.setDeviceMetricsOverride(
-                params={
-                    "width": policy.preview_width,
-                    "height": round(policy.preview_width * _VIEWPORT_RATIO),
-                    "deviceScaleFactor": 1,
-                    "mobile": False,
-                },
-                session_id=session,
-            )
+            # Initial layout belongs only to a newly created target. Attaching
+            # an observer must not resize a page outside its physical driver lease.
+            if retained is None:
+                await client.send.Emulation.setDeviceMetricsOverride(
+                    params={
+                        "width": policy.preview_width,
+                        "height": round(policy.preview_width * _VIEWPORT_RATIO),
+                        "deviceScaleFactor": 1,
+                        "mobile": False,
+                    },
+                    session_id=session,
+                )
             if retained is None:
                 cookies = [cookie for sign_in in sign_ins for cookie in sign_in.cookies]
                 if cookies:
@@ -1614,6 +1635,8 @@ async def open_page(  # pragma: no cover - needs a live browser
                 replace(policy, allow_blank=retained is not None or keep is not None),
                 context_id=context_id or "",
             )
+            if retained is not None:
+                await page._read_viewport()
             if retained is None and start_url is not None:
                 await page.navigate(start_url)
             if keep is not None:

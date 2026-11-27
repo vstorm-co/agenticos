@@ -14863,7 +14863,12 @@
     "nativeTake": "Prendre la main",
     "nativeCloseTab": "Fermer l’onglet",
     "nativeViewport": "Page du navigateur natif",
-    "nativeDesktopOnly": "Cet onglet est ouvert dans l’application de bureau associée. Continuez là-bas pour utiliser son navigateur natif."
+    "nativeDesktopOnly": "Cet onglet est ouvert dans l’application de bureau associée. Continuez là-bas pour utiliser son navigateur natif.",
+    "youControl": "Vous contrôlez",
+    "agentControls": "L’agent contrôle",
+    "otherViewerControls": "Un autre utilisateur contrôle",
+    "viewOnly": "Lecture seule",
+    "takingOverShort": "Prise de contrôle…"
   },
   "remoteAgents": {
     "optionalSettings": "Authentification et handle (facultatif)",

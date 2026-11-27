@@ -15,6 +15,8 @@ import {
 import { CHAT_PANEL_INITIAL_WIDTH } from "./chat-panel-resize";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
+import { useChatPanelStore } from "@/stores/chat-panel-store";
+import { useMainChat } from "./main-chat-context";
 
 export type WorkspacePanel = "visuals" | "browser" | "desktop" | "files";
 export type WorkspaceEnvironment = "browser" | "desktop";
@@ -57,6 +59,7 @@ export function ChatWorkspaceProvider({
   environmentPanels?: readonly WorkspaceEnvironment[];
 }) {
   const id = useId();
+  const mainChat = useMainChat();
   const opener = useRef<HTMLElement | null>(null);
   const rememberOpener = useCallback((from?: HTMLElement | null) => {
     const focused = from ?? document.activeElement;
@@ -94,6 +97,11 @@ export function ChatWorkspaceProvider({
   const [activePanel, setActivePanel] = useState<WorkspacePanel | null>(
     browserId ? "browser" : null,
   );
+  useLayoutEffect(() => {
+    if (!shared || !mainChat) return;
+    useChatPanelStore.getState().setBrowserOpen(activePanel === "browser");
+    return () => useChatPanelStore.getState().setBrowserOpen(false);
+  }, [activePanel, shared, mainChat]);
   const [fullscreen, setFullscreen] = useState(false);
   const close = useCallback(() => {
     setActivePanel(null);

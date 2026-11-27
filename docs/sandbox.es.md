@@ -1,5 +1,5 @@
 ---
-source_sha: "24de58a4846a"
+source_sha: "02102d3462c1"
 ---
 
 # La sandbox { #the-sandbox }
@@ -876,6 +876,8 @@ Las concesiones físicas serializan entradas manuales y del agente, incluidas vi
 Los contextos del navegador se aíslan por propietario y conversación. El escritorio sigue el alcance configurado del workspace o proyecto: un executor con alcance de agente o compartido tiene una interfaz física común. La concesión serializa el control; no convierte ese escritorio compartido en privado. El menú exclusivo del propietario protege el acceso a la vista del chat, no el contenido de pantalla de un executor compartido deliberadamente.
 
 Tomar el control, introducir datos manualmente y devolver el control cuentan como actividad. Los frames pasivos y los heartbeats del control humano no amplían la inactividad; un controlador agente activo protege el trabajo en curso. La navegación heredada por run sin destino preparado manualmente conserva su navegador por turno y los checkpoints de URL/cookies. Un destino por run preparado manualmente mantiene en cambio su DOM vivo exacto hasta que termina un run que lo utiliza.
+
+Un observador autorizado del navegador adapta una página inactiva al ancho, alto y densidad de píxeles reales del panel. Un arrendamiento físico exclusivo y breve protege cada ajuste, sin conceder entrada humana ni ampliar la inactividad. Mientras controla un agente u otro observador, el ajuste espera un estado inactivo confirmado; la imagen conserva sus proporciones. Las pantallas físicas de escritorio no cambian de tamaño. La barra identifica quién controla y muestra botones con texto para tomar y devolver el control.
 
 Un escritorio de sandbox conservado requiere un ejecutor en contenedor con ámbito de conversación, usuario, agente o proyecto. Los escritorios existentes con duración por ejecución que usan ejecutores efímeros run/channel conservan su fábrica original por ejecución y no pueden abrirse manualmente entre ejecuciones. End y el vencimiento por inactividad cierran la vista propia y la sesión de control; no destruyen un daemon compartido ni el contenedor del espacio de trabajo, cuyo ciclo de vida depende de su propia configuración. Los contextos de navegador propios y los escritorios E2B separados se eliminan.
 

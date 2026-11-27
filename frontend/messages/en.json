@@ -15254,7 +15254,12 @@
     "nativeTake": "Take over",
     "nativeCloseTab": "Close tab",
     "nativeViewport": "Native browser page",
-    "nativeDesktopOnly": "This tab is open in the paired desktop app. Continue there to use its native browser."
+    "nativeDesktopOnly": "This tab is open in the paired desktop app. Continue there to use its native browser.",
+    "youControl": "You control",
+    "agentControls": "Agent controls",
+    "otherViewerControls": "Another viewer controls",
+    "viewOnly": "View only",
+    "takingOverShort": "Taking over…"
   },
   "remoteAgents": {
     "optionalSettings": "Authentication and handle (optional)",

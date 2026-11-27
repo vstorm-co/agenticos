@@ -14,7 +14,7 @@ interface FrameProps {
   children: (layout: { fullscreen: boolean; toggleFullscreen: () => void }) => ReactNode;
 }
 
-/** Dock in the available chat width; narrow chats and explicit expansion use the full screen. */
+/** Dock in wide chats, retain console navigation on desktop, and fill the screen on phones. */
 export function ChatWorkspaceFrame(props: FrameProps) {
   return (
     <ChatWorkspaceBoundary>
@@ -66,6 +66,7 @@ function Frame({
       className={cn(
         "bg-background inset-0 z-50 flex min-h-0 min-w-0 flex-col",
         contained ? "absolute" : "fixed",
+        !fullscreen && !contained && workspace.shared && kind === "browser" && "md:absolute",
         !fullscreen &&
           !contained &&
           "@min-[1000px]/browser-layout:relative @min-[1000px]/browser-layout:inset-auto @min-[1000px]/browser-layout:z-20 @min-[1000px]/browser-layout:h-full @min-[1000px]/browser-layout:w-(--browser-panel-width) @min-[1000px]/browser-layout:shrink-0 @min-[1000px]/browser-layout:border-l",
