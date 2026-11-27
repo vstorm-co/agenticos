@@ -13,6 +13,7 @@ import {
   MessageSquarePlus,
   Minimize2,
   MoreHorizontal,
+  Monitor,
   Undo2,
   X,
 } from "lucide-react";
@@ -281,6 +282,7 @@ function useFitted(image: string | null, asked: number | null, waiting: boolean)
  */
 export function BrowserWindow({
   browse,
+  surface = "browser",
   control,
   onClose,
   maximized,
@@ -291,6 +293,7 @@ export function BrowserWindow({
   onComment,
 }: {
   browse: Browse;
+  surface?: "browser" | "desktop";
   control: BrowseControl | null;
   onClose?: () => void;
   maximized?: boolean;
@@ -305,6 +308,7 @@ export function BrowserWindow({
 }) {
   const t = useTranslations("chat");
   const tb = useTranslations("browse");
+  const heading = surface === "desktop" ? t("environmentView.desktopTitle") : t("browserHeading");
   const [showSteps, setShowSteps] = useState(false);
   const [remember, setRemember] = useState(false);
   const [commenting, setCommenting] = useState(false);
@@ -321,7 +325,7 @@ export function BrowserWindow({
 
   return (
     <section
-      aria-label={t("browserHeading")}
+      aria-label={heading}
       className="bg-background @container/browser-window flex h-full min-h-0 min-w-0 flex-col"
     >
       <div className="bg-muted/25 border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b p-1.5 @min-[640px]/browser-window:flex-nowrap">
@@ -338,12 +342,14 @@ export function BrowserWindow({
               className="bg-muted/80 flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-3 text-xs"
               title={browse.url ?? undefined}
             >
-              {secure ? (
+              {surface === "desktop" ? (
+                <Monitor className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+              ) : secure ? (
                 <Lock className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
               ) : (
                 <Globe className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
               )}
-              <h2 className="sr-only">{browse.title || host || t("browserHeading")}</h2>
+              <h2 className="sr-only">{browse.title || host || heading}</h2>
               <span className="min-w-0 flex-1 truncate">
                 {host ? (
                   <>
@@ -351,7 +357,9 @@ export function BrowserWindow({
                     <span className="text-muted-foreground">{pathOf(browse.url ?? "")}</span>
                   </>
                 ) : (
-                  <span className="text-muted-foreground">{t("browserStarting")}</span>
+                  <span className="text-muted-foreground">
+                    {surface === "desktop" ? browse.title || heading : t("browserStarting")}
+                  </span>
                 )}
               </span>
               {running && (
@@ -448,7 +456,7 @@ export function BrowserWindow({
       </div>
 
       {browse.navigable && canDrive && (
-        <h2 className="sr-only">{browse.title || host || t("browserHeading")}</h2>
+        <h2 className="sr-only">{browse.title || host || heading}</h2>
       )}
       {browse.controlError && (
         <p role="alert" className="text-destructive border-b px-3 py-2 text-sm">

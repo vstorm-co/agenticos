@@ -15,6 +15,16 @@ export const qk = {
     current: (org: string | null) => ["currencies", org, "current"] as const,
     organization: (org: string) => ["currencies", org, "settings"] as const,
   },
+  conversationEnvironments: {
+    context: (
+      owner: string | null,
+      actor: string | null,
+      org: string | null,
+      conversation: string | null,
+      agent: string | null,
+      target: "agent" | "project" = "agent",
+    ) => ["conversation-environments", owner, actor, org, conversation, agent, target] as const,
+  },
   portability: {
     exportPreview: (
       org: string | null,

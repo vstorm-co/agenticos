@@ -2358,7 +2358,9 @@
       "expand": "Expand workspace",
       "dock": "Dock workspace",
       "allFiles": "Back to all files",
-      "close": "Close workspace"
+      "close": "Close workspace",
+      "desktop": "Desktop",
+      "open": "Open workspace"
     },
     "visuals": {
       "drawing": "Drawing…",
@@ -2803,7 +2805,66 @@
     "routineContinueChat": "Continue in a new chat",
     "approvalOthersWait": "Your answer covers only your own platform calls. The others wait for somebody who can decide approvals.",
     "approvalNeedsItsPerson": "Only the person this run acts for can approve this. You can reject it.",
-    "approvalNeedsItsAdminPerson": "Only the person this run acts for, signed in as an application administrator, can approve this. You can reject it."
+    "approvalNeedsItsAdminPerson": "Only the person this run acts for, signed in as an application administrator, can approve this. You can reject it.",
+    "environmentView": {
+      "agentDriving": "The agent is using this environment. Wait for control to become available.",
+      "humanDriving": "A person is controlling this environment.",
+      "canTakeOver": "You are watching. Take control to interact.",
+      "watchOnly": "Viewing only.",
+      "refresh": "Check availability",
+      "end": "End environment",
+      "start": "Open environment",
+      "startNew": "Open new environment",
+      "retry": "Reconnect view",
+      "confirmTitle": "End this environment?",
+      "confirmDescription": "Closing the panel keeps this environment available. Ending it releases its session; unsaved page state may be lost.",
+      "failure": {
+        "start": "Could not open the environment. Check availability and try again.",
+        "end": "Could not end the environment. It may still be running.",
+        "state": "Could not update readiness. Check availability before continuing."
+      },
+      "phase": {
+        "expired": {
+          "title": "Environment ended",
+          "description": "Open a new environment to continue."
+        },
+        "failed": {
+          "title": "Environment unavailable",
+          "description": "Check availability or explicitly try opening it again."
+        },
+        "notStarted": {
+          "title": "Environment not started",
+          "description": "Open this environment when you need it. No agent run is started."
+        },
+        "starting": {
+          "title": "Preparing environment",
+          "description": "You can leave this panel and return when it is ready."
+        },
+        "forbidden": {
+          "title": "Access unavailable",
+          "description": "Your access changed. Check availability to get the current permissions."
+        },
+        "malformed": {
+          "title": "Live view could not be verified",
+          "description": "The stream was stopped. Reconnect to request a fresh live view."
+        },
+        "disconnected": {
+          "title": "Live view disconnected",
+          "description": "Reconnect to keep watching the same environment."
+        },
+        "connecting": {
+          "title": "Connecting live view",
+          "description": "Waiting for the environment’s current screen."
+        }
+      },
+      "browserTitle": "Browser",
+      "desktopTitle": "Desktop",
+      "loadFailed": "Could not load the environment. Try again.",
+      "loading": "Loading environment…",
+      "runLifetime": "This environment closes after the next agent run.",
+      "idleMinutes": "Retained for up to {minutes, plural, one {# minute} other {# minutes}} of inactivity.",
+      "idleSeconds": "Retained for up to {seconds, plural, one {# second} other {# seconds}} of inactivity."
+    }
   },
   "approvalFeedback": {
     "savedApproval": "Already approved: {action}",
@@ -6570,6 +6631,10 @@
       "skills-import": {
         "title": "Import package",
         "body": "Choose a skill folder or ZIP with SKILL.md. Files and frontmatter are preserved. Import never runs scripts, tests or dependency installation."
+      },
+      "chat-environments": {
+        "title": "Open a live environment",
+        "body": "Open Browser or Desktop from the workspace menu, then choose Open environment. You can use it before asking the agent. Closing the panel keeps the session; End environment releases it."
       }
     },
     "chooseLanguage": "Language",
@@ -11750,6 +11815,14 @@
           "description": "Start a separate E2B desktop for this run. Select the organization's E2B key below; no Sandbox connection is needed.",
           "summary": "An isolated desktop hosted by E2B."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "This run"
+        },
+        "conversation": {
+          "label": "This conversation"
+        }
       }
     },
     "browser_use": {
@@ -11773,6 +11846,14 @@
           "label": "This computer (desktop app)",
           "summary": "A private browser on your paired computer.",
           "description": "Requires a paired desktop app and Local browser selected in this chat. Your personal browser session is not shared."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "This run"
+        },
+        "conversation": {
+          "label": "This conversation"
         }
       }
     },
@@ -14459,6 +14540,14 @@
       "prefer_native_browser": {
         "title": "Use the native local browser",
         "description": "Use an embedded native tab for local DOM browsing. Disable for isolated Chromium compatibility. Vision and language/time-zone overrides use Chromium."
+      },
+      "session_lifetime": {
+        "title": "Session lifetime",
+        "description": "In private web chat, close after each run or keep the same live environment between turns. Other surfaces keep their existing lifetime."
+      },
+      "session_idle_seconds": {
+        "title": "Idle timeout (seconds)",
+        "description": "End a retained web-chat environment after this much inactivity, capped by deployment policy. Closing the panel does not end it."
       }
     },
     "channel_tools": {
@@ -14989,6 +15078,14 @@
       "preview": {
         "title": "Live preview",
         "description": "Show the desktop live in the chat while the agent works it."
+      },
+      "session_lifetime": {
+        "title": "Session lifetime",
+        "description": "In private web chat, close after each run or keep the same live environment between turns. Other surfaces keep their existing lifetime."
+      },
+      "session_idle_seconds": {
+        "title": "Idle timeout (seconds)",
+        "description": "End a retained web-chat environment after this much inactivity, capped by deployment policy. Closing the panel does not end it."
       }
     },
     "phone_calls": {

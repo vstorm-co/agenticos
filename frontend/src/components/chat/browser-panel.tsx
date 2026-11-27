@@ -77,7 +77,9 @@ function OpenBrowser({
   const t = useTranslations("browse");
   const chat = useTranslations("chat");
   const running = isRunning(streamed);
-  const visible = !workspace?.shared || workspace.activePanel === "browser";
+  const visible =
+    !workspace?.shared ||
+    (workspace.activePanel === "browser" && workspace.environment !== "browser");
   const live = useLiveBrowse(
     streamed.runId ?? "",
     streamed.callId,

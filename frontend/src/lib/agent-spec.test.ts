@@ -24,6 +24,7 @@ import {
   withVisuals,
   CHARTS_ID,
   VISUALS_ID,
+  unboundBinding,
 } from "./agent-spec";
 import type { AgentSpec, AgentVersion, CapabilityBindingSpec } from "@/types/agents";
 
@@ -533,7 +534,19 @@ describe("withVisuals", () => {
 });
 
 it("starts newly enabled computer use on an explicit sandbox without rewriting existing routing", () => {
-  expect(withCapability([], "computer_use", true)[0]?.config).toEqual({ desktop: "sandbox" });
+  expect(withCapability([], "computer_use", true)[0]?.config).toEqual({
+    desktop: "sandbox",
+    session_lifetime: "conversation",
+    session_idle_seconds: 900,
+  });
   const legacy = { ...binding("computer_use"), config: { desktop: "auto" } };
   expect(withCapability([legacy], "computer_use", true)).toEqual([legacy]);
+});
+
+it("shows and saves the same retention default for a newly granted browser", () => {
+  const expected = { session_lifetime: "conversation", session_idle_seconds: 900 };
+  expect(unboundBinding("browser_use").config).toEqual(expected);
+  expect(withCapability([], "browser_use", true)[0]?.config).toEqual(expected);
+  const legacy = binding("browser_use");
+  expect(withCapability([legacy], "browser_use", true)).toEqual([legacy]);
 });

@@ -16,14 +16,19 @@ import { CHAT_PANEL_INITIAL_WIDTH } from "./chat-panel-resize";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 
-export type WorkspacePanel = "visuals" | "browser" | "files";
+export type WorkspacePanel = "visuals" | "browser" | "desktop" | "files";
+export type WorkspaceEnvironment = "browser" | "desktop";
+const NO_ENVIRONMENTS: readonly WorkspaceEnvironment[] = [];
 type Selection = { id: string } | null;
 
 interface Workspace {
   id: string;
   shared: boolean;
   activePanel: WorkspacePanel | null;
-  openPanel: (panel: WorkspacePanel) => void;
+  environment: WorkspaceEnvironment | null;
+  environmentPanels: readonly WorkspaceEnvironment[];
+  openEnvironment: (kind: WorkspaceEnvironment, from?: HTMLElement | null) => void;
+  openPanel: (panel: WorkspacePanel, from?: HTMLElement | null) => void;
   close: () => void;
   browserId: string | null;
   fullscreen: boolean;
@@ -44,15 +49,17 @@ export function ChatWorkspaceProvider({
   children,
   conversationId = null,
   shared = false,
+  environmentPanels = NO_ENVIRONMENTS,
 }: {
   children: ReactNode;
   conversationId?: string | null;
   shared?: boolean;
+  environmentPanels?: readonly WorkspaceEnvironment[];
 }) {
   const id = useId();
   const opener = useRef<HTMLElement | null>(null);
-  const rememberOpener = useCallback(() => {
-    const focused = document.activeElement;
+  const rememberOpener = useCallback((from?: HTMLElement | null) => {
+    const focused = from ?? document.activeElement;
     if (
       focused instanceof HTMLElement &&
       !focused.closest(
@@ -62,6 +69,7 @@ export function ChatWorkspaceProvider({
       opener.current = focused;
   }, []);
   const [selection, setSelection] = useState<Selection>(null);
+  const [environment, setEnvironment] = useState<WorkspaceEnvironment | null>(null);
   const browserId = useBrowserPanelStore((state) => state.openCallId);
   const browserRequest = useBrowserPanelStore((state) => state.openRequest);
   const automaticBrowser = useBrowserPanelStore((state) => state.automatic);
@@ -93,12 +101,24 @@ export function ChatWorkspaceProvider({
     });
   }, []);
   const openPanel = useCallback(
-    (panel: WorkspacePanel) => {
-      rememberOpener();
+    (panel: WorkspacePanel, from?: HTMLElement | null) => {
+      rememberOpener(from);
       closeSources();
       setActivePanel(panel);
+      if ((panel === "browser" || panel === "desktop") && environmentPanels.includes(panel))
+        setEnvironment(panel);
+      else if (panel === "browser") setEnvironment(null);
     },
-    [closeSources, rememberOpener],
+    [closeSources, rememberOpener, environmentPanels],
+  );
+  const openEnvironment = useCallback(
+    (kind: WorkspaceEnvironment, from?: HTMLElement | null) => {
+      rememberOpener(from);
+      closeSources();
+      setEnvironment(kind);
+      setActivePanel(kind);
+    },
+    [rememberOpener, closeSources],
   );
   const showVisual = useCallback(
     (id: string, expanded: boolean) => {
@@ -122,8 +142,10 @@ export function ChatWorkspaceProvider({
     setPreviousBrowserRequest(browserRequest);
     if (browserId !== null && (!automaticBrowser || (activePanel === null && !sourcesOpen)))
       setActivePanel("browser");
+    if (!automaticBrowser) setEnvironment(null);
   }
-  if (activePanel === "browser" && browserId === null) setActivePanel(null);
+  if (activePanel === "browser" && browserId === null && environment !== "browser")
+    setActivePanel(null);
   if (activePanel === "visuals" && selection === null) setActivePanel(null);
   if (previousSources !== sourcesOpen) {
     setPreviousSources(sourcesOpen);
@@ -133,6 +155,7 @@ export function ChatWorkspaceProvider({
     setPreviousConversation(conversationId);
     if (previousConversation !== null) {
       setSelection(null);
+      setEnvironment(null);
       setActivePanel(null);
       setFullscreen(false);
     }
@@ -146,6 +169,9 @@ export function ChatWorkspaceProvider({
         id,
         shared,
         activePanel,
+        environment,
+        environmentPanels,
+        openEnvironment,
         openPanel,
         close,
         browserId,

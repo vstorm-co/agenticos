@@ -45,6 +45,11 @@ import { BrowserPanelAutoOpen, LiveBrowsesProvider } from "./browser-card";
 import { ConversationVisualsProvider } from "./visual-panel";
 import { ChatWorkspaceProvider, VisualWorkspaceSlot } from "./chat-workspace-context";
 import { BrowserPanel } from "./browser-panel";
+import { ConversationEnvironments } from "./conversation-environments";
+import { useEnvironmentConversation } from "@/hooks/use-environment-conversation";
+import { useWorkOnStore } from "@/stores/work-on-store";
+import type { WorkspaceEnvironment } from "./chat-workspace-context";
+import type { EnvironmentExecutionTarget } from "@/lib/conversation-environments-api";
 import { SourcesPanel } from "./sources-panel";
 import { MessageList, coalesceActivity } from "./message-list";
 import { TurnRail } from "./turn-rail";
@@ -251,6 +256,18 @@ export function ChatContainer({
     forkConversation,
   } = useConversations();
   const prevConversationIdRef = useRef<string | null | undefined>(undefined);
+  const mainChat = useMainChat();
+  const environmentConversation = useEnvironmentConversation(createConversation);
+  const pendingProjectId = useConversationStore((state) => state.pendingProjectId);
+  const localBrowser = useWorkOnStore((state) => state.browserFor(currentConversationId));
+  const localDesktop = useWorkOnStore((state) => state.computerFor(currentConversationId));
+  const environmentPanels = useMemo<readonly WorkspaceEnvironment[]>(
+    () => [
+      ...(agentCapabilities?.includes("browser_use") && !localBrowser ? ["browser" as const] : []),
+      ...(agentCapabilities?.includes("computer_use") && !localDesktop ? ["desktop" as const] : []),
+    ],
+    [agentCapabilities, localBrowser, localDesktop],
+  );
 
   // Read access for non-owned threads even when channel participation lists them.
   const listed = conversations.find((conversation) => conversation.id === currentConversationId);
@@ -259,6 +276,10 @@ export function ChatContainer({
   // Naming the first turn is not opening an unknown thread: the socket has
   // just confirmed creation, before its row reaches the sidebar's query.
   const newlyCreated = notListed && createdConversationId === currentConversationId;
+  const executionTarget = useWorkOnStore(
+    (state) =>
+      state.executionFor(currentConversationId, listed?.project_id ?? pendingProjectId) ?? "agent",
+  );
   const needsAccess =
     currentConversationId !== null && !newlyCreated && (notListed || listed?.user_id !== meId);
   const access = useConversationAccess(currentConversationId, needsAccess);
@@ -862,6 +883,22 @@ export function ChatContainer({
         lastUsage={lastUsage ?? latestUsage(currentMessages, currentConversationId)}
         contextWindow={contextWindow}
         agentCapabilities={agentCapabilities}
+        environmentControls={
+          mainChat &&
+          !testing &&
+          !readOnly &&
+          selectedAgent?.can_run &&
+          environmentPanels.length > 0 &&
+          (currentConversationId === null || newlyCreated || listed?.user_id === meId)
+            ? {
+                agentId: selectedAgent.id,
+                panels: environmentPanels,
+                target: executionTarget,
+                prepare: environmentConversation.prepare,
+                preparing: environmentConversation.preparing,
+              }
+            : undefined
+        }
         agentModel={agentModel}
         // Only for the thread that is actually open. The store keeps the transcript
         // it last loaded, so between clicking another conversation and its messages
@@ -945,7 +982,16 @@ export function ChatContainer({
   );
 }
 
+interface EnvironmentControls {
+  agentId: string;
+  panels: readonly WorkspaceEnvironment[];
+  target: EnvironmentExecutionTarget;
+  prepare: () => Promise<string | null>;
+  preparing: boolean;
+}
+
 interface ChatUIProps {
+  environmentControls?: EnvironmentControls;
   composerDraft?: ComposerDraft;
   hasEarlierMessages: boolean;
   isLoadingEarlier: boolean;
@@ -1079,13 +1125,18 @@ interface ChatUIProps {
 
 function ChatUI(props: ChatUIProps) {
   return (
-    <ChatWorkspaceProvider shared conversationId={props.conversationId}>
+    <ChatWorkspaceProvider
+      shared
+      conversationId={props.conversationId}
+      environmentPanels={props.environmentControls?.panels}
+    >
       <ChatUIContent {...props} />
     </ChatWorkspaceProvider>
   );
 }
 
 function ChatUIContent({
+  environmentControls,
   hasEarlierMessages,
   isLoadingEarlier,
   loadEarlierMessages,
@@ -1880,6 +1931,7 @@ function ChatUIContent({
                               hints={messages.length === 0 && homeOptions.feature_hints}
                               disabled={
                                 isStopping ||
+                                environmentControls?.preparing ||
                                 isLoadingConversation ||
                                 (!isConnected && !keepsOutbox) ||
                                 readOnly ||
@@ -2020,7 +2072,7 @@ function ChatUIContent({
                                           <UsageMeter
                                             key={`${conversationId ?? "new"}:${messages.length === 0}`}
                                             iconOnly={mainChat}
-                                            beforeFirstMessage={mainChat && messages.length === 0}
+                                            beforeFirstMessage={mainChat && conversationId === null}
                                             usage={lastUsage}
                                             workspace={workspace}
                                             total={conversationCost}
@@ -2071,13 +2123,25 @@ function ChatUIContent({
           onResume={() => sendMessage(t("browserResumePrompt"))}
         />
         <WorkspaceFiles
-          beforeFirstMessage={mainChat && messages.length === 0}
+          beforeFirstMessage={mainChat && conversationId === null}
           overlay={compact}
           conversationId={conversationId}
           revision={turns}
           attachments={attachments}
-          buttonSlot={filesSlot}
+          buttonSlot={environmentControls ? null : filesSlot}
         />
+        {environmentControls && (
+          <ConversationEnvironments
+            key={`${conversationId}:${environmentControls.agentId}:${environmentControls.target}`}
+            conversationId={conversationId}
+            agentId={environmentControls.agentId}
+            panels={environmentControls.panels}
+            target={environmentControls.target}
+            buttonSlot={filesSlot}
+            prepareConversation={environmentControls.prepare}
+            preparing={environmentControls.preparing}
+          />
+        )}
         <VisualWorkspaceSlot />
       </div>
       {/* Docked panels must be direct children of the chat row: both the percentage

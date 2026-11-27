@@ -8,7 +8,8 @@ import { ChatWorkspaceBoundary, useRequiredChatWorkspace } from "./chat-workspac
 import { ChatWorkspaceTabs } from "./chat-workspace-tabs";
 
 interface FrameProps {
-  panel?: "browser" | "files";
+  panel?: "browser" | "desktop" | "files";
+  environment?: boolean;
   contained?: boolean;
   children: (layout: { fullscreen: boolean; toggleFullscreen: () => void }) => ReactNode;
 }
@@ -22,14 +23,24 @@ export function ChatWorkspaceFrame(props: FrameProps) {
   );
 }
 
-function Frame({ children, panel: kind = "browser", contained = false }: FrameProps) {
+function Frame({
+  children,
+  panel: kind = "browser",
+  contained = false,
+  environment = false,
+}: FrameProps) {
   const t = useTranslations("chat");
   const ownId = useId();
   const panel = useRef<HTMLElement>(null);
   const workspace = useRequiredChatWorkspace();
   const { width, setWidth, fullscreen, setFullscreen } = workspace;
-  const visible = !workspace.shared || workspace.activePanel === kind;
-  const id = workspace.shared ? `${workspace.id}-panel-${kind}` : ownId;
+  const selected =
+    kind !== "browser" ||
+    (environment ? workspace.environment === "browser" : workspace.environment !== "browser");
+  const visible = !workspace.shared || (workspace.activePanel === kind && selected);
+  const id = workspace.shared
+    ? `${workspace.id}-panel-${kind}${kind === "browser" && !visible ? (environment ? "-environment-hidden" : "-activity-hidden") : ""}`
+    : ownId;
   const style: CSSProperties & { "--browser-panel-width": string } = {
     "--browser-panel-width": `${width}%`,
     display: visible ? undefined : "none",
@@ -39,12 +50,18 @@ function Frame({ children, panel: kind = "browser", contained = false }: FramePr
       ref={panel}
       id={id}
       role={workspace.shared ? "tabpanel" : undefined}
-      aria-label={t(kind === "browser" ? "browserHeading" : "files.title")}
+      aria-label={t(
+        kind === "browser"
+          ? "browserHeading"
+          : kind === "desktop"
+            ? "environmentView.desktopTitle"
+            : "files.title",
+      )}
       aria-labelledby={workspace.shared ? `${workspace.id}-tab-${kind}` : undefined}
       inert={!visible}
       data-browser-panel={kind === "browser" ? (fullscreen ? "fullscreen" : "docked") : undefined}
       data-workspace-panel={kind}
-      data-native-browser-blocked={kind === "files" && visible ? "" : undefined}
+      data-native-browser-blocked={kind !== "browser" && visible ? "" : undefined}
       style={style}
       className={cn(
         "bg-background inset-0 z-50 flex min-h-0 min-w-0 flex-col",
@@ -64,7 +81,7 @@ function Frame({ children, panel: kind = "browser", contained = false }: FramePr
           className="hover:bg-foreground/10 focus-visible:bg-foreground/10 absolute inset-y-0 left-0 z-30 hidden w-3 -translate-x-1/2 cursor-col-resize touch-none bg-transparent focus-visible:outline-none @min-[1000px]/browser-layout:block"
         />
       )}
-      <ChatWorkspaceTabs panel={kind} canExpand={!contained} />
+      {visible && <ChatWorkspaceTabs panel={kind} canExpand={!contained} />}
       {children({ fullscreen, toggleFullscreen: () => setFullscreen(!fullscreen) })}
     </aside>
   );

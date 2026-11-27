@@ -19,6 +19,8 @@ export {
   useRevertCodingChanges,
 } from "./use-coding-changes";
 export { useConversationWorkspace } from "./use-conversation-workspace";
+export { useConversationEnvironments } from "./use-conversation-environments";
+export { useEnvironmentConversation } from "./use-environment-conversation";
 export { useConversationSearch, useConversations } from "./use-conversations";
 export { useWaitingChatQuestions } from "./use-waiting-chat-questions";
 export { useConversationShares } from "./use-conversation-shares";

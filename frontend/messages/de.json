@@ -2358,7 +2358,9 @@
       "expand": "Arbeitsbereich vergrößern",
       "dock": "Arbeitsbereich andocken",
       "allFiles": "Zurück zu allen Dateien",
-      "close": "Workspace schließen"
+      "close": "Workspace schließen",
+      "desktop": "Desktop",
+      "open": "Workspace öffnen"
     },
     "visuals": {
       "drawing": "Zeichnet…",
@@ -2803,7 +2805,66 @@
     "routineContinueChat": "In neuem Chat fortfahren",
     "approvalOthersWait": "Ihre Antwort gilt nur für Ihre eigenen Plattformaufrufe. Die anderen warten auf jemanden, der über Freigaben entscheiden darf.",
     "approvalNeedsItsPerson": "Freigeben kann das nur die Person, für die dieser Run handelt. Sie können es ablehnen.",
-    "approvalNeedsItsAdminPerson": "Nur die Person, für die dieser Run handelt, angemeldet als Anwendungsadministrator, kann dies freigeben. Du kannst es ablehnen."
+    "approvalNeedsItsAdminPerson": "Nur die Person, für die dieser Run handelt, angemeldet als Anwendungsadministrator, kann dies freigeben. Du kannst es ablehnen.",
+    "environmentView": {
+      "agentDriving": "Der Agent verwendet diese Umgebung. Warte, bis die Steuerung verfügbar ist.",
+      "humanDriving": "Eine Person steuert diese Umgebung.",
+      "canTakeOver": "Du schaust zu. Übernimm die Steuerung, um zu interagieren.",
+      "watchOnly": "Nur Ansicht.",
+      "refresh": "Verfügbarkeit prüfen",
+      "end": "Umgebung beenden",
+      "start": "Umgebung öffnen",
+      "startNew": "Neue Umgebung öffnen",
+      "retry": "Ansicht neu verbinden",
+      "confirmTitle": "Diese Umgebung beenden?",
+      "confirmDescription": "Das Schließen des Panels erhält die Umgebung. Beenden gibt die Sitzung frei; nicht gespeicherter Seitenzustand kann verloren gehen.",
+      "failure": {
+        "start": "Die Umgebung konnte nicht geöffnet werden. Prüfe die Verfügbarkeit und versuche es erneut.",
+        "end": "Die Umgebung konnte nicht beendet werden. Sie läuft möglicherweise noch.",
+        "state": "Bereitschaft konnte nicht aktualisiert werden. Prüfe die Verfügbarkeit, bevor du fortfährst."
+      },
+      "phase": {
+        "expired": {
+          "title": "Umgebung beendet",
+          "description": "Öffne eine neue Umgebung, um fortzufahren."
+        },
+        "failed": {
+          "title": "Umgebung nicht verfügbar",
+          "description": "Prüfe die Verfügbarkeit oder versuche ausdrücklich, sie erneut zu öffnen."
+        },
+        "notStarted": {
+          "title": "Umgebung nicht gestartet",
+          "description": "Öffne diese Umgebung bei Bedarf. Es wird kein Agentenlauf gestartet."
+        },
+        "starting": {
+          "title": "Umgebung wird vorbereitet",
+          "description": "Du kannst das Panel verlassen und später zurückkehren."
+        },
+        "forbidden": {
+          "title": "Kein Zugriff",
+          "description": "Dein Zugriff hat sich geändert. Prüfe die Verfügbarkeit für die aktuellen Berechtigungen."
+        },
+        "malformed": {
+          "title": "Live-Ansicht konnte nicht überprüft werden",
+          "description": "Der Stream wurde gestoppt. Verbinde dich für eine neue Live-Ansicht erneut."
+        },
+        "disconnected": {
+          "title": "Live-Ansicht getrennt",
+          "description": "Verbinde dich erneut, um dieselbe Umgebung weiter zu beobachten."
+        },
+        "connecting": {
+          "title": "Live-Ansicht wird verbunden",
+          "description": "Warten auf den aktuellen Bildschirm der Umgebung."
+        }
+      },
+      "browserTitle": "Browser",
+      "desktopTitle": "Desktop",
+      "loadFailed": "Die Umgebung konnte nicht geladen werden. Versuche es erneut.",
+      "loading": "Umgebung wird geladen…",
+      "runLifetime": "Diese Umgebung wird nach dem nächsten Agent-Run geschlossen.",
+      "idleMinutes": "Bei Inaktivität bis zu {minutes, plural, one {# Minute} other {# Minuten}} verfügbar.",
+      "idleSeconds": "Bei Inaktivität bis zu {seconds, plural, one {# Sekunde} other {# Sekunden}} verfügbar."
+    }
   },
   "approvalFeedback": {
     "savedApproval": "Bereits genehmigt: {action}",
@@ -6449,6 +6510,10 @@
       "skills-import": {
         "title": "Paket importieren",
         "body": "Wähle einen Skill-Ordner oder ein ZIP mit SKILL.md. Dateien und Metadaten bleiben erhalten. Der Import führt keine Skripte, Tests oder Installationen aus."
+      },
+      "chat-environments": {
+        "title": "Live-Umgebung öffnen",
+        "body": "Browser oder Desktop im Workspace-Menü auswählen und die Umgebung öffnen. Du kannst sie vor einer Anfrage an den Agent nutzen. Das Schließen des Panels behält die Sitzung; Umgebung beenden gibt sie frei."
       }
     },
     "chooseLanguage": "Sprache",
@@ -11436,6 +11501,14 @@
           "description": "Mit einem Computer verbinden, auf dem computerd läuft. Unten seine genehmigte Adresse und den Zugriffstoken auswählen.",
           "summary": "Dein eigener Computer mit computerd."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Dieser Run"
+        },
+        "conversation": {
+          "label": "Dieses Gespräch"
+        }
       }
     },
     "browser_use": {
@@ -11459,6 +11532,14 @@
           "label": "Dieser Computer (Desktop-App)",
           "summary": "Ein privater Browser auf deinem Computer.",
           "description": "Erfordert eine gekoppelte Desktop-App und die Auswahl des lokalen Browsers in diesem Chat. Deine persönliche Browsersitzung wird nicht geteilt."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Dieser Run"
+        },
+        "conversation": {
+          "label": "Dieses Gespräch"
         }
       }
     },
@@ -14145,6 +14226,14 @@
       "prefer_native_browser": {
         "title": "Nativen lokalen Browser verwenden",
         "description": "Einen eingebetteten nativen Tab für lokales DOM-Browsing verwenden. Für isolierte Chromium-Kompatibilität deaktivieren. Vision sowie Sprach- und Zeitzonenüberschreibungen verwenden Chromium."
+      },
+      "session_lifetime": {
+        "title": "Sitzungsdauer",
+        "description": "Im privaten Webchat nach jedem Run schließen oder dieselbe Live-Umgebung zwischen Nachrichten behalten. Andere Kanäle behalten ihre bisherige Lebensdauer."
+      },
+      "session_idle_seconds": {
+        "title": "Inaktivitätslimit (Sekunden)",
+        "description": "Die beibehaltene Webchat-Umgebung nach dieser Inaktivität beenden, begrenzt durch die Bereitstellungsrichtlinie. Das Schließen des Panels beendet sie nicht."
       }
     },
     "channel_tools": {
@@ -14675,6 +14764,14 @@
       "preview": {
         "title": "Live-Vorschau",
         "description": "Den Desktop live im Chat zeigen, während der Agent damit arbeitet."
+      },
+      "session_lifetime": {
+        "title": "Sitzungsdauer",
+        "description": "Im privaten Webchat nach jedem Run schließen oder dieselbe Live-Umgebung zwischen Nachrichten behalten. Andere Kanäle behalten ihre bisherige Lebensdauer."
+      },
+      "session_idle_seconds": {
+        "title": "Inaktivitätslimit (Sekunden)",
+        "description": "Die beibehaltene Webchat-Umgebung nach dieser Inaktivität beenden, begrenzt durch die Bereitstellungsrichtlinie. Das Schließen des Panels beendet sie nicht."
       }
     },
     "phone_calls": {
@@ -22240,7 +22337,7 @@
     "quoteHint": "Berichtskurs: 1 USD = {rate} {currency}. Er bleibt bis zur Änderung der Währungspräferenz fest; neue Modellkosten verwenden die aktuellen Preiskurse.",
     "spentOfLimit": "Diesen Monat {spent} von {limit} ausgegeben.",
     "spentNoLimit": "Diesen Monat {spent} ausgegeben. Kein Limit.",
-    "amountPositive": "Geben Sie einen Betrag größer als null ein.",
+    "amountPositive": "Geben Sie einen positiven Betrag ein.",
     "amountMaximum": "Geben Sie höchstens {amount} {currency} ein.",
     "switchOrganizationHint": "Wechseln Sie zu dieser Organisation, bevor Sie deren Limits ändern. Berechtigungen, Ausgaben und Berichtskurs müssen zur gleichen Organisation gehören.",
     "switchOrganization": "Zu dieser Organisation wechseln"

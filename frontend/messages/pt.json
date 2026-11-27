@@ -2802,7 +2802,68 @@
       "expand": "Expandir workspace",
       "dock": "Acoplar workspace",
       "allFiles": "Voltar para todos os arquivos",
-      "close": "Fechar workspace"
+      "close": "Fechar workspace",
+      "desktop": "Ambiente de trabalho",
+      "open": "Abrir workspace"
+    },
+    "environmentView": {
+      "agentDriving": "O agente está a utilizar este ambiente. Aguarde até o controlo estar disponível.",
+      "humanDriving": "Uma pessoa está a controlar este ambiente.",
+      "canTakeOver": "Está a observar. Assuma o controlo para interagir.",
+      "watchOnly": "Apenas visualização.",
+      "refresh": "Verificar disponibilidade",
+      "end": "Terminar ambiente",
+      "start": "Abrir ambiente",
+      "startNew": "Abrir novo ambiente",
+      "retry": "Voltar a ligar a vista",
+      "confirmTitle": "Terminar este ambiente?",
+      "confirmDescription": "Fechar o painel mantém o ambiente disponível. Terminar liberta a sessão; o estado não guardado da página pode perder-se.",
+      "failure": {
+        "start": "Não foi possível abrir o ambiente. Verifique a disponibilidade e tente novamente.",
+        "end": "Não foi possível terminar o ambiente. Pode continuar em execução.",
+        "state": "Não foi possível atualizar a prontidão. Verifique a disponibilidade antes de continuar."
+      },
+      "phase": {
+        "expired": {
+          "title": "Ambiente terminado",
+          "description": "Abra um novo ambiente para continuar."
+        },
+        "failed": {
+          "title": "Ambiente indisponível",
+          "description": "Verifique a disponibilidade ou tente explicitamente abri-lo novamente."
+        },
+        "notStarted": {
+          "title": "Ambiente não iniciado",
+          "description": "Abra este ambiente quando precisar. Não é iniciada uma execução do agente."
+        },
+        "starting": {
+          "title": "A preparar ambiente",
+          "description": "Pode sair deste painel e regressar quando estiver pronto."
+        },
+        "forbidden": {
+          "title": "Acesso indisponível",
+          "description": "O seu acesso mudou. Verifique a disponibilidade para obter as permissões atuais."
+        },
+        "malformed": {
+          "title": "Não foi possível verificar a vista em direto",
+          "description": "A transmissão foi interrompida. Volte a ligar para obter uma nova vista em direto."
+        },
+        "disconnected": {
+          "title": "Vista em direto desligada",
+          "description": "Volte a ligar para continuar a observar o mesmo ambiente."
+        },
+        "connecting": {
+          "title": "A ligar a vista em direto",
+          "description": "A aguardar o ecrã atual do ambiente."
+        }
+      },
+      "browserTitle": "Navegador",
+      "desktopTitle": "Ambiente de trabalho",
+      "loadFailed": "Não foi possível carregar o ambiente. Tente novamente.",
+      "loading": "Carregando ambiente…",
+      "runLifetime": "Este ambiente fecha após o próximo run do agente.",
+      "idleMinutes": "Mantido por até {minutes, plural, one {# minuto} other {# minutos}} de inatividade.",
+      "idleSeconds": "Mantido por até {seconds, plural, one {# segundo} other {# segundos}} de inatividade."
     }
   },
   "approvalFeedback": {
@@ -6454,6 +6515,10 @@
       "skills-import": {
         "title": "Importar pacote",
         "body": "Escolha uma pasta de habilidade ou ZIP com SKILL.md. Ficheiros e metadados são preservados. A importação não executa scripts, testes ou instalações."
+      },
+      "chat-environments": {
+        "title": "Abrir ambiente",
+        "body": "Escolha Navegador ou Desktop no menu workspace e abra o ambiente. Você pode usá-lo antes de solicitar algo ao agente. Fechar o painel mantém a sessão; encerrar o ambiente a libera."
       }
     },
     "chooseLanguage": "Idioma",
@@ -11634,6 +11699,14 @@
           "description": "Inicie um desktop E2B separado para esta execução. Selecione abaixo a chave E2B da organização; não é necessária uma conexão Sandbox.",
           "summary": "Um desktop isolado hospedado pela E2B."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Este run"
+        },
+        "conversation": {
+          "label": "Esta conversa"
+        }
       }
     },
     "browser_use": {
@@ -11657,6 +11730,14 @@
           "label": "Este computador (aplicativo desktop)",
           "summary": "Um navegador privado no seu computador pareado.",
           "description": "Requer o aplicativo desktop pareado e o Navegador local selecionado neste chat. Sua sessão pessoal do navegador não é compartilhada."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Este run"
+        },
+        "conversation": {
+          "label": "Esta conversa"
         }
       }
     },
@@ -14337,6 +14418,14 @@
       "prefer_native_browser": {
         "title": "Usar o navegador local nativo",
         "description": "Usa uma aba nativa incorporada para navegação local por DOM. Desative para compatibilidade com o Chromium isolado. A visão e as substituições de idioma e fuso horário usam o Chromium."
+      },
+      "session_lifetime": {
+        "title": "Duração da sessão",
+        "description": "No chat web privado, fechar após cada run ou manter o mesmo ambiente entre mensagens. Os outros canais mantêm a duração atual."
+      },
+      "session_idle_seconds": {
+        "title": "Limite de inatividade (segundos)",
+        "description": "Encerrar o ambiente mantido após esta inatividade, limitado pela política da implantação. Fechar o painel não o encerra."
       }
     },
     "channel_tools": {
@@ -14867,6 +14956,14 @@
       "preview": {
         "title": "Pré-visualização ao vivo",
         "description": "Mostra a área de trabalho ao vivo no chat enquanto o agente a opera."
+      },
+      "session_lifetime": {
+        "title": "Duração da sessão",
+        "description": "No chat web privado, fechar após cada run ou manter o mesmo ambiente entre mensagens. Os outros canais mantêm a duração atual."
+      },
+      "session_idle_seconds": {
+        "title": "Limite de inatividade (segundos)",
+        "description": "Encerrar o ambiente mantido após esta inatividade, limitado pela política da implantação. Fechar o painel não o encerra."
       }
     },
     "phone_calls": {

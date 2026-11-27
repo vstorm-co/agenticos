@@ -1,13 +1,13 @@
 "use client";
 
-import { FolderOpen, Globe, Maximize2, Minimize2, Shapes, X } from "lucide-react";
+import { FolderOpen, Globe, Maximize2, Minimize2, Monitor, Shapes, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { IconButton } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import { useChatWorkspace, type WorkspacePanel } from "./chat-workspace-context";
 
-const PANELS = ["visuals", "browser", "files"] as const;
-const ICONS = { visuals: Shapes, browser: Globe, files: FolderOpen };
+const PANELS = ["visuals", "browser", "desktop", "files"] as const;
+const ICONS = { visuals: Shapes, browser: Globe, desktop: Monitor, files: FolderOpen };
 
 /** One tab contract across the visual's top layer and the mounted browser/file panes. */
 export function ChatWorkspaceTabs({
@@ -24,8 +24,10 @@ export function ChatWorkspaceTabs({
     one === "visuals"
       ? workspace.selection !== null
       : one === "browser"
-        ? workspace.browserId !== null
-        : true,
+        ? workspace.browserId !== null || workspace.environmentPanels.includes("browser")
+        : one === "desktop"
+          ? workspace.environmentPanels.includes("desktop")
+          : true,
   );
   return (
     <header className="bg-background flex min-w-0 shrink-0 items-center gap-2 border-b px-2">
@@ -54,6 +56,7 @@ export function ChatWorkspaceTabs({
         }}
       >
         {PANELS.map((one) => {
+          if (one === "desktop" && !workspace.environmentPanels.includes("desktop")) return null;
           const Icon = ICONS[one];
           return (
             <button

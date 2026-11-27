@@ -5448,6 +5448,14 @@
       "prefer_native_browser": {
         "title": "Yerel browser'ı kullan",
         "description": "Yerel DOM browse için gömülü bir native sekme kullanır. İzole Chromium uyumluluğu için kapatın. Vision ve dil/saat dilimi geçersiz kılmaları Chromium kullanır."
+      },
+      "session_lifetime": {
+        "title": "Oturum süresi",
+        "description": "Özel web sohbetinde her run sonrasında kapatın veya mesajlar arasında aynı canlı ortamı koruyun. Diğer kanallar mevcut yaşam döngüsünü korur."
+      },
+      "session_idle_seconds": {
+        "title": "Boşta kalma sınırı (saniye)",
+        "description": "Korunan ortamı bu süre sonunda dağıtım politikası sınırları içinde sonlandırın. Paneli kapatmak ortamı sonlandırmaz."
       }
     },
     "guardrails": {
@@ -6001,6 +6009,14 @@
       "preview": {
         "title": "Canlı önizleme",
         "description": "Agent masaüstünde çalışırken görüntüyü chat'te canlı göster."
+      },
+      "session_lifetime": {
+        "title": "Oturum süresi",
+        "description": "Özel web sohbetinde her run sonrasında kapatın veya mesajlar arasında aynı canlı ortamı koruyun. Diğer kanallar mevcut yaşam döngüsünü korur."
+      },
+      "session_idle_seconds": {
+        "title": "Boşta kalma sınırı (saniye)",
+        "description": "Korunan ortamı bu süre sonunda dağıtım politikası sınırları içinde sonlandırın. Paneli kapatmak ortamı sonlandırmaz."
       }
     },
     "external_acp": {
@@ -9270,6 +9286,10 @@
       "skills-import": {
         "title": "Paketi içe aktar",
         "body": "SKILL.md içeren bir beceri klasörü veya ZIP seçin. Dosyalar ve üst veriler korunur. İçe aktarma betik, test veya bağımlılık kurulumu çalıştırmaz."
+      },
+      "chat-environments": {
+        "title": "Canlı ortam aç",
+        "body": "Workspace menüsünden Tarayıcı veya Masaüstü seçin ve ortamı açın. Agente sormadan önce kullanabilirsiniz. Paneli kapatmak oturumu korur; ortamı sonlandırmak serbest bırakır."
       }
     }
   },
@@ -10302,7 +10322,9 @@
       "expand": "Çalışma alanını genişlet",
       "dock": "Çalışma alanını sabitle",
       "allFiles": "Tüm dosyalara dön",
-      "close": "Workspace’i kapat"
+      "close": "Workspace’i kapat",
+      "desktop": "Masaüstü",
+      "open": "Workspace aç"
     },
     "visuals": {
       "drawing": "Çiziliyor…",
@@ -10741,7 +10763,66 @@
     "resumeQueue": "Kuyruğu sürdür",
     "routineHistoryReadOnly": "Bu rutin geçmişi salt okunurdur. Yeni bir sohbette devam etmek için yanıtı dallandır.",
     "routineContinueChat": "Yeni sohbette devam et",
-    "approvalNeedsItsAdminPerson": "Yalnızca bu çalıştırmanın adına işlem yaptığı kişi, uygulama yöneticisi olarak oturum açtığında onaylayabilir. Reddedebilirsiniz."
+    "approvalNeedsItsAdminPerson": "Yalnızca bu çalıştırmanın adına işlem yaptığı kişi, uygulama yöneticisi olarak oturum açtığında onaylayabilir. Reddedebilirsiniz.",
+    "environmentView": {
+      "agentDriving": "Ajan bu ortamı kullanıyor. Kontrol kullanılabilir olana kadar bekleyin.",
+      "humanDriving": "Bu ortamı bir kişi kontrol ediyor.",
+      "canTakeOver": "İzliyorsunuz. Etkileşim için kontrolü alın.",
+      "watchOnly": "Yalnızca görüntüleme.",
+      "refresh": "Kullanılabilirliği kontrol et",
+      "end": "Ortamı sonlandır",
+      "start": "Ortamı aç",
+      "startNew": "Yeni ortam aç",
+      "retry": "Görünümü yeniden bağla",
+      "confirmTitle": "Bu ortam sonlandırılsın mı?",
+      "confirmDescription": "Paneli kapatmak ortamı kullanılabilir tutar. Sonlandırmak oturumu serbest bırakır; kaydedilmemiş sayfa durumu kaybolabilir.",
+      "failure": {
+        "start": "Ortam açılamadı. Kullanılabilirliği kontrol edip yeniden deneyin.",
+        "end": "Ortam sonlandırılamadı. Hâlâ çalışıyor olabilir.",
+        "state": "Hazır olma durumu güncellenemedi. Devam etmeden kullanılabilirliği kontrol edin."
+      },
+      "phase": {
+        "expired": {
+          "title": "Ortam sonlandı",
+          "description": "Devam etmek için yeni bir ortam açın."
+        },
+        "failed": {
+          "title": "Ortam kullanılamıyor",
+          "description": "Kullanılabilirliği kontrol edin veya açıkça yeniden açmayı deneyin."
+        },
+        "notStarted": {
+          "title": "Ortam başlatılmadı",
+          "description": "Gerektiğinde bu ortamı açın. Ajan çalıştırması başlatılmaz."
+        },
+        "starting": {
+          "title": "Ortam hazırlanıyor",
+          "description": "Bu panelden ayrılıp hazır olduğunda dönebilirsiniz."
+        },
+        "forbidden": {
+          "title": "Erişim yok",
+          "description": "Erişiminiz değişti. Güncel izinler için kullanılabilirliği kontrol edin."
+        },
+        "malformed": {
+          "title": "Canlı görünüm doğrulanamadı",
+          "description": "Akış durduruldu. Yeni bir canlı görünüm için yeniden bağlanın."
+        },
+        "disconnected": {
+          "title": "Canlı görünüm bağlantısı kesildi",
+          "description": "Aynı ortamı izlemeye devam etmek için yeniden bağlanın."
+        },
+        "connecting": {
+          "title": "Canlı görünüm bağlanıyor",
+          "description": "Ortamın güncel ekranı bekleniyor."
+        }
+      },
+      "browserTitle": "Tarayıcı",
+      "desktopTitle": "Masaüstü",
+      "loadFailed": "Ortam yüklenemedi. Tekrar deneyin.",
+      "loading": "Ortam yükleniyor…",
+      "runLifetime": "Bu ortam agentin sonraki run işleminden sonra kapanır.",
+      "idleMinutes": "En fazla {minutes, plural, other {# dakika}} boşta kalma süresince korunur.",
+      "idleSeconds": "En fazla {seconds, plural, other {# saniye}} boşta kalma süresince korunur."
+    }
   },
   "admin": {
     "actions": "Eylemler",
@@ -13923,6 +14004,14 @@
           "description": "Bu run için ayrı bir E2B masaüstü başlatır. Aşağıdan kuruluşun E2B key’ini seçin; Sandbox bağlantısı gerekmez.",
           "summary": "E2B’nin barındırdığı yalıtılmış bir masaüstü."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Bu run"
+        },
+        "conversation": {
+          "label": "Bu konuşma"
+        }
       }
     },
     "browser_use": {
@@ -13946,6 +14035,14 @@
           "label": "Bu bilgisayar (masaüstü uygulaması)",
           "summary": "Eşleştirilmiş bilgisayarınızdaki özel browser.",
           "description": "Eşleştirilmiş masaüstü uygulaması ve bu sohbette Local browser seçili olmalıdır. Kişisel browser oturumunuz paylaşılmaz."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Bu run"
+        },
+        "conversation": {
+          "label": "Bu konuşma"
         }
       }
     },

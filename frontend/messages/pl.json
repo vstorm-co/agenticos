@@ -1358,7 +1358,9 @@
       "expand": "Rozwiń obszar roboczy",
       "dock": "Przypnij obszar roboczy",
       "allFiles": "Wróć do wszystkich plików",
-      "close": "Zamknij workspace"
+      "close": "Zamknij workspace",
+      "desktop": "Pulpit",
+      "open": "Otwórz workspace"
     },
     "visuals": {
       "drawing": "Rysuje…",
@@ -1803,7 +1805,66 @@
     "routineContinueChat": "Kontynuuj w nowym chacie",
     "approvalOthersWait": "Twoja odpowiedź dotyczy tylko Twoich wywołań platformy. Pozostałe czekają na kogoś, kto może decydować o zatwierdzeniach.",
     "approvalNeedsItsPerson": "Zatwierdzić to może tylko osoba, w której imieniu działa ten run. Możesz to odrzucić.",
-    "approvalNeedsItsAdminPerson": "Może to zatwierdzić tylko osoba, w której imieniu działa run, zalogowana jako administrator aplikacji. Możesz odrzucić."
+    "approvalNeedsItsAdminPerson": "Może to zatwierdzić tylko osoba, w której imieniu działa run, zalogowana jako administrator aplikacji. Możesz odrzucić.",
+    "environmentView": {
+      "agentDriving": "Agent korzysta z tego środowiska. Poczekaj, aż sterowanie będzie dostępne.",
+      "humanDriving": "Osoba steruje tym środowiskiem.",
+      "canTakeOver": "Obserwujesz. Przejmij sterowanie, aby działać.",
+      "watchOnly": "Tylko podgląd.",
+      "refresh": "Sprawdź dostępność",
+      "end": "Zakończ środowisko",
+      "start": "Otwórz środowisko",
+      "startNew": "Otwórz nowe środowisko",
+      "retry": "Połącz podgląd ponownie",
+      "confirmTitle": "Zakończyć to środowisko?",
+      "confirmDescription": "Zamknięcie panelu zachowuje środowisko. Zakończenie zwalnia jego sesję; niezapisany stan strony może zostać utracony.",
+      "failure": {
+        "start": "Nie udało się otworzyć środowiska. Sprawdź dostępność i spróbuj ponownie.",
+        "end": "Nie udało się zakończyć środowiska. Może nadal działać.",
+        "state": "Nie udało się zaktualizować gotowości. Sprawdź dostępność przed kontynuacją."
+      },
+      "phase": {
+        "expired": {
+          "title": "Środowisko zakończone",
+          "description": "Otwórz nowe środowisko, aby kontynuować."
+        },
+        "failed": {
+          "title": "Środowisko niedostępne",
+          "description": "Sprawdź dostępność lub jawnie spróbuj otworzyć je ponownie."
+        },
+        "notStarted": {
+          "title": "Środowisko nieuruchomione",
+          "description": "Otwórz je, gdy będzie potrzebne. Nie uruchamia to agenta."
+        },
+        "starting": {
+          "title": "Przygotowywanie środowiska",
+          "description": "Możesz opuścić panel i wrócić, gdy będzie gotowe."
+        },
+        "forbidden": {
+          "title": "Brak dostępu",
+          "description": "Twój dostęp się zmienił. Sprawdź dostępność, aby odczytać aktualne uprawnienia."
+        },
+        "malformed": {
+          "title": "Nie udało się zweryfikować podglądu",
+          "description": "Strumień został zatrzymany. Połącz się ponownie, aby otrzymać nowy podgląd."
+        },
+        "disconnected": {
+          "title": "Podgląd rozłączony",
+          "description": "Połącz się ponownie, aby obserwować to samo środowisko."
+        },
+        "connecting": {
+          "title": "Łączenie podglądu",
+          "description": "Oczekiwanie na aktualny ekran środowiska."
+        }
+      },
+      "browserTitle": "Przeglądarka",
+      "desktopTitle": "Pulpit",
+      "loadFailed": "Nie udało się wczytać środowiska. Spróbuj ponownie.",
+      "loading": "Wczytywanie środowiska…",
+      "runLifetime": "To środowisko zamknie się po następnym runie agenta.",
+      "idleMinutes": "Sesja jest zachowywana przez maksymalnie {minutes, plural, one {# minutę} few {# minuty} many {# minut} other {# minuty}} bezczynności.",
+      "idleSeconds": "Sesja jest zachowywana przez maksymalnie {seconds, plural, one {# sekundę} few {# sekundy} many {# sekund} other {# sekundy}} bezczynności."
+    }
   },
   "errors": {
     "authorizationFailed": "Autoryzacja nie powiodła się",
@@ -8252,6 +8313,10 @@
       "skills-import": {
         "title": "Importuj pakiet",
         "body": "Wybierz folder skilla lub ZIP z SKILL.md. Pliki i metadane zostaną zachowane. Import nie uruchamia skryptów, testów ani instalacji zależności."
+      },
+      "chat-environments": {
+        "title": "Otwórz środowisko",
+        "body": "W menu workspace wybierz Przeglądarkę lub Pulpit, a następnie otwórz środowisko. Możesz go używać przed wysłaniem wiadomości do agenta. Zamknięcie panelu zachowuje sesję; zakończenie środowiska ją zwalnia."
       }
     },
     "chooseLanguage": "Język",
@@ -10990,6 +11055,14 @@
       "prefer_native_browser": {
         "title": "Używaj natywnej przeglądarki lokalnej",
         "description": "Używaj osadzonej natywnej karty do lokalnego przeglądania DOM. Wyłącz dla zgodności z izolowanym Chromium. Vision oraz zmiana języka lub strefy czasowej korzystają z Chromium."
+      },
+      "session_lifetime": {
+        "title": "Czas trwania sesji",
+        "description": "W prywatnym czacie webowym zamykaj środowisko po każdym runie lub zachowuj tę samą sesję między wiadomościami. Pozostałe kanały zachowują dotychczasowy cykl życia."
+      },
+      "session_idle_seconds": {
+        "title": "Limit bezczynności (sekundy)",
+        "description": "Zakończ zachowane środowisko po tym czasie bezczynności, z uwzględnieniem limitu wdrożenia. Zamknięcie panelu nie kończy sesji."
       }
     },
     "channel_tools": {
@@ -11520,6 +11593,14 @@
       "preview": {
         "title": "Podgląd na żywo",
         "description": "Pokazuj pulpit na żywo w czacie, gdy agent na nim pracuje."
+      },
+      "session_lifetime": {
+        "title": "Czas trwania sesji",
+        "description": "W prywatnym czacie webowym zamykaj środowisko po każdym runie lub zachowuj tę samą sesję między wiadomościami. Pozostałe kanały zachowują dotychczasowy cykl życia."
+      },
+      "session_idle_seconds": {
+        "title": "Limit bezczynności (sekundy)",
+        "description": "Zakończ zachowane środowisko po tym czasie bezczynności, z uwzględnieniem limitu wdrożenia. Zamknięcie panelu nie kończy sesji."
       }
     },
     "phone_calls": {
@@ -15418,6 +15499,14 @@
           "description": "Połącz się z komputerem, na którym działa computerd. Ustaw poniżej zatwierdzony adres i wybierz jego token dostępu.",
           "summary": "Twój komputer z uruchomionym computerd."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Ten run"
+        },
+        "conversation": {
+          "label": "Ta rozmowa"
+        }
       }
     },
     "browser_use": {
@@ -15441,6 +15530,14 @@
           "label": "Ten komputer (aplikacja desktopowa)",
           "summary": "Prywatna przeglądarka na Twoim komputerze.",
           "description": "Wymaga sparowanej aplikacji desktopowej i wybrania lokalnej przeglądarki w tym czacie. Nie udostępnia Twojej osobistej sesji przeglądarki."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Ten run"
+        },
+        "conversation": {
+          "label": "Ta rozmowa"
         }
       }
     },
