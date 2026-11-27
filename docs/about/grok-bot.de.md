@@ -1,12 +1,12 @@
 ---
 title: "AgenticOS vs Grok Bot"
 description: "Grok Bot und AgenticOS: verwaltete Cloud-Teammates oder eigene Agent-Plattform. Vergleichen Sie Betrieb, Modelle, Kontrollen und Kosten."
-source_sha: "428f71a12837"
+source_sha: "f50b2ceabd60"
 ---
 
 # AgenticOS vs Grok Bot { #agenticos-vs-grok-bot }
 
-Quellen am 2. November 2026 geprüft. AgenticOS v1.35.0. Anbieter-Dokumentation; kein Grok-Bot-Konto getestet.
+Quellen am 2. November 2026 geprüft. AgenticOS v1.35.0; Funktionsangaben am 27. November 2026 anhand von v1.95.0 aktualisiert. Anbieter-Dokumentation; kein Grok-Bot-Konto getestet.
 
 Grok Bot ist ein verwalteter KI-Teammate-Dienst von xAI. Die aktuelle Dokumentation beschreibt dauerhafte Cloud-Computer, verbundene Apps, Routinen, Freigaben und Unternehmensverwaltung. Die alte Aussage, es gebe kein Audit-Protokoll, ist überholt: Audit-Logs und OpenTelemetry-Export sind als Enterprise-Funktionen dokumentiert.
 

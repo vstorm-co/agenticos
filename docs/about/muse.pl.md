@@ -1,11 +1,11 @@
 ---
 title: "AgenticOS vs Muse"
-source_sha: "e5863eba2568"
+source_sha: "b6cc1c8837e3"
 ---
 
 # AgenticOS vs Muse { #agenticos-vs-muse }
 
-Źródła sprawdzono 2 listopada 2026; AgenticOS v1.35.0.
+Źródła sprawdzono 2 listopada 2026; AgenticOS v1.35.0; opisy funkcji odświeżono 27 listopada 2026 na podstawie v1.95.0.
 
 ## W skrócie { #at-a-glance }
 

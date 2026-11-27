@@ -12,6 +12,8 @@ If your company already lives in ChatGPT and your plan and region include dots, 
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. dots scope: OpenAI's announcement of 29 September 2026, its help-centre FAQ and press coverage, not a tested account.
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | OpenAI dots | AgenticOS |
@@ -21,7 +23,7 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 | Source | Proprietary | Apache-2.0 |
 | Models | OpenAI only | 28 providers, including local models |
 | Tools | 4,000+ connected apps, a browser and a computer per dot | 4,700+ MCP servers in the gallery, a browser, a code sandbox, your own capabilities |
-| Surfaces | ChatGPT, Slack, Microsoft Teams; SMS announced | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Surfaces | ChatGPT, Slack, Microsoft Teams; SMS announced | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, email, iMessage, telephone calls |
 | Rules | Custom rules to allow, block or require approval; a model reviews risky actions | Approvals checked by the platform before a tool runs; per-tool allow-lists |
 | Spend control | Included in the plan | A monthly budget per agent and per organization, checked before each model request |
 | Availability | Pro and Business Premium plans; Pro not offered in the EEA, Switzerland or the UK at launch | Wherever you deploy it |
@@ -54,7 +56,7 @@ Each run in AgenticOS is in [Activity](../governance.md#audit) with its steps, c
 
 ### Is AgenticOS an alternative to OpenAI dots?
 
-Yes, if you want always-on agents you host yourself. AgenticOS agents have tools, a browser, a code sandbox and routines, run on your infrastructure with any model, and answer in web chat, Slack, Telegram, Mattermost and the API.
+Yes, if you want always-on agents you host yourself. AgenticOS agents have tools, a browser, a code sandbox and routines, run on your infrastructure with any model, and answer in web chat, Slack, Microsoft Teams, Telegram, Mattermost, SMS, email and the API.
 
 ### Can AgenticOS work while nobody is chatting?
 

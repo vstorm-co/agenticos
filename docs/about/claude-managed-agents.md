@@ -12,6 +12,8 @@ If you are a developer building one product on Claude and want Anthropic to host
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Managed Agents scope: the public beta announced 8-9 April 2026 and its published pricing, not a tested account.
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | Claude Managed Agents | AgenticOS |

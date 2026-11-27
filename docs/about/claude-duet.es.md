@@ -1,11 +1,11 @@
 ---
 title: "AgenticOS vs Claude Duet"
-source_sha: "65aadd4d06af"
+source_sha: "7273a2608531"
 ---
 
 # AgenticOS vs Claude Duet { #agenticos-vs-claude-duet }
 
-Fuentes revisadas el 2 de noviembre de 2026; AgenticOS v1.35.0.
+Fuentes revisadas el 2 de noviembre de 2026; AgenticOS v1.35.0; funciones actualizadas el 27 de noviembre de 2026 con v1.95.0.
 
 ## De un vistazo { #at-a-glance }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "e65292f64912"
+source_sha: "64778db1845f"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: alternatywa na Apache-2.0 dla agentów AI"
 description: "Porównaj n8n z AgenticOS pod kątem agentów AI: licencja, SSO i role bez płatnych planów, budżety per agent zamiast limitów wykonań oraz zatwierdzenia."
@@ -13,7 +13,7 @@ Dobrze się uzupełniają. n8n przenosi dane między systemami według harmonogr
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres n8n: strona z cennikiem, dokumentacja i licencja w wersji n8n@2.44.5, bez testowanego planu chmurowego ani licencji Enterprise dla self-hostingu.
 
-Opisy funkcji AgenticOS odświeżono 2 listopada 2026 na podstawie v1.35.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
+Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
 
 Dostępność natywnych agentów i konfigurację wiedzy w self-hostingu sprawdzono ponownie w oficjalnej dokumentacji n8n 2 listopada 2026. Natywni agenci są w wersji preview w Cloud i planach self-hosted od 2.32.3. Nie odświeża to powyższego audytu cen.
 
@@ -65,7 +65,7 @@ n8n buduje wyszukiwanie z węzłów: loaderów, embeddingów i wybranej przez ci
 
 - Zadanie polega na przenoszeniu danych między wieloma systemami, z rozgałęzieniami, ponowieniami i harmonogramami.
 - Wolisz bibliotekę węzłów, integracje i sposób edycji workflow tego produktu. AgenticOS także ma wizualny edytor; dostępne węzły i semantyka wykonania różnią się.
-- Potrzebujesz jego kanałów przeglądu, takich jak Microsoft Teams, WhatsApp czy Gmail, albo jego metryk ewaluacji. AgenticOS nie ma jeszcze ani jednego, ani drugiego.
+- Potrzebujesz jego kanałów przeglądu przez człowieka, takich jak WhatsApp czy Gmail, albo jego biblioteki nodów integracyjnych. AgenticOS ma [Microsoft Teams](../channels.md#microsoft-teams), [e-mail](../channels.md#email) i [ewaluacje](../evals.md), ale nie ma kanału WhatsApp i ma znacznie mniej gotowych integracji.
 
 ## Używaj obu razem { #use-them-together }
 

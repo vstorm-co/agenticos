@@ -1,5 +1,5 @@
 ---
-source_sha: "3f2886a77dd8"
+source_sha: "e7a398718c54"
 title: "AgenticOS vs Viktor"
 seo_title: "AgenticOS vs Viktor: self-hosted alternatywa dla Viktora"
 description: "Viktor to jeden współpracownik AI na workspace Slacka lub Teams. AgenticOS: wielu zarządzanych agentów, dowolny model i budżet per agent na twoich serwerach."
@@ -13,6 +13,8 @@ Jeśli chcesz jeszcze dziś po południu mieć na czacie jednego pomocnego koleg
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Viktor: jego publiczne strony produktu, cennika, bezpieczeństwa i oferty enterprise oraz changelog, a nie przetestowane konto ani negocjowana umowa.
 
+Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
+
 ## W skrócie { #at-a-glance }
 
 | Obszar | Viktor | AgenticOS |
@@ -22,7 +24,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 | Źródła | Własnościowe | Apache-2.0 |
 | Modele | Modele OpenAI, Anthropic, Google i xAI do wyboru; własny klucz OpenRouter | 28 providerów, w tym Ollama i LiteLLM na twoim sprzęcie |
 | Wiedza | Pamięć workspace'u i podłączone narzędzia | Kolekcje dokumentów w twoim Postgresie, z pięcioma konektorami synchronizacji |
-| Powierzchnie | Slack, Teams, Discord, własna skrzynka e-mail, aplikacje web, desktop i mobilne, API | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Powierzchnie | Slack, Teams, Discord, własna skrzynka e-mail, aplikacje web, desktop i mobilne, API | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, e-mail, iMessage, połączenia telefoniczne |
 | Dostęp | Na poziomie workspace'u; jego strony różnią się w opisie dostępu opartego na rolach | Sześć ról, 33 uprawnienia i granty per zasób, w każdej organizacji |
 | Kontrola wydatków | Pula kredytów z miesięcznym limitem automatycznych doładowań; limity per użytkownik w Enterprise | Miesięczny budżet per agent i per organizacja, sprawdzany przed każdym żądaniem do modelu |
 | Ceny | Free z kredytami do $100; Team za $100 miesięcznie za 40 000 wspólnych kredytów; Enterprise wycena indywidualna | Bez opłaty licencyjnej; płacisz providerom modeli i za infrastrukturę |
@@ -59,7 +61,7 @@ Viktor uczy się z rozmów i podłączonych narzędzi. AgenticOS dodaje zarządz
 - Chcesz jednego asystenta w Slacku lub Teams bez żadnej infrastruktury do utrzymania.
 - Jego katalog ponad 9800 narzędzi i jego sandbox do kodu pokrywają twoje zadania.
 - Rozliczanie w kredytach i hosting w USA spełniają twoje wymagania.
-- Potrzebujesz dziś Microsoft Teams, linii telefonicznej albo skrzynki e-mail. AgenticOS nie ma jeszcze kanału rozmów przez Teams, telefon ani e-mail; jego [rozmowy głosowe](../voice.md) działają w przeglądarce.
+- Chcesz jednego współpracownika, który zaczyna działać w kilka minut, bez utrzymywania serwera, z tysiącami gotowych integracji. AgenticOS obsługuje też [Microsoft Teams](../channels.md#microsoft-teams), [e-mail](../channels.md#email) i [połączenia telefoniczne](../voice.md#telephone-calls), ale wdrażasz go i utrzymujesz sam.
 
 ## Wypróbuj jedno pytanie o podręcznik { #try-one-handbook-question }
 
@@ -75,7 +77,7 @@ Tak, jeśli chcesz czegoś więcej niż jednego wspólnego asystenta. AgenticOS 
 
 ### Czy AgenticOS odpowiada w Slacku jak Viktor? { #can-agenticos-answer-in-slack-like-viktor }
 
-Tak. Opublikowany agent odpowiada w Slacku, a powiązany użytkownik działa pod własną tożsamością. AgenticOS odpowiada też w Telegramie, Mattermost, widgecie na stronie internetowej, na hostowanej stronie i przez HTTP API. Nie ma jeszcze kanału Microsoft Teams.
+Tak. Opublikowany agent odpowiada w Slacku, a powiązany użytkownik działa pod własną tożsamością. AgenticOS odpowiada też w Microsoft Teams, Telegramie, Mattermost, Discordzie, Matrixie, SMS-ach, e-mailu, iMessage, widgecie na stronie internetowej, na hostowanej stronie i przez HTTP API, a także przyjmuje połączenia telefoniczne.
 
 ### Jak wypadają ceny? { #how-does-pricing-compare }
 
