@@ -299,9 +299,32 @@ def _length_check(check: LengthCheck, answer: ScoredAnswer, *, required: bool) -
 
 def _ceiling_check(check: CeilingCheck, answer: ScoredAnswer, *, required: bool) -> ScorerResult:
     if check.type == "max_cost_usd":
-        name, measured, unit = f"cost at most ${check.value:g}", answer.cost_usd, "$"
-    else:
-        name, measured, unit = f"latency at most {check.value:g} ms", answer.latency_ms, "ms"
+        name, measured = f"cost at most ${check.value:g}", answer.cost_usd
+        limit = Decimal(str(check.value))
+        if not limit.is_finite():
+            return ScorerResult(
+                scorer="check",
+                name=name,
+                required=required,
+                status="error",
+                reason="The cost threshold is not finite",
+                reason_code="invalid_check",
+            )
+        if measured is None:
+            return ScorerResult(
+                scorer="check",
+                name=name,
+                required=required,
+                status="error",
+                reason="The run did not record it",
+                reason_code="not_measured",
+                cost_limit_usd=limit,
+            )
+        result = _result(
+            name, passed=measured <= limit, reason=f"Took ${measured:.4f}", required=required
+        )
+        return result.model_copy(update={"cost_limit_usd": limit, "cost_observed_usd": measured})
+    name, measured = f"latency at most {check.value:g} ms", answer.latency_ms
     if measured is None:
         return ScorerResult(
             scorer="check",
@@ -311,9 +334,9 @@ def _ceiling_check(check: CeilingCheck, answer: ScoredAnswer, *, required: bool)
             reason="The run did not record it",
             reason_code="not_measured",
         )
-    shown = f"${float(measured):.4f}" if unit == "$" else f"{measured} ms"
-    passed = float(measured) <= check.value
-    return _result(name, passed=passed, reason=f"Took {shown}", required=required)
+    return _result(
+        name, passed=float(measured) <= check.value, reason=f"Took {measured} ms", required=required
+    )
 
 
 # A space before exactly three digits groups thousands. `,` and `.` stay as they are:

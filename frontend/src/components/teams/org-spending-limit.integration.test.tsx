@@ -90,10 +90,10 @@ describe("OrgSpendingLimit", () => {
     act(() => useUnsavedChangesStore.getState().leave(proceed));
     await act(() => useUnsavedChangesStore.getState().answer("save"));
     expect(proceed).not.toHaveBeenCalled();
-    expect(input).toHaveValue(500);
+    expect(input).toHaveValue("500");
     act(() => useUnsavedChangesStore.getState().leave(proceed));
     await act(() => useUnsavedChangesStore.getState().answer("discard"));
-    expect(input).toHaveValue(null);
+    expect(input).toHaveValue("");
     expect(proceed).toHaveBeenCalledOnce();
   });
 
@@ -108,7 +108,8 @@ describe("OrgSpendingLimit", () => {
 
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
-        monthly_budget_usd: 500,
+        monthly_budget_usd: "500",
+        monetary_inputs: { monthly_budget_usd: { amount: "500", currency: "USD" } },
       }),
     );
   });
@@ -126,6 +127,7 @@ describe("OrgSpendingLimit", () => {
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenCalledWith(`/orgs/${ORG_ID}`, {
         monthly_budget_usd: null,
+        monetary_inputs: {},
       }),
     );
   });
@@ -141,7 +143,7 @@ describe("OrgSpendingLimit", () => {
     serve("owner", "12.5");
     render(<OrgSpendingLimit org={org({ monthly_budget_usd: "500" })} />, { wrapper });
 
-    expect(await screen.findByText("$12.50 of $500.00 spent this month.")).toBeInTheDocument();
+    expect(await screen.findByText("Spent $12.50 of $500.00 this month.")).toBeInTheDocument();
   });
 
   it("puts the server's refusal under the input rather than only in a toast", async () => {
@@ -174,6 +176,14 @@ describe("OrgSpendingLimit", () => {
 
     await waitFor(() => expect(apiClient.get).toHaveBeenCalledWith("/me/permissions"));
     expect(screen.queryByText("Monthly spending limit")).not.toBeInTheDocument();
-    expect(apiClient.get).not.toHaveBeenCalledWith("/spend", expect.anything());
+    expect(vi.mocked(apiClient.get).mock.calls.some(([path]) => path === "/spend")).toBe(false);
   });
+});
+
+it("does not load another organization's spend with the active organization's authority", () => {
+  serve("owner");
+  useOrgStore.setState({ activeOrgId: "another-org" });
+  render(<OrgSpendingLimit org={org()} />, { wrapper });
+  expect(screen.queryByLabelText("Limit (USD)")).toBeNull();
+  expect(vi.mocked(apiClient.get).mock.calls.some(([path]) => path === "/spend")).toBe(false);
 });

@@ -15,7 +15,11 @@ variable, no rebuild.
     It is the same authority that already administers users and tenants across the
     installation.
 
-The console groups these settings into Identity, Access & accounts, Announcements & maintenance, Voice & mobile, and Updates & diagnostics. Each section has a shareable `?section=` URL. Following another section link preserves unsaved edits. Save applies the edited fields across sections; Discard changes restores their saved values. Image uploads and mobile push credentials retain their own immediate save actions.
+The console groups these settings into Identity, Access & accounts, Announcements & maintenance, Services & costs, and Updates & diagnostics. Each section has a shareable `?section=` URL. Following another section link preserves unsaved edits. Save applies the edited fields across sections; Discard changes restores their saved values. Image uploads and mobile push credentials retain their own immediate save actions.
+
+The Services & costs section also holds manual currency rates and the default organization currency preference. Rates are currency units per USD; USD must remain exactly 1. Clearing the currency override restores `DEFAULT_ORG_CURRENCY` and `CURRENCY_RATES`. These settings do not reinterpret stored prices or existing USD limits.
+
+Reporting costs, estimates and limit forms share a frozen organization quote. Changing manual pricing rates affects future price conversions, not that quote. An explicit organization currency or deployment-default change snapshots a new reporting quote without rewriting USD receipts or limits. Original limit declarations remain available; see [limit currency](governance.md#limit-currency).
 
 ## Identity
 

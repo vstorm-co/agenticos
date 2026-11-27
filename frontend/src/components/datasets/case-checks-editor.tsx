@@ -1,5 +1,9 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { Plus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
@@ -59,6 +63,9 @@ function CheckValue({
       </p>
     );
   }
+  if (check.type === "max_cost_usd") {
+    return <CostCriterion check={check} number={number} disabled={disabled} onChange={onChange} />;
+  }
   const { as } = CHECK_KINDS[check.type];
   if (as === "length") {
     return <LengthValue check={check} number={number} disabled={disabled} onChange={onChange} />;
@@ -89,6 +96,36 @@ function CheckValue({
       aria-label={label}
       placeholder={placeholder}
       onChange={(event) => onChange({ value: event.target.value })}
+    />
+  );
+}
+
+function CostCriterion({
+  check,
+  number,
+  disabled,
+  onChange,
+}: {
+  check: CheckDraft;
+  number: number;
+  disabled: boolean;
+  onChange: (patch: Partial<CheckDraft>) => void;
+}) {
+  const money = useMoney();
+  const monetary = useMonetaryInputs();
+  const t = useTranslations("datasets");
+  return (
+    <MonetaryInput
+      field="value"
+      monetary={monetary}
+      value={check.value}
+      disabled={disabled}
+      aria-label={`${t("checkValue", { number })} (${money.currency ?? "—"})`}
+      placeholder={TYPED.max_cost_usd}
+      onInvalidValueChange={(value) => onChange({ value, currencyInvalid: true })}
+      onValueChange={(value, input) =>
+        onChange({ value, currencyInvalid: false, rest: { ...check.rest, monetary_input: input } })
+      }
     />
   );
 }

@@ -1,5 +1,9 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { NATIVE_CHOICE } from "@/components/ui/control-styles";
 
 import { canonicalJson, sameJson } from "@/lib/canonical-json";
@@ -258,6 +262,8 @@ function toolChoice(
 }
 
 export default function AgentBuilderPage({ params }: PageProps) {
+  const monetary = useMonetaryInputs();
+  const money = useMoney();
   const t = useTranslations("pages.agents");
   const tMenu = useTranslations("agents");
   // The reader's own MCP accounts: the tools of a server bound only through each
@@ -2243,33 +2249,28 @@ export default function AgentBuilderPage({ params }: PageProps) {
               </CardHeader>
               <CardContent className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="monthly">{t("monthlyUsd")}</Label>
-                  <div className="relative">
-                    <span
-                      aria-hidden
-                      className="text-muted-foreground pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm"
-                    >
-                      $
-                    </span>
-                    <Input
-                      id="monthly"
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={spec.budget?.monthly_usd ?? ""}
-                      disabled={!canEdit}
-                      onChange={(event) =>
-                        update({
-                          budget: event.target.value
-                            ? { monthly_usd: Number(event.target.value) }
-                            : clearedBudget,
-                        })
-                      }
-                      placeholder={t("noLimit")}
-                      aria-describedby="monthly-hint"
-                      className="pl-7"
-                    />
-                  </div>
+                  <Label htmlFor="monthly">
+                    {t("monthlyUsd", { currency: money.currency ?? "—" })}
+                  </Label>
+                  <MonetaryInput
+                    id="monthly"
+                    monetary={monetary}
+                    field="monthly_usd"
+                    value={spec.budget?.monthly_usd ?? ""}
+                    disabled={!canEdit}
+                    onValueChange={(value, input) =>
+                      update({
+                        budget: value
+                          ? {
+                              monthly_usd: Number(value),
+                              monetary_inputs: input ? { monthly_usd: input } : {},
+                            }
+                          : clearedBudget,
+                      })
+                    }
+                    placeholder={t("noLimit")}
+                    aria-describedby="monthly-hint"
+                  />
                   <p id="monthly-hint" className="text-muted-foreground text-xs">
                     {t("monthlyUsdHint")}
                   </p>

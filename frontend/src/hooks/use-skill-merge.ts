@@ -1,5 +1,7 @@
 "use client";
 
+import type { CurrencyAmount } from "@/lib/money";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { qk } from "@/lib/query-keys";
@@ -21,7 +23,12 @@ export function useSkillMergeStart(skillId: string, forkId: string, kind: MergeK
   const queryClient = useQueryClient();
   const estimate = useMutation({ mutationFn: () => estimateSkillMerge(skillId, forkId, kind) });
   const start = useMutation({
-    mutationFn: (budgetUsd: string) => startSkillMerge(skillId, forkId, kind, budgetUsd),
+    mutationFn: (
+      value: string | { budget_usd: string; monetary_inputs: Record<string, CurrencyAmount> },
+    ) =>
+      typeof value === "string"
+        ? startSkillMerge(skillId, forkId, kind, value)
+        : startSkillMerge(skillId, forkId, kind, value.budget_usd, value.monetary_inputs),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
   });
   return { estimate, start };

@@ -1,3 +1,5 @@
+import Decimal from "decimal.js";
+
 /** How an eval run's numbers read: money, shares and durations, in the reader's locale. */
 
 /**
@@ -50,11 +52,11 @@ export function sessionLimit(quote: {
   max_iterations: number;
   search_usd?: string;
 }): string {
-  const whole =
-    Number(quote.total_usd) +
-    quote.max_iterations * Number(quote.per_round_usd) +
-    (quote.max_iterations - 1) * Number(quote.search_usd ?? 0);
-  return String(Math.max(0.01, centsUp(whole)));
+  const Money = Decimal.clone({ precision: 80, rounding: Decimal.ROUND_CEIL });
+  const whole = new Money(quote.total_usd)
+    .plus(new Money(quote.per_round_usd).mul(quote.max_iterations))
+    .plus(new Money(quote.search_usd ?? 0).mul(quote.max_iterations - 1));
+  return Money.max("0.01", whole.toDecimalPlaces(2)).toFixed();
 }
 
 /** What a person typed as a limit, as the plain decimal the API reads. */

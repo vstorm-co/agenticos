@@ -186,7 +186,7 @@ export interface TriggerCreate {
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;
   ends_at?: string | null;
-  monthly_budget_usd?: number | null;
+  monthly_budget_usd?: number | string | null;
   runs_as_creator?: boolean;
   local_target?: LocalTarget | null;
   schedule_kind?: ScheduleKind;
@@ -256,7 +256,7 @@ export interface TriggerUpdate {
   answer_to?: TriggerAnswerTo;
   delivery_conversation_id?: string | null;
   ends_at?: string | null;
-  monthly_budget_usd?: number | null;
+  monthly_budget_usd?: number | string | null;
   runs_as_creator?: boolean;
   local_target?: LocalTarget | null;
   event_config?: Record<string, unknown>;

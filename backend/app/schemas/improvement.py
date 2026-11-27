@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AfterValidator, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, ConfigDict, Field, JsonValue, model_validator
 
 from app.core.hidden_text import visible
 from app.db.models.improvement import (
@@ -19,6 +19,7 @@ from app.db.models.improvement import (
 )
 from app.schemas.authoring import EvidenceItemRead, StepFailure
 from app.schemas.base import BaseSchema
+from app.schemas.currency import MonetaryInputSchema
 from app.schemas.knowledge_gap import CauseBranch
 from app.schemas.scoring import ScorerKind, ScorerStatus
 from app.schemas.skill_version import SkillBindingRead
@@ -69,7 +70,7 @@ class SearchOptions(BaseSchema):
     )
 
 
-class ImprovementTarget(BaseSchema):
+class ImprovementTarget(MonetaryInputSchema):
     improver_agent_id: UUID | None = None
 
     dataset_id: UUID | None = None
@@ -424,6 +425,8 @@ class ImprovementStopRead(BaseSchema):
 
 
 class ImprovementRead(BaseSchema):
+    monetary_terms: dict[str, JsonValue] = Field(default_factory=dict)
+
     round_hint: Literal["no_change", "inconclusive"] | None = Field(
         default=None,
         description="When the last two attempts changed nothing, or could not tell, another "
@@ -540,7 +543,7 @@ class TopicDeferral(BaseSchema):
     later: bool
 
 
-class ImprovementContinue(BaseSchema):
+class ImprovementContinue(MonetaryInputSchema):
     budget_usd: Decimal = Field(gt=0, max_digits=12, decimal_places=6)
 
 

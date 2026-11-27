@@ -223,6 +223,9 @@ def scoring_hash(scoring: DatasetScoring) -> str:
             del criterion["tags"]
     # A check that names no family scores as it did before families existed.
     for check in content["checks"]["defaults"]:
+        # Original monetary terms describe a threshold; they do not change what it grades.
+        check.pop("monetary_input", None)
+        check.pop("monetary_term", None)
         if check.get("family") is None:
             check.pop("family", None)
     canonical = json.dumps(content, sort_keys=True, separators=(",", ":"))
@@ -1616,7 +1619,13 @@ class EvalRunService:
                 input_tokens=settings.EVAL_FALLBACK_INPUT_TOKENS * requests + reads,
                 output_tokens=settings.EVAL_FALLBACK_OUTPUT_TOKENS * requests,
             )
-            priced = price_request(typical, model.model, model.provider)
+            priced = price_request(
+                typical,
+                model.model,
+                model.provider,
+                custom_pricing=model.credential.custom_pricing,
+                exchange_rates=model.credential.exchange_rates,
+            )
             if priced is not None:
                 return Decimal(priced).quantize(_CENT), False
         return settings.EVAL_FALLBACK_CASE_COST_USD, False
@@ -1637,7 +1646,11 @@ class EvalRunService:
         if arm.model_profile_id is not None:
             model = await self.models.resolve(ctx, profile_id=arm.model_profile_id)
             priced = price_request(
-                RunUsage(input_tokens=tokens, output_tokens=0), model.model, model.provider
+                RunUsage(input_tokens=tokens, output_tokens=0),
+                model.model,
+                model.provider,
+                custom_pricing=model.credential.custom_pricing,
+                exchange_rates=model.credential.exchange_rates,
             )
             if priced is not None:
                 return Decimal(priced).quantize(_CENT)

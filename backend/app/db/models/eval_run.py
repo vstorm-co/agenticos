@@ -180,11 +180,11 @@ class EvalRun(Base):
     judge_pinned: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
-    estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    estimate_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
     # What the confirming reruns may add on top, as the estimate said - so a run
     # that spent more than `estimate_usd` says why.
     rerun_ceiling_usd: Mapped[Decimal] = mapped_column(
-        Numeric(12, 6), nullable=False, default=Decimal(0)
+        Numeric(38, 6), nullable=False, default=Decimal(0)
     )
     # Cases taken from the evidence of the proposal being checked are left out; listed
     # so a smaller sample says why.
@@ -368,7 +368,7 @@ class EvalRunCase(Base):
         ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
     )
     calls: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
-    cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(38, 6), nullable=True)
     cost_is_partial: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)

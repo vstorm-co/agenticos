@@ -1,8 +1,12 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useTranslations } from "next-intl";
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
-import { Checkbox, Input, Label } from "@/components/ui";
+import { Checkbox, Label } from "@/components/ui";
 import { useModelProviders } from "@/hooks/use-model-providers";
 import type { WorkflowCreate } from "@/lib/workflows/types";
 
@@ -17,6 +21,9 @@ export function ReplyDraftPicker({
   onChange: (selection: Selection) => void;
   disabled: boolean;
 }) {
+  const money = useMoney();
+  const monetary = useMonetaryInputs();
+  const tm = useTranslations("currencies");
   const t = useTranslations("workflows.replyDraft");
   return (
     <div className="space-y-3">
@@ -40,16 +47,24 @@ export function ReplyDraftPicker({
             }
             disabled={disabled}
           />
-          <Label htmlFor="reply-draft-budget">{t("budget")}</Label>
-          <Input
+          <Label htmlFor="reply-draft-budget">
+            {tm("budgetLabel", { currency: money.currency ?? "—" })}
+          </Label>
+          <MonetaryInput
             id="reply-draft-budget"
-            type="number"
-            min={0.01}
-            max={5}
-            step={0.01}
+            positive
+            maxUsd={5}
+            monetary={monetary}
+            field="max_cost_usd"
             value={value.max_cost_usd}
             disabled={disabled}
-            onChange={(event) => onChange({ ...value, max_cost_usd: Number(event.target.value) })}
+            onValueChange={(usd, input) =>
+              onChange({
+                ...value,
+                max_cost_usd: usd,
+                monetary_inputs: input ? { max_cost_usd: input } : {},
+              })
+            }
           />
         </>
       ) : null}

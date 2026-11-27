@@ -102,6 +102,7 @@ from app.services.agent_runner import AgentRunnerService
 from app.services.collection_access import readable_kb
 from app.services.dataset import DatasetService
 from app.services.model_outputs import model_outputs
+from app.services.monetary import MonetaryService
 from app.services.scorers import (
     JUDGE_PROMPT_VERSION,
     CaseView,
@@ -378,6 +379,14 @@ class ScoringService:
             judge = await agent_repo.get(self.db, judge_id, organization_id=ctx.organization_id)
             if judge is None or judge.kind != AgentKind.JUDGE.value:
                 raise refused_field("judge.agent_id", "This organization has no such judge")
+        normalized_checks = await MonetaryService(self.db).checks(
+            ctx.organization_id,
+            data.checks.defaults,
+            previous=stored.checks.defaults,
+        )
+        data = data.model_copy(
+            update={"checks": data.checks.model_copy(update={"defaults": normalized_checks})}
+        )
         await dataset_repo.update(
             self.db,
             dataset=dataset,

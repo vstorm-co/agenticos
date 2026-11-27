@@ -1,9 +1,11 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useLocale, useTranslations } from "next-intl";
 
 import { useUsageStats, useVersionUsage } from "@/hooks";
-import { formatMs, formatUsd } from "../format";
+import { formatMs } from "../format";
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -26,6 +28,7 @@ export function VersionCompareWidget({
 }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.version-compare");
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   const window = { from: period.from, to: period.to };
   const composed = useUsageStats(window);
   const topAgent = composed.usage?.by_agent?.[0] ?? null;
@@ -81,8 +84,10 @@ export function VersionCompareWidget({
                   ],
                   [
                     t("metric.cost"),
-                    previous.avg_cost_usd !== null ? formatUsd(previous.avg_cost_usd, locale) : "—",
-                    current.avg_cost_usd !== null ? formatUsd(current.avg_cost_usd, locale) : "—",
+                    previous.avg_cost_usd !== null
+                      ? formatMoney(previous.avg_cost_usd, locale)
+                      : "—",
+                    current.avg_cost_usd !== null ? formatMoney(current.avg_cost_usd, locale) : "—",
                   ],
                   [
                     t("metric.ratings"),

@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { BudgetField, parseBudget, raisesBudget } from "./budget-field";
 
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", () => ({
+  useLocale: () => "en",
+  useTranslations: () => (key: string) => key,
+}));
 
 describe("raisesBudget", () => {
   it.each([
@@ -38,13 +41,26 @@ describe("parseBudget", () => {
 describe("BudgetField", () => {
   it("hands back what was typed and shows a refusal", () => {
     const onChange = vi.fn();
-    render(<BudgetField value="" onChange={onChange} error="Too low" />);
+    render(
+      <BudgetField
+        value=""
+        onChange={onChange}
+        error="Too low"
+        monetary={{
+          revision: 0,
+          reset: vi.fn(),
+          change: vi.fn(),
+          has: () => false,
+          payload: (value) => ({ ...value, monetary_inputs: {} }),
+        }}
+      />,
+    );
 
     fireEvent.change(screen.getByLabelText("budgetLabel", { exact: false }), {
       target: { value: "7" },
     });
 
-    expect(onChange).toHaveBeenCalledWith("7");
+    expect(onChange).toHaveBeenCalledWith("7", { amount: "7", currency: "USD" });
     expect(screen.getByText("Too low")).toBeInTheDocument();
   });
 });

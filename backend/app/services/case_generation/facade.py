@@ -40,11 +40,13 @@ from app.schemas.case_generation import (
 )
 from app.schemas.dataset import DatasetCaseContent, DatasetVersionRead
 from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
+from app.schemas.token_pricing import TokenPricing
 from app.services.background_jobs import enqueue
 from app.services.case_generation.drafts import split
 from app.services.case_generation.estimate import estimate_cost
 from app.services.case_generation.prompt import build_prompt
 from app.services.case_generation.sources import Material, SourceGatherer
+from app.services.currency import CurrencyService
 from app.services.dataset import DatasetService, GeneratedCase, proposals_hidden_from
 from app.services.rag.vectorstore import BaseVectorStore
 from app.services.system_agent_runner import SystemAgentRunner
@@ -180,11 +182,19 @@ class CaseGenerationService:
         )
         if profile is None:
             return None
+        pricing = (
+            TokenPricing.model_validate(profile.custom_pricing)
+            if profile.custom_pricing is not None
+            else None
+        )
+        rates = await CurrencyService(self.db).rates_for(pricing)
         cost = estimate_cost(
             prompt + with_dataset_guidance(CASE_GENERATOR.instructions, helper.instructions),
             count,
             model_name=profile.model,
             provider=profile.provider,
+            custom_pricing=pricing,
+            exchange_rates=rates,
         )
         agent = (
             await agent_repo.get(self.db, generator_agent_id, organization_id=ctx.organization_id)

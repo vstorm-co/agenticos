@@ -248,6 +248,8 @@ cap stops the run on the request after it.
 
 ### A cost that could not be measured says so
 
+Stav also accepts deployment currency rates for its billed currency, including EUR. A configured NOK rate takes precedence over the legacy `STAV_NOK_PER_USD` fallback described below. USD remains the stored accounting currency; usage retains the actual billed currency and applied rate.
+
 Stav's billed cost takes precedence over the snapshot: `usage.cost` with
 `cost_currency`, or the `x-stav-cost` and `x-stav-cost-currency` headers. Both
 Chat Completions and Responses include streamed requests. USD is used directly;
@@ -255,8 +257,9 @@ NOK requires `STAV_NOK_PER_USD` ([configuration](configuration.md)), maintained
 by the operator. It is NOK per dollar: a value of `10` would divide NOK by 10,
 not a current exchange-rate recommendation. No rate is fetched automatically.
 Usage retains the billed amount, currency, rate and USD cost, and the ledger
-marks the source as provider-reported. Invalid costs, unsupported currencies or
-missing conversion leave the catalog fallback in place.
+marks the source as provider-reported.
+
+An invalid or absent provider cost permits the catalog fallback. A valid bill with a missing or unsupported currency rate remains unpriced: its original amount and currency are retained, and a capped run refuses further requests. A configured custom token-price override remains authoritative.
 
 Without a usable provider-reported cost, pricing falls back to `genai-prices`.
 It does not know every model. When a run reaches one it has no entry
@@ -1416,6 +1419,15 @@ not hold: a _Prompt cache_ card, one row per agent and model, with its busts,
 expiries and the cached tokens they did not read back over the window - a
 measure of the miss, not of what was billed again, since a compaction can also
 shrink the prompt the cache held. The card is not shown while every cache held.
+
+### Limit currency
+
+Accounting and existing API fields remain USD. The console converts a typed reporting-currency amount with the organization's frozen reporting quote, then sends the original declaration alongside the USD value. The server verifies that conversion against its own quote. A stale, mismatched, unsupported or unavailable quote cannot write a limit. Use decimal strings to preserve input precision.
+
+For example, with the reporting quote fixed at 4 PLN per USD, `monthly_budget_usd: "25"` can accompany `monetary_inputs: {"monthly_budget_usd": {"amount": "100", "currency": "PLN"}}`. An explicit legacy USD edit replaces only that field's original terms. An unrelated patch preserves them. Cloning and supported exports/imports retain validated historical terms without revaluing the USD limit.
+
+Foreign-currency limits round to six USD decimal places; amounts that would become zero are refused. Legacy float-valued agent specs and node/check thresholds keep their format and reject declarations that cannot be represented exactly there. A dataset cost criterion remains a pass/fail threshold, not spending authorization. Switching reporting currency never changes which costs or limits the enforcement compares.
+
 
 ## Approvals
 

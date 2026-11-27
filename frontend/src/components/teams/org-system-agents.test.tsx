@@ -58,6 +58,7 @@ vi.mock("@/components/agents/model-profile-picker", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 vi.mock("next-intl", () => ({
+  useLocale: () => "en",
   useTranslations:
     () =>
     (key: string, values?: Record<string, string>): string =>
@@ -159,7 +160,7 @@ describe("OrgSystemAgents", () => {
     expect(state.setProactivity).toHaveBeenCalledWith("o1", {
       proactive_enabled: true,
       proactive_model_profile_id: "model-2",
-      proactive_limit_usd: 1,
+      monetary_inputs: {},
     });
     expect(state.mutateAsync).not.toHaveBeenCalled();
   });
@@ -247,7 +248,7 @@ describe("OrgSystemAgents", () => {
     render(<OrgSystemAgents org={ORG} />);
 
     const card = screen.getByTestId("system-agent-memory_maintenance");
-    expect(card).toHaveTextContent("spentOf:$1.5|$5");
+    expect(card).toHaveTextContent("spentOf:$1.5000|$5.0000");
     expect(card).toHaveTextContent("Sonnet");
     expect(card).toHaveTextContent("unknownModel");
     expect(card).toHaveTextContent("The model timed out");
@@ -265,13 +266,13 @@ describe("OrgSystemAgents", () => {
 
     expect(card.querySelector("button[role=switch]")).toBeDisabled();
 
-    await userEvent.type(screen.getByLabelText("budget"), "-1");
+    await userEvent.type(screen.getByLabelText("budget:USD"), "-1");
     await userEvent.click(
       within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
         name: "save",
       }),
     );
-    expect(card).toHaveTextContent("invalid");
+    expect(card).toHaveTextContent("amountInvalid");
     expect(state.mutateAsync).not.toHaveBeenCalled();
   });
 
@@ -286,7 +287,7 @@ describe("OrgSystemAgents", () => {
 
     await userEvent.click(within(card).getByRole("button", { name: "pick" }));
     await userEvent.click(card.querySelector("button[role=switch]") as HTMLElement);
-    await userEvent.type(screen.getByLabelText("budget"), "5");
+    await userEvent.type(screen.getByLabelText("budget:USD"), "5");
     await userEvent.click(
       within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
         name: "save",
@@ -295,7 +296,12 @@ describe("OrgSystemAgents", () => {
 
     expect(state.mutateAsync).toHaveBeenCalledWith({
       role: "memory_maintenance",
-      change: { enabled: true, model_profile_id: "model-2", monthly_budget_usd: "5" },
+      change: {
+        enabled: true,
+        model_profile_id: "model-2",
+        monthly_budget_usd: "5",
+        monetary_inputs: { monthly_budget_usd: { amount: "5", currency: "USD" } },
+      },
     });
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("saved"));
   });
@@ -314,7 +320,7 @@ describe("OrgSystemAgents", () => {
     const card = screen.getByTestId("system-agent-memory_maintenance");
 
     await userEvent.click(card.querySelector("button[role=switch]") as HTMLElement);
-    await userEvent.clear(screen.getByLabelText("budget"));
+    await userEvent.clear(screen.getByLabelText("budget:USD"));
     await userEvent.click(
       within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
         name: "save",
@@ -323,7 +329,12 @@ describe("OrgSystemAgents", () => {
 
     expect(state.mutateAsync).toHaveBeenCalledWith({
       role: "memory_maintenance",
-      change: { enabled: false, model_profile_id: "model-1", monthly_budget_usd: null },
+      change: {
+        enabled: false,
+        model_profile_id: "model-1",
+        monthly_budget_usd: null,
+        monetary_inputs: {},
+      },
     });
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("savedOff"));
   });
@@ -335,7 +346,7 @@ describe("OrgSystemAgents", () => {
         name: /^roles\./,
       }),
     );
-    await userEvent.type(screen.getByLabelText("budget"), "1");
+    await userEvent.type(screen.getByLabelText("budget:USD"), "1");
     const save = within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
       name: "save",
     });
@@ -367,7 +378,7 @@ describe("OrgSystemAgents", () => {
         name: /^roles\./,
       }),
     );
-    await userEvent.type(screen.getByLabelText("budget"), "1");
+    await userEvent.type(screen.getByLabelText("budget:USD"), "1");
     await userEvent.click(
       within(screen.getByTestId("system-agent-memory_maintenance")).getByRole("button", {
         name: "save",
@@ -390,9 +401,9 @@ it("keeps Save disabled until the role configuration changes and after it is res
     name: "save",
   });
   expect(save).toBeDisabled();
-  await userEvent.type(screen.getByLabelText("budget"), "5");
+  await userEvent.type(screen.getByLabelText("budget:USD"), "5");
   expect(save).toBeEnabled();
-  await userEvent.clear(screen.getByLabelText("budget"));
+  await userEvent.clear(screen.getByLabelText("budget:USD"));
   expect(save).toBeDisabled();
 });
 

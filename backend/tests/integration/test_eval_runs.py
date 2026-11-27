@@ -340,7 +340,14 @@ def _environment():
             ModelProfileService,
             "resolve",
             new=AsyncMock(
-                return_value=SimpleNamespace(label="gpt-test", model="gpt-test", provider="openai")
+                return_value=SimpleNamespace(
+                    label="gpt-test",
+                    model="gpt-test",
+                    provider="openai",
+                    credential=SimpleNamespace(
+                        custom_pricing=None, exchange_rates={"USD": Decimal(1)}
+                    ),
+                )
             ),
         ),
         patch.object(AgentRegistryService, "validate_spec", new=AsyncMock()),
@@ -1868,7 +1875,12 @@ async def test_a_model_with_no_history_is_priced_at_its_own_price(db) -> None:
     agent, _ = await _agent(db, ctx)
     dataset = await _dataset(db, ctx, cases=10)
     nano = await _profile(db, ctx, "gpt-4.1-nano")
-    priced = SimpleNamespace(label="nano", model="gpt-4.1-nano", provider="openai")
+    priced = SimpleNamespace(
+        label="nano",
+        model="gpt-4.1-nano",
+        provider="openai",
+        credential=SimpleNamespace(custom_pricing=None, exchange_rates={"USD": Decimal(1)}),
+    )
 
     with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
         estimate = await EvalRunService(db).estimate(
@@ -1890,7 +1902,12 @@ async def test_with_no_history_an_answer_with_tools_is_priced_as_several_request
     dataset = await _dataset(db, ctx, cases=10)
     await db.flush()
     nano = await _profile(db, ctx, "gpt-4.1-nano")
-    priced = SimpleNamespace(label="nano", model="gpt-4.1-nano", provider="openai")
+    priced = SimpleNamespace(
+        label="nano",
+        model="gpt-4.1-nano",
+        provider="openai",
+        credential=SimpleNamespace(custom_pricing=None, exchange_rates={"USD": Decimal(1)}),
+    )
 
     with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):
         estimate = await EvalRunService(db).estimate(
@@ -3027,7 +3044,12 @@ async def test_a_judge_with_no_history_is_priced_at_its_models_price(db) -> None
         )
     )
     await db.flush()
-    priced = SimpleNamespace(label="nano", model="gpt-4.1-nano", provider="openai")
+    priced = SimpleNamespace(
+        label="nano",
+        model="gpt-4.1-nano",
+        provider="openai",
+        credential=SimpleNamespace(custom_pricing=None, exchange_rates={"USD": Decimal(1)}),
+    )
     service = EvalRunService(db)
 
     with patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=priced)):

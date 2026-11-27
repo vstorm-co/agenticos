@@ -1,5 +1,5 @@
 ---
-source_sha: "7347ebc121ae"
+source_sha: "1d353dca3f8e"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -904,13 +904,51 @@ dafür zu Hause an, was zwei wissenswerte Dinge bedeutet:
   Anthropics `claude-sonnet-5-5` kostet.
 - Preise zu aktualisieren ist ein Abhängigkeits-Update.
 
-!!! warning "Ein Provider ohne Key erfasst keine Ausgaben"
+Im Abschnitt **Preise** eines Modellprofils können Sie automatische Tokenpreise
+überschreiben. Eingabe und Ausgabe werden pro Million Tokens in der gewählten Währung angegeben (standardmäßig USD).
+Cache-Lese- und Schreibpreise sind optional und übernehmen bei leerem Feld den
+Eingabepreis. Eine ausdrückliche Null ist ein Preis. Die API verwendet dafür
+`custom_pricing`: Auslassen beim Aktualisieren behält die Einstellung bei,
+`null` stellt die automatische Preisermittlung wieder her.
 
-    Ausgaben werden dem [Vault-Secret](secrets.md) zugerechnet, auf das der Run
-    aufgelöst hat, und ein Provider ohne Key hat keines, dem sie zuzurechnen wären.
+Das Ändern oder Zurücksetzen von Preisen erfordert neben der Verwaltung von Modellverbindungen auch `budgets:manage`. Diese Berechtigung gilt auch für Änderungen an Schlüssel, Endpunkt, `extra_body` oder `extra_headers` eines Profils mit eigenen Preisen: Rohe Anforderungseinstellungen können Modell oder zahlendes Konto wechseln. Andere Generierungseinstellungen wie die Temperatur behalten ihre bisherigen Berechtigungen.
+
+Abonnementprofile unterstützen dieselben optionalen Tokenpreise; diese messen den Budgetverbrauch, nicht das Abonnementkontingent. Wenn eigene Preise die Abrechnung ersetzen, bleiben die ursprünglichen Anbieterbeträge in den Nutzungsmetadaten erhalten.
+
+Eigene Preise haben Vorrang vor Katalogpreisen und Anbieterrechnungen.
+Es gelten die Preise des tatsächlich antwortenden Profils, auch bei Fallbacks,
+Delegationen und Modellen ohne Schlüssel. Normalisierte Cache-Tokens werden nur
+einmal berechnet. Schätzungen verwenden Profilpreise, wo sie sonst den Katalog
+verwenden würden; historische Schätzungen verwenden weiterhin gespeicherte Kosten.
+
+Preisänderungen gelten für neu aufgelöste Nutzung und ändern keine historischen
+Run- oder Nachrichtenkosten. Ungültige Tokenzahlen oder fehlende Nutzungsdaten
+bleiben teilweise bepreist. Bekannte Teilbeträge bleiben erhalten; nach unvollständiger
+Nutzung mit eigenen Preisen lehnt ein aktives Dollarbudget weitere Anfragen ab.
+Der automatische Modus behält Katalog und Anbieterrechnungen bei. Das Formular
+zeigt verfügbare Richtpreise der Basisstufe; die tatsächliche Anbieterrechnung
+ist erst nach der Anfrage bekannt. Eigene Preise konfigurieren weder Realtime-
+Sprachanrufe noch die nach Einheiten berechnete Bild-, Audio- und Videoerzeugung.
+
+Bepreiste Anfragen ohne Schlüssel zählen zu Ausgaben und Budgets der Organisation.
+Sie haben kein [Vault-Secret](secrets.md) für eine Zuordnung im Schlüsselbericht.
 
 Die Kosten werden *vor* jeder Modellanfrage geprüft und auch dann erfasst, wenn
 der Run fehlschlägt. Siehe [Budgets](governance.md#budgets).
+
+Eigene Preise enthalten einen `currency`-Code, unabhängig von Organisation und
+Oberflächensprache. Administratoren pflegen manuelle Kurse unter **Währungen und
+Wechselkurse**. Ein Kurs bedeutet Währungseinheiten pro USD: Bei EUR `0.9` werden
+`9 EUR` als `10 USD` erfasst. Die Nutzung behält ursprünglichen Betrag, Währung und
+angewendeten Kurs; spätere Änderungen überschreiben diese USD-Kosten nicht.
+Kosten von null werden auch ohne Wechselkurs als `0 USD` erfasst. Bei einem
+Ausgabenlimit ist vor der Inferenz ein Wechselkurs erforderlich, sobald einer
+der Tokenpreise des Profils Kosten verursachen kann. Das gilt auch für
+Lese- und Schreibzugriffe auf den Cache.
+
+Workflow-Statistiken, Dashboard-Ausgaben, Laufverlauf, Gesprächskosten und verbleibendes Budget verwenden den gespeicherten Berichtskurs der Organisation. Er wird bei der Organisationserstellung, einer ausdrücklichen Änderung der bevorzugten oder standardmäßigen Währung sowie beim Abgleich nach Migration oder Start festgelegt. Änderungen der Preiskurse erneuern ihn nicht. Ein ausdrücklicher Währungswechsel ändert angezeigte Gegenwerte, niemals gespeicherte USD-Belege oder Limits. Fehlende Berichtskurse bleiben sichtbar unbekannt.
+
+Limitformulare verwenden denselben Kurs. Ursprünglicher Betrag, Währung und Kurs bleiben neben dem USD-Buchungslimit erhalten; andere Änderungen ersetzen sie nicht. Workflow-Limits, Improve-Budgets und Kostenkriterien behalten ihre Durchsetzungsregeln. Ältere Agentenspezifikationen speichern ihr USD-Budget weiter als Float und lehnen einen deklarierten Betrag ab, der an dieser Grenze nicht exakt darstellbar ist. Der API-Vertrag steht unter [Limitwährung](governance.md#limit-currency).
 
 ### Eine Delegation löst ihr eigenes Profile auf { #a-delegation-resolves-its-own-profile }
 

@@ -5,6 +5,7 @@
  * (`lib/improvement-subject.ts`); what is only a skill's is here.
  */
 
+import type { CurrencyAmount } from "@/lib/money";
 import { apiClient } from "./api-client";
 import type {
   SkillContinuationEstimate,
@@ -51,10 +52,12 @@ export function startSkillImprovement(
   skillId: string,
   origin: SkillImprovementOrigin,
   budgetUsd: string,
+  monetaryInputs?: Record<string, CurrencyAmount>,
 ): Promise<SkillImprovement> {
   return apiClient.post<SkillImprovement>(root(skillId), {
     ...originBody(origin),
     budget_usd: budgetUsd,
+    ...(monetaryInputs ? { monetary_inputs: monetaryInputs } : {}),
   });
 }
 
@@ -116,10 +119,12 @@ export function recheckSkillImprovement(
   sessionId: string,
   quote: SkillContinuationEstimate,
   budget: string,
+  monetaryInputs?: Record<string, CurrencyAmount>,
 ): Promise<SkillImprovement> {
   return apiClient.post<SkillImprovement>(`${root(skillId)}/${sessionId}/recheck`, {
     confirmed: true,
     budget_usd: budget,
+    ...(monetaryInputs ? { monetary_inputs: monetaryInputs } : {}),
     estimate_usd: quote.total_usd,
     candidate_hash: quote.candidate_hash,
   });

@@ -1846,6 +1846,8 @@ class KnowledgeGapService:
             RunUsage(input_tokens=(chars + len(spec.instructions)) // 3 + 2000, output_tokens=6000),
             model.model,
             model.provider,
+            custom_pricing=model.credential.custom_pricing,
+            exchange_rates=model.credential.exchange_rates,
         )
         return agent, version, None if priced is None else priced * steps(spec)
 

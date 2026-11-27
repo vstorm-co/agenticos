@@ -5,9 +5,10 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, JsonValue
 
 from app.schemas.base import BaseSchema
+from app.schemas.currency import MonetaryInputSchema
 
 SystemRole = Literal["daily_briefing", "memory_maintenance"]
 
@@ -25,6 +26,8 @@ class SystemAgentRunRead(BaseSchema):
 
 class SystemAgentRead(BaseSchema):
     """A role as an operator sees it."""
+
+    monetary_terms: dict[str, JsonValue] = Field(default_factory=dict)
 
     role: SystemRole
     enabled: bool
@@ -57,9 +60,9 @@ class SystemAgentList(BaseSchema):
     items: list[SystemAgentRead]
 
 
-class SystemAgentUpdate(BaseSchema):
+class SystemAgentUpdate(MonetaryInputSchema):
     """A role's switch, model and monthly budget, replaced together."""
 
     enabled: bool
     model_profile_id: UUID | None = None
-    monthly_budget_usd: Decimal | None = Field(default=None, ge=0)
+    monthly_budget_usd: Decimal | None = Field(default=None, ge=0, max_digits=38, decimal_places=6)

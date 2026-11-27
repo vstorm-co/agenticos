@@ -1,5 +1,9 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { SourceSelector } from "@/components/event-sources/source-selector";
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
@@ -521,6 +525,10 @@ function ConfigLeaf({
   const label = labelOf(schema, name);
   const resource = resourceKind(schema);
 
+  if (name === "max_cost_usd" && path.length === 1) {
+    return <ConfigMoney schema={schema} ctx={ctx} value={value} error={error} />;
+  }
+
   if (ctx.node.definition_id === "notification.send" && name === "channels") {
     return <NotificationChannels value={value} disabled={ctx.disabled} onChange={onChange} />;
   }
@@ -609,6 +617,54 @@ function ConfigLeaf({
       errors={error === undefined ? undefined : { [name]: error }}
       onChange={(next) => onChange(next[name])}
     />
+  );
+}
+
+function ConfigMoney({
+  schema,
+  ctx,
+  value,
+  error,
+}: {
+  schema: Schema;
+  ctx: FieldCtx;
+  value: unknown;
+  error?: string;
+}) {
+  const money = useMoney();
+  const monetary = useMonetaryInputs(`${ctx.node.id}|${ctx.actionAlias ?? ""}`);
+  const t = useTranslations("currencies");
+  const id = `cfg-${ctx.actionAlias ? ctx.actionAlias + "-" : ""}max-cost-usd`;
+  const effectiveSchema = unwrapOptional(schema);
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{t("limitLabel", { currency: money.currency ?? "—" })}</Label>
+      <MonetaryInput
+        id={id}
+        field="max_cost_usd"
+        monetary={monetary}
+        positive
+        maxUsd={typeof effectiveSchema.maximum === "number" ? effectiveSchema.maximum : undefined}
+        value={typeof value === "string" || typeof value === "number" ? value : null}
+        disabled={ctx.disabled}
+        aria-invalid={Boolean(error)}
+        onInvalidValueChange={(value) =>
+          ctx.updateNodeConfig(ctx.node.id, {
+            ...ctx.node.config,
+            max_cost_usd: value,
+            monetary_inputs: { max_cost_usd: { amount: value, currency: money.currency } },
+          })
+        }
+        onValueChange={(usd, input) =>
+          ctx.updateNodeConfig(ctx.node.id, {
+            ...ctx.node.config,
+            max_cost_usd: usd === "" ? null : usd,
+            monetary_inputs: usd === "" ? {} : { max_cost_usd: input },
+          })
+        }
+      />
+      {error && <p className="text-destructive text-xs">{error}</p>}
+    </div>
   );
 }
 
@@ -1398,7 +1454,11 @@ function NodeFields({
   const configSchema = definition.config_schema;
   const inputSchema = actionAlias ? null : definition.input_schema;
   const configFields =
-    configSchema === null ? [] : objectFields(configSchema, defsOf(configSchema));
+    configSchema === null
+      ? []
+      : objectFields(configSchema, defsOf(configSchema)).filter(
+          (entry) => entry.schema["x-internal"] !== true,
+        );
   // An MCP tool's arguments, once its schema is known, are one field per
   // argument - each bound on its own as `arguments/<name>` - not one object.
   const toolArguments =

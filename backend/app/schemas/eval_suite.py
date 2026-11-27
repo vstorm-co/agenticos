@@ -5,12 +5,13 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, computed_field, field_validator
+from pydantic import Field, JsonValue, computed_field, field_validator
 
 from app.agents.prompt_variables import is_time_zone
 from app.core.cron import cron_has_next
 from app.db.models.eval_suite import EvalSuiteResultStatus, EvalSuiteTrigger
 from app.schemas.base import BaseSchema
+from app.schemas.currency import MonetaryInputSchema
 from app.schemas.eval_run import (
     EvalRunEstimate,
     InvalidReasonCode,
@@ -45,7 +46,7 @@ class EvalSuiteSchedule(BaseSchema):
         return value
 
 
-class EvalSuiteCreate(BaseSchema):
+class EvalSuiteCreate(MonetaryInputSchema):
     """A suite as a person sets it up.
 
     Attributes:
@@ -77,7 +78,7 @@ class EvalSuiteCreate(BaseSchema):
     max_run_usd: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=6)
 
 
-class EvalSuiteUpdate(BaseSchema):
+class EvalSuiteUpdate(MonetaryInputSchema):
     """A change to a suite. Saving any of it makes the saver the suite's owner.
 
     `schedule: null` stops the schedule; `environment_id: null` checks the
@@ -232,6 +233,8 @@ class EvalSuitePin(BaseSchema):
 
 class EvalSuiteRead(BaseSchema):
     """A suite, what it last came to, and what it is doing now."""
+
+    monetary_terms: dict[str, JsonValue] = Field(default_factory=dict)
 
     id: UUID
     agent_id: UUID

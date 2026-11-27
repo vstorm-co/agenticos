@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
 from pydantic_ai.settings import ThinkingEffort
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,6 +29,7 @@ from app.core.exceptions import AppException
 from app.core.permissions import AuthContext
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.session import get_worker_db_context
+from app.schemas.currency import NodeMonetaryConfig
 from app.services.agent_runner import AgentRunnerService
 from app.services.workflow_agents import WorkflowAgentService
 from app.services.workflow_execution import budget, context, questions
@@ -43,7 +44,7 @@ MAX_TEXT = 100_000
 `text.extract` and a summary first, not into one request whole."""
 
 
-class ModelStepConfig(BaseModel):
+class ModelStepConfig(NodeMonetaryConfig):
     """What every model step is set with: which model, and how much it may spend."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")

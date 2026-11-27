@@ -252,6 +252,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[LifespanState]:
     # `create_app` ran the first call.
     setup_logging()
     setup_logfire()
+    from app.services.currency import CurrencyService
+
+    async with get_db_context() as currency_db:
+        await CurrencyService(currency_db).inherited_quotes()
     # Capability modules register themselves on import; nothing the Builder can
     # offer exists until this has run.
     load_builtins()

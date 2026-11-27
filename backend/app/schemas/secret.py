@@ -225,7 +225,11 @@ class SecretSummary(SecretRead):
     """Safe vault metadata with this caller's effective actions."""
 
     can_edit: bool = Field(
-        default=False, description="Whether this caller may rotate, delete or share this secret"
+        default=False,
+        description="Whether this caller may edit metadata, delete or share this secret",
+    )
+    can_rotate: bool = Field(
+        default=False, description="Whether this caller may replace the secret's credential"
     )
 
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+
 import { LiveSample } from "@/components/event-sources/live-sample";
 import { SourceSelector } from "@/components/event-sources/source-selector";
 import { SubscriptionFields } from "@/components/event-sources/subscription-fields";
@@ -275,8 +277,9 @@ export function TriggerFormDialog({
   const [localTarget, setLocalTarget] = useState<LocalTarget | null>(trigger?.local_target ?? null);
   const [overlap, setOverlap] = useState<TriggerOverlap>(trigger?.overlap ?? "skip");
   const [teamsPost, setTeamsPost] = useState(trigger?.teams_conversation_id ?? NO_TEAMS_POST);
+  const monetary = useMonetaryInputs(trigger?.id ?? "new");
   const [budget, setBudget] = useState(
-    trigger?.monthly_budget_usd != null ? String(Number(trigger.monthly_budget_usd)) : "",
+    trigger?.monthly_budget_usd != null ? String(trigger.monthly_budget_usd) : "",
   );
   const parsedBudget = parseBudget(budget);
   const [maxFailures, setMaxFailures] = useState<number | null>(
@@ -581,13 +584,13 @@ export function TriggerFormDialog({
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
       chat_mode: chatMode,
       ...(budgetLimit !== null && budgetLimit !== undefined
-        ? { monthly_budget_usd: budgetLimit }
+        ? { monthly_budget_usd: budget.trim() }
         : {}),
     };
     if (type === "schedule") {
-      return { ...base, ...scheduleCadence(), overlap };
+      return monetary.payload({ ...base, ...scheduleCadence(), overlap });
     }
-    return {
+    return monetary.payload({
       ...base,
       event_source: eventSource,
       ...(sourceId ? { source_id: sourceId } : { event_secret: secret }),
@@ -596,7 +599,7 @@ export function TriggerFormDialog({
         : eventSource === "webhook" && Object.keys(extraConfig).length
           ? extraConfig
           : eventFilterConfig(eventSource, [filterA, filterB]),
-    };
+    });
   }
 
   async function approveTarget(): Promise<LocalTarget | null> {
@@ -722,7 +725,8 @@ export function TriggerFormDialog({
         const limit = parseBudget(budget);
         const stored =
           trigger.monthly_budget_usd != null ? Number(trigger.monthly_budget_usd) : null;
-        if (limit !== undefined && limit !== stored) patch.monthly_budget_usd = limit;
+        if (limit !== undefined && (limit !== stored || monetary.has("monthly_budget_usd")))
+          patch.monthly_budget_usd = budget.trim() || null;
         // A schedule's cadence, only when a cadence control was actually touched.
         // The server recomputes next_fire_at on any cadence field it receives, so
         // echoing the cadence on a prompt-only edit would needlessly reset the
@@ -755,7 +759,7 @@ export function TriggerFormDialog({
             };
           }
         }
-        await update.mutateAsync({ triggerId: trigger.id, patch });
+        await update.mutateAsync({ triggerId: trigger.id, patch: monetary.payload(patch) });
         if (approvalChoice === "custom") {
           setActivateAfterReview(false);
           setReviewing({ ...trigger, ...patch });
@@ -1170,6 +1174,7 @@ export function TriggerFormDialog({
                 />
 
                 <BudgetField
+                  monetary={monetary}
                   value={budget}
                   onChange={setBudget}
                   error={budgetRaised ? t("budgetCreatorOnly") : undefined}
@@ -1388,7 +1393,7 @@ export function TriggerFormDialog({
 
               <EndsAtField value={endsAt} onChange={changeEnd} invalid={invalidEnd} />
 
-              <BudgetField value={budget} onChange={setBudget} />
+              <BudgetField monetary={monetary} value={budget} onChange={setBudget} />
 
               <RunAsCreatorField
                 checked={runsAsCreator}

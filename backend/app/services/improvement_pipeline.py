@@ -91,6 +91,7 @@ from app.repositories import (
     background_job as background_job_repo,
 )
 from app.repositories.agent_run import RunFilter
+from app.repositories.monetary import set_terms as set_monetary_terms
 from app.schemas.authoring import AuthoringStart, HunkDecision, HunkRead, ProposalCheck
 from app.schemas.change_event import ChangeEvent
 from app.schemas.dataset_helpers import DatasetHelper, DatasetHelpers
@@ -185,6 +186,7 @@ from app.services.improvement_states import (
 )
 from app.services.knowledge_gaps import KnowledgeGapService, draft_fingerprint
 from app.services.model_outputs import model_outputs
+from app.services.monetary import MonetaryService
 from app.services.notifications import NotificationService
 from app.services.step_failure import failure_code
 from app.worker.jobs import (
@@ -798,6 +800,19 @@ class ImprovementPipelineService:
                 budget_usd=data.budget_usd,
                 max_iterations=data.max_iterations,
             )
+            terms = await MonetaryService(self.db).terms(
+                ctx.organization_id,
+                values={
+                    "budget_usd": data.budget_usd,
+                    **(
+                        {"search.budget_usd": data.search.budget_usd}
+                        if data.search is not None
+                        else {}
+                    ),
+                },
+                inputs=data.monetary_inputs,
+            )
+            await set_monetary_terms(self.db, run, terms=terms, fields=frozenset(terms))
             await improvement_repo.update_run(
                 self.db,
                 run=run,
@@ -2154,6 +2169,14 @@ class ImprovementPipelineService:
         existing = await self._row(ctx, agent_id, run_id, lock=True)
         if Status(existing.status).active:
             return await self._read(ctx, existing)
+        terms = await MonetaryService(self.db).terms(
+            ctx.organization_id,
+            values={"budget_usd": data.budget_usd}
+            if data.budget_usd != existing.budget_usd or data.monetary_inputs
+            else {},
+            inputs=data.monetary_inputs,
+            previous=existing.monetary_terms,
+        )
         plan = await self._continuation_plan(ctx, agent_id, run_id, data)
         run, iteration, quote = plan.session, plan.iteration, plan.quote
         if data.candidate_hash != quote.candidate_hash or data.estimate_usd != quote.total_usd:
@@ -2202,6 +2225,7 @@ class ImprovementPipelineService:
                 iteration=iteration,
                 values={"classify_job_id" if stage == Stage.CLASSIFYING else "draft_job_id": None},
             )
+        await set_monetary_terms(self.db, run, terms=terms, fields=frozenset({"budget_usd"}))
         await improvement_repo.update_run(
             self.db,
             run=run,

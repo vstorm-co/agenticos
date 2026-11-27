@@ -1,5 +1,5 @@
 ---
-source_sha: "3af154e11e95"
+source_sha: "ab0802c4fd3a"
 ---
 
 # Governance { #governance }
@@ -264,6 +264,8 @@ kolejnym żądaniu.
 
 ### Koszt, którego nie dało się zmierzyć, mówi o tym wprost { #a-cost-that-could-not-be-measured-says-so }
 
+Stav przyjmuje też kursy wdrożenia dla waluty rachunku, w tym EUR. Ustawiony kurs NOK ma pierwszeństwo przed opisanym poniżej starszym `STAV_NOK_PER_USD`. USD pozostaje walutą zapisu kosztu, a zużycie zachowuje faktyczną walutę rachunku i zastosowany kurs.
+
 Koszt naliczony przez Stav ma pierwszeństwo przed katalogiem: `usage.cost` z
 `cost_currency` lub nagłówki `x-stav-cost` i `x-stav-cost-currency`. Dotyczy to
 Chat Completions i Responses, także ze streamingiem. USD używane jest wprost;
@@ -271,8 +273,7 @@ NOK wymaga `STAV_NOK_PER_USD` ([konfiguracja](configuration.md)), utrzymywanego
 przez operatora. To NOK za dolara: wartość `10` dzieliłaby NOK przez 10;
 nie jest to rekomendacja bieżącego kursu. Kurs nie jest pobierany automatycznie.
 Usage zachowuje kwotę, walutę, kurs i koszt w USD, a ledger oznacza źródło jako
-raportowane przez dostawcę. Nieprawidłowa kwota, nieobsługiwana waluta lub brak
-przeliczenia pozostawiają wycenę z katalogu.
+raportowane przez dostawcę. Nieprawidłowy lub brakujący koszt dostawcy pozwala na wycenę z katalogu. Poprawny rachunek bez obsługiwanego kursu pozostaje niewyceniony: jego pierwotna kwota i waluta są zachowane, a run z limitem odmawia kolejnych żądań. Skonfigurowana własna wycena tokenów nadal ma pierwszeństwo.
 
 Bez użytecznego kosztu raportowanego przez dostawcę wycena korzysta z
 `genai-prices`. Pakiet nie zna każdego modelu. Gdy run trafia na taki, dla którego nie ma
@@ -1509,6 +1510,15 @@ wygaśnięciami i tokenami z cache, których nie odczytano z powrotem, w wybrany
 oknie - to miara chybienia, a nie tego, co naliczono ponownie, bo prompt trzymany
 w cache może też skrócić kompakcja.
 Karty nie ma, dopóki każdy cache trzymał.
+
+### Waluta limitów { #limit-currency }
+
+Księgowanie i dotychczasowe pola API pozostają w USD. Konsola przelicza wpisaną kwotę według zapisanego kursu raportowania organizacji, a obok wartości USD wysyła pierwotną deklarację. Serwer sprawdza przeliczenie przy użyciu własnego kursu. Nieaktualny, niezgodny, nieobsługiwany lub niedostępny kurs nie pozwala zapisać limitu. Używaj dziesiętnych ciągów znaków, aby zachować dokładność danych wejściowych.
+
+Na przykład przy zapisanym kursie 4 PLN za USD polu `monthly_budget_usd: "25"` może towarzyszyć `monetary_inputs: {"monthly_budget_usd": {"amount": "100", "currency": "PLN"}}`. Jawny zapis USD ze starszego klienta zastępuje pierwotne warunki tylko tego pola. Niezwiązana poprawka je zachowuje. Klonowanie oraz obsługiwane eksporty i importy przenoszą zweryfikowane warunki historyczne bez przeszacowania limitu USD.
+
+Limity w walucie obcej są zaokrąglane do sześciu miejsc dziesiętnych USD; kwota, która stałaby się zerem, jest odrzucana. Starsze budżety agentów i progi kroków lub kryteriów oparte na float zachowują format i odrzucają niedokładnie reprezentowalne deklaracje. Kryterium kosztu datasetu pozostaje progiem oceny, nie zgodą na wydawanie pieniędzy. Zmiana waluty raportowania nie zmienia kosztów ani limitów porównywanych przy egzekwowaniu budżetu.
+
 
 ## Zatwierdzenia { #approvals }
 

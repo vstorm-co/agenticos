@@ -646,6 +646,12 @@ missing-argument = "warn"
 [[tool.ty.overrides]]
 include = [
     "app/agents/**",
+    "app/schemas/token_pricing.py",
+    "app/core/currency.py",
+    "app/schemas/currency.py",
+    "app/services/currency.py",
+    "app/services/monetary.py",
+    "app/repositories/monetary.py",
     "app/commands/bootstrap.py",
     "app/commands/refresh_assistant.py",
     "app/commands/refresh_inbox.py",
@@ -1633,6 +1639,12 @@ relative_files = true
 # tests/test_coverage_gate.py exists to catch.
 include = [
     "app/agents/**",
+    "app/schemas/token_pricing.py",
+    "app/core/currency.py",
+    "app/schemas/currency.py",
+    "app/services/currency.py",
+    "app/services/monetary.py",
+    "app/repositories/monetary.py",
     "app/commands/bootstrap.py",
     "app/commands/refresh_assistant.py",
     "app/commands/refresh_inbox.py",

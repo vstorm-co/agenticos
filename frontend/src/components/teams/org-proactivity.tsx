@@ -1,5 +1,10 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { canonicalUsd } from "@/lib/money";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useState, type ReactNode } from "react";
 import { CalendarClock, MessageCircle, Moon, Radar, Wallet, type LucideIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -12,7 +17,6 @@ import { SettingsSection } from "@/components/settings/settings-section";
 import { ServiceCard } from "@/components/settings/service-card";
 import {
   Button,
-  Input,
   Select,
   SelectContent,
   SelectItem,
@@ -60,7 +64,7 @@ function stored(org: Organization): Proactivity {
   return {
     enabled: Boolean(org.proactive_enabled && org.proactive_model_profile_id),
     modelId: org.proactive_model_profile_id ?? null,
-    limit: String(Number(org.proactive_limit_usd ?? "1")),
+    limit: canonicalUsd(org.proactive_limit_usd ?? "1"),
     days: org.proactive_days ?? [1, 2, 3, 4, 5],
     hour: org.proactive_hour ?? 5,
     timing: org.proactive_timing ?? "fixed",
@@ -185,6 +189,8 @@ function NightlyForm({
   collapsible: boolean;
   defaultOpen: boolean;
 }) {
+  const monetary = useMonetaryInputs(org.id);
+  const money = useMoney();
   const t = useTranslations("teams.proactive");
   const { roles } = useSystemAgents(true);
   const briefing = roles?.find((role) => role.role === "daily_briefing");
@@ -200,7 +206,7 @@ function NightlyForm({
 
   const saved = stored(org);
   if (useChanged(JSON.stringify(saved))) setForm(saved);
-  const changed = JSON.stringify(form) !== JSON.stringify(saved);
+  const changed = JSON.stringify(form) !== JSON.stringify(saved) || monetary.has(LIMIT_FIELD);
   const dayName = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: "UTC" });
   const edit = (next: Partial<Proactivity>) => {
     setForm((current) => ({ ...current, ...next }));
@@ -208,23 +214,29 @@ function NightlyForm({
   };
 
   const save = async () => {
-    const limit = Number(form.limit.trim());
-    if (form.limit.trim() === "" || !Number.isFinite(limit) || limit < 0) {
+    const limit = form.limit.trim();
+    if (form.limit.trim() === "" || !money.plan(money.inputValue(limit))) {
       setErrors({ [LIMIT_FIELD]: t("invalid") });
       return;
     }
     setSaving(true);
     try {
-      await setProactivity(org.id, {
-        proactive_enabled: form.enabled,
-        proactive_model_profile_id: form.modelId,
-        proactive_limit_usd: limit,
-        proactive_days: form.days,
-        proactive_hour: form.hour,
-        proactive_timing: form.timing,
-        proactive_watches_enabled: form.watches,
-        proactive_watch_min_minutes: form.watchMinutes,
-      });
+      await setProactivity(
+        org.id,
+        monetary.payload({
+          proactive_enabled: form.enabled,
+          proactive_model_profile_id: form.modelId,
+          ...(form.limit !== saved.limit || monetary.has(LIMIT_FIELD)
+            ? { proactive_limit_usd: limit }
+            : {}),
+          proactive_days: form.days,
+          proactive_hour: form.hour,
+          proactive_timing: form.timing,
+          proactive_watches_enabled: form.watches,
+          proactive_watch_min_minutes: form.watchMinutes,
+        }),
+      );
+      monetary.reset();
       toast.success(form.enabled || form.watches ? t("saved") : t("off"));
     } catch (failure) {
       const problem = submitFailure(failure, { fields: [MODEL_FIELD, LIMIT_FIELD] }, tErrors);
@@ -301,18 +313,18 @@ function NightlyForm({
                 <p className="text-muted-foreground leading-relaxed">{t("budgetHint")}</p>
               </div>
               <FormField
-                label={t("label")}
+                label={t("label", { currency: money.currency ?? "—" })}
                 htmlFor="org-proactive-limit"
                 error={errors[LIMIT_FIELD] ?? null}
               >
-                <Input
+                <MonetaryInput
                   id="org-proactive-limit"
-                  type="number"
-                  min="0"
-                  step="0.5"
+                  monetary={monetary}
+                  field={LIMIT_FIELD}
+
                   value={form.limit}
                   disabled={saving}
-                  onChange={(event) => edit({ limit: event.target.value })}
+                  onValueChange={(value) => edit({ limit: value })}
                 />
               </FormField>
             </div>
@@ -427,6 +439,7 @@ function NightlyForm({
               disabled={saving || pendingCreations > 0}
               onClick={() => {
                 setForm(saved);
+                monetary.reset();
                 setErrors({});
               }}
             >

@@ -1,4 +1,7 @@
 "use client";
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useMoney } from "@/components/providers/currency-provider";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button, Checkbox, Input, Label } from "@/components/ui";
@@ -49,6 +52,9 @@ function EndpointEditor({
   pending: boolean;
   onSave: (botId: string, data: PhoneEndpointConfig) => void;
 }) {
+  const money = useMoney();
+  const monetary = useMonetaryInputs(botId);
+  const tm = useTranslations("currencies");
   const t = useTranslations("phone");
   const current = settings.endpoints.find((row) => row.bot_id === botId);
   const [data, setData] = useState<PhoneEndpointConfig>(
@@ -91,7 +97,7 @@ function EndpointEditor({
       className="space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
-        onSave(botId, data);
+        onSave(botId, monetary.payload(data));
       }}
     >
       <label className="flex items-center gap-2 text-sm">
@@ -114,23 +120,38 @@ function EndpointEditor({
       <div className="grid gap-3 sm:grid-cols-2">
         {fields.map((field) => (
           <div key={field} className="space-y-1">
-            <Label htmlFor={`phone-${field}`}>{t(field)}</Label>
-            <Input
-              id={`phone-${field}`}
-              type="number"
-              min={limits[field][0]}
-              max={limits[field][1]}
-              step={field.includes("usd") ? 0.000001 : 1}
-              value={data[field]}
-              disabled={pending}
-              onChange={(event) =>
-                setData({
-                  ...data,
-                  [field]: field.includes("usd") ? event.target.value : Number(event.target.value),
-                })
-              }
-              required
-            />
+            <Label htmlFor={`phone-${field}`}>
+              {field === "daily_budget_usd"
+                ? t("daily_budget_usd", { currency: money.currency ?? "—" })
+                : field === "price_per_minute_usd"
+                  ? tm("perMinuteLabel", { currency: money.currency ?? "—" })
+                  : t(field)}
+            </Label>
+            {field === "daily_budget_usd" || field === "price_per_minute_usd" ? (
+              <MonetaryInput
+                id={`phone-${field}`}
+                monetary={monetary}
+                field={field}
+                positive
+                maxUsd={limits[field][1]}
+                value={data[field]}
+                disabled={pending}
+                onValueChange={(value) => setData({ ...data, [field]: value })}
+                required
+              />
+            ) : (
+              <Input
+                id={`phone-${field}`}
+                type="number"
+                min={limits[field][0]}
+                max={limits[field][1]}
+                step={1}
+                value={data[field]}
+                disabled={pending}
+                onChange={(event) => setData({ ...data, [field]: Number(event.target.value) })}
+                required
+              />
+            )}
           </div>
         ))}
       </div>

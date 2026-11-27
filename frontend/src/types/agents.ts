@@ -189,6 +189,8 @@ export interface LoopGuardSpec {
 }
 
 export interface BudgetSpec {
+  monetary_inputs?: Record<string, import("@/lib/money").CurrencyAmount>;
+  monetary_terms?: Record<string, import("@/lib/money").MonetaryTerm>;
   monthly_usd?: number | null;
 }
 

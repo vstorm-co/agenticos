@@ -1,13 +1,17 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useLocale, useTranslations } from "next-intl";
 
-import { limitText, limitValue, usd } from "@/components/evals/format";
+import { limitValue } from "@/components/evals/format";
 import { ErrorState, LoadingState } from "@/components/states";
-import { Button, Input, Label } from "@/components/ui";
+import { Button, Label } from "@/components/ui";
 import { useSkillImprovements } from "@/hooks/use-skill-improvement";
 import { useSkillMergeStart } from "@/hooks/use-skill-merge";
 import { getErrorMessage } from "@/lib/api-error";
@@ -29,6 +33,9 @@ export function MergeStart({
   forkId: string;
   kind: MergeKind;
 }) {
+  const monetary = useMonetaryInputs();
+  const money = useMoney();
+  const tm = useTranslations("currencies");
   const t = useTranslations("skillImprovement.mergeStart");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
@@ -50,7 +57,7 @@ export function MergeStart({
     price()
       .then((value) => {
         setQuote(value);
-        setLimit(limitText(value.total_usd, locale));
+        setLimit(value.total_usd);
       })
       .catch((failure: unknown) => setRefusal(getErrorMessage(failure, tErrors)));
   }, [line.isLoading, line.error, open, price, locale, tErrors]);
@@ -75,7 +82,7 @@ export function MergeStart({
   async function begin() {
     setRefusal(null);
     try {
-      const session = await start.mutateAsync(limitValue(limit));
+      const session = await start.mutateAsync(monetary.payload({ budget_usd: limitValue(limit) }));
       router.push(`${ROUTES.SKILL_DETAIL(skillId)}/improve/${session.id}`);
     } catch (failure) {
       setRefusal(getErrorMessage(failure, tErrors));
@@ -94,14 +101,17 @@ export function MergeStart({
           {t("hidden", { count: quote.hidden_agents })}
         </p>
       )}
-      <p className="text-sm">{t("price", { cost: usd(quote.total_usd, locale) })}</p>
+      <p className="text-sm">{t("price", { cost: money.cost(quote.total_usd, locale) })}</p>
       <div className="max-w-xs space-y-1.5">
-        <Label htmlFor="skill-merge-limit">{t("limit")}</Label>
-        <Input
+        <Label htmlFor="skill-merge-limit">
+          {tm("budgetLabel", { currency: money.currency ?? "—" })}
+        </Label>
+        <MonetaryInput
           id="skill-merge-limit"
-          inputMode="decimal"
+          monetary={monetary}
+          field="budget_usd"
           value={limit}
-          onChange={(event) => setLimit(event.target.value)}
+          onValueChange={setLimit}
         />
         <p className="text-muted-foreground text-xs">{t("limitHint")}</p>
       </div>

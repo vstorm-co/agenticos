@@ -1,5 +1,5 @@
 ---
-source_sha: "9a57eadec91e"
+source_sha: "02fa31bb1dcc"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -19,7 +19,11 @@ bez ponownego wdrożenia, bez zmiennej środowiskowej, bez przebudowy.
     To ta sama władza, która już administruje użytkownikami i tenantami w całej
     instalacji.
 
-Konsola dzieli ustawienia na Wygląd i nazwę, Dostęp i konta, Ogłoszenia i tryb konserwacji, Głos i aplikację oraz Aktualizacje i diagnostykę. Każda sekcja ma własny adres z parametrem `?section=`. Przejście do innej sekcji zachowuje niezapisane zmiany. Zapis obejmuje edytowane pola ze wszystkich sekcji; Odrzuć zmiany przywraca ich zapisane wartości. Wysyłanie obrazów i dane uwierzytelniające powiadomień mobilnych nadal zapisują się niezależnie.
+Konsola dzieli ustawienia na Wygląd i nazwę, Dostęp i konta, Ogłoszenia i tryb konserwacji, Usługi i koszty oraz Aktualizacje i diagnostykę. Każda sekcja ma własny adres z parametrem `?section=`. Przejście do innej sekcji zachowuje niezapisane zmiany. Zapis obejmuje edytowane pola ze wszystkich sekcji; Odrzuć zmiany przywraca ich zapisane wartości. Wysyłanie obrazów i dane uwierzytelniające powiadomień mobilnych nadal zapisują się niezależnie.
+
+Sekcja Usługi i koszty zawiera też ręczne kursy walut i domyślną preferencję waluty organizacji. Kursy oznaczają jednostki waluty za USD; USD musi wynosić dokładnie 1. Wyczyszczenie nadpisania przywraca `DEFAULT_ORG_CURRENCY` i `CURRENCY_RATES`. Ustawienia nie zmieniają znaczenia zapisanych cen ani istniejących limitów USD.
+
+Koszty raportowe, szacunki i pola limitów używają jednego utrwalonego kursu organizacji. Zmiana ręcznych kursów cen wpływa na przyszłe przeliczenia cen, nie na ten kurs raportowy. Jawna zmiana waluty organizacji lub domyślnej waluty wdrożenia utrwala nowy kurs bez zmiany rozliczeń i limitów USD. Oryginalne deklaracje limitów pozostają dostępne; zobacz [walutę limitu](governance.pl.md#limit-currency).
 
 ## Tożsamość { #identity }
 

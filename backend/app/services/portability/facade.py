@@ -718,7 +718,10 @@ class PortabilityService:
                 if content.tags:
                     await service.update(ctx, row.id, WorkflowUpdate(tags=content.tags))
                 await service.update_settings(
-                    ctx, row.id, WorkflowSettings.model_validate(content.settings.model_dump())
+                    ctx,
+                    row.id,
+                    WorkflowSettings.model_validate(content.settings.model_dump()),
+                    preserve_monetary_terms=True,
                 )
                 if content.graph is not None:
                     await service.update_draft(
@@ -728,11 +731,15 @@ class PortabilityService:
                             graph=content.graph.model_dump(mode="json"),
                             expected_revision=row.draft_revision,
                         ),
+                        preserve_monetary_terms=True,
                     )
                 return row.id
             if kind == BundleResourceKind.AGENT:
                 row = await AgentRegistryService(self.db).create(
-                    ctx, AgentSpec.model_validate(definition), choose_model=False
+                    ctx,
+                    AgentSpec.model_validate(definition),
+                    choose_model=False,
+                    preserve_monetary_terms=True,
                 )
                 return row.id
             if kind == BundleResourceKind.KNOWLEDGE_BASE:

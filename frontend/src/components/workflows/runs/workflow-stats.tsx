@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { useMoney } from "@/components/providers/currency-provider";
 import { formatShare } from "@/components/dashboard/format";
 import { Card, CardContent, FigureCard, Skeleton } from "@/components/ui";
 import { useNodeCatalog, useWorkflowStats } from "@/hooks";
@@ -11,15 +12,6 @@ import type { WorkflowStats as Stats } from "@/lib/workflows/types";
 
 /** The windows the figures can cover, in days. */
 const WINDOWS = [7, 30, 90] as const;
-
-/** Dollars to the cent, or to a hundredth of a cent below a dollar - a step's cost is small. */
-function usd(amount: number, locale: string): string {
-  const digits = amount !== 0 && Math.abs(amount) < 1 ? 4 : 2;
-  return `$${amount.toLocaleString(locale, {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  })}`;
-}
 
 function seconds(value: number | null): string {
   return value === null ? "-" : formatElapsed(value * 1000);
@@ -84,6 +76,12 @@ export function WorkflowStats({ workflowId }: { workflowId: string }) {
 
 function StatsBody({ stats, locale }: { stats: Stats; locale: string }) {
   const t = useTranslations("pages.workflows.stats");
+  const money = useMoney();
+  const formatCost = (amount: number): string => {
+    const converted = money.amount(amount);
+    const digits = converted !== null && converted !== 0 && Math.abs(converted) < 1 ? 4 : 2;
+    return money.formatAmount(converted, locale, digits);
+  };
   // A step taken out of the workflow keeps its past runs; its rows are hidden unless asked
   // for. An approval step is a step too, so this one switch covers both tables.
   const [showRemoved, setShowRemoved] = useState(false);
@@ -123,13 +121,13 @@ function StatsBody({ stats, locale }: { stats: Stats; locale: string }) {
         />
         <FigureCard
           label={t("cost")}
-          value={`${usd(stats.cost_usd, locale)}${stats.cost_is_partial ? "+" : ""}`}
+          value={`${formatCost(stats.cost_usd)}${stats.cost_is_partial ? "+" : ""}`}
           caption={
             budget === null
-              ? t("monthSpent", { amount: usd(stats.month_cost_usd, locale) })
+              ? t("monthSpent", { amount: formatCost(stats.month_cost_usd) })
               : t("monthOfBudget", {
-                  amount: usd(stats.month_cost_usd, locale),
-                  budget: usd(budget, locale),
+                  amount: formatCost(stats.month_cost_usd),
+                  budget: formatCost(budget),
                 })
           }
           captionTone={over ? "destructive" : "muted"}
@@ -190,7 +188,7 @@ function StatsBody({ stats, locale }: { stats: Stats; locale: string }) {
                         {seconds(step.avg_seconds)}
                       </td>
                       <td className="px-4 py-2 text-right tabular-nums">
-                        {usd(step.cost_usd, locale)}
+                        {formatCost(step.cost_usd)}
                       </td>
                     </tr>
                   ))}

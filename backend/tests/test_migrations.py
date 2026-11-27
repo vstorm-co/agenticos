@@ -2955,6 +2955,99 @@ def test_matrix_surface_migration_preserves_existing_exposures() -> None:
         engine.dispose()
 
 
+def test_custom_pricing_upgrade_preserves_existing_profiles_and_downgrades_cleanly() -> None:
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0374_case_from_conversation")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as db:
+            user_id, org_id, profile_id = uuid4(), uuid4(), uuid4()
+            db.execute(_HISTORICAL_USER_INSERT, {"id": user_id, "email": f"{user_id}@example.test"})
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {"id": org_id, "name": "Pricing", "slug": f"pricing-{org_id}", "owner": user_id},
+            )
+            db.execute(
+                text(
+                    "INSERT INTO model_profiles (id, organization_id, label, provider, model) VALUES (:id, :org, 'Legacy', 'ollama', 'alias')"
+                ),
+                {"id": profile_id, "org": org_id},
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as db:
+            assert (
+                db.scalar(
+                    text("SELECT custom_pricing IS NULL FROM model_profiles WHERE id = :id"),
+                    {"id": profile_id},
+                )
+                is True
+            )
+            db.execute(
+                text(
+                    "UPDATE model_profiles SET custom_pricing = CAST(:rates AS jsonb) WHERE id = :id"
+                ),
+                {"id": profile_id, "rates": '{"input":"0","output":"2","cache_read":"0"}'},
+            )
+            # A valid custom-priced request can exceed the former storage cap.
+            # Check every monetary column that terminal accounting may write.
+            from app.db.base import Base
+
+            monetary = [
+                (table.name, column.name)
+                for table in Base.metadata.sorted_tables
+                for column in table.columns
+                if getattr(column.type, "precision", None) == 38
+            ]
+            for table, column in monetary:
+                precision = db.scalar(
+                    text(
+                        "SELECT numeric_precision FROM information_schema.columns "
+                        "WHERE table_name = :table AND column_name = :column AND table_schema = 'public'"
+                    ),
+                    {"table": table, "column": column},
+                )
+                assert precision == 38, (table, column)
+            db.execute(
+                text("UPDATE organizations SET monthly_budget_usd = 1000000 WHERE id = :id"),
+                {"id": org_id},
+            )
+            assert db.scalar(
+                text("SELECT monthly_budget_usd FROM organizations WHERE id = :id"), {"id": org_id}
+            ) == Decimal("1000000")
+            db.execute(
+                text("UPDATE organizations SET monthly_budget_usd = NULL WHERE id = :id"),
+                {"id": org_id},
+            )
+        result = _alembic("downgrade", "0374_case_from_conversation")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            assert (
+                db.scalar(
+                    text(
+                        "SELECT numeric_precision FROM information_schema.columns "
+                        "WHERE table_schema = 'public' AND table_name = 'workflow_retained_spend' "
+                        "AND column_name = 'cost_usd'"
+                    )
+                )
+                == 13
+            )
+            assert (
+                db.scalar(
+                    text("SELECT model FROM model_profiles WHERE id = :id"), {"id": profile_id}
+                )
+                == "alias"
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+    finally:
+        engine.dispose()
+
+
 def test_routine_chat_mode_migration_maps_destinations_without_changing_authority() -> None:
     from app.db.models.agent import Agent
     from app.db.models.conversation import Conversation
@@ -3047,6 +3140,86 @@ def test_routine_chat_mode_migration_maps_destinations_without_changing_authorit
                     ).scalar_one()
                     == "routine"
                 )
+    finally:
+        engine.dispose()
+
+
+def test_currency_settings_upgrade_keeps_existing_prices_and_limits_in_usd() -> None:
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    result = _alembic("downgrade", "0376_monetary_cost_capacity")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.begin() as db:
+            user_id, org_id, profile_id = uuid4(), uuid4(), uuid4()
+            db.execute(_HISTORICAL_USER_INSERT, {"id": user_id, "email": f"{user_id}@example.test"})
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {
+                    "id": org_id,
+                    "name": "Currency upgrade",
+                    "slug": f"currency-{org_id}",
+                    "owner": user_id,
+                },
+            )
+            db.execute(
+                text("UPDATE organizations SET monthly_budget_usd = 100 WHERE id = :id"),
+                {"id": org_id},
+            )
+            db.execute(
+                text(
+                    "INSERT INTO model_profiles (id, organization_id, label, provider, model, custom_pricing) VALUES (:id, :org, 'Legacy', 'ollama', 'alias', '{\"input\":\"2\",\"output\":\"3\"}'::jsonb)"
+                ),
+                {"id": profile_id, "org": org_id},
+            )
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            row = db.execute(
+                text("SELECT currency, monthly_budget_usd FROM organizations WHERE id = :id"),
+                {"id": org_id},
+            ).one()
+            assert row == (None, Decimal(100))
+            assert db.scalar(
+                text("SELECT custom_pricing FROM model_profiles WHERE id = :id"), {"id": profile_id}
+            ) == {"input": "2", "output": "3"}
+        result = _alembic("check")
+        assert result.returncode == 0, result.stderr
+        with engine.begin() as db:
+            db.execute(
+                text(
+                    "UPDATE model_profiles SET custom_pricing = custom_pricing || "
+                    """'{"currency":"EUR"}'::jsonb WHERE id = :id"""
+                ),
+                {"id": profile_id},
+            )
+        result = _alembic("downgrade", "0376_monetary_cost_capacity")
+        assert result.returncode != 0
+        assert "explicitly reprice them in USD before downgrading" in result.stderr
+        with engine.begin() as db:
+            assert (
+                db.scalar(
+                    text("SELECT custom_pricing->>'currency' FROM model_profiles WHERE id = :id"),
+                    {"id": profile_id},
+                )
+                == "EUR"
+            )
+            db.execute(
+                text(
+                    "UPDATE model_profiles SET custom_pricing = custom_pricing || "
+                    """'{"currency":"USD"}'::jsonb WHERE id = :id"""
+                ),
+                {"id": profile_id},
+            )
+        result = _alembic("downgrade", "0376_monetary_cost_capacity")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            assert db.scalar(
+                text("SELECT custom_pricing FROM model_profiles WHERE id = :id"), {"id": profile_id}
+            ) == {"input": "2", "output": "3"}
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
     finally:
         engine.dispose()
 

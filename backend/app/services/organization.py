@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import current_impersonator, record_audit
 from app.core.chat_costs import chat_cost_policy
 from app.core.config import settings
+from app.core.currency import ReportingQuote
 from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
@@ -28,8 +29,10 @@ from app.repositories import (
     member_repo,
     organization_repo,
 )
+from app.repositories.monetary import set_terms as set_monetary_terms
 from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
 from app.schemas.console_presentation import ConsoleNotices, stored_role_defaults
+from app.schemas.currency import CurrencyContext
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -37,10 +40,12 @@ from app.schemas.organization import (
     OrganizationUpdate,
 )
 from app.services import skill_library, speech_to_text
+from app.services.currency import CurrencyService
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.invitation_admission import admits
 from app.services.model_outputs import model_outputs, not_chat_refusal
+from app.services.monetary import MonetaryService
 from app.services.proactive import ProactiveService
 from app.services.skills import SkillService
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
@@ -108,6 +113,8 @@ def _org_read(
         member_count=member_count,
         role=role,
         monthly_budget_usd=org.monthly_budget_usd,
+        monetary_terms=org.monetary_terms or {},
+        currency=org.currency,
         proactive_limit_usd=org.proactive_limit_usd,
         proactive_enabled=org.proactive_enabled,
         proactive_model_profile_id=org.proactive_model_profile_id,
@@ -141,6 +148,10 @@ class OrganizationService:
         # drop the tenant's vector tables with; None everywhere else, so ordinary
         # org operations do not pay for one they never use (#9).
         self._vector_store = vector_store
+
+    async def currency_context(self, org_id: UUID, requester_id: UUID) -> CurrencyContext:
+        await self.get_for_user(org_id, requester_id)
+        return await CurrencyService(self.db).context(org_id)
 
     async def get_by_id(self, org_id: UUID) -> Organization:
         org = await organization_repo.get_by_id(self.db, org_id)
@@ -234,6 +245,9 @@ class OrganizationService:
             created_by_user_id=owner_id,
             is_personal=False,
             monthly_budget_usd=settings.DEFAULT_ORG_MONTHLY_BUDGET_USD,
+            reporting_quote=ReportingQuote.from_settings(
+                await CurrencyService(self.db).settings()
+            ).model_dump(mode="json"),
         )
         await member_repo.create(
             self.db,
@@ -430,6 +444,9 @@ class OrganizationService:
             created_by_user_id=user_id,
             is_personal=True,
             monthly_budget_usd=settings.DEFAULT_ORG_MONTHLY_BUDGET_USD,
+            reporting_quote=ReportingQuote.from_settings(
+                await CurrencyService(self.db).settings()
+            ).model_dump(mode="json"),
         )
         await member_repo.create(
             self.db,
@@ -497,6 +514,7 @@ class OrganizationService:
             - {
                 "monthly_budget_usd",
                 "proactive_limit_usd",
+                "monetary_inputs",
                 "chat_may_waive_approvals",
                 "public_live_data",
             }
@@ -557,6 +575,22 @@ class OrganizationService:
                 target_id=str(org.id),
                 details={"fields": sorted(console_fields)},
             )
+        if "currency" in data.model_fields_set:
+            if data.currency is not None:
+                currencies = await CurrencyService(self.db).settings()
+                if data.currency not in currencies.rates:
+                    raise refused_field(
+                        "currency", "Choose a currency with a configured exchange rate"
+                    )
+            currencies = await CurrencyService(self.db).settings()
+            org = await organization_repo.set_currency(
+                self.db,
+                org,
+                currency=data.currency,
+                reporting_quote=ReportingQuote.from_settings(currencies, data.currency).model_dump(
+                    mode="json"
+                ),
+            )
 
         if "onboarding_reminders" in data.model_fields_set:
             org = await organization_repo.set_onboarding_reminders(
@@ -591,6 +625,20 @@ class OrganizationService:
                 if data.chat_home_defaults is not None
                 else None,
             )
+
+        money_values = {}
+        if wants_budget:
+            money_values["monthly_budget_usd"] = data.monthly_budget_usd
+        if data.proactive_limit_usd is not None:
+            money_values["proactive_limit_usd"] = data.proactive_limit_usd
+        if money_values or data.monetary_inputs:
+            terms = await MonetaryService(self.db).terms(
+                org.id,
+                values=money_values,
+                inputs=data.monetary_inputs,
+                previous=org.monetary_terms,
+            )
+            await set_monetary_terms(self.db, org, terms=terms, fields=frozenset(money_values))
 
         if wants_budget:
             # Keyed on the field being named, not on its value: an explicit

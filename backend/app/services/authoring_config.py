@@ -34,11 +34,13 @@ from app.repositories import (
     mcp_connection_repo,
 )
 from app.schemas.authoring import FieldChange, Rejection
+from app.schemas.token_pricing import TokenPricing
 from app.services import authoring_fields
 from app.services.access import CONTEXT, MCP_CONNECTION, accessible_ids
 from app.services.agent_registry import AgentRegistryService
 from app.services.authoring_evidence import EvidencePack
 from app.services.context import ContextService
+from app.services.currency import CurrencyService
 from app.services.knowledge_base import KnowledgeBaseService
 from app.services.platform_mcp import platform_tool_catalog
 
@@ -416,5 +418,13 @@ class ConfigurationService:
         )
         if profile is None:
             return None
-        priced = price_request(usage, profile.model, profile.provider)
+        pricing = (
+            TokenPricing.model_validate(profile.custom_pricing)
+            if profile.custom_pricing is not None
+            else None
+        )
+        rates = await CurrencyService(self.db).rates_for(pricing)
+        priced = price_request(
+            usage, profile.model, profile.provider, custom_pricing=pricing, exchange_rates=rates
+        )
         return None if priced is None else str(Decimal(priced).quantize(Decimal("0.000001")))

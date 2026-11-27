@@ -18,6 +18,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
+from pydantic import JsonValue
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -27,8 +28,9 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     false,
+    text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -40,6 +42,10 @@ class Group(Base, TimestampMixin):
     """A named set of members inside one organization."""
 
     __tablename__ = "groups"
+
+    monetary_terms: Mapped[dict[str, JsonValue]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'")
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(
@@ -56,7 +62,7 @@ class Group(Base, TimestampMixin):
     # What the department's people may spend in a calendar month, across every
     # agent they run (#2072). Null is no cap of its own - the organization's
     # still applies.
-    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(38, 6), nullable=True)
     created_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),

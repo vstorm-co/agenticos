@@ -120,7 +120,9 @@ export function WorkflowCreateDialog({
   const [replyDraft, setReplyDraft] = useState<WorkflowCreate["reply_draft"]>(initial?.reply_draft);
   const invalidDraft =
     replyDraft !== undefined &&
-    (!replyDraft.model_profile_id || replyDraft.max_cost_usd <= 0 || replyDraft.max_cost_usd > 5);
+    (!replyDraft.model_profile_id ||
+      Number(replyDraft.max_cost_usd) <= 0 ||
+      Number(replyDraft.max_cost_usd) > 5);
   const needsReplyMailbox = initial?.template_id === "awaitReply";
   const [start, setStart] = useState<string>(MANUAL_TRIGGER);
   const chosen = STARTS.find((entry) => entry.id === start)!;

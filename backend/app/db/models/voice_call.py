@@ -121,7 +121,7 @@ class VoiceCall(Base, TimestampMixin):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     end_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
     hung_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False, default=Decimal(0))
     seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     guardrail_hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 

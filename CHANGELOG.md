@@ -31,6 +31,13 @@ Two things are versioned separately from this file and worth knowing about:
 - Let agents inspect a conversation visual before saving it as an App with `preview_visual`: a bounded screenshot, rendering diagnostics, phone-sized viewports and light/dark checks.
 - Open chat visuals in a resizable side panel with Preview and Code views, preserving interactive state through expansion and closing.
 - Download SVG visuals as sharp PNG images from chat or full screen, with local conversion, preparation feedback and a retryable error message.
+- Set custom token prices per model profile in a chosen currency, including cache prices and explicit free usage. Each profile, fallback and delegate keeps its own rates; accounting receipts retain the original price and conversion snapshot.
+
+- Configure supported currencies and manual pricing rates in administration or `CURRENCY_RATES`, and choose an organization reporting currency independently of language. Costs, estimates and monetary inputs share a persisted reporting quote; pricing-rate edits do not revalue recorded USD spend or configured limits.
+
+- Enter limits in the reporting currency and retain their original amount, currency and quote on the owning resource. Agent budgets, routines, workflows and their node caps, background roles, phone routing, eval suites, Improve sessions and cost-check criteria keep compatible accounting USD fields.
+
+
 
 - Preview a role’s navigation, dashboard cards, catalog restrictions and product prompts together, without impersonating a member or loading private widget data.
 - Embed a knowledge base through any OpenAI-compatible endpoint your organization registers, with an optional Vault key: pick **Custom (OpenAI-compatible)**, a service connection and a typed model, then **Test** before creating. Test before saving a change to a knowledge base's embeddings or to a connection's address or key; the Test re-embeds stored chunks and compares them with the vectors already indexed.
@@ -67,6 +74,9 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Count malformed ordinary tool arguments against the SDK retry budget, reset it after a successful call, and stop exhausted nested-agent retries before a code-mode script can execute later actions. Preserve controlled validation details without serializing skill loads.
 - The skills category filter no longer offers category names of skills the caller cannot see (#3282).
+- Keep a Stav bill with missing FX visibly unpriced instead of replacing it with a catalog estimate. Retain its original billed amount and currency, known cost subtotals and partial-usage safeguards.
+
+- Prevent model editors from changing raw request routing or credentials on custom-priced profiles without budget authority. Keep omitted token usage partially priced, including streams and nested calls, and stop further capped requests while retaining known cost subtotals.
 
 - Refuse malformed service-address ports before saving, and allow repairing a legacy invalid address without leaking its credentials into audit entries.
 
@@ -116,6 +126,13 @@ Two things are versioned separately from this file and worth knowing about:
 - Isolated eval and Improve runs now hold reads that leave the deployment, including web fetch, search and remote-agent calls. Use an approved test connection or a recorded result for those calls. Code-mode scripts still run, with each nested operation independently isolated.
 - Migration `0365_intercepted_call_external.py` adds the external-read isolation reason; `0367_tool_call_script_calls.py` adds retained nested calls on transcript rows. `0376_merge_script_calls.py` joins these branches without replaying the released holdout-share backfill. The merge is metadata-only: reverting it alone leaves the feature branches applied. Downgrading the script-call branch discards its retained nested recordings.
 - Migration `0376_skill_binary_resources` stores lossless resource encoding and versioned frontmatter, including queued Check candidates. Downgrade refuses preserved binary or metadata content instead of discarding it.
+- Display workflow statistics, dashboard spending, run history and conversation costs in the organization currency, independently of language. Show unknown amounts when a reporting rate is unavailable; preserve stored USD accounting and existing cap values.
+
+- Apply `0375_model_profile_pricing.py`, `0376_monetary_cost_capacity.py`, `0377_currency_settings.py` and `0378_currency_accounting_terms.py` before starting the API. Profiles retain automatic pricing by default. Monetary columns retain six fractional places; ingestion receipts retain twelve. Downgrade refuses amounts outside the former range or original non-USD limit terms that would be lost.
+
+- Recorded USD receipts and existing USD limits are not reinterpreted. Reporting quotes are frozen at organization creation, explicit currency preference/default changes and the initial migration/startup reconciliation. A rate-only edit affects future source-price conversions. An explicit reporting-currency change changes displayed equivalents, never accounting receipts or limits.
+
+- Model price changes require `budgets:manage` as well as connection management. Existing USD API fields retain their units; optional `monetary_inputs` declarations are checked against the authoritative quote. Legacy float-valued agent specs retain their format and refuse declarations that cannot be represented exactly at that boundary.
 
 - A keyed custom embedding endpoint under an organization USD cap must use a catalog-priced model and report valid token usage. Fix its reporting/model or intentionally remove that cap before retrying a policy-refused ingest/search. Ingestion and sync still admit whole work windows; already admitted work may overshoot, and unknown provider fees remain partial.
 - Migration `0367_embedding_probe_spend_precision.py` (revision `0367_embedding_probe_spend`) widens ingestion and diagnostic receipts to 12 fractional digits, preserving the previous integer range. Historically rounded receipts cannot be reconstructed or repriced. Downgrade refuses if it would discard fractional financial data.

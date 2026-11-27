@@ -93,6 +93,7 @@ from app.repositories import (
     skill_version_repo,
     user_repo,
 )
+from app.repositories.monetary import set_terms as set_monetary_terms
 from app.schemas.authoring import EvidenceItemRead, HunkRead
 from app.schemas.improvement import (
     ChangeEdit,
@@ -147,6 +148,7 @@ from app.services.dataset import redact_credentials
 from app.services.improvement_data import quotes_a_question
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.improvement_skills import SkillSeed
+from app.services.monetary import MonetaryService
 from app.services.skill_agents import SkillAgentService
 from app.services.skill_catch_up import MergeSides, SkillCatchUpService
 from app.services.skill_check import SkillCheckService, result_hash
@@ -519,6 +521,14 @@ class SkillImprovementService:
                         "withheld": seed.withheld,
                     },
                 )
+                terms = await MonetaryService(self.db).terms(
+                    ctx.organization_id,
+                    values={"budget_usd": data.budget_usd},
+                    inputs=data.monetary_inputs,
+                )
+                await set_monetary_terms(
+                    self.db, run, terms=terms, fields=frozenset({"budget_usd"})
+                )
         except IntegrityError as exc:
             # The skill and its fork were read in this transaction, so the open-session
             # index is the one constraint the insert can break.
@@ -597,6 +607,14 @@ class SkillImprovementService:
                     seed=None,
                     purpose=purpose.value,
                     source_fork_id=source.fork_id if purpose is Purpose.TO_MAIN else None,
+                )
+                terms = await MonetaryService(self.db).terms(
+                    ctx.organization_id,
+                    values={"budget_usd": data.budget_usd},
+                    inputs=data.monetary_inputs,
+                )
+                await set_monetary_terms(
+                    self.db, run, terms=terms, fields=frozenset({"budget_usd"})
                 )
         except IntegrityError as exc:
             raise AlreadyExistsError(
@@ -919,6 +937,18 @@ class SkillImprovementService:
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
         if Status(run.status).active:
             return await self._read(ctx, run, line)
+        requested_terms = await MonetaryService(self.db).terms(
+            ctx.organization_id,
+            values={"budget_usd": consent.budget_usd}
+            if consent.budget_usd != run.budget_usd or consent.monetary_inputs
+            else {},
+            inputs=consent.monetary_inputs,
+            previous=run.monetary_terms,
+        )
+        if consent.budget_usd >= run.budget_usd:
+            await set_monetary_terms(
+                self.db, run, terms=requested_terms, fields=frozenset({"budget_usd"})
+            )
         if run.purpose != Purpose.IMPROVE.value:
             await self._continue_merge(ctx, line, run, consent)
             return await self._read(ctx, run, line)
@@ -1214,6 +1244,14 @@ class SkillImprovementService:
             PaymentRequiredError: The spending limit does not cover the check.
         """
         line, run = await self._editable_row(ctx, skill_id, run_id, lock=True)
+        requested_terms = await MonetaryService(self.db).terms(
+            ctx.organization_id,
+            values={"budget_usd": consent.budget_usd}
+            if consent.budget_usd != run.budget_usd or consent.monetary_inputs
+            else {},
+            inputs=consent.monetary_inputs,
+            previous=run.monetary_terms,
+        )
         mode = consent.mode or await self._mode_of(run)
         quote = await self._recheck_quote(ctx, line, run, mode, budget=consent.budget_usd)
         if consent.candidate_hash != quote.candidate_hash or consent.estimate_usd < quote.total_usd:
@@ -1229,6 +1267,10 @@ class SkillImprovementService:
             raise PaymentRequiredError(
                 message="The spending limit does not cover this check",
                 details={"estimate_usd": str(quote.total_usd), "budget_usd": str(budget)},
+            )
+        if consent.budget_usd >= run.budget_usd:
+            await set_monetary_terms(
+                self.db, run, terms=requested_terms, fields=frozenset({"budget_usd"})
             )
         previous = await self._check(run)
         assert previous is not None, "a result is the outcome of its check"

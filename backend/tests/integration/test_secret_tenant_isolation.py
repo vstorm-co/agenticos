@@ -9,10 +9,13 @@ unseal under a second organization's scope.
 """
 
 import uuid
+from decimal import Decimal
+from unittest.mock import AsyncMock
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import BadRequestError
+from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret, GithubOAuthAppSecret, SecretKind, unseal_secret
 from app.core.vault import VaultScope
@@ -20,6 +23,9 @@ from app.db.models.organization import Organization
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
 from app.repositories import organization_secret as organization_secret_repo
+from app.schemas.model_profile import ModelProfileUpdate
+from app.schemas.token_pricing import TokenPricing
+from app.services.model_profile import ModelProfileService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.speech_to_text_settings import SpeechToTextSettingsService
 
@@ -53,6 +59,76 @@ async def _org(db, *, name: str) -> tuple[Organization, User]:
 
 def _ctx(organization: Organization, owner: User) -> AuthContext:
     return AuthContext(user_id=owner.id, organization_id=organization.id, role=OrgRoleName.OWNER)
+
+
+async def test_rotating_a_custom_priced_model_key_requires_budget_authority(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    org, owner = await _org(db, name="Priced")
+    other_org, _ = await _org(db, name="Other")
+    builder = await _member(db)
+    admin_ctx = _ctx(org, owner)
+    builder_ctx = AuthContext(user_id=builder.id, organization_id=org.id, role=OrgRoleName.BUILDER)
+    other_ctx = AuthContext(
+        user_id=builder.id, organization_id=other_org.id, role=OrgRoleName.BUILDER
+    )
+    vault = OrganizationSecretService(db)
+    key = await vault.create(
+        builder_ctx,
+        name="Builder key",
+        purpose="openai",
+        value=ApiKeySecret(api_key="sk-test-original"),
+        visibility=Visibility.PRIVATE,
+    )
+    next_value = ApiKeySecret(api_key="sk-test-next-1234")
+    monkeypatch.setattr(
+        "app.services.model_profile.models_for", AsyncMock(return_value=([], "curated"))
+    )
+    models = ModelProfileService(db)
+    automatic = await models.create_profile(
+        admin_ctx, label="Automatic", provider="openai", model="gpt-5", secret_id=key.id
+    )
+    await vault.update(builder_ctx, key.id, value=next_value)
+    generation = key.authorization_generation
+
+    zero_rates = TokenPricing(input=Decimal("0"), output=Decimal("0"))
+    priced = await models.create_profile(
+        admin_ctx,
+        label="Priced",
+        provider="openai",
+        model="gpt-5",
+        secret_id=key.id,
+        custom_pricing=zero_rates,
+    )
+    (entry,) = await vault.list_secrets(builder_ctx)
+    assert entry.can_edit and not entry.can_rotate
+    (entry,) = await vault.list_secrets(admin_ctx)
+    assert entry.can_rotate
+    with pytest.raises(NotFoundError):
+        await vault.update(other_ctx, key.id, value=next_value)
+    with pytest.raises(AuthorizationError, match="budgets:manage"):
+        await vault.update(builder_ctx, key.id, value=ApiKeySecret(api_key="sk-test-refused"))
+    assert key.authorization_generation == generation
+    assert key.hint == "1234"
+    assert (
+        await vault.update(builder_ctx, key.id, description="Current provider key")
+    ).description == ("Current provider key")
+    rotated = await vault.update(
+        admin_ctx, key.id, value=ApiKeySecret(api_key="sk-test-admin-5678")
+    )
+    assert rotated.hint == "5678"
+    assert rotated.authorization_generation != generation
+
+    await models.update_profile(
+        admin_ctx, automatic.id, ModelProfileUpdate(custom_pricing=zero_rates)
+    )
+    await models.update_profile(admin_ctx, priced.id, ModelProfileUpdate(custom_pricing=None))
+    with pytest.raises(AuthorizationError, match="budgets:manage"):
+        await vault.update(builder_ctx, key.id, value=next_value)
+    await models.update_profile(admin_ctx, automatic.id, ModelProfileUpdate(custom_pricing=None))
+    (entry,) = await vault.list_secrets(builder_ctx)
+    assert entry.can_rotate
+    assert (await vault.update(builder_ctx, key.id, value=next_value)).hint == "1234"
 
 
 class TestAGithubOAuthAppSecretIsBoundToItsOrganization:

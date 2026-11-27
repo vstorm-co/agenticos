@@ -1,5 +1,9 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMoney } from "@/components/providers/currency-provider";
+import type { MonetaryInputs } from "@/hooks/use-monetary-inputs";
+
 import { useId } from "react";
 import { useTranslations } from "next-intl";
 
@@ -250,7 +254,12 @@ export function SuiteWhenFields({ form, onChange }: FieldsProps) {
 }
 
 /** The threshold: quality up front, efficiency and the spend ceiling folded away. */
-export function SuiteThresholdFields({ form, onChange }: FieldsProps) {
+export function SuiteThresholdFields({
+  form,
+  onChange,
+  monetary,
+}: FieldsProps & { monetary: MonetaryInputs }) {
+  const money = useMoney();
   const t = useTranslations("evals.suites.form");
   return (
     <fieldset className="space-y-4">
@@ -314,17 +323,18 @@ export function SuiteThresholdFields({ form, onChange }: FieldsProps) {
             )}
           </Field>
         </div>
-        <Field label={t("maxRunUsd")} hint={t("maxRunUsdHint")}>
+        <Field
+          label={t("maxRunUsd", { currency: money.currency ?? "—" })}
+          hint={t("maxRunUsdHint")}
+        >
           {(id) => (
-            <Input
+            <MonetaryInput
               id={id}
-              type="number"
-              min={0}
-              step="0.01"
-              inputMode="decimal"
+              monetary={monetary}
+              field="max_run_usd"
               placeholder={t("none")}
               value={form.maxRunUsd}
-              onChange={(event) => onChange({ maxRunUsd: event.target.value })}
+              onValueChange={(value) => onChange({ maxRunUsd: value })}
             />
           )}
         </Field>

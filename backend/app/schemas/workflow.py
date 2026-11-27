@@ -23,6 +23,7 @@ from pydantic import (
 from app.core.resource_icons import ResourceIconName
 from app.db.models.resource_grant import Visibility
 from app.schemas.base import BaseSchema
+from app.schemas.currency import MonetaryInputSchema
 from app.schemas.reply_expectation import ReplyDraftSelection, ReplyMailboxSelection
 from app.schemas.resource_grant import AudienceChoice
 from app.schemas.virtual_table import TableCreate, TableRead
@@ -35,11 +36,13 @@ MAX_BUDGET_USD = 999_999.0
 MAX_DEFAULT_DEADLINE_SECONDS = 30 * 24 * 3600
 
 
-class WorkflowSettings(BaseSchema):
+class WorkflowSettings(MonetaryInputSchema):
     """What a workflow is run with rather than what it does - the workflow's, not a
     version's, so a change applies to every later run and publishing keeps it."""
 
     model_config = ConfigDict(extra="forbid")
+
+    monetary_terms: dict[str, JsonValue] = Field(default_factory=dict)
 
     timezone: str = Field(
         default="UTC",

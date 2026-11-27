@@ -62,7 +62,7 @@ class IngestionSpend(Base, TimestampMixin):
     # writes; zero for embeddings, which only read.
     output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     # Numeric, not float: summed into the same monthly totals as run cost.
-    cost_usd: Mapped[Decimal] = mapped_column(Numeric(18, 12), nullable=False, default=Decimal(0))
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(44, 12), nullable=False, default=Decimal(0))
     # True when the model had no price - the cost is then a floor.
     cost_is_partial: Mapped[bool] = mapped_column(nullable=False, default=False)
 

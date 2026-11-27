@@ -989,3 +989,19 @@ async def test_queued_generation_continues_after_its_admitting_key_expires(db, m
     await db.refresh(row)
     assert row.status == "ready" and row.error is None
     calls.assert_awaited_once()
+
+
+async def test_case_generation_estimate_uses_the_chosen_profiles_custom_price(db):
+    owner, org, agent, dataset, _ = await _setup(db)
+    chosen = await _profile(db, org)
+    chosen.custom_pricing = {"input": "0", "output": "0"}
+    await db.flush()
+    await DatasetService(db).update(
+        owner,
+        dataset.id,
+        DatasetUpdate(
+            helper_settings=DatasetHelpers(generator=DatasetHelper(model_profile_id=chosen.id))
+        ),
+    )
+    estimate = await _service(db).estimate(owner, dataset.id, _request(agent, "agent"))
+    assert estimate.estimated_cost_usd == Decimal(0)

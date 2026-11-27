@@ -32,6 +32,7 @@ from app.repositories import (
     organization_repo,
     system_agent_repo,
 )
+from app.repositories.monetary import set_terms as set_monetary_terms
 from app.schemas.system_agent import (
     SystemAgentList,
     SystemAgentRead,
@@ -39,6 +40,7 @@ from app.schemas.system_agent import (
     SystemAgentUpdate,
 )
 from app.services.model_outputs import model_outputs, not_chat_refusal
+from app.services.monetary import MonetaryService
 from app.services.proactive._thinker import ProactiveThinker
 from app.services.spend import month_start
 
@@ -90,6 +92,17 @@ class SystemAgentService:
             )
         profile = await system_agent_repo.provision(
             self.db, organization_id=ctx.organization_id, role=role
+        )
+        terms = await MonetaryService(self.db).terms(
+            ctx.organization_id,
+            values={"monthly_budget_usd": data.monthly_budget_usd}
+            if data.monthly_budget_usd != profile.monthly_budget_usd or data.monetary_inputs
+            else {},
+            inputs=data.monetary_inputs,
+            previous=profile.monetary_terms,
+        )
+        await set_monetary_terms(
+            self.db, profile, terms=terms, fields=frozenset({"monthly_budget_usd"})
         )
         await system_agent_repo.update(
             self.db,
@@ -162,6 +175,7 @@ class SystemAgentService:
             model_profile_id=profile.model_profile_id if profile is not None else None,
             model_label=label,
             monthly_budget_usd=profile.monthly_budget_usd if profile is not None else None,
+            monetary_terms=profile.monetary_terms if profile is not None else {},
             spent_this_month=await self._spent(ctx, MEMORY_MAINTENANCE),
             runs=await self._runs(ctx, MEMORY_MAINTENANCE),
         )

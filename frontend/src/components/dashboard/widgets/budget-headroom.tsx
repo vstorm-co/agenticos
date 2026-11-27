@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useLocale, useTranslations } from "next-intl";
 
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -10,7 +12,7 @@ import { useOrgStore } from "@/stores";
 import { ROUTES } from "@/lib/constants";
 import { MARK_CLASS, QUIET_SURFACE } from "@/lib/dashboard/system";
 import { cn } from "@/lib/utils";
-import { formatUsd } from "../format";
+
 import { WidgetFrame } from "../widget-frame";
 import { WidgetEmptyBody, WidgetErrorBody, WidgetSkeleton } from "../widget-states";
 import type { DashboardWidgetProps } from "./types";
@@ -32,6 +34,7 @@ const SHOWN_AGENTS = 2;
 export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetProps) {
   const t = useTranslations("dashboard.widgets.budget-headroom");
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
   const organizations = useOrganizationList();
   const { spend, isLoading, error, refetch } = useSpend();
@@ -76,8 +79,8 @@ export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetPr
             <Figure
               value={`${Math.round((used / cap) * 100)}%`}
               caption={t("headline", {
-                cap: formatUsd(cap, locale),
-                left: formatUsd(Math.max(cap - used, 0), locale),
+                cap: formatMoney(cap, locale),
+                left: formatMoney(Math.max(cap - used, 0), locale),
               })}
             />
             <HeadroomBar used={used} cap={cap} className="mt-3" />
@@ -101,7 +104,7 @@ export function BudgetHeadroomWidget({ title, hint, options }: DashboardWidgetPr
                         <span className="truncate">{agent.name}</span>
                       </span>
                       <span className="text-foreground shrink-0 tabular-nums">
-                        {formatUsd(agentUsed, locale)} / {formatUsd(agentCap, locale)}
+                        {formatMoney(agentUsed, locale)} / {formatMoney(agentCap, locale)}
                       </span>
                     </div>
                     <HeadroomBar used={agentUsed} cap={agentCap} className="mt-1" />
