@@ -1,5 +1,6 @@
 """Durable provisioning, teardown and keepalive without fabricated agent runs."""
 
+import logging
 from datetime import UTC, datetime
 
 import httpx
@@ -16,6 +17,8 @@ from app.services.conversation_environment_policy import current_actor
 from app.services.conversation_environments import ConversationEnvironmentService
 from app.worker.attempt import current_attempt_number
 from app.worker.jobs import ConversationEnvironmentPayload
+
+logger = logging.getLogger(__name__)
 
 
 async def provision_environment(payload: ConversationEnvironmentPayload) -> None:
@@ -61,7 +64,16 @@ async def maintain_environment(payload: ConversationEnvironmentPayload) -> None:
             )
         async with runtime.open_view(resource, resolved) as view:
             await runtime.picture(view)
-    except AppException, EndpointError, ComputerError, httpx.HTTPError, OSError:
+    except (AppException, EndpointError, ComputerError, httpx.HTTPError, OSError) as exc:
+        logger.warning(
+            "conversation_environment_maintenance_failed",
+            extra={
+                "environment_id": str(payload.environment_id),
+                "organization_id": str(payload.organization_id),
+                "revision": payload.revision,
+                "error_type": type(exc).__name__,
+            },
+        )
         async with get_worker_db_context() as db:
             row = await environments.for_worker(db, payload.environment_id, for_update=True)
             if row is not None and row.revision == payload.revision:

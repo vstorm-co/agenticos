@@ -6,8 +6,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
+import httpx
 import pytest
 
+from app.agents.capabilities.browser_use._endpoint import EndpointError
+from app.agents.capabilities.computer_use._backends import ComputerError
 from app.core.exceptions import AuthorizationError
 from app.db.models.conversation_environment import ConversationEnvironment
 from app.services.conversation_environment_policy import EnvironmentNotReady
@@ -181,3 +184,45 @@ async def test_failed_maintenance_does_not_expire_newer_or_removed_admission(cas
         jobs.runtime.picture.side_effect = fail
     await jobs.maintain_environment(case.payload)
     jobs.ConversationEnvironmentService.expire.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        AuthorizationError(
+            message="private-token", details={"url": "http://user:private-token@host"}
+        ),
+        EndpointError("http://user:private-token@host"),
+        ComputerError("private-token"),
+        httpx.HTTPStatusError(
+            "private-token",
+            request=httpx.Request("GET", "http://user:private-token@host"),
+            response=httpx.Response(503),
+        ),
+        OSError("private-token"),
+    ],
+)
+async def test_maintenance_failure_logs_only_safe_correlation_and_keeps_cleanup(
+    case, failure, caplog
+):
+    jobs.runtime.picture.side_effect = failure
+    await jobs.maintain_environment(case.payload)
+    records = [
+        record
+        for record in caplog.records
+        if record.message == "conversation_environment_maintenance_failed"
+    ]
+    assert len(records) == 1
+    record = records[0]
+    assert record.environment_id == str(case.payload.environment_id)
+    assert record.organization_id == str(case.payload.organization_id)
+    assert record.revision == case.payload.revision
+    assert record.error_type == type(failure).__name__
+    assert record.args == ()
+    assert record.exc_info is None
+    assert record.stack_info is None
+    assert "private-token" not in repr(record.__dict__)
+    assert "http://" not in repr(record.__dict__)
+    assert case.closed == [True]
+    jobs.ConversationEnvironmentService.expire.assert_awaited_once_with(case.row)
+    jobs.runtime.dispose.assert_not_awaited()
