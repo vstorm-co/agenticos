@@ -23,7 +23,7 @@ names no author is in the evidence column below.
 
 | Licence | Backend | Frontend |
 |---|---:|---:|
-| MIT | 102 | 253 |
+| MIT | 102 | 254 |
 | Apache-2.0 | 71 | 24 |
 | BSD-3-Clause | 22 | 4 |
 | ISC | 3 | 21 |
@@ -284,7 +284,7 @@ names no author is in the evidence column below.
 
 ## Frontend image (npm)
 
-310 distributions.
+311 distributions.
 
 | Component | Version | Licence | Source | Evidence |
 |---|---|---|---|---|
@@ -440,6 +440,7 @@ names no author is in the evidence column below.
 | d3-transition | 3.0.1 | ISC | https://github.com/d3/d3-transition | package.json license |
 | d3-zoom | 3.0.0 | ISC | https://github.com/d3/d3-zoom | package.json license |
 | debug | 4.4.3 | MIT | https://github.com/debug-js/debug | package.json license |
+| decimal.js | 10.6.0 | MIT | https://github.com/MikeMcl/decimal.js | package.json license |
 | decimal.js-light | 2.5.1 | MIT | https://github.com/MikeMcl/decimal.js-light | package.json license |
 | decode-named-character-reference | 1.3.0 | MIT | https://github.com/wooorm/decode-named-character-reference | package.json license |
 | dequal | 2.0.3 | MIT | https://github.com/lukeed/dequal | package.json license |
