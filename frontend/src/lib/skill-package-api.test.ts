@@ -1,0 +1,34 @@
+import { beforeEach, expect, it, vi } from "vitest";
+import { apiClient } from "./api-client";
+import { saveBlob } from "./file-access";
+import { applySkillPackage, downloadSkillFile, previewSkillPackage } from "./skill-package-api";
+vi.mock("./api-client", () => ({ apiClient: { upload: vi.fn(), raw: vi.fn() } }));
+vi.mock("./file-access", () => ({ saveBlob: vi.fn() }));
+beforeEach(() => vi.clearAllMocks());
+it("sends preserved relative paths and reviewed fingerprint through authenticated multipart", async () => {
+  const file = new File(["binary\0"], "asset.pdf");
+  Object.defineProperty(file, "webkitRelativePath", { value: "skill/assets/asset.pdf" });
+  await previewSkillPackage([file], "directory");
+  await applySkillPackage([file], "directory", "reviewed");
+  const [previewUrl, form] = vi.mocked(apiClient.upload).mock.calls[0]!;
+  expect(previewUrl).toBe("/skills/import/preview");
+  expect(form).toBeInstanceOf(FormData);
+  if (!(form instanceof FormData)) throw new Error("missing multipart");
+  expect(form.get("format")).toBe("directory");
+  const asset = form.get("files");
+  expect(asset).toBeInstanceOf(File);
+  if (!(asset instanceof File)) throw new Error("missing file");
+  expect(asset.name).toBe("skill/assets/asset.pdf");
+  const applied = vi.mocked(apiClient.upload).mock.calls[1]?.[1];
+  expect(applied instanceof FormData && applied.get("fingerprint")).toBe("reviewed");
+});
+it("downloads immutable bytes without decoding them through text", async () => {
+  const bytes = new Uint8Array([0, 255, 128]);
+  vi.mocked(apiClient.raw).mockImplementation(async () => new Response(bytes));
+  await downloadSkillFile("skill", "assets/a b.pdf", { versionId: "v1" });
+  expect(apiClient.raw).toHaveBeenCalledWith("/skills/skill/versions/v1/download/assets/a%20b.pdf");
+  expect(vi.mocked(saveBlob).mock.calls[0]?.[1]).toBe("a b.pdf");
+  expect(new Uint8Array(await vi.mocked(saveBlob).mock.calls[0]![0].arrayBuffer())).toEqual(bytes);
+  await downloadSkillFile("skill", "a.pdf", { resourceId: "resource" });
+  expect(apiClient.raw).toHaveBeenLastCalledWith("/skills/skill/resources/resource/download");
+});

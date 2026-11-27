@@ -494,8 +494,10 @@ for (const platform of ["ios", "android"] as const) {
       page,
     }) => {
       for (const [width, path] of [
-        [320, "/skills"],
-        [390, "/skills"],
+        // The plain grid, where the seeded card is on the first page whatever
+        // section it would fall into.
+        [320, "/skills?arrange=none"],
+        [390, "/skills?arrange=none"],
         [320, "/context"],
         [390, "/context"],
       ] as const) {
@@ -504,7 +506,7 @@ for (const platform of ["ios", "android"] as const) {
         // The static toolbar arrives before the catalog; native scroll restoration
         // can still move it while the skeleton is replaced by the seeded rows.
         const seeded = page.locator("main .peek-card").filter({
-          hasText: path === "/skills" ? SEEDED_SKILL_NAME : SEEDED_CONTEXT_NAME,
+          hasText: path.startsWith("/skills") ? SEEDED_SKILL_NAME : SEEDED_CONTEXT_NAME,
         });
         await expect(seeded).toBeVisible();
         const filters = page.getByRole("button", { name: /^Filters/ });
@@ -528,7 +530,8 @@ for (const platform of ["ios", "android"] as const) {
         if (!content || !action) throw new Error("Expected the resource card's bounds");
         expect(action.y).toBeGreaterThanOrEqual(content.y + content.height);
         await expectContained(page);
-        await page.screenshot({ path: test.info().outputPath(`${path.slice(1)}-${width}.png`) });
+        const shot = new URL(path, "http://console").pathname.slice(1);
+        await page.screenshot({ path: test.info().outputPath(`${shot}-${width}.png`) });
       }
     });
 

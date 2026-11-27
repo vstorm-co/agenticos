@@ -6329,6 +6329,14 @@
       "chat-visual-workspace": {
         "title": "Une page à côté du chat",
         "body": "Ouvrez un visuel dans le panneau latéral redimensionnable pour continuer à discuter pendant que vous l’utilisez. Basculez entre Aperçu et Code, agrandissez ou fermez le panneau sans réinitialiser ses commandes."
+      },
+      "skills-arrange": {
+        "title": "Organiser la bibliothèque",
+        "body": "Affichez les skills par agent qui les utilise, par origine ou par catégorie. L’organisation ne change rien à qui peut voir un skill."
+      },
+      "skills-import": {
+        "title": "Importer un paquet",
+        "body": "Choisissez un dossier de compétence ou un ZIP avec SKILL.md. Les fichiers et métadonnées sont conservés. L’import n’exécute ni scripts, ni tests, ni installation."
       }
     },
     "chooseLanguage": "Langue",
@@ -8512,6 +8520,13 @@
     },
     "skills": {
       "allCategories": "Toutes les catégories",
+      "arrange": {
+        "agent": "Par agent",
+        "origin": "Par origine",
+        "category": "Par catégorie",
+        "none": "Sans sections"
+      },
+      "arrangeBy": "Organiser par",
       "askAdministratorAccessSkills": "Demandez l’accès aux skills à un administrateur.",
       "categoryCount": "{count, plural, =1 {1 catégorie} other {# catégories}}",
       "clearFilter": "Effacer le filtre",
@@ -8526,6 +8541,17 @@
       "nobodyHasWrittenSkill": "Personne n’a encore rédigé de skill pour cette organisation.",
       "recentlyUpdated": "Mises à jour récentes",
       "searchSkills": "Rechercher des skills…",
+      "section": {
+        "drafted": "Brouillon uniquement",
+        "unused": "Utilisé par aucun agent que vous voyez",
+        "org": "Organisation",
+        "private": "Privé",
+        "platform": "Intégré · Plateforme",
+        "gallery": "Intégré · {industry}",
+        "uncategorized": "Sans catégorie"
+      },
+      "showAll": "{count, plural, =1 {Afficher 1} other {Tout afficher (#)}}",
+      "showFewer": "Afficher moins",
       "skillCount": "{count, plural, =1 {1 skill} other {# skills}}",
       "skillKnowHowWritten": "Une skill est un savoir-faire écrit une fois et partagé par tous les agents qui en ont besoin - comment les remboursements sont traités, quel est le style maison. Modifiez-la ici et chaque agent qui y est lié est à jour dès son prochain run.",
       "skills": "Skills",
@@ -9865,6 +9891,23 @@
       "hiddenAgents": "{count, plural, one {# autre agent} other {# autres agents}}",
       "testOptionalShort": "Test (facultatif)",
       "compareShort": "Changements"
+    },
+    "package": {
+      "title": "Importer un paquet",
+      "description": "Choisissez un dossier de compétence ou un ZIP avec SKILL.md. Les fichiers et métadonnées sont conservés. L’import n’exécute ni scripts, ni tests, ni installation.",
+      "directory": "Choisir un dossier",
+      "zip": "Choisir un ZIP",
+      "limits": "8 MiB par fichier · 32 MiB par paquet · 1 024 fichiers.",
+      "reading": "Lecture du paquet…",
+      "summary": "{count} fichiers de ressources · {size}",
+      "private": "Crée une compétence privée avec une première version complète. Les compétences existantes ne sont jamais écrasées.",
+      "apply": "Importer la compétence",
+      "cancel": "Annuler",
+      "imported": "Compétence importée",
+      "binary": "Binaire",
+      "text": "Texte",
+      "download": "Télécharger le fichier",
+      "binaryHelp": "Les fichiers binaires restent intacts. Téléchargez ce fichier ou remplacez-le par un téléversement."
     }
   },
   "states": {

@@ -24,8 +24,9 @@ otherwise copy all eighty into every version.
 import uuid
 from datetime import datetime
 from enum import StrEnum
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
+from pydantic import JsonValue
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
@@ -43,6 +44,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.skill_files import ResourceEncoding
 from app.db.base import Base, TimestampMixin
 
 
@@ -74,6 +76,7 @@ class ManifestEntry(TypedDict):
     sha256: str
     description: str | None
     size_bytes: int
+    encoding: NotRequired[ResourceEncoding]
 
 
 def _values(enum: type[StrEnum]) -> str:
@@ -170,6 +173,9 @@ class SkillVersion(Base):
     number: Mapped[int] = mapped_column(Integer, nullable=False)
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    manifest_metadata: Mapped[dict[str, JsonValue]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default="{}"
+    )
     resources: Mapped[dict[str, ManifestEntry]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
@@ -203,6 +209,9 @@ class SkillVersion(Base):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "jsonb_typeof(manifest_metadata) = 'object'", name="ck_skill_versions_manifest_metadata"
+        ),
         ForeignKeyConstraint(
             ["skill_id", "organization_id"],
             ["skills.id", "skills.organization_id"],

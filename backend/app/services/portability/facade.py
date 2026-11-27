@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.spec import AgentSpec
 from app.core.exceptions import AuthorizationError, BadRequestError, ConflictError, NotFoundError
 from app.core.permissions import AuthContext, Perm
+from app.core.skill_files import decode_skill_file
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill_version import SkillVersionSource
 from app.repositories import solution_installation as receipts
@@ -608,12 +609,18 @@ class PortabilityService:
         await service.update(
             ctx,
             skill_id,
-            ImportedSkillUpdate(description=content.description, content=content.content),
+            ImportedSkillUpdate(
+                description=content.description,
+                content=content.content,
+                manifest_metadata=content.manifest_metadata,
+            ),
             source=None,
         )
         await service.drop_resources(ctx, skill_id, keep=[file.name for file in content.files])
         written = await service.put_resources(
-            ctx, skill_id, [(file.name, file.content.encode()) for file in content.files]
+            ctx,
+            skill_id,
+            [(file.name, decode_skill_file(file.content, file.encoding)) for file in content.files],
         )
         descriptions = {file.name: file.description for file in content.files}
         for file in written:
@@ -762,6 +769,7 @@ class PortabilityService:
                     description=content.description,
                     content=content.content,
                     category=content.category,
+                    manifest_metadata=content.manifest_metadata,
                     source=None,
                 )
                 if content.files:

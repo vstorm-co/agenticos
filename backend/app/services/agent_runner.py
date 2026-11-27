@@ -2700,9 +2700,9 @@ def _start_turn_on_first_use(
 
     The same steps, in the same order, that a `state` workspace takes while the
     run is prepared - deferred because on a sandbox they are what opens the
-    session. None of them raises, so the operation waiting behind them is never
-    failed by them; a snapshot that could not be taken stays `None`, which posts
-    nothing back.
+    session. Missing required binary skill assets fail the waiting operation;
+    terminal run cleanup then releases its workspace. A snapshot that could not
+    be taken stays `None`, which posts nothing back.
     """
 
     async def start() -> None:
@@ -3754,6 +3754,24 @@ class AgentRunnerService:
         self.workspaces = SandboxWorkspaceService(db)
         self.proposals = SkillProposalService(db)
         self.transcript = TranscriptService(db)
+
+    async def _materialise_initial_skills(
+        self, workspace: OpenWorkspace, skills: list[Skill], bodies: Mapping[UUID, SkillBody]
+    ) -> MaterialisedSkills:
+        """Release initial workspace ownership if required asset preparation fails.
+
+        No PreparedRun exists yet, so terminal run cleanup cannot own this failure.
+        The workspace service preserves shared/local browser session ownership.
+        """
+        try:
+            return await materialise_skills(workspace.workspace, skills, bodies)
+        except ExternalServiceError, asyncio.CancelledError:
+            failure = await self.workspaces.close(workspace)
+            if failure is not None:
+                logger.error(
+                    "skill_preparation_cleanup_failed", extra={"reason": failure.error.message}
+                )
+            raise
 
     async def _variable_renderer(
         self,
@@ -5417,8 +5435,8 @@ class AgentRunnerService:
                     spec = _with_skills_briefing(spec, deferred=True)
             else:
                 if not independent_agent_workspace:
-                    materialised = await materialise_skills(
-                        workspace.workspace, resources["skills"], resources[SKILL_BODIES_RESOURCE]
+                    materialised = await self._materialise_initial_skills(
+                        workspace, resources["skills"], resources[SKILL_BODIES_RESOURCE]
                     )
                     if materialised.written:
                         spec = _with_skills_briefing(spec)

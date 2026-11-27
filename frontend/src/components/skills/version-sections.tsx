@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { BinarySkillFile } from "./skill-files";
 import { DiffView } from "@/components/authoring/diff-view";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { MarkdownModeToggle, type MarkdownMode } from "@/components/ui";
@@ -38,7 +39,16 @@ export function VersionSections({ version }: { version: SkillVersionRead }) {
           <ul className="divide-y rounded-xl border px-4">
             {version.resources.map((file) => (
               <li key={file.name} className="py-3 text-xs [overflow-wrap:anywhere]">
-                <span className="font-mono">{file.name}</span>
+                {file.encoding === "base64" ? (
+                  <BinarySkillFile
+                    skillId={version.skill_id}
+                    name={file.name}
+                    size={file.size_bytes}
+                    source={{ versionId: version.id }}
+                  />
+                ) : (
+                  <span className="font-mono">{file.name}</span>
+                )}
                 {file.description && (
                   <p className="text-muted-foreground mt-1">{file.description}</p>
                 )}

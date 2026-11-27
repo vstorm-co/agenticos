@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Import complete skill folders or ZIP packages with a reviewed preview, preserved inert frontmatter and exact binary resources across versions, workspace files and portable exports. Import never executes code or installs dependencies.
+
+- **Arrange the Skills page** by agent, by origin or by category, or keep the plain grid. The default is **No sections**; By agent has a section per agent whose published version uses a skill, then **Drafted only** and **Not used by an agent you can see**; a skill several agents use sits under each. By origin splits the organization's skills, private ones, the platform library and each skill gallery industry. Each section shows its count, folds closed and pages through the rest with **Show all**, under the same search and filters; the choice stays in the address as `?arrange=`. Arranging grants nothing: a section holds only skills the reader can already see. Over the API, `GET /api/v1/skills/sections?arrange=agent|origin|category` returns the counted sections, `GET /api/v1/skills?section=<key>` pages through one, and skill summaries carry `gallery_industry`. The category filter and its choices now ignore letter case, so `Security` and `security` are one shelf (#3281).
+
 - Record, grade and replay the calls a code-mode script actually made, including failures and approval resumptions. Retained call-count and byte limits remain explicit; an incomplete trajectory stays ungraded.
 
 - Chat workspace tabs for Visuals, Browser and Files retain the selected content when switching views.
@@ -60,6 +64,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Keep a session kept as a draft accepted when a newer request replaces its suggestions, record the publish of what it measured, and reject it when its draft is discarded.
 
 - Count malformed ordinary tool arguments against the SDK retry budget, reset it after a successful call, and stop exhausted nested-agent retries before a code-mode script can execute later actions. Preserve controlled validation details without serializing skill loads.
+- The skills category filter no longer offers category names of skills the caller cannot see (#3282).
 
 - Refuse malformed service-address ports before saving, and allow repairing a legacy invalid address without leaking its credentials into audit entries.
 
@@ -108,6 +113,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Isolated eval and Improve runs now hold reads that leave the deployment, including web fetch, search and remote-agent calls. Use an approved test connection or a recorded result for those calls. Code-mode scripts still run, with each nested operation independently isolated.
 - Migration `0365_intercepted_call_external.py` adds the external-read isolation reason; `0367_tool_call_script_calls.py` adds retained nested calls on transcript rows. `0376_merge_script_calls.py` joins these branches without replaying the released holdout-share backfill. The merge is metadata-only: reverting it alone leaves the feature branches applied. Downgrading the script-call branch discards its retained nested recordings.
+- Migration `0376_skill_binary_resources` stores lossless resource encoding and versioned frontmatter, including queued Check candidates. Downgrade refuses preserved binary or metadata content instead of discarding it.
 
 - A keyed custom embedding endpoint under an organization USD cap must use a catalog-priced model and report valid token usage. Fix its reporting/model or intentionally remove that cap before retrying a policy-refused ingest/search. Ingestion and sync still admit whole work windows; already admitted work may overshoot, and unknown provider fees remain partial.
 - Migration `0367_embedding_probe_spend_precision.py` (revision `0367_embedding_probe_spend`) widens ingestion and diagnostic receipts to 12 fractional digits, preserving the previous integer range. Historically rounded receipts cannot be reconstructed or repriced. Downgrade refuses if it would discard fractional financial data.

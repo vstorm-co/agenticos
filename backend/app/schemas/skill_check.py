@@ -5,9 +5,10 @@ from decimal import Decimal
 from typing import Annotated, Literal, Self
 from uuid import UUID
 
-from pydantic import AfterValidator, Field, model_validator
+from pydantic import AfterValidator, Field, JsonValue, field_validator, model_validator
 
 from app.core.hidden_text import visible
+from app.core.skill_files import SkillMarkdown, validate_skill_metadata
 from app.db.models.skill_check import (
     AgentState,
     CheckMode,
@@ -33,8 +34,15 @@ class RejudgedChecks(BaseSchema):
 class CandidateText(BaseSchema):
     """The text a change would leave the skill with."""
 
+    manifest_metadata: dict[str, JsonValue] | None = None
+
+    @field_validator("manifest_metadata", mode="before")
+    @classmethod
+    def valid_metadata(cls, value: object) -> dict[str, JsonValue] | None:
+        return None if value is None else validate_skill_metadata(value)
+
     description: str = Field(min_length=1, max_length=500)
-    content: str
+    content: SkillMarkdown
 
 
 class SkillCheckStart(BaseSchema):
@@ -72,7 +80,7 @@ class VisibleCandidateText(CandidateText):
     """A text a caller asks to check, refused when it holds a character a person cannot see."""
 
     description: Annotated[str, AfterValidator(visible)] = Field(min_length=1, max_length=500)
-    content: Annotated[str, AfterValidator(visible)]
+    content: Annotated[SkillMarkdown, AfterValidator(visible)]
 
 
 def _visible(candidate: CandidateText) -> CandidateText:

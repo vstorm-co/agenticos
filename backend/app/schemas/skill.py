@@ -2,11 +2,19 @@
 
 import re
 from datetime import datetime
+from typing import Literal, Self
 from uuid import UUID
 
-from pydantic import Field, field_validator
+from pydantic import ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from app.agents.capabilities import all_capabilities
+from app.core.skill_files import (
+    ResourceEncoding,
+    SkillMarkdown,
+    decode_skill_file,
+    encode_skill_file,
+    validate_skill_metadata,
+)
 from app.schemas.base import BaseSchema
 from app.schemas.resource_grant import AudienceChoice
 from app.schemas.resource_usage import AgentUsage
@@ -52,7 +60,10 @@ class SkillResourceRead(BaseSchema):
     id: UUID
     name: str
     description: str | None = None
+    model_config = ConfigDict(str_strip_whitespace=False)
+
     content: str
+    encoding: ResourceEncoding = "utf8"
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -69,9 +80,12 @@ class SkillResourceSummary(BaseSchema):
     name: str
     description: str | None = None
     size_bytes: int
+    encoding: ResourceEncoding = "utf8"
 
 
 class SkillResourceCreate(BaseSchema):
+    model_config = ConfigDict(str_strip_whitespace=False)
+
     name: str = Field(
         min_length=1,
         max_length=128,
@@ -82,7 +96,14 @@ class SkillResourceCreate(BaseSchema):
         max_length=500,
         description="What is in it, so the model can decide without loading it",
     )
-    content: str = Field(default="", description="The file body")
+    content: str = Field(default="", description="Exact UTF-8 or canonical base64 file content")
+    encoding: ResourceEncoding = "utf8"
+
+    @model_validator(mode="after")
+    def canonical_body(self) -> Self:
+        encoded = encode_skill_file(decode_skill_file(self.content, self.encoding))
+        self.content, self.encoding = encoded.content, encoded.encoding
+        return self
 
 
 class SkillResourceList(BaseSchema):
@@ -91,15 +112,34 @@ class SkillResourceList(BaseSchema):
 
 
 class SkillResourceUpdate(BaseSchema):
+    model_config = ConfigDict(str_strip_whitespace=False)
+
     description: str | None = Field(default=None, max_length=500)
     content: str | None = None
+    encoding: ResourceEncoding | None = None
+
+    @model_validator(mode="after")
+    def canonical_body(self) -> Self:
+        if self.content is not None:
+            encoded = encode_skill_file(decode_skill_file(self.content, self.encoding or "utf8"))
+            self.content, self.encoding = encoded.content, encoded.encoding
+        elif self.encoding is not None:
+            raise ValueError("Changing a file encoding requires its complete content")
+        return self
 
 
 class SkillRead(BaseSchema):
+    manifest_metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @field_validator("manifest_metadata", mode="before")
+    @classmethod
+    def valid_manifest_metadata(cls, value: object) -> dict[str, JsonValue]:
+        return validate_skill_metadata(value)
+
     id: UUID
     name: str
     description: str
-    content: str
+    content: SkillMarkdown
     category: str | None = None
     version: int = Field(description="The number of the newest main version, which this text is")
     latest_version_id: UUID | None = Field(
@@ -137,6 +177,13 @@ class SkillSummary(BaseSchema):
     forks: int = Field(default=0, description="How many forks it has that are not archived")
     built_in: bool = Field(
         description="Whether this skill shipped with the deployment, by library name"
+    )
+    gallery_industry: str | None = Field(
+        default=None,
+        description=(
+            "The skill gallery industry that ships a skill by this name, such as `finance` - "
+            "None for the bundled library and for the organization's own skills"
+        ),
     )
     architect: bool = Field(
         default=False,
@@ -179,8 +226,8 @@ class SkillList(BaseSchema):
     categories: list[str] = Field(
         default_factory=list,
         description=(
-            "Every distinct category in the organization - the filter's choices, "
-            "unaffected by the search and paging that shaped `items`"
+            "Every distinct category among the skills the caller may see - the filter's "
+            "choices, unaffected by the search and paging that shaped `items`"
         ),
     )
     suggested_categories: list[str] = Field(
@@ -192,7 +239,73 @@ class SkillList(BaseSchema):
     )
 
 
+SkillArrangement = Literal["agent", "origin", "category"]
+"""How the listing can be arranged into sections."""
+
+SkillSectionKind = Literal[
+    "agent",
+    "drafted",
+    "unused",
+    "org",
+    "private",
+    "platform",
+    "gallery",
+    "category",
+    "uncategorized",
+]
+
+
+class SkillSection(BaseSchema):
+    """One section of an arranged listing: what it holds, how many, and its first cards."""
+
+    key: str = Field(
+        description=(
+            "Names the section to `GET /skills?section=`, which pages through all of it: "
+            "`agent:<id>`, `drafted`, `unused`, `origin:org`, `origin:private`, "
+            "`origin:platform`, `origin:gallery:<industry>`, `category:<name>` or `category:`"
+        )
+    )
+    kind: SkillSectionKind
+    count: int = Field(description="How many skills the section holds, before `items` is cut short")
+    agent: AgentUsage | None = Field(
+        default=None, description="The agent whose served version binds these, for `agent`"
+    )
+    industry: str | None = Field(
+        default=None, description="The gallery industry these ship from, for `gallery`"
+    )
+    category: str | None = Field(
+        default=None,
+        description=(
+            "The shelf's name, for `category`: categories differing only in letter case "
+            "share one section"
+        ),
+    )
+    items: list[SkillSummary] = Field(description="The section's first skills, in listing order")
+
+
+class SkillSections(BaseSchema):
+    """The skills a caller may see, arranged into sections - with the filters' choices."""
+
+    arrange: SkillArrangement
+    sections: list[SkillSection]
+    total: int = Field(
+        description=(
+            "How many distinct skills the sections hold - fewer than the counts' sum when a "
+            "skill sits under several agents"
+        )
+    )
+    categories: list[str] = Field(default_factory=list)
+    suggested_categories: list[str] = Field(default_factory=list)
+
+
 class SkillCreate(AudienceChoice):
+    manifest_metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @field_validator("manifest_metadata", mode="before")
+    @classmethod
+    def valid_manifest_metadata(cls, value: object) -> dict[str, JsonValue]:
+        return validate_skill_metadata(value)
+
     name: str = Field(
         min_length=1,
         max_length=64,
@@ -215,7 +328,7 @@ class SkillCreate(AudienceChoice):
         max_length=500,
         description="The one line the model reads before deciding to load the body",
     )
-    content: str = Field(default="", description="The skill body, in Markdown")
+    content: SkillMarkdown = Field(default="", description="The skill body, in Markdown")
     category: str | None = Field(
         default=None,
         min_length=1,
@@ -225,8 +338,15 @@ class SkillCreate(AudienceChoice):
 
 
 class SkillUpdate(BaseSchema):
+    manifest_metadata: dict[str, JsonValue] | None = None
+
+    @field_validator("manifest_metadata", mode="before")
+    @classmethod
+    def valid_manifest_metadata(cls, value: object) -> dict[str, JsonValue]:
+        return validate_skill_metadata(value)
+
     description: str | None = Field(default=None, max_length=500)
-    content: str | None = None
+    content: SkillMarkdown | None = None
     category: str | None = Field(default=None, min_length=1, max_length=64)
 
 
@@ -252,7 +372,7 @@ class GallerySkillPreview(BaseSchema):
     name: str
     description: str
     category: str | None = None
-    content: str
+    content: SkillMarkdown
     files: list[str] = Field(description="The files beside the body, by name")
 
 

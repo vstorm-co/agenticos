@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, JsonValue, ValidationError
 from pydantic_ai import ModelRetry, RunContext
 from pydantic_ai.capabilities import ValidatedToolArgs
 from pydantic_ai.messages import ToolCallPart
@@ -26,6 +26,7 @@ from pydantic_ai_skills import SkillsCapability
 
 from app.agents.capabilities._tool_text import ToolText
 from app.agents.capabilities.skills._log import SkillUseLog
+from app.core.skill_files import ResourceEncoding
 from app.db.models.skill import Skill
 
 # What this capability publishes as a tool. The catalog and the skill bodies are
@@ -55,6 +56,7 @@ class SkillBodyFile:
     name: str
     description: str | None
     content: str
+    encoding: ResourceEncoding = "utf8"
 
 
 @dataclass(frozen=True)
@@ -71,6 +73,7 @@ class SkillBody:
     """The line the body was written for: a fork, or `None` for main. An inline
     specialist binding the skill another way does not read it."""
     over_pin: bool = False
+    manifest_metadata: Mapping[str, JsonValue] | None = None
     """Served to the run's own agent even where it is pinned to a main version, as
     moving it to main would leave it. Its inline specialists still read the skill as
     they are bound."""
@@ -82,7 +85,10 @@ def served_files(skill: Skill, body: SkillBody | None = None) -> list[SkillBodyF
         return list(body.resources)
     return [
         SkillBodyFile(
-            name=resource.name, description=resource.description, content=resource.content
+            name=resource.name,
+            description=resource.description,
+            content=resource.content,
+            encoding=resource.encoding or "utf8",
         )
         for resource in skill.resources
     ]
@@ -96,7 +102,12 @@ def to_toolkit_skill(skill: Skill, body: SkillBody | None = None) -> ToolkitSkil
         content=skill.content if body is None else body.content,
     )
     for file in served_files(skill, body):
-        content = _resource_content(file.content)
+        content = (
+            f"Binary resource: {file.name}. In a sandbox-enabled run this file is available at "
+            f"/workspace/skills/{skill.name}/{file.name}; it is not a text document."
+            if file.encoding == "base64"
+            else _resource_content(file.content)
+        )
         if isinstance(content, str):
             converted.resources.append(
                 ToolkitResource(name=file.name, description=file.description, content=content)

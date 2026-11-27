@@ -11,6 +11,7 @@ const catalogs = [
   ["/projects", "Projects", "/api/projects?skip=0&limit=50"],
   ["/rag", "Knowledge bases", "/api/kb"],
   ["/tables", "Tables", "/api/tables"],
+  // Skills open arranged into sections by default, read in one request.
   ["/skills", "Skills", "/api/skills"],
 ] as const;
 

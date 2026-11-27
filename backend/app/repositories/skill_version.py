@@ -10,7 +10,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Text, and_, any_, cast, func, select
+from pydantic import JsonValue
+from sqlalchemy import Text, and_, any_, case, cast, func, literal, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,6 +35,7 @@ async def create_version(
     library_fingerprint: str | None,
     created_by_user_id: UUID | None,
     merged_from_id: UUID | None = None,
+    manifest_metadata: dict[str, JsonValue] | None = None,
 ) -> SkillVersion:
     version = SkillVersion(
         organization_id=organization_id,
@@ -42,6 +44,7 @@ async def create_version(
         number=number,
         description=description,
         content=content,
+        manifest_metadata=manifest_metadata or {},
         resources=resources,
         source=source,
         restored_from_id=restored_from_id,
@@ -136,6 +139,10 @@ async def main_digests(
         + SkillVersion.content
         + "\x1e"
         + cast(SkillVersion.resources, Text)
+        + case(
+            (cast(SkillVersion.manifest_metadata, Text) == "{}", ""),
+            else_=literal("\x1e") + cast(SkillVersion.manifest_metadata, Text),
+        )
     )
     result = await db.execute(
         select(SkillVersion.number, func.encode(func.sha256(func.convert_to(said, "UTF8")), "hex"))

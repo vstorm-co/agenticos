@@ -798,6 +798,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     permission: Perm.skillsEdit,
     inTour: true,
   },
+  {
+    id: "skills-import",
+    page: ROUTES.SKILLS,
+    target: "skills-import",
+    activate: "page-secondary-actions",
+    permission: Perm.skillsEdit,
+  },
   // The gallery is where a first skill actually comes from - an empty
   // organization has three, and writing one from scratch is the harder path.
   {
@@ -809,6 +816,14 @@ export const TOUR_STEPS: readonly TourStep[] = [
     inTour: true,
   },
   { id: "skills-list", page: ROUTES.SKILLS, target: "skills-list", permission: Perm.skillsView },
+  // Arranging by agent, origin or category - drawn beside the search, so
+  // always there once the list may be read.
+  {
+    id: "skills-arrange",
+    page: ROUTES.SKILLS,
+    target: "skills-arrange",
+    permission: Perm.skillsView,
+  },
   // Grouping by department (#2124): only where the organization has groups.
   {
     id: "skills-groups",

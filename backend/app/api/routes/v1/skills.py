@@ -10,26 +10,37 @@ role-level gate cannot see the grants on a row, so it would refuse a viewer who
 was explicitly given edit on a single skill - the exact case sharing exists for.
 """
 
-from typing import Any
+from typing import Any, Literal
+from urllib.parse import quote
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+from fastapi.responses import Response
 
 from app.api.deps import (
     Auth,
     SkillAgentSvc,
     SkillCatchUpSvc,
+    SkillPackageSvc,
     SkillSvc,
     SkillVersionSvc,
     require,
 )
 from app.api.public_api import PUBLIC
+from app.core.exceptions import BadRequestError
 from app.core.permissions import Perm
+from app.core.skill_files import (
+    MAX_SKILL_FILE_BYTES,
+    MAX_SKILL_PACKAGE_BYTES,
+    MAX_SKILL_PACKAGE_FILES,
+    decode_skill_file,
+)
 from app.repositories.skill import SkillSort
 from app.schemas.skill import (
     GalleryInstallRequest,
     GalleryInstallResult,
     GallerySkillPreview,
+    SkillArrangement,
     SkillCreate,
     SkillGallery,
     SkillList,
@@ -38,8 +49,10 @@ from app.schemas.skill import (
     SkillResourceList,
     SkillResourceRead,
     SkillResourceUpdate,
+    SkillSections,
     SkillUpdate,
 )
+from app.schemas.skill_package import SkillPackageApplied, SkillPackagePreview
 from app.schemas.skill_usage import SkillUsageRead
 from app.schemas.skill_version import (
     BehindMainList,
@@ -62,16 +75,91 @@ from app.schemas.skill_version import (
 router = APIRouter(dependencies=[PUBLIC])
 
 
+# routes-helper: Bound multipart byte reads before handing file payloads to the service.
+async def _read_package_uploads(
+    files: list[UploadFile], *, archive: bool
+) -> list[tuple[str, bytes]]:
+    if not files or len(files) > MAX_SKILL_PACKAGE_FILES or (archive and len(files) != 1):
+        raise BadRequestError(message="Choose one ZIP archive or a bounded skill directory")
+    uploaded: list[tuple[str, bytes]] = []
+    total = 0
+    for file in files:
+        limit = MAX_SKILL_PACKAGE_BYTES if archive else MAX_SKILL_FILE_BYTES
+        raw = await file.read(limit + 1)
+        total += len(raw)
+        if len(raw) > limit or total > MAX_SKILL_PACKAGE_BYTES:
+            raise BadRequestError(message="Skill files exceed the per-file or package limit")
+        uploaded.append((file.filename or "", raw))
+    return uploaded
+
+
+@router.post(
+    "/import/preview",
+    form_limits={"max_files": MAX_SKILL_PACKAGE_FILES, "max_fields": 1},
+    response_model=SkillPackagePreview,
+    dependencies=[Depends(require(Perm.SKILLS_EDIT))],
+)
+async def preview_package(
+    ctx: Auth,
+    service: SkillPackageSvc,
+    files: list[UploadFile] = File(...),
+    package_format: Literal["directory", "zip"] = Form(..., alias="format"),
+) -> Any:
+    """Validate a complete skill package without creating rows or running its files."""
+    archive = package_format == "zip"
+    return await service.preview(
+        ctx, await _read_package_uploads(files, archive=archive), archive=archive
+    )
+
+
+@router.post(
+    "/import",
+    form_limits={"max_files": MAX_SKILL_PACKAGE_FILES, "max_fields": 2},
+    response_model=SkillPackageApplied,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require(Perm.SKILLS_EDIT))],
+)
+async def import_package(
+    ctx: Auth,
+    service: SkillPackageSvc,
+    files: list[UploadFile] = File(...),
+    package_format: Literal["directory", "zip"] = Form(..., alias="format"),
+    fingerprint: str = Form(..., pattern=r"^[a-f0-9]{64}$"),
+) -> Any:
+    """Create a private skill and its complete immutable v1 after a matching preview.
+
+    Scripts, tests and dependencies are stored as files, never run or installed.
+    A name conflict is refused rather than replacing an existing skill.
+    """
+    archive = package_format == "zip"
+    return await service.apply(
+        ctx,
+        await _read_package_uploads(files, archive=archive),
+        archive=archive,
+        expected_fingerprint=fingerprint,
+    )
+
+
 @router.get("", response_model=SkillList, dependencies=[Depends(require(Perm.SKILLS_VIEW))])
 async def list_skills(
     service: SkillSvc,
     ctx: Auth,
     q: str | None = Query(None, max_length=100, description="Match on name or description"),
-    category: list[str] | None = Query(None, description="Exact categories to filter to"),
+    category: list[str] | None = Query(
+        None, description="Categories to filter to, any letter case"
+    ),
     sort: SkillSort = Query("name", description="`name` A-Z, or `updated` newest change first"),
     group_id: UUID | None = Query(None, description="Only what is shared with this group"),
     shared_with_me: bool = Query(
         False, description="Only what was shared with the caller - never their own rows"
+    ),
+    section: str | None = Query(
+        None,
+        max_length=200,
+        description=(
+            "Only one section of `GET /skills/sections`, by its `key`, under the same "
+            "filters - how a section is paged through"
+        ),
     ),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -87,9 +175,55 @@ async def list_skills(
         search=q,
         categories=category,
         group_id=group_id,
+        section=section,
         sort=sort,
         skip=skip,
         limit=limit,
+    )
+
+
+@router.get(
+    "/sections",
+    response_model=SkillSections,
+    dependencies=[Depends(require(Perm.SKILLS_VIEW))],
+)
+async def list_skill_sections(
+    service: SkillSvc,
+    ctx: Auth,
+    arrange: SkillArrangement = Query(
+        description=(
+            "`agent` - one section per agent serving a skill, then drafted only and unused; "
+            "`origin` - the organization's, private, then shipped by library and gallery "
+            "industry; `category` - one per shelf, letter case folded"
+        )
+    ),
+    q: str | None = Query(None, max_length=100, description="Match on name or description"),
+    category: list[str] | None = Query(
+        None, description="Categories to filter to, any letter case"
+    ),
+    sort: SkillSort = Query("name", description="The order within each section"),
+    group_id: UUID | None = Query(None, description="Only what is shared with this group"),
+    shared_with_me: bool = Query(
+        False, description="Only what was shared with the caller - never their own rows"
+    ),
+    per_section: int = Query(12, ge=1, le=50, description="How many cards each section carries"),
+) -> Any:
+    """The skills the caller may see, arranged into sections with counts.
+
+    Arranging never widens a listing: the sections hold exactly what `GET
+    /skills` would page through under the same filters, and an agent the
+    caller cannot view is never a section. A skill several agents serve sits
+    under each, so the counts may add up to more than `total`.
+    """
+    return await service.list_sections(
+        ctx,
+        arrange,
+        shared_with_me=shared_with_me,
+        search=q,
+        categories=category,
+        group_id=group_id,
+        sort=sort,
+        per_section=per_section,
     )
 
 
@@ -106,6 +240,7 @@ async def create_skill(data: SkillCreate, service: SkillSvc, ctx: Auth) -> Any:
         description=data.description,
         content=data.content,
         category=data.category,
+        manifest_metadata=data.manifest_metadata,
         visibility=data.visibility,
         group_ids=data.group_ids,
         user_ids=data.user_ids,
@@ -247,11 +382,13 @@ async def add_resource(
         name=data.name,
         description=data.description,
         content=data.content,
+        encoding=data.encoding,
     )
 
 
 @router.post(
     "/{skill_id}/resources/upload",
+    form_limits={"max_files": MAX_SKILL_PACKAGE_FILES, "max_fields": 0},
     response_model=SkillResourceList,
     status_code=status.HTTP_201_CREATED,
 )
@@ -268,12 +405,7 @@ async def upload_resources(
     sits. A path that already exists is replaced, because somebody dropping a
     corrected folder in means the corrected version.
     """
-    uploaded = [
-        # `filename` carries the relative path when a directory was picked, and
-        # only the basename when single files were. Both are names here.
-        (file.filename or "file", await file.read())
-        for file in files
-    ]
+    uploaded = await _read_package_uploads(files, archive=False)
     written = await service.put_resources(ctx, skill_id, uploaded)
     return SkillResourceList(items=written, total=len(written))
 
@@ -439,3 +571,37 @@ async def change_skill_binding(
     with `agents:edit` alone, only the draft changes and `published` is false.
     """
     return await service.change_binding(ctx, skill_id, agent_id, data)
+
+
+@router.get("/{skill_id}/resources/{resource_id}/download", response_model=None)
+async def download_resource(skill_id: UUID, resource_id: UUID, service: SkillSvc, ctx: Auth) -> Any:
+    """Download an authorized skill file as its original bytes."""
+    resource = await service.get_resource(ctx, skill_id, resource_id)
+    return Response(
+        decode_skill_file(resource.content, resource.encoding),
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": "attachment; filename*=UTF-8''"
+            + quote(resource.name.rsplit("/", 1)[-1], safe="")
+        },
+    )
+
+
+@router.get("/{skill_id}/versions/{version_id}/download/{name:path}", response_model=None)
+async def download_version_resource(
+    skill_id: UUID,
+    version_id: UUID,
+    name: str,
+    service: SkillVersionSvc,
+    ctx: Auth,
+) -> Any:
+    """Download a file from the selected authorized immutable skill version."""
+    resource = await service.read_resource(ctx, skill_id, version_id, name)
+    return Response(
+        decode_skill_file(resource.content, resource.encoding),
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": "attachment; filename*=UTF-8''"
+            + quote(resource.name.rsplit("/", 1)[-1], safe="")
+        },
+    )

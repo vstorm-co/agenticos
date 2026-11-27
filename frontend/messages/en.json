@@ -5922,6 +5922,10 @@
         "title": "By department",
         "body": "Narrow the list to what one group was given. A group is who something reaches, so it is also how the list is grouped."
       },
+      "skills-arrange": {
+        "title": "Arrange the library",
+        "body": "See skills by the agent that uses them, by where they came from or by category. Arranging changes nothing about who can see a skill."
+      },
       "context-groups": {
         "title": "By department",
         "body": "Narrow the list to what one group was given. A group is who something reaches, so it is also how the list is grouped."
@@ -6561,6 +6565,10 @@
       "project-resources": {
         "title": "Keep related resources together",
         "body": "Link existing agents, workflows, Apps and tables without changing their permissions. Open them from here, or choose a linked workflow as the project's entrypoint."
+      },
+      "skills-import": {
+        "title": "Import package",
+        "body": "Choose a skill folder or ZIP with SKILL.md. Files and frontmatter are preserved. Import never runs scripts, tests or dependency installation."
       }
     },
     "chooseLanguage": "Language",
@@ -8746,6 +8754,13 @@
     },
     "skills": {
       "allCategories": "All categories",
+      "arrange": {
+        "agent": "By agent",
+        "origin": "By origin",
+        "category": "By category",
+        "none": "No sections"
+      },
+      "arrangeBy": "Arrange by",
       "askAdministratorAccessSkills": "Ask an administrator for access to skills.",
       "categoryCount": "{count, plural, =1 {1 category} other {# categories}}",
       "clearFilter": "Clear filter",
@@ -8760,6 +8775,17 @@
       "nobodyHasWrittenSkill": "Nobody has written a skill for this organization yet.",
       "recentlyUpdated": "Recently updated",
       "searchSkills": "Search skills…",
+      "section": {
+        "drafted": "Drafted only",
+        "unused": "Not used by an agent you can see",
+        "org": "Organization",
+        "private": "Private",
+        "platform": "Built-in · Platform",
+        "gallery": "Built-in · {industry}",
+        "uncategorized": "Uncategorized"
+      },
+      "showAll": "{count, plural, =1 {Show 1} other {Show all #}}",
+      "showFewer": "Show fewer",
       "skillCount": "{count, plural, =1 {1 skill} other {# skills}}",
       "skillKnowHowWritten": "A skill is know-how written once and shared by every agent that needs it - how refunds are handled, what the house style is. Edit it here and each agent bound to it is current on its next run.",
       "skills": "Skills",
@@ -10101,6 +10127,23 @@
       "hiddenAgents": "{count, plural, one {# other agent} other {# other agents}}",
       "testOptionalShort": "Test (optional)",
       "compareShort": "Changes"
+    },
+    "package": {
+      "title": "Import package",
+      "description": "Choose a skill folder or ZIP with SKILL.md. Files and frontmatter are preserved. Import never runs scripts, tests or dependency installation.",
+      "directory": "Choose folder",
+      "zip": "Choose ZIP",
+      "limits": "8 MiB per file · 32 MiB per package · 1,024 files.",
+      "reading": "Reading package…",
+      "summary": "{count} resource files · {size}",
+      "private": "Creates a private skill with a complete first version. Existing skills are never overwritten.",
+      "apply": "Import skill",
+      "cancel": "Cancel",
+      "imported": "Skill imported",
+      "binary": "Binary",
+      "text": "Text",
+      "download": "Download file",
+      "binaryHelp": "Binary files are preserved exactly. Download this file or replace it with an upload."
     }
   },
   "states": {

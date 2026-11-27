@@ -6445,6 +6445,14 @@
       "chat-visual-workspace": {
         "title": "Een pagina naast je chat",
         "body": "Open een visual in het zijpaneel met aanpasbare grootte om verder te chatten terwijl je de visual gebruikt. Wissel tussen Voorbeeld en Code, vergroot het paneel of sluit het zonder de bedieningselementen opnieuw in te stellen."
+      },
+      "skills-arrange": {
+        "title": "De bibliotheek ordenen",
+        "body": "Bekijk skills per agent die ze gebruikt, per herkomst of per categorie. Ordenen verandert niets aan wie een skill kan zien."
+      },
+      "skills-import": {
+        "title": "Pakket importeren",
+        "body": "Kies een vaardigheidsmap of ZIP met SKILL.md. Bestanden en metadata blijven behouden. Importeren voert geen scripts, tests of installaties uit."
       }
     },
     "chooseLanguage": "Taal",
@@ -8630,6 +8638,13 @@
     },
     "skills": {
       "allCategories": "Alle categorieën",
+      "arrange": {
+        "agent": "Per agent",
+        "origin": "Per herkomst",
+        "category": "Per categorie",
+        "none": "Geen secties"
+      },
+      "arrangeBy": "Ordenen op",
       "askAdministratorAccessSkills": "Vraag een beheerder om toegang tot skills.",
       "categoryCount": "{count, plural, =1 {1 categorie} other {# categorieën}}",
       "clearFilter": "Filter wissen",
@@ -8644,6 +8659,17 @@
       "nobodyHasWrittenSkill": "Nog niemand heeft een skill voor deze organisatie geschreven.",
       "recentlyUpdated": "Recent bijgewerkt",
       "searchSkills": "Skills zoeken…",
+      "section": {
+        "drafted": "Alleen in concept",
+        "unused": "Niet gebruikt door een agent die je ziet",
+        "org": "Organisatie",
+        "private": "Privé",
+        "platform": "Ingebouwd · Platform",
+        "gallery": "Ingebouwd · {industry}",
+        "uncategorized": "Zonder categorie"
+      },
+      "showAll": "{count, plural, =1 {1 tonen} other {Alle # tonen}}",
+      "showFewer": "Minder tonen",
       "skillCount": "{count, plural, =1 {1 skill} other {# skills}}",
       "skillKnowHowWritten": "Een skill is knowhow die één keer wordt opgeschreven en gedeeld door elke agent die hem nodig heeft - hoe terugbetalingen worden afgehandeld, wat de huisstijl is. Bewerk hem hier en elke gekoppelde agent gebruikt vanaf zijn volgende run de nieuwe versie.",
       "skills": "Skills",
@@ -9985,6 +10011,23 @@
       "hiddenAgents": "{count, plural, one {# andere agent} other {# andere agents}}",
       "testOptionalShort": "Testen (optioneel)",
       "compareShort": "Wijzigingen"
+    },
+    "package": {
+      "title": "Pakket importeren",
+      "description": "Kies een vaardigheidsmap of ZIP met SKILL.md. Bestanden en metadata blijven behouden. Importeren voert geen scripts, tests of installaties uit.",
+      "directory": "Map kiezen",
+      "zip": "ZIP kiezen",
+      "limits": "8 MiB per bestand · 32 MiB per pakket · 1.024 bestanden.",
+      "reading": "Pakket lezen…",
+      "summary": "{count} bronbestanden · {size}",
+      "private": "Maakt een privévaardigheid met een volledige eerste versie. Bestaande vaardigheden worden niet overschreven.",
+      "apply": "Vaardigheid importeren",
+      "cancel": "Annuleren",
+      "imported": "Vaardigheid geïmporteerd",
+      "binary": "Binair",
+      "text": "Tekst",
+      "download": "Bestand downloaden",
+      "binaryHelp": "Binaire bestanden blijven ongewijzigd. Download dit bestand of vervang het door een upload."
     }
   },
   "states": {

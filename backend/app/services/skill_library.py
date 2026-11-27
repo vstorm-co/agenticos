@@ -27,6 +27,8 @@ from functools import cache
 from pathlib import Path
 
 import yaml
+from pydantic import TypeAdapter
+from yaml.resolver import BaseResolver
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +189,18 @@ def gallery() -> tuple[GalleryIndustry, ...]:
     return tuple(industries)
 
 
+@cache
+def gallery_industries() -> dict[str, str]:
+    """Each gallery skill's name mapped to the industry directory that ships it.
+
+    Installing copies a gallery folder into an ordinary row and keeps only the
+    name, so the name is how a listing finds an installed skill's industry again.
+    Names are unique across the library and the gallery - a new folder must not
+    reuse one - so the mapping is one to one.
+    """
+    return {skill.name: industry.id for industry in gallery() for skill in industry.skills}
+
+
 def architect_names() -> frozenset[str]:
     """The names of the skills the AI Architect's template binds, bundled or from the gallery.
 
@@ -243,6 +257,44 @@ def _read(folder: Path, *, key: str | None = None) -> LibrarySkill:
     )
 
 
+class _SkillFrontmatterLoader(yaml.SafeLoader):
+    """Safe YAML with duplicate keys refused instead of silently overwritten."""
+
+
+def _frontmatter_mapping(
+    loader: yaml.SafeLoader, node: yaml.nodes.MappingNode
+) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key_node, value_node in node.value:
+        key: object = loader.construct_object(key_node)
+        if not isinstance(key, str):
+            raise ValueError("Frontmatter keys must be text")  # noqa: TRY004 - All invalid frontmatter uses the parser's ValueError contract.
+        if key in result:
+            raise ValueError("Frontmatter keys must be unique")
+        value: object = loader.construct_object(value_node)
+        result[key] = value
+    return result
+
+
+_SkillFrontmatterLoader.add_constructor(BaseResolver.DEFAULT_MAPPING_TAG, _frontmatter_mapping)
+
+
+def _validate_frontmatter_events(header: str) -> None:
+    depth = 0
+    for count, event in enumerate(yaml.parse(header)):
+        if count > 8192:
+            raise ValueError("Skill frontmatter contains too many values")
+        if isinstance(event, yaml.events.AliasEvent):
+            # Parser validation is reported through the existing ValueError contract.
+            raise ValueError("Skill frontmatter cannot contain YAML aliases")  # noqa: TRY004
+        if isinstance(event, yaml.events.CollectionStartEvent):
+            depth += 1
+            if depth > 16:
+                raise ValueError("Skill frontmatter is nested too deeply")
+        elif isinstance(event, yaml.events.CollectionEndEvent):
+            depth -= 1
+
+
 def split_frontmatter(text: str) -> tuple[dict[str, object], str]:
     """The YAML header and the body below it.
 
@@ -268,8 +320,17 @@ def split_frontmatter(text: str) -> tuple[dict[str, object], str]:
     if not separator:
         return {}, text
 
+    if len(header.encode("utf-8")) > 64 * 1024:
+        raise ValueError("Skill frontmatter exceeds the 64 KiB limit")
     try:
-        parsed = yaml.safe_load(header) or {}
+        _validate_frontmatter_events(header)
+        loader = _SkillFrontmatterLoader(header)
+        try:
+            parsed: object = loader.get_single_data()
+        finally:
+            loader.dispose()
+        if parsed is None:
+            parsed = {}
     except yaml.YAMLError as exc:
         raise ValueError(f"Frontmatter is not valid YAML: {exc}") from exc
     if not isinstance(parsed, dict):
@@ -277,4 +338,4 @@ def split_frontmatter(text: str) -> tuple[dict[str, object], str]:
         # from a manifest an agent wrote catches one class for "this header is not
         # readable", and catching `TypeError` there would mean catching a bug.
         raise ValueError("Frontmatter must be a mapping of keys to values")  # noqa: TRY004
-    return parsed, body
+    return TypeAdapter(dict[str, object]).validate_python(parsed), body

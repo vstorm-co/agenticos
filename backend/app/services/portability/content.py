@@ -8,6 +8,12 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from app.agents.model_resolver import ModelApi, ModelRegion
+from app.core.skill_files import (
+    ResourceEncoding,
+    decode_skill_file,
+    encode_skill_file,
+    validate_skill_metadata,
+)
 from app.schemas.context import ContextModeLiteral
 from app.schemas.skill import SkillResourceUpdate, SkillUpdate
 from app.services.ingestion_config import IngestionConfig as PortableIngestionConfig
@@ -51,9 +57,25 @@ class SkillFileContent(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=500)
     content: str
+    encoding: ResourceEncoding = Field(default="utf8", exclude_if=lambda value: value == "utf8")
+
+    @model_validator(mode="after")
+    def canonical_body(self) -> Self:
+        body = encode_skill_file(decode_skill_file(self.content, self.encoding))
+        self.content, self.encoding = body.content, body.encoding
+        return self
 
 
 class SkillContent(BaseModel):
+    manifest_metadata: dict[str, JsonValue] = Field(
+        default_factory=dict, exclude_if=lambda value: not value
+    )
+
+    @field_validator("manifest_metadata", mode="before")
+    @classmethod
+    def valid_manifest_metadata(cls, value: object) -> dict[str, JsonValue]:
+        return validate_skill_metadata(value)
+
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
 
     name: str = Field(min_length=1, max_length=64)

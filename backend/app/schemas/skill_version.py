@@ -4,8 +4,9 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, JsonValue, field_validator, model_validator
 
+from app.core.skill_files import ResourceEncoding, SkillMarkdown, validate_skill_metadata
 from app.db.models.skill_check import AgentState, SampleKind
 from app.db.models.skill_version import SkillVersionSource
 from app.schemas.base import BaseSchema
@@ -58,6 +59,8 @@ class SkillVersionSummary(BaseSchema):
 
 
 class VersionResourceSummary(BaseSchema):
+    encoding: ResourceEncoding = "utf8"
+
     name: str
     description: str | None = None
     size_bytes: int
@@ -70,8 +73,9 @@ class VersionResourceSummary(BaseSchema):
 
 
 class SkillVersionRead(SkillVersionSummary):
+    manifest_metadata: dict[str, JsonValue] = Field(default_factory=dict)
     description: str
-    content: str
+    content: SkillMarkdown
     resources: list[VersionResourceSummary] = Field(
         description="The files this version carries, without their contents"
     )
@@ -83,6 +87,10 @@ class SkillVersionList(BaseSchema):
 
 
 class VersionResourceRead(BaseSchema):
+    model_config = ConfigDict(str_strip_whitespace=False)
+
+    encoding: ResourceEncoding = "utf8"
+
     name: str
     description: str | None = None
     content: str
@@ -90,6 +98,13 @@ class VersionResourceRead(BaseSchema):
 
 class SkillVersionCreate(BaseSchema):
     """An edit of the text, saved as a new version on one line."""
+
+    manifest_metadata: dict[str, JsonValue] | None = None
+
+    @field_validator("manifest_metadata", mode="before")
+    @classmethod
+    def valid_metadata(cls, value: object) -> dict[str, JsonValue] | None:
+        return None if value is None else validate_skill_metadata(value)
 
     fork_id: UUID | None = Field(
         default=None, description="The fork to save it on; null saves it on the main line"
@@ -101,7 +116,7 @@ class SkillVersionCreate(BaseSchema):
         )
     )
     description: str = Field(min_length=1, max_length=500)
-    content: str
+    content: SkillMarkdown
 
 
 class SkillVersionRestore(BaseSchema):
