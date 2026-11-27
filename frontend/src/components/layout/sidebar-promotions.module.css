@@ -1,0 +1,48 @@
+.card {
+  margin: 0 12px 8px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-brand-line);
+  border-radius: 14px;
+  background: var(--color-brand-subtle);
+}
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px 6px;
+  color: var(--color-muted-foreground);
+  font-size: 11px;
+}
+.controls button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+.controls button:hover {
+  background: var(--color-accent);
+  color: var(--color-foreground);
+}
+.controls button:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .controls button {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+.slides {
+  display: grid;
+}
+.slide {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+.slide[aria-hidden="true"] {
+  visibility: hidden;
+}

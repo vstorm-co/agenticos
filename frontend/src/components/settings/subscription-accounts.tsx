@@ -23,7 +23,7 @@ import {
   DropdownMenuItem,
   type Column,
 } from "@/components/ui";
-import { ErrorState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import { SubscriptionAccountUsage } from "@/components/agents/subscription-account-usage";
 import { SectionCard } from "@/components/settings/settings-section";
 import { ProviderRow } from "@/components/vault/provider-row";
@@ -58,7 +58,7 @@ export function SubscriptionAccounts() {
   const [connecting, setConnecting] = useState<SubscriptionProvider | null>(null);
   const [query, setQuery] = useState("");
   const listed = actions.accounts.data;
-  if (listed !== undefined && !listed.enabled) return null;
+  const disabled = listed?.enabled === false && !actions.accounts.error;
   const own = listed?.items ?? [];
   const providers = [...SUBSCRIPTION_PROVIDERS].sort(
     (a, b) =>
@@ -185,31 +185,43 @@ export function SubscriptionAccounts() {
       className="flex min-h-0 flex-1 flex-col border-0"
       contentClassName="flex min-h-0 flex-1 flex-col gap-3 py-0"
     >
-      <SearchInput value={query} onChange={setQuery} placeholder={t("search")} />
-      <DataTable
-        key={query}
-        clientPagination
-        pageSize={10}
-        fillHeight
-        stackOnNarrow
-        columns={columns}
-        rows={filtered}
-        getRowKey={(row) => row.id}
-        loading={actions.accounts.isLoading}
-        error={
-          actions.accounts.error ? (
-            <ErrorState
-              title={t("loadFailed")}
-              cta={{ label: t("retry"), onClick: () => void actions.accounts.refetch() }}
-            />
-          ) : undefined
-        }
-        empty={<p className="text-muted-foreground p-5 text-sm">{t("noMatches")}</p>}
-        className="rounded-none border-0 bg-transparent"
-      />
-      <p role="note" className="text-muted-foreground pb-4 text-xs">
-        {t("risk")}
-      </p>
+      {disabled ? (
+        <EmptyState
+          fill
+          title={t("disabledTitle")}
+          description={t("disabledDescription")}
+          cta={{ label: t("retry"), onClick: () => void actions.accounts.refetch() }}
+          className="flex-1 border-0 bg-transparent"
+        />
+      ) : (
+        <>
+          <SearchInput value={query} onChange={setQuery} placeholder={t("search")} />
+          <DataTable
+            key={query}
+            clientPagination
+            pageSize={10}
+            fillHeight
+            stackOnNarrow
+            columns={columns}
+            rows={filtered}
+            getRowKey={(row) => row.id}
+            loading={actions.accounts.isLoading}
+            error={
+              actions.accounts.error ? (
+                <ErrorState
+                  title={t("loadFailed")}
+                  cta={{ label: t("retry"), onClick: () => void actions.accounts.refetch() }}
+                />
+              ) : undefined
+            }
+            empty={<p className="text-muted-foreground p-5 text-sm">{t("noMatches")}</p>}
+            className="rounded-none border-0 bg-transparent"
+          />
+          <p role="note" className="text-muted-foreground pb-4 text-xs">
+            {t("risk")}
+          </p>
+        </>
+      )}
       {connecting && (
         <SubscriptionSignInDialog
           key={`${actions.scope}:${connecting}`}

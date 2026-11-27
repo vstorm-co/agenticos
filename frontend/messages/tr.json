@@ -360,6 +360,16 @@
       "description": "Hızlı soru, ses ve yerel araçlarınız tek bir kısayolda.",
       "download": "Masaüstü uygulamasını indir",
       "dismiss": "14 gün sonra hatırlat"
+    },
+    "sidebarPromotions": {
+      "title": "Başlangıç",
+      "carousel": "karusel",
+      "slide": "slayt",
+      "position": "{current} / {total}",
+      "previous": "Önceki kart",
+      "next": "Sonraki kart",
+      "pause": "Döndürmeyi duraklat",
+      "resume": "Döndürmeyi sürdür"
     }
   },
   "ui": {
@@ -9290,6 +9300,14 @@
       "chat-environments": {
         "title": "Canlı ortam aç",
         "body": "Workspace menüsünden Tarayıcı veya Masaüstü seçin ve ortamı açın. Agente sormadan önce kullanabilirsiniz. Paneli kapatmak oturumu korur; ortamı sonlandırmak serbest bırakır."
+      },
+      "project-tracking": {
+        "title": "Projeyi takip edin",
+        "body": "Görev tablosu yanındaki Görev tablosu seçenekleri menüsünü açın ve Otomatik proje takibi seçeneğini seçin. Aynı tabloyu zamanlanmış olarak güncelleyen özel takip ajanını açıkça yayımlamadan önce yayımlanmış kaynak ajanı ve hesaplarını inceleyin."
+      },
+      "flow-project-tracker-create": {
+        "title": "Proje takibini yapılandırın",
+        "body": "Görev tablosu seçenekleri menüsünü açın ve Otomatik proje takibi seçeneğini seçin. Düzenleyebildiğiniz yayımlanmış ajanı ve hesaplarını inceleyin, ardından proje tablosunu zamanlanmış olarak denetleyen özel takip ajanını açıkça yayımlayın."
       }
     }
   },
@@ -13059,6 +13077,8 @@
       "sharedWorkspace": "Paylaşılan proje workspace’i"
     },
     "tracking": {
+      "description": "Bu projenin görev tablosunu kullanın ve zamanlanmış güncellemeler için seçtiğiniz ajanın özel bir kopyasını yayımlayın.",
+      "options": "Görev tablosu seçenekleri",
       "title": "Otomatik proje takibi",
       "openTracker": "Takip agentı"
     },
@@ -14350,6 +14370,8 @@
     "connectAnother": "Hesap ekle",
     "disconnect": "Bağlantıyı kes",
     "loadFailed": "Abonelik hesaplarınız yüklenemedi",
+    "disabledTitle": "Abonelikler burada etkin değil",
+    "disabledDescription": "Bu kurulumda abonelik ağ geçidi yapılandırılmamış. Kişisel aboneliğinizi bağlamadan önce kurulum yöneticinizden etkinleştirmesini isteyin.",
     "retry": "Yeniden dene",
     "dialogTitle": "{name} bağla",
     "deviceHelp": "Oturum açma sayfasını açın, bu kodu girin ve onaylayın. Bu pencere kendiliğinden tamamlanır.",

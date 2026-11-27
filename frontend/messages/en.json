@@ -4630,7 +4630,17 @@
       "download": "Get the desktop app",
       "dismiss": "Remind me in 14 days"
     },
-    "signInAgain": "Sign in again"
+    "signInAgain": "Sign in again",
+    "sidebarPromotions": {
+      "title": "Getting started",
+      "carousel": "carousel",
+      "slide": "slide",
+      "position": "{current} of {total}",
+      "previous": "Previous card",
+      "next": "Next card",
+      "pause": "Pause rotation",
+      "resume": "Resume rotation"
+    }
   },
   "legal": {
     "acceptAll": "Accept all",
@@ -6375,11 +6385,11 @@
       },
       "project-tracking": {
         "title": "Keep project on track",
-        "body": "Review a published source agent and its accounts, then explicitly publish a private tracker with a task table and an ordinary project routine."
+        "body": "Open Task table options beside Task table, then choose Automatic project tracking. Review a published source agent and its accounts before explicitly publishing a private tracker that updates the same task table on a schedule."
       },
       "flow-project-tracker-create": {
         "title": "Set up a project tracker?",
-        "body": "Review an editable published agent and its accounts, then explicitly publish a private tracker with a task table and scheduled checks."
+        "body": "Open Task table options, then choose Automatic project tracking. Review an editable published agent and its accounts, then explicitly publish a private tracker with scheduled checks of this project’s task table."
       },
       "channels-phone": {
         "title": "Set up telephone routing",
@@ -15434,8 +15444,9 @@
       "sharedWorkspace": "Shared project workspace"
     },
     "tracking": {
+      "options": "Task table options",
       "title": "Automatic project tracking",
-      "description": "Create a task table with saved views and publish a private copy of a selected agent as its scheduled tracker.",
+      "description": "Use this project's task table and publish a private copy of a selected agent to update it on a schedule.",
       "audience": "The routine acts as you and writes its reports in this project’s shared conversation. The source agent remains unchanged.",
       "baseAgent": "Source agent you can edit",
       "chooseAgent": "Choose a published agent",
@@ -18679,6 +18690,8 @@
     "connectAnother": "Add account",
     "disconnect": "Disconnect",
     "loadFailed": "Your subscription accounts could not be loaded",
+    "disabledTitle": "Subscriptions are not enabled here",
+    "disabledDescription": "This deployment has no subscription gateway configured. Ask your deployment administrator to enable it before connecting a personal subscription.",
     "retry": "Retry",
     "dialogTitle": "Connect {name}",
     "deviceHelp": "Open the sign-in page, enter this code and approve. This window finishes on its own.",

@@ -109,7 +109,7 @@ test("a run opened from the dataset's Evals tab returns to that tab, and its bre
   const { dataset, run } = seeded;
   await page.goto(`/datasets/${dataset}`);
   await page.getByRole("tab", { name: "Results", exact: true }).click();
-  await page.getByRole("button", { name: "Test runs", exact: true }).click();
+  await page.getByRole("tab", { name: "Test runs", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/datasets/${dataset}\\?tab=evals$`));
   await page.locator(`a[href*="/evals/${run}"]`).first().click();
   await expect(page).toHaveURL(new RegExp(`/evals/${run}$`));

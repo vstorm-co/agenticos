@@ -6383,7 +6383,17 @@
       "download": "Pobierz aplikację",
       "dismiss": "Przypomnij za 14 dni"
     },
-    "signInAgain": "Zaloguj się ponownie"
+    "signInAgain": "Zaloguj się ponownie",
+    "sidebarPromotions": {
+      "title": "Na początek",
+      "carousel": "karuzela",
+      "slide": "slajd",
+      "position": "{current} z {total}",
+      "previous": "Poprzednia karta",
+      "next": "Następna karta",
+      "pause": "Wstrzymaj zmianę kart",
+      "resume": "Wznów zmianę kart"
+    }
   },
   "teams": {
     "organizationLabel": "Organizacja",
@@ -8057,11 +8067,11 @@
       },
       "project-tracking": {
         "title": "Pilnuj projektu",
-        "body": "Przejrzyj opublikowanego agenta i jego konta, a następnie jawnie opublikuj prywatnego opiekuna z tabelą zadań i zwykłą rutyną projektu."
+        "body": "Otwórz Opcje tabeli zadań obok Tabela zadań i wybierz Automatyczne śledzenie projektu. Przejrzyj opublikowanego agenta źródłowego i jego konta, zanim jawnie opublikujesz prywatnego opiekuna, który będzie cyklicznie aktualizował tę samą tabelę."
       },
       "flow-project-tracker-create": {
         "title": "Skonfigurować opiekuna projektu?",
-        "body": "Przejrzyj opublikowanego agenta, którego możesz edytować, i jego konta. Następnie jawnie opublikuj prywatnego opiekuna z tabelą zadań i cyklicznymi sprawdzeniami."
+        "body": "Otwórz Opcje tabeli zadań i wybierz Automatyczne śledzenie projektu. Przejrzyj opublikowanego agenta, którego możesz edytować, oraz jego konta. Następnie jawnie opublikuj prywatnego opiekuna z cyklicznymi sprawdzeniami tabeli projektu."
       },
       "channels-phone": {
         "title": "Skonfiguruj telefonię",
@@ -11949,8 +11959,9 @@
       "sharedWorkspace": "Wspólne środowisko projektu"
     },
     "tracking": {
+      "options": "Opcje tabeli zadań",
       "title": "Automatyczne śledzenie projektu",
-      "description": "Utwórz tabelę zadań z zapisanymi widokami i opublikuj prywatną kopię wybranego agenta jako cyklicznego opiekuna projektu.",
+      "description": "Użyj tabeli zadań tego projektu i opublikuj prywatną kopię wybranego agenta, która będzie ją aktualizować według harmonogramu.",
       "audience": "Rutyna działa w Twoim imieniu i zapisuje raporty we wspólnej rozmowie projektu. Agent źródłowy pozostaje bez zmian.",
       "baseAgent": "Agent źródłowy, którego możesz edytować",
       "chooseAgent": "Wybierz opublikowanego agenta",
@@ -18452,6 +18463,8 @@
     "connectAnother": "Dodaj konto",
     "disconnect": "Odłącz",
     "loadFailed": "Nie udało się wczytać Twoich kont subskrypcyjnych",
+    "disabledTitle": "Subskrypcje nie są tutaj włączone",
+    "disabledDescription": "Ta instalacja nie ma skonfigurowanej bramy subskrypcji. Poproś administratora instalacji o jej włączenie przed podłączeniem osobistej subskrypcji.",
     "retry": "Spróbuj ponownie",
     "dialogTitle": "Połącz: {name}",
     "deviceHelp": "Otwórz stronę logowania, wpisz ten kod i zatwierdź. To okno zamknie się samo.",

@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
-import { MonitorDown, X } from "lucide-react";
+import { ArrowUpRight, MonitorDown, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { useConsolePresentation } from "@/components/settings/console-experience-provider";
 import { useShell } from "@/hooks/use-shell";
 import { useMounted } from "@/hooks/use-mounted";
 import { useAuthStore } from "@/stores";
+import { cn } from "@/lib/utils";
+import styles from "../onboarding/onboarding-reminder.module.css";
 
 const COOLDOWN = 14 * 24 * 60 * 60 * 1000;
 const CHANGED = "desktop-install-dismissed";
@@ -25,8 +27,7 @@ function dismissedUntil(key: string): number {
 }
 
 /** A quiet native-app invitation, separate from the phone's PWA install prompt. */
-export function DesktopInstallPrompt() {
-  const t = useTranslations("layout.desktopInstall");
+export function useDesktopInstallPrompt() {
   const { desktopInstallPrompt } = useConsolePresentation();
   const shell = useShell();
   const mounted = useMounted();
@@ -55,41 +56,71 @@ export function DesktopInstallPrompt() {
   const snapshot = useCallback(() => dismissedUntil(key) > Date.now(), [key]);
   const dismissed = useSyncExternalStore(subscribe, snapshot, () => true);
 
-  if (!desktopInstallPrompt || !mounted || shell !== null || !account || dismissed) return null;
   const mobile =
-    /Android|iPhone|iPad|iPod/.test(navigator.userAgent) ||
-    (navigator.userAgent.includes("Mac") && navigator.maxTouchPoints > 1);
-  if (mobile) return null;
+    mounted &&
+    (/Android|iPhone|iPad|iPod/.test(navigator.userAgent) ||
+      (navigator.userAgent.includes("Mac") && navigator.maxTouchPoints > 1));
+  const dismiss = () => {
+    const until = Date.now() + COOLDOWN;
+    try {
+      localStorage.setItem(key, String(until));
+    } catch {
+      // Private browsers can dismiss this invitation for their current session.
+      sessionDismissals.set(key, until);
+    }
+    window.dispatchEvent(new Event(CHANGED));
+  };
+  return {
+    eligible:
+      desktopInstallPrompt &&
+      mounted &&
+      shell === null &&
+      Boolean(account) &&
+      !dismissed &&
+      !mobile,
+    dismiss,
+  };
+}
 
+export function DesktopInstallPrompt() {
+  const prompt = useDesktopInstallPrompt();
+  return prompt.eligible ? <DesktopInstallCard dismiss={prompt.dismiss} /> : null;
+}
+
+export function DesktopInstallCard({
+  dismiss,
+  embedded = false,
+}: {
+  dismiss: () => void;
+  embedded?: boolean;
+}) {
+  const t = useTranslations("layout.desktopInstall");
   return (
-    <aside className="mx-3 mb-2 hidden shrink-0 items-center gap-1 md:flex" aria-label={t("title")}>
+    <aside className={cn(styles.card, embedded && styles.embedded)} aria-label={t("title")}>
+      <div className={styles.heading}>
+        <span className={styles.desktopArtwork} aria-hidden>
+          <MonitorDown className="size-5" />
+        </span>
+        <h3>{t("title")}</h3>
+        <button
+          type="button"
+          aria-label={t("dismiss")}
+          onClick={dismiss}
+          className={styles.dismiss}
+        >
+          <X className="size-3.5" aria-hidden />
+        </button>
+      </div>
+      <p className={styles.hint}>{t("description")}</p>
       <a
         href="https://github.com/vstorm-co/agenticos/releases/latest"
         target="_blank"
         rel="noopener noreferrer"
-        title={t("description")}
-        className="border-border hover:bg-accent focus-visible:outline-foreground flex min-w-0 flex-1 items-center gap-2 rounded-md border px-2 py-2 text-xs font-medium focus-visible:outline-2"
+        className={styles.action}
       >
-        <MonitorDown className="size-4 shrink-0" aria-hidden />
-        <span className="truncate">{t("download")}</span>
+        {t("download")}
+        <ArrowUpRight className="size-3.5" aria-hidden />
       </a>
-      <button
-        type="button"
-        aria-label={t("dismiss")}
-        onClick={() => {
-          const until = Date.now() + COOLDOWN;
-          try {
-            localStorage.setItem(key, String(until));
-          } catch {
-            // Private browsers can dismiss this invitation for their current session.
-            sessionDismissals.set(key, until);
-          }
-          window.dispatchEvent(new Event(CHANGED));
-        }}
-        className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-foreground shrink-0 rounded-md p-2 focus-visible:outline-2"
-      >
-        <X className="size-3.5" aria-hidden />
-      </button>
     </aside>
   );
 }

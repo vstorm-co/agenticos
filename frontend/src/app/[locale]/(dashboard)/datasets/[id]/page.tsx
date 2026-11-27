@@ -277,9 +277,9 @@ export default function DatasetPage({ params }: PageProps) {
         >
           {expanded && <h2 className="mb-4 text-lg font-semibold break-words">{dataset.name}</h2>}
           <div className="flex min-w-0 items-center gap-2">
-            <TabsList className="min-w-0 flex-1">
+            <TabsList aria-label={dataset.name} className="min-w-0 flex-1">
               <TabsTrigger value="cases">
-                <ListChecks className="mr-1.5 size-4 shrink-0" aria-hidden />
+                <ListChecks className="size-4 shrink-0" aria-hidden />
                 {t("cases")}
               </TabsTrigger>
               <TabsTrigger value="results" data-tour="datasets-results-tab">
@@ -417,7 +417,7 @@ export default function DatasetPage({ params }: PageProps) {
           <TabsContent
             value="settings"
             forceMount
-            className="flex w-full max-w-5xl flex-1 flex-col gap-6 data-[state=inactive]:hidden"
+            className="flex w-full min-w-0 flex-1 flex-col gap-6 data-[state=inactive]:hidden"
           >
             <section className="space-y-3" aria-labelledby="dataset-grading-heading">
               <h2 id="dataset-grading-heading" className="text-sm font-medium">
@@ -446,50 +446,43 @@ export default function DatasetPage({ params }: PageProps) {
             )}
           </TabsContent>
           <TabsContent value="results" className="flex min-h-0 flex-1 flex-col gap-4">
-            <div className="flex flex-wrap gap-2" aria-label={t("workspace.results")}>
+            <Tabs
+              value={shown}
+              onValueChange={showTab}
+              className="flex min-h-0 flex-1 flex-col gap-4"
+            >
+              <TabsList aria-label={t("workspace.results")}>
+                {canViewRuns && (
+                  <TabsTrigger value="evals">
+                    <FlaskConical className="size-4" aria-hidden />
+                    {t("workspace.testRuns")}
+                  </TabsTrigger>
+                )}
+                <TabsTrigger value="review" data-tour="datasets-review-tab">
+                  <ClipboardCheck className="size-4" aria-hidden />
+                  {t("workspace.reviewAnswers")}
+                </TabsTrigger>
+                <TabsTrigger value="coverage" data-tour="datasets-coverage-tab">
+                  <SearchCheck className="size-4" aria-hidden />
+                  {t("workspace.keyCoverage")}
+                </TabsTrigger>
+              </TabsList>
               {canViewRuns && (
-                <Button
-                  size="sm"
-                  variant={shown === "evals" ? "secondary" : "ghost"}
-                  aria-pressed={shown === "evals"}
-                  onClick={() => showTab("evals")}
-                >
-                  <FlaskConical className="size-4" aria-hidden />
-                  {t("workspace.testRuns")}
-                </Button>
+                <TabsContent value="evals" className="flex min-h-0 flex-1 flex-col">
+                  <DatasetEvalsPanel
+                    datasetId={id}
+                    title={t("workspace.testRuns")}
+                    onReview={() => showTab("review")}
+                  />
+                </TabsContent>
               )}
-              <Button
-                size="sm"
-                variant={shown === "review" ? "secondary" : "ghost"}
-                aria-pressed={shown === "review"}
-                data-tour="datasets-review-tab"
-                onClick={() => showTab("review")}
-              >
-                <ClipboardCheck className="size-4" aria-hidden />
-                {t("workspace.reviewAnswers")}
-              </Button>
-              <Button
-                size="sm"
-                variant={shown === "coverage" ? "secondary" : "ghost"}
-                aria-pressed={shown === "coverage"}
-                data-tour="datasets-coverage-tab"
-                onClick={() => showTab("coverage")}
-              >
-                <SearchCheck className="size-4" aria-hidden />
-                {t("workspace.keyCoverage")}
-              </Button>
-            </div>
-            {shown === "evals" && canViewRuns ? (
-              <DatasetEvalsPanel
-                datasetId={id}
-                title={t("workspace.testRuns")}
-                onReview={() => showTab("review")}
-              />
-            ) : shown === "coverage" ? (
-              <KeyCoveragePanel datasetId={id} />
-            ) : (
-              <ReviewPanel dataset={dataset} />
-            )}
+              <TabsContent value="review" className="flex min-h-0 flex-1 flex-col">
+                <ReviewPanel dataset={dataset} />
+              </TabsContent>
+              <TabsContent value="coverage" className="flex min-h-0 flex-1 flex-col">
+                <KeyCoveragePanel datasetId={id} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
       </div>

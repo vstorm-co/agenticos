@@ -19,6 +19,10 @@ A project also has a **default agent**, the one a new chat in it starts with.
 Any agent can still answer in a project chat; the default only decides where a
 chat begins.
 
+## Task table and automatic tracking
+
+**Task table** creates or opens the project's shared task table directly. The adjacent **Task table options** menu offers **Automatic project tracking**: review a source agent and its resources, then explicitly publish a private tracker and start its scheduled routine. The tracker uses the same project task table; opening the menu or the table does not publish an agent or start a routine.
+
 ## Planning ongoing work with Architect
 
 Ask Architect to plan continuing research, writing, coding or analysis in a

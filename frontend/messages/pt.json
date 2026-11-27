@@ -4630,7 +4630,17 @@
       "download": "Baixar o aplicativo de desktop",
       "dismiss": "Lembrar em 14 dias"
     },
-    "signInAgain": "Entrar novamente"
+    "signInAgain": "Entrar novamente",
+    "sidebarPromotions": {
+      "title": "Primeiros passos",
+      "carousel": "carrossel",
+      "slide": "diapositivo",
+      "position": "{current} de {total}",
+      "previous": "Cartão anterior",
+      "next": "Próximo cartão",
+      "pause": "Pausar rotação",
+      "resume": "Retomar rotação"
+    }
   },
   "legal": {
     "acceptAll": "Aceitar tudo",
@@ -6243,11 +6253,11 @@
       },
       "project-tracking": {
         "title": "Mantenha o projeto em dia",
-        "body": "Revise um agente de origem publicado e suas contas e, em seguida, publique explicitamente um acompanhador privado com uma tabela de tarefas e uma rotina comum do projeto."
+        "body": "Abra Opções da tabela de tarefas junto de Tabela de tarefas e escolha Acompanhamento automático do projeto. Reveja um agente de origem publicado e as suas contas antes de publicar explicitamente um acompanhador privado que atualiza a mesma tabela de forma programada."
       },
       "flow-project-tracker-create": {
         "title": "Configurar um acompanhador de projeto?",
-        "body": "Revise um agente publicado editável e suas contas e, em seguida, publique explicitamente um acompanhador privado com uma tabela de tarefas e verificações programadas."
+        "body": "Abra Opções da tabela de tarefas e escolha Acompanhamento automático do projeto. Reveja um agente publicado editável e as suas contas e publique explicitamente um acompanhador privado com verificações programadas da tabela do projeto."
       },
       "channels-phone": {
         "title": "Configure o roteamento de telefone",
@@ -15318,8 +15328,9 @@
       "sharedWorkspace": "Workspace compartilhado do projeto"
     },
     "tracking": {
+      "options": "Opções da tabela de tarefas",
       "title": "Acompanhamento automático do projeto",
-      "description": "Crie uma tabela de tarefas com visualizações salvas e publique uma cópia privada de um agente selecionado como seu acompanhador agendado.",
+      "description": "Use a tabela de tarefas deste projeto e publique uma cópia privada de um agente selecionado para a atualizar de forma programada.",
       "audience": "A rotina age em seu nome e grava seus relatórios na conversa compartilhada deste projeto. O agente de origem permanece inalterado.",
       "baseAgent": "Agente de origem que você pode editar",
       "chooseAgent": "Escolha um agente publicado",
@@ -18563,6 +18574,8 @@
     "connectAnother": "Adicionar conta",
     "disconnect": "Desconectar",
     "loadFailed": "Não foi possível carregar suas contas de assinatura",
+    "disabledTitle": "As subscrições não estão ativadas aqui",
+    "disabledDescription": "Esta instalação não tem uma gateway de subscrições configurada. Peça ao administrador para a ativar antes de ligar uma subscrição pessoal.",
     "retry": "Tentar novamente",
     "dialogTitle": "Conectar {name}",
     "deviceHelp": "Abra a página de login, insira este código e aprove. Esta janela será concluída automaticamente.",

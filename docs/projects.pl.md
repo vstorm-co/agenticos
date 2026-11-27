@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "48e3c1ed260d"
+source_sha: "98e84dfbc519"
 ---
 
 # Projekty { #projects }
@@ -19,6 +19,10 @@ klienta. Trzyma dwie rzeczy wspólne dla każdego czatu w nim rozpoczętego:
 Projekt ma też **domyślnego agenta**, z którym zaczyna się nowy czat w nim.
 W czacie projektu nadal może odpowiadać każdy agent; domyślny decyduje tylko o
 tym, z kim czat się zaczyna.
+
+## Tabela zadań i automatyczne śledzenie { #task-table-and-automatic-tracking }
+
+**Task table** bezpośrednio tworzy lub otwiera wspólną tabelę zadań projektu. Sąsiednie menu **Opcje tabeli zadań** zawiera **Automatyczne śledzenie projektu**: sprawdź agenta źródłowego i jego zasoby, a następnie jawnie opublikuj prywatnego trackera i uruchom jego cykliczną rutynę. Tracker używa tej samej tabeli projektu; samo otwarcie menu lub tabeli nie publikuje agenta ani nie uruchamia rutyny.
 
 ## Planowanie pracy ciągłej z Architectem { #planning-ongoing-work-with-architect }
 

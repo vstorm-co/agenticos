@@ -138,3 +138,19 @@
     box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-brand) 12%, transparent);
   }
 }
+
+.embedded {
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+.desktopArtwork {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--color-card);
+  color: var(--color-brand);
+}

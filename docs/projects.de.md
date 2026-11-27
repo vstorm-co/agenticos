@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "48e3c1ed260d"
+source_sha: "98e84dfbc519"
 ---
 
 # Projekte { #projects }
@@ -21,6 +21,10 @@ Chat teilt:
 Ein Projekt hat außerdem einen **Standard-Agent**, mit dem ein neuer Chat darin
 beginnt. Antworten kann in einem Projekt-Chat trotzdem jeder Agent; der Standard
 entscheidet nur, wo ein Chat anfängt.
+
+## Aufgabentabelle und automatische Verfolgung { #task-table-and-automatic-tracking }
+
+**Task table** erstellt oder öffnet direkt die gemeinsame Aufgabentabelle des Projekts. Das benachbarte Menü **Optionen der Aufgabentabelle** bietet **Automatische Projektverfolgung**: Prüfe den Quellagenten und seine Ressourcen und veröffentliche danach ausdrücklich einen privaten Tracker samt geplanter Routine. Der Tracker verwendet dieselbe Projekttabelle; das Öffnen des Menüs oder der Tabelle veröffentlicht keinen Agenten und startet keine Routine.
 
 ## Fortlaufende Arbeit mit Architect planen { #planning-ongoing-work-with-architect }
 

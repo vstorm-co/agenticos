@@ -23,6 +23,8 @@ If your current organization’s onboarding is unfinished, **Finish setup** retu
 
 **Settings → Profile** always keeps a manual setup link, including when reminders are off. The reminder has a clear action and a short, bounded illustration animation; reduced motion keeps it still. Returning is your choice: no tour starts automatically. In the same browser, the link remembers the last allowed step for this account and organization without storing form values.
 
+The desktop-app invitation uses the same sidebar card as setup. When both are available, one card appears at a time and changes every eight seconds while visible. Previous, Next and Pause controls remain available. Hovering pauses rotation; keyboard focus pauses it until you choose Resume. Reduced motion disables automatic rotation. Completion, snoozing, native-app detection and desktop-invitation dismissal keep their existing rules.
+
 Guided setup records the current step and its update time on your organization membership. The members table shows whether setup is not started, in progress or completed, with a readable step label. Progress belongs to that membership; completing setup in one organization does not mark the others complete. Existing recorded completion remains valid, but profile contents never imply progress or completion.
 
 A step shown before you choose or join an organization is not recorded as membership progress. Account language and appearance are saved separately. Under the organization’s Assistant tab, Architect and the other assistant services appear before Chat home; matching icons and card headers make the services easier to scan.

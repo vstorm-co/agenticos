@@ -1,5 +1,5 @@
 ---
-source_sha: "c30c46c5183f"
+source_sha: "e0311806e607"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -25,6 +25,8 @@ Agregaty użycia i wydatków dashboardu korzystają z tej samej odpowiedzi w pam
 Jeśli onboarding bieżącej organizacji nie został ukończony, **Dokończ konfigurację** prowadzi do jej konfiguracji z przewodnikiem. Zamknięcie przypomnienia odkłada je na obowiązujący okres 1, 3 lub 7 dni (domyślnie jeden dzień). Ukończenie i odroczenie są zapisane na serwerze dla twojego członkostwa; ładowanie lub błąd odczytu postępu nie oznacza konfiguracji jako nieukończonej.
 
 **Ustawienia → Profil** zawsze zachowują ręczny link do konfiguracji, również po wyłączeniu przypomnień. Przypomnienie ma wyraźną akcję i krótką animację ilustracji, która respektuje ograniczenie ruchu. Wracasz z własnej inicjatywy: przewodnik nie uruchamia się automatycznie. W tej samej przeglądarce link pamięta ostatni dozwolony krok dla tego konta i organizacji, bez zapisywania wartości formularza.
+
+Zaproszenie do aplikacji desktopowej ma taki sam styl karty jak konfiguracja w sidebarze. Gdy obie są dostępne, widoczna jest jedna karta, zmieniana co osiem sekund podczas wyświetlania. Dostępne są przyciski poprzedniej i następnej karty oraz pauzy. Najechanie zatrzymuje zmianę; fokus klawiatury wstrzymuje ją do wybrania wznowienia. Ograniczony ruch wyłącza automatyczną zmianę. Ukończenie, odroczenie, wykrywanie aplikacji natywnej i odrzucenie zaproszenia zachowują dotychczasowe zasady.
 
 Konfiguracja z przewodnikiem zapisuje bieżący krok i czas aktualizacji dla twojego członkostwa w organizacji. Tabela członków pokazuje stan nierozpoczęty, w trakcie lub ukończony wraz z czytelną nazwą kroku. Postęp dotyczy danego członkostwa; ukończenie konfiguracji w jednej organizacji nie oznacza ukończenia w pozostałych. Wcześniej zapisane ukończenie pozostaje ważne, ale zawartość profilu nigdy nie stanowi dowodu postępu ani ukończenia.
 

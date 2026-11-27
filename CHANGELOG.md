@@ -49,6 +49,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Present setup and desktop-app invitations in one consistent sidebar card, with a visible-only eight-second rotation, manual navigation and pause, and no automatic rotation when reduced motion is selected. Existing completion and dismissal rules remain in force.
+
 - Keep a separate live Project-files path in retained private Docker desktops, so an editor opened by an agent can still save after its run ends. The first actual Project file or command tool prepares the configured desktop; idle file traffic never extends the session.
 
 - Import complete skill folders or ZIP packages with a reviewed preview, preserved inert frontmatter and exact binary resources across versions, workspace files and portable exports. Import never executes code or installs dependencies.
@@ -102,6 +104,11 @@ Two things are versioned separately from this file and worth knowing about:
 - A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. The Integrations tab on the Knowledge bases page shows each connection's API style and key, and local services are now called service connections.
 
 ### Fixed
+
+- Center empty full-height catalogs in their available body, let dataset settings use the full workspace width, and align result sections with the console's keyboard-accessible tab design.
+
+- Keep the project task table as the primary action and put optional automatic tracking setup in its adjacent options menu.
+- Explain when personal subscriptions are unavailable because the deployment has no subscription gateway, while keeping loading, failure and retry states visible.
 
 - Allow authenticated video and audio file previews to play their blob URLs under the console Content Security Policy, without granting external media origins.
 

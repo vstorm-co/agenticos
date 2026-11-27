@@ -1,5 +1,5 @@
 ---
-source_sha: "c30c46c5183f"
+source_sha: "e0311806e607"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -26,6 +26,8 @@ Los agregados de uso y gasto del dashboard reutilizan la misma respuesta en memo
 Si el onboarding de tu organización actual no está terminado, **Completar configuración** vuelve a su guía. Descartar el recordatorio lo pausa durante el intervalo efectivo de 1, 3 o 7 días (un día de forma predeterminada). La finalización y el aplazamiento se guardan en el servidor para tu pertenencia a la organización. Una consulta de progreso pendiente o fallida no presenta la configuración como incompleta.
 
 **Ajustes → Perfil** conserva siempre un enlace manual a la configuración, también cuando los recordatorios están desactivados. El recordatorio tiene una acción clara y una ilustración breve y limitada; el movimiento reducido la mantiene quieta. No se inicia ningún recorrido automáticamente. En el mismo navegador, el enlace recuerda el último paso permitido para esta cuenta y organización sin guardar valores del formulario.
+
+La invitación a la aplicación de escritorio usa el mismo estilo de tarjeta lateral que la configuración. Si ambas están disponibles, se muestra una tarjeta que cambia cada ocho segundos mientras está visible. Hay controles Anterior, Siguiente y Pausa. El puntero pausa la rotación; el foco del teclado la pausa hasta elegir Reanudar. El movimiento reducido desactiva la rotación automática. La finalización, el aplazamiento, la detección de aplicaciones nativas y el descarte conservan sus reglas actuales.
 
 La configuración guiada guarda el paso actual y la fecha de actualización en tu pertenencia a la organización. La tabla de miembros indica si no se ha iniciado, está en curso o se ha completado, con un nombre de paso legible. El progreso corresponde a cada pertenencia; completar una organización no completa las demás. Las finalizaciones ya registradas siguen siendo válidas, pero el contenido del perfil nunca implica progreso ni finalización.
 

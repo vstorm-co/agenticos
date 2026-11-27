@@ -1,5 +1,5 @@
 ---
-source_sha: "ee6a07df66fa"
+source_sha: "459407421009"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -440,6 +440,8 @@ Scope obejmuje także identyfikator członkostwa: ponowne dołączenie tworzy no
 Przed wczytaniem modeli wybierz klucz z sejfu i potwierdź adres docelowy. Własny katalog korzysta tylko z tego klucza i endpointu; brak listy pozwala wpisać model ręcznie, bez zastępowania jej katalogiem zwykłego API. Szacunki budżetu AgenticOS nie określają pozostałego limitu subskrypcji.
 
 ### Konta subskrypcyjne { #subscription-accounts }
+
+Jeśli instalacja nie ma skonfigurowanej bramy subskrypcji, **Ustawienia → Subskrypcje** wyjaśniają, że subskrypcje nie są włączone, zamiast pokazywać pustą stronę. **Ponów** odświeża dostępność po konfiguracji bramy przez administratora; nie rozpoczyna logowania u dostawcy. Nieudany odczyt pokazuje błąd z możliwością ponowienia.
 
 W edytorze agenta i selektorze modeli czatu zacznij od **Twoje subskrypcje**, wybierz rozpoznawalnego dostawcę, np. **Claude Code (Pro, Max)** lub **ChatGPT (Codex)**, i kliknij **Połącz**. Logowanie otwiera się w tym miejscu i wraca do selektora; lista modeli pochodzi z połączonych kont wybranego dostawcy, bez zgadywania na podstawie nazw modeli. Niedostępne konta oferują ponowne logowanie. Kontami możesz zarządzać i rozłączać je w **Ustawienia → Subskrypcje**. Klucze API organizacji mają osobną grupę; ręcznie konfigurowane gatewaye i endpointy znajdziesz w **Zaawansowane / własny endpoint**. Dotychczasowe profile `subscription_accounts` i `cliproxyapi` zachowują swoje identyfikatory API.
 

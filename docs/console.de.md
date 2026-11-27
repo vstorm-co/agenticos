@@ -1,5 +1,5 @@
 ---
-source_sha: "c30c46c5183f"
+source_sha: "e0311806e607"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -26,6 +26,8 @@ Nutzungs- und Ausgabenaggregate des Dashboards verwenden dieselbe Antwort im Arb
 Ist das Onboarding Ihrer aktuellen Organisation noch nicht abgeschlossen, führt **Einrichtung abschließen** zur geführten Einrichtung zurück. Das Ausblenden pausiert die Erinnerung für das wirksame Intervall von 1, 3 oder 7 Tagen (standardmäßig einen Tag). Abschluss und Aufschub werden für Ihre Mitgliedschaft auf dem Server gespeichert. Während des Ladens oder bei fehlgeschlagenen Fortschrittsabfragen wird die Einrichtung nicht als unvollständig bezeichnet.
 
 **Einstellungen → Profil** behält immer einen manuellen Einrichtungslink, auch bei ausgeschalteten Erinnerungen. Die Erinnerung hat eine klare Aktion und eine kurze, begrenzte Illustration; reduzierte Bewegung hält sie still. Kein Rundgang startet automatisch. Im selben Browser merkt sich der Link den letzten zulässigen Schritt für dieses Konto und diese Organisation, ohne Formularwerte zu speichern.
+
+Die Einladung zur Desktop-App verwendet denselben Seitenleisten-Kartenstil wie die Einrichtung. Wenn beide verfügbar sind, erscheint jeweils eine Karte, die bei sichtbarer Anzeige alle acht Sekunden wechselt. Zurück, Weiter und Pause bleiben verfügbar. Beim Darüberfahren pausiert der Wechsel; Tastaturfokus pausiert ihn bis zur ausdrücklichen Fortsetzung. Reduzierte Bewegung deaktiviert den automatischen Wechsel. Abschluss, Erinnerungsaufschub, Erkennung nativer Apps und das Ausblenden der Desktop-Einladung behalten ihre bisherigen Regeln.
 
 Die geführte Einrichtung speichert den aktuellen Schritt und den Aktualisierungszeitpunkt für Ihre Organisationsmitgliedschaft. Die Mitgliedertabelle zeigt nicht begonnen, in Bearbeitung oder abgeschlossen mit einer lesbaren Schrittbezeichnung. Der Fortschritt gehört zur jeweiligen Mitgliedschaft; ein Abschluss in einer Organisation schließt die anderen nicht ab. Bereits gespeicherte Abschlüsse bleiben gültig, aber Profilinhalte gelten nie als Nachweis für Fortschritt oder Abschluss.
 

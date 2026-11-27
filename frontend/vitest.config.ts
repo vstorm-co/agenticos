@@ -171,6 +171,7 @@ export default defineConfig({
         // Projects: the pages, the composer's picker and the sidebar's rows.
         "src/components/projects/**/*.tsx",
         "src/components/layout/project-rows.tsx",
+        "src/components/layout/sidebar-promotions.tsx",
         "src/components/layout/navigation-progress.tsx",
         // Asks before leaving drops a change somebody has not saved.
         "src/components/layout/unsaved-changes-guard.tsx",

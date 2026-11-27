@@ -4630,7 +4630,17 @@
       "download": "Desktop-App herunterladen",
       "dismiss": "In 14 Tagen erinnern"
     },
-    "signInAgain": "Erneut anmelden"
+    "signInAgain": "Erneut anmelden",
+    "sidebarPromotions": {
+      "title": "Erste Schritte",
+      "carousel": "Karussell",
+      "slide": "Folie",
+      "position": "{current} von {total}",
+      "previous": "Vorherige Karte",
+      "next": "Nächste Karte",
+      "pause": "Rotation pausieren",
+      "resume": "Rotation fortsetzen"
+    }
   },
   "legal": {
     "acceptAll": "Alle akzeptieren",
@@ -6254,11 +6264,11 @@
       },
       "project-tracking": {
         "title": "Projekt im Blick behalten",
-        "body": "Prüfen Sie einen veröffentlichten Quellagenten und seine Konten und veröffentlichen Sie anschließend ausdrücklich einen privaten Projektbegleiter mit Aufgabentabelle und normaler Projektroutine."
+        "body": "Öffnen Sie Optionen der Aufgabentabelle neben Aufgabentabelle und wählen Sie Automatische Projektverfolgung. Prüfen Sie den veröffentlichten Quellagenten und seine Konten, bevor Sie ausdrücklich einen privaten Tracker zur geplanten Aktualisierung derselben Tabelle veröffentlichen."
       },
       "flow-project-tracker-create": {
         "title": "Projektbegleiter einrichten?",
-        "body": "Prüfen Sie einen bearbeitbaren veröffentlichten Agenten und seine Konten und veröffentlichen Sie dann ausdrücklich einen privaten Projektbegleiter mit Aufgabentabelle und geplanten Prüfungen."
+        "body": "Öffnen Sie Optionen der Aufgabentabelle und wählen Sie Automatische Projektverfolgung. Prüfen Sie einen bearbeitbaren veröffentlichten Agenten und seine Konten und veröffentlichen Sie dann ausdrücklich einen privaten Tracker mit geplanten Prüfungen der Projekttabelle."
       },
       "channels-phone": {
         "title": "Telefonrouting einrichten",
@@ -15120,8 +15130,9 @@
       "sharedWorkspace": "Gemeinsame Projektumgebung"
     },
     "tracking": {
+      "options": "Optionen der Aufgabentabelle",
       "title": "Automatische Projektverfolgung",
-      "description": "Erstellen Sie eine Aufgabentabelle mit gespeicherten Ansichten und veröffentlichen Sie eine private Kopie eines ausgewählten Agenten als geplanten Projektbegleiter.",
+      "description": "Nutze die Aufgabentabelle dieses Projekts und veröffentliche eine private Kopie eines ausgewählten Agenten, die sie nach Zeitplan aktualisiert.",
       "audience": "Die Routine handelt in Ihrem Namen und schreibt Berichte in das gemeinsame Projektgespräch. Der Quellagent bleibt unverändert.",
       "baseAgent": "Bearbeitbarer Quellagent",
       "chooseAgent": "Veröffentlichten Agenten wählen",
@@ -18365,6 +18376,8 @@
     "connectAnother": "Konto hinzufügen",
     "disconnect": "Trennen",
     "loadFailed": "Ihre Abonnement-Konten konnten nicht geladen werden",
+    "disabledTitle": "Abonnements sind hier nicht aktiviert",
+    "disabledDescription": "Für diese Installation ist kein Abonnement-Gateway konfiguriert. Bitten Sie die Administration, es zu aktivieren, bevor Sie ein persönliches Abonnement verbinden.",
     "retry": "Erneut versuchen",
     "dialogTitle": "{name} verbinden",
     "deviceHelp": "Öffnen Sie die Anmeldeseite, geben Sie diesen Code ein und bestätigen Sie. Dieses Fenster schließt sich von selbst.",

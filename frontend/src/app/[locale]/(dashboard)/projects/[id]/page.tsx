@@ -90,10 +90,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 name={project.name}
                 canManage={project.can_edit}
               />
-              {project.can_use &&
-                !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
-                  <ProjectTrackingControl project={project} />
-                )}
             </>
           )
         }
@@ -102,7 +98,10 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <>
               {project.can_use &&
                 !["queued", "running"].includes(project.workspace_move?.status ?? "") && (
-                  <TaskBoardButton scope="project" scopeId={project.id} />
+                  <ProjectTrackingControl
+                    project={project}
+                    primaryAction={<TaskBoardButton scope="project" scopeId={project.id} />}
+                  />
                 )}
               {project.can_use &&
                 !["queued", "running"].includes(project.workspace_move?.status ?? "") && (

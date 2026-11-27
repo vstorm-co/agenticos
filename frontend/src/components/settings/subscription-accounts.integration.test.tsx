@@ -79,11 +79,19 @@ it("lists each sign-in with the accounts filed under it, and the risk", async ()
   expect(screen.getByRole("note")).toHaveTextContent("at your own risk");
 });
 
-it("renders nothing where the deployment runs no gateway", async () => {
+it("explains a deployment without a gateway instead of rendering a blank page", async () => {
   vi.mocked(apiClient.get).mockResolvedValue({ enabled: false, items: [] });
-  const { container } = mount();
-  await waitFor(() => expect(apiClient.get).toHaveBeenCalled());
-  await waitFor(() => expect(container).toBeEmptyDOMElement());
+  mount();
+  expect(
+    await screen.findByRole("heading", { name: "Subscriptions are not enabled here" }),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/no subscription gateway configured/)).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Subscription accounts" })).toBeInTheDocument();
+  expect(
+    screen.queryByRole("textbox", { name: "Search subscriptions..." }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Connect" })).not.toBeInTheDocument();
+  expect(apiClient.post).not.toHaveBeenCalled();
 });
 
 it("finishes a device sign-in on its own once the provider approves", async () => {
@@ -332,4 +340,61 @@ it("shows a failed device status read and resumes sign-in after an explicit retr
   await userEvent.click(within(dialog).getByRole("button", { name: "Retry" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(toast.success).toHaveBeenCalledWith("Kimi Code (kimi.com) is connected");
+});
+
+it("keeps the loading table visible until gateway availability is known", async () => {
+  const held = Promise.withResolvers<{ enabled: boolean; items: [] }>();
+  vi.mocked(apiClient.get).mockReturnValue(held.promise);
+  mount();
+  expect(screen.getByRole("heading", { name: "Subscription accounts" })).toBeInTheDocument();
+  expect(screen.getByRole("table")).toHaveAttribute("aria-busy", "true");
+  expect(screen.queryByText("Subscriptions are not enabled here")).not.toBeInTheDocument();
+  held.resolve({ enabled: false, items: [] });
+  expect(await screen.findByText("Subscriptions are not enabled here")).toBeInTheDocument();
+  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+});
+
+it("refreshes disabled availability into connectable provider rows without signing in", async () => {
+  vi.mocked(apiClient.get)
+    .mockResolvedValueOnce({ enabled: false, items: [] })
+    .mockResolvedValueOnce({ enabled: true, items: [] });
+  mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
+  expect(await screen.findAllByRole("button", { name: "Connect" })).toHaveLength(8);
+  expect(screen.queryByText("Subscriptions are not enabled here")).not.toBeInTheDocument();
+  expect(apiClient.post).not.toHaveBeenCalled();
+});
+
+it("shows a failed availability refresh instead of retaining a disabled success state", async () => {
+  vi.mocked(apiClient.get)
+    .mockResolvedValueOnce({ enabled: false, items: [] })
+    .mockRejectedValueOnce(new Error("offline"));
+  mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Retry" }));
+  expect(
+    await screen.findByText("Your subscription accounts could not be loaded"),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Subscriptions are not enabled here")).not.toBeInTheDocument();
+  expect(apiClient.post).not.toHaveBeenCalled();
+});
+
+it("sorts providers and account names while preserving unnamed and unavailable accounts", async () => {
+  vi.mocked(apiClient.get).mockImplementation(async (path: string) =>
+    path.endsWith("/usage")
+      ? { status: "unavailable", observed_at: null, windows: [] }
+      : {
+          enabled: true,
+          items: [
+            { ...ACCOUNT, name: "label.json", email: null, label: "Team account", disabled: true },
+            { ...ACCOUNT, name: "unnamed.json", email: null, label: null, unavailable: true },
+          ],
+        },
+  );
+  mount();
+  expect(await screen.findByText("Team account")).toBeInTheDocument();
+  expect(screen.getByText("Account 2")).toBeInTheDocument();
+  expect(screen.getAllByText("Unavailable")).toHaveLength(2);
+  await userEvent.click(screen.getByRole("button", { name: "Provider" }));
+  await userEvent.click(screen.getByRole("button", { name: "Account" }));
+  expect(screen.getByText("Team account")).toBeInTheDocument();
 });

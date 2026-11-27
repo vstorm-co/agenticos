@@ -4537,7 +4537,17 @@
       "download": "Obtenir l’app de bureau",
       "dismiss": "Me le rappeler dans 14 jours"
     },
-    "signInAgain": "Se reconnecter"
+    "signInAgain": "Se reconnecter",
+    "sidebarPromotions": {
+      "title": "Pour commencer",
+      "carousel": "carrousel",
+      "slide": "diapositive",
+      "position": "{current} sur {total}",
+      "previous": "Carte précédente",
+      "next": "Carte suivante",
+      "pause": "Suspendre le défilement",
+      "resume": "Reprendre le défilement"
+    }
   },
   "legal": {
     "acceptAll": "Tout accepter",
@@ -6143,11 +6153,11 @@
       },
       "project-tracking": {
         "title": "Garder le projet sur la bonne voie",
-        "body": "Examinez un agent source publié et ses comptes, puis publiez explicitement un suivi privé avec une table de tâches et une routine de projet ordinaire."
+        "body": "Ouvrez Options du tableau des tâches à côté de Table des tâches, puis choisissez Suivi automatique du projet. Examinez un agent source publié et ses comptes avant de publier explicitement un suivi privé qui met à jour le même tableau selon un calendrier."
       },
       "flow-project-tracker-create": {
         "title": "Configurer un suivi de projet ?",
-        "body": "Examinez un agent publié modifiable et ses comptes, puis publiez explicitement un suivi privé avec une table de tâches et des vérifications planifiées."
+        "body": "Ouvrez Options du tableau des tâches, puis choisissez Suivi automatique du projet. Examinez un agent publié modifiable et ses comptes, puis publiez explicitement un suivi privé avec des vérifications planifiées du tableau du projet."
       },
       "channels-phone": {
         "title": "Configurer le routage téléphonique",
@@ -15043,8 +15053,9 @@
       "sharedWorkspace": "Workspace partagé du projet"
     },
     "tracking": {
+      "options": "Options du tableau des tâches",
       "title": "Suivi automatique du projet",
-      "description": "Créer une table de tâches avec des vues enregistrées et publier une copie privée d’un agent sélectionné comme son suiveur planifié.",
+      "description": "Utilisez le tableau de tâches de ce projet et publiez une copie privée d’un agent choisi pour le mettre à jour selon un calendrier.",
       "audience": "La routine agit en votre nom et écrit ses rapports dans la conversation partagée de ce projet. L’agent source reste inchangé.",
       "baseAgent": "Agent source que vous pouvez modifier",
       "chooseAgent": "Choisir un agent publié",
@@ -22166,5 +22177,9 @@
     "input": "Tokens d’entrée",
     "output": "Tokens de sortie",
     "overrideCurrency": "Utiliser des tarifs personnalisés (par million de tokens)"
+  },
+  "subscriptionAccounts": {
+    "disabledTitle": "Les abonnements ne sont pas activés ici",
+    "disabledDescription": "Cette installation ne dispose pas de passerelle d’abonnement configurée. Demandez à l’administrateur de l’activer avant de connecter un abonnement personnel."
   }
 }

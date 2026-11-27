@@ -1,5 +1,5 @@
 ---
-source_sha: "ee6a07df66fa"
+source_sha: "459407421009"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -449,6 +449,8 @@ El ámbito también incluye el ID de membresía: volver a unirse crea un ámbito
 Selecciona la clave del almacén y confirma el destino antes de cargar modelos. Un catálogo personalizado utiliza solo esa clave y ese endpoint. Si la lista no está disponible, puedes escribir el modelo manualmente; no se sustituye por el catálogo general de la API. Las estimaciones de presupuesto de AgenticOS no miden la cuota restante de tu suscripción.
 
 ### Cuentas de suscripción { #subscription-accounts }
+
+Si la instalación no tiene una pasarela de suscripciones configurada, **Ajustes → Suscripciones** explica que las suscripciones no están habilitadas en lugar de mostrar una página en blanco. **Reintentar** actualiza la disponibilidad después de que el administrador configure la pasarela; no inicia sesión con ningún proveedor. Las consultas fallidas muestran un error con la opción de reintentar.
 
 En el editor del agente y el selector de modelos del chat, empieza por **Your subscriptions**, elige un proveedor conocido como **Claude Code (Pro, Max)** o **ChatGPT (Codex)** y pulsa **Connect**. El inicio de sesión se abre allí mismo y vuelve al selector; la lista procede de las cuentas conectadas de ese proveedor, sin deducirla de los nombres de modelos. Las cuentas no disponibles permiten volver a iniciar sesión. Puedes administrar y desconectar cuentas en **Configuración → Suscripciones**. Las claves API de la organización tienen un grupo separado; los gateways y endpoints configurados manualmente están en **Advanced / custom endpoint**. Los perfiles existentes `subscription_accounts` y `cliproxyapi` conservan sus identificadores API.
 

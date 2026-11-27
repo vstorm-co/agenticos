@@ -1,5 +1,5 @@
 ---
-source_sha: "ee6a07df66fa"
+source_sha: "459407421009"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -469,6 +469,8 @@ Der Scope enthält auch die Mitgliedschafts-ID: Ein erneuter Beitritt erzeugt ei
 Wähle den Vault-Schlüssel und bestätige das Ziel, bevor du Modelle lädst. Ein eigener Katalog verwendet nur diesen Schlüssel und Endpoint. Eine nicht verfügbare Liste lässt die manuelle Modelleingabe zu, statt den allgemeinen API-Katalog einzusetzen. Die Budgetschätzungen von AgenticOS messen nicht dein verbleibendes Abonnementkontingent.
 
 ### Abonnement-Konten { #subscription-accounts }
+
+Wenn für die Installation kein Abonnement-Gateway konfiguriert ist, erklärt **Einstellungen → Abonnements**, dass Abonnements nicht aktiviert sind, statt eine leere Seite anzuzeigen. **Erneut versuchen** aktualisiert die Verfügbarkeit nach der Einrichtung durch die Administration und startet keine Anbieteranmeldung. Fehlgeschlagene Abfragen zeigen einen Fehler mit Wiederholungsaktion.
 
 Beginne im Agenteneditor und in der Modellauswahl des Chats mit **Deine Abonnements**, wähle einen bekannten Anbieter wie **Claude Code (Pro, Max)** oder **ChatGPT (Codex)** und klicke auf **Verbinden**. Die Anmeldung öffnet sich direkt dort und führt zur Modellauswahl zurück. Die Liste stammt aus den verbundenen Konten dieses Anbieters, nicht aus Vermutungen anhand von Modellnamen. Nicht verfügbare Konten bieten eine erneute Anmeldung. Konten lassen sich unter **Einstellungen → Abonnements** verwalten und trennen. API-Schlüssel der Organisation bilden eine eigene Gruppe; manuell konfigurierte Gateways und Endpoints stehen unter **Erweitert / eigener Endpoint**. Bestehende Profile mit `subscription_accounts` und `cliproxyapi` behalten ihre API-IDs.
 

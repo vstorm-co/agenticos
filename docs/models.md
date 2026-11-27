@@ -427,6 +427,8 @@ Choose the vault key and confirm the destination before loading models. A custom
 
 ### Subscription accounts { #subscription-accounts }
 
+If the deployment has no subscription gateway configured, **Settings → Subscriptions** explains that subscriptions are not enabled instead of showing a blank page. **Retry** refreshes availability after an administrator configures the gateway; it does not start a provider sign-in. Failed reads show an error with a retry action.
+
 In the agent editor and chat model picker, start with **Your subscriptions**, choose a familiar provider such as **Claude Code (Pro, Max)** or **ChatGPT (Codex)**, then **Connect**. Sign-in opens in place and returns to the model picker; the list comes from that vendor's connected accounts, not a guess based on model names. Unavailable accounts offer **Reconnect**. You can still manage and disconnect accounts under **Settings → Subscriptions**. Organization API keys are a separate group; manually configured gateways and endpoints are under **Advanced / custom endpoint**. Existing `subscription_accounts` and `cliproxyapi` profiles keep their API IDs.
 
 Chat catalogs show every chat-capable entry rather than silently stopping at 100. The picker shows the number of choices, whether the catalog is live or a limited fallback, and a refresh action. OpenRouter shows its current catalog region; changing it is explicit and preserves that region when saving the new model. Saved models keep their own connection settings.

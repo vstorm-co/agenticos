@@ -229,12 +229,12 @@ describe("the dataset page", () => {
     async (tab) => {
       state.tab = tab;
       await mount();
-      const tabs = screen.getByRole("tablist");
+      const tabs = screen.getByRole("tablist", { name: "refunds" });
       await userEvent.click(screen.getByRole("button", { name: "Full screen" }));
       expect(screen.getByRole("dialog", { name: "refunds" })).toContainElement(tabs);
       await userEvent.keyboard("{Escape}");
       expect(screen.queryByRole("dialog")).toBeNull();
-      expect(screen.getByRole("tablist")).toBe(tabs);
+      expect(screen.getByRole("tablist", { name: "refunds" })).toBe(tabs);
       expect(state.tab).toBe(tab);
     },
   );
@@ -465,11 +465,11 @@ describe("the dataset page", () => {
     await mount();
     expect(screen.getByText("review")).toBeInTheDocument();
     expect(screen.queryByText("Your dataset, step by step")).toBeNull();
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-      "Cases",
-      "Results",
-      "Settings",
-    ]);
+    expect(
+      within(screen.getByRole("tablist", { name: "refunds" }))
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Cases", "Results", "Settings"]);
   });
 });
 
@@ -490,7 +490,7 @@ it("offers run history and answer review under one Results section", async () =>
   await mount();
   expect(screen.getByRole("tab", { name: "Results" })).toHaveAttribute("aria-selected", "true");
   expect(screen.getByText("review")).toBeVisible();
-  await userEvent.click(screen.getByRole("button", { name: "Test runs" }));
+  await userEvent.click(screen.getByRole("tab", { name: "Test runs" }));
   expect(new URL(window.location.href).searchParams.get("tab")).toBe("evals");
 });
 
@@ -498,14 +498,14 @@ it("offers key coverage under Results, to a reader who may not read runs too", a
   state.runsView = false;
   state.tab = "review";
   await mount();
-  expect(screen.queryByRole("button", { name: "Test runs" })).toBeNull();
+  expect(screen.queryByRole("tab", { name: "Test runs" })).toBeNull();
 
-  await userEvent.click(screen.getByRole("button", { name: "Key coverage" }));
+  await userEvent.click(screen.getByRole("tab", { name: "Key coverage" }));
 
   expect(new URL(window.location.href).searchParams.get("tab")).toBe("coverage");
   expect(screen.getByText("coverage of d1")).toBeVisible();
-  expect(screen.getByRole("button", { name: "Key coverage" })).toHaveAttribute(
-    "aria-pressed",
+  expect(screen.getByRole("tab", { name: "Key coverage" })).toHaveAttribute(
+    "aria-selected",
     "true",
   );
 });
@@ -529,4 +529,34 @@ it("offers recovery for a failed dataset read", async () => {
   expect(screen.getByRole("alert")).toHaveTextContent("Dataset service unavailable");
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   expect(state.retryDataset).toHaveBeenCalledOnce();
+});
+
+it("uses the shared accessible result tabs and keyboard navigation without switching the parent", async () => {
+  state.datasetError = null;
+  state.runsView = true;
+  state.tab = "review";
+  await mount();
+  const list = screen.getByRole("tablist", { name: "Results" });
+  expect(within(list).getAllByRole("tab")).toHaveLength(3);
+  const selected = within(list).getByRole("tab", { name: "Review answers" });
+  expect(selected).toHaveAttribute("aria-selected", "true");
+  const panelId = selected.getAttribute("aria-controls");
+  if (!panelId) throw new Error("The tab must name its panel");
+  expect(document.getElementById(panelId)).toHaveAttribute("role", "tabpanel");
+  expect(document.getElementById(panelId)).toHaveTextContent("review");
+  selected.focus();
+  await userEvent.keyboard("{ArrowRight}");
+  expect(within(list).getByRole("tab", { name: "Key coverage" })).toHaveFocus();
+  expect(screen.getByRole("tab", { name: "Results" })).toHaveAttribute("aria-selected", "true");
+});
+
+it("lets dataset settings use the full width of the workspace", async () => {
+  state.datasetError = null;
+  state.tab = "settings";
+  await mount();
+  const panelId = screen.getByRole("tab", { name: "Settings" }).getAttribute("aria-controls");
+  if (!panelId) throw new Error("The tab must name its panel");
+  const panel = document.getElementById(panelId);
+  expect(panel).toHaveClass("w-full", "min-w-0");
+  expect(panel).not.toHaveClass("max-w-5xl");
 });

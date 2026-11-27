@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "48e3c1ed260d"
+source_sha: "98e84dfbc519"
 ---
 
 # Proyectos { #projects }
@@ -21,6 +21,10 @@ iniciado en él:
 Un proyecto tiene también un **agent predeterminado**, con el que empieza un chat
 nuevo en él. En un chat del proyecto puede responder cualquier agent; el
 predeterminado solo decide dónde empieza un chat.
+
+## Tabla de tareas y seguimiento automático { #task-table-and-automatic-tracking }
+
+**Task table** crea o abre directamente la tabla compartida de tareas del proyecto. El menú contiguo de opciones ofrece **Seguimiento automático del proyecto**: revisa el agente de origen y sus recursos y, después, publica expresamente un rastreador privado e inicia su rutina programada. El rastreador utiliza la misma tabla del proyecto; abrir el menú o la tabla no publica ningún agente ni inicia ninguna rutina.
 
 ## Planificar trabajo continuo con Architect { #planning-ongoing-work-with-architect }
 

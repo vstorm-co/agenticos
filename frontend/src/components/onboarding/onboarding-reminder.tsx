@@ -13,14 +13,8 @@ import { useAuthStore } from "@/stores";
 import { useOnboardingResume } from "./onboarding-resume-link";
 import { useOnboardingReminderPolicy } from "@/components/settings/console-experience-provider";
 
-/** Completion, reminder policy and snooze timing are server-owned, never local UI storage. */
-export function OnboardingReminder({
-  collapsed = false,
-  onNavigate,
-}: {
-  collapsed?: boolean;
-  onNavigate?: () => void;
-}) {
+/** Completion, reminder policy and snooze timing remain server-owned. */
+export function useOnboardingReminder() {
   const policy = useOnboardingReminderPolicy();
   const { href, userId, orgId } = useOnboardingResume();
   const userLoading = useAuthStore((state) => state.isLoading);
@@ -35,20 +29,38 @@ export function OnboardingReminder({
     )
       useOnboardingLocationStore.getState().clearStartLocation(userId, orgId);
   }, [userId, orgId, state.error, state.data]);
-  const t = useTranslations("start.sidebarReminder");
-  if (
-    !policy.enabled ||
-    userLoading ||
-    state.waitingForScope ||
-    state.isLoading ||
-    state.error ||
-    !state.data ||
-    state.data.organization_id !== orgId ||
-    state.data.completed ||
-    state.data.dismissed
-  )
-    return null;
+  const eligible = Boolean(
+    policy.enabled &&
+    !userLoading &&
+    !state.waitingForScope &&
+    !state.isLoading &&
+    !state.error &&
+    state.data &&
+    state.data.organization_id === orgId &&
+    !state.data.completed &&
+    !state.data.dismissed,
+  );
+  return { eligible, href, state, policy };
+}
 
+export function OnboardingReminder(props: { collapsed?: boolean; onNavigate?: () => void }) {
+  const reminder = useOnboardingReminder();
+  return reminder.eligible ? <OnboardingReminderCard {...props} reminder={reminder} /> : null;
+}
+
+export function OnboardingReminderCard({
+  collapsed = false,
+  onNavigate,
+  reminder,
+  embedded = false,
+}: {
+  collapsed?: boolean;
+  onNavigate?: () => void;
+  reminder: ReturnType<typeof useOnboardingReminder>;
+  embedded?: boolean;
+}) {
+  const { href, state, policy } = reminder;
+  const t = useTranslations("start.sidebarReminder");
   if (collapsed)
     return (
       <Link
@@ -65,7 +77,7 @@ export function OnboardingReminder({
     );
 
   return (
-    <section aria-label={t("title")} className={styles.card}>
+    <section aria-label={t("title")} className={cn(styles.card, embedded && styles.embedded)}>
       <div className={styles.heading}>
         <span className={styles.artwork} aria-hidden="true">
           <AvatarFace seed="agenticos" background={false} />

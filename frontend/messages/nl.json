@@ -4630,7 +4630,17 @@
       "download": "De desktop-app downloaden",
       "dismiss": "Herinner me over 14 dagen"
     },
-    "signInAgain": "Opnieuw inloggen"
+    "signInAgain": "Opnieuw inloggen",
+    "sidebarPromotions": {
+      "title": "Aan de slag",
+      "carousel": "carrousel",
+      "slide": "dia",
+      "position": "{current} van {total}",
+      "previous": "Vorige kaart",
+      "next": "Volgende kaart",
+      "pause": "Rotatie pauzeren",
+      "resume": "Rotatie hervatten"
+    }
   },
   "legal": {
     "acceptAll": "Alles accepteren",
@@ -6243,11 +6253,11 @@
       },
       "project-tracking": {
         "title": "Houd je project op koers",
-        "body": "Bekijk een gepubliceerde bronagent en de accounts ervan, en publiceer dan bewust een privétracker met een takentabel en een gewone projectroutine."
+        "body": "Open Opties voor de takentabel naast Takentabel en kies Projecten automatisch bijhouden. Bekijk een gepubliceerde bronagent en de accounts voordat je bewust een privétracker publiceert die dezelfde tabel volgens een schema bijwerkt."
       },
       "flow-project-tracker-create": {
         "title": "Een projecttracker instellen?",
-        "body": "Bekijk een bewerkbare gepubliceerde agent en de accounts ervan, en publiceer dan bewust een privétracker met een takentabel en geplande controles."
+        "body": "Open Opties voor de takentabel en kies Projecten automatisch bijhouden. Bekijk een bewerkbare gepubliceerde agent en de accounts en publiceer dan bewust een privétracker met geplande controles van de projecttabel."
       },
       "channels-phone": {
         "title": "Telefoonroutering instellen",
@@ -15318,8 +15328,9 @@
       "sharedWorkspace": "Gedeelde projectworkspace"
     },
     "tracking": {
+      "options": "Opties voor de takentabel",
       "title": "Projecten automatisch bijhouden",
-      "description": "Maak een takentabel met opgeslagen weergaven en publiceer een privékopie van een gekozen agent als geplande tracker ervan.",
+      "description": "Gebruik de takentabel van dit project en publiceer een privékopie van een gekozen agent om deze volgens een schema bij te werken.",
       "audience": "De routine handelt namens jou en schrijft haar rapporten in het gedeelde gesprek van dit project. De bronagent blijft ongewijzigd.",
       "baseAgent": "Bronagent die je kunt bewerken",
       "chooseAgent": "Een gepubliceerde agent kiezen",
@@ -18563,6 +18574,8 @@
     "connectAnother": "Account toevoegen",
     "disconnect": "Ontkoppelen",
     "loadFailed": "Je abonnementsaccounts konden niet worden geladen",
+    "disabledTitle": "Abonnementen zijn hier niet ingeschakeld",
+    "disabledDescription": "Voor deze installatie is geen abonnementsgateway ingesteld. Vraag de beheerder deze in te schakelen voordat je een persoonlijk abonnement koppelt.",
     "retry": "Opnieuw proberen",
     "dialogTitle": "{name} koppelen",
     "deviceHelp": "Open de inlogpagina, voer deze code in en keur goed. Dit venster rondt vanzelf af.",

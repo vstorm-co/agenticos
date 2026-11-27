@@ -470,3 +470,27 @@ it("paginates tall account rows with an explicit page size", async () => {
   await userEvent.click(screen.getByRole("button", { name: messages.ui.previousPage }));
   expect(screen.getByText("Account A")).toBeVisible();
 });
+
+it("centers a full-height empty catalog inside the scroll body without moving its footer", () => {
+  const view = renderTable({
+    fillHeight: true,
+    empty: <div>Empty catalog</div>,
+    clientPagination: true,
+  });
+  const scroller = view.container.querySelector('[data-slot="data-table"] > div');
+  const message = screen.getByText("Empty catalog").parentElement;
+  expect(scroller).toHaveClass("flex", "flex-col", "overflow-y-auto");
+  expect(message).toHaveClass("flex-1", "flex-col", "justify-center");
+  expect(scroller).not.toContainElement(screen.getByRole("button", { name: "Next page" }));
+});
+
+it("does not stretch inline empty tables or center populated catalog rows", () => {
+  const inline = renderTable({ empty: <div>Inline absence</div> });
+  expect(screen.getByText("Inline absence").parentElement).not.toHaveClass("flex-1");
+  inline.unmount();
+  const populated = renderTable({ fillHeight: true, rows: [{ id: "one", name: "Existing row" }] });
+  expect(populated.container.querySelector('[data-slot="data-table"] > div')).not.toHaveClass(
+    "flex-col",
+  );
+  expect(screen.getByRole("cell")).toHaveTextContent("Existing row");
+});
