@@ -152,6 +152,12 @@ class EvalRunRequest(BaseSchema):
         max_length=1000,
         description="Only these case identities in the selected version; omitted runs every case",
     )
+    quoted_usd: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="The estimate's `total_usd` the person agreed to; a start that would now "
+        "cost more is refused, and omitted it is not checked",
+    )
 
     @field_validator("case_ids")
     @classmethod
@@ -196,6 +202,7 @@ class EvalRunEstimate(BaseSchema):
     """
 
     cases: int
+    dataset_version: int = Field(description="The dataset version priced; pin it on the start")
     arms: list[ArmEstimate]
     judge_usd: Decimal
     judge_model_profile_id: UUID | None = Field(
@@ -690,6 +697,19 @@ class EfficiencyRead(BaseSchema):
     p95_ms: TrendLiteral
 
 
+InvalidReasonCode = Literal[
+    "knowledge_not_retrieved",
+    "too_few_held_out",
+    "scoring_changed",
+    "judge_changed_mid_run",
+    "judge_instructions_changed",
+    "judge_differs",
+    "knowledge_draft_changed",
+    "held_out_ungraded",
+]
+"""Why two sides cannot be compared, as a code a client can translate."""
+
+
 class EvalComparisonRead(BaseSchema):
     """A candidate arm against its baseline, quality first and efficiency beside it.
 
@@ -708,8 +728,16 @@ class EvalComparisonRead(BaseSchema):
     verdict: VerdictLiteral | None
     overall: OverallLiteral | None
     p_value: float | None
-    invalid_reason: str | None
-    invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
+    invalid_reason: str | None = Field(
+        description="Why the two sides cannot be compared, as an English sentence"
+    )
+    invalid_reason_code: InvalidReasonCode | None = Field(
+        default=None, description="`invalid_reason` as a code, for a client to put in its own words"
+    )
+    invalid_reason_params: dict[str, int] = Field(
+        default_factory=dict,
+        description="The numbers `invalid_reason` names: `missing` for `too_few_held_out`",
+    )
     regressions_confirmed: int
     regressions_unconfirmed: int
     fixed_confirmed: int

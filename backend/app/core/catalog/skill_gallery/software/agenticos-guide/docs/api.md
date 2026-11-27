@@ -328,6 +328,35 @@ same body the synchronous call answers - or `failed` with `error`. Its
 before the run ends. A worker runs it through the same runner, budget and
 approvals as every other surface.
 
+**Steer a running turn.** Send a text-only follow-up to the same endpoint with
+`Prefer: respond-async`, the `conversation_id` from the first response and
+`"steer": true`. Give each webhook delivery its own `Idempotency-Key` and reuse
+it when retrying that delivery. You do not need to check the run's status first.
+
+```json
+{
+  "conversation_id": "c41652a2-3bb4-44c4-9e5c-82065e62b0d6",
+  "prompt": "Use the revised forecast instead.",
+  "steer": true
+}
+```
+
+Before each model request the agent can take up to eight corrections, oldest
+first. The rest stay queued. A tool or model call in progress is not interrupted.
+
+Only a running asynchronous API request for the same conversation, agent and
+environment can take a correction. It must use the currently selected published
+version and the same API key (or the same signed-in user without a key).
+If no such run takes the message, the worker processes it as a separate turn.
+Leave out `steer` to always queue a separate turn.
+
+Poll the follow-up's own request. The terminal status `steered` means the
+run identified by `steered_into_run_id` took the correction for a model
+request, not that the run completed. There is no separate `result`, and a
+later failure of that run does not requeue the correction. A follow-up processed as its own turn returns the usual run
+status and result. Use an ordinary turn for attachments or a synchronous
+request.
+
 What can be checked at once is checked at once: an unknown conversation or
 attachment is a `404` on the `POST`, not a failure to poll for. The key's
 authority is checked again when the run starts, so a key revoked while its run

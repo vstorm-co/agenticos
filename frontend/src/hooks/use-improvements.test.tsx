@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import { qk } from "@/lib/query-keys";
+import { pollingAfterFailedRead } from "@/test-utils/live-polling";
 import type { ImprovementEvidence } from "@/types/improvement";
 import {
   useAttemptChanges,
@@ -297,3 +298,62 @@ it("reads what a session found in the agent's skills", async () => {
   await waitFor(() => expect(result.current.skills).toEqual({ items: [] }));
   expect(apiClient.get).toHaveBeenCalledWith("/agents/a1/improvements/s1/skills");
 });
+
+it.each([
+  ["an agent's sessions", () => useImprovements("a1"), [{ id: "s1", status: "running" }]],
+  ["one session", () => useImprovement("a1", "s1"), { id: "s1", status: "running" }],
+  [
+    "a running session's evidence",
+    () => useImprovementEvidence("a1", { sessionId: "s1", live: true }),
+    { items: [], sample_limit: 20, training_failures: 0 },
+  ],
+])(
+  "stops reading %s again after a failed read and says it stopped",
+  async (_what, hook, answer) => {
+    vi.mocked(apiClient.get)
+      .mockResolvedValueOnce(answer)
+      .mockRejectedValueOnce(new Error("refused"));
+    renderHook(() => hook(), { wrapper });
+    expect(await pollingAfterFailedRead(client)).toEqual({
+      before: 30_000,
+      after: false,
+      stopped: true,
+    });
+  },
+);
+
+it.each([false, true])(
+  "handles a stop receipt without storing it as a full session (runs:view=%s)",
+  async (canRead) => {
+    const initial = {
+      id: "s1",
+      agent_id: "a1",
+      status: "running",
+      budget_usd: "42",
+      dataset_id: "private-dataset",
+    };
+    const key = qk.improvements.detail("a1", "s1");
+    vi.mocked(apiClient.get).mockResolvedValue(initial);
+    const { result } = renderHook(() => useImprovement("a1", "s1"), { wrapper });
+    await waitFor(() => expect(result.current.session?.status).toBe("running"));
+    const receipt = { id: "s1", status: "cancelled" };
+    const stopped = { ...initial, status: "cancelled" };
+    vi.mocked(apiClient.post).mockResolvedValue(canRead ? stopped : receipt);
+    if (canRead) vi.mocked(apiClient.get).mockResolvedValue(stopped);
+    else
+      vi.mocked(apiClient.get).mockRejectedValue(
+        new Error("Reading this session requires runs:view"),
+      );
+    await act(async () => {
+      await result.current.cancel.mutateAsync();
+    });
+    if (canRead) {
+      await waitFor(() => expect(result.current.session?.status).toBe("cancelled"));
+      expect(client.getQueryData(key)).toEqual(stopped);
+    } else {
+      await waitFor(() => expect(result.current.session).toBeUndefined());
+      expect(client.getQueryData(key)).toBeUndefined();
+    }
+    expect(client.getQueryData(key)).not.toEqual(receipt);
+  },
+);

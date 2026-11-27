@@ -246,9 +246,17 @@ async def _approver_problems(
     return problems
 
 
-def _failed(code: str, message: str, *, retryable: bool = False, **details: str) -> Failed:
+def _failed(
+    code: str,
+    message: str,
+    *,
+    retryable: bool = False,
+    effect_not_started: bool = False,
+    **details: str,
+) -> Failed:
     return Failed(
-        error=WorkflowError(code=code, message=message, details=dict(details), retryable=retryable)
+        error=WorkflowError(code=code, message=message, details=dict(details), retryable=retryable),
+        effect_not_started=effect_not_started,
     )
 
 
@@ -364,6 +372,7 @@ async def _call(
                     return _failed(
                         "MCP_TOOL_NOT_FOUND",
                         "The server does not offer this tool",
+                        effect_not_started=True,
                         tool=config.tool,
                     )
                 read_only = tool.annotations is not None and bool(tool.annotations.read_only_hint)
@@ -371,6 +380,7 @@ async def _call(
                     return _failed(
                         "MCP_IDEMPOTENCY_ARGUMENT_UNDECLARED",
                         "The tool does not take the idempotency key argument as text",
+                        effect_not_started=True,
                         tool=config.tool,
                         argument=key_argument,
                     )
@@ -392,6 +402,7 @@ async def _call(
             "MCP_CALL_FAILED",
             probe_error_message(exc, timeout=config.timeout_seconds),
             retryable=True,
+            effect_not_started=not called,
             tool=config.tool,
         )
     if not isinstance(result, CallToolResult):
@@ -408,7 +419,11 @@ async def _ask(
 ) -> Failed | None:
     current = context.current()
     if await _approver_problems(db, current.auth, config):
-        return _failed("APPROVER_UNAVAILABLE", "A named approver can no longer decide approvals")
+        return _failed(
+            "APPROVER_UNAVAILABLE",
+            "A named approver can no longer decide approvals",
+            effect_not_started=True,
+        )
     if current.workflow_id is None:  # pragma: no cover - every dispatch carries its workflow
         raise RuntimeError("A workflow step dispatched with no workflow")
     title = f"Call {config.tool} on {server}?"[:200]
@@ -433,21 +448,28 @@ async def _ask(
 async def handle(config: BaseModel | None, node_input: BaseModel | None) -> NodeResult:
     """Call the tool, ask before calling it, or act on the answer to asking."""
     if not isinstance(config, McpCallConfig):
-        return _failed("MCP_CALL_NOT_CONFIGURED", "This step names no server or tool")
+        return _failed(
+            "MCP_CALL_NOT_CONFIGURED", "This step names no server or tool", effect_not_started=True
+        )
     arguments = node_input.arguments if isinstance(node_input, McpCallInput) else None
     current = context.current()
+    pre_call_approval = Waiting(
+        reason="approval", resume_token=str(current.node_run_id), effect_not_started=True
+    )
     async with get_worker_db_context() as db:
         connection = await _connection(db, current.auth, config.connection_id)
         if connection is None or not connection.is_enabled:
             return _failed(
                 "MCP_SERVER_UNAVAILABLE",
                 "The MCP server is gone or turned off",
+                effect_not_started=True,
                 connection_id=str(config.connection_id),
             )
         if connection.allowed_tools is not None and config.tool not in connection.allowed_tools:
             return _failed(
                 "MCP_TOOL_NOT_ALLOWED",
                 "This tool is not allowed on this MCP connection",
+                effect_not_started=True,
                 tool=config.tool,
             )
         headers = await resolve_auth_headers(connection)
@@ -455,6 +477,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
             return _failed(
                 "MCP_SERVER_UNAUTHORIZED",
                 "The MCP server needs to be authorized again",
+                effect_not_started=True,
                 connection_id=str(config.connection_id),
             )
         # Read now: the session closes before the call, and the row with it.
@@ -463,18 +486,19 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
         recorded_read_only = recorded is not None and bool(recorded.get("read_only"))
         approval = await approval_repo.get_for_node_run_for_update(db, current.node_run_id)
         if approval is not None and approval.status == WorkflowApprovalStatus.PENDING.value:
-            return Waiting(reason="approval", resume_token=str(current.node_run_id))
+            return pre_call_approval
         if approval is not None and approval.status != WorkflowApprovalStatus.APPROVED.value:
             return _failed(
                 "MCP_CALL_REJECTED",
                 "The call was not approved",
                 tool=config.tool,
+                effect_not_started=True,
             )
         if approval is None and config.approval == "all":
             refused = await _ask(db, config, server, arguments)
             if refused is not None:
                 return refused
-            return Waiting(reason="approval", resume_token=str(current.node_run_id))
+            return pre_call_approval
     answer = await _call(
         config,
         url,
@@ -491,7 +515,7 @@ async def handle(config: BaseModel | None, node_input: BaseModel | None) -> Node
             refused = await _ask(db, config, server, arguments)
             if refused is not None:
                 return refused
-        return Waiting(reason="approval", resume_token=str(current.node_run_id))
+        return pre_call_approval
     if isinstance(answer, Failed | Uncertain):
         return answer
     if answer.is_error and config.on_tool_error == "fail":

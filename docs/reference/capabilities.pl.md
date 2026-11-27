@@ -1,5 +1,5 @@
 ---
-source_sha: "5a2216d435b2"
+source_sha: "f049cb244a94"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -125,6 +125,7 @@ zatrzymania po przejściu przez granicę sandboxa.
 | `knowledge` | Wyszukiwanie wiedzy | wiedza | `search_documents` | `knowledge:read` | — | bez zmian |
 | `skills` | Skille | wiedza | `read_skill_resource` | `knowledge:read` | — | dostosowana |
 | `context` | Kontekst | wiedza | `list_context`, `read_context` | — | — | bez zmian |
+| `projects` | Projects | knowledge | `search_projects`, `select_project_context`, `list_project_files`, `read_project_file`, `write_project_file` | `projects:read`, `projects:write` | — | as-is |
 | `memory_files` | Pamięć | wiedza | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory` | — | — | bez zmian |
 | `conversation_search` | Poprzednie rozmowy | wiedza | `search_conversations`, `read_conversation` | `conversations:read` | — | bez zmian |
 | `workflows` | Workflowy | automatyzacja | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | bez zmian |
@@ -133,7 +134,7 @@ zatrzymania po przejściu przez granicę sandboxa.
 | `browser_use` | Przeglądarka | badania | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | przez dodatek `browser` | przekazana |
 | `computer_use` | Obsługa komputera | badania | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | dla daemona | przekazana |
 | `code_execution` | Obliczenia | analiza | `run_python` | `code:execute` | — | bez zmian |
-| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | dla Daytony | przekazana |
+| `sandbox` | Sandbox | analiza | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace`, `select_execution_target` | `sandbox:execute` | dla Daytony | przekazana |
 | `mirage` | Wirtualny terminal | analiza | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | dla każdego folderu, przez extra `mirage` | przekazana |
 | `charts` | Wykresy | analiza | `create_chart` | — | — | bez zmian |
 | `visuals` | Wizualizacje | analiza | `draw`, `revise_visual`, `read_visual` | — | — | bez zmian |
@@ -218,15 +219,27 @@ wstrzymuje i zapisuje:
 
 | id | Narzędzia, które zapisują |
 | --- | --- |
-| `artifacts` | `publish_artifact` |
+| `artifacts` | `publish_artifact`, `export_artifact`, `share_artifact` |
 | `ask_user` | `ask_user_question` |
-| `browser_use` | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `background_tasks` | `start_background_task`, `list_background_tasks`, `stop_background_task` |
+| `browser_use` | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `channel_actions` | `react_to_chat_message`, `send_chat_message` |
 | `coding_agent` | `run_coding_agent` |
+| `computer_use` | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` |
+| `drafts` | `write_draft` |
+| `external_acp` | `run_acp_agent`, `inspect_acp_agent` |
+| `follow_ups` | `suggest_next_steps`, `propose_setup` |
 | `image_generation` | `generate_image` |
-| `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
-| `memory_mem0` | `remember` |
-| `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
+| `memory_files` | `write_memory`, `edit_memory`, `delete_memory`, `remember`, `correct_memory`, `share_memory` |
+| `mirage` | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` |
+| `monitor` | `start_monitor`, `list_monitors`, `stop_monitor` |
+| `phone_calls` | `get_phone_contact_policy`, `list_phone_transfer_contacts`, `call_me`, `transfer_phone_call`, `end_phone_call` |
+| `projects` | `write_project_file`, `transfer_project_file` |
+| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `text_to_speech` | `generate_speech` |
+| `video_generation` | `generate_video` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
+| `workflows` | `run_workflow` |
 
 Każde inne narzędzie powyżej tylko czyta, ale samo czytanie nie wystarcza, by
 działać w evalu. Eval uruchamia tekst, którego nikt jeszcze nie przejrzał —
@@ -241,7 +254,7 @@ powodem `external`:
 | `artifacts` | `preview_artifact` |
 | `channel_actions` | `list_chat_connections`, `find_chat_channels`, `read_chat_messages` |
 | `channel_tools` | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` |
-| `sandbox` | `select_project_workspace` |
+| `sandbox` | `select_project_workspace`, `select_execution_target` |
 | `web_fetch` | `web_fetch`, niezależnie od jego `allowed_domains` |
 | `web_research` | `web_search` |
 
@@ -1225,9 +1238,26 @@ jedynymi limitami wartymi ustawienia.
     powinien potrzebować operatora ani ponownego wdrożenia — a górne granice są
     ograniczone, a nie otwarte.
 
+## Projekty { #projects }
+
+`search_projects`, `select_project_context`, `list_project_files`, `read_project_file`
+i `write_project_file` działają na projektach dostępnych bieżącemu członkowi.
+Capability deklaruje `projects:read` i `projects:write`; run ponownie sprawdza zakres zapisu. Tylko
+`write_project_file` zmienia treść; capability nie daje powłoki.
+
+Wybór nie uruchamia środowiska, trwa jeden run i pokazuje osobny cel poleceń.
+Działa dla połączonych nadawców prywatnych kanałów, ale nie niezweryfikowanej
+publiczności pokoju. Limity tekstu: 100 wpisów katalogu i 256 KB UTF-8. Ścieżki
+zastrzeżone, dowiązania poza projektem i zmiany równoległe po odczycie są odrzucane.
+Wybór środowiska i pochodzenie plików opisują [Projekty](../projects.md).
+
 ## Sandbox { #files-shell }
 
-`select_project_workspace` wybiera dostępny projekt dla narzędzi plikowych i powłoki do końca runu. Pominięcie identyfikatora przywraca pierwotny workspace. Wznowienie po zatwierdzeniu zachowuje wybór; kolejna tura zaczyna w pierwotnym workspace. Rozmowa pozostaje w swoim wątku. Każda operacja sprawdza dostęp, a rutyny pozostają ograniczone do zatwierdzonego źródła projektu. Izolowane ewaluacje nie mogą przełączać się na trwałe projekty.
+`select_project_workspace` to starszy wybór kontekstu plików; nie zmienia celu
+poleceń. `select_execution_target` jawnie wybiera `agent` lub `project`, bez kopiowania
+ani montowania plików. Projekt musi mieć środowisko wykonujące polecenia, a agent
+włączone narzędzia powłoki Sandbox. Nadal obowiązują zatwierdzenia, aktualny dostęp,
+źródła rutyny i izolacja. Wznowienia zachowują wybór; następna zwykła tura już nie.
 
 `ls`, `read_file`, `glob`, `grep` — _odczyt._
 `write_file`, `edit_file`, `execute` — _zapis i uruchamianie._
@@ -2997,7 +3027,7 @@ pythonowego strażnika.
 
 | Konfiguracja | Domyślnie |  |
 | --- | --- | --- |
-| `redact_secrets_*` | `false` | wymaż klucze API, tokeny, JWT i bloki PEM |
+| `redact_secrets_*` | `false` | wymaż klucze API, tokeny, JWT, bloki PEM, hasła w adresach, klucze w query stringach i formularzach oraz nagłówki autoryzacji Basic i Bearer |
 | `redact_pii_*` | `false` | wymaż e-mail, numer telefonu (poprawny w swoim planie numeracji), IBAN (mod-97), kartę (Luhn) i US SSN |
 | `blocked_keywords_*` | `""` | terminy rozdzielone przecinkiem albo nową linią; trafienie kończy run |
 | `phone_regions` | `"US, GB, DE, PL"` | kody ISO 3166 rozdzielone przecinkiem albo nową linią, których krajowe formaty numerów telefonu czyta redagowanie PII, najwyżej 16 |
@@ -3385,6 +3415,8 @@ sprawdzane w chwili składania agenta:
 | `web:fetch` | `web_fetch` |
 | `web:browse` | `browser_use` |
 | `code:execute` | `code_execution` |
+| `projects:read` | `projects` |
+| `projects:write` | `projects` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
 | `tables:read` | `virtual_tables` i każdy [węzeł workflow dla tabel](workflow-nodes.md#virtual-tables) |

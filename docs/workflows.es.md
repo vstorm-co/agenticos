@@ -1,5 +1,5 @@
 ---
-source_sha: "b8db2c1cf551"
+source_sha: "40313f92dbc9"
 ---
 
 # Workflows { #workflows }
@@ -66,11 +66,11 @@ El historial ocupa automáticamente el espacio disponible de la página, sin un 
 
 La paginación del historial está al pie del panel. Los detalles de un run tienen un resumen compacto, una canvas que ocupa el espacio de trabajo y un panel lateral con Steps, Output y archivos disponibles. Pulsa un paso para consultar sus datos guardados. Importar un archivo y pegar JSON tienen pestañas separadas; el campo de código JSON ofrece formato y conserva el contenido si no es válido.
 
-**Export workflow**, en **More** en la cabecera del editor, exporta el borrador como un
-archivo `.workflow.json`. El archivo no lleva ningún id de este despliegue: cada
-agent, tabla, secreto, miembro, bot o workflow que eligió un paso queda fuera y
-listado, los datos de prueba fijados quedan fuera y también el workflow de errores.
-Nunca contiene el valor de un secreto.
+**Exportar workflow**, en **Más**, abre un paquete de recursos seleccionable. Elige las definiciones vinculadas y usa ZIP para incluir originales o texto procesado de bases de conocimiento. **Importar** en la lista revisa las dependencias antes de crear borradores privados. Los vínculos omitidos aparecen antes de importar y en el resultado; las versiones publicadas de delegados se eligen bajo su agente de destino.
+
+**Exportar archivo antiguo de workflow** conserva `.workflow.json`: sin identificadores de recursos, resultados de prueba fijados ni flujo de error. **Importar archivo antiguo de workflow** mantiene el proceso anterior y enumera los recursos que deben seleccionarse de nuevo antes de publicar. Los tipos de paso no admitidos se rechazan sin crear el flujo.
+
+La pestaña puede restaurar una transferencia tras recargar para la misma persona y organización. Solo guarda el identificador de operación en el almacenamiento de sesión. El servidor comprueba de nuevo el acceso antes de mostrar el resultado. Una carga interrumpida requiere elegir de nuevo el ZIP original y enviarlo desde el principio; el navegador no guarda archivos ni posiciones de carga. Las transferencias caducadas o inaccesibles permiten empezar de nuevo.
 
 **Import** en la lista crea un borrador nuevo
 a partir de ese archivo, quita cualquier id que uno hecho a mano todavía nombre, y
@@ -942,11 +942,9 @@ todos. En la página de una ejecución, hacer clic en un paso muestra su **Input
 Las líneas que escribió el [quick log](#quick-log) de un
 paso aparecen debajo del paso.
 
-**Retry from failed step** inicia una ejecución nueva
-de la misma versión con la misma entrada, en la que cada paso que tuvo éxito
-entrega lo que entregó antes, así que solo se ejecutan el paso fallido y lo que no
-alcanzó, y una escritura nunca se hace dos veces. Un bucle vuelve a ejecutarse y
-reutiliza los pasos de cada elemento que tuvieron éxito. **Debug in editor** fija
+**Retry from failed step** inicia otra ejecución con la misma versión y la misma entrada. Reutiliza los resultados de los pasos completados y de las llamadas completadas de un bloque Python sin repetir sus escrituras. Un bucle vuelve a ejecutarse y reutiliza los pasos de cada elemento que tuvieron éxito. El enlace de reanudación se genera de nuevo: el enlace anterior no puede reanudar esta ejecución.
+
+**Debug in editor** fija
 en los pasos del borrador lo que cada paso fuera de un bucle entregó en esa
 ejecución, así que una ejecución de prueba empieza donde estaba aquella. Por la API,
 `POST /api/v1/workflow-runs/{id}/retry` reintenta, y `GET /api/v1/workflow-runs`
@@ -1078,6 +1076,26 @@ está en marcha. Un cliente que perdió la conexión se reconecta con el cursor 
 antes de enviarse, así que nada se pierde y nada se ejecuta dos veces. El socket
 vuelve a comprobar la sesión y el acceso del miembro antes de cada frame y de cada
 lectura del flujo. Los frames están en [La API HTTP](api.md#following-a-run-over-a-websocket).
+
+### Fuentes de webhooks reutilizables { #reusable-webhook-sources }
+
+El selector enlaza a la administración de fuentes sin añadir otro destino predeterminado a la barra lateral. Las credenciales de una fuente nueva se seleccionan o crean en Vault: `api_key` visible para la organización para claves de firma y tokens, o `webhook_credentials` para Basic Auth entrante. El workflow conserva solo su vínculo con la fuente; la rotación de credenciales permanece en Vault.
+
+Los pasos **Webhook** nuevos en el editor de workflows empiezan pidiéndote que elijas o crees una fuente de eventos. Puedes guardar el borrador y probarlo con JSON pegado antes de elegir una fuente, pero para publicar debes seleccionar una fuente o elegir expresamente un **endpoint dedicado**. Elige un endpoint dedicado cuando el remitente necesite una respuesta síncrona. Los pasos dedicados existentes conservan su configuración y sus URL.
+
+En un disparador **Webhook**, selecciona una **Fuente de eventos** existente o crea una. Publicar suscribe esa entrada concreta del workflow; las publicaciones posteriores conservan la suscripción cuando no cambian la fuente ni la entrada. La fuente guarda las credenciales fuera de la definición del workflow. Las demás rutinas y workflows reciben los mismos eventos autenticados de forma independiente. [Fuentes de eventos](triggers.md#reusable-event-sources) explica proveedores, autenticación, permisos, pausas y retención.
+
+Puedes sustituir una fuente que ya no tienes permiso para usar por otra que sí puedas usar. La suscripción activa cambia al publicar. Fijar una muestra modifica el borrador del workflow y requiere permiso de edición.
+
+Quien pueda consultar las ejecuciones del workflow puede ver en el historial los datos entregados, aunque la fuente sea privada. Compartir el workflow más adelante puede dar acceso a datos de ejecuciones anteriores, pero no permite escuchar la fuente en vivo.
+
+**Escuchar evento** captura el siguiente evento autenticado en la URL activa configurada. La ventana dura dos minutos; las muestras temporales duran diez minutos y respetan el límite de 64 KB para datos fijados. **Los suscriptores activos siguen ejecutándose.** La captura no crea otra ejecución ni cambia las entregas. Pegar JSON de ejemplo es una alternativa; guardar y publicar nunca requieren una muestra.
+
+La muestra del disparador seleccionado sigue siendo `{body, delivery_id}`. Fíjala y usa las vinculaciones de campos y las pruebas de pasos existentes; los nodos siguientes consumen JSON directamente. Con varias entradas, selecciona explícitamente el nodo Webhook adecuado para capturar y fijar.
+
+Probar una rama manual o usar un ejemplo JSON ya fijado no requiere permiso de uso sobre la fuente del webhook. Publicar un flujo que se suscribe a esa fuente y escuchar eventos en directo sí requieren ese permiso.
+
+Una fuente compartida confirma la recepción duradera de forma asíncrona. Publicar rechaza una entrada compartida cuya rama alcanzable contiene **Responder al webhook**. Elige un endpoint dedicado cuando el remitente necesite el estado, las cabeceras o el cuerpo síncronos de ese nodo. Las URL, credenciales, detección de duplicados y respuestas de endpoints dedicados no cambian.
 
 ### Un webhook o una programación { #a-webhook-or-a-schedule }
 
@@ -1521,3 +1539,11 @@ Las nuevas automatizaciones pueden enviarse con `prepare_workflow_draft`: una ap
 ### Borradores de seguimiento { #follow-up-drafts }
 
 El diálogo de espera de respuesta también permite preparar un borrador de seguimiento tras el plazo. Elige un modelo existente y un coste máximo por borrador. Al iniciar el flujo, proporciona el contexto para el texto. Solo la rama de plazo tras una comprobación correcta del buzón ejecuta el agente; una respuesta verificada lo omite y un fallo del buzón hace fallar la comprobación. El agente no tiene herramientas. El borrador se guarda en el resultado del flujo y una notificación enlaza allí. Revisa el hilo actual antes de enviar nada. Esta plantilla no crea un borrador en Gmail/Outlook ni envía correo.
+
+Los paquetes de recursos seleccionables también admiten flujos como raíz mediante `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` y los endpoints bundle-import. Elige qué definiciones vinculadas copiar, reutilizar u omitir. La importación crea borradores privados sin publicar ni activar disparadores. No transfiere vínculos de archivos subidos ni resultados fijados de ejecuciones. El resultado enumera las rutas omitidas; la publicación sigue comprobando los recursos que faltan. Los delegados requieren seleccionar explícitamente una versión publicada existente del agente asignado. Los flujos de error deben apuntar a un manejador de fallos publicado y accesible; nunca se publican borradores automáticamente. Los ciclos de creación requieren reutilizar un recurso existente u omitir un vínculo.
+
+Los vínculos con columnas seleccionadas se omiten para elegirlas manualmente en el destino; los vínculos de tabla completa usan la versión del esquema de destino.
+
+Los vínculos de acciones Python usan el esquema de recursos de cada acción. Al reutilizar un destino, se sustituyen juntos el ID de tabla y la versión del esquema. Omitir una dependencia de acción elimina su vínculo completo; revisa el código Python antes de publicar. Se rechazan las exportaciones con una selección de columnas concretas: borra la selección antes de exportar y vuelve a elegir las columnas en el destino.
+
+Las suscripciones a fuentes de eventos reutilizables no se transfieren en paquetes de workflows. La exportación e importación eliminan el ID de la fuente, muestran la ruta del vínculo omitido y dejan el paso webhook requiriendo una fuente. Antes de publicar, vuelve a elegir una fuente autorizada en el borrador privado; importar no activa un endpoint dedicado como alternativa.

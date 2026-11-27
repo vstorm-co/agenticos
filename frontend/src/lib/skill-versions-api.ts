@@ -13,6 +13,7 @@ import type {
   SkillFork,
   SkillForkList,
   SkillUsage,
+  SkillVersionFile,
   SkillVersionList,
   SkillVersionRead,
 } from "@/types/skill-versions";
@@ -28,6 +29,18 @@ export function listSkillVersions(
 
 export function getSkillVersion(skillId: string, versionId: string): Promise<SkillVersionRead> {
   return apiClient.get<SkillVersionRead>(`/skills/${skillId}/versions/${versionId}`);
+}
+
+/** One file as a version holds it; `name` is a path, each segment encoded on its own. */
+export function getSkillVersionFile(
+  skillId: string,
+  versionId: string,
+  name: string,
+): Promise<SkillVersionFile> {
+  const path = name.split("/").map(encodeURIComponent).join("/");
+  return apiClient.get<SkillVersionFile>(
+    `/skills/${skillId}/versions/${versionId}/resources/${path}`,
+  );
 }
 
 export interface SkillVersionEdit {

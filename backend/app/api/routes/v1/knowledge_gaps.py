@@ -19,6 +19,7 @@ from app.schemas.knowledge_gap import (
     KnowledgeGapContent,
     KnowledgeGapContentAdd,
     KnowledgeGapDraftEstimate,
+    KnowledgeGapDraftRequest,
     KnowledgeGapToDataset,
     KnowledgeGapTopicDetail,
     KnowledgeGapTopicList,
@@ -92,9 +93,17 @@ async def list_agent_gaps(
     topic_status: TopicStatusLiteral | None = Query(None, alias="status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    topic_ids: list[UUID] | None = Query(
+        None,
+        alias="topic_id",
+        max_length=100,
+        description="Only these topics; repeat the parameter for each",
+    ),
 ) -> Any:
     """What one agent searched for and did not find, in the knowledge bases the caller reads."""
-    return await service.list_for_agent(ctx, agent_id, status=topic_status, skip=skip, limit=limit)
+    return await service.list_for_agent(
+        ctx, agent_id, status=topic_status, skip=skip, limit=limit, topic_ids=topic_ids
+    )
 
 
 @router.get("/{topic_id}", response_model=KnowledgeGapTopicDetail)
@@ -132,7 +141,12 @@ async def add_gap_to_dataset(
     status_code=status.HTTP_202_ACCEPTED,
     dependencies=[ASSISTANT],
 )
-async def draft_gap(topic_id: UUID, service: KnowledgeGapSvc, ctx: Auth) -> Any:
+async def draft_gap(
+    topic_id: UUID,
+    service: KnowledgeGapSvc,
+    ctx: Auth,
+    data: KnowledgeGapDraftRequest | None = None,
+) -> Any:
     """Queue a draft of the passage this topic is missing; the topic says while it is written.
 
     A run of the organization's drafting agent, as the caller, metered and in
@@ -141,7 +155,9 @@ async def draft_gap(topic_id: UUID, service: KnowledgeGapSvc, ctx: Auth) -> Any:
     topic for a person to check; nothing is added to the collection. Asking
     again while one is being written queues nothing more.
     """
-    return await service.request_draft(ctx, topic_id)
+    return await service.request_draft(
+        ctx, topic_id, quoted_usd=None if data is None else data.quoted_usd
+    )
 
 
 @router.get(

@@ -1168,7 +1168,8 @@
     "appWide": "Em toda a aplicação",
     "appWideNotForAgents": "Agentes não podem usar bases de conhecimento de toda a aplicação. Desmarque a base para removê-la.",
     "otherOrganization": "Outra organização",
-    "otherOrganizationNotForAgents": "Esta base de conhecimento pertence a outra organização, então os agentes daqui não podem usá-la. Desmarque a base para removê-la."
+    "otherOrganizationNotForAgents": "Esta base de conhecimento pertence a outra organização, então os agentes daqui não podem usá-la. Desmarque a base para removê-la.",
+    "testedSpecUnread": "Não foi possível ler a versão que este run testou. {reason}"
   },
   "auth": {
     "agreeToTerms": "Ao criar uma conta, você concorda com nossos <terms>Termos</terms> e com nossa <privacy>Política de Privacidade</privacy>.",
@@ -1179,7 +1180,6 @@
     "confirmPassword": "Confirmar senha",
     "continueWithGithub": "Continuar com GitHub",
     "continueWithGoogle": "Continuar com Google",
-    "googleNotConfigured": "O login com Google não está configurado nesta implantação.",
     "continueWithProvider": "Continuar com {provider}",
     "continueWithMicrosoft": "Continuar com Microsoft",
     "createHeading": "Criar uma conta",
@@ -1276,7 +1276,10 @@
     "directorySignIn": "Entrar com {provider}",
     "directoryUsername": "Nome de usuário do {provider}",
     "useEmailInstead": "Use e-mail e senha",
-    "nativeLogoutFailed": "Você saiu, mas o app não conseguiu limpar o acesso local."
+    "nativeLogoutFailed": "Você saiu, mas o app não conseguiu limpar o acesso local.",
+    "providerSignInOnly": "Entre pelo provedor de identidade da sua organização. Senhas locais e links de acesso por e-mail estão desativados.",
+    "providerSignInUnavailable": "Nenhum provedor de identidade está disponível. Entre em contato com o administrador da implantação.",
+    "chooseSignInMethod": "Escolher outro método de acesso"
   },
   "billing": {
     "description": "Gerencie sua assinatura de {org}.",
@@ -1495,7 +1498,24 @@
         "approve_all": "Aprovar tudo",
         "ask_all": "Perguntar sempre"
       },
-      "afterFirstMessage": "Disponível após a primeira mensagem."
+      "afterFirstMessage": "Disponível após a primeira mensagem.",
+      "projectExecution": {
+        "title": "Ficheiros do projeto",
+        "hint": "Os ficheiros partilhados ficam no projeto. O agente mantém as suas ferramentas e pode usar o sandbox do projeto quando necessário.",
+        "filesOnly": "Os ficheiros partilhados do projeto estão disponíveis sem executar comandos.",
+        "projectFilesOnly": "Os ficheiros partilhados ficam no projeto. Este projeto não tem ambiente de comandos; o agente mantém as suas ferramentas.",
+        "local": "Os ficheiros do projeto continuam partilhados. Os comandos continuam a usar a pasta autorizada neste computador.",
+        "loading": "A verificar o projeto deste chat…",
+        "unavailable": "Não foi possível verificar o projeto. Tente novamente para ver o workspace atual.",
+        "advanced": "Destino avançado de comandos",
+        "commandTarget": "Destino de comandos",
+        "automatic": "Automático — o agente escolhe",
+        "agent": "Apenas workspace do agente",
+        "project": "Apenas sandbox do projeto",
+        "overrideHint": "Opcional: fixe o destino de comandos deste chat. O modo automático começa no ambiente próprio do agente.",
+        "noProject": "O agente usa o workspace configurado. Peça-lhe para usar um projeto quando necessário.",
+        "workspace": "Workspace do agente"
+      }
     },
     "conversationArchived": "Esta conversa está arquivada",
     "conversationDeleted": "Conversa excluída",
@@ -1605,7 +1625,16 @@
       "readNoticeBody": "Tente novamente para verificar a conexão do arquivo. Você pode continuar usando esta conversa.",
       "connectionSettings": "Conexões do Sandbox",
       "technicalDetails": "Detalhes técnicos",
-      "zipFailed": "Não foi possível baixar a pasta."
+      "zipFailed": "Não foi possível baixar a pasta.",
+      "fileLocation": "Localização dos ficheiros",
+      "chooseLocation": "Escolher uma localização",
+      "agentLocation": "Ficheiros do agente · {name}",
+      "projectLocation": "Ficheiros do projeto · {name}",
+      "locationUnavailable": "Esta localização já não está disponível. Escolha outra.",
+      "locationsTruncated": "Algumas localizações foram omitidas desta lista.",
+      "filesTruncated": "Esta lista de ficheiros está incompleta.",
+      "loading": "A carregar ficheiros…",
+      "retry": "Tentar novamente"
     },
     "generateShareLink": "Gerar link de compartilhamento",
     "helpful": "Útil",
@@ -1813,7 +1842,9 @@
       "retryShared": "Tentar novamente as conversas compartilhadas",
       "searchFailed": "Não foi possível buscar conversas.",
       "searchMatches": "{count, plural, one {# mensagem correspondente} other {# mensagens correspondentes}}",
-      "searchKeys": "↑ ↓ para navegar · Enter para abrir · Esc para fechar"
+      "searchKeys": "↑ ↓ para navegar · Enter para abrir · Esc para fechar",
+      "flatView": "Atividade mais recente (lista simples)",
+      "groupedView": "Agrupar chats por projeto"
     },
     "skipComment": "Pular comentário",
     "sourceCount": "{count, plural, =1 {1 fonte} other {# fontes}}",
@@ -2165,7 +2196,18 @@
       "runAcpAgent": "Agente ACP externo",
       "runningAcpAgent": "Agente ACP externo",
       "inspectAcpAgent": "Ler opções de modelo ACP",
-      "readingAcpModels": "Lendo opções de modelo ACP"
+      "readingAcpModels": "Lendo opções de modelo ACP",
+      "approveAcceptImprovement": "Aceitar a tentativa {attempt} para {agent} ({verdict, select, better {melhor} criteria_better {melhor nos critérios} no_change {sem mudança} criteria_worse {pior nos critérios} regression {pior} inconclusive {inconclusiva} other {não medida}}) {publish, select, yes {e publicá-la como v{version}} other {como rascunho}}",
+      "approvePublishAgent": "Publicar {agent} como v{version}",
+      "approveChangeSkillVersion": "{state, select, main {Mover {agent} para a linha principal de {skill}} pinned {Fixar {agent} em {skill} v{version}} other {Mover {agent} para um fork de {skill}}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {Aplicar o skill melhorado {skill}} apply_and_pin {Aplicar o skill melhorado {skill} e fixar os agents que ele prejudicaria} fork_for_helped {Criar um fork de {skill} para os agents que ele ajudou} catch_up {Atualizar o fork de {skill} com a main} other {Devolver o fork de {skill} à main}}",
+      "approveStartEvalRun": "Testar {agent} no dataset {dataset} v{version}",
+      "selectingProjectContext": "Selecionando contexto do projeto…",
+      "selectedProjectContext": "Contexto do projeto selecionado",
+      "selectingExecutionTarget": "Selecionando destino dos comandos…",
+      "selectedExecutionTarget": "Destino dos comandos selecionado",
+      "transferringProjectFile": "A transferir ficheiro do projeto…",
+      "transferredProjectFile": "Ficheiro do projeto transferido"
     },
     "turnWasStopped": "interrompido",
     "unfavourite": "Remover dos favoritos",
@@ -2732,7 +2774,10 @@
     "queuedPaused": "Fila pausada",
     "resumeQueue": "Retomar fila",
     "routineHistoryReadOnly": "Este é um histórico de rotina somente leitura. Bifurque uma resposta para continuar em um novo chat.",
-    "routineContinueChat": "Continuar em um novo chat"
+    "routineContinueChat": "Continuar em um novo chat",
+    "approvalOthersWait": "Sua resposta vale apenas para as suas próprias chamadas à plataforma. As outras aguardam alguém que possa decidir aprovações.",
+    "approvalNeedsItsPerson": "Somente a pessoa em nome de quem esta execução age pode aprovar isto. Você pode rejeitar.",
+    "approvalNeedsItsAdminPerson": "Somente a pessoa em nome de quem esta execução atua, conectada como administradora da aplicação, pode aprovar. Você pode rejeitar."
   },
   "approvalFeedback": {
     "savedApproval": "Já aprovada: {action}",
@@ -3666,6 +3711,13 @@
       "background-tasks": {
         "title": "Tópicos em segundo plano",
         "description": "Seu trabalho delegado e seus resultados"
+      },
+      "event-sources": {
+        "title": "Fontes de eventos",
+        "description": "Veja quantas fontes de webhook estão ativas ou pausadas.",
+        "empty": "Ainda não há fontes de eventos",
+        "active": "Ativas",
+        "paused": "Pausadas"
       }
     },
     "edit": {
@@ -4338,7 +4390,8 @@
     "citedFileGone": "Este arquivo não está mais na base de conhecimento - foi excluído ou substituído depois de ser citado.",
     "embeddingEndpoint": "Endpoint",
     "embeddingEndpointHint": "Deixe vazio para usar a API global do OpenRouter, ou informe uma URL regional como https://eu.openrouter.ai/api/v1. O roteamento na UE exige um plano elegível do OpenRouter; o ZDR é configurado separadamente no OpenRouter.",
-    "noConnectorsAvailable": "Nenhum conector de fonte está disponível. Um administrador pode habilitar um conector para esta implantação."
+    "noConnectorsAvailable": "Nenhum conector de fonte está disponível. Um administrador pode habilitar um conector para esta implantação.",
+    "parsedSnapshotOnly": "Texto analisado importado. O ficheiro original não foi incluído."
   },
   "knowledgeBases": {
     "active": "Ativa",
@@ -4368,7 +4421,8 @@
     "title": "Bases de conhecimento",
     "updated": "Base de conhecimento atualizada",
     "uploadFailed": "Falha no envio",
-    "uploaded": "{name} enviado"
+    "uploaded": "{name} enviado",
+    "documentIndexingQueued": "Indexação do documento na fila"
   },
   "layout": {
     "breadcrumb": "Trilha de navegação",
@@ -4396,6 +4450,7 @@
       "outboxWaiting": "{count, plural, =1 {1 mensagem aguardando envio} other {# mensagens aguardando envio}}",
       "unreachable": "Não foi possível acessar o servidor. Exibindo o que foi salvo neste dispositivo às {time}."
     },
+    "staleRead": "Parte desta página deixou de ser atualizada e pode estar desatualizada. {reason}",
     "install": {
       "offer": "Instale o AgenticOS como aplicativo: com janela própria, notificações e ícone na tela inicial.",
       "iosHint": "Para instalar o AgenticOS, toque em Compartilhar e depois em Adicionar à Tela de Início.",
@@ -4852,7 +4907,8 @@
     "monitoring": "Monitoramento",
     "backgroundWork": "Trabalho em segundo plano",
     "developerAccess": "API e MCP",
-    "subscriptions": "Assinaturas"
+    "subscriptions": "Assinaturas",
+    "eventSources": "Fontes de eventos"
   },
   "navigation": {
     "dashboard": "Painel",
@@ -4937,6 +4993,10 @@
       "skill-improvement-session": {
         "title": "Percorrer esta sessão",
         "body": "Veja as etapas, o resultado de cada agente e o que você pode fazer com a mudança."
+      },
+      "create-event-source": {
+        "title": "Criar nova fonte",
+        "body": "Receba cada evento autenticado uma única vez e compartilhe-o com rotinas e workflows."
       }
     },
     "steps": {
@@ -5683,7 +5743,7 @@
       },
       "project-tabs": {
         "title": "Chats, arquivos e instruções",
-        "body": "Inicie um chat no projeto, adicione arquivos e pastas com que os agentes trabalham e defina o que cada agente aqui recebe como instrução. No aplicativo de desktop, você também pode conectar uma pasta local sem enviar seus arquivos."
+        "body": "Agrupe agentes, workflows, aplicações e tabelas existentes em Recursos. Chats abre primeiro; Ficheiros e Instruções contêm o espaço partilhado dos chats do projeto."
       },
       "chat-visual": {
         "title": "Desenhos",
@@ -6220,6 +6280,66 @@
       "channels-binding": {
         "title": "Escolha quem responde",
         "body": "Vincule um agente a um bot ou remova o vínculo. Um bot responde como um único agente; o ambiente, a pausa e as consultas continuam na aba Disponibilidade do agente."
+      },
+      "deployment-password-sign-in": {
+        "title": "Métodos de acesso",
+        "body": "Exija o provedor de identidade configurado ou permita senhas locais e links de acesso por e-mail. Somente o administrador da implantação pode alterar essa política."
+      },
+      "deployment-chat-costs": {
+        "title": "Custos do chat",
+        "body": "Permita que as organizações mostrem custos no chat. Desativar oculta-os para todos."
+      },
+      "organization-chat-costs": {
+        "title": "Custos do chat",
+        "body": "Escolha quem vê os custos de respostas, delegações e conversas. A contabilidade, os budgets e o acesso a Activity e ao painel permanecem inalterados."
+      },
+      "personal-chat-costs": {
+        "title": "Custos do chat",
+        "body": "Oculte custos nos seus chats. As restrições da organização ou do deployment continuam a aplicar-se."
+      },
+      "deployment-console-navigation": {
+        "title": "Disponibilidade da consola",
+        "body": "Escolha a navegação e as sugestões opcionais disponíveis para as organizações. As permissões dos recursos permanecem inalteradas."
+      },
+      "organization-console-navigation": {
+        "title": "Consola por função",
+        "body": "Escolha a navegação visível para cada função integrada. Isto altera a apresentação, nunca as permissões de acesso."
+      },
+      "organization-console-notices": {
+        "title": "Sugestões do produto",
+        "body": "Escolha sugestões opcionais para esta organização. Os avisos de disponibilidade e segurança não são afetados."
+      },
+      "personal-console-navigation": {
+        "title": "A minha navegação",
+        "body": "Mantenha as secções que utiliza. As restrições da organização e do deployment continuam a aplicar-se."
+      },
+      "personal-console-notices": {
+        "title": "Sugestões do produto",
+        "body": "Mantenha sugestões úteis. As restrições da organização e do deployment continuam a aplicar-se."
+      },
+      "personal-console-catalogs": {
+        "title": "Catálogos",
+        "body": "Escolha as galerias que deseja explorar. Os limites da organização e da implantação continuam válidos."
+      },
+      "event-sources-header": {
+        "title": "Fontes de eventos",
+        "body": "Receba cada evento autenticado uma única vez e compartilhe-o com rotinas e workflows."
+      },
+      "event-sources-create": {
+        "title": "Criar nova fonte",
+        "body": "Configure o remetente manualmente para enviar JSON por POST à URL da fonte."
+      },
+      "flow-event-source-create": {
+        "title": "Criar nova fonte",
+        "body": "Configure o remetente manualmente para enviar JSON por POST à URL da fonte."
+      },
+      "workflow-python-actions": {
+        "title": "Chamar ferramentas a partir do Python",
+        "body": "Escolha Python com ações para chamar ferramentas MCP, usar tabelas ou pesquisar conhecimento. Atribua um nome de função a cada ação e insira a chamada no script pelo menu abaixo do editor. Cada chamada tem suas próprias aprovações e seu próprio registro de execução."
+      },
+      "project-resources": {
+        "title": "Reunir recursos relacionados",
+        "body": "Associe agentes, workflows, Apps e tabelas existentes sem alterar as permissões. Abra-os aqui ou escolha um workflow associado como ponto de entrada do projeto."
       }
     },
     "chooseLanguage": "Idioma",
@@ -6475,7 +6595,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "Uma entrega HTTP assinada de outro sistema inicia uma execução."
+          "description": "Um evento autenticado inicia uma execução. Selecione ou crie uma fonte de eventos no editor."
         },
         "schedule": {
           "name": "Agendamento",
@@ -6864,7 +6984,9 @@
       "runQuestionsFailed": "Não foi possível carregar as perguntas.",
       "runQuestionsRetry": "Tentar novamente",
       "startRunSchema": "Esquema de entrada esperado",
-      "nameRequired": "Digite um nome para este workflow."
+      "nameRequired": "Digite um nome para este workflow.",
+      "triggerSourceCredentials": "Gerenciar credenciais em Fontes de eventos",
+      "runPythonCall": "Chamada {index}: {name}"
     },
     "retention": {
       "title": "Retenção de dados",
@@ -7155,7 +7277,11 @@
       "noMembers": "Sem membros",
       "membersTruncated": "Mostrando os primeiros {shown} de {total} membros",
       "serviceMapTiles": "Blocos de mapa",
-      "serviceMapTilesDetail": "De onde os mapas dos visuais obtêm o plano de fundo"
+      "serviceMapTilesDetail": "De onde os mapas dos visuais obtêm o plano de fundo",
+      "passwordSignInTitle": "Métodos de acesso",
+      "passwordSignInHint": "O acesso local inclui senhas, cadastro, recuperação de senha e links de acesso por e-mail. Configure um provedor de identidade antes de desativá-lo.",
+      "passwordSignInEnabled": "Permitir acesso local",
+      "passwordSignInForced": "A configuração de recuperação do operador está habilitando o acesso local."
     },
     "agentDetail": {
       "perMonth": "${amount} por mês"
@@ -7200,7 +7326,6 @@
       "duplicate": "Duplicar",
       "eachPublishFreezesSpec": "Cada publicação congela uma especificação. As execuções registram a versão, então o que um agente fez na última terça-feira continua rastreável após uma dúzia de edições. Restaurar publica uma nova versão copiada da antiga: a linha do tempo mostra que houve uma reversão, em vez de fingir que a versão ruim nunca existiu.",
       "environments": "Ambientes",
-      "exportYaml": "Exportar YAML",
       "filterByStatus": "Filtrar por status",
       "filterByCategory": "Filtrar por categoria",
       "filterByTag": "Filtrar por tag",
@@ -7647,7 +7772,12 @@
       "indexingInProgress": "{count, plural, =1 {Indexando: 1 documento em andamento} other {Indexando: # documentos em andamento}}",
       "indexingComplete": "Indexação concluída",
       "indexingFailed": "{count, plural, =1 {1 documento falhou} other {# documentos falharam}}",
-      "moreUploads": "{count, plural, one {# arquivo a mais na fila de envio} other {# arquivos a mais na fila de envio}}"
+      "moreUploads": "{count, plural, one {# arquivo a mais na fila de envio} other {# arquivos a mais na fila de envio}}",
+      "indexDocument": "Indexar",
+      "retryDocument": "Tentar novamente",
+      "indexDocumentNamed": "Indexar {name}",
+      "retryDocumentNamed": "Tentar {name} novamente",
+      "indexDocumentHint": "Usa as definições desta base de conhecimento e pode gerar custos do fornecedor."
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "O catálogo está compilado no backend, e ninguém adicionou um servidor próprio. Uma lista vazia aqui significa que esta implantação não inclui nenhum.",
@@ -8017,6 +8147,7 @@
       "askedFor": "Para {email}",
       "contentHidden": "O que esta chamada cita da sua execução é mostrado somente para quem pode ver essa execução.",
       "approveNeedsTheRun": "Somente quem pode ver a execução pode aprovar isto. Você pode rejeitar.",
+      "approveNeedsItsPerson": "Somente a pessoa em nome de quem esta execução age pode aprovar isto. Você pode rejeitar.",
       "account": "Conta: {account}",
       "openTheRun": "Abrir a execução",
       "decidedByWhom": "por {email}",
@@ -8030,6 +8161,7 @@
       "actionInService": "{action} em {service}",
       "approvalDetails": "Detalhes",
       "approvalNoArguments": "Não requer nenhum argumento.",
+      "approvalQuotedPrice": "Estimativa informada: {price}",
       "cache": {
         "title": "Cache de prompt",
         "description": "Requisições cujo prompt em cache não foi lido de volta. Uma quebra é um prefixo que mudou (ferramentas reordenadas, um timestamp nas instruções) e foi cobrado pela taxa cheia de entrada; uma expiração significa que o cache do provedor já tinha vencido.",
@@ -8145,7 +8277,8 @@
       "inputTokenCacheRead": "Leitura do cache",
       "inputTokenCacheWrite": "Escrita no cache",
       "inputTokenHint": "Totais das requisições de modelo registradas. Os tokens de cache estão incluídos na entrada, não somados a ela.",
-      "systemRoleChannelDecision": "Decisão de participação no canal (sistema)"
+      "systemRoleChannelDecision": "Decisão de participação no canal (sistema)",
+      "approveNeedsItsAdminPerson": "Somente a pessoa em nome de quem esta execução atua, conectada como administradora da aplicação, pode aprovar. Você pode rejeitar."
     },
     "sandboxes": {
       "noAccess": "Sem acesso às conexões de sandbox",
@@ -8971,7 +9104,8 @@
     "done": "Concluído",
     "error": "Falhou",
     "processing": "Processando",
-    "running": "Em execução"
+    "running": "Em execução",
+    "stored": "Armazenado · não indexado"
   },
   "sandboxes": {
     "activityLogUnreadable": "Não foi possível ler esse registro de atividade",
@@ -9269,14 +9403,14 @@
     "share": "Compartilhar",
     "sharingUpdated": "Compartilhamento atualizado",
     "visibilityOrg": "Todos na organização",
-    "visibilityOrgReaches": "Todos na organização que podem visualizar {resource, select, agent {agentes} skill {skills} collection {coleções} artifact {apps} dataset {datasets} context {arquivos de contexto} mcp_connection {servidores MCP} project {projetos} workflow {workflows} other {segredos}} em geral.",
+    "visibilityOrgReaches": "Todos na organização que podem visualizar {resource, select, agent {agentes} skill {skills} collection {coleções} artifact {apps} dataset {datasets} context {arquivos de contexto} mcp_connection {servidores MCP} project {projetos} workflow {workflows} event_source {fontes de eventos} other {segredos}} em geral.",
     "visibilityPrivate": "Somente pessoas com acesso",
-    "visibilityPrivateReaches": "Somente as pessoas listadas acima. Ninguém mais encontra {resource, select, agent {este agente} skill {esta skill} collection {esta coleção} artifact {este app} dataset {este dataset} context {este arquivo de contexto} mcp_connection {este servidor MCP} project {este projeto} other {este segredo}} na lista - e, se ainda não tiver um proprietário, ele passa a ser seu.",
+    "visibilityPrivateReaches": "Somente as pessoas listadas acima. Ninguém mais encontra {resource, select, agent {este agente} skill {esta skill} collection {esta coleção} artifact {este app} dataset {este dataset} context {este arquivo de contexto} mcp_connection {este servidor MCP} project {este projeto} event_source {esta fonte de eventos} other {este segredo}} na lista - e, se ainda não tiver um proprietário, ele passa a ser seu.",
     "visibilityTeam": "Equipe (não é mais oferecido)",
     "visibilityTeamReaches": "Qualquer pessoa cuja função alcance {resource, select, agent {agentes} skill {skills} collection {coleções} artifact {apps} dataset {datasets} context {arquivos de contexto} mcp_connection {servidores MCP} project {projetos} workflow {workflows} other {segredos}} da equipe. Esta organização não tem equipes - escolha uma das duas opções acima.",
     "visibilityUpdated": "Visibilidade atualizada",
     "workflowPrivateReaches": "O proprietário, as pessoas e os grupos listados acima e as funções que podem acessar todos os workflows. Funções limitadas a workflows compartilhados podem perder o acesso quando você o torna privado.",
-    "workflowRuntimeNote": "O compartilhamento também controla o acesso às execuções anteriores. Ele não pausa agendamentos nem desativa webhooks.",
+    "workflowRuntimeNote": "Quem tem acesso às execuções do workflow pode ver os dados dos eventos entregues, inclusive em execuções anteriores. Compartilhar o workflow não concede acesso à fonte de eventos, não pausa os agendamentos nem desativa os webhooks.",
     "groupsHeading": "Grupos",
     "membersHeading": "Membros",
     "groupSubject": "Grupo",
@@ -9285,7 +9419,8 @@
     "owner": "Proprietário",
     "shareNamed": "Compartilhar {name}",
     "requestSent": "Solicitação enviada para {name}",
-    "requestSentNobody": "Solicitação enviada. Ninguém pode aprová-la ainda."
+    "requestSentNobody": "Solicitação enviada. Ninguém pode aprová-la ainda.",
+    "eventSourceRuntimeNote": "Quem tem a permissão “Pode usar” pode capturar os dados enviados pela fonte sem filtros."
   },
   "skills": {
     "addFile": "Adicionar arquivo",
@@ -9690,7 +9825,8 @@
         "unscorable": "Não verificado: nada consegue avaliar as perguntas dele. Configure a avaliação no dataset delas.",
         "all_evidence": "Não verificado: todas as perguntas vieram das conversas de onde esta alteração foi aprendida.",
         "cancelled": "Não verificado: a verificação foi interrompida antes de terminar.",
-        "own_not_asked": "Não verificado: as próprias perguntas não foram feitas depois que as da skill mostraram piora."
+        "own_not_asked": "Não verificado: as próprias perguntas não foram feitas depois que as da skill mostraram piora.",
+        "too_few_questions": "Não verificado: ele tem poucas perguntas de teste para verificar a mudança."
       },
       "verdict": {
         "passed": "Nenhum agente piorou e pelo menos um melhorou.",
@@ -9717,6 +9853,7 @@
       "nobody": "Nenhum destes agentes pode ser verificado, então a verificação não mediria nada. Adicione perguntas de teste para que ela possa ser feita, ou continue sem verificação e confirme que ninguém foi verificado.",
       "startUnchecked": "Continuar sem verificação",
       "noReaders": "Nenhum agente lê esta linha, então não há ninguém para verificar. Continuar aplica a mudança imediatamente.",
+      "stoppedUpdating": "Esta verificação deixou de ser atualizada e pode estar desatualizada. {reason}",
       "proposalGoneTitle": "Esta atualização não está mais pendente",
       "proposalGoneDescription": "Ela foi aplicada, descartada ou substituída em outra sessão. A lista foi atualizada.",
       "backToChanges": "Voltar às atualizações"
@@ -10037,6 +10174,7 @@
     }
   },
   "vault": {
+    "webhookCredentials": "Credenciais de webhook",
     "access": "Acesso",
     "actions": "Ações",
     "addKeyNamed": "Adicionar uma chave: {name}",
@@ -10517,23 +10655,17 @@
     "endsAtHint": "Deixe em branco para executar até ser interrompida. Este horário usa {zone}, independentemente do fuso do agendamento.",
     "endsAtInvalid": "Escolha um horário futuro válido ou limpe o campo para remover o término.",
     "actionConsents": {
-      "checkConnections": "Verifique estas conexões para revisar as ações delas: {names}.",
       "personalAccount": "{name} · sua conta",
       "organizationAccount": "{name} · conta da organização",
       "title": "Consentimento de ações",
       "description": "As ações de rotina pedem aprovação por padrão. Permita apenas que as ações listadas sejam executadas sem perguntar. O consentimento vale para esta versão publicada e a configuração da rotina; as aprovações exigidas pelo agente continuam valendo. Cada ação MCP vale somente para a conta indicada.",
       "retry": "Tentar novamente",
-      "notAllowedPermission": "Você não tem permissão para decidir aprovações, então não pode conceder consentimento permanente a esta rotina. Peça a um administrador da organização. Você ainda pode revogar todo o consentimento.",
-      "notAllowedOrganization": "Sua organização desativou o consentimento permanente, então esta rotina não pode pular aprovações. Ele pode ser ativado em Orçamento e aprovações. Você ainda pode revogar todo o consentimento.",
-      "openApprovalSettings": "Abrir configurações de aprovação",
       "empty": "Esta versão não tem ações elegíveis para autorizar aqui.",
       "revokeAll": "Revogar tudo",
       "save": "Salvar consentimento",
       "search": "Pesquisar ações",
       "selectGroup": "Selecionar ações elegíveis em {name}",
       "noMatches": "Nenhuma ação corresponde à sua pesquisa.",
-      "reselectPrevious": "Selecionar novamente as ações revisadas anteriormente",
-      "tooMany": "{count} ações selecionadas; o limite é {limit}. Desmarque ações antes de salvar.",
       "changed": {
         "version": "A versão publicada do agente mudou. Revise as ações dele novamente.",
         "intent": "O trabalho ou o destino da rotina mudou. Revise as ações novamente.",
@@ -10545,8 +10677,7 @@
       "useAgent": "Usar as configurações do agente",
       "useAgentHint": "Seleciona exatamente as ações que este agente já executa sem pedir confirmação em um chat, substituindo a seleção atual. O consentimento aqui só pode restringir o que as configurações do agente concedem, nunca ampliar. Uma ação que o agente pede antes de executar não é oferecida. Nada é salvo até você escolher Salvar consentimento.",
       "allowHeading": "Permitir que estas ações sejam executadas sem pedir aprovação",
-      "alwaysAsks": "Sempre pede: exigido pelo agente ou pela plataforma",
-      "alwaysAsk": "{count, plural, =1 {1 ação sempre pede aprovação, conforme exigido pelo agente ou pela conexão. As execuções que a usam param para uma pessoa, independentemente do que você escolher aqui.} other {# ações sempre pedem aprovação, conforme exigido pelos respectivos agentes ou conexões. As execuções que as usam param para uma pessoa, independentemente do que você escolher aqui.}}"
+      "alwaysAsks": "Sempre pede: exigido pelo agente ou pela plataforma"
     },
     "sourceConsents": {
       "title": "Fontes",
@@ -10636,7 +10767,28 @@
       "readiness_checking": "Verificando se esta rotina pode ser executada…",
       "readiness_unavailable": "Não foi possível verificar se esta rotina pode ser executada. Executar agora ainda verificará as permissões dela."
     },
-    "deliveryPending": "Enviando a última resposta ao chat"
+    "deliveryPending": "Enviando a última resposta ao chat",
+    "toolSettings": {
+      "title": "Ferramentas da rotina",
+      "description": "Por predefinição, as ferramentas seguem as definições do agente. Nesta rotina, peça confirmação antes de usar uma ferramenta ou desative-a. As aprovações obrigatórias mantêm-se; os agentes delegados mantêm as suas definições.",
+      "legacyMode": "Ao guardar, aplicam-se as regras de aprovação do agente e são removidas as autorizações permanentes anteriores desta rotina.",
+      "agentAsks": "O agente exige aprovação",
+      "agentFree": "O agente permite utilização automática",
+      "follow": "Seguir o agente",
+      "ask": "Perguntar sempre",
+      "off": "Desativada",
+      "search": "Procurar uma ferramenta",
+      "reset": "Seguir o agente em todas as ferramentas",
+      "empty": "Esta rotina não tem ferramentas configuráveis.",
+      "noMatches": "Nenhuma ferramenta corresponde à pesquisa.",
+      "personalAccount": "Conta pessoal · {name}",
+      "organizationAccount": "Conta da organização · {name}",
+      "unavailable": "Verifique estas ligações para ver as ferramentas: {names}.",
+      "unavailableSettings": "Restrições de ferramentas indisponíveis",
+      "unavailableSettingsBody": "Estas restrições são mantidas mesmo quando uma ferramenta não está disponível. Remova explicitamente uma restrição para deixar de a manter.",
+      "removeRestriction": "Remover restrição de {name}"
+    },
+    "createdDescriptionShared": "Esta rotina usa a URL e as credenciais existentes da fonte de eventos. Não é necessário registrar outro webhook no provedor."
   },
   "portals": {
     "backToServices": "Voltar para os serviços",
@@ -11526,6 +11678,7 @@
     "needsAttention": "Requer atenção"
   },
   "workflows": {
+    "pickerWebhookCredentials": "Credenciais de webhook",
     "created": "Workflow criado",
     "duplicated": "Workflow duplicado",
     "publishedVersion": "Versão publicada {version}",
@@ -12374,8 +12527,32 @@
     },
     "stepEditorView": "Visualização da etapa",
     "stepEditorSettings": "Configurações da etapa",
-    "problemTableSchemaChanged": "Esta tabela mudou desde que a etapa foi configurada: uma coluna que ela lê foi removida ou teve o tipo alterado. Atualize-a para o esquema atual e verifique o que lê esta etapa.",
-    "problemTableDependenciesChanged": "Remova ou substitua as vinculações de filtro, ordenação e valor alteradas nesta etapa antes de atualizar o esquema da tabela."
+    "problemTableSchemaChanged": "O esquema da tabela mudou. Revise os nomes, tipos e valores das colunas usados nesta etapa antes de atualizar a referência à tabela.",
+    "problemTableDependenciesChanged": "Remova ou substitua as vinculações de filtro, ordenação e valor alteradas nesta etapa antes de atualizar o esquema da tabela.",
+    "webhookSourceAudience": "Quem pode ver as execuções deste workflow também pode ver os dados entregues pela fonte de eventos. Isso inclui execuções anteriores, mesmo que você compartilhe o workflow só depois. Ver uma execução não concede acesso à fonte.",
+    "pythonActions": "Funções disponíveis",
+    "pythonActionsHint": "Associe uma ação uma vez e chame a função no script com argumentos nomeados.",
+    "pythonInputGuide": "Entrada · Leia os valores associados em args: {keys}",
+    "pythonInputUnbound": "nenhum campo de entrada associado",
+    "pythonFunctionsGuide": "Funções · Chame {names} com argumentos nomeados.",
+    "pythonFunctionsEmpty": "Funções · Adicione uma ação abaixo para disponibilizar a sua função no script.",
+    "pythonOutputGuide": "Saída · A última expressão torna-se o resultado deste passo.",
+    "pythonExampleGuide": "Como escrever este passo",
+    "pythonCallGuide": "Use args para os dados de entrada e chame as funções associadas pelo nome. Cada função devolve o resultado da ação; termine com o valor que o próximo passo deve receber.",
+    "pythonExamplePlaceholders": "Substitua cada ... por uma entrada ou um valor literal. Adicionar uma função ou editar o script não executa nenhuma ação.",
+    "pythonActionsEmpty": "Nenhuma ação associada. Escolha uma ação, atribua um nome Python e insira a chamada no script. Também pode calcular a partir de args sem chamar ações.",
+    "pythonActionsDiscover": "Para chamar ferramentas MCP, usar tabelas ou pesquisar conhecimento, adicione uma etapa Python com ações e atribua um nome de função a cada ação.",
+    "pythonSelectAction": "Selecione uma ação",
+    "pythonInsertCall": "Inserir chamada de função",
+    "pythonInvalidName": "Use um identificador Python único, que não seja uma palavra reservada nem um nome interno.",
+    "pythonFunctionName": "Nome da função Python",
+    "pythonBindAction": "Associar ação",
+    "pythonActionUnavailable": "Ação indisponível",
+    "pythonRemoveAction": "Remover {name}",
+    "pythonToolArguments": "Esquema dos argumentos da ferramenta",
+    "pythonRequiredConfigArgs": "Forneça {fields} em cada chamada ou defina um valor padrão abaixo.",
+    "pythonOverrideFields": "Substituições opcionais: {fields}. Omita esses argumentos para usar os valores configurados.",
+    "pythonResultFields": "Campos do resultado: {fields}"
   },
   "artifacts": {
     "title": "Aplicativos",
@@ -13906,6 +14083,14 @@
       "example2": "Continuar uma sessão nomeada com outra tarefa",
       "needs": "Aplicativo de desktop, um programa ACP registrado e com login feito, e uma pasta aprovada com acesso total.",
       "never": "Executa com o acesso da sua conta local. Sem confinamento somente leitura nem encaminhamento de ferramentas da plataforma. Defina a Aprovação humana como Sempre perguntar para aprovar cada tarefa."
+    },
+    "projects": {
+      "name": "Projetos",
+      "does": "Encontra projetos acessíveis, seleciona seu contexto de referência e lê ou atualiza arquivos de texto compartilhados.",
+      "example1": "Encontre o projeto Atlas e resuma seu briefing",
+      "example2": "Atualize o relatório combinado sem executar comandos",
+      "needs": "Acesso atual ao projeto e aos arquivos. Comandos precisam separadamente de Sandbox e de um ambiente disponível.",
+      "never": "Selecionar contexto não move o chat, não monta arquivos na área do agente nem permite comandos. Permissões e aprovações continuam valendo."
     }
   },
   "capabilityCategories": {
@@ -14898,7 +15083,27 @@
       "scopeHint": "O projeto reutiliza um único quadro de tarefas. O acesso segue o projeto; pessoas e agentes são registros vinculados, e o campo de próximo passo controla a transferência.",
       "openTracker": "Agente de acompanhamento"
     },
-    "initialSetup": "Instruções e padrões"
+    "initialSetup": "Instruções e padrões",
+    "newChatIn": "Novo chat em {name}",
+    "resources": {
+      "title": "Recursos",
+      "search": "Pesquisar recursos",
+      "add": "Adicionar recursos existentes",
+      "hint": "Os recursos mantêm as próprias permissões. Remover uma ligação não elimina o recurso.",
+      "empty": "Sem recursos associados",
+      "agent": "Agente",
+      "workflow": "Workflow",
+      "app": "Aplicação",
+      "table": "Tabela",
+      "main": "Workflow principal",
+      "unsetMain": "Remover workflow principal",
+      "setMain": "Definir como workflow principal",
+      "remove": "Remover {name} do projeto",
+      "kind": "Tipo de recurso",
+      "addSelected": "Adicionar seleção ({count})",
+      "filterHint": "Escolha um projeto para filtrar este catálogo.",
+      "noMatches": "Nenhum recurso correspondente."
+    }
   },
   "voiceGlow": {
     "title": "Brilho de voz",
@@ -15400,7 +15605,7 @@
       "criterionCoverage": "Aplica-se a {count} de {total} casos",
       "noteForTag": "para casos com a tag {tag}",
       "noteAddedToTags": "A nota agora é um critério do juiz para casos com as tags {tags}.",
-      "maskedConversation": "De uma conversa que você não pode abrir",
+      "maskedConversation": "Fonte indisponível ou origem não verificada",
       "countsAsPassed": "Conta como aprovado.",
       "countsAsFailed": "Conta como reprovado.",
       "reviewEffect": {
@@ -15468,7 +15673,7 @@
     "versionChange": "v{number} · {change, select, add {adicionado} edit {editado} remove {removido} import {importado} generate {aceito dos rascunhos} other {alterado}} {count, plural, =1 {1 caso} other {# casos}}",
     "importFile": "Escolha um arquivo CSV ou JSONL para importar",
     "importTitle": "Importar casos",
-    "importBody": "Um arquivo CSV ou JSONL de até 10 MB, em UTF-8, com um caso por linha. Apenas input é obrigatório, e uma célula vazia deixa o campo vazio. O arquivo se torna a próxima versão da base de dados; se uma linha for recusada, nada é importado.",
+    "importBody": "Um arquivo CSV ou JSONL de até {megabytes, number} MB, em UTF-8, com um caso por linha. Apenas input é obrigatório, e uma célula vazia deixa o campo vazio. O arquivo se torna a próxima versão da base de dados; se uma linha for recusada, nada é importado.",
     "importColumn": {
       "input": "A mensagem com que o agente será testado.",
       "history": "As mensagens anteriores, como uma lista JSON de role e content.",
@@ -15666,6 +15871,7 @@
     "editCase": "Editar",
     "evals": "Avaliações",
     "linkedCaseGone": "O caso indicado por este vínculo não está na versão mais recente da base de dados.",
+    "linkedCaseUnread": "Não foi possível ler o caso indicado por este vínculo. {reason}",
     "argKey": "Chamada {number}, argumento {arg}: nome",
     "argValue": "Chamada {number}, argumento {arg}: valor",
     "removeArg": "Remover argumento {arg} da chamada {number}",
@@ -15689,7 +15895,7 @@
     "newDatasetHere": "Você ainda não tem uma base de dados para adicionar, então esta resposta cria uma, visível para toda a organização.",
     "newDatasetFromActivity": "Respostas da Atividade",
     "backToDataset": "Voltar para {name}",
-    "maskedConversation": "De uma conversa que você não pode abrir",
+    "maskedConversation": "Fonte indisponível ou origem não verificada",
     "privateConversationWarning": "Esta conversa é privada de {name}. O texto dela ficará visível para leitores deste dataset que podem ver execuções.",
     "anotherMember": "outro membro",
     "checkingSource": "Verificando a privacidade da fonte…",
@@ -15782,6 +15988,9 @@
       "number": "Número do caso"
     },
     "helpers": {
+      "guidance": "Orientações específicas do dataset",
+      "guidanceHint": "Adicionadas abaixo das regras da plataforma para este assistente. As regras sempre se aplicam; as orientações não podem alterá-las nem removê-las.",
+      "platformRules": "Regras da plataforma (somente leitura)",
       "generatorTitle": "Geração de casos",
       "generatorDescription": "Escolha o modelo e as instruções usados para rascunhar casos para este dataset. Os casos gerados aguardam sua aprovação.",
       "improverTitle": "Melhoria do agente",
@@ -16033,6 +16242,16 @@
     "cancelRun": "Parar",
     "progress": "Casos respondidos",
     "comparisonFailed": "Não foi possível ler o veredito.",
+    "invalidReason": {
+      "knowledge_not_retrieved": "A pesquisa não devolveu o rascunho para cada melhoria confirmada.",
+      "too_few_held_out": "{missing, plural, =1 {Adicione mais 1 pergunta de teste reservada para medir uma mudança.} other {Adicione mais # perguntas de teste reservadas para medir uma mudança.}}",
+      "scoring_changed": "As duas execuções foram avaliadas com configurações de avaliação diferentes.",
+      "judge_changed_mid_run": "O avaliador mudou enquanto os casos desta execução eram avaliados, então as notas não são comparáveis. Execute-a de novo.",
+      "judge_instructions_changed": "As instruções do avaliador mudaram entre os dois lados, então as notas não são comparáveis. Execute a referência de novo para avaliar os dois da mesma forma.",
+      "judge_differs": "Os dois lados foram avaliados por outro avaliador, modelo ou critério.",
+      "knowledge_draft_changed": "O rascunho de conhecimento mudou ou foi removido. Verifique-o de novo.",
+      "held_out_ungraded": "Perguntas reservadas continuam sem avaliação ou incompletas."
+    },
     "compareArm": "Comparar este modelo",
     "draft": "Rascunho",
     "proposed": "Alterações propostas",
@@ -16709,6 +16928,7 @@
     "evidence": {
       "none": "Não há evidências que possam ser verificadas.",
       "dropped": "{count, plural, =1 {1 item citado não foi encontrado} other {# itens citados não foram encontrados}} nas execuções e {count, plural, =1 {foi removido} other {foram removidos}}.",
+      "hidden": "{count, plural, =1 {1 item citado vem de um agente que você não pode ver e não é mostrado.} other {# itens citados vêm de agentes que você não pode ver e não são mostrados.}}",
       "conversation": "conversa {number}",
       "testQuestion": "pergunta de teste {number}",
       "aConversation": "uma conversa"
@@ -16914,7 +17134,8 @@
       "view": "Como mostrar a alteração",
       "unified": "Unificado",
       "split": "Lado a lado",
-      "showUnchanged": "{count, plural, one {Mostrar # linha sem alteração} other {Mostrar # linhas sem alteração}}"
+      "showUnchanged": "{count, plural, one {Mostrar # linha sem alteração} other {Mostrar # linhas sem alteração}}",
+      "hidden": "Esta alteração contém caracteres que não desenham nada ou reordenam o texto. Cada um está escrito pelo seu código."
     },
     "instructionsEditor": {
       "current": "Instruções atuais",
@@ -17096,6 +17317,7 @@
     "causedBreak": "Quebrada por esta mudança: {question}",
     "causedFix": "Corrigida por esta mudança: {question}",
     "openCheck": "Abrir a verificação completa",
+    "changedMore": "{count, plural, =1 {Mais 1 resposta alterada está na verificação.} other {Mais # respostas alteradas estão na verificação.}}",
     "permission": "Para melhorar este agente, é necessário poder editá-lo e ver as execuções.",
     "retryRead": "Tentar ler novamente",
     "stepsLabel": "Etapas de melhoria",
@@ -17119,6 +17341,7 @@
       "noneBetter": "{count, plural, =0 {Nenhuma tentativa foi medida, então nada mostra se {agent} melhorou.} one {A tentativa não tornou {agent} melhor.} other {Nenhuma das # tentativas tornou {agent} melhor.}}",
       "worse": "A tentativa {number} piorou o resultado: {broken, plural, one {# pergunta quebrou} other {# perguntas quebraram}}.",
       "topics": "{count, plural, one {# tópico está} other {# tópicos estão}} ausente{count, plural, one {} other {s}} da base de conhecimento.",
+      "topicsUnread": "Nem todos os tópicos encontrados nesta sessão puderam ser lidos. A lista abaixo diz quais e por quê.",
       "limit": "{max, plural, one {Foi a única tentativa permitida nesta sessão.} other {Isso usou todas as # tentativas permitidas nesta sessão.}}",
       "hint": {
         "no_change": "Duas tentativas seguidas não mudaram nada, então outra provavelmente não ajudará.",
@@ -17351,8 +17574,11 @@
     "resultAgent": "No agente: {fixed, plural, one {# pergunta corrigida} other {# perguntas corrigidas}}, {broken} com novo problema.",
     "resultAgentUnknown": "No agente: ainda não há resultado medido.",
     "resultKnowledge": "Na base de conhecimento: {count, plural, =0 {nada ausente} one {# tema ausente} other {# temas ausentes}}{added, plural, =0 {} one {, # adicionado desde então} other {, # adicionados desde então}}.",
+    "resultKnowledgeUnread": "Na base de conhecimento: não foi possível ler o que falta.",
     "acceptKnowledge": "{missing, plural, =0 {Na base de conhecimento: nada a adicionar} one {# tema ainda está ausente da base de conhecimento} other {# temas ainda estão ausentes da base de conhecimento}}{missing, plural, =0 {} other {{ready, plural, =0 {: escreva rascunhos dos que você quiser} other {: # com rascunho, prontos para adicionar}}{stale, plural, =0 {} other {, # com rascunho desatualizado}}}}",
     "noKnowledgeDocuments": "Nada está ausente na base de conhecimento.",
+    "topicsSkipped": "{count, plural, =1 {Não foi possível ler 1 tópico encontrado nesta sessão: ele foi removido ou você não pode vê-lo.} other {Não foi possível ler # tópicos encontrados nesta sessão: foram removidos ou você não pode vê-los.}}",
+    "topicsMore": "{count, plural, =1 {Mais 1 tópico encontrado nesta sessão está nas <link>lacunas de conhecimento do agente</link>.} other {Mais # tópicos encontrados nesta sessão estão nas <link>lacunas de conhecimento do agente</link>.}}",
     "reviewAndAdd": "Revisar e adicionar",
     "notNow": "Agora não",
     "acceptAgent": "No agente: {version, plural, =0 {a nova versão} other {versão #}} vai corrigir {fixed, plural, one {# pergunta} other {# perguntas}}, quebrar {broken}{costKnown, select, yes {, custo {cost} por resposta} other {}}. Testado em {total, plural, one {# pergunta} other {# perguntas}}, sendo {heldOut} delas não usadas para escrever as alterações.",
@@ -17617,8 +17843,17 @@
     "startDescription": "Use feedback e casos de teste para propor melhorias. Revise cada passo antes de aplicar alterações.",
     "startDataset": "Dataset",
     "startDatasetHint": "Escolha os casos usados para verificar as respostas deste agente.",
+    "linkedDatasetUnusable": "O dataset do vínculo não pode ser usado: foi removido ou você não pode executá-lo. {usual, select, yes {O habitual é usado no lugar dele.} other {Escolha outro abaixo.}}",
+    "linkedDatasetUnread": "Não foi possível ler o dataset do vínculo, então nada foi orçado ainda. {reason}",
     "analysisEstimate": "Custo estimado da análise",
+    "guidance": {
+      "title": "Orientações do dataset para o assistente",
+      "hint": "O assistente as lê abaixo das regras da plataforma, que sempre se aplicam. Quem edita este dataset as escreveu.",
+      "changed": "{who, select, named {Última alteração por {name}.} former {Última alteração por um ex-membro.} other {}}",
+      "changedOn": "{who, select, named {Última alteração por {name} em {date}.} former {Última alteração por um ex-membro em {date}.} other {Última alteração em {date}.}}"
+    },
     "startCostHint": "A análise vem primeiro. Cada tentativa seguinte é estimada separadamente, em torno de {cost}, dentro do limite da sessão.",
+    "measuredOn": "Medido em {name}.",
     "comparisonInvalid": "Estes resultados não podem ser comparados. Revise as respostas individuais sem tratar as diferenças como correções ou regressões.",
     "skills": {
       "title": "Pertence a uma habilidade",
@@ -17696,7 +17931,8 @@
       "exactChange": "Compare a redação exata",
       "invalid": "O teste não conseguiu comparar as versões de forma confiável. Revise o teste antes de tirar conclusões.",
       "noExamples": "Não há respostas alteradas para mostrar. Abra o teste completo para ver todas as perguntas."
-    }
+    },
+    "permissionRuns": "Ler uma sessão do Improve requer runs:view, que esta função não tem. Peça acesso a um proprietário da organização."
   },
   "unsaved": {
     "title": "Você tem alterações não salvas",
@@ -18496,6 +18732,20 @@
       "position": "{current} de {total}",
       "continue": "Continuar",
       "finish": "Continuar para a configuração"
+    },
+    "configurationGuide": {
+      "title": "Explorar definições opcionais",
+      "hint": "Pode terminar a configuração agora e voltar a estas opções mais tarde. Abrir uma ligação não altera as definições.",
+      "preferencesTitle": "Personalizar a consola",
+      "preferencesBody": "Escolha a navegação, a descoberta de catálogos, a visibilidade dos custos do chat e as sugestões dentro dos limites da organização.",
+      "projectsTitle": "Reunir o trabalho em projetos",
+      "projectsBody": "Partilhe ficheiros, instruções e recursos associados entre chats. Os agentes mantêm as suas ferramentas; um sandbox de projeto opcional executa builds partilhados.",
+      "transferTitle": "Exportar e importar agentes",
+      "transferBody": "Escolha os Skills, Context e conteúdos de conhecimento incluídos. Reveja as dependências antes de importar; segredos de contas e índices de pesquisa ficam excluídos.",
+      "workflowTitle": "Criar workflows com ações Python",
+      "workflowBody": "Associe ferramentas a funções com nome e invoque-as em Python. Cada ação mantém as suas permissões, aprovações e registo de execução.",
+      "organizationTitle": "Definir padrões da organização",
+      "organizationBody": "Configure navegação, catálogos, dashboard e avisos por função, além da visibilidade dos custos. Os membros podem personalizar as opções permitidas."
     }
   },
   "skillImprovement": {
@@ -18538,7 +18788,8 @@
         "all_evidence": "Não verificado: todas as perguntas vieram das conversas a partir das quais a mudança foi aprendida.",
         "cancelled": "Não verificado: a verificação foi interrompida antes de as execuções terminarem.",
         "own_not_asked": "Não verificado: as perguntas próprias dele não foram feitas, e agora elas decidem o resultado.",
-        "too_few_questions": "Perguntas de teste insuficientes para verificar a mudança. {heldOut} perguntas foram verificadas."
+        "too_few_questions": "Perguntas de teste insuficientes para verificar a mudança. {heldOut} perguntas foram verificadas.",
+        "unfinished": "As suas próprias perguntas não terminaram. As perguntas do skill não confirmaram uma regressão, o que por si só não mostra que a alteração é segura para ele."
       },
       "skillSetOnly": "Verificado apenas nas perguntas da própria skill: não havia nenhuma própria no ponto em que ela era carregada.",
       "stage": {
@@ -18646,7 +18897,7 @@
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Nenhum agente desta linha pode ser verificado.} =1 {Será verificado em 1 agente: {names}.} other {Será verificado em # agentes: {names}.}}",
-      "unchecked": "{name} não pode ser verificado: {reason, select, no_questions {não tem perguntas de teste em que carregou a skill} no_access {você pode não ter permissão para executá-lo} no_budget {o orçamento dele acabou} no_published_version {não tem versão publicada} inconclusive {a execução dele não conseguiu avaliar todas as respostas} other {a verificação dele falhou}}.",
+      "unchecked": "{name} não pode ser verificado: {reason, select, no_questions {não tem perguntas de teste em que carregou a skill} no_access {você pode não ter permissão para executá-lo} no_budget {o orçamento dele acabou} no_published_version {não tem versão publicada} inconclusive {a execução dele não conseguiu avaliar todas as respostas} failed {a verificação dele falhou} unscorable {nada pode avaliar as perguntas dele} all_evidence {todas as perguntas vieram das conversas de onde esta mudança foi aprendida} cancelled {a verificação foi interrompida antes de terminar} own_not_asked {as próprias perguntas dele não foram feitas} too_few_questions {ele tem poucas perguntas de teste para verificar a mudança} other {a verificação não conseguiu medi-lo}}.",
       "hidden": "{count, plural, =1 {Mais 1 agente que você não vê usa esta linha.} other {Mais # agentes que você não vê usam esta linha.}}",
       "thorough": "A descrição mudou, e ela define quando os agentes abrem a skill; por isso, as perguntas próprias de cada agente também são feitas."
     },
@@ -18679,6 +18930,17 @@
       "part": "Parte {number}",
       "unchangedLines": "{count, plural, =1 {1 linha que nenhum dos lados alterou} other {# linhas que nenhum dos lados alterou}}",
       "files": "Arquivos",
+      "file": {
+        "side": "{side, select, base {Ponto de partida comum} fork {Bifurcação} other {Principal}}: {size}",
+        "absent": "{side, select, base {Ponto de partida comum} fork {Bifurcação} other {Principal}}: não há este arquivo",
+        "show": "Mostrar o que mudou",
+        "hide": "Ocultar o que mudou",
+        "compare": "{side, select, fork {O que a bifurcação mudou} other {O que a principal mudou}}",
+        "tooLarge": "Grande demais para comparar aqui. Baixe cada lado para lê-lo.",
+        "notText": "Não é texto, então não pode ser comparado aqui. Baixe cada lado para lê-lo.",
+        "download": "{side, select, base {Baixar o ponto de partida} fork {Baixar a versão da bifurcação} other {Baixar a versão principal}}",
+        "readFailed": "Não foi possível ler o arquivo. {reason}"
+      },
       "state": {
         "same": "Sem alteração",
         "fork": "Do fork",
@@ -18756,6 +19018,17 @@
       "live": "Movido para a principal e publicado: {names}.",
       "drafts": "{count, plural, =1 {Movido para a principal no seu rascunho, que aguarda publicação: {names}.} other {Movidos para a principal nos seus rascunhos, que aguardam publicação: {names}.}}",
       "refused": "{name} permanece na bifurcação: {reason}",
+      "refusal": {
+        "agent_not_found": "você não pode alterá-lo, ou ele não existe mais",
+        "workflow_agent": "ele está configurado na etapa do seu workflow",
+        "architect_admin_only": "só um administrador pode alterar o AI Architect",
+        "system_agent_admin_only": "é um agente de sistema, que só um administrador pode alterar",
+        "via_specialist": "ele usa a skill só por meio de um especialista, que se altera no Builder do agente",
+        "not_bound": "ele não usa a skill",
+        "binding_problems": "a skill não pode ser vinculada a ele dessa forma",
+        "system_agent_parts": "um agente de sistema não pode conter isso",
+        "does_not_publish": "ele ainda não pode ser publicado"
+      },
       "hidden": "{count, plural, =1 {1 agente que você não pode ver foi mantido como estava.} other {# agentes que você não pode ver foram mantidos como estavam.}}",
       "archived": "Ninguém mais usa a bifurcação, então ela foi arquivada.",
       "remaining": "{count, plural, =0 {A bifurcação foi mantida como estava.} =1 {1 agente ainda usa a bifurcação, então ela não foi arquivada.} other {# agentes ainda usam a bifurcação, então ela não foi arquivada.}}"
@@ -19165,7 +19438,7 @@
       },
       "trigger_webhook": {
         "name": "Webhook",
-        "description": "Uma entrega HTTP assinada chega no endereço próprio deste fluxo de trabalho."
+        "description": "Um evento JSON autenticado chega a uma fonte reutilizável ou ao endereço deste workflow."
       },
       "trigger_workflow_call": {
         "name": "Chamado por um fluxo de trabalho",
@@ -19182,6 +19455,10 @@
       "workflow_run": {
         "name": "Executar um fluxo de trabalho",
         "description": "Executa outro fluxo de trabalho como etapa e repassa o que ele responder."
+      },
+      "code_python_actions": {
+        "name": "Python com ações",
+        "description": "Escreva código Python que chama as ações do fluxo de trabalho associadas a nomes."
       }
     },
     "port": {
@@ -21603,6 +21880,41 @@
             "title": "Entrada"
           }
         }
+      },
+      "trigger_webhook": {
+        "config": {
+          "require_source": {
+            "title": "Exigir fonte",
+            "description": "Para publicar um novo rascunho no editor, é preciso selecionar uma fonte reutilizável"
+          },
+          "source_id": {
+            "title": "ID da fonte",
+            "description": "Fonte de eventos reutilizável que este workflow passará a acompanhar quando for publicado"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Código",
+            "description": "Leia os valores vinculados como `args`; a última expressão é o resultado."
+          },
+          "timeout_seconds": {
+            "title": "Tempo limite (segundos)"
+          },
+          "max_memory_mb": {
+            "title": "Memória máxima (MB)"
+          },
+          "actions": {
+            "title": "Ações",
+            "description": "Nomes das funções Python e versões das ações do fluxo de trabalho que elas chamam."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Args"
+          }
+        }
       }
     }
   },
@@ -21677,7 +21989,87 @@
     "maintenanceEnd": "Fim da manutenção planejada",
     "maintenanceEndHint": "Opcional. Horário em {zone}, armazenado em UTC. Apenas informativo; um administrador deve encerrar a manutenção.",
     "maintenanceEndInformational": "Esta é uma estimativa. O acesso será restabelecido quando um administrador encerrar a manutenção.",
-    "invalidTime": "Escolha uma data e hora locais válidas."
+    "invalidTime": "Escolha uma data e hora locais válidas.",
+    "costs": {
+      "title": "Custos do chat",
+      "audience": "Quem vê custos no chat",
+      "everyone": "Todos",
+      "spend_privileged": "Pessoas com acesso às despesas",
+      "nobody": "Ninguém no chat",
+      "organizationHint": "Escolha quem vê os custos de respostas, delegações e conversas. A contabilidade, os budgets e o acesso a Activity e ao painel permanecem inalterados.",
+      "personalLabel": "Mostrar custos nos meus chats",
+      "personalHint": "Oculte custos nos seus chats. As restrições da organização ou do deployment continuam a aplicar-se.",
+      "restricted": "A sua organização ou deployment oculta os custos do chat para esta conta.",
+      "deploymentHint": "Permita que as organizações mostrem custos no chat. Desativar oculta-os para todos.",
+      "available": "Permitir custos no chat"
+    },
+    "presentation": {
+      "organizationTitle": "Consola por função",
+      "organizationHint": "Escolha a navegação visível para cada função integrada. Isto altera a apresentação, nunca as permissões de acesso.",
+      "personalTitle": "A minha navegação",
+      "personalHint": "Mantenha as secções que utiliza. As restrições da organização e do deployment continuam a aplicar-se.",
+      "deploymentTitle": "Disponibilidade da consola",
+      "deploymentHint": "Escolha a navegação e as sugestões opcionais disponíveis para as organizações. As permissões dos recursos permanecem inalteradas.",
+      "navigationHint": "As páginas ocultas continuam acessíveis por URL com as permissões necessárias. As definições da conta e a mudança de organização continuam disponíveis.",
+      "simple": "Assistente simples",
+      "inheritNavigation": "Usar a navegação herdada",
+      "role": "Função",
+      "preview": "Pré-visualização da navegação",
+      "previewRole": "Pré-visualizar como {role}",
+      "previewHint": "Apenas navegação, filtrada por esta função e pelas suas permissões. Ninguém é personificado e não são carregados dados privados.",
+      "saveBeforeRole": "Guarde ou descarte as alterações antes de escolher outra função.",
+      "noticesTitle": "Sugestões do produto",
+      "noticesHint": "Escolha sugestões opcionais para esta organização. Os avisos de disponibilidade e segurança não são afetados.",
+      "personalNoticesHint": "Mantenha sugestões úteis. As restrições da organização e do deployment continuam a aplicar-se.",
+      "desktop_install_prompt": "Convite para a aplicação de desktop",
+      "desktop_install_promptHint": "Sugira a instalação da aplicação de desktop. As instalações existentes e as dispensas locais permanecem inalteradas.",
+      "product_notices": "Novidades do produto",
+      "product_noticesHint": "Notas de versão automáticas e sugestões de instalação em dispositivos móveis. Os avisos de serviço e segurança continuam visíveis.",
+      "restricted": "A sua organização ou deployment restringe esta opção.",
+      "discard": "Descartar alterações",
+      "roles": {
+        "owner": "Proprietário",
+        "admin": "Administrador",
+        "builder": "Criador",
+        "operator": "Operador",
+        "member": "Membro",
+        "viewer": "Leitor"
+      },
+      "loadError": "Não foi possível carregar as preferências da consola.",
+      "customizeNavigation": "Personalizar barra lateral"
+    },
+    "catalogs": {
+      "personalTitle": "Catálogos",
+      "personalHint": "Escolha as galerias que deseja explorar. Os limites da organização e da implantação continuam válidos.",
+      "mcp_gallery": "Galeria MCP",
+      "skill_gallery": "Galeria de Skills",
+      "hint": "A escolha do catálogo não altera permissões de ferramentas nem conexões existentes. Escolhas pessoais só podem restringir os limites herdados.",
+      "inherit": "Usar catálogo herdado",
+      "all": "Todas as entradas disponíveis",
+      "mcp_galleryAvailable": "Apenas servidores conectados pela organização",
+      "skill_galleryAvailable": "Apenas Skills instalados visíveis",
+      "allowList": "Escolher entradas",
+      "selected": "{count, plural, =1 {1 entrada selecionada} other {# entradas selecionadas}}",
+      "remove": "Remover {name}",
+      "empty": "Nenhuma entrada correspondente",
+      "discard": "Descartar alterações",
+      "previous": "Anterior",
+      "emptySelection": "Uma seleção vazia não oferece entradas na galeria.",
+      "managerHint": "Esta função gerencia o catálogo. Os limites da organização se aplicam a funções sem gerenciamento do catálogo; os limites da implantação e pessoais continuam válidos.",
+      "limit": "Escolha até {count, plural, one {# entrada} other {# entradas}} ou todas as entradas disponíveis."
+    },
+    "dashboard": {
+      "title": "Painel padrão",
+      "hint": "O layout padrão desta função se torna sua página inicial. Layouts pessoais salvos têm prioridade. Os widgets continuam respeitando as permissões de cada pessoa.",
+      "arrange": "Organizar e salvar meu painel",
+      "privateFilters": "Remova os filtros de pessoa e agente antes de compartilhar este layout como padrão da organização.",
+      "copy": "Copiar meu layout salvo",
+      "inherit": "Usar painel padrão",
+      "standard": "Sem padrão da função: a página inicial padrão é usada.",
+      "preview": "Apenas prévia do layout. Os dados e as permissões são resolvidos para cada pessoa ao abrir.",
+      "empty": "Este padrão da função intencionalmente não contém cartões.",
+      "discard": "Descartar alterações"
+    }
   },
   "modelSources": {
     "subscriptions": "Suas assinaturas",
@@ -21728,5 +22120,235 @@
     "inProgress": "Em andamento",
     "unknown": "Não disponível",
     "otherStep": "Configuração"
+  },
+  "portability": {
+    "exportTitle": "Exportar agente",
+    "exportDescription": "Escolha a definição do agente e os conteúdos associados a incluir.",
+    "secretsHint": "Os segredos do Vault e as partilhas ficam aqui. Reconecte o OAuth e configure os parâmetros de URL e os cabeçalhos personalizados no destino.",
+    "loading": "A carregar dependências…",
+    "includedContent": "Conteúdo incluído",
+    "rootDefinition": "Definição do agente · obrigatória",
+    "referenceOnly": "Apenas referência · volte a ligar ou escolha na importação",
+    "format": "Formato do ficheiro",
+    "close": "Fechar",
+    "downloading": "A preparar a transferência…",
+    "download": "Transferir",
+    "importComplete": "Importação concluída",
+    "importCompleteHint": "Os rascunhos privados estão prontos para revisão. Nada foi publicado ou executado.",
+    "importTitle": "Importar agente",
+    "mappingHint": "Escolha o que criar, reutilizar ou ignorar. Os recursos existentes nunca são substituídos.",
+    "importDescription": "Envie um pacote ZIP do AgenticOS, uma configuração YAML ou JSON, ou cole uma configuração abaixo.",
+    "fileTooLarge": "Os ficheiros de configuração não podem exceder 4 MiB.",
+    "readError": "Não foi possível ler o ficheiro. Selecione-o novamente.",
+    "importCounts": "Criados: {created} · reutilizados: {reused} · ignorados: {skipped}",
+    "skippedHint": "As associações ignoradas foram removidas. Reveja o rascunho antes de publicar.",
+    "actionFor": "Ação para {name}",
+    "reuse": "Usar recurso existente",
+    "skip": "Ignorar este recurso",
+    "newName": "Nome da nova cópia",
+    "skipHint": "As associações a este recurso serão removidas do rascunho importado.",
+    "chooseFile": "Escolher um arquivo ZIP, YAML ou JSON",
+    "pasteConfiguration": "Ou colar a configuração",
+    "openDraft": "Abrir rascunho",
+    "back": "Voltar",
+    "working": "A processar…",
+    "importDrafts": "Importar rascunhos privados",
+    "review": "Rever dependências",
+    "operationError": "Não foi possível concluir a operação. Tente novamente.",
+    "createCopy": "Criar cópia",
+    "missingRoot": "A resposta da importação não identificou o novo rascunho. Atualize a lista antes de tentar novamente.",
+    "destinationResource": "Recurso de destino",
+    "searchDestinations": "Pesquisar recursos",
+    "chooseDestination": "Escolher um recurso",
+    "selectedDestination": "Recurso selecionado",
+    "noDestinations": "Nenhum recurso correspondente.",
+    "previousDestinations": "Recursos anteriores",
+    "nextDestinations": "Próximos recursos",
+    "chooseExistingOwner": "Escolha primeiro um agente ou Skill de destino existente para selecionar a sua versão ou fork.",
+    "zipFormat": "ZIP · inclui arquivos",
+    "transferWorking": "Preparando a transferência em segundo plano…",
+    "transferFailed": "A transferência falhou. Verifique a configuração e inicie uma nova transferência.",
+    "zipTooLarge": "Os pacotes ZIP não podem exceder 512 MiB.",
+    "noTransferSelected": "Nenhuma transferência selecionada",
+    "noReviewedTransfer": "Nenhuma transferência revisada selecionada",
+    "exportWorkflowTitle": "Exportar workflow",
+    "exportWorkflowDescription": "Escolha a definição do workflow e o conteúdo vinculado.",
+    "workflowRootDefinition": "Definição do workflow · obrigatória",
+    "importWorkflowTitle": "Importar workflow",
+    "omittedBefore": "Vínculos a remover: {count}.",
+    "omittedAfter": "Vínculos removidos: {count}.",
+    "reviewBeforePublish": "Revise o rascunho e reconecte os recursos ausentes antes de publicar.",
+    "affectedBindings": "Mostrar vínculos afetados",
+    "publishedVersionHint": "Escolha uma versão publicada existente do agente de destino. Os delegados nunca são publicados automaticamente.",
+    "reselectZip": "O envio foi interrompido. Selecione o ZIP original novamente para enviá-lo desde o início.",
+    "layerDefinition": "Definição",
+    "layerSkillFiles": "Arquivos Skill",
+    "layerContext": "Conteúdo de contexto",
+    "layerOriginals": "Documentos originais",
+    "layerParsedText": "Cópias do texto processado",
+    "unavailableLayer": "Camada de conteúdo indisponível",
+    "fileLayersZip": "Escolha ZIP para incluir arquivos e texto processado.",
+    "indexExcluded": "Índices de pesquisa e vetores não são incluídos. Os documentos importados ficam armazenados até o processamento ser iniciado explicitamente.",
+    "importLegacy": "Importar arquivo antigo de workflow",
+    "exportLegacy": "Exportar arquivo antigo de workflow",
+    "startNewTransfer": "Iniciar nova transferência",
+    "unsupportedMapping": "Este recurso não tem adaptador de importação. Ignore o vínculo e configure-o no editor de destino.",
+    "searchResources": "Pesquisar recursos incluídos",
+    "noResources": "Nenhum recurso correspondente.",
+    "groups": {
+      "root": "Definição obrigatória",
+      "agents": "Agentes",
+      "workflows": "Workflows",
+      "skills": "Skills",
+      "context": "Context",
+      "knowledge": "Bases de conhecimento",
+      "connections": "Modelos e ligações",
+      "other": "Outros recursos"
+    }
+  },
+  "stepFailure": {
+    "technicalDetails": "Detalhes técnicos",
+    "step": {
+      "system_agent_not_seeded": "Não foi possível configurar um agent de sistema de que esta etapa precisa.",
+      "system_agent_missing": "Um agent de sistema de que esta etapa precisa, ou a versão escolhida para ele, já não existe. Escolha outro.",
+      "system_agent_unpublished": "Um agent de sistema de que esta etapa precisa não tem uma versão publicada. Escolha um modelo e publique-o.",
+      "system_agent_archived": "Um agent de sistema de que esta etapa precisa está arquivado. Restaure-o para voltar a usá-lo.",
+      "system_agent_no_access": "Quem iniciou isto não pode executar um agent de sistema de que esta etapa precisa. Peça acesso a ele.",
+      "system_agent_no_model": "Um agent de sistema de que esta etapa precisa não consegue chegar ao seu modelo.",
+      "system_agent_failed": "Um agent de sistema de que esta etapa precisa não deu uma resposta utilizável. O run dele fica guardado em Atividade.",
+      "only_anonymised": "Todos os casos do dataset foram anonimizados quando a pessoa de quem vieram foi apagada. Reescreva ou remova esses casos primeiro.",
+      "all_evidence": "Todos os casos do dataset vieram das conversas de que esta alteração foi derivada, por isso nenhum pode medi-la. Adicione casos de outras conversas ou escolha outro dataset.",
+      "no_scorer": "Nada na avaliação do dataset consegue decidir um caso. Adicione uma verificação, uma chamada de ferramenta esperada ou ative o avaliador.",
+      "no_reruns": "Um run medido em relação a uma referência precisa de pelo menos uma repetição, e esta implantação não tem nenhuma configurada.",
+      "evidence_too_large": "As evidências da proposta são grandes demais para isolar o teste com segurança. Peça uma nova proposta.",
+      "budget": "O budget acabou antes de esta etapa terminar.",
+      "not_found": "Algo de que esta etapa precisa já não existe ou já não está visível.",
+      "not_allowed": "Quem iniciou isto já não tem permissão para fazer esta etapa.",
+      "changed": "Algo que esta etapa leu mudou enquanto ela era executada. Tente novamente.",
+      "run_failed": "Um run de que esta etapa precisava falhou, ou o provider do modelo não respondeu.",
+      "refused": "Esta etapa foi recusada.",
+      "failed": "Esta etapa falhou no servidor."
+    },
+    "session": {
+      "too_few_held_out": "{missing, plural, one {Adicione mais # pergunta de teste reservada para medir uma mudança.} other {Adicione mais # perguntas de teste reservadas para medir uma mudança.}}",
+      "no_evidence": "Ainda não há runs de chat avaliados nem falhas nas perguntas de treino.",
+      "search_too_few_training": "{minimum, plural, one {Uma busca precisa de pelo menos # pergunta de treino para esta tentativa.} other {Uma busca precisa de pelo menos # perguntas de treino para esta tentativa.}}"
+    },
+    "request": {
+      "no_runs_view": "Quem iniciou isto já não pode ler runs.",
+      "evidence_erased": "Uma fonte de evidências foi apagada enquanto o assistente trabalhava. Comece de novo com as evidências atuais.",
+      "no_edit_agent": "Quem iniciou isto já não pode editar o agent.",
+      "agent_gone": "O agent já não existe.",
+      "no_published_version": "O agent não tem uma versão publicada com que comparar.",
+      "skill_gone": "O skill já não existe.",
+      "no_edit_skill": "Quem iniciou isto já não pode editar o skill.",
+      "session_moved_on": "A sessão de melhoria seguiu em frente.",
+      "conflicts_unanswered": "O assistente não respondeu a todos os conflitos; resolva-os em Alterações.",
+      "session_stopped": "A sessão de melhoria parou.",
+      "context_gone": "O arquivo de contexto já não existe.",
+      "no_edit_context": "Quem iniciou isto já não pode editar o arquivo de contexto.",
+      "unknown_skill_use": "Não se sabe de nenhum run neste período que tenha usado o skill. {runs, plural, one {# run com avaliação negativa ou com falha é de antes de os usos serem registrados, por isso não se sabe se ele usou o skill.} other {# runs com avaliação negativa ou com falha são de antes de os usos serem registrados, por isso não se sabe se eles o usaram.}}",
+      "no_evidence": "Ainda não há nada com que aprender: nenhum run neste período foi avaliado ou falhou. Amplie o período ou volte quando algumas respostas tiverem sido avaliadas.",
+      "key_revoked": "A chave de API que iniciou isto foi revogada ou já não existe, por isso foi interrompido.",
+      "not_a_member": "Quem iniciou isto já não é membro.",
+      "unexpected": "O assistente parou inesperadamente. Tente novamente.",
+      "stalled": "O assistente parou sem terminar. Tente novamente.",
+      "withdrawn": "O pedido foi cancelado antes de começar. Tente novamente."
+    }
+  },
+  "eventSources": {
+    "vaultBasicHelp": "Nome de usuário e senha para verificar solicitações de webhook recebidas. Essas credenciais nunca são enviadas a uma URL externa.",
+    "vaultCredentialHelp": "Escolha uma credencial da organização no Vault. A fonte usa o valor atual, inclusive após a rotação.",
+    "manageSources": "Gerenciar fontes de eventos",
+    "title": "Fontes de eventos",
+    "description": "Receba cada evento autenticado uma única vez e compartilhe-o com rotinas e workflows.",
+    "name": "Nome",
+    "provider": "Provedor",
+    "providers": {
+      "webhook": "Webhook personalizado",
+      "github": "GitHub",
+      "linear": "Linear",
+      "hubspot": "HubSpot",
+      "zendesk": "Zendesk"
+    },
+    "authentication": "Autenticação",
+    "auth": {
+      "hmac": "HMAC personalizado (SHA-256)",
+      "basic": "Autenticação básica",
+      "api_key": "Chave de API",
+      "standard_webhooks": "Standard Webhooks"
+    },
+    "username": "Nome de usuário",
+    "password": "Senha",
+    "secret": "Segredo",
+    "manualSetup": "Configure o remetente manualmente para enviar JSON por POST à URL da fonte.",
+    "visibility": "Visibilidade",
+    "private": "Privada",
+    "organization": "Organização",
+    "deliveryHeader": "Cabeçalho de ID da entrega (opcional)",
+    "deliveryHelp": "Os IDs de eventos do provedor são detectados automaticamente. Sem um ID de evento, novas tentativas podem gerar execuções adicionais.",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "create": "Criar fonte",
+    "header": "Nome do cabeçalho",
+    "prefix": "Prefixo da assinatura ou da chave (opcional)",
+    "encoding": "Codificação da assinatura",
+    "legacy": "Usar o formato antigo de assinatura com carimbo de data e hora",
+    "standardHelp": "Assinaturas simétricas v1 abrangem o ID, o carimbo de data e hora e o corpo, com tolerância de cinco minutos para o horário.",
+    "selectSource": "Fonte de eventos",
+    "dedicated": "Endpoint dedicado (resposta síncrona)",
+    "chooseSource": "Selecione uma fonte existente",
+    "paused": "Pausada",
+    "active": "Ativa",
+    "liveUrl": "URL do endpoint ativo",
+    "revealOnce": "Copie este segredo agora. Ele não será exibido novamente.",
+    "createNew": "Criar nova fonte",
+    "loadError": "Não foi possível carregar as fontes de eventos.",
+    "retry": "Tentar novamente",
+    "liveWarning": "A captura aguarda eventos nesta URL ativa por dois minutos. Os assinantes ativos continuam funcionando normalmente. As amostras são temporárias e expiram após dez minutos. Usar uma amostra é opcional.",
+    "noUse": "É preciso ter permissão de uso da fonte para capturar eventos.",
+    "captureError": "Não foi possível capturar a amostra do evento. Isso não afeta o processamento das entregas em tempo real.",
+    "expired": "O tempo de espera terminou. Inicie uma nova captura quando o remetente estiver pronto.",
+    "caught": "Evento capturado. A amostra está pronta para uso.",
+    "listen": "Aguardar evento",
+    "listenTo": "Aguardar evento de {name}",
+    "sourceUnavailable": "Fonte atual (indisponível)",
+    "listening": "Aguardando um evento autenticado…",
+    "pasteExample": "Ou cole um exemplo em JSON",
+    "exampleJson": "Objeto JSON de exemplo",
+    "invalidJson": "Insira um objeto JSON válido.",
+    "sampleTooLarge": "Esta amostra excede o limite de {limit} bytes do editor.",
+    "useExample": "Usar exemplo",
+    "noView": "Você não tem permissão para ver as fontes de eventos.",
+    "empty": "Ainda não há fontes de eventos. Crie uma fonte para receber eventos para rotinas e workflows.",
+    "edit": "Editar",
+    "done": "Concluir",
+    "pause": "Pausar fonte",
+    "resume": "Retomar fonte",
+    "pauseHelp": "Pausar esta fonte interrompe novas entregas. Também é possível pausar cada assinante separadamente.",
+    "replaceCredentials": "Substituir credenciais",
+    "status": "Status",
+    "subscribers": "Assinantes",
+    "actions": "Ações",
+    "usageError": "Não foi possível carregar os assinantes.",
+    "usage": "{count, plural, =0 {Nenhum assinante} =1 {1 assinante} other {# assinantes}}",
+    "routine": "Rotina",
+    "workflow": "Workflow",
+    "delete": "Excluir fonte",
+    "confirmDelete": "Confirmar exclusão",
+    "deleteBlocked": "Desvincule os assinantes antes de excluir esta fonte.",
+    "sourceRoutine": "Criar rotina a partir de uma fonte de eventos",
+    "privateRoutine": "Rotina privada",
+    "privateWorkflow": "Workflow privado",
+    "filters": {
+      "event_types": "Tipos de evento",
+      "actions": "Ações",
+      "subscription_types": "Tipos de assinatura",
+      "property_names": "Nomes das propriedades",
+      "help": "Separe os valores com vírgulas. Deixe o filtro em branco para aceitar qualquer valor."
+    },
+    "eventPreset": "Eventos desta rotina",
+    "currentFilters": "Filtros atuais ou padrão",
+    "presetError": "Não foi possível carregar as predefinições de eventos."
   }
 }

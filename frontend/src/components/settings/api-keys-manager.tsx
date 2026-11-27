@@ -22,9 +22,10 @@ import {
   type Column,
 } from "@/components/ui";
 import { useApiKeys, usePermissions } from "@/hooks";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import type { ApiKey } from "@/types/api-keys";
 import { Perm } from "@/types/permissions";
+import { FULLSCREEN_SAFE_PADDED } from "@/lib/safe-area";
 
 const apiKeyRowId = (key: ApiKey): string => key.id;
 
@@ -136,7 +137,10 @@ export function ApiKeysManager() {
       ref={ref}
       className={
         expanded
-          ? "bg-background fixed inset-0 z-40 flex flex-col overflow-y-auto p-4 sm:p-6"
+          ? cn(
+              "bg-background fixed inset-0 z-40 flex flex-col overflow-y-auto p-4 sm:p-6",
+              FULLSCREEN_SAFE_PADDED,
+            )
           : "flex min-h-0 flex-1 flex-col"
       }
     >
@@ -144,15 +148,17 @@ export function ApiKeysManager() {
         className="bg-card border-foreground/[0.07] shadow-card flex min-h-0 flex-1 flex-col rounded-2xl border"
         data-tour="api-keys"
       >
-        <header className="border-foreground/[0.06] flex flex-col items-start justify-between gap-3 border-b px-5 py-4 sm:flex-row sm:px-6">
+        <header className="border-foreground/[0.06] relative flex flex-col items-start justify-between gap-3 border-b px-5 py-4 pr-16 sm:flex-row sm:px-6 sm:pr-16 md:pr-6">
           <div className="min-w-0 flex-1">
             <div className="space-y-1">
               <h2 className="text-foreground text-sm font-semibold">{t("title")}</h2>
               <p className="text-muted-foreground max-w-2xl text-xs leading-5">{t("why")}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="absolute top-3 right-3 md:hidden">
             <WorkspaceFullscreenButton expanded={expanded} onToggle={toggle} />
+          </div>
+          <div className="flex items-center gap-2">
             {canCreate && catalog && (
               <Button size="sm" className="w-full sm:w-auto" onClick={() => setCreating(true)}>
                 <Plus className="h-4 w-4" />

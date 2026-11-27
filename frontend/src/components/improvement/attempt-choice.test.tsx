@@ -33,7 +33,8 @@ const TWO: Improvement = {
 
 const show = (session: Improvement) =>
   render(<AttemptChoice session={session} agent="Refund desk" />);
-const option = (number: number) => screen.getByRole("radio", { name: `Keep attempt ${number}` });
+const option = (number: number) =>
+  screen.getByRole("radio", { name: new RegExp(`^Keep attempt ${number} `) });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -152,4 +153,10 @@ it("warns that an attempt worse on criteria keeps that loss", async () => {
       "Accepting it keeps that loss.",
   );
   expect(screen.getByRole("button", { name: "Keep attempt 2 anyway" })).toBeInTheDocument();
+});
+
+it("names each attempt's verdict with its radio, as a screen reader announces it", () => {
+  show(TWO);
+  expect(screen.getByRole("radio", { name: "Keep attempt 1 Better" })).toBeChecked();
+  expect(screen.getByRole("radio", { name: "Keep attempt 2 Mixed" })).not.toBeChecked();
 });

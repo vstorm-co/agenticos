@@ -126,3 +126,39 @@ it("reveals and focuses an invalid required field before the form reports its er
   expect(screen.getByRole("button", { name: "Model" })).toHaveAttribute("aria-expanded", "true");
   expect(field).toHaveFocus();
 });
+
+it("keeps status and body actions independent from the disclosure", async () => {
+  const status = vi.fn();
+  const save = vi.fn();
+  render(
+    <ServiceCard
+      title="Indexing"
+      description="Model settings"
+      icon={Brain}
+      collapsible
+      defaultOpen
+      action={<Switch aria-label="Enable indexing" defaultChecked />}
+      status={<button onClick={status}>Inspect setup</button>}
+    >
+      <button onClick={save}>Save draft</button>
+    </ServiceCard>,
+  );
+  const trigger = screen.getByRole("button", { name: "Indexing" });
+  const hint = screen.getByRole("button", { name: "Inspect setup" });
+  const toggle = screen.getByRole("switch");
+  expect(trigger).not.toContainElement(hint);
+  expect(trigger).not.toContainElement(toggle);
+  expect(trigger.querySelector("button")).toBeNull();
+  await userEvent.click(hint);
+  await userEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  await userEvent.click(toggle);
+  expect(status).toHaveBeenCalledOnce();
+  expect(save).toHaveBeenCalledOnce();
+  expect(toggle).not.toBeChecked();
+  expect(trigger).toHaveAttribute("aria-expanded", "true");
+  trigger.focus();
+  await userEvent.keyboard(" ");
+  expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await userEvent.keyboard("{Enter}");
+  expect(screen.getByRole("button", { name: "Save draft" })).toBeVisible();
+});

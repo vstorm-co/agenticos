@@ -302,6 +302,58 @@ beforeEach(() => {
   voiceCall.call = initialCall;
 });
 
+const composerLayouts = [
+  { layout: "standard", mainChat: false },
+  { layout: "minimal", mainChat: true },
+];
+
+it.each(composerLayouts)(
+  "keeps Stop keyboard-accessible after activating Send ($layout)",
+  async ({ mainChat }) => {
+    const user = userEvent.setup();
+    mount(undefined, mainChat);
+    const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+    await user.type(editor, "First prompt");
+    const send = screen.getByRole("button", { name: "Send message" });
+    act(() => send.focus());
+    await user.keyboard("{Enter}");
+    expect(socket.send).toHaveBeenCalledWith(expect.objectContaining({ message: "First prompt" }));
+    expect(screen.getByRole("button", { name: "Stop generating" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(socket.send).toHaveBeenCalledWith({ type: "stop" });
+  },
+);
+
+it.each(composerLayouts)(
+  "keeps the draft if the turn completes mid-click on Stop ($layout)",
+  async ({ mainChat }) => {
+    const user = userEvent.setup();
+    mount(undefined, mainChat);
+    const editor = await screen.findByRole("textbox", { name: "Type a message..." });
+    await user.type(editor, "First prompt{Enter}");
+    expect(editor).toHaveFocus();
+    receive("model_request_start", {});
+    await user.type(editor, "Unsent draft");
+
+    await user.pointer({
+      keys: "[MouseLeft>]",
+      target: screen.getByRole("button", { name: "Stop generating" }),
+    });
+    // The turn is visually done but cannot accept another message until session_ready.
+    receive("complete", {});
+    const send = screen.getByRole("button", { name: "Send message" });
+    await user.pointer({ keys: "[/MouseLeft]", target: send });
+
+    expect(messageOf(editor)).toBe("Unsent draft");
+    expect(socket.send.mock.calls.some(([frame]) => frame.message === "Unsent draft")).toBe(false);
+
+    receive("session_ready", {});
+    await user.click(send);
+    expect(socket.send).toHaveBeenCalledWith(expect.objectContaining({ message: "Unsent draft" }));
+    expect(messageOf(editor)).toBe("");
+  },
+);
+
 describe("the chat container - answering a durable question", () => {
   it("keeps the normal draft composer below one inline question and queues follow-ups", async () => {
     useChatStore.getState().addMessage({

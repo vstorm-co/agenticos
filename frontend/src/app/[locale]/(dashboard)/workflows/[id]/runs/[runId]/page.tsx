@@ -38,6 +38,7 @@ import {
   summarizeNodeRuns,
   WorkflowCanvas,
 } from "@/components/workflows/canvas";
+import { ApprovalVerdict } from "@/components/workflows/node-editor/approval-verdict";
 import { NodeEditorDialog } from "@/components/workflows/node-editor";
 import { WorkflowRunQuestions } from "@/components/workflows/runs/run-questions";
 import { RunAnswer } from "@/components/workflows/runs/run-answer";
@@ -60,7 +61,17 @@ import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { formatRunCostUsd, formatDateTime, formatRunDuration } from "@/lib/utils";
 import { routesErrors } from "@/lib/workflows/ports";
-import { iterationDataOf, iterationOf, stepDataOf, stepsTaken } from "@/lib/workflows/step-data";
+import { NativeDisclosure } from "@/components/ui/native-disclosure";
+import { JsonView } from "@/components/ui/json-view";
+import { isRecord } from "@/components/workflows/property-panel/schema-model";
+import {
+  pythonCallOf,
+  statusWithPythonCall,
+  iterationDataOf,
+  iterationOf,
+  stepDataOf,
+  stepsTaken,
+} from "@/lib/workflows/step-data";
 import {
   isRunRetryable,
   isRunTerminal,
@@ -204,13 +215,49 @@ export default function WorkflowRunPage({ params }: PageProps) {
   // The typed `WorkflowError` the run recorded - its own words, never an exception's.
   const problem = run.error;
   const title = t("runTitle", { id: shortNodeId(run.id) });
-  const stepsRun = nodes.filter((node) => node.status === "succeeded").length;
-  // The canvas shows every step, a skipped one faded; the list holds the steps the run took.
-  const listed = stepsTaken(nodes);
+  // An action call is inspected under its script in that loop iteration. It is not a canvas step.
+  const stepKey = (row: WorkflowNodeRunRead) =>
+    [row.node_instance_id, ...iterationOf(row)].join("/");
+  const callsByStep = new Map<
+    string,
+    { row: WorkflowNodeRunRead; call: NonNullable<ReturnType<typeof pythonCallOf>> }[]
+  >();
+  const listed: WorkflowNodeRunRead[] = [];
+  for (const row of stepsTaken(nodes)) {
+    const call = pythonCallOf(row);
+    if (call === null) listed.push(row);
+    else {
+      const key = stepKey(row);
+      const calls = callsByStep.get(key) ?? [];
+      calls.push({ row, call });
+      callsByStep.set(key, calls);
+    }
+  }
+  const stepsRun = listed.filter((node) => node.status === "succeeded").length;
   const resolvingNode = nodes.find((node) => node.id === resolving) ?? null;
   const resolvingInstance = graph?.nodes.find(
     (entry) => entry.id === resolvingNode?.node_instance_id,
   );
+  const resolvingCall = resolvingNode && pythonCallOf(resolvingNode);
+  const resolvedStep = resolvingNode
+    ? runStepInstance(resolvingInstance, resolvingNode)
+    : undefined;
+  const resolvingDefinition = catalog.find(
+    (entry) =>
+      entry.id === resolvedStep?.definition_id &&
+      entry.version === resolvedStep?.definition_version,
+  );
+  const replyControl = (row: WorkflowNodeRunRead) =>
+    row.reply_expectation && (
+      <ReplyExpectationControl
+        runId={run.id}
+        nodeRunId={row.id}
+        value={row.reply_expectation}
+        editable={
+          live && run.can_cancel && (row.status === "waiting" || row.status === "needs_attention")
+        }
+      />
+    );
   // A step that finished after the run had already stopped: its work happened.
   const finishedLate = (node: WorkflowNodeRunRead) =>
     node.status === "succeeded" &&
@@ -326,7 +373,10 @@ export default function WorkflowRunPage({ params }: PageProps) {
           {
             icon: ListChecks,
             label: t("runSteps"),
-            value: t("runStepsOf", { done: stepsRun, count: listed.length }),
+            value: t("runStepsOf", {
+              done: stepsRun,
+              count: listed.length,
+            }),
           },
         ].map(({ icon: Icon, label, value, caption }) => (
           <div key={label} className="flex min-w-0 items-center gap-3 px-3 py-3 sm:px-5 sm:py-4">
@@ -435,7 +485,14 @@ export default function WorkflowRunPage({ params }: PageProps) {
                       </span>
                     </span>
                     <NodeRunStatusLabel
-                      status={node.status}
+                      status={
+                        callsByStep
+                          .get(stepKey(node))
+                          ?.reduce(
+                            (current, { row }) => statusWithPythonCall(current, row.status),
+                            node.status,
+                          ) ?? node.status
+                      }
                       switchedOff={
                         graph?.nodes.find((step) => step.id === node.node_instance_id)?.disabled ===
                         true
@@ -465,18 +522,37 @@ export default function WorkflowRunPage({ params }: PageProps) {
                       {node.attempts > 1 ? ` · ${t("runAttempts", { count: node.attempts })}` : ""}
                     </p>
                   )}
-                  {node.reply_expectation != null && (
-                    <ReplyExpectationControl
-                      runId={run.id}
-                      nodeRunId={node.id}
-                      value={node.reply_expectation}
-                      editable={
-                        live &&
-                        run.can_cancel &&
-                        (node.status === "waiting" || node.status === "needs_attention")
-                      }
-                    />
-                  )}
+                  {callsByStep.get(stepKey(node))?.map(({ row, call }) => (
+                    <div key={row.id} className="space-y-2 border-l pl-3">
+                      <NativeDisclosure>
+                        <summary className="cursor-pointer space-x-2 text-sm">
+                          <span>
+                            {t("runPythonCall", { name: call.action, index: call.index + 1 })}
+                          </span>
+                          <NodeRunStatusLabel status={row.status} />
+                        </summary>
+                        {row.approval && (
+                          <ApprovalVerdict approval={row.approval} output={row.output} />
+                        )}
+                        {row.output !== null && <JsonView value={row.output} />}
+                        <CalledRun
+                          config={runStepInstance(
+                            graph?.nodes.find((entry) => entry.id === row.node_instance_id),
+                            row,
+                          )}
+                          output={row.output}
+                        />
+                        {replyControl(row)}
+                        {row.error && <StepProblem problem={row.error} />}
+                      </NativeDisclosure>
+                      {live && row.status === "needs_attention" && run.can_cancel && (
+                        <Button size="sm" variant="outline" onClick={() => setResolving(row.id)}>
+                          {t("runStepResolve")}
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  {replyControl(node)}
                   {node.error && <StepProblem problem={node.error} />}
                   <CalledRun
                     config={graph?.nodes.find((entry) => entry.id === node.node_instance_id)}
@@ -508,14 +584,10 @@ export default function WorkflowRunPage({ params }: PageProps) {
       {resolvingNode?.status === "needs_attention" && resolvingInstance !== undefined && (
         <StepAttentionDialog
           node={resolvingNode}
-          stepName={nameOf(resolvingNode.node_instance_id)}
-          definition={catalog.find(
-            (entry) =>
-              entry.id === resolvingInstance.definition_id &&
-              entry.version === resolvingInstance.definition_version,
-          )}
+          stepName={resolvingCall?.action ?? nameOf(resolvingNode.node_instance_id)}
+          definition={resolvingDefinition}
           routesErrors={routesErrors(resolvingInstance)}
-          inLoop={resolvingNode.scope_path.length > 0}
+          inLoop={iterationOf(resolvingNode).length > 0}
           open
           busy={resolveStep.isPending}
           onOpenChange={(open) => {
@@ -554,6 +626,24 @@ function CausedBy({ runId, triggeredBy }: { runId: string; triggeredBy: string }
       )}
     </p>
   );
+}
+
+/** For a child call, use the action and resource pins from this run's graph, not today's draft. */
+function runStepInstance(
+  parent: NodeInstance | undefined,
+  row: WorkflowNodeRunRead,
+): NodeInstance | undefined {
+  const call = pythonCallOf(row);
+  if (!parent || !call) return parent;
+  const actions = parent.config.actions;
+  const binding = isRecord(actions) ? actions[call.action] : undefined;
+  if (!isRecord(binding) || typeof binding.type !== "string") return undefined;
+  return {
+    ...parent,
+    definition_id: binding.type,
+    definition_version: typeof binding.version === "number" ? binding.version : 1,
+    config: isRecord(binding.config) ? binding.config : {},
+  };
 }
 
 /** A Run a workflow step's link to the run it started, once it has one. */

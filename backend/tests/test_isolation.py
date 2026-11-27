@@ -779,7 +779,8 @@ class TestWhatReachesOutside:
 class TestTheListOfLiveReads:
     """Which registry tools an isolated run executes is written down, not inferred."""
 
-    #: Read-only by declaration and held anyway, because each reaches outside.
+    #: Read-only by declaration and held anyway: each reaches outside the deployment or the
+    #: run's own disposable workspace.
     HELD_READS = frozenset(
         {
             "capability:artifacts.preview_artifact",
@@ -791,6 +792,7 @@ class TestTheListOfLiveReads:
             "capability:channel_tools.read_channel_history",
             "capability:channel_tools.search_channels",
             "capability:channel_tools.send_channel_file",
+            "capability:sandbox.select_execution_target",
             "capability:sandbox.select_project_workspace",
             "capability:web_fetch.web_fetch",
             "capability:web_research.web_search",

@@ -28,9 +28,13 @@ describe("resolving a status the server sent", () => {
   });
 
   it("gives every known status a word to be drawn with", () => {
-    for (const status of ["processing", "running", "done", "error", "cancelled"]) {
+    for (const status of ["stored", "processing", "running", "done", "error", "cancelled"]) {
       expect(ragStatus(status).words).not.toBeNull();
     }
+  });
+
+  it("keeps stored, unindexed content out of success and progress", () => {
+    expect(ragStatus("stored")).toEqual({ words: "stored", tone: "stored" });
   });
 
   it("invents nothing for a token this build does not know", () => {

@@ -47,7 +47,7 @@ export function LiveRun({ workflowId, runId, onClose, onStale, children }: LiveR
     if (graph !== ran.current) onStale();
   }, [graph, onStale]);
 
-  const done = nodes.filter((node) => node.status === "succeeded").length;
+  const done = [...summaries.values()].reduce((count, summary) => count + summary.succeeded, 0);
 
   return (
     <NodeRunOverlayProvider value={overlay}>

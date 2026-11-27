@@ -21,7 +21,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0366_improvement_holdout_share"
-down_revision: str | None = "0365_intercepted_call_external"
+down_revision: str | None = "0370_console_role_presentation"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

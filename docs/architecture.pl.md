@@ -1,5 +1,5 @@
 ---
-source_sha: "a8d4bd2b212d"
+source_sha: "32f24407d7b1"
 ---
 
 # Architektura { #architecture }
@@ -424,6 +424,23 @@ Dwa wpisy w tym słowniku są szwami do innych podsystemów, a nie zwykłymi dan
 | --------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------- |
 | `WORKSPACE_RESOURCE`        | otwarty workspace, który run dostaje też jako `ctx.workspace` | `tool_output_limits` oraz delegat, który współdzieli `sandbox` |
 | `SUBAGENT_RUNTIME_RESOURCE` | rozwiązane drzewo delegacji                                   | capability `subagents`                                         |
+
+Montowanie projektów na żywo używa drugiej, celowo wąskiej granicy serwisowej.
+Runner wstrzykuje port wyboru projektu; capability nie czyta bezpośrednio bazy.
+Brama systemu plików projektu sprawdza aktualne członkostwo, granty, dzierżawę i
+generację workspace przy każdym RPC, we własnej transakcji. Poświadczenie bindingu
+wskazuje jeden prywatny workspace agenta; niezmienne katalogi dzierżaw wskazują
+autoryzowany dostęp runu do projektu. Dzierżawy wygasają po 90 sekundach, odnawiają
+się co 30 sekund i są unieważniane na końcu runu, przy pauzie lub zmianie wyboru.
+
+Zaufany broker SDK sprawdza tożsamość bindingu przed otwarciem lub wykonaniem sesji,
+trzyma eksportera na prywatnym moście i montuje tylko nazwany wolumen NFS w
+istniejącym kontenerze agenta. Autorytatywne pliki pozostają u dostawcy projektu.
+State zapewnia transakcyjną weryfikację wyłącznego utworzenia; natywny magazyn wymaga
+trwałych rozszerzonych atrybutów i atomowych twardych dowiązań. Nieobsługiwany dostawca
+lub zakres odmawia dopuszczenia. Epoka eksportera jest niezmienna dla zamontowanych
+uchwytów; zmiana zatrzymuje zachowany kontener do jawnego odzyskania, bez pustego
+zamiennika i automatycznego powtarzania przerwanych poleceń.
 
 Delegacja jest najostrzejszym przypadkiem tej zasady. Delegat jest wierszem; tak
 samo jego przypięta wersja, jego kolekcje, jego skille i jego sekrety, a każde

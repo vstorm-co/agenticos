@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from app.schemas.personal_model_key import PersonalModelGenerationRead, PersonalModelKeyRead
 from app.schemas.routine_actions import RoutineConsent
 from app.schemas.routine_sources import RoutineSourcePolicy
+from app.schemas.routine_tools import RoutineToolSetting
 from app.schemas.telephony import PhoneContactConfig
 
 
@@ -46,6 +47,7 @@ class RoutineDeviceWaitExport(BaseModel):
     device_id: UUID
     status: Literal["waiting", "started", "cancelled", "expired", "failed"]
     event_context: str | None
+    event_source_id: UUID | None = None
     reason: str | None
     admission_failures: int
     created_at: datetime
@@ -69,6 +71,7 @@ class RoutineSourceExport(BaseModel):
     organization_id: UUID
     approved_sources: RoutineSourcePolicy | None
     action_consents: list[RoutineConsent] = Field(default_factory=list)
+    tool_settings: list[RoutineToolSetting] = Field(default_factory=list)
 
 
 class ProjectTrackingExport(BaseModel):
@@ -388,6 +391,15 @@ class PersonalDataPurge(BaseModel):
     )
     case_copies: int = Field(
         description="Eval attempts and scores of those revisions, cleared of what they recorded."
+    )
+    search_variants: int = Field(
+        default=0,
+        description="Improve search variants written over a dataset holding those revisions, "
+        "cleared of their text.",
+    )
+    attempt_notes: int = Field(
+        default=0,
+        description="Notes on the attempts of Improve sessions they started or last continued.",
     )
     history_turns: int = Field(
         description="Cases asked by somebody else whose earlier turns held theirs, now replaced."

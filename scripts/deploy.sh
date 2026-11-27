@@ -243,6 +243,20 @@ record_release_images() {
   done
 }
 
+stop_api_writers() {
+  local service containers
+  # Use the running stack's labels: a rollback target can predate its worker.
+  for service in app worker; do
+    containers=$(docker ps -q \
+      --filter "label=com.docker.compose.project.working_dir=$APP_DIR" \
+      --filter "label=com.docker.compose.service=$service")
+    if [ -n "$containers" ]; then
+      # Docker returns one opaque container ID per line.
+      docker stop --timeout 60 $containers
+    fi
+  done
+}
+
 SHA="${1:?usage: deploy.sh <commit-sha>}"
 APP_DIR="${APP_DIR:-/opt/agenticos}"
 COMPOSE_ENV="${APP_DIR}/backend/.env"
@@ -294,6 +308,34 @@ case "${PROXY:-nginx}" in
     exit 1
     ;;
 esac
+
+
+# The supervisor must prove a binding through the same gateway the private
+# filesystem helper reaches. Keep it off the proxy network and opt in to an
+# otherwise empty outbound bridge only when both filesystem settings are set.
+FILESYSTEM_GATEWAY="$(env_value SANDBOXD_FILESYSTEM_GATEWAY_URL)"
+FILESYSTEM_EXPORT_IMAGE="$(env_value SANDBOXD_FILESYSTEM_EXPORT_IMAGE)"
+if [ -n "$FILESYSTEM_GATEWAY" ] || [ -n "$FILESYSTEM_EXPORT_IMAGE" ]; then
+  if [ -z "$FILESYSTEM_GATEWAY" ] || [ -z "$FILESYSTEM_EXPORT_IMAGE" ]; then
+    echo "Configure both SANDBOXD_FILESYSTEM_GATEWAY_URL and SANDBOXD_FILESYSTEM_EXPORT_IMAGE before deploying." >&2
+    exit 1
+  fi
+  # The procedure travels independently of the target checkout. In particular,
+  # 1.94.0 supports these settings but predates the operator overlay file.
+  FILESYSTEM_OVERLAY=$(mktemp "${TMPDIR:-/tmp}/agenticos-projectfs.XXXXXX")
+  trap 'rm -f "$FILESYSTEM_OVERLAY"' EXIT
+  cat > "$FILESYSTEM_OVERLAY" <<'PROJECTFS_COMPOSE'
+services:
+  sandboxd:
+    networks:
+      - projectfs_gateway
+networks:
+  projectfs_gateway:
+    driver: bridge
+    internal: false
+PROJECTFS_COMPOSE
+  BACKEND+=(-f "$FILESYSTEM_OVERLAY")
+fi
 
 # The sandbox service is behind a compose profile, so it is opt-in - and a
 # profile compose is not told about is a service compose treats as nothing to do
@@ -505,6 +547,8 @@ compose "${FRONTEND[@]}" pull --quiet
 prepare_sandbox_runtimes "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 check_image_space "$PREVIOUS_RELEASE_IMAGES"
 retire_services
+say "Stopping the old API and worker before migrations"
+stop_api_writers
 say "Starting the API"
 compose_up "${BACKEND[@]}" "${PROFILES[@]+"${PROFILES[@]}"}"
 

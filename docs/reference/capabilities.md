@@ -118,6 +118,7 @@ across the sandbox boundary.
 | `knowledge` | Knowledge search | knowledge | `search_documents` | `knowledge:read` | — | as-is |
 | `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | adapted |
 | `context` | Context | knowledge | `list_context`, `read_context` | — | — | as-is |
+| `projects` | Projects | knowledge | `search_projects`, `select_project_context`, `list_project_files`, `read_project_file`, `write_project_file` | `projects:read`, `projects:write` | — | as-is |
 | `memory_files` | Memory | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory` | — | — | as-is |
 | `conversation_search` | Past conversations | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | as-is |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | as-is |
@@ -126,7 +127,7 @@ across the sandbox boundary.
 | `browser_use` | Web browser | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | via the `browser` extra | handed off |
 | `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | for a daemon | handed off |
 | `code_execution` | Calculations | analysis | `run_python` | `code:execute` | — | as-is |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | for Daytona | handed off |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace`, `select_execution_target` | `sandbox:execute` | for Daytona | handed off |
 | `mirage` | Virtual terminal | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | per folder, via the `mirage` extra | handed off |
 | `charts` | Charts | analysis | `create_chart` | — | — | as-is |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | as-is |
@@ -206,15 +207,27 @@ and records:
 
 | id | Tools that write |
 |---|---|
-| `artifacts` | `publish_artifact` |
+| `artifacts` | `publish_artifact`, `export_artifact`, `share_artifact` |
 | `ask_user` | `ask_user_question` |
-| `browser_use` | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `background_tasks` | `start_background_task`, `list_background_tasks`, `stop_background_task` |
+| `browser_use` | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `channel_actions` | `react_to_chat_message`, `send_chat_message` |
 | `coding_agent` | `run_coding_agent` |
+| `computer_use` | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` |
+| `drafts` | `write_draft` |
+| `external_acp` | `run_acp_agent`, `inspect_acp_agent` |
+| `follow_ups` | `suggest_next_steps`, `propose_setup` |
 | `image_generation` | `generate_image` |
-| `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
-| `memory_mem0` | `remember` |
-| `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
+| `memory_files` | `write_memory`, `edit_memory`, `delete_memory`, `remember`, `correct_memory`, `share_memory` |
+| `mirage` | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` |
+| `monitor` | `start_monitor`, `list_monitors`, `stop_monitor` |
+| `phone_calls` | `get_phone_contact_policy`, `list_phone_transfer_contacts`, `call_me`, `transfer_phone_call`, `end_phone_call` |
+| `projects` | `write_project_file`, `transfer_project_file` |
+| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `text_to_speech` | `generate_speech` |
+| `video_generation` | `generate_video` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
+| `workflows` | `run_workflow` |
 
 Every other tool above only reads, but reading is not enough to run in an eval.
 An eval runs text nobody has reviewed yet — Improve's variants, a skill change
@@ -228,7 +241,7 @@ these, recorded with the reason `external`:
 | `artifacts` | `preview_artifact` |
 | `channel_actions` | `list_chat_connections`, `find_chat_channels`, `read_chat_messages` |
 | `channel_tools` | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` |
-| `sandbox` | `select_project_workspace` |
+| `sandbox` | `select_project_workspace`, `select_execution_target` |
 | `web_fetch` | `web_fetch`, whatever its `allowed_domains` |
 | `web_research` | `web_search` |
 
@@ -1177,9 +1190,27 @@ memory are the only limits worth setting.
     An author raising a limit for one data-heavy agent should not need an
     operator or a redeploy — and the ceilings are capped rather than open-ended.
 
+## Projects
+
+`search_projects`, `select_project_context`, `list_project_files`, `read_project_file`,
+`write_project_file` work with projects the current member may use. The capability
+declares `projects:read` and `projects:write`; the run rechecks the write scope. Only
+`write_project_file` changes content. It does not grant shell execution.
+
+Selection opens no runtime, lasts one run and reports the separate command target.
+Linked private channel senders can use it; an unverified room audience cannot.
+Project text tools are bounded to 100 directory entries and 256 KB UTF-8 files;
+reserved paths, escaping symlinks and concurrent changes after a read are refused.
+See [Projects](../projects.md) for executor choices and file origins.
+
 ## Sandbox { #files-shell }
 
-`select_project_workspace` selects an accessible project for file and shell tools until the run ends. Omit its project id to restore the original workspace. Approval continuations retain the selection; the next turn starts in the original workspace. The conversation stays in its own thread. Access is checked on every operation, and routines remain limited to their reviewed project source. Isolated evaluations cannot switch into persistent projects.
+`select_project_workspace` is the legacy file-context selector; it does not change
+the command executor. `select_execution_target` explicitly chooses `agent` or
+`project` without copying or mounting files. A project must have a command-capable
+backend and existing Sandbox shell tools must be enabled. Approvals, current access,
+routine source ceilings and isolation rules still apply. Approval continuations
+retain the selection; a later ordinary chat turn starts without it.
 
 `ls`, `read_file`, `glob`, `grep` — *reading.*
 `write_file`, `edit_file`, `execute` — *writing and running.*
@@ -2891,7 +2922,7 @@ Python guard.
 
 | Config | Default | |
 |---|---|---|
-| `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs and PEM blocks |
+| `redact_secrets_*` | `false` | scrub API keys, tokens, JWTs, PEM blocks, passwords in addresses, keys in query strings and form bodies, and Basic or Bearer authorization headers |
 | `redact_pii_*` | `false` | scrub email, phone number (valid in its numbering plan), IBAN (mod-97), card (Luhn) and US SSN |
 | `blocked_keywords_*` | `""` | comma- or newline-separated terms; a match ends the run |
 | `phone_regions` | `"US, GB, DE, PL"` | ISO 3166 codes, comma- or newline-separated, whose national phone formats PII redaction reads, at most 16 |
@@ -3262,6 +3293,8 @@ the agent is assembled:
 | `web:fetch` | `web_fetch` |
 | `web:browse` | `browser_use` |
 | `code:execute` | `code_execution` |
+| `projects:read` | `projects` |
+| `projects:write` | `projects` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
 | `tables:read` | every [table workflow node](workflow-nodes.md#virtual-tables) |

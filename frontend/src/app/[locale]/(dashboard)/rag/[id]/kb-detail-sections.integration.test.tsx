@@ -85,6 +85,7 @@ const DOC: KBDocument = {
   vector_document_id: "vec-1",
   chunk_count: 4,
   has_file: true,
+  has_parsed_content: true,
   created_at: "2026-07-01T00:00:00Z",
   completed_at: "2026-07-01T00:00:10Z",
   parser: "pymupdf",

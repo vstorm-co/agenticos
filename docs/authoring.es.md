@@ -1,5 +1,5 @@
 ---
-source_sha: "aa9d601ba426"
+source_sha: "37330f84096d"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -28,11 +28,11 @@ Hace tres cosas:
 
 En Agent Builder, **Build** contiene la configuración y **Test** abre el panel interactivo del borrador. Abre **Evals** para comparar un borrador con una versión publicada en un dataset o iniciar **Improve**. La estimación aparece antes de la ejecución. El antiguo endpoint de verificación basada en evidencias sigue disponible por compatibilidad de API.
 
-**Improve** abre una sesión de mejora. El modelo y las instrucciones pertenecen a **Settings** del dataset elegido; los ayudantes tienen valores definidos en código y no tienen página editable en el catálogo. El diálogo para mejorar un archivo de contexto elige un modelo directamente. Se conservan controles de budget y registros en Activity.
+**Improve** abre una sesión de mejora. El modelo y las posibles orientaciones del dataset pertenecen a **Settings** del dataset elegido; las orientaciones se añaden bajo las reglas de la plataforma para el ayudante y nunca las sustituyen; los ayudantes tienen valores definidos en código y no tienen página editable en el catálogo. El diálogo para mejorar un archivo de contexto elige un modelo directamente. Se conservan controles de budget y registros en Activity.
 
 ## Qué lee { #what-it-reads }
 
-El asistente no tiene herramientas. Lo que lee se reúne para él, de los runs del
+Lo que lee el asistente se reúne para él, de los runs del
 agent de los últimos 30 días:
 
 - respuestas valoradas negativamente, primero las que tienen comentario;
@@ -41,6 +41,13 @@ agent de los últimos 30 días:
 
 Un run sin valorar que salió bien no dice nada y no se lee. Tampoco una prueba
 del panel de pruebas del Builder ni el run de un delegado.
+
+El asistente integrado no tiene herramientas. Un agent auxiliar elegido en su
+lugar puede vincular `thinking`, `knowledge`, `context` o `skills` y nada que llegue más
+lejos, y uno que busca recibe las bases de conocimiento del agent que mejora. Al mejorar
+un agent, sus instrucciones son las de mejora de los ajustes del dataset, o las
+integradas - nunca las de su propia versión publicada. Una sesión de Improve de
+un skill lo ejecuta tal como está publicado, con sus propias instrucciones.
 
 **Aprende solo de casos de entrenamiento.** Además de chats valorados, el asistente lee respuestas de entrenamiento fallidas, regresiones confirmadas, razones del juez y notas de Review de [datasets](datasets.md) accesibles. Recibe tasas de acierto de entrenamiento por etiqueta y criterio del juez, y cantidades de fallos corregidos y nuevos. Las preguntas de control, respuestas y puntuaciones nunca entran en su prompt. Los runs del juez y del propio asistente siguen excluidos.
 
@@ -157,7 +164,7 @@ Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto n
 
 Una sesión de mejora fija la versión del dataset, la proporción de control y las identidades de los chats fuente. Un intento posterior aprende de los resultados de entrenamiento de su propio reparto, así que una pregunta que un intento apartó puede ayudar a escribir el siguiente; ni nuevos chats, ni nuevos casos, ni un cambio de la proporción de control cambian lo que mide la sesión. Los intentos medidos con preguntas distintas se comparan por lo que cambió cada uno frente a su propia base, no por su tasa de aprobados.
 
-Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de la versión propuesta por un intento anterior, que el borrador no contiene. De cada intento anterior lee el veredicto y solo cuántas preguntas apartadas arregló y rompió, nunca lo que cambió el intento: cada intento aparta sus propias preguntas, sorteadas de nuevo, así que un cambio anterior pudo escribirse a partir de preguntas con las que se mide este intento.
+Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de una versión solo propuesta, que el borrador no contiene: la de un intento anterior, la que mide una comprobación de conocimiento o una que sirve un cambio de skill o de archivo de contexto. De cada intento anterior lee el veredicto y solo cuántas preguntas apartadas arregló y rompió, nunca lo que cambió el intento: cada intento aparta sus propias preguntas, sorteadas de nuevo, así que un cambio anterior pudo escribirse a partir de preguntas con las que se mide este intento.
 
 Los criterios que movió un intento anterior se cuentan solo en las preguntas de entrenamiento de este intento; cuando su comprobación no calificó ninguna, el asistente lo sabe en vez de ver ceros. Se leen como máximo seis intentos medidos recientes.
 
@@ -316,10 +323,12 @@ La retención de actividad conserva el coste total de los runs pagados eliminado
 | Aceptar una sugerencia que vincula algo o da alcance a algo | También el acceso para vincularlo a mano |
 | Aplicar o descartar un cambio a un skill | `skills:edit` en el skill y `runs:view` |
 | Aplicar o descartar un cambio a un archivo de contexto | `context:edit` en el archivo y `runs:view` |
-| Comprobar con evals | Lo que pide un [eval run](evals.md#access), y permiso de edición del agent |
+| Comprobar con evals | Lo que pide un [eval run](evals.md#access), y permiso de edición del agent; para un cambio de un skill o de un archivo de contexto, permiso de edición del skill o del archivo y permiso de ejecución del agent en el que se comprueba |
 
 Los grants cuentan: un miembro con un grant de edición sobre un agent puede
-mejorar ese agent.
+mejorar ese agent si su rol también tiene `runs:view` - Owner, Admin, Builder u
+Operator. Member y Viewer no tienen `runs:view`, así que un grant por sí solo no
+les permite iniciar ni leer una sesión.
 
 Si una petición de la API selecciona un agent auxiliar, necesitas permisos para
 verlo y ejecutarlo. Un auxiliar que no existe o al que no tienes acceso devuelve
@@ -382,9 +391,9 @@ pregunta apartada. Solo se comparan las preguntas que quien llama puede
 leer: rechazar una nota por una que no puede ver confirmaría una suposición.
 
 Quien puede empezar una sesión del agente - permiso de edición, `runs:view` y la
- - puede también dar su siguiente paso o volver a
-intentarlo. La sesión registra quién lo hizo, y los pasos siguientes se ejecutan
-con los permisos y la credencial actuales de esa persona, así que una sesión que
+ - puede también dar su siguiente paso, volver a
+intentarlo o confirmar una de sus comprobaciones de pago: de los cambios elegidos, de un borrador de conocimiento o de lo que hizo cada cambio. La sesión registra quién lo hizo, y los pasos siguientes se ejecutan
+con los permisos y la credencial actuales de esa persona y quedan registrados a su nombre, así que una sesión que
 empezó el Architect se puede continuar en la consola.
 
 El worker comprueba antes de
@@ -397,6 +406,8 @@ resultado se cierra como obsoleta, con el motivo `expired`. Un agente tiene una
 sesión abierta a la vez - en cola, en curso, en espera, lista, detenida o fallida -,
 así que empezar otra responde `409` hasta que la abierta termine. El creador o un
 administrador puede enviar una petición a `/{run_id}/cancel`.
+
+Detener una sesión no requiere `runs:view`. Sin ese permiso, la respuesta contiene solo `id` y `status`, sin presupuesto, dataset, progreso ni metadatos del error.
 
 Quien dio el último paso recibe una notificación en cada parada y en cada final:
 el análisis leído, cambios listos para revisar, un resultado comprobado, detenida,
@@ -466,7 +477,7 @@ Una línea sobre los pasos da el estado de la sesión - **Working** mientras un 
 
 Un paso se abre cuando tiene trabajo que mostrar o una decisión que pedir. La página sigue el paso en el que está la sesión y, tras abrir otro, **Go to the current step** vuelve a él. En una parada, el pie lleva el siguiente paso con su precio, por ejemplo **Next step: write the changes · about $0.04**; nada se gasta antes de pulsarlo. Si el precio cambió desde que se mostró, el pie lo dice - **The price changed to about $0.05. Press again to go on.** - y, cuando el paso cuesta más de lo que le queda a la sesión, permite subir su límite allí mismo.
 
-**Inicio.** Improve abre un diálogo sobre el Agent Builder. Elige el dataset en el formulario principal; el conjunto de pruebas propio del agent aparece seleccionado cuando existe. Los contadores de feedback resumen las evidencias. Si no hay un conjunto adecuado, **Write test questions for me** estima primero crear preguntas a partir de respuestas valoradas y temas sin ejemplos, antes de escribir nada.
+**Inicio.** Improve abre un diálogo sobre el Agent Builder. Elige el dataset en el formulario principal; el conjunto de pruebas propio del agent aparece seleccionado cuando existe. Los contadores de feedback resumen las evidencias. Si no hay un conjunto adecuado, **Write test questions for me** estima primero crear preguntas a partir de respuestas valoradas y temas sin ejemplos, antes de escribir nada. Cuando el dataset tiene orientaciones para el ayudante de mejora, el diálogo las muestra con quién las cambió por última vez: un miembro por su nombre, y quien se fue como antiguo miembro.
 
 El coste del análisis y el límite de gasto de toda la sesión aparecen antes de **Start improving**. Cada paso posterior tiene su propia estimación y espera tu decisión. **Show details** contiene el límite de gasto, la distribución de preguntas, la prueba actual y un enlace a los ajustes del ayudante en el dataset. La sesión en curso abre su propia página después de iniciarla. Cerrar la configuración vuelve al agent; los enlaces existentes `/improve/new` abren el mismo diálogo.
 
@@ -504,7 +515,7 @@ Una sesión terminada - guardada como borrador, publicada, descartada, cancelada
 
 Una sesión que le espera, en su resultado, detenida o fallida sigue abierta: **Improve** y su entrada en el historial llevan de vuelta a ella para dar su siguiente paso, subir su límite y continuar, elegir un intento, reintentar el paso fallido o descartarla.
 
-La API responde `409` a cualquier cambio en una sesión terminada, salvo repetir la cancelación o el descarte que la terminó. `GET /{run_id}/changes` lee los cambios que midió su intento elegido. Leer una sesión requiere acceso de lectura al agente y `runs:view`; cambiarla o empezarla requiere además permiso de edición del agente.
+La API responde `409` a cualquier cambio en una sesión terminada, salvo repetir la cancelación o el descarte que la terminó. `GET /{run_id}/changes` lee los cambios que midió su intento elegido. Leer una sesión requiere acceso de lectura al agente y `runs:view`; cambiarla o empezarla requiere además permiso de edición del agente. Sus cambios, y las sugerencias que deja en el Builder, se escriben a partir de las preguntas del dataset, así que leerlos también requiere acceso de lectura al dataset.
 
 #### Preguntar al Architect { #asking-the-architect }
 
@@ -555,18 +566,39 @@ sesión se detiene con `no_variant`.
 
 La búsqueda tiene su propio budget, `search.budget_usd`, dentro del límite de la
 sesión, y la estimación de inicio suma ese budget y la comprobación de la
-variante que encuentre. Una variante empieza solo mientras su estimación cabe en
-lo que queda. Cada respuesta tiene un tope del doble de su parte de esa
+variante que encuentre. Una variante empieza solo mientras su estimación, con lo que cuesta leer sus
+instrucciones más largas, cabe en lo que queda. Cada respuesta tiene un tope del doble de su parte de esa
 estimación, así que la búsqueda puede superar su budget como mucho en la
 variante que estaba calificando. La sesión muestra lo que gastó la búsqueda
 aparte del resto.
+
+El tope de una respuesta también cubre lo que cuesta leer las instrucciones más
+largas de la variante, y un agent cuyas respuestas anteriores no costaron nada
+tiene como tope el precio de un caso sin precio. Una respuesta detenida en su
+propio tope cuenta como sin respuesta para esa variante; solo un budget agotado
+de la búsqueda, de la sesión o mensual termina la búsqueda.
+
+Una unidad de calificación deja de empezar respuestas antes de que se acabe el
+tiempo de su job, corta una respuesta que sigue en curso justo antes de que el job
+termine y conserva lo que respondió; la siguiente pregunta el resto, así que cada
+pregunta se paga una vez. Una respuesta conservada de una pregunta borrada desde
+entonces se descarta con ella. Antes de cada unidad, la búsqueda comprueba que
+quien actúa conserva el permiso de edición del agente, `runs:view` y el permiso
+para ejecutar el dataset; si no, la sesión se detiene como lo haría en su
+siguiente paso. Una nota dada con **Try again** llega también al ayudante que
+escribe las variantes.
 
 Solo quien podría iniciar la sesión - con permiso de edición del agente,
 `runs:view` y permiso para ejecutar el dataset - lee el texto de las variantes,
 escrito a partir de las preguntas del dataset; los demás ven las cifras. Una
 pregunta que una variante no pudo responder o que no se pudo calificar cuenta
-como fallida. Una búsqueda sin avances durante una hora falla como `stalled` y
-se puede reintentar.
+como fallida.
+
+Una ronda de propuestas que el modelo no responde - el proveedor la rechazó,
+agotó el tiempo o no estaba disponible - se vuelve a pedir hasta tres veces;
+después la búsqueda termina porque el ayudante no pudo escribir más
+variantes, y lo que costaron las rondas fallidas cuenta en su gasto. Una búsqueda
+sin avances durante una hora falla como `stalled` y se puede reintentar.
 
 Por defecto, el juez del dataset califica las variantes con su propio modelo;
 `grading_model_profile_id` las califica en su lugar con un modelo más barato o
@@ -631,6 +663,10 @@ Una nueva corrección solo se considera demostrada si el borrador llegó a cada 
 Las pruebas manuales y la generación de preguntas notifican a quien las inició cuando terminan, también si fallan. Repetir la entrega del trabajo no duplica el aviso. Las pruebas subordinadas de una suite o sesión de mejora utilizan la notificación del proceso principal. Las preferencias están en **Configuración → Notificaciones**. Las páginas abiertas de pruebas y conjuntos de datos se actualizan mediante el flujo de cambios tras confirmar el resultado.
 
 El paso Comprender muestra una muestra limitada de fuentes, la causa registrada, la respuesta, los comentarios de evaluación y un enlace a la conversación. Las causas desconocidas permanecen explícitamente sin clasificar. El paso Preguntas de prueba lee la versión fijada de la sesión e identifica las preguntas de entrenamiento y reservadas. Hoy muestra la referencia solo después de completar correctamente la prueba; una ejecución parcial o fallida no se presenta como una medición de referencia. La vista de fuentes requiere `runs:view`, comprueba el acceso actual a las bases de conocimiento y oculta credenciales en todos los campos de texto.
+
+Las pruebas que recibe el modelo del asistente - preguntas, respuestas, comentarios de evaluación, argumentos de llamadas a herramientas y errores - se ocultan igual antes de salir, de modo que también las citas que conserva un cambio están ocultadas. Las citas y los resúmenes guardados antes se ocultan cada vez que se leen.
+
+Todo lo que una sugerencia escribiría y cite una credencial - texto de instrucciones o de una skill, el nombre o la descripción de una herramienta, el valor de un campo, una skill nueva, un archivo de contexto o un cuerpo de skill propuestos - se muestra ocultado y marcado con `contains_credential`, y aceptarlo, aplicarlo o comprobarlo se rechaza. Un pasaje sugerido puede editarse y aceptarse sin la credencial; un archivo o cuerpo de skill propuesto se descarta y el cambio se hace a mano.
 
 
 El paso de aceptación muestra el número de la siguiente versión y repite el resultado medido de la ronda seleccionada. La comprobación automática se ofrece solo si el agente no tiene ninguna suite. Publicar guarda la identidad y el número de versión en la sesión: al volver a abrirla, el enlace sigue apuntando a esa publicación. Las sesiones antiguas sin este dato muestran su estado sin adivinar una versión. Un error al leer sugerencias permite reintentar; las sugerencias sustituidas no permanecen cargando indefinidamente. Los entornos protegidos esperan sus comprobaciones y los fijados conservan su versión actual.

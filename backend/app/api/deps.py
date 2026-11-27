@@ -21,7 +21,8 @@ from fastapi import Depends
 from fastapi import Header
 from fastapi import Query
 from fastapi import WebSocket, Cookie, WebSocketException
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
+from pydantic import SecretStr
 
 from app.core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -513,6 +514,16 @@ def get_project_service(db: DBSession) -> ProjectService:
 
 ProjectSvc = Annotated[ProjectService, Depends(get_project_service)]
 
+from app.services.project_resources import ProjectResourceService
+
+
+def get_project_resource_service(db: DBSession) -> ProjectResourceService:
+    return ProjectResourceService(db)
+
+
+ProjectResourceSvc = Annotated[ProjectResourceService, Depends(get_project_resource_service)]
+
+
 from app.services.project_tracking import ProjectTrackingService
 
 
@@ -802,6 +813,23 @@ def get_agent_registry_service(db: DBSession) -> AgentRegistryService:
 
 
 AgentRegistrySvc = Annotated[AgentRegistryService, Depends(get_agent_registry_service)]
+
+from app.services.portability import PortabilityService, PortableTransferService
+
+
+def get_portability_service(db: DBSession) -> PortabilityService:
+    return PortabilityService(db)
+
+
+PortabilitySvc = Annotated[PortabilityService, Depends(get_portability_service)]
+
+
+def get_portable_transfer_service(db: DBSession) -> PortableTransferService:
+    return PortableTransferService(db)
+
+
+PortableTransferSvc = Annotated[PortableTransferService, Depends(get_portable_transfer_service)]
+
 
 from app.services.system_agents import SystemAgentService as EvalHelperService
 
@@ -1479,6 +1507,20 @@ def require(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
 
     async def dependency(ctx: Auth) -> AuthContext:
         return _refuse_missing(ctx, perms)
+
+    return dependency
+
+
+def require_any(*perms: Perm) -> Callable[..., Awaitable[AuthContext]]:
+    """Admit a collection action shared by any listed resource creator."""
+
+    async def dependency(ctx: Auth) -> AuthContext:
+        if not any(ctx.has(perm) for perm in perms):
+            raise AuthorizationError(
+                message="Insufficient permissions",
+                details={"required_any": [perm.value for perm in perms]},
+            )
+        return ctx
 
     return dependency
 
@@ -2557,6 +2599,22 @@ def get_onboarding_service(db: DBSession) -> OnboardingService:
 OnboardingSvc = Annotated[OnboardingService, Depends(get_onboarding_service)]
 
 
+from app.services.event_sources import EventSourceService
+from app.services.event_source_samples import EventSourceSampleService
+
+
+def get_event_source_service(db: DBSession) -> EventSourceService:
+    return EventSourceService(db)
+
+
+def get_event_source_sample_service(db: DBSession, redis: Redis) -> EventSourceSampleService:
+    return EventSourceSampleService(db, redis)
+
+
+EventSourceSvc = Annotated[EventSourceService, Depends(get_event_source_service)]
+EventSourceSampleSvc = Annotated[EventSourceSampleService, Depends(get_event_source_sample_service)]
+
+
 from app.services.personal_model_key import PersonalModelKeyService
 
 
@@ -2605,3 +2663,45 @@ def get_console_experience_service(db: DBSession) -> ConsoleExperienceService:
 
 
 ConsoleExperienceSvc = Annotated[ConsoleExperienceService, Depends(get_console_experience_service)]
+
+
+from app.services.chat_cost_visibility import ChatCostVisibilityService
+
+
+def get_chat_cost_visibility_service(db: DBSession) -> ChatCostVisibilityService:
+    return ChatCostVisibilityService(db)
+
+
+ChatCostVisibilitySvc = Annotated[
+    ChatCostVisibilityService, Depends(get_chat_cost_visibility_service)
+]
+
+
+from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+from app.services.project_filesystem_gateway import ProjectFilesystemGateway
+
+
+def get_project_filesystem_binding_service(db: DBSession) -> ProjectFilesystemBindingService:
+    return ProjectFilesystemBindingService(db)
+
+
+def get_project_filesystem_gateway(db: DBSession) -> ProjectFilesystemGateway:
+    return ProjectFilesystemGateway(db)
+
+
+_filesystem_bearer = HTTPBearer(auto_error=False, scheme_name="ProjectFilesystemBinding")
+
+
+def get_project_filesystem_token(
+    credential: Annotated[HTTPAuthorizationCredentials | None, Depends(_filesystem_bearer)],
+) -> SecretStr | None:
+    return None if credential is None else SecretStr(credential.credentials)
+
+
+ProjectFilesystemBindingSvc = Annotated[
+    ProjectFilesystemBindingService, Depends(get_project_filesystem_binding_service)
+]
+ProjectFilesystemGatewaySvc = Annotated[
+    ProjectFilesystemGateway, Depends(get_project_filesystem_gateway)
+]
+ProjectFilesystemToken = Annotated[SecretStr | None, Depends(get_project_filesystem_token)]

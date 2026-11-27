@@ -49,7 +49,18 @@ async def test_routes_use_active_auth_and_reject_identity_and_unknown_presentati
     assert response.status_code == 200
     assert service.update.await_args.args[0] == ctx
     assert service.update.await_args.args[1].preferences.inbox is False
+    response = await client.patch(
+        "/api/v1/users/me/console-experience",
+        json={"console": {"navigation": [], "product_notices": False}},
+    )
+    assert response.status_code == 200
+    assert service.update.await_args.args[0] == ctx
+    assert service.update.await_args.args[1].console.navigation == []
+    assert service.update.await_args.args[1].console.product_notices is False
     for body in (
+        {"console": {"navigation": ["invented"]}},
+        {"console": {"desktop_install_prompt": "false"}},
+        {"console": {"user_id": str(uuid4())}},
         {"user_id": str(uuid4())},
         {"organization_id": str(uuid4())},
         {"preferences": {"tools": True}},

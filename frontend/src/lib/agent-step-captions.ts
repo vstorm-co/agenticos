@@ -13,7 +13,7 @@
  * `chat.tools`: every caller renders inside the chat panel.
  */
 
-import { toolEntry } from "./tool-catalog";
+import { toolEntry, type ApprovalSummary } from "./tool-catalog";
 
 /** What a caller hands over: `useTranslations("chat.tools")`, narrowed to what is used. */
 export type Translate = (key: string, values?: Record<string, string | number>) => string;
@@ -52,11 +52,30 @@ export function toolCaption(toolName: string, t: Translate): string {
   return t("runningNamed", { name: humanizeToolName(toolName) });
 }
 
+/** The platform's own tools whose parked calls the server describes, by reserved name. */
+const PLATFORM_APPROVAL_SUMMARIES: Partial<Record<string, ApprovalSummary>> = {
+  agenticos_accept_improvement: {
+    key: "approveAcceptImprovement",
+    needs: ["agent", "attempt", "publish"],
+  },
+  agenticos_publish_agent: { key: "approvePublishAgent", needs: ["agent", "version"] },
+  agenticos_change_skill_version: {
+    key: "approveChangeSkillVersion",
+    needs: ["skill", "agent", "state"],
+  },
+  agenticos_accept_skill_improvement: {
+    key: "approveAcceptSkillImprovement",
+    needs: ["skill", "outcome"],
+  },
+  agenticos_start_eval_run: { key: "approveStartEvalRun", needs: ["agent", "dataset", "version"] },
+};
+
 /**
  * The sentence an approval card leads with: what the parked call will do, in names.
  *
  * Looked up by the tool's stable id (`capability_tool_id`), not the name the model
  * called: a binding may rename `update_record`, and the renamed call is still that tool.
+ * The platform's own tools have no such id; their reserved name (`toolName`) stands in.
  * Null - and the card draws what it always drew - for a call with no stable id, a tool
  * with no sentence, a call parked without a `context`, or one whose context lacks a
  * name the sentence needs.
@@ -65,9 +84,14 @@ export function approvalSummary(
   capabilityToolId: string | null | undefined,
   context: Record<string, string> | null | undefined,
   t: Translate,
+  toolName?: string,
 ): string | null {
   const summary =
-    capabilityToolId == null ? undefined : toolEntry(capabilityToolId)?.approvalSummary;
+    capabilityToolId == null
+      ? toolName === undefined
+        ? undefined
+        : PLATFORM_APPROVAL_SUMMARIES[toolName]
+      : toolEntry(capabilityToolId)?.approvalSummary;
   if (summary === undefined || context == null) return null;
   if (!summary.needs.every((name) => typeof context[name] === "string" && context[name] !== "")) {
     return null;

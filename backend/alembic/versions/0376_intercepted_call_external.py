@@ -13,8 +13,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "0365_intercepted_call_external"
-down_revision: str | None = "0364_merge_routine_and_kb"
+revision: str = "0376_intercepted_call_external"
+down_revision: str | None = "0374_case_from_conversation"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

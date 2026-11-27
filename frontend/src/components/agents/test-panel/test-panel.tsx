@@ -27,6 +27,7 @@ import type { AgentEnvironment, AgentSpec } from "@/types/agents";
 import { DraftChanges } from "./draft-changes";
 import { TestChat, testingFromMode } from "./test-chat";
 import { TestPanelPrompts } from "./test-panel-prompts";
+import { FULLSCREEN_SAFE } from "@/lib/safe-area";
 
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 820;
@@ -169,6 +170,9 @@ export function TestPanel({
       // desktop keep the same gutter; the native drag strip stays outside it.
       className={cn(
         "bg-background fixed inset-0 z-40 flex flex-col lg:shrink-0 lg:rounded-xl lg:border",
+        // Over the whole screen below `lg`; beside the agent from there on.
+        FULLSCREEN_SAFE,
+        "lg:pt-0 lg:pb-0",
         expanded
           ? "lg:inset-4 lg:w-auto"
           : "lg:sticky lg:top-[calc(1rem-var(--page-inset-top,2rem))] lg:z-auto lg:-mt-(--page-inset-top) lg:h-[calc(100dvh-2rem-var(--window-drag-height,0px))] lg:w-[var(--test-panel-width)]",

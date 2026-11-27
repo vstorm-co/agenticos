@@ -16,7 +16,7 @@ from types import ModuleType
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Connection, Engine, create_engine, text
 
 from app.core.config import settings
 
@@ -84,7 +84,7 @@ def engine() -> Iterator[Engine]:
         _outside_a_transaction(maintenance, drop)
 
 
-def _dataset(connection, *, share: str, skill: bool) -> uuid.UUID:
+def _dataset(connection: Connection, *, share: str, skill: bool) -> uuid.UUID:
     dataset_id = uuid.uuid4()
     connection.execute(
         text("INSERT INTO datasets VALUES (:id, :skill, :share)"),
@@ -93,7 +93,7 @@ def _dataset(connection, *, share: str, skill: bool) -> uuid.UUID:
     return dataset_id
 
 
-def _case(connection, dataset_id: uuid.UUID, partition: str) -> uuid.UUID:
+def _case(connection: Connection, dataset_id: uuid.UUID, partition: str) -> uuid.UUID:
     case_id = uuid.uuid4()
     connection.execute(
         text("INSERT INTO dataset_cases VALUES (:id, :dataset, :partition)"),
@@ -102,7 +102,7 @@ def _case(connection, dataset_id: uuid.UUID, partition: str) -> uuid.UUID:
     return case_id
 
 
-def _session(connection, dataset_id: uuid.UUID | None) -> uuid.UUID:
+def _session(connection: Connection, dataset_id: uuid.UUID | None) -> uuid.UUID:
     run_id = uuid.uuid4()
     connection.execute(
         text("INSERT INTO improvement_runs VALUES (:id, :dataset)"),

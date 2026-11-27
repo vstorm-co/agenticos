@@ -865,6 +865,7 @@ def load_builtins() -> None:
         monitor,
         phone_calls,
         planning,
+        projects,
         sandbox,
         skills,
         subagents,

@@ -1,9 +1,12 @@
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from uuid import UUID
+
+from pydantic import JsonValue, TypeAdapter
 
 # Registers every model table on `Base.metadata`, which `list_collections` judges a
 # `rag_` table against and `_table` refuses a collection name against. Another import
@@ -75,6 +78,9 @@ def _document_is_unaddressed(doc: DocumentInfo) -> bool:
     """
     stored_path = str((doc.additional_info or {}).get("source_path") or "")
     return not stored_path or stored_path == doc.filename
+
+
+_PORTABLE_CHUNK_METADATA = TypeAdapter(dict[str, JsonValue])
 
 
 class BaseVectorStore(ABC):
@@ -230,6 +236,12 @@ class BaseVectorStore(ABC):
         `scope` confines the read to one base's rows, so a shared collection
         name does not expose another tenant's or base's chunks (#1684, #2537).
         """
+
+    def iter_document_chunks(
+        self, collection_name: str, document_id: str, scope: VectorScope
+    ) -> AsyncGenerator[DocumentChunk]:
+        """Bounded export reader; unsupported stores must refuse instead of loading all."""
+        raise NotImplementedError("This vector store does not support streamed document exports")
 
     @abstractmethod
     async def get_chunks_around(
@@ -1509,6 +1521,44 @@ class PgVectorStore(BaseVectorStore):
         # metadata JSONB, and a `(metadata->>'page_num')::int` ORDER BY fails on
         # any row where the key is absent instead of sorting it first.
         return sorted(chunks, key=lambda chunk: (chunk.page_num, chunk.chunk_num))
+
+    async def iter_document_chunks(
+        self, collection_name: str, document_id: str, scope: VectorScope
+    ) -> AsyncGenerator[DocumentChunk]:
+        """Keyset batches ordered by immutable row ID; only content and position leave."""
+        if not await self._collection_exists(collection_name):
+            return
+        table = self._table(collection_name)
+        predicate, parameters = _vector_scope_clause(scope)
+        cursor: str | None = None
+        while True:
+            async with self.async_session() as session:
+                result = await session.execute(
+                    text(
+                        f"SELECT id, content, metadata FROM {table} "
+                        f"WHERE parent_doc_id = :doc AND {predicate} "
+                        "AND (CAST(:cursor AS VARCHAR) IS NULL OR id > CAST(:cursor AS VARCHAR)) ORDER BY id LIMIT 100"
+                    ),
+                    {"doc": self._sanitize_id(document_id), "cursor": cursor, **parameters},
+                )
+                rows = result.fetchall()
+            if not rows:
+                return
+            for row in rows:
+                raw_metadata: object = row[2]
+                meta = (
+                    _PORTABLE_CHUNK_METADATA.validate_json(raw_metadata)
+                    if isinstance(raw_metadata, str)
+                    else _PORTABLE_CHUNK_METADATA.validate_python(raw_metadata)
+                )
+                yield DocumentChunk.model_validate(
+                    {
+                        "content": row[1] or "",
+                        "page_num": meta.get("page_num", 0),
+                        "chunk_num": meta.get("chunk_num", 0),
+                    }
+                )
+            cursor = str(rows[-1][0])
 
     async def get_chunks_around(
         self,

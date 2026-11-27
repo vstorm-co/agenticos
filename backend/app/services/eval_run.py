@@ -55,8 +55,10 @@ from app.core.config import settings
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     NotFoundError,
     PaymentRequiredError,
+    RateLimitError,
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
@@ -116,12 +118,13 @@ from app.schemas.eval_run import (
     EvalUngradedCaseRead,
     FamilyMoveRead,
     ImprovementMeasurement,
+    InvalidReasonCode,
     ProposalCheckRecord,
     RoutingErrorRead,
 )
-from app.schemas.eval_threshold import EvalSuiteCheck, EvalSuiteCheckRead
+from app.schemas.eval_threshold import EvalSuiteCheck, EvalSuiteCheckRead, EvalSuiteJudged
 from app.schemas.scoring import CaseScoreRead, DatasetScoring, ReviewReevaluation
-from app.services import authoring_hunks
+from app.services import authoring_hunks, rate_limit
 from app.services.access import AGENT, DATASET, accessible_ids, resolve_access
 from app.services.agent_registry import (
     AgentRegistryService,
@@ -159,11 +162,15 @@ from app.services.improvement_states import NOISY_SPREAD_QUESTIONS, NOISY_UNSTAB
 from app.services.model_profile import ModelProfileService
 from app.services.notifications import NotificationService
 from app.services.scorers import JUDGE_PROMPT_VERSION
-from app.services.scoring import ungraded
+from app.services.scoring import readable_bases, ungraded, with_readable_knowledge
 from app.services.spend import month_start, organization_monthly_spend
 from app.worker.jobs import RUN_EVAL, RunEval
 
 logger = logging.getLogger(__name__)
+
+Admission = Literal["none", "keep", "refuse"]
+"""How a read takes the comparison admission: not at all, keeping what it has when
+busy, or refused when busy."""
 
 _CENT = Decimal("0.000001")
 
@@ -503,6 +510,14 @@ class RunPlan:
     excluded_case_ids: list[UUID] = field(default_factory=list)
     not_asked: int = 0
     """Of the excluded cases, the ones a sample of named questions did not pick."""
+
+
+@dataclass(frozen=True)
+class Incomparable:
+    """Why two sides cannot be compared: the code a client translates, and the sentence."""
+
+    code: InvalidReasonCode
+    text: str
 
 
 @dataclass(frozen=True)
@@ -1728,6 +1743,7 @@ class EvalRunService:
         org_left = await self._org_left(ctx)
         return EvalRunEstimate(
             cases=cases,
+            dataset_version=plan.dataset_version.number,
             arms=arms,
             judge_usd=judge_usd,
             judge_model_profile_id=judge_model,
@@ -1855,6 +1871,14 @@ class EvalRunService:
             proposal_check,
         )
         proposal_check = self._priced_check(proposal_check, estimate)
+        if request.quoted_usd is not None and estimate.total_usd > request.quoted_usd:
+            raise ConcurrentChangeError(
+                message="This eval now costs more than was quoted; estimate it again",
+                details={
+                    "estimate_usd": str(estimate.total_usd),
+                    "quoted_usd": str(request.quoted_usd),
+                },
+            )
         if not estimate.affordable:
             raise PaymentRequiredError(
                 message=(
@@ -1961,7 +1985,10 @@ class EvalRunService:
             self.db, run.id, organization_id=ctx.organization_id, now=datetime.now(UTC)
         )
         if closed:
+            from app.services.skill_check import SkillCheckService
+
             await NotificationService(self.db).eval_run_finished(run)
+            await SkillCheckService(self.db).after_run(run.organization_id, run.id)
         return (await self._reads(ctx, [run]))[0]
 
     async def _readable(self, ctx: AuthContext, run_id: UUID) -> EvalRun:
@@ -1992,18 +2019,30 @@ class EvalRunService:
             ) from None
         return run
 
-    async def get(self, ctx: AuthContext, run_id: UUID) -> EvalRunRead:
+    async def get(
+        self, ctx: AuthContext, run_id: UUID, *, admission: Admission = "none"
+    ) -> EvalRunRead:
         """One run, and - for a run of the draft - whether the draft changed since.
 
         A check of suggestions made on an eval suite also says what that suite
         would have said of it. A check of an agent's suggestions tested the draft
         they would make: the draft changed since once neither the draft nor the
         draft with the suggestions still waiting is what it checked.
+
+        A person's read compares again only under the organization's comparison
+        admission: through the API it is refused while the admission is taken
+        (`refuse`), and a page that only shows the run keeps the verdicts it has
+        (`keep`). The platform's own reads, a job settling a session say, compare
+        as they need (`none`).
+
+        Raises:
+            RateLimitError: `refuse`, a comparison is due and the admission is taken.
         """
         run = await self._readable(ctx, run_id)
-        read = (await self._reads(ctx, [run]))[0]
+        read = (await self._reads(ctx, [run], admission=admission))[0]
         if run.suite_check is not None:
-            read = read.model_copy(update={"suite_check": await self._suite_check(ctx, run, read)})
+            suite_check = await self._suite_check(ctx, run, read, admission=admission)
+            read = read.model_copy(update={"suite_check": suite_check})
         checked = read.proposal_check is not None and read.proposal_check.kind == "agent"
         tested = next(
             (
@@ -2035,13 +2074,18 @@ class EvalRunService:
         return authoring_hunks.projection(draft, hunks)[0]
 
     async def _suite_check(
-        self, ctx: AuthContext, run: EvalRun, read: EvalRunRead
+        self, ctx: AuthContext, run: EvalRun, read: EvalRunRead, *, admission: Admission = "none"
     ) -> EvalSuiteCheckRead:
         """The suite's verdict on a completed check, judged as the suite judges its own runs.
 
         The threshold is the one kept when the check started. Only a run that
-        completed is judged; nothing is written, so the check stays out of the
-        suite's history and notifies nobody.
+        completed is judged; nothing is written to the suite, so the check stays
+        out of its history and notifies nobody. Judging again takes the comparison
+        admission as `get` does; while it is taken, `keep` shows the verdict kept
+        on the run, or none when the run has not been judged yet.
+
+        Raises:
+            RateLimitError: `refuse`, the verdict is due and the admission is taken.
         """
         check = EvalSuiteCheck.model_validate(run.suite_check)
         suite = await eval_suite_repo.get(
@@ -2055,13 +2099,49 @@ class EvalRunService:
         )
         if run.status != EvalRunStatus.COMPLETED.value:
             return verdict
+        judged = check.judged
+        if judged is None or run.outcome_at is None or judged.outcome_at != run.outcome_at:
+            if admission == "none":
+                judged = await self._judge_suite(ctx, run, read, check)
+            else:
+                try:
+                    async with rate_limit.eval_computation(ctx):
+                        judged = await self._judge_suite(ctx, run, read, check)
+                except RateLimitError:
+                    if admission == "refuse":
+                        raise
+                    if judged is None:
+                        return verdict
+        return verdict.model_copy(update={"status": judged.status, "reasons": judged.reasons})
+
+    async def _judge_suite(
+        self, ctx: AuthContext, run: EvalRun, read: EvalRunRead, check: EvalSuiteCheck
+    ) -> EvalSuiteJudged:
+        """Judge the run as the suite would, and keep the verdict on the run.
+
+        It is kept only while the run's own verdict is still the one it was judged
+        from: a person's decision meanwhile drops that one, and the next read judges
+        the suite again.
+        """
         candidate = next(arm for arm in read.arms if arm.role == ArmRole.CANDIDATE)
         comparison = await self._comparison(ctx, run)
         summary = (
             candidate.summary if self._measurement(run) is None else comparison.candidate_summary
         )
         status, reasons = judge(check.threshold, summary, comparison)
-        return verdict.model_copy(update={"status": status, "reasons": reasons})
+        judged_from = run.outcome_at
+        judged = EvalSuiteJudged(
+            status=status, reasons=reasons, outcome_at=judged_from or datetime.now(UTC)
+        )
+        if judged_from is None:
+            return judged
+        held = await eval_run_repo.lock(self.db, run.id, organization_id=ctx.organization_id)
+        if held is not None and held.outcome_at == judged_from:
+            kept = check.model_copy(update={"judged": judged})
+            await eval_run_repo.update_run(
+                self.db, run=held, values={"suite_check": kept.model_dump(mode="json")}
+            )
+        return judged
 
     async def arm_spec(self, ctx: AuthContext, run_id: UUID, arm_id: UUID) -> AgentSpec:
         """The spec one side of a run answered with - what History compares a version with.
@@ -2147,12 +2227,13 @@ class EvalRunService:
                 since=None if base is None else base.created_at,
             )
             return EvalRunList(
-                items=await self._reads(ctx, tested[skip : skip + limit]), total=len(tested)
+                items=await self._reads(ctx, tested[skip : skip + limit], admission="keep"),
+                total=len(tested),
             )
         runs, total = await eval_run_repo.list_for_agent(
             self.db, agent.id, organization_id=org, dataset_ids=readable, skip=skip, limit=limit
         )
-        return EvalRunList(items=await self._reads(ctx, runs), total=total)
+        return EvalRunList(items=await self._reads(ctx, runs, admission="keep"), total=total)
 
     async def list_for_dataset(
         self, ctx: AuthContext, dataset_id: UUID, *, skip: int = 0, limit: int = 50
@@ -2176,7 +2257,7 @@ class EvalRunService:
             skip=skip,
             limit=limit,
         )
-        return EvalRunList(items=await self._reads(ctx, runs), total=total)
+        return EvalRunList(items=await self._reads(ctx, runs, admission="keep"), total=total)
 
     async def recent(self, ctx: AuthContext, *, skip: int = 0, limit: int = 10) -> EvalRunList:
         """The organization's latest runs the caller may read, a page at a time."""
@@ -2200,7 +2281,7 @@ class EvalRunService:
             skip=skip,
             limit=limit,
         )
-        return EvalRunList(items=await self._reads(ctx, runs), total=total)
+        return EvalRunList(items=await self._reads(ctx, runs, admission="keep"), total=total)
 
     async def case_link(self, ctx: AuthContext, agent_run_id: UUID) -> EvalCaseLinkRead | None:
         """The eval run and case an agent run answered - or, for the judge's run,
@@ -2313,7 +2394,9 @@ class EvalRunService:
             self.db, ctx, list(rows.values()), Perm.DATASETS_VIEW, resource_type=DATASET
         )
 
-    async def _reads(self, ctx: AuthContext, runs: Sequence[EvalRun]) -> list[EvalRunRead]:
+    async def _reads(
+        self, ctx: AuthContext, runs: Sequence[EvalRun], *, admission: Admission = "none"
+    ) -> list[EvalRunRead]:
         org = ctx.organization_id
         arms_by_run: dict[UUID, list[EvalRunArm]] = defaultdict(list)
         for arm in await eval_run_repo.list_arms(
@@ -2441,7 +2524,7 @@ class EvalRunService:
                     cases=len({a.case_id for a in attempts}),
                     first_done=sum(1 for a in first if a.status in finished),
                     first_total=len(first),
-                    outcome=await self._outcome(ctx, run),
+                    outcome=await self._outcome(ctx, run, admission=admission),
                     routed_to_review=run.routed_to_review,
                     routed_replacing=run.routed_replacing,
                     proposal_check=(
@@ -2644,6 +2727,7 @@ class EvalRunService:
         for arm in arms:
             shown += [(arm.id, a) for a in await self._arm_attempts(ctx, arm, attempts)]
         scores = await self._scores(ctx, [a for _, a in shown])
+        score_reads = await self._score_reads(ctx, scores)
         revisions = await eval_run_repo.revisions(
             self.db, sorted({a.case_revision_id for _, a in shown}), organization_id=org
         )
@@ -2677,7 +2761,12 @@ class EvalRunService:
                     tags=tags,
                     expectation=(StoredCaseContent.model_validate(revision) if revision else None),
                     attempts=[
-                        self._attempt_read(shown_arm, a, scores.get(a.case_score_id))
+                        self._attempt_read(
+                            shown_arm,
+                            a,
+                            scores.get(a.case_score_id),
+                            score_reads.get(a.case_score_id),
+                        )
                         for shown_arm, a in pairs
                     ],
                 )
@@ -2686,7 +2775,10 @@ class EvalRunService:
 
     @staticmethod
     def _attempt_read(
-        arm_id: UUID, attempt: EvalRunCase, score: CaseScore | None
+        arm_id: UUID,
+        attempt: EvalRunCase,
+        score: CaseScore | None,
+        score_read: CaseScoreRead | None,
     ) -> EvalAttemptRead:
         return EvalAttemptRead(
             id=attempt.id,
@@ -2704,8 +2796,19 @@ class EvalRunService:
             error=attempt.error,
             outcome=attempt_outcome(attempt, score),
             state=attempt_state(attempt, score).value,
-            score=CaseScoreRead.model_validate(score) if score is not None else None,
+            score=score_read,
         )
+
+    async def _score_reads(
+        self, ctx: AuthContext, scores: dict[UUID, CaseScore]
+    ) -> dict[UUID, CaseScoreRead]:
+        """The scores as a reader of the run reads them: the judge's passages only from
+        knowledge bases the reader may read, each redacted."""
+        reads = {
+            score_id: CaseScoreRead.model_validate(score) for score_id, score in scores.items()
+        }
+        bases = await readable_bases(self.db, ctx, reads.values())
+        return {score_id: with_readable_knowledge(read, bases) for score_id, read in reads.items()}
 
     async def baseline_for(
         self, ctx: AuthContext, run: EvalRun, arm: EvalRunArm
@@ -2943,9 +3046,19 @@ class EvalRunService:
             logger.warning("Eval run %s kept an outcome that no longer reads", run.id)
             return None
 
-    async def _outcome(self, ctx: AuthContext, run: EvalRun) -> EvalOutcomeRead | None:
+    async def _outcome(
+        self, ctx: AuthContext, run: EvalRun, *, admission: Admission = "none"
+    ) -> EvalOutcomeRead | None:
         """A finished run's verdict, as kept - or compared again once a person has
-        decided one of the scores it rests on since it was kept."""
+        decided one of the scores it rests on since it was kept.
+
+        A person's read compares again under the organization's comparison
+        admission: while it is taken a list `keep`s the verdict it has, and reading
+        the run alone is refused. The platform's own reads take no admission.
+
+        Raises:
+            RateLimitError: `admission` is `refuse`, and the comparison admission is taken.
+        """
         if run.status in (EvalRunStatus.QUEUED.value, EvalRunStatus.RUNNING.value):
             return None
         kept = self._kept_outcome(run)
@@ -2955,6 +3068,17 @@ class EvalRunService:
                 self.db, sorted(sides), since=run.outcome_at, organization_id=ctx.organization_id
             ):
                 return kept
+        if admission == "none":
+            return await self._compared_outcome(ctx, run)
+        try:
+            async with rate_limit.eval_computation(ctx):
+                return await self._compared_outcome(ctx, run)
+        except RateLimitError:
+            if admission == "refuse":
+                raise
+            return kept
+
+    async def _compared_outcome(self, ctx: AuthContext, run: EvalRun) -> EvalOutcomeRead:
         comparison = await self._comparison(ctx, run)
         theirs = comparison.baseline_summary
         # Over every case the candidate answered, not only those the baseline shares.
@@ -3094,12 +3218,15 @@ class EvalRunService:
             )
             for case_id in common
         ]
-        invalid_reason = await self._incomparable(ctx, run, candidate, baseline, attempts)
-        invalid_reason_code: Literal["knowledge_not_retrieved", "too_few_held_out"] | None = None
+        incomparable = await self._incomparable(ctx, run, candidate, baseline, attempts)
+        invalid_reason = incomparable.text if incomparable else None
+        invalid_reason_code: InvalidReasonCode | None = incomparable.code if incomparable else None
+        invalid_reason_params: dict[str, int] = {}
         if run.proposal_check is not None:
             knowledge = ProposalCheckRecord.model_validate(run.proposal_check).knowledge
             if knowledge is not None and knowledge.invalidated:
                 invalid_reason = "The knowledge draft changed or was removed; check it again"
+                invalid_reason_code = "knowledge_draft_changed"
             elif knowledge is not None and knowledge.mode == "retrieval" and invalid_reason is None:
                 fixed = {
                     case.case_id
@@ -3124,12 +3251,14 @@ class EvalRunService:
             missing = measured.minimum_holdout - measured.gradable_holdout
             invalid_reason = f"Add {missing} more held-out test questions to measure a change"
             invalid_reason_code = "too_few_held_out"
+            invalid_reason_params = {"missing": missing}
         if (
             measured is not None
             and invalid_reason is None
             and any(case.candidate is None or case.baseline is None for case in paired_cases)
         ):
             invalid_reason = "Held-out questions remain ungraded or incomplete"
+            invalid_reason_code = "held_out_ungraded"
         criteria_comparison = CriterionComparison(moves=[], change=0.0)
         counted: dict[UUID, tuple[list[int] | None, list[int] | None]] = {}
 
@@ -3193,6 +3322,7 @@ class EvalRunService:
             p_value=quality.p_value,
             invalid_reason=invalid_reason,
             invalid_reason_code=invalid_reason_code,
+            invalid_reason_params=invalid_reason_params,
             regressions_confirmed=count(Flip.REGRESSION, True),
             regressions_unconfirmed=count(Flip.REGRESSION, False),
             fixed_confirmed=count(Flip.FIXED, True),
@@ -3315,7 +3445,7 @@ class EvalRunService:
         candidate: EvalRunArm,
         baseline: Baseline,
         attempts: Sequence[EvalRunCase],
-    ) -> str | None:
+    ) -> Incomparable | None:
         """Why the two sides cannot be compared at all, or `None` when they can.
 
         Different scoring decides cases by different rules; a different judge
@@ -3328,7 +3458,9 @@ class EvalRunService:
         to its outcome, which is already undecided on the other side.
         """
         if baseline.run.scoring_hash != run.scoring_hash:
-            return "The two runs were scored with different scoring settings."
+            return Incomparable(
+                "scoring_changed", "The two runs were scored with different scoring settings."
+            )
         other_attempts = (
             attempts
             if baseline.run.id == run.id
@@ -3342,9 +3474,10 @@ class EvalRunService:
         # them, so two sides holding the same two pins in other proportions still
         # do not compare.
         if any(len(pins) > 1 for side in (mine, theirs) for pins in side.values()):
-            return (
+            return Incomparable(
+                "judge_changed_mid_run",
                 "The judge changed while this run's cases were being graded, so its "
-                "grades do not compare. Run it again."
+                "grades do not compare. Run it again.",
             )
         differ = [
             case_id for case_id in mine.keys() & theirs.keys() if mine[case_id] != theirs[case_id]
@@ -3352,11 +3485,14 @@ class EvalRunService:
         if not differ:
             return None
         if all(_unprompted(mine[case_id]) == _unprompted(theirs[case_id]) for case_id in differ):
-            return (
+            return Incomparable(
+                "judge_instructions_changed",
                 "The judge's instructions changed between the two sides, so their grades "
-                "do not compare. Run the baseline again to grade both the same way."
+                "do not compare. Run the baseline again to grade both the same way.",
             )
-        return "The two sides were graded by a different judge, model or rubric."
+        return Incomparable(
+            "judge_differs", "The two sides were graded by a different judge, model or rubric."
+        )
 
     async def _pins(
         self, ctx: AuthContext, attempts: Sequence[EvalRunCase]

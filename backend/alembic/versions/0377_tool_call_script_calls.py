@@ -18,8 +18,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0367_tool_call_script_calls"
-down_revision: str | None = "0366_improvement_holdout_share"
+revision: str = "0377_tool_call_script_calls"
+down_revision: str | None = "0376_intercepted_call_external"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

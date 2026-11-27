@@ -5,9 +5,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
 from app.core.exceptions import BadRequestError, ConcurrentChangeError, PaymentRequiredError
+from app.core.permissions import AuthContext
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import EvalRun
 from app.db.models.improvement import ImprovementRun
@@ -20,14 +22,16 @@ from app.schemas.improvement import (
     ImprovementContinue,
     ImprovementFinish,
     ImprovementStart,
+    ImprovementTarget,
     NextStepBlocked,
     TryAgainBlocked,
 )
 from app.services.agent_runner import AgentRunnerService
+from app.services.authoring_evidence import EvidencePack
 from app.services.authoring_worker import AuthoringWorker
 from app.services.dataset import DatasetService
 from app.services.eval_run_worker import EvalRunWorker
-from app.services.improvement_pipeline import ImprovementPipelineService
+from app.services.improvement_pipeline import ImprovementPipelineService, Inputs
 from tests.integration.test_authoring import Improver, _answering, _sessions, _setup
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_eval_suites import Model, _dataset
@@ -671,3 +675,28 @@ async def test_a_later_attempt_draws_with_the_share_the_session_started_with(db)
     )
 
     assert second.holdout_case_ids is not None and len(second.holdout_case_ids) == 5
+
+
+async def test_a_start_keeps_the_share_its_inputs_were_prepared_with(db: AsyncSession) -> None:
+    """A settings edit while evidence is prepared must not replace the start's captured share."""
+    ctx, agent, _ = await _setup(db)
+    dataset, _ = await _marked_dataset(db, ctx, share=Decimal("0.625"))
+    service = ImprovementPipelineService(db)
+    evidence = service._evidence
+
+    async def change_settings_then_read(
+        actor: AuthContext, inputs: Inputs, target: ImprovementTarget
+    ) -> EvidencePack:
+        await DatasetService(db).update(
+            ctx, dataset.id, DatasetUpdate(improvement_holdout_share=Decimal("0.125"))
+        )
+        return await evidence(actor, inputs, target)
+
+    with patch.object(service, "_evidence", side_effect=change_settings_then_read):
+        started = await service.start(
+            ctx,
+            agent.id,
+            ImprovementStart(dataset_id=dataset.id, budget_usd=Decimal(100), max_iterations=3),
+        )
+    stored = await db.get(ImprovementRun, started.id)
+    assert stored is not None and stored.holdout_share == Decimal("0.625")

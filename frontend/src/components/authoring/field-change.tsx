@@ -4,6 +4,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { useTranslations } from "next-intl";
 
 import { Badge, Input, Textarea } from "@/components/ui";
+import { holdsHidden } from "@/lib/hidden-characters";
 import type { FieldValue, Hunk } from "@/types/authoring";
 import { AddsAccess } from "./adds-access";
 import { DiffView } from "./diff-view";
@@ -75,6 +76,7 @@ export function fieldLabel(hunk: Hunk, t: Translate): string {
   return t("other");
 }
 
+/** A value exactly as Accept writes it; the diff writes out what would draw nothing or reorder. */
 function shown(value: FieldValue, names: Record<string, string>, t: Translate): string {
   if (value === null) return t("unset");
   if (typeof value === "object") return JSON.stringify(value, null, 2);
@@ -128,12 +130,26 @@ export function FieldDiff({
           onChange={(event) => onEdit(event.target.value)}
         />
       ) : hunk.op === "set" ? (
-        <DiffView before={shown(hunk.base_value, names, t)} after={shown(after, names, t)} />
+        <DiffView
+          before={shown(hunk.base_value, names, t)}
+          after={shown(after, names, t)}
+          holdsHidden={holdsHidden(hunk.base_value) || holdsHidden(after)}
+        />
       ) : (
-        <Badge variant={hunk.op === "remove" ? "outline" : "secondary"}>
-          {hunk.op === "remove" ? t("removes") : t("adds")}{" "}
-          {named(hunk.op === "remove" ? hunk.base_value : after, names)}
-        </Badge>
+        <>
+          <Badge variant={hunk.op === "remove" ? "outline" : "secondary"}>
+            {hunk.op === "remove" ? t("removes") : t("adds")}{" "}
+            {named(hunk.op === "remove" ? hunk.base_value : after, names)}
+          </Badge>
+          {hunk.path === "capabilities" && (
+            <DiffView
+              before={hunk.op === "remove" ? shown(hunk.base_value, names, t) : ""}
+              after={hunk.op === "remove" ? "" : shown(after, names, t)}
+              modes={false}
+              holdsHidden={holdsHidden(hunk.op === "remove" ? hunk.base_value : after)}
+            />
+          )}
+        </>
       )}
       {effect?.runs !== undefined && (
         <p className="text-muted-foreground text-xs">
