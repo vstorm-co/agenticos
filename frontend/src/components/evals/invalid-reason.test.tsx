@@ -7,13 +7,13 @@ import { InvalidReason } from "./invalid-reason";
 
 vi.mock("next-intl", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next-intl")>();
-  const pl = (await import("../../../messages/pl.json")).default;
+  const en = (await import("../../../messages/en.json")).default;
   return {
     ...actual,
     useTranslations: (namespace?: string) =>
       actual.createTranslator({
-        locale: "pl",
-        messages: pl as never,
+        locale: "en",
+        messages: en as never,
         namespace: namespace as never,
       }),
   };
@@ -32,7 +32,7 @@ const CODES: InvalidReasonCode[] = [
   "held_out_ungraded",
 ];
 
-describe("a reason two sides cannot be compared, in Polish", () => {
+describe("a reason two sides cannot be compared, in English", () => {
   it.each(CODES)("words %s in the reader's language", (code) => {
     const { container } = render(
       <InvalidReason
@@ -59,7 +59,7 @@ describe("a reason two sides cannot be compared, in Polish", () => {
       />,
     );
     expect(
-      screen.getByText("Dodaj jeszcze 3 pytania kontrolne, żeby zmierzyć zmianę."),
+      screen.getByText("Add 3 more held-out test questions to measure a change."),
     ).toBeVisible();
   });
 
@@ -94,17 +94,19 @@ describe("a reason two sides cannot be compared, in Polish", () => {
   });
 });
 
-it("words an Improve result that cannot be compared in Polish, not the server's English", () => {
+it("words an Improve result that cannot be compared from the catalog, not the server's sentence", () => {
   render(
     <IncomparableResult
       agentId="a1"
       runId="r1"
       comparison={{
-        invalid_reason: "The two sides were graded by a different judge, model or rubric.",
+        invalid_reason: ENGLISH,
         invalid_reason_code: "judge_differs",
       }}
     />,
   );
-  expect(screen.getByText("Strony oceniał inny sędzia, model albo inna rubryka.")).toBeVisible();
-  expect(screen.queryByText(/different judge/)).not.toBeInTheDocument();
+  expect(screen.getByText("The two sides were graded by a different judge, model or rubric.")).toBeVisible();
+  // In English the catalog text and the server's sentence coincide, so the
+  // absence check names the server's sentence instead of its words.
+  expect(screen.queryByText(ENGLISH)).not.toBeInTheDocument();
 });

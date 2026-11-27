@@ -1209,7 +1209,6 @@
     "forgotHeading": "Happens to the <em>best of us.</em>",
     "forgotPasswordPrompt": "Forgot password?",
     "forgotShort": "Forgot?",
-    "googleNotConfigured": "Google sign-in is not configured for this deployment.",
     "hasAccount": "Already have an account?",
     "linkSentHeading": "Link sent. <em>On its way.</em>",
     "loggedOut": "Logged out",
@@ -1869,8 +1868,6 @@
       "noMessageSearchResults": "No messages match.",
       "searchFailed": "Search failed. Try again.",
       "retrySearch": "Try again",
-      "searchMatches": "{count, plural, one {# matching message} other {# matching messages}}",
-      "searchKeys": "↑ ↓ to navigate · Enter to open · Esc to close",
       "flatView": "Most recent first (flat list)",
       "groupedView": "Group chats by project"
     },
@@ -16496,7 +16493,6 @@
     "moveFailed": "Could not move conversation",
     "moved": "Conversation moved",
     "initialSetup": "Instructions and defaults",
-    "newChatIn": "New chat in {name}",
     "resources": {
       "title": "Resources",
       "search": "Search resources",

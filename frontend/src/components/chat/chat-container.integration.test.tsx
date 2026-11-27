@@ -366,7 +366,7 @@ it.each(composerLayouts)(
   "keeps Stop keyboard-accessible after activating Send ($layout)",
   async ({ mainChat }) => {
     const user = userEvent.setup();
-    mount(undefined, mainChat);
+    mount(undefined, undefined, undefined, undefined, mainChat);
     const editor = await screen.findByRole("textbox", { name: "Type a message..." });
     await user.type(editor, "First prompt");
     const send = screen.getByRole("button", { name: "Send message" });
@@ -383,7 +383,7 @@ it.each(composerLayouts)(
   "keeps the draft if the turn completes mid-click on Stop ($layout)",
   async ({ mainChat }) => {
     const user = userEvent.setup();
-    mount(undefined, mainChat);
+    mount(undefined, undefined, undefined, undefined, mainChat);
     const editor = await screen.findByRole("textbox", { name: "Type a message..." });
     await user.type(editor, "First prompt{Enter}");
     expect(editor).toHaveFocus();
@@ -602,6 +602,13 @@ describe("the chat container - answering a durable question", () => {
         if (url === "/conversations/c-room/room-requests")
           return Promise.resolve({ items: [], total: 0, can_post: canPost });
         if (url === "/conversations/c-room/workspace") return Promise.resolve(workspace);
+        if (url === "/conversations/c-room/workspace-origins")
+          return Promise.resolve({
+            default_origin: null,
+            default_workspace_id: null,
+            items: [],
+            truncated: false,
+          });
         return base(url);
       });
       useConversationStore.getState().setCurrentConversationId(conversation.id);

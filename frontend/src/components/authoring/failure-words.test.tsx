@@ -8,13 +8,13 @@ import { RequestFailure, useFailureWords } from "./failure-words";
 
 vi.mock("next-intl", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next-intl")>();
-  const pl = (await import("../../../messages/pl.json")).default;
+  const en = (await import("../../../messages/en.json")).default;
   return {
     ...actual,
     useTranslations: (namespace?: string) =>
       actual.createTranslator({
-        locale: "pl",
-        messages: pl as never,
+        locale: "en",
+        messages: en as never,
         namespace: namespace as never,
       }),
   };
@@ -81,7 +81,7 @@ function words(of: "session" | "request") {
 describe.each([
   ["session", SESSION],
   ["request", REQUEST],
-] as const)("a stored %s failure, in Polish", (of, codes) => {
+] as const)("a stored %s failure, in English", (of, codes) => {
   it.each(Object.entries(codes))("words %s in the reader's language", (code, params) => {
     const said = words(of)({ error: ENGLISH, error_code: code, error_params: params });
     expect(said.text).not.toBe(ENGLISH);
@@ -115,14 +115,14 @@ describe("the counts a failure names", () => {
         error_code: "too_few_held_out",
         error_params: { missing: 3 },
       }).text,
-    ).toBe("Dodaj jeszcze 3 pytania kontrolne, żeby zmierzyć zmianę.");
+    ).toBe("Add 3 more held-out test questions to measure a change.");
     expect(
       words("request")({
         error: ENGLISH,
         error_code: "unknown_skill_use",
         error_params: { runs: 5 },
       }).text,
-    ).toContain("5 ocenionych negatywnie albo nieudanych runów");
+    ).toContain("5 rated-down or failed runs");
   });
 
   it("shows the stored sentence for a code sent without its count", () => {
@@ -137,7 +137,7 @@ describe("the counts a failure names", () => {
   it("keeps a session's codes and a request's apart", () => {
     expect(words("request")({ error: ENGLISH, error_code: "too_few_held_out" }).text).toBe(ENGLISH);
     expect(words("session")({ error: ENGLISH, error_code: "no_evidence" }).text).toBe(
-      "Nie ma jeszcze ocenionych runów czatu ani porażek na pytaniach treningowych.",
+      "No rated chat runs or training failures are available yet.",
     );
   });
 });
@@ -155,9 +155,9 @@ describe("RequestFailure", () => {
       />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Agent systemowy, którego potrzebuje ten krok, nie może połączyć się ze swoim modelem.",
+      "A system agent this step needs cannot reach its model.",
     );
-    const details = screen.getByText("Szczegóły techniczne").closest("details");
+    const details = screen.getByText("Technical details").closest("details");
     expect(details).toHaveTextContent("'Improver' cannot reach its model: no key");
     expect(screen.getByText("'Improver' cannot reach its model: no key")).toHaveAttribute(
       "lang",
@@ -176,7 +176,7 @@ describe("RequestFailure", () => {
         className="text-xs"
       />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent("Plik kontekstu już nie istnieje.");
-    expect(screen.queryByText("Szczegóły techniczne")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("The context file is gone.");
+    expect(screen.queryByText("Technical details")).not.toBeInTheDocument();
   });
 });
