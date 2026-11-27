@@ -29,7 +29,7 @@ from app.agents.capabilities import all_capabilities
 from app.agents.mcp import PLATFORM_MCP_PREFIX, tool_prefix
 from app.core.background import spawn_after_commit
 from app.core.exceptions import AppException, AuthorizationError
-from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
+from app.core.permissions import AuthContext, OrgRoleName
 from app.core.tool_identity import ToolIdentity
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus
 from app.db.models.channel_bot import ChannelBot
@@ -637,9 +637,12 @@ class ChannelPrompts:
         return await self.runner.resume(ctx, prompt.run_id)
 
     async def _may_decide(self, ctx: AuthContext, approval_id: UUID, run_id: UUID) -> bool:
-        """`approvals:decide` at `ALL`, or the run's own person pressing on their own platform call."""
-        if ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.ALL:
-            return True
+        """Whether the run's own person is pressing on their own platform call.
+
+        The privileged decider never reaches here: the caller already passed
+        `may_decide_approval`, which admits `approvals:decide` at `ALL`, so
+        this answers only the own-platform-call question.
+        """
         approval = await agent_run_repo.get_approval(
             self.db, approval_id, organization_id=ctx.organization_id
         )
