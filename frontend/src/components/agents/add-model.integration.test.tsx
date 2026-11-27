@@ -211,7 +211,7 @@ beforeEach(() => {
   // The form only exists for a caller holding `connections:manage`, and most of
   // what is asserted below is about the form rather than about the vault - so
   // the default caller may also store a key, and the tests that care say so.
-  state.permissions = [Perm.secretsEdit];
+  state.permissions = [Perm.secretsEdit, Perm.budgetsManage];
   onCreatedSecret.handler = undefined;
 });
 
@@ -1719,6 +1719,29 @@ describe("the model the agent is already on", () => {
     });
   });
 
+  it("offers a separate model when the caller cannot rebind a model with custom prices", async () => {
+    state.permissions = [Perm.secretsEdit];
+    state.secrets = [
+      secret({ id: "s-1", purpose: "openrouter", name: "Router key" }),
+      secret({ id: "s-2", purpose: "openrouter", name: "Router key two" }),
+    ];
+    mount({
+      selected: inUse({ secret_id: "s-1", custom_pricing: { input: "0", output: "0" } }),
+    });
+
+    await userEvent.click(screen.getByLabelText("Key"));
+    await userEvent.click(screen.getByRole("option", { name: /Router key two/ }));
+    expect(screen.queryByRole("button", { name: "Update model" })).not.toBeInTheDocument();
+    expect(screen.getByText(/Changing the key or endpoint/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Add separate model" }));
+
+    expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ secret_id: "s-2" }),
+    );
+    expect(state.createProfile.mutateAsync.mock.calls[0]?.[0]).not.toHaveProperty("custom_pricing");
+    expect(state.updateProfile.mutateAsync).not.toHaveBeenCalled();
+  });
+
   it("offers a model whose key was deleted the key the vault has", async () => {
     // `secret_id` went NULL with the key. "In use" above it would say nothing
     // needs doing, when nothing can run on it until it has a key again.
@@ -2292,4 +2315,169 @@ it("does not offer a refresh before endpoint discovery is allowed and reports it
   await userEvent.click(screen.getByRole("combobox", { name: "Model" }));
   expect(screen.queryByRole("button", { name: "Refresh models" })).not.toBeInTheDocument();
   expect(screen.getByRole("alert")).toHaveTextContent("The catalog could not be refreshed");
+});
+
+it("saves negotiated pricing on the current profile and can restore automatic pricing", async () => {
+  const user = userEvent.setup();
+  state.purposes = [
+    {
+      id: "openai",
+      label: "OpenAI",
+      kind: "api_key",
+      category: "model_provider",
+      description: "",
+      help_url: null,
+      icon: "",
+    },
+  ];
+  state.catalog = [
+    {
+      id: "openai",
+      name: "OpenAI",
+      secret_kind: "api_key",
+      supports_base_url: true,
+      keyless: true,
+      apis: ["chat", "responses"],
+      native_api: "responses",
+    },
+  ];
+  state.secrets = [{ id: "key", name: "prod", hint: "1234", purpose: "openai", kind: "api_key" }];
+  const selected = {
+    id: "profile",
+    label: "Prod",
+    provider: "openai",
+    model: "gpt-4.1",
+    secret_id: "key",
+    api: "responses" as const,
+    params: {},
+    fallback_profile_ids: [],
+  };
+  const view = render(<AddModel selected={selected} onCreated={vi.fn()} />);
+  await user.click(screen.getByRole("switch"));
+  await user.type(screen.getByLabelText("Input tokens"), "0");
+  await user.type(screen.getByLabelText("Output tokens"), "5");
+  await user.click(screen.getByRole("button", { name: "Update model" }));
+  expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({
+      id: "profile",
+      changes: expect.objectContaining({
+        custom_pricing: { input: "0", output: "5", cache_read: null, cache_write: null },
+      }),
+    }),
+  );
+  view.unmount();
+  render(
+    <AddModel
+      selected={{ ...selected, custom_pricing: { input: "0", output: "5" } }}
+      onCreated={vi.fn()}
+    />,
+  );
+  await user.click(screen.getByRole("switch"));
+  await user.click(screen.getByRole("button", { name: "Update model" }));
+  expect(state.updateProfile.mutateAsync).toHaveBeenLastCalledWith(
+    expect.objectContaining({ changes: expect.objectContaining({ custom_pricing: null }) }),
+  );
+});
+
+it("creates a model with custom rates only after both required prices are filled", async () => {
+  const user = userEvent.setup();
+  state.secrets = [secret()];
+  mount();
+  await pickProvider("OpenAI");
+  await user.click(screen.getByLabelText("Model"));
+  await user.click(screen.getByRole("option", { name: /gpt-5/i }));
+  await user.click(screen.getByRole("switch"));
+  expect(screen.getByRole("button", { name: "Add model" })).toBeDisabled();
+  await user.type(screen.getByLabelText("Input tokens"), "0");
+  await user.type(screen.getByLabelText("Output tokens"), "7.25");
+  await user.click(screen.getByRole("button", { name: "Add model" }));
+  expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining({
+      custom_pricing: { input: "0", output: "7.25", cache_read: null, cache_write: null },
+    }),
+  );
+});
+
+it("starts a different model with automatic pricing", async () => {
+  const user = userEvent.setup();
+  state.secrets = [secret()];
+  mount();
+  await pickProvider("OpenAI");
+  await user.click(screen.getByLabelText("Model"));
+  await user.click(screen.getByRole("option", { name: /gpt-5/i }));
+  await user.click(screen.getByRole("switch"));
+  await user.type(screen.getByLabelText("Input tokens"), "2");
+  await user.type(screen.getByLabelText("Output tokens"), "5");
+  await user.click(screen.getByLabelText("Model"));
+  await user.type(screen.getByPlaceholderText("Search models…"), "another-alias");
+  await user.click(screen.getByRole("option", { name: /another-alias/ }));
+  expect(screen.getByRole("switch")).not.toBeChecked();
+  await user.click(screen.getByRole("button", { name: "Add model" }));
+  expect(state.createProfile.mutateAsync).toHaveBeenCalledWith(
+    expect.not.objectContaining({ custom_pricing: expect.anything() }),
+  );
+});
+
+it.each(["openai", "subscription:claude"])(
+  "hides %s price controls without budget authority",
+  (fixedProviderId) => {
+    state.permissions = [Perm.secretsEdit];
+    mount({ fixedProviderId });
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Input tokens")).not.toBeInTheDocument();
+  },
+);
+
+it("edits and restores pricing for an existing subscription model", async () => {
+  const user = userEvent.setup();
+  state.catalog = [
+    capabilities("subscription_accounts", "Subscription accounts", { personal_gateway: true }),
+  ];
+  const selected = {
+    id: "sub",
+    provider: "subscription_accounts",
+    model: "claude/sonnet",
+    label: "Claude Code (Pro, Max) · claude/sonnet",
+    secret_id: null,
+    params: {},
+    fallback_profile_ids: [],
+    custom_pricing: { input: "2", output: "5" },
+  };
+  mount({ selected });
+  expect(screen.getByLabelText("Input tokens")).toHaveValue(2);
+  await user.click(screen.getByRole("switch"));
+  await user.click(screen.getByRole("button", { name: "Update model" }));
+  expect(state.updateProfile.mutateAsync).toHaveBeenCalledWith({
+    id: "sub",
+    changes: { custom_pricing: null },
+  });
+});
+
+it("shows a failed subscription price update and allows retrying it", async () => {
+  const user = userEvent.setup();
+  state.catalog = [
+    capabilities("subscription_accounts", "Subscription accounts", { personal_gateway: true }),
+  ];
+  const selected = {
+    id: "sub",
+    provider: "subscription_accounts",
+    model: "claude/sonnet",
+    label: "Claude Code (Pro, Max) · claude/sonnet",
+    secret_id: null,
+    params: {},
+    fallback_profile_ids: [],
+    custom_pricing: { input: "2", output: "5" },
+  };
+  const onCreated = vi.fn();
+  const pending = vi.fn();
+  state.updateProfile.mutateAsync.mockRejectedValueOnce(new Error("pricing unavailable"));
+  mount({ selected, onCreated, onCreationPendingChange: pending });
+  await user.click(screen.getByRole("switch"));
+  await user.click(screen.getByRole("button", { name: "Update model" }));
+  expect(await screen.findByText("pricing unavailable")).toBeVisible();
+  expect(onCreated).not.toHaveBeenCalled();
+  expect(pending).toHaveBeenLastCalledWith(false);
+  await user.click(screen.getByRole("button", { name: "Update model" }));
+  expect(onCreated).toHaveBeenCalledWith({ id: "p-1" });
+  expect(screen.queryByText("pricing unavailable")).not.toBeInTheDocument();
 });

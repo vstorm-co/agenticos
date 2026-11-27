@@ -1,5 +1,5 @@
 ---
-source_sha: "62a1e2196945"
+source_sha: "bf457b2ffc28"
 ---
 
 # Secretos y el vault { #secrets-and-the-vault }
@@ -347,6 +347,9 @@ organización, un Member solo los suyos. Un secreto también se puede compartir 
 un miembro o un agent concretos mediante una concesión sobre el recurso, que
 amplía el acceso a esa única fila sin ascender a nadie. Mira
 [Permisos](permissions.md).
+
+Rotar una credencial de la bóveda que usa un perfil de modelo con precios
+personalizados requiere también `budgets:manage`.
 
 ## Operaciones { #operations }
 

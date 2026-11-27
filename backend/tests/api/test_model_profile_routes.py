@@ -113,6 +113,7 @@ def _stored(model: str) -> MagicMock:
         api="responses",
         region=None,
         params={},
+        custom_pricing=None,
         fallback_profile_ids=[],
         context_length=None,
         runs_without_key=False,
@@ -250,3 +251,37 @@ async def test_official_chatgpt_model_listing_never_uses_a_global_or_api_key_cat
     for params in [{"api": "chat"}, {"base_url": "https://other.example.test"}]:
         response = await client.get(f"{_V1}/providers/openai_chatgpt/models", params=params)
         assert response.status_code == 400
+
+
+async def test_custom_rates_reach_creation_and_an_explicit_null_restores_automatic(
+    client: AsyncClient, created: AsyncMock
+):
+    response = await client.post(
+        f"{_V1}/providers/model-profiles",
+        json=_profile(custom_pricing={"input": "0", "output": "2", "cache_read": "0"}),
+    )
+    assert response.status_code == 201
+    rates = created.await_args.kwargs["custom_pricing"]
+    assert rates.input == 0 and rates.output == 2 and rates.cache_read == 0
+    stored = _stored("gpt-4.1")
+    update = AsyncMock(return_value=stored)
+    app.dependency_overrides[deps.get_model_profile_service] = lambda: MagicMock(
+        update_profile=update
+    )
+    response = await client.patch(
+        f"{_V1}/providers/model-profiles/{stored.id}", json={"custom_pricing": None}
+    )
+    assert response.status_code == 200
+    assert update.await_args.args[2].model_fields_set == {"custom_pricing"}
+    assert update.await_args.args[2].custom_pricing is None
+
+
+async def test_invalid_custom_rates_are_refused_before_creation(
+    client: AsyncClient, created: AsyncMock
+):
+    response = await client.post(
+        f"{_V1}/providers/model-profiles",
+        json=_profile(custom_pricing={"input": "-1", "output": "2"}),
+    )
+    assert response.status_code == 422
+    assert created.await_count == 0

@@ -1369,7 +1369,9 @@ async def _longer_instructions_usd(
     usage = RunUsage(input_tokens=(extra + 3) // 4, output_tokens=0)
     if spec.model_profile_id is not None:
         model = await ModelProfileService(db).resolve(ctx, profile_id=spec.model_profile_id)
-        priced = price_request(usage, model.model, model.provider)
+        priced = price_request(
+            usage, model.model, model.provider, custom_pricing=model.credential.custom_pricing
+        )
         if priced is not None:
             return Decimal(priced)
     return (
@@ -1395,7 +1397,9 @@ async def _proposal_price(
     )
     if model_profile_id is not None:
         model = await ModelProfileService(db).resolve(ctx, profile_id=model_profile_id)
-        priced = price_request(usage, model.model, model.provider)
+        priced = price_request(
+            usage, model.model, model.provider, custom_pricing=model.credential.custom_pricing
+        )
         if priced is not None:
             return Decimal(priced)
     return settings.EVAL_FALLBACK_CASE_COST_USD * count

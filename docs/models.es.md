@@ -1,5 +1,5 @@
 ---
-source_sha: "b4f01f7af48e"
+source_sha: "f37df64b435d"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -870,10 +870,34 @@ conviene saber:
   `claude-sonnet-5-5` de Anthropic.
 - Actualizar los precios es subir una dependencia.
 
-!!! warning "Un provider sin clave no registra gasto"
+En la sección **Precios** de un perfil puedes sustituir los precios automáticos
+de tokens. Indica entrada y salida en USD por millón de tokens. Las tarifas de
+lectura y escritura de caché son opcionales; si quedan vacías, usan la de entrada.
+Un cero explícito es un precio. La API utiliza `custom_pricing`: omitirlo en una
+actualización conserva el ajuste; enviar `null` restaura el precio automático.
 
-    El gasto se atribuye al [secreto del vault](secrets.md) al que resolvió el
-    run, y un provider sin clave no tiene ninguno al que atribuirlo.
+Cambiar o restablecer los precios requiere `budgets:manage`, además de gestionar las conexiones de modelos. Ese permiso también se requiere al cambiar la clave, el endpoint, `extra_body` o `extra_headers` de un perfil con precios personalizados: esos ajustes pueden cambiar el modelo o la cuenta que paga. Otros ajustes de generación, como la temperatura, conservan sus permisos actuales.
+
+Los perfiles de suscripción admiten los mismos precios opcionales por token: miden el consumo del presupuesto, no la cuota de la suscripción. Cuando las tarifas personalizadas sustituyen el coste contable, los importes originales del proveedor permanecen en los metadatos de uso.
+
+Las tarifas propias tienen prioridad sobre el catálogo y la factura del proveedor.
+Se aplican las del perfil que realmente responde, incluidos fallbacks, delegaciones
+y modelos sin clave. Los tokens de caché normalizados se cobran una sola vez.
+Las estimaciones usan estas tarifas cuando antes usaban el catálogo; las basadas
+en ejecuciones históricas siguen utilizando sus costes registrados.
+
+Cambiar una tarifa afecta al uso resuelto posteriormente y no modifica costes
+históricos de ejecuciones o mensajes. Los recuentos de tokens inválidos o el uso
+omitido mantienen una tarifa parcial. Se conservan los subtotales conocidos, y un
+presupuesto activo en dólares impide nuevas peticiones tras un uso incompleto
+con tarifas propias. El modo automático conserva el catálogo y las facturas
+del proveedor. El formulario muestra tarifas orientativas del nivel básico cuando
+están disponibles; la factura real se conoce después de la petición. Estas tarifas
+no configuran voz realtime ni generación de imágenes, audio o vídeo por unidad.
+
+Las peticiones tarifadas sin clave cuentan para el gasto y presupuesto de la
+organización. No tienen un [secreto del vault](secrets.md) al que atribuir un
+informe por clave.
 
 El coste se comprueba *antes* de cada petición al modelo y se registra incluso
 cuando el run falla. Ver [Budgets](governance.md#budgets).

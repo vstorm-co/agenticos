@@ -678,7 +678,9 @@ class TestBudget:
     async def test_longer_instructions_are_priced_at_the_agents_model(self, db):
         ctx, _, _ = await _setup(db)
         spec = AgentSpec(name="Clerk", instructions="Be brief.", model_profile_id=uuid.uuid4())
-        resolved = SimpleNamespace(model="m", provider="p")
+        resolved = SimpleNamespace(
+            model="m", provider="p", credential=SimpleNamespace(custom_pricing=None)
+        )
 
         with (
             patch.object(ModelProfileService, "resolve", new=AsyncMock(return_value=resolved)),

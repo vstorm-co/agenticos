@@ -7,6 +7,8 @@ import { Check, KeyRound, Plus, Save } from "lucide-react";
 import { canonicalJson } from "@/lib/canonical-json";
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { hasKey, LISTED_AT_ENDPOINT, LISTED_WITH_KEY, runsAgents } from "@/lib/model-profiles";
+import { ModelPricing, sameTokenPricing, validTokenPricing } from "./model-pricing";
+import type { TokenPricing } from "@/types/providers";
 import { ModelSourceSelect } from "./model-source-select";
 import { SubscriptionModelForm } from "./subscription-model-form";
 import {
@@ -281,6 +283,9 @@ export function AddModel({
   const savedParams = canonicalJson(selected?.params ?? {});
   const [previousParams, setPreviousParams] = useState(savedParams);
   const [connectionOpen, setConnectionOpen] = useState(false);
+  const [customPricing, setCustomPricing] = useState<TokenPricing | null>(
+    selected?.custom_pricing ?? null,
+  );
   const tErrors = useTranslations("errors");
   const t = useTranslations("agents");
   // Root, for the absolute keys `modelPlaceholder` answers with - see the note on
@@ -302,6 +307,10 @@ export function AddModel({
   // credential it runs on. Offering the form to them is a 403 dressed as a
   // control.
   const canStoreKey = can(Perm.secretsEdit);
+  const canManagePricing = can(Perm.budgetsManage);
+  const pricingChanged =
+    canManagePricing && !sameTokenPricing(customPricing, selected?.custom_pricing ?? null);
+  const canSubmitPricing = !canManagePricing || validTokenPricing(customPricing);
 
   // What somebody picked, which is not the same as what the field shows: a
   // `null` here means nobody has picked yet, and the answer below is what the
@@ -338,6 +347,7 @@ export function AddModel({
 
   const chooseSource = (value: string) => {
     setPickedProvider(value);
+    setCustomPricing(null);
     setParams({});
     setSecretId("");
     setModel("");
@@ -538,6 +548,7 @@ export function AddModel({
 
   const unchanged =
     selected !== undefined &&
+    !pricingChanged &&
     provider?.id === selected.provider &&
     model.trim() === selected.model &&
     label.trim() === "" &&
@@ -573,6 +584,10 @@ export function AddModel({
     provider?.id === selected.provider &&
     model.trim() === selected.model &&
     baseUrl.trim().replace(/\/+$/, "") !== (selected.base_url ?? "").replace(/\/+$/, "");
+  const rebindLocked =
+    !canManagePricing &&
+    selected?.custom_pricing != null &&
+    (endpointChanged || chosenKey !== (selected.secret_id ?? "") || selected.missing_key === true);
   const customEndpoint = acceptsEndpoint && baseUrl.trim() !== "";
   // Whether this model cannot run without an endpoint: a keyless provider with
   // no key to use. Only then is the field a question with an Ollama address for
@@ -598,6 +613,7 @@ export function AddModel({
             : null;
   const canSubmit =
     provider !== undefined &&
+    canSubmitPricing &&
     model.trim() !== "" &&
     (chosenKey !== "" || keyOptional) &&
     modelIdIsWellFormed(provider.id, model.trim()) &&
@@ -629,6 +645,7 @@ export function AddModel({
         // All three, every time: the server compares them with what is stored
         // and writes only what differs, so what the form shows is what is saved.
         changes: {
+          ...(pricingChanged ? { custom_pricing: customPricing } : {}),
           ...(generationSettings ? { params } : {}),
           secret_id: chosenKey || null,
           base_url: customEndpoint ? baseUrl.trim() : null,
@@ -676,6 +693,7 @@ export function AddModel({
             )
           : baseLabel;
       const profile = await createProfile.mutateAsync({
+        ...(canManagePricing && customPricing !== null ? { custom_pricing: customPricing } : {}),
         label: label.trim() || automaticLabel,
         provider: provider.id,
         model: model.trim(),
@@ -711,6 +729,21 @@ export function AddModel({
   };
 
   const subscription = subscriptionFromChoice(providerId);
+  const saveSubscriptionPricing = async (profileId: string) => {
+    onCreationPendingChange?.(true);
+    setFailure(NO_FAILURE);
+    try {
+      const profile = await updateProfile.mutateAsync({
+        id: profileId,
+        changes: { custom_pricing: customPricing },
+      });
+      onCreated(profile);
+    } catch (error) {
+      setFailure(submitFailure(error, markable(false), tErrors));
+    } finally {
+      onCreationPendingChange?.(false);
+    }
+  };
   const showProvider = fixedProviderId === undefined || fixedProviderId === "subscription_accounts";
   if (subscription !== undefined)
     return (
@@ -724,8 +757,9 @@ export function AddModel({
         <SubscriptionModelForm
           key={subscription}
           provider={subscription}
+          customPricing={canManagePricing ? customPricing : undefined}
           initialModel={providerId === restoredProvider ? selected?.model : undefined}
-          disabled={disabled}
+          disabled={disabled || !canSubmitPricing}
           onCreated={onCreated}
           onPendingChange={onCreationPendingChange}
           providerField={
@@ -743,6 +777,31 @@ export function AddModel({
             )
           }
         />
+        {canManagePricing && (
+          <ModelPricing
+            value={customPricing}
+            automatic={null}
+            disabled={disabled}
+            onChange={(value) => {
+              setCustomPricing(value);
+              setFailure(NO_FAILURE);
+            }}
+          />
+        )}
+        {selected?.provider === "subscription_accounts" &&
+          providerId === restoredProvider &&
+          pricingChanged && (
+            <Button
+              type="button"
+              size="sm"
+              disabled={disabled || !canSubmitPricing || updateProfile.isPending}
+              onClick={() => void saveSubscriptionPricing(selected.id)}
+            >
+              <Save className="h-4 w-4" />
+              {t("updateModel")}
+            </Button>
+          )}
+        {failure.toast !== null && <p className="text-destructive text-xs">{failure.toast}</p>}
       </div>
     );
 
@@ -794,6 +853,7 @@ export function AddModel({
                     : {},
                 );
               setModel(next);
+              if (next !== model) setCustomPricing(null);
               setFailure(NO_FAILURE);
             }}
             options={suggestions}
@@ -1038,6 +1098,23 @@ export function AddModel({
         )}
       </ConnectionSettings>
 
+      {provider !== undefined && canManagePricing && (
+        <ModelPricing
+          value={customPricing}
+          automatic={
+            suggestions.find((entry) => entry.id === model.trim())?.automatic_pricing ??
+            (selected?.provider === providerId && selected.model === model.trim()
+              ? selected.automatic_pricing
+              : null)
+          }
+          disabled={disabled}
+          onChange={(value) => {
+            setCustomPricing(value);
+            setFailure(NO_FAILURE);
+          }}
+        />
+      )}
+
       {generationSettings && provider !== undefined && model.trim() !== "" && (
         <div ref={settingsFields}>
           <ProfileModelSettings
@@ -1080,17 +1157,20 @@ export function AddModel({
 
       {/* Said before the button rather than after the save: the change reaches
           every agent on this model, not only the one being built. */}
-      {editing && selected !== undefined && !endpointChanged && (
+      {editing && rebindLocked && (
+        <p className="text-muted-foreground text-xs">{t("pricedModelConnectionLocked")}</p>
+      )}
+      {editing && !rebindLocked && selected !== undefined && !endpointChanged && (
         <p className="text-muted-foreground text-xs">
           {t("updateModelHint", { label: selected.label })}
         </p>
       )}
 
-      {editing && endpointChanged && (
+      {editing && !rebindLocked && endpointChanged && (
         <p className="text-muted-foreground text-xs">{t("separateEndpointHint")}</p>
       )}
       <div className="flex flex-wrap items-center gap-2 pt-1">
-        {editing && endpointChanged && (
+        {editing && (endpointChanged || rebindLocked) && (
           <Button
             type="button"
             size="sm"
@@ -1108,7 +1188,7 @@ export function AddModel({
             {t("modelInUse")}
           </span>
         )}
-        {editing && (
+        {editing && !rebindLocked && (
           <Button
             type="button"
             size="sm"

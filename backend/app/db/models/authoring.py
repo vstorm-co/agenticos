@@ -184,8 +184,8 @@ class AuthoringRequest(Base):
     error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     """`error` as a code from `AuthoringFailure`; null on a request failed before codes."""
     error_params: Mapped[dict[str, int] | None] = mapped_column(JSONB, nullable=True)
-    estimate_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
-    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, default=Decimal(0))
+    estimate_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False, default=Decimal(0))
     run_ids: Mapped[list[uuid.UUID]] = mapped_column(
         ARRAY(PG_UUID(as_uuid=True)), nullable=False, default=list, server_default="{}"
     )

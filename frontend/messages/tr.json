@@ -7199,6 +7199,7 @@
     "notAChatModelHint": "{model} chat modeli değildir; metinden konuşma, transkripsiyon, görsel veya embedding içindir ve Agent bununla çalışamaz. Yayınlamadan önce chat modeli seçin.",
     "modelHasNoKeyHint": "Bu modelin key'i Vault'tan silinmiş; bu nedenle çalıştırılamaz. Model panelinden key ekleyin veya başka model seçin.",
     "updateModel": "Modeli güncelle",
+    "pricedModelConnectionLocked": "Özel fiyatlı bir modelin anahtarını veya uç noktasını değiştirmek için bütçe yönetimi izni gerekir.",
     "updateModelHint": "{label} için yeni key'i, endpoint'i veya API'yi kaydeder. Bu modeli kullanan her şey - tüm Agent'lar, koleksiyonlar ve zamanlanmış işler - yeni ayara geçer. Bunları olduğu gibi bırakmak için “Başka bir ad verin” seçip ayrı model ekleyin.",
     "notAChatModelRefused": "{model} chat modeli değil; Agent bu modelle çalışamaz. Chat modeli seçin.",
     "secretForDifferentService": "\"{name}\" key'i başka bir hizmet için. Bu yapılandırmaya ait bir key seçin.",
@@ -18603,6 +18604,17 @@
     "inProgress": "Devam ediyor",
     "unknown": "Veri yok",
     "otherStep": "Kurulum"
+  },
+  "modelPricing": {
+    "title": "Fiyatlandırma",
+    "automaticAvailable": "Milyon token başına USD cinsinden tahmini otomatik fiyatlar. Gerçek fiyat, kullanım kademelerine veya sağlayıcının bildirdiği ücrete bağlı olabilir.",
+    "automaticUnavailable": "Otomatik token fiyatları kullanılamıyor. Sağlayıcının bildirdiği maliyet, istek sonrasında kaydedilebilir.",
+    "input": "Girdi tokenları",
+    "output": "Çıktı tokenları",
+    "cache_read": "Önbellek okuma tokenları",
+    "cache_write": "Önbellek yazma tokenları",
+    "override": "Özel fiyatları kullan (milyon token başına USD)",
+    "cacheDefault": "Girdi fiyatını kullanmak için boş bırakın."
   },
   "evals": {
     "title": "Eval'ler",

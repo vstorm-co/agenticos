@@ -51,7 +51,7 @@ class PurgedRunSpend(Base, TimestampMixin):
     nobody asks for - and a coarser one could not answer either question.
     """
 
-    cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False)
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(38, 6), nullable=False)
     """To the same scale as `agent_runs.cost_usd`, because it is summed with it."""
 
     run_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

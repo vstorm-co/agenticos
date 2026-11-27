@@ -1006,6 +1006,7 @@
     "notAChatModelHint": "{model} is not a chat model - it is for text to speech, transcription, images or embeddings, and an agent cannot run on it. Choose a chat model before publishing.",
     "modelHasNoKeyHint": "This model's key was deleted from the vault, so nothing can run on it. Give it a key in the model panel, or choose another model.",
     "updateModel": "Update model",
+    "pricedModelConnectionLocked": "Changing the key or endpoint for a model with custom prices requires budgeting permission.",
     "updateModelHint": "Saves the new key, endpoint or API on {label}. Everything that uses this model switches with it: every agent, and any collection or scheduled work on it. To leave those as they are, choose “Name it something else” and add a separate model.",
     "notAChatModelRefused": "{model} is not a chat model - an agent cannot run on it. Choose a chat model.",
     "secretForDifferentService": "Key \"{name}\" is for a different service. Choose a key for this configuration.",
@@ -22328,6 +22329,17 @@
     "inProgress": "In progress",
     "unknown": "Not available",
     "otherStep": "Setup"
+  },
+  "modelPricing": {
+    "title": "Pricing",
+    "automaticAvailable": "Indicative automatic rates in USD per million tokens. The actual rate may depend on usage tiers or a provider-reported bill.",
+    "automaticUnavailable": "Automatic token prices are unavailable. A provider-reported cost can still be recorded after a request.",
+    "input": "Input tokens",
+    "output": "Output tokens",
+    "cache_read": "Cache read tokens",
+    "cache_write": "Cache write tokens",
+    "override": "Use custom prices (USD per million tokens)",
+    "cacheDefault": "Leave empty to use the input price."
   },
   "portability": {
     "exportTitle": "Export agent",

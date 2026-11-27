@@ -5,6 +5,7 @@ key is the last thing that should leak across tenants, and a forgotten filter
 must not look like an ordinary call (see tests/test_org_scope_regression.py).
 """
 
+from collections.abc import Collection
 from typing import Any
 from uuid import UUID
 
@@ -69,6 +70,24 @@ async def list_profiles(db: AsyncSession, *, organization_id: UUID) -> list[Mode
     return list(result.scalars().all())
 
 
+async def custom_priced_secret_ids(
+    db: AsyncSession, *, organization_id: UUID, secret_ids: Collection[UUID]
+) -> set[UUID]:
+    """Keys used by at least one custom-priced profile in this organization."""
+    if not secret_ids:
+        return set()
+    result = await db.scalars(
+        select(ModelProfile.secret_id)
+        .where(
+            ModelProfile.organization_id == organization_id,
+            ModelProfile.secret_id.in_(secret_ids),
+            ModelProfile.custom_pricing.is_not(None),
+        )
+        .distinct()
+    )
+    return {secret_id for secret_id in result if secret_id is not None}
+
+
 async def oldest_profile(db: AsyncSession, *, organization_id: UUID) -> ModelProfile | None:
     """The organization's first model profile, by creation and then id.
 
@@ -99,6 +118,7 @@ async def create_profile(
     fallback_profile_ids: list[str] | None = None,
     context_length: int | None = None,
     runs_without_key: bool = False,
+    custom_pricing: dict[str, str | None] | None = None,
 ) -> ModelProfile:
     profile = ModelProfile(
         organization_id=organization_id,
@@ -113,6 +133,7 @@ async def create_profile(
         fallback_profile_ids=fallback_profile_ids or [],
         context_length=context_length,
         runs_without_key=runs_without_key,
+        custom_pricing=custom_pricing,
     )
     db.add(profile)
     await db.flush()

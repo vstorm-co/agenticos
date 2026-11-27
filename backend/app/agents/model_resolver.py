@@ -75,6 +75,7 @@ from app.core.secret_kinds import (
     SecretKind,
     SecretValue,
 )
+from app.schemas.token_pricing import TokenPricing
 
 if TYPE_CHECKING:
     from pydantic_ai.providers.openai_codex import OpenAICodexCredentialSource
@@ -603,6 +604,8 @@ class ResolvedCredential:
     routing: Mapping[str, str | None] = field(default_factory=dict)
     # Personal Copilot calls validate the connection again before each request.
     token_source: Callable[[], Awaitable[str]] | None = field(default=None, repr=False)
+    custom_pricing: TokenPricing | None = None
+    profile_id: UUID | None = None
 
 
 def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provider[Any]:
@@ -802,14 +805,18 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
         BadRequestError: If the provider has no catalog entry.
     """
     model_client = _build_model(credential, model)
-    if credential.provider == "llmtr":
+    if credential.provider == "llmtr" and credential.custom_pricing is None:
         from app.agents.llmtr import LlmtrModel
 
         return LlmtrModel(model_client)
     if credential.provider == "stav":
         from app.agents.stav_cost import StavCostModel
 
-        return StavCostModel(model_client)
+        model_client = StavCostModel(model_client)
+    if credential.custom_pricing is not None:
+        from app.agents.profile_pricing import ProfilePricingModel
+
+        return ProfilePricingModel(model_client, credential.custom_pricing, credential.profile_id)
     return model_client
 
 

@@ -49,7 +49,7 @@ class SystemAgentProfile(Base, TimestampMixin):
     )
     """The model the role runs on. Chosen, never defaulted: the role spends money."""
 
-    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(38, 6), nullable=True)
     """This role's cap per calendar month in this organization; null is no cap of its own."""
 
     __table_args__ = (
