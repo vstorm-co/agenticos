@@ -28,7 +28,7 @@ import json
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import JsonValue, TypeAdapter
 from pydantic_ai import RunContext
@@ -53,6 +53,10 @@ from app.agents.tool_errors import (
     nested_tool_error,
     tool_error,
 )
+from app.db.models.intercepted_tool_call import InterceptionOutcome
+
+if TYPE_CHECKING:
+    from app.agents.isolation import RunIsolation
 
 CODE_TOOL = "run_code"
 """The one tool code mode offers the model, as `CodeMode` names it."""
@@ -123,9 +127,16 @@ def code_mode(
 
 @dataclass
 class CodeCalls(AbstractCapability[AgentDeps]):
-    """Keeps each `run_code` script, and every call it made, on the run's manifest."""
+    """Keeps each `run_code` script, and every call it made, on the run's manifest.
+
+    Built outside the approval gate and the isolation guard, so it sees every call
+    the script asks for - including one either of them answers without running it.
+    A call isolation answered is recorded as `held` (with its reason), `replayed` or
+    `divergent`, never as `returned`.
+    """
 
     recorder: RunRecorder
+    isolation: RunIsolation | None = None
 
     async def wrap_tool_execute(
         self,
@@ -153,7 +164,7 @@ class CodeCalls(AbstractCapability[AgentDeps]):
             token = _script.set(_Running(script, asyncio.Semaphore(CONCURRENT_CALLS)))
             try:
                 with capture_tool_errors() as errors:
-                    return await handler(args)
+                    result = await handler(args)
             except ToolRunStopped as stopped:
                 raise stopped.error from None
             except RUN_STOP_ERRORS:
@@ -168,6 +179,10 @@ class CodeCalls(AbstractCapability[AgentDeps]):
                 if failure is None:
                     raise
                 raise ToolFailed(failure) from exc
+            else:
+                if self._answered(call.tool_call_id)["status"] == "replayed":
+                    self._forget(script)
+                return result
             finally:
                 _script.reset(token)
         running = _script.get()
@@ -196,8 +211,61 @@ class CodeCalls(AbstractCapability[AgentDeps]):
         except CodeApprovalPause:
             made["status"] = "awaiting_approval"
             raise
-        made["status"] = "returned"
+        except Exception:
+            # A recorded call that failed is raised again on replay: it was still
+            # answered from the recording, not run.
+            answered = self._answered(call.tool_call_id)
+            if answered["status"] != "returned":
+                made.update(answered)
+            raise
+        made.update(self._answered(call.tool_call_id))
         return result
+
+    def _forget(self, script: dict[str, Any]) -> None:
+        """Drop a script isolation answered whole from a recording: it never ran."""
+        self.recorder.code_runs[:] = [run for run in self.recorder.code_runs if run is not script]
+
+    def _answered(self, tool_call_id: str) -> dict[str, Any]:
+        """How a call that came back was answered: it ran, or isolation answered it."""
+        caught = next(
+            (
+                held
+                for held in reversed(self.isolation.intercepted if self.isolation else [])
+                if held.tool_call_id == tool_call_id
+            ),
+            None,
+        )
+        if caught is None:
+            return {"status": "returned"}
+        if caught.outcome == InterceptionOutcome.BLOCKED:
+            return {"status": "held", "reason": caught.reason}
+        return {"status": caught.outcome.value}
+
+
+@dataclass
+class CodeCallArguments(AbstractCapability[AgentDeps]):
+    """Writes onto a script call's manifest entry the arguments it actually ran with.
+
+    Built inside the approval gate, where `CodeCalls` - outside it, to see the calls
+    the gate holds - cannot be: an approval may replace a call's arguments, and the
+    entry should say what ran, not what the script first asked for.
+    """
+
+    async def wrap_tool_execute(
+        self,
+        ctx: RunContext[AgentDeps],
+        *,
+        call: ToolCallPart,
+        tool_def: ToolDefinition,
+        args: dict[str, Any],
+        handler: Callable[[dict[str, Any]], Awaitable[Any]],
+    ) -> Any:
+        running = _script.get()
+        if running is not None and tool_def.name != CODE_TOOL:
+            for made in running.record["calls"]:
+                if made.get("tool_call_id") == call.tool_call_id:
+                    made["args"] = _preview(args)
+        return await handler(args)
 
 
 def current_code_record() -> dict[str, JsonValue]:

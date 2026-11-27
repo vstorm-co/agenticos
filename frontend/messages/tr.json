@@ -4709,6 +4709,7 @@
       "codeRuns": "{count, plural, =1 {1 betik} other {# betik}}",
       "codeRunCalls": "{count, plural, =0 {Hiç araç çağırmadı} =1 {1 araç çağrısı yaptı} other {# araç çağrısı yaptı}}",
       "codeRunOmittedCalls": "{count, plural, =1 {ve listelenmeyen 1 çağrı daha} other {ve listelenmeyen # çağrı daha}}",
+      "codeCallState": "{status, select, held {{reason, select, writes {çalıştırılmadı (veri yazacaktı)} external {çalıştırılmadı (dışarıya ulaşacaktı)} needs_approval {çalıştırılmadı (onay gerekiyor)} other {çalıştırılmadı}}} replayed {kayıttan} divergent {kayıtta yok} other {Bilinmiyor}}",
       "cacheBust": "önbellek atlandı",
       "cacheExpired": "önbellek süresi doldu",
       "cacheBustDetail": "Önbellekteki {missed, number} token okunmadı; promptun öncesindeki bir şey değişti.",

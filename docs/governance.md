@@ -1388,6 +1388,8 @@ Questions, delegations and tools whose call is what the person sees (drafts,
 charts, drawings) stay native. Sessions that ask before every tool and routine
 runs keep their native-tool policy. The run view lists each script once, with
 its calls and their approval/execution status across resumptions.
+In an isolated run it also says which calls were held (and why), answered from
+the recording, or not in it.
 
 ### Reporting
 

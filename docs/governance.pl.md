@@ -1,5 +1,5 @@
 ---
-source_sha: "6ee0a9347a24"
+source_sha: "a7aacd6a81ea"
 ---
 
 # Governance { #governance }
@@ -1477,6 +1477,8 @@ robocze, wykresy, rysunki) pozostają zwykłymi narzędziami. Sesje pytające pr
 każdym narzędziem i runy rutyn zachowują dotychczasową politykę narzędzi natywnych.
 Widok runu pokazuje każdy skrypt raz, wraz z wywołaniami i ich stanem zgody lub
 wykonania po kolejnych wznowieniach.
+W izolowanym runie pokazuje też, które wywołania zostały wstrzymane (i dlaczego),
+wzięte z nagrania albo w nim nieobecne.
 
 ### Raportowanie { #reporting }
 

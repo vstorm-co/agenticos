@@ -1,5 +1,5 @@
 ---
-source_sha: "6ee0a9347a24"
+source_sha: "a7aacd6a81ea"
 ---
 
 # Governance { #governance }
@@ -1485,6 +1485,8 @@ gráficos, dibujos) siguen siendo nativas. Las sesiones que preguntan antes de
 cada herramienta y los runs de rutinas mantienen su política de herramientas
 nativas. La vista del run muestra cada script una sola vez, con sus llamadas y
 su estado de aprobación o ejecución a través de las reanudaciones.
+En un run aislado también indica qué llamadas se retuvieron (y por qué), cuáles se
+respondieron desde la grabación y cuáles no estaban en ella.
 
 ### Informes { #reporting }
 

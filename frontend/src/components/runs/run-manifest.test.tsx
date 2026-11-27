@@ -107,6 +107,33 @@ describe("what the model was told", () => {
     expect(screen.getByText('{"n": 2}')).toBeInTheDocument();
   });
 
+  it("says how an isolated run answered each call a script made without running it", () => {
+    serve({
+      manifest: record({
+        code_runs: [
+          {
+            tool_call_id: "c1",
+            code: "await crm_create(name='Ada')",
+            calls: [
+              { tool: "crm_find", args: "{}", status: "returned" },
+              { tool: "web_fetch", args: "{}", status: "held", reason: "external" },
+              { tool: "crm_create", args: "{}", status: "held", reason: "writes" },
+              { tool: "lookup", args: "{}", status: "replayed" },
+              { tool: "charge", args: "{}", status: "divergent" },
+            ],
+          },
+        ],
+      }),
+    });
+    renderManifest();
+
+    expect(screen.getByText("not executed (would have reached outside)")).toBeInTheDocument();
+    expect(screen.getByText("not executed (would have written data)")).toBeInTheDocument();
+    expect(screen.getByText("from recording")).toBeInTheDocument();
+    expect(screen.getByText("not in recording")).toBeInTheDocument();
+    expect(screen.getAllByText(/not executed|recording/)).toHaveLength(4);
+  });
+
   it("counts the calls a long script made past the listed ones", () => {
     serve({
       manifest: record({

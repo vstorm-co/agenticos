@@ -127,13 +127,17 @@ class ManifestCodeCall(BaseSchema):
     Attributes:
         tool: The tool it called.
         args: Its arguments, as JSON, cut to a preview.
-        status: Whether the call returned, failed or is waiting for approval.
+        status: Whether the call returned, failed or is waiting for approval - or, in
+            an isolated run, was held, answered from a recording or not in it.
+        reason: Why a `held` call was not run: `writes`, `external` or
+            `needs_approval`.
         tool_call_id: Stable nested-call identity, absent in older manifests.
     """
 
     tool: str
     args: str
-    status: Literal["returned", "failed", "awaiting_approval"]
+    status: Literal["returned", "failed", "awaiting_approval", "held", "replayed", "divergent"]
+    reason: str | None = Field(default=None, exclude_if=lambda value: value is None)
     tool_call_id: str | None = Field(default=None, exclude_if=lambda value: value is None)
 
 

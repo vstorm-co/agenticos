@@ -3238,6 +3238,7 @@
       "codeRuns": "{count, plural, one {1 skrypt} few {# skrypty} many {# skryptów} other {# skryptu}}",
       "codeRunCalls": "{count, plural, =0 {Nie wywołał żadnego narzędzia} one {Wywołał 1 narzędzie} few {Wywołał # narzędzia} many {Wywołał # narzędzi} other {Wywołał # narzędzia}}",
       "codeRunOmittedCalls": "{count, plural, one {i jeszcze 1 wywołanie, niewymienione} few {i jeszcze # wywołania, niewymienione} many {i jeszcze # wywołań, niewymienionych} other {i jeszcze # wywołania, niewymienione}}",
+      "codeCallState": "{status, select, held {{reason, select, writes {nie wykonane (zapisałoby dane)} external {nie wykonane (sięgnęłoby poza wdrożenie)} needs_approval {nie wykonane (wymaga zatwierdzenia)} other {nie wykonane}}} replayed {z nagrania} divergent {brak w nagraniu} other {Nieznany}}",
       "cacheBust": "cache zerwany",
       "cacheExpired": "cache wygasł",
       "cacheBustDetail": "{missed, number} tokenów z cache nieodczytanych z cache - coś przed nimi w prompcie się zmieniło",

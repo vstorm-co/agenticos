@@ -88,7 +88,7 @@ from app.agents.capabilities.system_reminders import (
 )
 from app.agents.capabilities.tool_search import ConfiguredToolSearch, ToolSearchConfig
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, web_reach
-from app.agents.code_mode import CodeCalls, code_mode
+from app.agents.code_mode import CodeCallArguments, CodeCalls, code_mode
 from app.agents.computer_on_use import REQUEST_COMPUTER_ACCESS, RequestComputerOnUse
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
@@ -547,6 +547,9 @@ def build_agent(
         tool_ids=approval_tool_ids(spec),
         asking_tool_names=asking,
     )
+    # Off unless the spec asks, and never under a session that asks before every
+    # tool: nothing could be folded into a script there.
+    scripts_run = spec.code_mode.enabled and not gate_every_tool and routine_action_check is None
     capabilities: list[Any] = [
         # First, so every hook after it - the approval gate and the guardrails
         # among them - sees the arguments the tool will actually be called with.
@@ -563,6 +566,9 @@ def build_agent(
         # request from that history must find them there.
         Steering(),
         budget,
+        # Outside the isolation guard and the approval gate: the manifest lists every
+        # call a script asks for, including those the two answer without running.
+        *([CodeCalls(recorder=recorder, isolation=isolation)] if scripts_run else []),
         *(
             ()
             if isolation is None
@@ -604,8 +610,6 @@ def build_agent(
             else []
         ),
         *_reviewers(spec, reviewer_models or {}, recorder),
-        # Off unless the spec asks, and never under a session that asks before
-        # every tool: nothing could be folded into a script there.
         *(
             [
                 code_mode(
@@ -613,9 +617,9 @@ def build_agent(
                     asking=asking,
                     max_tool_calls=spec.code_mode.max_tool_calls,
                 ),
-                CodeCalls(recorder=recorder),
+                CodeCallArguments(),
             ]
-            if spec.code_mode.enabled and not gate_every_tool and routine_action_check is None
+            if scripts_run
             else []
         ),
         # Every agent: a moved cache prefix costs the most on exactly the long,

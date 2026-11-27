@@ -25,9 +25,9 @@ from app.agents.approval import (
 )
 from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.code_checkpoint import CodeCheckpoint
-from app.agents.code_mode import CodeCalls, code_mode
+from app.agents.code_mode import CodeCallArguments, CodeCalls, code_mode
 from app.agents.deps import AgentDeps
-from app.agents.manifest import RunRecorder
+from app.agents.manifest import RunRecorder, as_payload
 from app.agents.mcp import NEEDS_APPROVAL
 from app.agents.tool_errors import ToolErrors
 
@@ -193,8 +193,9 @@ async def test_an_unrestorable_checkpoint_never_runs_an_approved_tool(damage: st
 class _Script:
     """A fresh agent/worker and JSON-round-tripped state for every segment."""
 
-    def __init__(self, code: str, *, sequential: bool = False) -> None:
+    def __init__(self, code: str, *, sequential: bool = False, built_order: bool = False) -> None:
         self.code = code
+        self.built_order = built_order
         self.effects: list[int] = []
         self.reads: list[int] = []
         self.active = 0
@@ -269,12 +270,26 @@ class _Script:
             FunctionModel(self.respond),
             output_type=str | DeferredToolRequests,
             toolsets=[self.tools],
-            capabilities=[
-                ToolErrors(),
-                self.gate,
-                code_mode(approval_required=frozenset(), asking=frozenset(), max_tool_calls=100),
-                CodeCalls(self.recorder),
-            ],
+            capabilities=(
+                [
+                    ToolErrors(),
+                    CodeCalls(self.recorder),
+                    self.gate,
+                    code_mode(
+                        approval_required=frozenset(), asking=frozenset(), max_tool_calls=100
+                    ),
+                    CodeCallArguments(),
+                ]
+                if self.built_order
+                else [
+                    ToolErrors(),
+                    self.gate,
+                    code_mode(
+                        approval_required=frozenset(), asking=frozenset(), max_tool_calls=100
+                    ),
+                    CodeCalls(self.recorder),
+                ]
+            ),
         )
         result = await agent.run(
             "work" if not self.history else None,
@@ -438,6 +453,25 @@ async def test_delegate_checkpoint_identity_and_frozen_approval_arguments(
     assert (await script.step()).output == "done"
     assert script.effects == [99]
     assert script.requests == 2
+
+
+@pytest.mark.security
+async def test_the_run_view_shows_the_arguments_an_approval_let_run() -> None:
+    """Built as the factory builds it, the manifest sits outside the gate, which runs the
+    approved arguments rather than the ones the script asked with."""
+    script = _Script("await write(i=1)", built_order=True)
+    assert isinstance((await script.step()).output, DeferredToolRequests)
+    (parked,) = as_payload(script.recorder)["code_runs"][0]["calls"]
+    assert (parked["args"], parked["status"]) == ('{"i": 1}', "awaiting_approval")
+    (pending,) = script.pending
+    script.decisions[pending] = ApprovalGranted({"i": 99})
+    script.pending.clear()
+
+    assert (await script.step()).output == "done"
+
+    assert script.effects == [99]
+    (ran,) = as_payload(script.recorder)["code_runs"][0]["calls"]
+    assert (ran["args"], ran["status"]) == ('{"i": 99}', "returned")
 
 
 def test_a_resumed_manifest_replaces_the_partial_script_without_losing_other_scripts() -> None:
