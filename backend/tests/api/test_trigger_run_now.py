@@ -74,50 +74,17 @@ async def test_running_now_is_accepted_rather_than_answered_with_the_finished_ru
     assert response.json()["activation_id"] == str(activation_id)
 
 
-async def test_routine_reviews_and_revocations_keep_the_path_and_review_token():
-    from app.schemas.routine_actions import RoutineActionOptions
-    from app.schemas.routine_sources import RoutineSourceReview
+async def test_the_access_review_keeps_its_path_and_review_token():
+    from app.schemas.routine_access import RoutineAccessReview, RoutineCapabilityToolOption
 
     trigger_id, version_id = uuid4(), uuid4()
-    action_review = RoutineActionOptions(can_waive=True, review_token="a" * 64, items=[])
-    sources = RoutineSourceReview(
+    review = RoutineAccessReview(
+        mode="reviewed",
+        current=True,
         review_token="b" * 64,
         version_id=version_id,
-        current=True,
-        resources=[],
-        accounts=[],
-        unavailable_sources=[],
-    )
-    service = MagicMock(
-        action_options=AsyncMock(return_value=action_review),
-        set_action_consents=AsyncMock(return_value=action_review),
-        source_options=AsyncMock(return_value=sources),
-        set_source_consents=AsyncMock(return_value=sources),
-    )
-    root = f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}"
-    async with _client(service) as client:
-        actions = await client.get(root + "/action-consents")
-        revoked = await client.put(
-            root + "/action-consents", json={"actions": [], "review_token": "a" * 64}
-        )
-        review = await client.get(root + "/sources")
-        approved = await client.put(root + "/sources", json={"review_token": "b" * 64})
-        invalid = await client.put(root + "/sources", json={"review_token": "invalid"})
-    assert actions.json()["items"] == revoked.json()["items"] == []
-    assert review.json()["version_id"] == str(version_id)
-    assert approved.json()["current"] is True
-    assert invalid.status_code == 422
-    assert service.set_action_consents.await_args.args[1:3] == (_AGENT_ID, trigger_id)
-    assert service.set_action_consents.await_args.args[3].actions == []
-    assert service.set_source_consents.await_args.args[3].review_token == "b" * 64
-
-
-async def test_routine_tool_settings_keep_the_path_and_refuse_a_release():
-    from app.schemas.routine_tools import RoutineCapabilityToolOption, RoutineToolOptions
-
-    trigger_id = uuid4()
-    options = RoutineToolOptions(
-        items=[
+        sources=[],
+        tools=[
             RoutineCapabilityToolOption(
                 capability_id="sandbox",
                 capability_name="Sandbox",
@@ -125,26 +92,59 @@ async def test_routine_tool_settings_keep_the_path_and_refuse_a_release():
                 name="execute",
                 effect=True,
                 agent="free",
-                setting="off",
+                setting="allow",
             )
-        ]
+        ],
+        has_delegates=False,
+        delegates="ask",
+        can_allow=True,
+        can_trust=False,
+        trust_blocked_reason="organization",
     )
     service = MagicMock(
-        tool_options=AsyncMock(return_value=options),
-        set_tool_settings=AsyncMock(return_value=options),
+        access=AsyncMock(return_value=review), set_access=AsyncMock(return_value=review)
     )
-    root = f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}/tools"
-    off = {"capability_id": "sandbox", "tool_id": "execute", "setting": "off"}
+    root = f"/api/v1/agents/{_AGENT_ID}/triggers/{trigger_id}"
+    allow = {"capability_id": "sandbox", "tool_id": "execute", "setting": "allow"}
     async with _client(service) as client:
-        listed = await client.get(root)
-        saved = await client.put(root, json={"settings": [off]})
-        released = await client.put(root, json={"settings": [{**off, "setting": "free"}]})
-    assert listed.json()["items"][0]["setting"] == "off"
-    assert saved.status_code == 200
-    assert service.set_tool_settings.await_args.args[1:3] == (_AGENT_ID, trigger_id)
-    assert service.set_tool_settings.await_args.args[3].settings[0].setting == "off"
-    # A routine can only narrow: there is no value that runs a tool freely.
-    assert released.status_code == 422
+        listed = await client.get(root + "/access")
+        saved = await client.put(
+            root + "/access",
+            json={"review_token": "b" * 64, "mode": "trust_agent", "tools": [allow]},
+        )
+        invalid = await client.put(root + "/access", json={"review_token": "invalid"})
+        removed_mode = await client.put(
+            root + "/access", json={"review_token": "b" * 64, "mode": "follow_agent"}
+        )
+        unknown_value = await client.put(
+            root + "/access",
+            json={"review_token": "b" * 64, "tools": [{**allow, "setting": "free"}]},
+        )
+        stray_field = await client.put(
+            root + "/access", json={"review_token": "b" * 64, "action_mode": "agent"}
+        )
+        removed = [
+            (await client.get(root + path)).status_code
+            for path in ("/sources", "/action-consents", "/tools")
+        ]
+    assert listed.status_code == saved.status_code == 200
+    assert listed.json()["version_id"] == str(version_id)
+    assert listed.json()["tools"][0]["setting"] == "allow"
+    assert listed.json()["trust_blocked_reason"] == "organization"
+    assert service.access.await_args.args[1:3] == (_AGENT_ID, trigger_id)
+    assert service.set_access.await_args.args[1:3] == (_AGENT_ID, trigger_id)
+    sent = service.set_access.await_args.args[3]
+    assert (sent.review_token, sent.mode, sent.delegates) == ("b" * 64, "trust_agent", "ask")
+    assert sent.tools[0].setting == "allow"
+    assert (
+        invalid.status_code
+        == removed_mode.status_code
+        == unknown_value.status_code
+        == stray_field.status_code
+        == 422
+    )
+    assert service.set_access.await_count == 1
+    assert removed == [404, 404, 404]
 
 
 async def test_attempt_history_is_typed_bounded_and_delegates_resource_access():

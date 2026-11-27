@@ -173,6 +173,12 @@ export function wordedSummary(params: Record<string, string>, t: Translate): str
         detail: t(`kind.routineDetail.${code}`, { failures: Number(v("failures")) }),
       });
     }
+    case "routine_access_expanded":
+      return t("kind.routineAccessExpanded", {
+        named: named(v("routine_name")),
+        routine: v("routine_name"),
+        sources: v("sources"),
+      });
     case "capability_requested":
       return t("kind.capabilityRequested", {
         requester: v("requester_name"),

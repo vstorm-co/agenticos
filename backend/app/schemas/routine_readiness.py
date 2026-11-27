@@ -16,6 +16,7 @@ RoutineBlockerCode = Literal[
     "sources_review",
     "routine_changed",
     "platform_identity",
+    "trust_not_allowed",
     "awaiting_approval",
     "awaiting_answer",
     "budget_exhausted",
@@ -27,14 +28,14 @@ class RoutineBlocker(BaseSchema):
     code: RoutineBlockerCode
     severity: Literal["blocked", "attention"] = Field(
         description="`blocked`: the next activation will not start a run. "
-        "`attention`: human action is needed now or if an unconsented action is used."
+        "`attention`: human action is needed now or when a tool that asks is used."
     )
     run_id: UUID | None = Field(
         default=None, description="The parked run to open, for `awaiting_*` blockers."
     )
     count: int | None = Field(
         default=None,
-        description="How many actions still need approval, for `actions_need_approval`.",
+        description="How many tools the routine makes ask, for `actions_need_approval`.",
     )
 
 

@@ -7,61 +7,19 @@ from uuid import uuid4
 
 import pytest
 
-from app.agents.spec import AgentSpec, SubagentRef
-from app.core.exceptions import BadRequestError
 from app.core.permissions import AuthContext
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
 
-@pytest.mark.parametrize("change", ["cycle", "missing", "wrong_agent", "too_many"])
-async def test_routine_instruction_review_bounds_delegate_graphs(monkeypatch, change):
-    from app.services import routine_actions
-
-    refs = [
-        SubagentRef(agent_id=uuid4(), agent_version_id=uuid4())
-        for _ in range(65 if change == "too_many" else 1)
-    ]
-    spec = AgentSpec(name="Root", subagents=refs, capabilities=[{"id": "subagents"}])
-
-    async def version(_db, identifier, **kwargs):
-        ref = next(ref for ref in refs if ref.agent_version_id == identifier)
-        if change == "missing":
-            return None
-        return SimpleNamespace(
-            agent_id=uuid4() if change == "wrong_agent" else ref.agent_id,
-            spec=AgentSpec(
-                name="Child",
-                subagents=refs if change == "cycle" else [],
-                capabilities=[{"id": "subagents"}],
-            ).model_dump(mode="json"),
-        )
-
-    read = AsyncMock(side_effect=version)
-    monkeypatch.setattr(routine_actions.agent_repo, "get_version", read)
-    if change == "cycle":
-        assert (
-            await routine_actions.instruction_fingerprint(
-                AsyncMock(), organization_id=uuid4(), spec=spec, project_id=None
-            )
-            is None
-        )
-        assert read.await_count == 1
-    else:
-        with pytest.raises(BadRequestError):
-            await routine_actions.instruction_fingerprint(
-                AsyncMock(), organization_id=uuid4(), spec=spec, project_id=None
-            )
-
-
 def test_inbox_delivery_changes_the_reviewed_routine_intent():
     from app.db.models.agent_trigger import AgentTrigger
-    from app.services.routine_actions import action_intent
+    from app.services.routine_sources import routine_intent
 
     trigger = AgentTrigger(prompt="Check", result_mode="report")
-    original = action_intent(trigger)
+    original = routine_intent(trigger)
     trigger.result_mode = "inbox"
-    assert action_intent(trigger) != original
+    assert routine_intent(trigger) != original
 
 
 async def test_missing_notifications_fail_a_claim_instead_of_attempting_delivery(monkeypatch):
@@ -258,6 +216,39 @@ async def test_matching_mcp_account_without_reviewed_tools_cannot_lend_authority
     )
     with pytest.raises(RoutineSourcesRequired):
         await authority._mcp_in(AsyncMock(), McpToolOrigin(connection, identity, "write"))
+
+
+@pytest.mark.parametrize("change", ["endpoint", "generation", "prefix", "unreviewed"])
+async def test_an_mcp_call_from_another_account_than_reviewed_is_refused(change: str):
+    """The run reaches only the identity its admission recorded: a call naming a
+    different endpoint, authorization or prefix - or no recorded identity - stops."""
+    from dataclasses import replace
+
+    from app.agents.mcp import McpSourceIdentity, McpToolOrigin
+    from app.core.exceptions import AuthorizationError
+    from app.services.routine_authority import RoutineAuthority
+
+    connection = uuid4()
+    reviewed = McpSourceIdentity(
+        endpoint_hash="a" * 64, authorization_generation=uuid4(), tool_prefix="source"
+    )
+    called = {
+        "endpoint": replace(reviewed, endpoint_hash="b" * 64),
+        "generation": replace(reviewed, authorization_generation=uuid4()),
+        "prefix": replace(reviewed, tool_prefix="other"),
+        "unreviewed": reviewed,
+    }[change]
+    authority = RoutineAuthority(
+        routine_id=uuid4(),
+        organization_id=uuid4(),
+        user_id=uuid4(),
+        root_agent_id=uuid4(),
+        role="owner",
+        acts_as_creator=False,
+        mcp_sources={} if change == "unreviewed" else {connection: reviewed},
+    )
+    with pytest.raises(AuthorizationError):
+        await authority._mcp_in(AsyncMock(), McpToolOrigin(connection, called, "write"))
 
 
 async def test_watch_authority_does_not_apply_a_trigger_project_binding():

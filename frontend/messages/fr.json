@@ -5974,8 +5974,8 @@
         "body": "À côté des notes, les agents consignent des faits, des préférences et des décisions avec leur origine. Corrigez-en un avec vos propres mots, à partir d’une date, et l’ancienne version reste dans l’historique ; ou retirez-le de l’usage."
       },
       "routine-access": {
-        "title": "Vérifier l’accès de la routine",
-        "body": "Utilisez le bouclier sur votre routine pour vérifier ses comptes et ressources sources, puis choisissez séparément les éventuelles exceptions d’actions permanentes."
+        "title": "Accès de la routine",
+        "body": "Utilisez le bouclier sur votre routine pour choisir quels outils s’exécutent librement, demandent d’abord ou restent désactivés, et pour vérifier les sources qu’elle atteint."
       },
       "project-tracking": {
         "title": "Garder le projet sur la bonne voie",
@@ -9966,7 +9966,13 @@
         }
       },
       "starterAgentMissing": "Ce rôle ne fait rien pour l’instant : l’agent de démarrage AgenticOS sous lequel il est enregistré est manquant, non publié ou renommé. Publiez-le à nouveau sous le handle agenticos."
-    }
+    },
+    "routineTrust": "Les routines peuvent faire confiance à leur agent",
+    "routineTrustDescription": "Indique si une routine peut utiliser les futurs outils et sources de son agent sans que son créateur les vérifie à nouveau.",
+    "routineTrustHint": "Lorsque ceci est activé, une personne autorisée à décider des approbations peut laisser une routine planifiée suivre son agent : les comptes de l’organisation, outils et sources que l’agent obtient plus tard sont utilisés sans nouvelle vérification. Les comptes personnels doivent toujours être vérifiés, et le créateur est averti quand l’accès s’étend. Désactivé par défaut.",
+    "routineTrustAllowed": "Les routines peuvent désormais faire confiance à leur agent",
+    "routineTrustForbidden": "Les routines ne peuvent plus faire confiance à leur agent",
+    "routineTrustFailed": "Impossible de modifier si les routines peuvent faire confiance à leur agent"
   },
   "theme": {
     "darkMode": "Mode sombre",
@@ -10203,9 +10209,7 @@
     "option": "Couleur {n}"
   },
   "triggers": {
-    "setupReviewTitle": "Vérifier l’accès de la routine",
     "setupReviewDescription": "La routine est enregistrée et en pause. Vérifiez ses sources et choisissez quelles actions peuvent s’exécuter sans demander. Enregistrez une fois pour l’activer, ou terminez plus tard pour la laisser en pause.",
-    "enableRoutine": "Activer la routine",
     "finishLater": "Terminer plus tard",
     "stopWaitingRun": "Arrêter le run en attente",
     "deliveryUnavailable": "Dernière réponse indisponible dans le chat",
@@ -10527,57 +10531,11 @@
     "endsAtLabel": "Se termine à (heure de l’appareil)",
     "endsAtHint": "Laissez vide pour exécuter jusqu’à l’arrêt. Cette heure utilise {zone}, indépendamment du fuseau de la planification.",
     "endsAtInvalid": "Choisissez une heure future valide, ou effacez le champ pour supprimer la fin.",
-    "actionConsents": {
-      "personalAccount": "{name} · votre compte",
-      "organizationAccount": "{name} · compte de l’organisation",
-      "title": "Consentement aux actions",
-      "description": "Les actions d’une routine demandent une approbation par défaut. N’autorisez à s’exécuter sans demander que les actions listées. Le consentement s’applique à cette version publiée et à cette configuration de routine ; les approbations exigées par l’agent s’appliquent toujours. Chaque action MCP ne s’applique qu’au compte nommé.",
-      "retry": "Réessayer",
-      "empty": "Cette version n’a aucune action éligible à autoriser ici.",
-      "revokeAll": "Tout révoquer",
-      "save": "Enregistrer le consentement",
-      "search": "Rechercher des actions",
-      "selectGroup": "Sélectionner les actions éligibles dans {name}",
-      "noMatches": "Aucune action ne correspond à votre recherche.",
-      "changed": {
-        "version": "La version publiée de l’agent a changé. Revoyez ses actions.",
-        "intent": "Le travail ou la destination de la routine a changé. Revoyez ses actions.",
-        "instructions": "Les instructions de la skill, du contexte ou du projet ont changé. Revoyez ses actions.",
-        "actions": "Certaines actions sélectionnées auparavant sont indisponibles, exigent une approbation ou ont une autorisation de compte différente. Elles ne sont pas resélectionnées."
-      },
-      "capabilitiesSection": "Capabilities",
-      "groupCount": "{selected} sur {total}",
-      "useAgent": "Utiliser les paramètres de l’agent",
-      "useAgentHint": "Sélectionne exactement les actions que cet agent exécute déjà sans demander dans un chat, en remplaçant la sélection actuelle. Le consentement ici ne peut que restreindre ce qu’accordent les paramètres de l’agent, jamais l’élargir : une action pour laquelle l’agent demande d’abord n’est pas proposée. Rien n’est enregistré tant que vous ne choisissez pas Enregistrer le consentement.",
-      "allowHeading": "Autoriser ces actions à s’exécuter sans demander d’approbation"
-    },
     "sourceConsents": {
-      "title": "Sources",
-      "description": "Choisissez si cette routine suit l’agent ou conserve un instantané revu. Les règles d’approbation se configurent séparément.",
-      "retry": "Réessayer",
-      "current": "Les sources revues sont à jour.",
-      "changed": "Le créateur de la routine doit revoir les changements d’accès ou de comportement avant le prochain run.",
-      "unavailable": "Reconnectez ou inspectez d’abord ces sources : {names}",
-      "accept": "Approuver ces sources",
-      "inspectAgent": "Inspecter les connexions de l’agent",
-      "kind": "{kind, select, capability {Capabilities} skill {Skills} context {Fichiers de contexte} knowledge {Bases de connaissances} table {Tables} delegate {Agents délégués} remote_agent {Agents distants} platform {Plateforme} mcp_account {Comptes MCP} chat_connection {Connexions de chat} phone {Téléphone} terminal_account {Comptes terminal} terminal_credential {Identifiants terminal} event_source {Source d’événements} other {Autre}}",
-      "kindCount": "{name} ({count})",
-      "unnamed": "N’est plus disponible",
-      "modeLabel": "Mode d’accès",
-      "followAgent": "Suivre l’agent",
-      "restricted": "Instantané revu",
-      "followHint": "Démarre avec l’accès et le comportement actuels de l’agent publié. Les extensions d’accès ou changements de comportement ultérieurs doivent être revus par le créateur de la routine. Les permissions de l’agent, les approbations requises et les autorisations locales s’appliquent toujours.",
-      "restrictedHint": "Conserver cet ensemble de sources revu. Toute modification des sources de l’agent exige une nouvelle revue.",
-      "followCurrent": "Cette routine suit l’agent dans les limites de l’accès et du comportement approuvés.",
-      "selectionPending": "Enregistrez pour appliquer ce mode d’accès.",
-      "followUnavailable": "Sources indisponibles : {names}. Suivre l’agent ne les reconnecte pas et ne contourne pas les permissions requises.",
-      "saveMode": "Enregistrer le mode d’accès",
       "reviewBeforeActivation": "Revoir l’accès avant d’activer",
-      "reviewBeforeActivationHint": "Facultatif : enregistrez en pause, inspectez un instantané des sources de l’agent, puis activez la routine.",
+      "reviewBeforeActivationHint": "Facultatif : enregistrez en pause, choisissez ce que la routine peut faire et atteindre, puis activez-la.",
       "runsAsYou": "S’exécute en votre nom. Vos permissions et les approbations requises s’appliquent toujours.",
-      "agentIdentity": "Utilise l’accès propre de l’agent. L’accès aux comptes personnels est désactivé.",
-      "requiredUnavailable": "Sources requises indisponibles : {names}. Rétablissez l’accès avant d’enregistrer ou d’activer cette routine.",
-      "followApprovals": "Utilise les règles d’approbation de l’agent dans les limites de l’accès et du comportement approuvés pour cette routine. Le créateur doit revoir les extensions ou changements de comportement ultérieurs ; les confirmations requises s’appliquent toujours. Choisissez Instantané revu pour des approbations propres à la routine."
+      "agentIdentity": "Utilise l’accès propre de l’agent. L’accès aux comptes personnels est désactivé."
     },
     "advancedOptions": "Options avancées",
     "advancedOptionsHint": "Valeurs par défaut : version publiée actuelle, protection standard contre les échecs et vos préférences de notification.",
@@ -10610,27 +10568,67 @@
       "not_branch": "Le push a supprimé une branche ou n’était pas un push de branche."
     },
     "deliveryPending": "Envoi de la dernière réponse au chat",
-    "toolSettings": {
-      "title": "Outils de la routine",
-      "description": "Par défaut, les outils suivent les réglages de l’agent. Pour cette routine, demandez une confirmation ou désactivez un outil. Les approbations obligatoires restent requises ; les agents délégués gardent leurs réglages.",
-      "legacyMode": "L’enregistrement applique les règles d’approbation de l’agent et supprime les anciennes autorisations permanentes de cette routine.",
-      "agentAsks": "L’agent exige une approbation",
-      "agentFree": "L’agent autorise l’utilisation automatique",
-      "follow": "Suivre l’agent",
-      "ask": "Toujours demander",
+    "createdDescriptionShared": "Cette routine utilise l’URL et les identifiants de la source d’événements. Vous n’avez pas besoin d’enregistrer un autre webhook auprès du provider.",
+    "access": {
+      "label": "Accès de la routine",
+      "title": "{named, select, yes {Accès de la routine : {name}} other {Accès de la routine}}",
+      "description": "Choisissez ce que cette routine peut faire sans vous demander, et vérifiez ce à quoi elle a accès.",
+      "retry": "Réessayer",
+      "stale": "La routine, les sources de son agent ou ses outils ont changé pendant votre vérification. Consultez l’état actuel et enregistrez à nouveau.",
+      "tabTools": "Outils",
+      "tabSources": "Sources",
+      "banner": {
+        "setup": "Cette routine n’a pas encore été vérifiée. Choisissez ce qu’elle peut faire, puis enregistrez pour l’activer.",
+        "sources": "Les outils ou les sources de l’agent ont changé depuis la dernière vérification. Vérifiez-les et enregistrez avant que la routine ne s’exécute à nouveau.",
+        "routine_changed": "La routine a changé depuis la dernière vérification, par exemple son prompt, l’identité sous laquelle elle s’exécute ou sa destination. Vérifiez son accès et enregistrez avant qu’elle ne s’exécute à nouveau.",
+        "platform_identity": "Le serveur MCP de la plateforme exige que cette routine agisse en tant que son créateur. Activez l’exécution en votre nom dans les paramètres de la routine.",
+        "unavailable": "Certaines sources de cette routine sont indisponibles : {names}. Vérifiez les connexions de l’agent, puis enregistrez à nouveau la vérification.",
+        "requiredUnavailable": "Cette routine a besoin de sources indisponibles : {names}. Rétablissez-les avant d’enregistrer.",
+        "trustNotAllowed": "{reason, select, permission {Vous ne pouvez plus décider des approbations, cette routine ne peut donc plus faire confiance à son agent.} organization {Votre organisation ne permet plus aux routines de faire confiance à leur agent.} event {Une routine déclenchée par un événement ne peut pas faire confiance à son agent.} other {Seul vous, connecté à la console, pouvez laisser cette routine faire confiance à son agent.}} Enregistrez sa vérification pour qu’elle s’exécute à nouveau.",
+        "allowBlocked": "{reason, select, permission {Vous ne pouvez pas décider des approbations, les outils qui modifient quelque chose demandent donc d’abord.} organization {Votre organisation a désactivé le consentement permanent, les outils qui modifient quelque chose demandent donc d’abord.} other {Seul vous, connecté à la console, pouvez laisser des outils s’exécuter sans demander.}}"
+      },
+      "openApprovalSettings": "Ouvrir les paramètres d’approbation",
+      "inspectAgent": "Inspecter les connexions de l’agent",
+      "search": "Rechercher des outils",
+      "setAllCurrent": "Tout définir : {choice, select, agent {Comme l’agent} ask {Demander pour tout} allow {Exécuter librement si autorisé} other {Personnalisé}}",
+      "setAllAgent": "Comme l’agent",
+      "setAllAsk": "Demander pour tout",
+      "setAllAllow": "Exécuter librement si autorisé",
+      "unlisted": "Vérifiez ces connexions pour lister leurs outils : {names}.",
+      "noTools": "Cette version de l’agent ne donne aucun outil à la routine.",
+      "noMatches": "Aucun outil ne correspond à votre recherche.",
+      "capabilities": "Capabilities",
+      "personalAccount": "{name} · votre compte",
+      "organizationAccount": "{name} · compte de l’organisation",
+      "allow": "Exécuter librement",
+      "ask": "Demander d’abord",
       "off": "Désactivé",
-      "search": "Rechercher un outil",
-      "reset": "Suivre l’agent pour tous les outils",
-      "empty": "Cette routine n’a aucun outil configurable.",
-      "noMatches": "Aucun outil ne correspond à cette recherche.",
-      "personalAccount": "Compte personnel · {name}",
-      "organizationAccount": "Compte de l’organisation · {name}",
-      "unavailable": "Vérifiez ces connexions pour voir leurs outils : {names}.",
-      "unavailableSettings": "Restrictions des outils indisponibles",
-      "unavailableSettingsBody": "Ces restrictions sont conservées même lorsqu’un outil n’est pas proposé actuellement. Supprimez explicitement une restriction pour ne plus la conserver.",
-      "removeRestriction": "Supprimer la restriction pour {name}"
-    },
-    "createdDescriptionShared": "Cette routine utilise l’URL et les identifiants de la source d’événements. Vous n’avez pas besoin d’enregistrer un autre webhook auprès du provider."
+      "reads": "Lecture",
+      "changes": "Modification",
+      "locked": "Demande toujours (exigé par l’agent)",
+      "effectiveNow": "{state, select, run {S’exécute désormais sans demander} ask {Demande désormais d’abord} consent {S’exécute désormais avec votre consentement permanent} other {Désormais désactivé}}",
+      "grandfathered": "Cette routine utilise encore ses outils comme son agent le permet, comme avant l’accès des routines. L’enregistrement applique plutôt les réglages ci-dessous.",
+      "allowRefused": "{reason, select, permission {Nécessite l’autorisation de décider des approbations.} organization {Votre organisation a désactivé le consentement permanent.} other {Seul vous, connecté à la console, pouvez laisser des outils s’exécuter sans demander.}}",
+      "delegates": "Agents délégués",
+      "delegatesHint": "Outils qui modifient quelque chose dans les agents auxquels celui-ci délègue.",
+      "noSources": "Cette routine n’accède à aucune source.",
+      "kindCount": "{name} ({count})",
+      "unavailableMark": "Indisponible",
+      "requiredMark": "Indisponible, requis",
+      "dangerZone": "Zone de danger",
+      "trust": "Faire confiance à l’agent",
+      "trustWarning": "Les futurs outils et sources de l’agent, y compris les comptes de l’organisation que d’autres connecteront plus tard, sont utilisés sans vous demander. Vos comptes personnels doivent toujours être vérifiés, et vous serez averti quand l’accès s’étend. Les outils réglés sur Demander d’abord ou Désactivé gardent leur réglage.",
+      "trustRefused": "{reason, select, permission {Pour activer ceci, il faut l’autorisation de décider des approbations.} organization {Votre organisation ne permet pas aux routines de faire confiance à leur agent.} event {Une routine déclenchée par un événement ne peut pas faire confiance à son agent.} other {Seul vous, connecté à la console, pouvez activer ceci.}}",
+      "trustSetting": "Ouvrir les paramètres d’approbation",
+      "trustConfirmTitle": "Faire confiance à l’agent ?",
+      "trustConfirmDescription": "Cette routine utilisera tout ce que son agent obtiendra plus tard sans vous demander, y compris les comptes de l’organisation que d’autres personnes connectent. Vos comptes personnels doivent toujours être vérifiés, et vous serez averti quand son accès s’étend.",
+      "summary": "{allow} libres, {ask} avec demande, {off} désactivés",
+      "save": "Enregistrer les modifications",
+      "saveAndEnable": "Enregistrer et activer",
+      "trustsAgent": "Fait confiance à l’agent",
+      "kind": "{kind, select, capability {Capabilities} skill {Skills} context {Fichiers de contexte} knowledge {Bases de connaissances} table {Tables} delegate {Agents délégués} remote_agent {Agents distants} platform {Plateforme} mcp_account {Comptes MCP} chat_connection {Connexions de chat} phone {Téléphone} terminal_account {Comptes terminal} terminal_credential {Identifiants terminal} event_source {Source d’événements} other {Autre}}",
+      "unnamed": "N’est plus disponible"
+    }
   },
   "portals": {
     "backToServices": "Retour aux services",
@@ -11435,7 +11433,8 @@
         "securityEvent": "Plus d’événements de sécurité sont arrivés en une minute que cette boîte de réception n’en liste individuellement. Chacun figure dans le journal d’audit.",
         "configurationChanged": "Les paramètres du déploiement ont été modifiés plus de fois en une minute que cette boîte de réception n’en liste individuellement. Chaque modification figure dans le journal d’audit.",
         "backgroundTaskPaused": "Plus de types de tâches d’arrière-plan ont été mis en pause en une minute que cette boîte de réception n’en liste individuellement. Chacun figure sur la page Tâches d’arrière-plan."
-      }
+      },
+      "routineAccessExpanded": "{named, select, yes {{routine}} other {Votre routine}} fait confiance à son agent et accède désormais aussi à : {sources}"
     },
     "needsAttention": "Requiert votre attention"
   },

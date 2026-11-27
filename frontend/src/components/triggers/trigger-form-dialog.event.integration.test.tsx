@@ -8,6 +8,7 @@ import { TriggerFormDialog } from "./trigger-form-dialog";
 import { apiClient } from "@/lib/api-client";
 import type { SourceProvider } from "@/lib/event-sources-api";
 import type { Trigger } from "@/types/triggers";
+import { routineAccessFixture } from "@/test-utils/routine-access";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -60,31 +61,10 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
 
 function serve() {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-    if (path.endsWith("/sources"))
-      return {
-        current: true,
-        review_token: "sources",
-        version_id: "v1",
-        resources: ["Skill instructions"],
-        accounts: [],
-        unavailable_sources: [],
-      };
-    if (path.endsWith("/action-consents"))
-      return { can_waive: true, review_token: "actions", items: [] };
+    if (path.endsWith("/access")) return routineAccessFixture();
     return path === "/me/permissions" ? { permissions: [] } : { items: [], total: 0 };
   });
-  vi.mocked(apiClient.put).mockImplementation(async (path) =>
-    path.endsWith("/sources")
-      ? {
-          current: true,
-          review_token: "sources",
-          version_id: "v1",
-          resources: [],
-          accounts: [],
-          unavailable_sources: [],
-        }
-      : { can_waive: true, review_token: "actions", items: [] },
-  );
+  vi.mocked(apiClient.put).mockResolvedValue(routineAccessFixture());
   vi.mocked(apiClient.patch).mockResolvedValue(trigger());
 }
 
@@ -343,13 +323,13 @@ describe("TriggerFormDialog custom-webhook event form", () => {
       expect.objectContaining({
         source_id: "shared-source",
         prompt: "Triage {{issue.title}}",
-        source_mode: "follow_agent",
       }),
     );
     const request = vi
       .mocked(apiClient.post)
       .mock.calls.find(([path]) => path === `/agents/${AGENT_ID}/triggers`)?.[1];
     expect(request).not.toHaveProperty("event_secret");
+    expect(request).not.toHaveProperty("source_mode");
     expect(request).not.toHaveProperty("review_before_activation");
     const confirmation = within(await screen.findByRole("dialog", { name: "Trigger created" }));
     expect(apiClient.patch).not.toHaveBeenCalled();
@@ -492,8 +472,6 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      source_mode: "follow_agent",
-      action_mode: "agent",
       chat_mode: "shared",
       runs_as_creator: false,
       prompt: "Triage it",
@@ -526,7 +504,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.type(dialog.getByLabelText("Message"), "Triage");
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
-    expect(screen.queryByRole("dialog", { name: "Review routine access" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Routine access" })).not.toBeInTheDocument();
 
     // The dialog does not just close: an event trigger needs its URL pasted into
     // the provider, so it stays open on that URL with a way to copy it.
@@ -564,8 +542,6 @@ describe("TriggerFormDialog custom-webhook event form", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      source_mode: "follow_agent",
-      action_mode: "agent",
       chat_mode: "shared",
       runs_as_creator: false,
       prompt: "Handle it",
@@ -640,7 +616,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
       `/agents/${AGENT_ID}/triggers`,
       expect.objectContaining({ event_source: "linear", event_secret: "linear-signing-secret" }),
     );
-    expect(screen.queryByRole("dialog", { name: "Review routine access" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Routine access" })).not.toBeInTheDocument();
     const createdDialog = within(await screen.findByRole("dialog", { name: "One more step" }));
     expect(createdDialog.getByLabelText<HTMLInputElement>("Webhook URL").value).toBe(url);
     expect(createdDialog.getByText(/Linear API accepts both/)).toBeInTheDocument();

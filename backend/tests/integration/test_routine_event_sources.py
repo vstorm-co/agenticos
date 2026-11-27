@@ -11,7 +11,6 @@ from pydantic import SecretStr
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.core.exceptions import ConflictError
 from app.db.models.agent_run import AgentRun
 from app.db.models.agent_trigger import AgentTrigger, TriggerAttempt
 from app.db.models.background_job import BackgroundJob
@@ -21,12 +20,13 @@ from app.db.models.resource_grant import ResourceGrant
 from app.repositories import event_source as source_repo
 from app.schemas.agent_trigger import TriggerCreate, TriggerUpdate
 from app.schemas.event_source import EventSourceCreate, SourceAuth, SourceCredentials
-from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceItem, RoutineSourceMode
+from app.schemas.routine_access import RoutineAccessUpdate
+from app.schemas.routine_sources import RoutineSourceItem
 from app.services import rate_limit
 from app.services.agent_trigger import AgentTriggerService
 from app.services.event_sources import EventSourceService
+from app.services.routine_access import RoutineAccessService
 from app.services.routine_sources import (
-    RoutineSourceService,
     RoutineSourcesRequired,
     compatible_spec_fingerprints,
     read_policy,
@@ -123,12 +123,10 @@ async def test_rebinding_during_delivery_preserves_the_other_subscriber_and_reti
     )
 
     await triggers.update(ctx, seed.agent_id, moving.id, TriggerUpdate(source_id=source.id))
-    review_service = RoutineSourceService(db)
-    review = await review_service.options(ctx, moving)
+    review_service = RoutineAccessService(db)
+    review = await review_service.review(ctx, moving)
     assert not review.current
-    await review_service.replace(
-        ctx, moving, RoutineSourceConsent(review_token=review.review_token)
-    )
+    await review_service.replace(ctx, moving, RoutineAccessUpdate(review_token=review.review_token))
     await triggers.update(ctx, seed.agent_id, moving.id, TriggerUpdate(is_active=True))
     assert moving.is_active and not moving.setup_required
     dispatches = list(await db.scalars(select(EventDispatch)))
@@ -294,14 +292,14 @@ async def test_creator_must_be_able_to_use_the_replacement_source_to_review_and_
         TriggerCreate(trigger_type="event", source_id=shared.id, prompt="Notify"),
     )
     await routines.update(editor, seed.agent_id, routine.id, TriggerUpdate(source_id=private.id))
-    reviews = RoutineSourceService(db)
-    blocked = await reviews.options(creator, routine)
+    reviews = RoutineAccessService(db)
+    blocked = await reviews.review(creator, routine)
     assert not blocked.current and blocked.required_unavailable_sources == ["event source"]
-    assert blocked.mode == "follow_agent"
+    assert blocked.mode == "reviewed"
     assert private.name not in blocked.model_dump_json()
-    with pytest.raises(ConflictError):
+    with pytest.raises(RoutineSourcesRequired):
         await reviews.replace(
-            creator, routine, RoutineSourceConsent(review_token=blocked.review_token)
+            creator, routine, RoutineAccessUpdate(review_token=blocked.review_token)
         )
     assert not routine.is_active and routine.setup_required
 
@@ -315,12 +313,12 @@ async def test_creator_must_be_able_to_use_the_replacement_source_to_review_and_
     )
     db.add(access)
     await db.flush()
-    allowed = await reviews.options(creator, routine)
+    allowed = await reviews.review(creator, routine)
     assert (
         RoutineSourceItem(kind="event_source", id=str(private.id), name=private.name)
-        in allowed.items
+        in allowed.sources
     )
-    await reviews.replace(creator, routine, RoutineSourceConsent(review_token=allowed.review_token))
+    await reviews.replace(creator, routine, RoutineAccessUpdate(review_token=allowed.review_token))
     await db.delete(access)
     await db.flush()
     with pytest.raises(RoutineSourcesRequired):
@@ -331,9 +329,8 @@ async def test_creator_must_be_able_to_use_the_replacement_source_to_review_and_
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("mode", ["follow_agent", "restricted"])
 async def test_receipt_cannot_write_a_superseded_review_back_during_validation(
-    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch, mode: RoutineSourceMode
+    db: AsyncSession, engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ctx, seed, spec, _ = await world(db)
     sources = EventSourceService(db)
@@ -348,10 +345,10 @@ async def test_receipt_cannot_write_a_superseded_review_back_during_validation(
     routine = await AgentTriggerService(db).create(
         ctx,
         seed.agent_id,
-        TriggerCreate(trigger_type="event", source_id=source.id, prompt="Check", source_mode=mode),
+        TriggerCreate(trigger_type="event", source_id=source.id, prompt="Check"),
     )
     before = read_policy(routine.approved_sources)
-    # A valid historical hash permits a refresh in either mode at execution.
+    # A valid historical hash permits a refresh at execution.
     historical = next(
         value for value in compatible_spec_fingerprints(spec) if value != before.spec_hash
     )
@@ -369,10 +366,10 @@ async def test_receipt_cannot_write_a_superseded_review_back_during_validation(
         async with session.begin() as editor:
             current = await editor.get(AgentTrigger, routine.id)
             assert current is not None
-            reviews = RoutineSourceService(editor)
-            review = await reviews.options(ctx, current)
+            reviews = RoutineAccessService(editor)
+            review = await reviews.review(ctx, current)
             await reviews.replace(
-                ctx, current, RoutineSourceConsent(review_token=review.review_token, mode=mode)
+                ctx, current, RoutineAccessUpdate(review_token=review.review_token)
             )
         return await snapshot(service, trigger)
 
@@ -400,11 +397,11 @@ async def test_receipt_cannot_write_a_superseded_review_back_during_validation(
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("initial_review", ["present", "missing", "unavailable"])
+@pytest.mark.parametrize("initial_review", ["present", "missing"])
 async def test_source_delivery_requires_the_same_valid_review_at_receipt_and_dispatch(
     db: AsyncSession, monkeypatch: pytest.MonkeyPatch, initial_review: str
 ) -> None:
-    ctx, existing, _, account = await world(db, mcp=initial_review == "unavailable")
+    ctx, existing, _, _ = await world(db)
     sources = EventSourceService(db)
     source_config = EventSourceCreate(
         name="First",
@@ -416,20 +413,14 @@ async def test_source_delivery_requires_the_same_valid_review_at_receipt_and_dis
     routine = await triggers.create(
         ctx,
         existing.agent_id,
-        TriggerCreate(
-            trigger_type="event", source_id=source.id, prompt="Review", source_mode="restricted"
-        ),
+        TriggerCreate(trigger_type="event", source_id=source.id, prompt="Review"),
     )
     policy_id = read_policy(routine.approved_sources).id
-    reviews = RoutineSourceService(db)
+    reviews = RoutineAccessService(db)
     if initial_review == "missing":
         routine.approved_sources = None
         await db.flush()
-    elif initial_review == "unavailable":
-        assert account is not None
-        account.is_enabled = False
-        await db.flush()
-    review = await reviews.options(ctx, routine)
+    review = await reviews.review(ctx, routine)
     assert review.current == (initial_review == "present")
 
     _, _, accepted = await sources.receive(
@@ -439,14 +430,8 @@ async def test_source_delivery_requires_the_same_valid_review_at_receipt_and_dis
     dispatch = await db.scalar(select(EventDispatch))
     assert dispatch is not None
     assert dispatch.routine_source_policy_id == (policy_id if initial_review == "present" else None)
-    if initial_review == "unavailable":
-        assert account is not None
-        account.is_enabled = True
-        await db.flush()
-        assert (await reviews.options(ctx, routine)).current
-    else:
-        await reviews.replace(ctx, routine, RoutineSourceConsent(review_token=review.review_token))
-        assert read_policy(routine.approved_sources).id != policy_id
+    await reviews.replace(ctx, routine, RoutineAccessUpdate(review_token=review.review_token))
+    assert read_policy(routine.approved_sources).id != policy_id
     await db.commit()
     monkeypatch.setattr(
         rate_limit,
@@ -536,9 +521,9 @@ async def test_shared_github_filter_keeps_only_the_current_reviews_diagnostic(
     _, receipt, accepted = await sources.receive(source.id, body=body, headers=headers)
     assert accepted
     if approval == "replaced":
-        reviews = RoutineSourceService(db)
-        review = await reviews.options(ctx, routine)
-        await reviews.replace(ctx, routine, RoutineSourceConsent(review_token=review.review_token))
+        reviews = RoutineAccessService(db)
+        review = await reviews.review(ctx, routine)
+        await reviews.replace(ctx, routine, RoutineAccessUpdate(review_token=review.review_token))
     received_at = await db.scalar(
         select(EventDelivery.created_at).where(EventDelivery.id == receipt.id)
     )

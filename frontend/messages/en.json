@@ -6194,8 +6194,8 @@
         "body": "Beside notes, agents record facts, preferences and decisions with where each came from. Correct one in your own words, from a date, and the old version stays in the history; or take it out of use."
       },
       "routine-access": {
-        "title": "Review routine access",
-        "body": "Use the shield on your routine to review its source accounts and resources, then choose any standing action exceptions separately."
+        "title": "Routine access",
+        "body": "Use the shield on your routine to choose which tools run freely, ask first or stay off, and to review the sources it reaches."
       },
       "project-tracking": {
         "title": "Keep project on track",
@@ -10202,7 +10202,13 @@
         }
       },
       "starterAgentMissing": "This role does nothing right now: the AgenticOS starter agent it is recorded under is missing, unpublished or renamed. Publish it again under the agenticos handle."
-    }
+    },
+    "routineTrust": "Routines may trust their agent",
+    "routineTrustDescription": "Whether a routine may use its agent's future tools and sources without its creator reviewing them again.",
+    "routineTrustHint": "When this is on, someone who may decide approvals can let a schedule routine follow its agent: organization accounts, tools and sources the agent gains later are used without a new review. Their personal accounts still need review, and they are notified when access grows. Off by default.",
+    "routineTrustAllowed": "Routines may now trust their agent",
+    "routineTrustForbidden": "Routines can no longer trust their agent",
+    "routineTrustFailed": "Could not change whether routines may trust their agent"
   },
   "theme": {
     "darkMode": "Dark mode",
@@ -10463,8 +10469,6 @@
     "lookPosition": "Look {current} of {total}"
   },
   "triggers": {
-    "setupReviewTitle": "Review routine access",
-    "enableRoutine": "Enable routine",
     "finishLater": "Finish later",
     "stopWaitingRun": "Stop waiting run",
     "deliveryPending": "Sending last answer to chat",
@@ -10771,57 +10775,11 @@
     "endsAtLabel": "Ends at (device time)",
     "endsAtHint": "Leave blank to run until stopped. This time uses {zone}, independently of the schedule zone.",
     "endsAtInvalid": "Choose a valid future time, or clear the field to remove the end.",
-    "actionConsents": {
-      "personalAccount": "{name} · your account",
-      "organizationAccount": "{name} · organization account",
-      "title": "Action consent",
-      "description": "Routine actions ask for approval by default. Allow only the listed actions to run without asking. Consent applies to this published version and routine configuration; agent-required approvals still apply. Each MCP action applies only to the named account.",
-      "retry": "Try again",
-      "empty": "This version has no eligible actions to authorize here.",
-      "revokeAll": "Revoke all",
-      "save": "Save consent",
-      "search": "Search actions",
-      "selectGroup": "Select eligible actions in {name}",
-      "noMatches": "No actions match your search.",
-      "changed": {
-        "version": "The published agent version changed. Review its actions again.",
-        "intent": "The routine’s work or destination changed. Review its actions again.",
-        "instructions": "The skill, context or project instructions changed. Review its actions again.",
-        "actions": "Some previously selected actions are unavailable, require approval, or have different account authorization. They are not reselected."
-      },
-      "capabilitiesSection": "Capabilities",
-      "groupCount": "{selected} of {total}",
-      "useAgent": "Use the agent's settings",
-      "useAgentHint": "Selects exactly the actions this agent already runs without asking in a chat, replacing the current selection. Consent here can only narrow what the agent's settings grant, never widen it: an action the agent asks before is not offered. Nothing is saved until you choose Save consent.",
-      "allowHeading": "Allow these actions to run without asking for approval",
-      "alwaysAsks": "Always asks: required by the agent or platform"
-    },
     "sourceConsents": {
-      "title": "Sources",
-      "description": "Choose whether this routine follows the agent or keeps a reviewed snapshot. Approval rules are configured separately.",
-      "retry": "Try again",
-      "current": "The reviewed sources are current.",
-      "changed": "The routine creator must review changed access or behavior before the next run.",
-      "unavailable": "Reconnect or inspect these sources first: {names}",
-      "accept": "Approve these sources",
-      "inspectAgent": "Inspect the agent’s connections",
-      "kind": "{kind, select, capability {Capabilities} skill {Skills} context {Context files} knowledge {Knowledge bases} table {Tables} delegate {Delegate agents} remote_agent {Remote agents} platform {Platform} mcp_account {MCP accounts} chat_connection {Chat connections} phone {Telephone} terminal_account {Terminal accounts} terminal_credential {Terminal credentials} event_source {Event source} other {Other}}",
-      "kindCount": "{name} ({count})",
-      "unnamed": "No longer available",
-      "modeLabel": "Access mode",
-      "followAgent": "Follow agent",
-      "restricted": "Reviewed snapshot",
-      "followHint": "Starts with the published agent’s current access and behavior. Later access expansions or behavior changes need the routine creator’s review. Agent permissions, required approvals and local grants still apply.",
-      "restrictedHint": "Keep this reviewed set of sources. Changes to the agent’s sources require another review.",
-      "followCurrent": "This routine follows the agent within its approved access and behavior.",
-      "selectionPending": "Save to apply this access mode.",
-      "followUnavailable": "Unavailable sources: {names}. Following the agent does not reconnect them or bypass required permissions.",
-      "saveMode": "Save access mode",
       "reviewBeforeActivation": "Review access before enabling",
-      "reviewBeforeActivationHint": "Optional: save paused, inspect a snapshot of the agent’s sources, then enable the routine.",
+      "reviewBeforeActivationHint": "Optional: save paused, choose what the routine may do and reach, then enable it.",
       "runsAsYou": "Runs as you. Your permissions and required approvals still apply.",
-      "agentIdentity": "Uses the agent’s own access. Personal account access is off.",
-      "requiredUnavailable": "Required sources unavailable: {names}. Restore access before saving or enabling this routine."
+      "agentIdentity": "Uses the agent’s own access. Personal account access is off."
     },
     "advancedOptions": "Advanced options",
     "advancedOptionsHint": "Defaults: current published version, standard failure protection and your notification preferences.",
@@ -10844,14 +10802,6 @@
       "mention": "The comment did not contain the required mention.",
       "conclusion": "The workflow conclusion did not match.",
       "not_branch": "The push deleted a branch or was not a branch push."
-    },
-    "approvalMode": {
-      "label": "Tool approvals",
-      "hint": "Inbox reporting is included. Required agent and platform approvals always apply.",
-      "automatic": "Run eligible tools automatically",
-      "manual": "Ask before actions",
-      "custom": "Choose permissions for each tool",
-      "existing": "Keep current permissions"
     },
     "chatModeLabel": "Conversations",
     "chatMode": {
@@ -10880,29 +10830,70 @@
       "awaiting_approval": "{held, select, yes {A previous run is waiting for approval. No new run starts until it is decided.} other {A previous run is waiting for approval.}}",
       "awaiting_answer": "{held, select, yes {A previous run is waiting for an answer. No new run starts until it gets one.} other {A previous run is waiting for an answer.}}",
       "budget_exhausted": "This month's budget is spent. It runs again on the first of the month.",
-      "actions_need_approval": "{count, plural, =1 {1 action has no standing consent and will need approval if used.} other {# actions have no standing consent and will need approval if used.}}",
+      "actions_need_approval": "{count, plural, =1 {1 tool asks before it runs, so a run that uses it waits for approval.} other {# tools ask before they run, so a run that uses them waits for approval.}}",
       "readiness_checking": "Checking whether this routine can run…",
-      "readiness_unavailable": "Could not check whether this routine can run. Run now will still check its permissions."
+      "readiness_unavailable": "Could not check whether this routine can run. Run now will still check its permissions.",
+      "trust_not_allowed": "It trusts its agent, which its creator or organization no longer allows. Review its access again."
     },
-    "toolSettings": {
-      "title": "Routine tools",
-      "description": "Tools follow the agent by default. For this routine, ask before a tool or turn it off. Required approvals still apply; delegated agents keep their own settings.",
-      "legacyMode": "Saving uses the agent’s approval rules and removes this routine’s previous standing approvals.",
-      "agentAsks": "Agent requires approval",
-      "agentFree": "Agent permits automatic use",
-      "follow": "Follow agent",
-      "ask": "Ask every time",
+    "access": {
+      "label": "Routine access",
+      "title": "{named, select, yes {Routine access: {name}} other {Routine access}}",
+      "description": "Choose what this routine may do without asking you, and review what it can reach.",
+      "retry": "Try again",
+      "stale": "This routine, its agent's sources or its tools changed while you were reviewing. Check the current review and save again.",
+      "tabTools": "Tools",
+      "tabSources": "Sources",
+      "banner": {
+        "setup": "This routine has not been reviewed yet. Choose what it may do, then save to enable it.",
+        "sources": "The agent's tools or sources changed since the last review. Review them and save before the routine runs again.",
+        "routine_changed": "The routine changed since the last review, such as its prompt, who it runs as or where it delivers. Review its access and save before it runs again.",
+        "platform_identity": "The platform MCP server needs this routine to act as its creator. Turn on running as you in the routine's settings.",
+        "unavailable": "Some sources this routine uses are unavailable: {names}. Check the agent's connections, then save the review again.",
+        "requiredUnavailable": "This routine needs sources that are unavailable: {names}. Restore them before saving.",
+        "trustNotAllowed": "{reason, select, permission {You may no longer decide approvals, so this routine can no longer trust its agent.} organization {Your organization no longer lets routines trust their agent.} event {A routine started by an event cannot trust its agent.} other {Only you, signed in to the console, can let this routine trust its agent.}} Save its review to run it again.",
+        "allowBlocked": "{reason, select, permission {You may not decide approvals, so tools that change something ask first.} organization {Your organization has turned off standing consent, so tools that change something ask first.} other {Only you, signed in to the console, can let tools run without asking.}}"
+      },
+      "openApprovalSettings": "Open approval settings",
+      "inspectAgent": "Check the agent's connections",
+      "search": "Search tools",
+      "setAllCurrent": "Set all: {choice, select, agent {As the agent} ask {Ask for everything} allow {Run freely where allowed} other {Custom}}",
+      "setAllAgent": "As the agent",
+      "setAllAsk": "Ask for everything",
+      "setAllAllow": "Run freely where allowed",
+      "unlisted": "Check these connections to list their tools: {names}.",
+      "noTools": "This agent version gives the routine no tools.",
+      "noMatches": "No tools match your search.",
+      "capabilities": "Capabilities",
+      "personalAccount": "{name} · your account",
+      "organizationAccount": "{name} · organization account",
+      "allow": "Run freely",
+      "ask": "Ask first",
       "off": "Off",
-      "search": "Find a tool",
-      "reset": "Follow agent for all tools",
-      "empty": "This routine has no configurable tools.",
-      "noMatches": "No tools match this search.",
-      "personalAccount": "Personal account · {name}",
-      "organizationAccount": "Organization account · {name}",
-      "unavailable": "Check these connections to see their tools: {names}.",
-      "unavailableSettings": "Unavailable tool restrictions",
-      "unavailableSettingsBody": "These saved restrictions are kept even when a tool is not currently offered. Remove one explicitly to stop keeping it.",
-      "removeRestriction": "Remove restriction for {name}"
+      "reads": "Reads",
+      "changes": "Changes",
+      "locked": "Always asks (the agent requires it)",
+      "effectiveNow": "{state, select, run {Now runs without asking} ask {Now asks first} consent {Now runs on your standing consent} other {Now off}}",
+      "grandfathered": "This routine still runs its tools as its agent allows, as it did before routine access. Saving applies the settings below instead.",
+      "allowRefused": "{reason, select, permission {Needs permission to decide approvals.} organization {Your organization has turned off standing consent.} other {Only you, signed in to the console, can let tools run without asking.}}",
+      "delegates": "Delegate agents",
+      "delegatesHint": "Tools that change something in the agents this one delegates to.",
+      "noSources": "This routine reaches no sources.",
+      "kindCount": "{name} ({count})",
+      "unavailableMark": "Unavailable",
+      "requiredMark": "Unavailable, required",
+      "dangerZone": "Danger zone",
+      "trust": "Trust the agent",
+      "trustWarning": "Future tools and sources of the agent, including organization accounts others connect later, are used without asking you. Your personal accounts still need review, and you will be notified when access grows. Tools set to Ask first or Off keep their setting.",
+      "trustRefused": "{reason, select, permission {Turning this on needs permission to decide approvals.} organization {Your organization does not let routines trust their agent.} event {A routine started by an event cannot trust its agent.} other {Only you, signed in to the console, can turn this on.}}",
+      "trustSetting": "Open approval settings",
+      "trustConfirmTitle": "Trust the agent?",
+      "trustConfirmDescription": "This routine will use whatever its agent gains later without asking you, including organization accounts other people connect. Your personal accounts still need review, and you will be notified when its access grows.",
+      "summary": "{allow} run freely, {ask} ask first, {off} off",
+      "save": "Save changes",
+      "saveAndEnable": "Save and enable",
+      "trustsAgent": "Trusts agent",
+      "kind": "{kind, select, capability {Capabilities} skill {Skills} context {Context files} knowledge {Knowledge bases} table {Tables} delegate {Delegate agents} remote_agent {Remote agents} platform {Platform} mcp_account {MCP accounts} chat_connection {Chat connections} phone {Telephone} terminal_account {Terminal accounts} terminal_credential {Terminal credentials} event_source {Event source} other {Other}}",
+      "unnamed": "No longer available"
     }
   },
   "portals": {
@@ -11788,7 +11779,8 @@
         "securityEvent": "More security events arrived in one minute than this inbox lists individually. Every one of them is in the audit log.",
         "configurationChanged": "The deployment's settings were changed more times in one minute than this inbox lists individually. Every change is in the audit log.",
         "backgroundTaskPaused": "More kinds of background job were paused in one minute than this inbox lists individually. Every one is on the Background jobs page."
-      }
+      },
+      "routineAccessExpanded": "{named, select, yes {{routine}} other {Your routine}} trusts its agent and now also reaches: {sources}"
     },
     "needsAttention": "Needs attention"
   },

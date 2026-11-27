@@ -1,5 +1,5 @@
 ---
-source_sha: "e6f449fd1733"
+source_sha: "1e6eea476707"
 ---
 
 # Protección de datos { #data-protection }
@@ -24,7 +24,7 @@ El inventario de capabilities incluye también el coding agent local seleccionab
 
 Las exportaciones de datos personales incluyen nombres de archivo y parches de tareas de programación de las conversaciones exportadas; su JSON cuenta para el límite de tamaño comprobado previamente. Al terminar la pertenencia a una organización se eliminan las conexiones personales de programación en la misma transacción. Volver a unirse requiere una conexión nueva y consentimiento nuevo; no reactiva el permiso anterior.
 
-La exportación de datos personales también incluye tableros privados de tareas, valores de registros, historial conservado y esquemas de columnas, además de consentimientos permanentes para acciones de rutinas. Estos datos JSON cuentan para el límite previo de exportación. Las tablas compartidas de proyectos, grupos y organizaciones no se incluyen solo porque la persona haya creado una tarea en ellas.
+La exportación de datos personales también incluye tableros privados de tareas, valores de registros, historial conservado y esquemas de columnas, además de las revisiones de acceso de sus rutinas, con el ajuste de cada herramienta. Estos datos JSON cuentan para el límite previo de exportación. Las tablas compartidas de proyectos, grupos y organizaciones no se incluyen solo porque la persona haya creado una tarea en ellas.
 
 ## Qué sale por defecto { #nothing-leaves-by-default }
 

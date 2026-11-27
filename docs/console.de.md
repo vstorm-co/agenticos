@@ -1,5 +1,5 @@
 ---
-source_sha: "d9973864c59a"
+source_sha: "8fc9573fd2ee"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -335,9 +335,11 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
 
 ## Routinen und Beobachtungen { #routines-and-watches }
 
-Neue Routinen verwenden bei der Erstellung automatisch die verfügbare Agentenkonfiguration innerhalb einer genehmigten Grenze für Zugriff und Verhalten. Eine anfängliche Zugriffsprüfung ist nicht erforderlich; fehlende optionale MCP-Konten blockieren unabhängige Arbeit nicht. Spätere Erweiterungen von Quellen oder Werkzeugen und Änderungen an Anweisungen, Skills, Kontext oder Delegierten erfordern vor der Ausführung eine Prüfung durch den Ersteller. Reine Modelländerungen und sichere Einschränkungen bleiben innerhalb der Grenze. Agentenfreigaben, verbindliche Plattformfreigaben und die Zustimmung zu lokalen Ordnern gelten weiterhin. Der Zugriffsdialog kann stattdessen einen geprüften Snapshot behalten; bestehende eingeschränkte Routinen behalten ihre Richtlinie, bis der Eigentümer sie ändert.
+Das Erstellen einer Routine prüft ihren Zugriff sofort: Lesende Tools laufen, ändernde Tools laufen nur ohne Rückfrage, wenn Sie das erlauben dürfen, und alles andere fragt. Der Schild in der Zeile einer Routine öffnet **Routine access**: einen Tab **Tools** mit **Ohne Rückfrage**, **Erst fragen** oder **Off** für jedes Tool und einer Zeile für Delegaten, und einen Tab **Sources** mit dem, was die Routine erreichen darf.
 
-Neue Routinen nutzen zulässige Werkzeuge standardmäßig automatisch nach den Genehmigungsregeln des Agenten und sammeln Ausführungen in einem schreibgeschützten Chat. Ein eigener Chat je Ausführung erlaubt direkte Fortsetzung; der gemeinsame Verlauf lässt sich forken. Unter **Werkzeuge der Routine** erhalten oder verschärfen **Agent folgen**, **Jedes Mal fragen** und **Aus** die Agentenregeln; erforderliche Genehmigungen bleiben bestehen. Beim Speichern von Einschränkungen einer älteren Routine werden ihre früheren dauerhaften Genehmigungen entfernt; der Dialog warnt ausdrücklich davor. Siehe [Werkzeuge der Routine](governance.md#routine-action-consent).
+Wachstum über die geprüften Quellen hinaus, ein geändertes Binding oder ein geänderter Prompt blockiert die Routine, bis Sie sie prüfen; Entfernungen sowie Anweisungs- oder Modelländerungen nicht. Agentenfreigaben, verbindliche Plattformfreigaben und die Zustimmung zu lokalen Ordnern gelten weiterhin. Wo erlaubt, lässt **Trust the agent** einen Zeitplan seinem Agent folgen und zeigt das Abzeichen **Trusts agent**. Siehe [Routinezugriff](governance.md#routine-access).
+
+Ausführungen einer neuen Routine werden in einem schreibgeschützten Chat gesammelt. Ein eigener Chat je Ausführung erlaubt direkte Fortsetzung; der gemeinsame Verlauf lässt sich forken.
 
 Verhindert **Skip this run** eine überlappende Ausführung, speichert der Verlauf den Grund ohne neue Ausführung oder Kosten. Sie können eine wartende Ausführung direkt im Verlauf stoppen, wenn der Server dies erlaubt. Ihre bisherigen Kosten bleiben erhalten; der nächste geplante Termin kann wieder starten. Wiederholte Auslassungen wegen desselben unfertigen Laufs teilen sich einen Verlaufseintrag.
 

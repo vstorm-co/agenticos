@@ -525,7 +525,8 @@
         "securityEvent": "Bir dakika içinde bu gelen kutusunun tek tek listelediğinden daha fazla güvenlik olayı geldi. Hepsi denetim kaydında.",
         "configurationChanged": "Dağıtımın ayarları bir dakika içinde bu gelen kutusunun tek tek listelediğinden daha fazla kez değiştirildi. Her değişiklik denetim kaydında.",
         "backgroundTaskPaused": "Bir dakika içinde bu gelen kutusunun tek tek listelediğinden daha fazla türde arka plan işi duraklatıldı. Hepsi Arka plan işleri sayfasında."
-      }
+      },
+      "routineAccessExpanded": "{named, select, yes {{routine}} other {Rutininiz}} agent'ına güveniyor ve artık şunlara da erişiyor: {sources}"
     }
   },
   "billing": {
@@ -9206,6 +9207,10 @@
       "project-resources": {
         "title": "İlgili kaynakları bir arada tutun",
         "body": "Mevcut ajanları, iş akışlarını, Apps ve tabloları izinlerini değiştirmeden bağlayın. Buradan açın veya bağlı bir iş akışını projenin giriş noktası olarak seçin."
+      },
+      "routine-access": {
+        "title": "Rutin erişimi",
+        "body": "Hangi araçların serbestçe çalışacağını, önce soracağını veya kapalı kalacağını seçmek ve eriştiği kaynakları incelemek için rutininizdeki kalkanı kullanın."
       }
     }
   },
@@ -11228,8 +11233,6 @@
     "useIntegration": "Bu entegrasyonu kullan"
   },
   "triggers": {
-    "setupReviewTitle": "Rutinin erişimini inceleyin",
-    "enableRoutine": "Rutini etkinleştir",
     "finishLater": "Daha sonra tamamla",
     "stopWaitingRun": "Bekleyen çalıştırmayı durdur",
     "attemptsTitle": "Aracı başlamadan önce",
@@ -11498,60 +11501,11 @@
     },
     "clearSearch": "Aramayı temizle",
     "noRoutineMatchesHint": "Agent adı, rutin başlığı veya mesajındaki sözcüklerle arayın.",
-    "actionConsents": {
-      "personalAccount": "{name} · hesabınız",
-      "organizationAccount": "{name} · organizasyon hesabı",
-      "title": "Eylem izni",
-      "description": "Rutin eylemleri varsayılan olarak onay ister. Yalnızca listelenen eylemlere sormadan çalışma izni verin. İzin, bu yayımlanmış sürüm ve rutin yapılandırması için geçerlidir; agent tarafından zorunlu tutulan onaylar geçerlidir. Her MCP eylemi yalnızca belirtilen hesaba uygulanır.",
-      "retry": "Yeniden dene",
-      "empty": "Bu sürümde burada yetkilendirilebilecek eylem yok.",
-      "revokeAll": "Tümünü iptal et",
-      "save": "İzni kaydet",
-      "search": "Eylemleri ara",
-      "selectGroup": "{name} içindeki izin verilebilir eylemleri seç",
-      "noMatches": "Aramayla eşleşen eylem yok.",
-      "changed": {
-        "version": "Yayımlanan agent sürümü değişti. Eylemlerini yeniden inceleyin.",
-        "intent": "Rutinin işi veya hedefi değişti. Eylemleri yeniden inceleyin.",
-        "instructions": "Skill, context veya proje talimatları değişti. Eylemleri yeniden inceleyin.",
-        "actions": "Önceden seçilen bazı eylemler kullanılamıyor, onay gerektiriyor veya hesap yetkilendirmesi değişmiş. Bunlar yeniden seçilmez."
-      },
-      "capabilitiesSection": "Capabilities",
-      "groupCount": "{selected} / {total}",
-      "useAgent": "Agent ayarlarını kullan",
-      "useAgentHint": "Bu agent'ın sohbette zaten sormadan çalıştırdığı eylemleri tam olarak seçer ve mevcut seçimin yerine koyar. Buradaki onay yalnızca agent ayarlarının izin verdiğini daraltabilir, asla genişletmez: agent'ın önce sorduğu bir eylem sunulmaz. Onayı kaydet seçilene kadar hiçbir şey kaydedilmez.",
-      "allowHeading": "Bu eylemlerin onay istemeden çalışmasına izin ver",
-      "alwaysAsks": "Her zaman sorar: ajan veya platform gerektirir"
-    },
     "sourceConsents": {
-      "title": "Kaynaklar",
-      "description": "Rutinin ajanı takip etmesini veya incelenmiş bir kaynak kümesini korumasını seçin. Onay kuralları ayrı yapılandırılır.",
-      "modeLabel": "Erişim modu",
-      "followAgent": "Ajanı takip et",
-      "restricted": "İncelenen kaynaklar",
-      "followHint": "Yayınlanan ajanın mevcut erişimi ve davranışıyla başlar. Sonraki erişim genişletmeleri veya davranış değişiklikleri, rutini oluşturan kişinin incelemesini gerektirir. Ajan izinleri, zorunlu onaylar ve yerel erişim izinleri geçerli kalır.",
-      "restrictedHint": "İncelenen bu kaynak kümesini koruyun. Ajanın kaynakları değiştiğinde yeniden inceleme gerekir.",
-      "followCurrent": "Bu rutin, onaylanan erişim ve davranış sınırları içinde ajanı takip eder.",
-      "changed": "Bir sonraki çalıştırmadan önce rutini oluşturan kişi değişen erişimi veya davranışı incelemelidir.",
-      "selectionPending": "Bu erişim modunu uygulamak için kaydedin.",
-      "followUnavailable": "Kullanılamayan kaynaklar: {names}. Ajanı takip etmek bağlantıları yeniden kurmaz veya gerekli izinleri atlamaz.",
-      "saveMode": "Erişim modunu kaydet",
       "reviewBeforeActivation": "Etkinleştirmeden önce erişimi incele",
-      "reviewBeforeActivationHint": "İsteğe bağlı: duraklatılmış olarak kaydedin, ajanın kaynaklarını inceleyin ve ardından rutini etkinleştirin.",
+      "reviewBeforeActivationHint": "İsteğe bağlı: duraklatılmış olarak kaydedin, rutinin neler yapıp nelere erişebileceğini seçin ve ardından etkinleştirin.",
       "runsAsYou": "Sizin adınıza çalışır. İzinleriniz ve zorunlu onaylar geçerli kalır.",
-      "agentIdentity": "Ajanın kendi erişimini kullanır. Kişisel hesap erişimi kapalıdır.",
-      "requiredUnavailable": "Gerekli kaynaklar kullanılamıyor: {names}. Bu rutini kaydetmeden veya etkinleştirmeden önce erişimi geri yükleyin.",
-      "kind": "{kind, select, capability {Capabilities} skill {Skill'ler} context {Bağlam dosyaları} knowledge {Bilgi tabanları} table {Tablolar} delegate {Delege agent'lar} remote_agent {Uzak agent'lar} platform {Platform} mcp_account {MCP hesapları} chat_connection {Sohbet bağlantıları} phone {Telefon} terminal_account {Terminal hesapları} terminal_credential {Terminal kimlik bilgileri} event_source {Olay kaynağı} other {Diğer}}",
-      "kindCount": "{name} ({count})",
-      "unnamed": "Artık kullanılamıyor"
-    },
-    "approvalMode": {
-      "label": "Araç onayları",
-      "hint": "Inbox bildirimi dahildir. Zorunlu ajan ve platform onayları geçerlidir.",
-      "automatic": "İzin verilen araçları otomatik çalıştır",
-      "manual": "İşlemlerden önce sor",
-      "custom": "Her araç için izinleri seç",
-      "existing": "Mevcut izinleri koru"
+      "agentIdentity": "Ajanın kendi erişimini kullanır. Kişisel hesap erişimi kapalıdır."
     },
     "chatModeLabel": "Sohbetler",
     "chatMode": {
@@ -11564,25 +11518,65 @@
     },
     "openExecutionChat": "Sohbeti aç",
     "deliveryPending": "Son yanıt sohbete gönderiliyor",
-    "toolSettings": {
-      "title": "Rutin araçları",
-      "description": "Araçlar varsayılan olarak ajan ayarlarını izler. Bu rutin için araç kullanılmadan önce onay isteyebilir veya aracı kapatabilirsiniz. Zorunlu onaylar geçerliliğini korur; devredilen ajanlar kendi ayarlarını kullanır.",
-      "legacyMode": "Kaydetmek ajanın onay kurallarını uygular ve bu rutinin önceki kalıcı onaylarını kaldırır.",
-      "agentAsks": "Ajan onay gerektiriyor",
-      "agentFree": "Ajan otomatik kullanıma izin veriyor",
-      "follow": "Ajanı izle",
-      "ask": "Her seferinde sor",
+    "access": {
+      "label": "Rutin erişimi",
+      "title": "{named, select, yes {Rutin erişimi: {name}} other {Rutin erişimi}}",
+      "description": "Bu rutinin size sormadan neler yapabileceğini seçin ve nelere erişebildiğini inceleyin.",
+      "retry": "Tekrar dene",
+      "stale": "Siz incelerken rutin, agent'ının kaynakları veya araçları değişti. Güncel incelemeyi kontrol edip yeniden kaydedin.",
+      "tabTools": "Araçlar",
+      "tabSources": "Kaynaklar",
+      "banner": {
+        "setup": "Bu rutin henüz incelenmedi. Neler yapabileceğini seçin ve etkinleştirmek için kaydedin.",
+        "sources": "Agent'ın araçları veya kaynakları son incelemeden bu yana değişti. Rutin yeniden çalışmadan önce bunları inceleyip kaydedin.",
+        "routine_changed": "Rutin son incelemeden bu yana değişti; örneğin prompt'u, kimin adına çalıştığı veya nereye teslim ettiği. Yeniden çalışmadan önce erişimini inceleyip kaydedin.",
+        "platform_identity": "Platformun MCP sunucusu bu rutinin oluşturan kişi adına çalışmasını gerektiriyor. Rutinin ayarlarında sizin adınıza çalışmayı açın.",
+        "unavailable": "Bu rutinin bazı kaynakları kullanılamıyor: {names}. Agent'ın bağlantılarını kontrol edin, ardından incelemeyi yeniden kaydedin.",
+        "requiredUnavailable": "Bu rutin kullanılamayan kaynaklara ihtiyaç duyuyor: {names}. Kaydetmeden önce bunları geri getirin.",
+        "trustNotAllowed": "{reason, select, permission {Artık onaylara karar veremediğiniz için bu rutin agent'ına artık güvenemez.} organization {Kuruluşunuz artık rutinlerin agent'larına güvenmesine izin vermiyor.} event {Bir olayla başlayan rutin agent'ına güvenemez.} other {Bu rutinin agent'ına güvenmesine yalnızca konsolda oturum açmış olarak siz izin verebilirsiniz.}} Yeniden çalışması için incelemesini kaydedin.",
+        "allowBlocked": "{reason, select, permission {Onaylara karar veremediğiniz için bir şeyi değiştiren araçlar önce sorar.} organization {Kuruluşunuz kalıcı onayı kapattığı için bir şeyi değiştiren araçlar önce sorar.} other {Araçların sormadan çalışmasına yalnızca konsolda oturum açmış olarak siz izin verebilirsiniz.}}"
+      },
+      "openApprovalSettings": "Onay ayarlarını aç",
+      "inspectAgent": "Agent'ın bağlantılarını kontrol et",
+      "search": "Araçları ara",
+      "setAllCurrent": "Tümünü ayarla: {choice, select, agent {Agent gibi} ask {Her şey için sor} allow {İzin verilen yerde serbestçe çalıştır} other {Özel}}",
+      "setAllAgent": "Agent gibi",
+      "setAllAsk": "Her şey için sor",
+      "setAllAllow": "İzin verilen yerde serbestçe çalıştır",
+      "unlisted": "Araçlarını listelemek için bu bağlantıları kontrol edin: {names}.",
+      "noTools": "Bu agent sürümü rutine hiç araç vermiyor.",
+      "noMatches": "Aramanızla eşleşen araç yok.",
+      "capabilities": "Capabilities",
+      "personalAccount": "{name} · hesabınız",
+      "organizationAccount": "{name} · organizasyon hesabı",
+      "allow": "Serbestçe çalıştır",
+      "ask": "Önce sor",
       "off": "Kapalı",
-      "search": "Araç bul",
-      "reset": "Tüm araçlarda ajanı izle",
-      "empty": "Bu rutinin yapılandırılabilir aracı yok.",
-      "noMatches": "Aramayla eşleşen araç yok.",
-      "personalAccount": "Kişisel hesap · {name}",
-      "organizationAccount": "Kuruluş hesabı · {name}",
-      "unavailable": "Araçlarını görmek için bu bağlantıları kontrol edin: {names}.",
-      "unavailableSettings": "Kullanılamayan araç kısıtlamaları",
-      "unavailableSettingsBody": "Bu kayıtlı kısıtlamalar araç şu anda sunulmasa bile korunur. Bir kısıtlamayı kaldırmak için açıkça silin.",
-      "removeRestriction": "{name} kısıtlamasını kaldır"
+      "reads": "Okur",
+      "changes": "Değiştirir",
+      "locked": "Her zaman sorar (agent gerektirir)",
+      "effectiveNow": "{state, select, run {Şimdi sormadan çalışır} ask {Şimdi önce sorar} consent {Şimdi kalıcı onayınla çalışır} other {Şimdi kapalı}}",
+      "grandfathered": "Bu rutin araçlarını hâlâ agent'ının izin verdiği gibi, rutin erişiminden önceki gibi kullanıyor. Kaydetmek bunun yerine aşağıdaki ayarları uygular.",
+      "allowRefused": "{reason, select, permission {Onaylara karar verme izni gerektirir.} organization {Kuruluşunuz kalıcı onayı kapattı.} other {Araçların sormadan çalışmasına yalnızca konsolda oturum açmış olarak siz izin verebilirsiniz.}}",
+      "delegates": "Delege agent'lar",
+      "delegatesHint": "Bu agent'ın iş devrettiği agent'larda bir şeyi değiştiren araçlar.",
+      "noSources": "Bu rutin hiçbir kaynağa erişmiyor.",
+      "kindCount": "{name} ({count})",
+      "unavailableMark": "Kullanılamıyor",
+      "requiredMark": "Kullanılamıyor, gerekli",
+      "dangerZone": "Tehlikeli bölge",
+      "trust": "Agent'a güven",
+      "trustWarning": "Agent'ın gelecekteki araçları ve kaynakları, başkalarının daha sonra bağladığı organizasyon hesapları dahil, size sorulmadan kullanılır. Kişisel hesaplarınız yine de inceleme gerektirir ve erişim genişlediğinde bildirim alırsınız. Önce sor veya Kapalı olarak ayarlanan araçlar ayarlarını korur.",
+      "trustRefused": "{reason, select, permission {Bunu açmak için onaylara karar verme izni gerekir.} organization {Kuruluşunuz rutinlerin agent'larına güvenmesine izin vermiyor.} event {Bir olayla başlayan rutin agent'ına güvenemez.} other {Bunu yalnızca konsolda oturum açmış olarak siz açabilirsiniz.}}",
+      "trustSetting": "Onay ayarlarını aç",
+      "trustConfirmTitle": "Agent'a güvenilsin mi?",
+      "trustConfirmDescription": "Bu rutin, agent'ının daha sonra kazandığı her şeyi, başkalarının bağladığı organizasyon hesapları dahil, size sormadan kullanır. Kişisel hesaplarınız yine de inceleme gerektirir ve erişimi genişlediğinde bildirim alırsınız.",
+      "summary": "{allow} serbest, {ask} önce sorar, {off} kapalı",
+      "save": "Değişiklikleri kaydet",
+      "saveAndEnable": "Kaydet ve etkinleştir",
+      "trustsAgent": "Agent'a güvenir",
+      "kind": "{kind, select, capability {Capabilities} skill {Skill'ler} context {Bağlam dosyaları} knowledge {Bilgi tabanları} table {Tablolar} delegate {Delege agent'lar} remote_agent {Uzak agent'lar} platform {Platform} mcp_account {MCP hesapları} chat_connection {Sohbet bağlantıları} phone {Telefon} terminal_account {Terminal hesapları} terminal_credential {Terminal kimlik bilgileri} event_source {Olay kaynağı} other {Diğer}}",
+      "unnamed": "Artık kullanılamıyor"
     }
   },
   "teams": {
@@ -11786,7 +11780,13 @@
       "switchOrganization": "{name} kuruluşuna geç",
       "runAttribution": "Öneriler ayrı bir model kullanır; izleme, seçilen temsilcinin modelini kullanır. Her iki özellik de üye başına aylık arka plan çalışma bütçesini paylaşır.",
       "summary": "Öneriler, izleme ve teslimat zamanları."
-    }
+    },
+    "routineTrust": "Rutinler agent'larına güvenebilir",
+    "routineTrustDescription": "Bir rutinin, oluşturan kişi yeniden incelemeden agent'ının gelecekteki araç ve kaynaklarını kullanıp kullanamayacağı.",
+    "routineTrustHint": "Bu açıkken onay kararı verebilen biri, zamanlanmış bir rutinin agent'ını izlemesine izin verebilir: agent'ın daha sonra kazandığı organizasyon hesapları, araçlar ve kaynaklar yeni bir inceleme olmadan kullanılır. Kişisel hesaplar yine de inceleme gerektirir ve erişim genişlediğinde oluşturan kişiye bildirim gider. Varsayılan olarak kapalı.",
+    "routineTrustAllowed": "Rutinler artık agent'larına güvenebilir",
+    "routineTrustForbidden": "Rutinler artık agent'larına güvenemez",
+    "routineTrustFailed": "Rutinlerin agent'larına güvenip güvenemeyeceği değiştirilemedi"
   },
   "groups": {
     "title": "Gruplar",

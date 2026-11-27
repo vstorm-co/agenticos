@@ -19,6 +19,7 @@ from app.db.models.agent_trigger import AgentTrigger
 from app.schemas.agent_environment import EnvironmentCreate, EnvironmentUpdate
 from app.services.agent_environment import AgentEnvironmentService
 from app.services.agent_registry import AgentRegistryService
+from app.services.routine_access import RoutineAccessService
 from app.services.routine_sources import RoutineSourceService, RoutineSourcesRequired
 from tests.integration.test_eval_suites import (
     _agent,
@@ -51,7 +52,7 @@ async def _routine(
     )
     db.add(trigger)
     await db.flush()
-    policy = await RoutineSourceService(db).initial(creator, trigger)
+    policy = await RoutineAccessService(db).initial(creator, trigger)
     trigger.approved_sources = policy.model_dump(mode="json")
     await db.flush()
     return trigger

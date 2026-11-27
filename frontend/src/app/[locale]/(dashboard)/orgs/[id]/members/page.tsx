@@ -23,6 +23,7 @@ import {
   InviteLinkDialog,
   InviteMemberDialog,
   OrgApprovalWaiver,
+  OrgRoutineTrust,
   OrgAssistant,
   OrgPublicAttribution,
   OrgPublicLiveData,
@@ -664,6 +665,7 @@ export default function OrgMembersPage({ params }: PageProps) {
         >
           {org && <OrgSpendingLimit org={org} />}
           {org && <OrgApprovalWaiver org={org} />}
+          {org && <OrgRoutineTrust org={org} />}
           {org && <OrgPublicAttribution org={org} />}
           {org && <OrgPublicLiveData org={org} />}
         </TabsContent>

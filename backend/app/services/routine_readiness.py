@@ -3,9 +3,9 @@
 Nothing here decides admission. Each blocker is the answer one of the fire path's
 own checks gives, asked without the side effects a fire has: the creator's
 membership (`_creator_context`), the agent's run grant, the runnable version, the
-source review (`RoutineSourceService.current`, the read half of
-`require_current`), the action consents (`RoutineActionService.review`, the
-review the consent dialog shows) and the parked run the schedule waits behind
+access review (`RoutineSourceService.current`, the read half of
+`require_current`), the tools the review makes wait
+(`RoutineAccessService.waiting`) and the parked run the schedule waits behind
 (`claim_due`'s busy rule). A check that can only be answered by a provider at run
 time is not predicted; its refusal is in the routine's attempt history.
 """
@@ -21,14 +21,15 @@ from app.db.models.agent_trigger import AgentTrigger, TriggerOverlap
 from app.repositories import agent_run_repo
 from app.schemas.routine_readiness import RoutineBlocker
 from app.services.agent_registry import AgentRegistryService
-from app.services.routine_actions import RoutineActionService
+from app.services.routine_access import RoutineAccessService
 from app.services.routine_sources import (
     PlatformRoutineIdentityRequired,
     RoutineSourceService,
+    RoutineTrustRefused,
     read_policy,
+    routine_intent,
     source_scope,
 )
-from app.services.routine_tools import RoutineToolService
 
 _PARKED = frozenset({RunStatus.AWAITING_APPROVAL.value, RunStatus.AWAITING_ANSWER.value})
 
@@ -69,42 +70,35 @@ async def blockers(
     except NotFoundError, BadRequestError:
         found.append(RoutineBlocker(code="agent_unavailable", severity="blocked"))
         return found
-    following = False
-    scope_changed = False
     if trigger.setup_required:
         found.append(RoutineBlocker(code="sources_setup", severity="blocked"))
     else:
+        changed = False
         try:
             policy = read_policy(trigger.approved_sources)
-            # A stale review still says how the routine is reviewed: re-reviewing a
-            # following routine does not make standing consent apply to it.
-            following = policy.mode == "follow_agent"
-            # Who it acts as, where it reads from or delivers to is part of what was
-            # reviewed, so editing the routine itself is a reason of its own.
-            scope_changed = policy.scope_hash != source_scope(trigger)
+            # Who it acts as, where it reads from or delivers to and what it is
+            # asked to do are part of what was reviewed, so editing the routine
+            # itself is a reason of its own.
+            changed = policy.scope_hash != source_scope(trigger) or (
+                policy.intent_hash is not None and policy.intent_hash != routine_intent(trigger)
+            )
             await RoutineSourceService(db).current(creator, trigger, expected_id=policy.id)
+        except RoutineTrustRefused:
+            found.append(RoutineBlocker(code="trust_not_allowed", severity="blocked"))
         except PlatformRoutineIdentityRequired:
             found.append(RoutineBlocker(code="platform_identity", severity="blocked"))
         except AuthorizationError, NotFoundError, BadRequestError:
-            # The fire path reads every one of these as a source review to redo.
+            # The fire path reads every one of these as a review to redo.
             found.append(
                 RoutineBlocker(
-                    code="routine_changed" if scope_changed else "sources_review",
+                    code="routine_changed" if changed else "sources_review",
                     severity="blocked",
                 )
             )
     parked = await _parked_run(db, trigger)
     if parked is not None:
         found.append(parked)
-    # Under the agent's own settings, only what the owner narrowed to ask first is
-    # theirs to change. A following review defers effects to the agent's approval
-    # gate, where standing consent has no say (`RoutineAuthority.action_policy`).
-    if trigger.action_mode == "agent":
-        waiting = await _narrowed_to_ask(db, creator, trigger)
-    elif not following:
-        waiting = await _unconsented_actions(db, creator, trigger)
-    else:
-        waiting = 0
+    waiting = 0 if trigger.setup_required else await _waiting(db, creator, trigger)
     if waiting:
         found.append(
             RoutineBlocker(code="actions_need_approval", severity="attention", count=waiting)
@@ -112,16 +106,13 @@ async def blockers(
     return found
 
 
-async def _narrowed_to_ask(db: AsyncSession, creator: AuthContext, trigger: AgentTrigger) -> int:
-    """How many of the version's tools the owner set to ask first.
-
-    Only the routine's own: what the agent asks before, the routine cannot release.
-    """
+async def _waiting(db: AsyncSession, creator: AuthContext, trigger: AgentTrigger) -> int:
+    """How many tools the routine's review makes wait for a person, beyond the agent's own."""
     try:
-        review = await RoutineToolService(db).tools(creator, trigger)
+        return await RoutineAccessService(db).waiting(creator, trigger)
     except NotFoundError, BadRequestError, AuthorizationError:
+        # The version, a delegate or the review is unavailable; the blockers above say so.
         return 0
-    return sum(1 for item in review.items if item.setting == "ask")
 
 
 async def _parked_run(db: AsyncSession, trigger: AgentTrigger) -> RoutineBlocker | None:
@@ -152,18 +143,3 @@ async def _parked_run(db: AsyncSession, trigger: AgentTrigger) -> RoutineBlocker
         severity="blocked" if held else "attention",
         run_id=run.id,
     )
-
-
-async def _unconsented_actions(
-    db: AsyncSession, creator: AuthContext, trigger: AgentTrigger
-) -> int:
-    """How many eligible actions would require approval if the agent uses them."""
-    try:
-        review = await RoutineActionService(db).review(creator, trigger)
-    except NotFoundError, BadRequestError, AuthorizationError:
-        # The version or a delegate is unavailable; the source review says so.
-        return 0
-    waivable = [item for item in review.items if item.waivable]
-    if not review.can_waive:
-        return len(waivable)
-    return sum(1 for item in waivable if not item.consented)

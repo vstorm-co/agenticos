@@ -22,7 +22,7 @@ from app.db.models.agent_trigger import MIN_INTERVAL_SECONDS, EventSource, Trigg
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.local_target import LocalTarget
 from app.schemas.routine_notifications import ExternalNotificationChannel
-from app.schemas.routine_sources import RoutineSourceMode
+from app.schemas.routine_tool_keys import RoutineAccessMode
 
 # The interval floor is a database CHECK (`ck_trigger_interval_floor`); this
 # ceiling is input-only, and its job is a 422 rather than a 500. `interval_seconds`
@@ -463,13 +463,13 @@ class TriggerCreate(BaseSchema):
     is_active: bool = Field(
         default=True, description="Create paused while configuring device consent."
     )
-    source_mode: RoutineSourceMode = Field(
-        default="follow_agent",
-        description="Use the initial approved agent ceiling with current creator permissions; later source or behavior expansions require owner review. Restricted mode freezes all reviewed sources.",
-    )
     review_before_activation: bool = Field(
         default=False,
-        description="Save paused with source review required before the first activation.",
+        description=(
+            "Save paused, with the access review (GET and PUT .../access) required before "
+            "the first activation. Otherwise the routine's sources and the tools its "
+            "creator may let run are reviewed as it is created."
+        ),
     )
     prompt: str = Field(min_length=1, max_length=10000)
     source_id: UUID | None = None
@@ -502,7 +502,6 @@ class TriggerCreate(BaseSchema):
         default="shared",
         description="A private editable chat for each execution, or one read-only shared history whose creator may fork an answer.",
     )
-    action_mode: Literal["agent", "manual", "per_tool"] | None = None
     result_mode: Literal["report", "inbox"] = Field(
         default="report",
         description="Legacy delivery compatibility: report permits answer_to delivery; inbox retains only the run log. In both modes, findings are published explicitly through publish_inbox_finding MCP, never parsed from the final answer.",
@@ -779,7 +778,6 @@ class TriggerUpdate(BaseSchema):
         gt=0,
         description="This routine's own monthly limit; null removes it",
     )
-    action_mode: Literal["agent", "manual", "per_tool"] | None = None
     chat_mode: Literal["per_run", "shared"] | None = None
     result_mode: Literal["report", "inbox"] | None = None
     answer_to: Literal["run_log", "primary", "conversation"] | None = Field(
@@ -907,7 +905,10 @@ class TriggerRead(BaseSchema, TimestampSchema):
         "A version and a named environment cannot both be selected.",
     )
     teams_conversation_id: UUID | None = None
-    action_mode: Literal["agent", "manual", "per_tool"] | None = None
+    access_mode: RoutineAccessMode | None = Field(
+        default=None,
+        description="`trust_agent` when the routine follows its agent without review; null before setup",
+    )
     chat_mode: Literal["per_run", "shared"] = "shared"
     result_mode: Literal["report", "inbox"] = "report"
     answer_to: Literal["run_log", "primary", "conversation"] = "run_log"

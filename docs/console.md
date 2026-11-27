@@ -310,9 +310,11 @@ snapshot you meant to keep.
 
 ## Routines and watches
 
-New routines automatically use the agent's available configuration at creation, within an approved access and behavior ceiling. No initial access review is required; missing optional MCP accounts do not block unrelated work. Later source or tool expansions and changes to instructions, skills, context or delegates require the creator's review before running. Model-only updates and safe removals stay within the ceiling. Agent approvals, mandatory platform approvals and native folder consent still apply. The access dialog can instead keep a reviewed snapshot; existing restricted routines retain that policy until the owner changes it.
+Creating a routine reviews its access at once: reads run, tools that change something run freely only when you may allow them, and everything else asks. The shield on a routine's row opens **Routine access**: a **Tools** tab with **Run freely**, **Ask first** or **Off** for each tool and one row for delegate agents, and a **Sources** tab with what the routine may reach.
 
-New routines default to eligible tools running automatically under the agent's approval rules, with runs collected in one read-only chat. Choose a separate chat per run to continue the conversation directly, or fork the shared history. In **Routine tools**, **Follow agent**, **Ask every time** and **Off** retain or tighten the agent's rules; required approvals still apply. Saving restrictions on an older routine explicitly removes its previous standing approvals, as the dialog warns. See [Routine tools](governance.md#routine-action-consent).
+Growth beyond the reviewed sources, a changed binding or a changed prompt blocks the routine until you review it; removals and instruction or model changes do not. Agent approvals, mandatory platform approvals and native folder consent still apply. Where allowed, **Trust the agent** lets a schedule follow its agent and shows a **Trusts agent** badge. See [Routine access](governance.md#routine-access).
+
+Runs of a new routine are collected in one read-only chat. Choose a separate chat per run to continue the conversation directly, or fork the shared history.
 
 If **Skip this run** prevents an overlapping occurrence, history records the reason without starting or charging another run. You can stop a waiting run directly in this history when the server permits it. Stopping preserves its spend and lets the next scheduled occurrence proceed. Repeated skips behind the same unfinished run share one history entry.
 

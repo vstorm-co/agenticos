@@ -1,5 +1,5 @@
 ---
-source_sha: "79536bb10996"
+source_sha: "843d4fbc5f0b"
 ---
 
 # Bezpieczeństwo { #security }
@@ -276,6 +276,33 @@ może zrobić, ograniczają kontrole, których strona nie może zmienić:
 - **Strona dowiaduje się niewiele.** Status runa, tekst odpowiedzi, odpowiedź
   strukturalna bez referencji do plików i pierwszy wiersz błędu, najwyżej 200 znaków,
   tylko dla runa, który ta strona uruchomiła dla tej osoby.
+
+## Rutyna działająca bez nadzoru { #unattended-routines }
+
+Rutyna działa z uprawnieniami swojego twórcy, ale jej agenta może opublikować ktoś
+inny. Gdyby rutyna po prostu podążała za agentem, każdy, kto może go opublikować,
+mógłby rozszerzyć to, co działa na poświadczeniach i uprawnieniach twórcy, bez jego
+wiedzy: to problem zdezorientowanego zastępcy (confused deputy).
+[Przegląd dostępu](governance.md#routine-access) to ogranicza:
+
+- **Przyrost czeka na twórcę.** Domyślnie rutyna jest blokowana, gdy jej agent zyskuje
+  źródło, konto, narzędzie MCP, capability, skill, plik kontekstu lub delegata albo
+  zmienia powiązanie, dopóki twórca tego nie przejrzy. Usunięcia oraz zmiany instrukcji
+  lub modelu przechodzą, bo nie sięgają do niczego nowego.
+- **Rutyna nigdy nie znosi zatwierdzenia.** Może kazać narzędziu pytać lub je wyłączyć.
+  Narzędziu, które coś zmienia, pozwala działać bez pytania tylko na podstawie zgody
+  twórcy z `approvals:decide`, w organizacji dopuszczającej stałą zgodę, sprawdzanej
+  przy każdym wywołaniu i zapisywanej jako zatwierdzony wpis.
+- **Zaufanie agentowi to świadomy wyjątek.** Twórca, który i tak mógłby zatwierdzić te
+  wywołania, może pozwolić harmonogramowi podążać za agentem, w organizacji, która to
+  włączyła. Rutyny zdarzeniowe nie mogą: ich wejście pochodzi z zewnątrz, więc nadawca
+  mógłby sterować rutyną, której narzędzi nikt nie przejrzał. Osobiste konta twórcy,
+  konta terminala i tożsamość na platformie nadal są przeglądane, a przyrost źródeł
+  organizacji trafia do audytu i jest zgłaszany twórcy.
+- **Uprawnienia rozszerza osoba, nie jej klucz.** Agent ani sesja podszywania się nie
+  mogą zapisać przeglądu. Klucz wydany przez twórcę z `personal:consent` może kazać
+  narzędziom pytać, wyłączyć je lub pozwolić działać odczytom; pozwolenie zmianom na
+  działanie bez pytania lub zaufanie agentowi wymaga sesji konsoli twórcy.
 
 ## Macierz kontroli { #controls-matrix }
 

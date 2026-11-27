@@ -1826,8 +1826,6 @@ async def test_scope_free_routine_reporter_publishes_only_for_its_live_run(
         routine_policy={
             "acts_as_creator": True,
             "approved_sources": trigger.approved_sources,
-            "action_consents": [],
-            "action_mode": None,
         },
     )
     run.status = "running"

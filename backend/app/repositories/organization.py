@@ -363,6 +363,14 @@ async def set_chat_approval_waiver(
     return org
 
 
+async def set_routine_trust(db: AsyncSession, org: Organization, *, allowed: bool) -> Organization:
+    """Allow or forbid routines here trusting their agent, for the reason above."""
+    org.routines_may_trust_agent = allowed
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def set_public_agenticos_attribution(
     db: AsyncSession, org: Organization, *, enabled: bool
 ) -> Organization:

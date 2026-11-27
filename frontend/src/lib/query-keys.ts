@@ -316,22 +316,17 @@ export const qk = {
     targets: (agentId: string) => ["exposures", agentId, "targets"] as const,
   },
   triggers: {
-    toolSettings: (
-      ownerId: string | null,
-      orgId: string | null,
-      agentId: string,
-      triggerId: string,
-    ) => ["triggers", "tool-settings", ownerId, orgId, agentId, triggerId] as const,
     filteredEvent: (agentId: string, triggerId: string) =>
       ["triggers", agentId, "filtered-event", triggerId] as const,
     activation: (agentId: string, triggerId: string, activationId: string, jobId: string | null) =>
       ["triggers", agentId, "activation", triggerId, activationId, jobId] as const,
     attempts: (agentId: string, triggerId: string, page: number) =>
       ["triggers", agentId, "attempts", triggerId, page] as const,
-    sources: (agentId: string, triggerId: string) =>
-      ["triggers", agentId, "sources", triggerId] as const,
-    actionConsents: (agentId: string, triggerId: string) =>
-      ["triggers", agentId, "action-consents", triggerId] as const,
+    // Under `all()`, so a connection check or a trigger write reads it again.
+    // Keyed by who reads it: a review answers its creator alone, so another
+    // session or organization must never be shown this one from the cache.
+    access: (ownerId: string | null, orgId: string | null, agentId: string, triggerId: string) =>
+      ["triggers", agentId, "access", triggerId, ownerId, orgId] as const,
     // Every routine one screen shows, read together; the prefix is what a run,
     // an agent or a membership change refreshes without touching the listings.
     readinessAll: () => ["triggers", "readiness"] as const,

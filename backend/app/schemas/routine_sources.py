@@ -1,9 +1,19 @@
-"""Explicit source ceilings for recurring work, independent of write exceptions."""
+"""A routine's stored access review: the sources it may reach and a setting per tool.
+
+See `docs/design/routine-access.md`.
+"""
 
 from typing import Annotated, Literal, Self
 from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, model_validator
+
+from app.schemas.routine_tool_keys import (
+    MAX_ROUTINE_TOOLS,
+    RoutineAccessMode,
+    RoutineDelegateSetting,
+    RoutineToolSetting,
+)
 
 Fingerprint = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 ToolName = Annotated[
@@ -18,17 +28,49 @@ class RoutineSourceAccount(BaseModel):
     authorization_generation: UUID
     tool_prefix: str | None = Field(default=None, max_length=128)
     tool_ids: tuple[ToolName, ...] = Field(default=(), max_length=4096)
-
-
-type RoutineSourceMode = Literal["follow_agent", "restricted"]
+    account: str | None = Field(
+        default=None,
+        max_length=254,
+        description=(
+            "The provider account behind the connection, where it is known. A reconnect "
+            "to the same account passes the review; to another, or unknown, it does not."
+        ),
+    )
+    personal: bool = Field(
+        default=False, description="The creator's own connection rather than the organization's"
+    )
 
 
 class RoutineSourcePolicy(BaseModel):
+    """The reviewed ceiling and, at the top level, the current state within it.
+
+    `approved_ceiling` is what the creator reviewed. The top level is refreshed
+    at admission within it - an account reconnected as itself, a source removed -
+    so a run's snapshot names the identities it will actually meet. A review
+    saved before the ceiling existed has none and is its own ceiling.
+    """
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    mode: RoutineSourceMode = "restricted"
+    mode: RoutineAccessMode = "reviewed"
     approved_ceiling: RoutineSourcePolicy | None = Field(
         default=None, exclude_if=lambda value: value is None
+    )
+    tools: tuple[RoutineToolSetting, ...] = Field(default=(), max_length=MAX_ROUTINE_TOOLS)
+    delegates: RoutineDelegateSetting = "ask"
+    intent_hash: Fingerprint | None = Field(
+        default=None,
+        description="What the routine does, as reviewed; null for a review migrated without it",
+    )
+    grandfathered: bool = Field(
+        default=False,
+        description=(
+            "Migrated from `action_mode = agent`: tools without a setting follow the agent "
+            "without the permission check, until the creator saves the review."
+        ),
+    )
+    platform: bool = Field(
+        default=False, description="The platform's own server, acting as the creator, is reviewed"
     )
     id: UUID
     consented_by: UUID
@@ -52,14 +94,9 @@ class RoutineSourcePolicy(BaseModel):
     @model_validator(mode="after")
     def pair_input_source(self) -> Self:
         if self.approved_ceiling is not None and (
-            self.mode != "follow_agent"
-            or self.approved_ceiling.mode != "follow_agent"
-            or self.approved_ceiling.approved_ceiling is not None
-            or self.approved_ceiling.behavior is None
+            self.approved_ceiling.approved_ceiling is not None or self.approved_ceiling.tools
         ):
-            raise ValueError(
-                "An approved ceiling must be one non-nested following behavior snapshot"
-            )
+            raise ValueError("An approved ceiling is one non-nested snapshot of sources")
         if (self.project_id is None) != (self.project_hash is None):
             raise ValueError("A project source requires its exact workspace identity")
         if (self.input_connection_id is None) != (self.input_source is None):
@@ -99,27 +136,3 @@ class RoutineSourceItem(BaseModel):
     detail: str | None = Field(
         default=None, description="What it is granted, such as a table's operations"
     )
-
-
-class RoutineSourceReview(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    mode: RoutineSourceMode = "restricted"
-    review_token: Fingerprint
-    version_id: UUID
-    current: bool
-    resources: list[str]
-    accounts: list[str]
-    unavailable_sources: list[str]
-    required_unavailable_sources: list[str] = Field(default_factory=list)
-    items: list[RoutineSourceItem] = Field(
-        default_factory=list,
-        description="`resources` and `accounts` as named items, which the review shows grouped",
-    )
-
-
-class RoutineSourceConsent(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    review_token: Fingerprint
-    mode: RoutineSourceMode = "restricted"

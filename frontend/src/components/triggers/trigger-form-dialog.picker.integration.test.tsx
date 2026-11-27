@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TriggerFormDialog } from "./trigger-form-dialog";
 import { apiClient } from "@/lib/api-client";
 import { useAgentSelectionStore, useAuthStore } from "@/stores";
+import { routineAccessFixture } from "@/test-utils/routine-access";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -38,17 +39,7 @@ function agent(id: string, name: string, status = "published", can_run = true) {
 
 function serve() {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-    if (path.endsWith("/sources"))
-      return {
-        current: true,
-        review_token: "sources",
-        version_id: "v1",
-        resources: ["Skill instructions"],
-        accounts: [],
-        unavailable_sources: [],
-      };
-    if (path.endsWith("/tools"))
-      return { items: [], unavailable_settings: [], unavailable_sources: [] };
+    if (path.endsWith("/access")) return routineAccessFixture();
     if (path === "/me/permissions") return { permissions: [] };
     if (path === "/agents") {
       return {
@@ -176,62 +167,44 @@ it("creates a quiet Inbox routine with working chats instead of a report destina
   expect(apiClient.post).toHaveBeenCalledWith(
     "/agents/a1/triggers",
     expect.objectContaining({
-      action_mode: "agent",
       prompt: "Check new mail and prepare drafts without sending.",
     }),
   );
 });
 
-it("creates paused and saves reviewed sources and actions before enabling", async () => {
+it("creates paused and saves the reviewed access before enabling", async () => {
   const user = userEvent.setup();
   const closed = vi.fn();
   const normal = vi.mocked(apiClient.get).getMockImplementation()!;
-  vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
-    if (path.endsWith("/sources"))
-      return {
-        current: false,
-        review_token: "exact-sources",
-        version_id: "v1",
-        resources: ["Glossary skill"],
-        accounts: [],
-        unavailable_sources: [],
-      };
-    if (path.endsWith("/tools"))
-      return {
-        unavailable_settings: [],
-        unavailable_sources: [],
-        items: [
-          {
-            capability_id: "sandbox",
-            tool_id: "execute",
-            name: "execute",
-            capability_name: "Sandbox",
-            effect: false,
-            agent: "free",
-            setting: null,
-          },
-        ],
-      };
-    return normal(path, options);
+  const review = routineAccessFixture({
+    current: false,
+    review_reason: "setup",
+    review_token: "exact",
+    sources: [{ kind: "skill", id: "s1", name: "Glossary skill" }],
+    tools: [
+      {
+        capability_id: "sandbox",
+        capability_name: "Sandbox",
+        tool_id: "execute",
+        name: "execute",
+        effect: true,
+        agent: "free",
+        setting: "allow",
+        // Not reviewed yet: nothing runs until the review is saved.
+        effective: null,
+      },
+    ],
   });
+  vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
+    path.endsWith("/access") ? review : normal(path, options),
+  );
   vi.mocked(apiClient.post).mockResolvedValue({
     id: "new",
     agent_id: "a1",
     trigger_type: "schedule",
     is_active: false,
   });
-  vi.mocked(apiClient.put).mockImplementation(async (path) =>
-    path.endsWith("/sources")
-      ? {
-          current: true,
-          review_token: "exact-sources",
-          version_id: "v1",
-          resources: ["Glossary skill"],
-          accounts: [],
-          unavailable_sources: [],
-        }
-      : { items: [], unavailable_settings: [], unavailable_sources: [] },
-  );
+  vi.mocked(apiClient.put).mockResolvedValue({ ...review, current: true, review_reason: null });
   vi.mocked(apiClient.patch).mockResolvedValue({
     id: "new",
     agent_id: "a1",
@@ -244,25 +217,30 @@ it("creates paused and saves reviewed sources and actions before enabling", asyn
   await user.click(dialog.getByRole("checkbox", { name: /Review access before enabling/ }));
   await user.type(dialog.getByLabelText("Message"), "Check the glossary");
   await user.click(dialog.getByRole("button", { name: "Create" }));
-  dialog = within(await screen.findByRole("dialog", { name: "Review routine access" }));
-  expect(await dialog.findByText("Glossary skill")).toBeVisible();
+  dialog = within(await screen.findByRole("dialog", { name: "Routine access" }));
   expect(closed).not.toHaveBeenCalled();
   expect(apiClient.patch).not.toHaveBeenCalled();
   expect(apiClient.post).toHaveBeenCalledWith(
     "/agents/a1/triggers",
-    expect.objectContaining({ is_active: false }),
+    expect.objectContaining({ is_active: false, review_before_activation: true }),
   );
-  await user.click(await dialog.findByRole("combobox", { name: /execute/ }));
-  await user.click(screen.getByRole("option", { name: "Ask every time" }));
-  await user.click(dialog.getByRole("button", { name: "Enable routine" }));
-  expect(apiClient.put).toHaveBeenNthCalledWith(1, "/agents/a1/triggers/new/sources", {
-    review_token: "exact-sources",
-    mode: "restricted",
+  await user.click(
+    within(await dialog.findByRole("radiogroup", { name: "execute" })).getByRole("radio", {
+      name: "Ask first",
+    }),
+  );
+  await user.click(dialog.getByRole("tab", { name: "Sources" }));
+  expect(await dialog.findByText("Glossary skill", { exact: false })).toBeInTheDocument();
+  await user.click(dialog.getByRole("button", { name: "Save and enable" }));
+  await waitFor(() =>
+    expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/triggers/new", { is_active: true }),
+  );
+  expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/triggers/new/access", {
+    review_token: "exact",
+    mode: "reviewed",
+    tools: [{ capability_id: "sandbox", tool_id: "execute", setting: "ask" }],
+    delegates: "ask",
   });
-  expect(apiClient.put).toHaveBeenNthCalledWith(2, "/agents/a1/triggers/new/tools", {
-    settings: [{ capability_id: "sandbox", tool_id: "execute", setting: "ask" }],
-  });
-  expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/triggers/new", { is_active: true });
   expect(closed).toHaveBeenCalledWith(false);
 });
 
@@ -280,14 +258,13 @@ it("creates with agent source access without a mandatory approval modal", async 
   await user.type(dialog.getByLabelText("Message"), "Check the glossary");
   await user.click(dialog.getByRole("button", { name: "Create" }));
   await waitFor(() => expect(closed).toHaveBeenCalledWith(false));
-  expect(apiClient.post).toHaveBeenCalledWith(
-    "/agents/a1/triggers",
-    expect.objectContaining({ source_mode: "follow_agent" }),
-  );
   const request = vi.mocked(apiClient.post).mock.calls[0]?.[1];
+  // The access mode and approvals are the review's, never the form's.
+  expect(request).not.toHaveProperty("source_mode");
+  expect(request).not.toHaveProperty("action_mode");
   expect(request).not.toHaveProperty("is_active");
   expect(request).not.toHaveProperty("review_before_activation");
-  expect(screen.queryByRole("dialog", { name: "Review routine access" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("dialog", { name: "Routine access" })).not.toBeInTheDocument();
   expect(apiClient.put).not.toHaveBeenCalled();
 });
 
@@ -358,43 +335,12 @@ it.each([
   },
 );
 
-it("creates a manual-approval routine from one form without changing its source access", async () => {
-  const previous = useAuthStore.getState().user;
-  useAuthStore.setState({
-    user: {
-      id: "owner",
-      email: "owner@example.com",
-      is_active: true,
-      created_at: "2026-11-23T00:00:00Z",
-    },
-  });
+it("has no tool approvals choice in the form", async () => {
   const user = userEvent.setup();
-  vi.mocked(apiClient.post).mockResolvedValue({
-    id: "manual",
-    agent_id: "a1",
-    trigger_type: "schedule",
-  });
   const view = render(<TriggerFormDialog agentId="a1" open onOpenChange={vi.fn()} />, { wrapper });
   const dialog = within(await screen.findByRole("dialog"));
-  expect(dialog.queryByRole("button", { name: "Continue" })).toBeNull();
-  expect(dialog.getByLabelText("Message")).toBeVisible();
-  await user.type(
-    dialog.getByLabelText("Message"),
-    "Prepare my weekly report and ask before actions.",
-  );
-  await user.click(dialog.getByRole("combobox", { name: "Tool approvals" }));
-  await user.click(await screen.findByRole("option", { name: "Ask before actions" }));
-  await user.click(dialog.getByRole("button", { name: "Create" }));
-  await waitFor(() =>
-    expect(apiClient.post).toHaveBeenCalledWith(
-      "/agents/a1/triggers",
-      expect.objectContaining({
-        action_mode: "manual",
-        source_mode: "follow_agent",
-        runs_as_creator: true,
-      }),
-    ),
-  );
+  await user.click(dialog.getByText("Advanced options"));
+  expect(dialog.queryByRole("combobox", { name: "Tool approvals" })).toBeNull();
+  expect(dialog.getByRole("checkbox", { name: /Review access before enabling/ })).toBeVisible();
   view.unmount();
-  useAuthStore.setState({ user: previous });
 });

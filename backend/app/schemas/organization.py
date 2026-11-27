@@ -177,6 +177,14 @@ class OrganizationUpdate(BaseSchema):
             "name."
         ),
     )
+    routines_may_trust_agent: bool | None = Field(
+        default=None,
+        description=(
+            "Whether a routine's creator may let it trust its agent: follow the "
+            "agent's future access without a new review. Omit to leave it alone. "
+            "Changing it needs 'approvals:decide'."
+        ),
+    )
     public_agenticos_attribution: bool | None = Field(
         default=None,
         description="Show the AgenticOS GitHub footer on public pages and shared chats. Needs org:settings.",
@@ -258,6 +266,13 @@ class OrganizationRead(BaseSchema, TimestampSchema):
             "Whether a chat session here may grant standing consent to gated tool "
             "calls. The chat reads it to decide whether to offer the control at "
             "all; who may then use it is `approvals:decide`."
+        ),
+    )
+    routines_may_trust_agent: bool = Field(
+        default=False,
+        description=(
+            "Whether a routine's creator may let it trust its agent. Who may then "
+            "choose it is `approvals:decide`, and only for a schedule."
         ),
     )
     public_agenticos_attribution: bool = Field(

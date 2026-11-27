@@ -119,6 +119,7 @@ def _org_read(
         welcome_dm_enabled=org.welcome_dm_enabled,
         welcome_dm_text=org.welcome_dm_text,
         chat_may_waive_approvals=org.chat_may_waive_approvals,
+        routines_may_trust_agent=org.routines_may_trust_agent,
         public_agenticos_attribution=org.public_agenticos_attribution,
         public_live_data=org.public_live_data,
         text_to_speech=org.text_to_speech,
@@ -491,6 +492,7 @@ class OrganizationService:
         )
         wants_color = "avatar_color" in data.model_fields_set
         wants_waiver = "chat_may_waive_approvals" in data.model_fields_set
+        wants_trust = "routines_may_trust_agent" in data.model_fields_set
         wants_public_data = "public_live_data" in data.model_fields_set
         wants_metadata = bool(
             data.model_fields_set
@@ -498,6 +500,7 @@ class OrganizationService:
                 "monthly_budget_usd",
                 "proactive_limit_usd",
                 "chat_may_waive_approvals",
+                "routines_may_trust_agent",
                 "public_live_data",
             }
             - _PROACTIVE_FIELDS
@@ -509,6 +512,10 @@ class OrganizationService:
         if wants_waiver and not holds(Perm.APPROVALS_DECIDE):
             raise AuthorizationError(
                 message="Changing whether chats may waive approvals requires 'approvals:decide'"
+            )
+        if wants_trust and not holds(Perm.APPROVALS_DECIDE):
+            raise AuthorizationError(
+                message="Changing whether routines may trust their agent requires 'approvals:decide'"
             )
 
         if wants_public_data and not holds(Perm.ORG_SETTINGS):
@@ -631,6 +638,25 @@ class OrganizationService:
         if wants_waiver and data.chat_may_waive_approvals is not None:
             org = await organization_repo.set_chat_approval_waiver(
                 self.db, org, allowed=data.chat_may_waive_approvals
+            )
+
+        if (
+            wants_trust
+            and data.routines_may_trust_agent is not None
+            and data.routines_may_trust_agent != org.routines_may_trust_agent
+        ):
+            before = org.routines_may_trust_agent
+            org = await organization_repo.set_routine_trust(
+                self.db, org, allowed=data.routines_may_trust_agent
+            )
+            await record_audit(
+                self.db,
+                actor_user_id=requester_id,
+                organization_id=org.id,
+                action="organization.routine_trust_changed",
+                target_type="organization",
+                target_id=str(org.id),
+                details={"from": before, "to": org.routines_may_trust_agent},
             )
 
         if (

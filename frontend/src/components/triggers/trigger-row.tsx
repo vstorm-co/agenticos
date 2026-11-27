@@ -12,7 +12,10 @@ import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
 import { TriggerRunsSheet } from "@/components/triggers/trigger-runs-view";
 import { TriggerSummary } from "@/components/triggers/trigger-summary";
 import { Badge, Button, ConfirmDialog, ActionTooltip, TooltipProvider } from "@/components/ui";
-import { ActionConsentsDialog } from "@/components/triggers/action-consents-dialog";
+import {
+  RoutineAccessDialog,
+  type RoutineAccessTab,
+} from "@/components/triggers/routine-access-dialog";
 import { RoutineBlockers } from "@/components/triggers/routine-blockers";
 import { useAuthStore } from "@/stores";
 import { useTriggers } from "@/hooks/use-triggers";
@@ -70,7 +73,7 @@ interface TriggerRowProps {
 export function TriggerRow({ trigger, showAgent = false, blockers: read }: TriggerRowProps) {
   const t = useTranslations("triggers");
   const me = useAuthStore((state) => state.user?.id);
-  const [consenting, setConsenting] = useState(false);
+  const [reviewing, setReviewing] = useState<RoutineAccessTab | null>(null);
   const { setActive, runNow, remove } = useTriggers(trigger.agent_id);
   const impersonating = useAuthStore((state) => Boolean(state.user?.impersonation));
   // Only its creator resumes a routine that acts as them - not an administrator acting as
@@ -194,6 +197,9 @@ export function TriggerRow({ trigger, showAgent = false, blockers: read }: Trigg
       )}
       <div className="flex min-w-0 basis-full flex-wrap items-center gap-2 empty:hidden @min-[48rem]/routine:max-w-[50%] @min-[48rem]/routine:basis-auto">
         {trigger.runs_as_creator && <Badge variant="outline">{t("actsAsCreator")}</Badge>}
+        {trigger.access_mode === "trust_agent" && (
+          <Badge variant="warning">{t("access.trustsAgent")}</Badge>
+        )}
         {(trigger.waiting_device_count ?? 0) > 0 && (
           <Badge variant="secondary">
             {t("local.waitingDevice", { count: trigger.waiting_device_count ?? 0 })}
@@ -210,14 +216,14 @@ export function TriggerRow({ trigger, showAgent = false, blockers: read }: Trigg
           <TooltipProvider>
             <div className="ml-auto flex shrink-0 flex-wrap items-center gap-0.5">
               {isOwner && (
-                <ActionTooltip label={t("toolSettings.title")}>
+                <ActionTooltip label={t("access.label")}>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
                     data-tour="routine-access"
-                    aria-label={t("toolSettings.title")}
-                    onClick={() => setConsenting(true)}
+                    aria-label={t("access.label")}
+                    onClick={() => setReviewing("tools")}
                   >
                     <ShieldCheck className="h-4 w-4" />
                   </Button>
@@ -256,7 +262,7 @@ export function TriggerRow({ trigger, showAgent = false, blockers: read }: Trigg
                     aria-label={trigger.is_active ? t("pause") : t("resume")}
                     disabled={setActive.isPending}
                     onClick={() => {
-                      if (!trigger.is_active && trigger.setup_required) setConsenting(true);
+                      if (!trigger.is_active && trigger.setup_required) setReviewing("tools");
                       else
                         setActive.mutate({ triggerId: trigger.id, isActive: !trigger.is_active });
                     }}
@@ -289,13 +295,14 @@ export function TriggerRow({ trigger, showAgent = false, blockers: read }: Trigg
         blockers={blockers}
         paused={!trigger.is_active}
         canReview={isOwner}
-        onReview={() => setConsenting(true)}
+        onReview={setReviewing}
         onOpenRuns={openRuns}
       />
-      {consenting && (
-        <ActionConsentsDialog
+      {reviewing && (
+        <RoutineAccessDialog
           trigger={trigger}
-          onClose={() => setConsenting(false)}
+          initialTab={reviewing}
+          onClose={() => setReviewing(null)}
           onSaved={
             trigger.setup_required
               ? async () => {

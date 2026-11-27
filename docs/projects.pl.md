@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "b3e1868645f3"
+source_sha: "7175d2d3fad5"
 ---
 
 # Projekty { #projects }
@@ -356,7 +356,7 @@ sięgał do niego już tylko projekt, więc znika razem z nim.
 
 Na stronie projektu wybierz **Pilnuj projektu**. Wskaż opublikowanego agenta, którego możesz edytować, przejrzyj zasoby i połączone konta, nazwij nowego agenta i tabelę zadań, wybierz częstotliwość i jawnie zatwierdź publikację oraz uruchomienie. Powstają prywatna kopia agenta, tabela zadań (prywatna, chyba że wybierzesz widoczność dla organizacji), zapisane widoki wszystkich zadań, tablicy, otwartych zadań i blokad oraz rutyna przypięta do nowej wersji. Oryginalny agent pozostaje bez zmian.
 
-Rutyna działa jako Ty wewnątrz projektu i raportuje w jego rozmowie. Czyta stan zadań, sprawdza postępy w zatwierdzonych źródłach, aktualizuje kolejne kroki i wskazuje blokady oraz terminy. Wysłanie zewnętrznego przypomnienia nadal wymaga zwykłej autoryzacji. Nowe źródła, ponowna zgoda konta lub wymiana przestrzeni projektu wymagają ponownego przeglądu źródeł. Utrata dostępu do projektu zatrzymuje kolejne narzędzia; oczekujące powiadomienia ponownie sprawdzają bieżący dostęp odbiorcy. Identyczna ponowiona konfiguracja wykorzystuje istniejące zasoby. Częstotliwość i źródła zmienisz w Rutynach, a tabelę otworzysz ze strony projektu.
+Rutyna działa jako Ty wewnątrz projektu i raportuje w jego rozmowie. Czyta stan zadań, sprawdza postępy w zatwierdzonych źródłach, aktualizuje kolejne kroki i wskazuje blokady oraz terminy. Wysłanie zewnętrznego przypomnienia nadal wymaga zwykłej autoryzacji. Nowe źródła, ponowna zgoda konta lub wymiana przestrzeni projektu wymagają ponownego przeglądu dostępu. Utrata dostępu do projektu zatrzymuje kolejne narzędzia; oczekujące powiadomienia ponownie sprawdzają bieżący dostęp odbiorcy. Identyczna ponowiona konfiguracja wykorzystuje istniejące zasoby. Częstotliwość i przegląd dostępu zmienisz w Rutynach, a tabelę otworzysz ze strony projektu.
 
 Rozmowę harmonogramową w projekcie, która nie ma właściciela, może zmienić, zarchiwizować lub usunąć osoba z prawem edycji tego projektu. Rozmowami rozpoczętymi przez inną osobę nadal zarządza ich właściciel.
 

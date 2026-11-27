@@ -54,24 +54,24 @@ from app.repositories import (
     watch_repo,
 )
 from app.schemas.local_target import LocalTarget, target_fingerprint
-from app.schemas.routine_actions import (
-    RoutineAction,
-    RoutineActionKey,
-    RoutineConsent,
-    RoutineMcpActionKey,
-    RoutinePlatformActionKey,
-)
 from app.schemas.routine_sources import RoutineSourcePolicy
-from app.schemas.routine_tools import RoutineMcpToolKey, RoutineToolKey, RoutineToolSettingValue
+from app.schemas.routine_tool_keys import (
+    RoutineCapabilityToolKey,
+    RoutineMcpToolKey,
+    RoutinePlatformToolKey,
+    RoutineToolKey,
+    RoutineToolSettingValue,
+)
 from app.schemas.watch_sources import WatchSources
 from app.services.access import AGENT, resolve_access
 from app.services.project import ProjectService
-from app.services.routine_actions import (
-    CONSENTS,
-    action_intent,
-    action_key,
-    instruction_fingerprint,
+from app.services.routine_access import (
+    allow_holds,
+    decide,
+    decide_delegate,
+    provider_executed,
     routine_effect,
+    settings_of,
 )
 from app.services.routine_sources import (
     RoutineSourceService,
@@ -84,7 +84,6 @@ from app.services.routine_sources import (
     require_bound_sources,
     source_scope,
 )
-from app.services.routine_tools import provider_executed, read_tool_settings, stricter
 
 MCP_SOURCES = TypeAdapter(dict[UUID, McpSourceIdentity])
 
@@ -131,27 +130,31 @@ class RoutineAuthority:
     root_agent_id: UUID
     role: str
     acts_as_creator: bool
-    action_mode: Literal["agent", "manual", "per_tool"] | None = None
     routine_kind: Literal["trigger", "watch"] = "trigger"
     chat_mode: Literal["per_run", "shared"] | None = None
     result_mode: Literal["report", "inbox"] = "report"
     sources: WatchSources | None = None
-    action_consents: tuple[RoutineConsent, ...] = ()
-    root_version_id: UUID | None = None
     mcp_sources: dict[UUID, McpSourceIdentity] | None = None
     local_target_hash: str | None = None
     source_policy: RoutineSourcePolicy | None = None
-    tool_settings: dict[RoutineToolKey, RoutineToolSettingValue] | None = None
-    """The owner's narrowing as the run started; the current one is read per call too."""
+    """The access review as the run was admitted: its sources and its tool settings.
+
+    A review saved again mid-run gets a new id, which `_require_trigger` refuses,
+    so a run never mixes two reviews.
+    """
+
+    @property
+    def tool_settings(self) -> dict[RoutineToolKey, RoutineToolSettingValue]:
+        return {} if self.source_policy is None else settings_of(self.source_policy)
 
     def tool_key(self, spec: AgentSpec, tool: ToolDefinition) -> RoutineToolKey | None:
-        """The tool a routine's narrowing names, as the run's model sees it."""
+        """The tool a routine's review names, as the run's model sees it."""
         if (tool.metadata or {}).get(PLATFORM_TOOL) is True:
             platform = _platform_tool_names().get(tool.name)
             return (
                 None
                 if platform is None
-                else RoutinePlatformActionKey(kind="platform", tool_id=platform)
+                else RoutinePlatformToolKey(kind="platform", tool_id=platform)
             )
         origin = tool_origin(tool)
         if origin is not None:
@@ -161,7 +164,7 @@ class RoutineAuthority:
                 continue
             for declared in capability(binding.id).effective_tools(binding.tool_overrides):
                 if declared.name == tool.name:
-                    return RoutineActionKey(capability_id=binding.id, tool_id=declared.id)
+                    return RoutineCapabilityToolKey(capability_id=binding.id, tool_id=declared.id)
         return None
 
     def tools_off(self, spec: AgentSpec) -> tuple[RoutineToolsOff, ...]:
@@ -176,11 +179,10 @@ class RoutineAuthority:
                 as when the agent moved a tool to its provider after the owner
                 narrowed it.
         """
-        if self.routine_kind != "trigger" or not self.tool_settings:
+        settings = {key: value for key, value in self.tool_settings.items() if value != "allow"}
+        if self.routine_kind != "trigger" or not settings:
             return ()
-        unenforceable = sorted(
-            key.tool_id for key in provider_executed(spec) if key in self.tool_settings
-        )
+        unenforceable = sorted(key.tool_id for key in provider_executed(spec) if key in settings)
         if unenforceable:
             raise AuthorizationError(
                 message=(
@@ -189,7 +191,7 @@ class RoutineAuthority:
                 ),
                 details={"tools": unenforceable},
             )
-        off = {key for key, value in self.tool_settings.items() if value == "off"}
+        off = {key for key, value in settings.items() if value == "off"}
         if not off:
             return ()
         return (RoutineToolsOff(hidden=lambda tool: self.tool_key(spec, tool) in off),)
@@ -219,10 +221,12 @@ class RoutineAuthority:
     def require_materialized(
         self, skills: list[Skill], contexts: list[ContextFile], *, namespace: str = "root"
     ) -> None:
-        if self.source_policy is None or self.source_policy.mode != "follow_agent":
+        if self.source_policy is None or self.source_policy.mode == "trust_agent":
             return
         approved = self.source_policy.behavior
-        if approved is None or any(
+        if approved is None:
+            return
+        if any(
             approved.get(key) != value
             for key, value in materialized_behavior(skills, contexts, namespace=namespace).items()
         ):
@@ -272,14 +276,11 @@ class RoutineAuthority:
                     )
             except PydanticValidationError:
                 raise _refused() from None
-        action_consents: tuple[RoutineConsent, ...] = ()
         mcp_sources: dict[UUID, McpSourceIdentity] | None = None
         local_target_hash: str | None = None
         reviewed_sources: RoutineSourcePolicy | None = None
         result_mode: Literal["report", "inbox"] = "report"
         chat_mode: Literal["per_run", "shared"] | None = None
-        action_mode: Literal["agent", "manual", "per_tool"] | None = None
-        tool_settings: dict[RoutineToolKey, RoutineToolSettingValue] | None = None
         acts_as_creator = (
             ctx.fired_as_creator is not None
             if run is None
@@ -310,22 +311,6 @@ class RoutineAuthority:
                 if recorded_chat == "shared"
                 else None
             )
-            recorded_action = (
-                trigger.action_mode
-                if run is None
-                else (run.routine_policy or {}).get("action_mode")
-            )
-            if recorded_action not in (None, "agent", "manual", "per_tool"):
-                raise _refused()
-            action_mode = (
-                "agent"
-                if recorded_action == "agent"
-                else "manual"
-                if recorded_action == "manual"
-                else "per_tool"
-                if recorded_action == "per_tool"
-                else None
-            )
             mode = (
                 trigger.result_mode
                 if run is None
@@ -340,19 +325,7 @@ class RoutineAuthority:
             if run is None and ctx.routine_source_policy_id != reviewed_sources.id:
                 raise RoutineSourcesRequired()
             mcp_sources = account_identities(reviewed_sources)
-            # A run recorded before routines had tool settings had none.
-            tool_settings = read_tool_settings(
-                trigger.tool_settings
-                if run is None
-                else (run.routine_policy or {}).get("tool_settings", [])
-            )
             try:
-                recorded = (
-                    trigger.action_consents
-                    if run is None
-                    else (run.routine_policy or {}).get("action_consents", [])
-                )
-                action_consents = tuple(CONSENTS.validate_python(recorded))
                 source_policy = (
                     None if run is None else (run.routine_policy or {}).get("mcp_sources")
                 )
@@ -385,17 +358,13 @@ class RoutineAuthority:
             root_agent_id=agent_id,
             role=member.role,
             acts_as_creator=acts_as_creator,
-            action_mode=action_mode,
             routine_kind="watch" if kind == "watch" else "trigger",
             chat_mode=chat_mode,
             result_mode=result_mode,
             sources=sources,
-            action_consents=action_consents,
             mcp_sources=mcp_sources,
             source_policy=reviewed_sources,
             local_target_hash=local_target_hash,
-            root_version_id=version_id if run is None else run.agent_version_id,
-            tool_settings=tool_settings,
         )
         await authority.check_in(db, agent_id)
         return authority
@@ -480,7 +449,6 @@ class RoutineAuthority:
             or not trigger.is_active
             or trigger.created_by_user_id != self.user_id
             or trigger.agent_id != self.root_agent_id
-            or trigger.action_mode != self.action_mode
             or (trigger.result_mode == "inbox") != (self.result_mode == "inbox")
             or (trigger.ends_at is not None and trigger.ends_at <= datetime.now(UTC))
             or (self.acts_as_creator and not trigger.runs_as_creator)
@@ -575,63 +543,81 @@ class RoutineAuthority:
     async def action_policy(
         self, agent_id: UUID, spec: AgentSpec, tool: ToolDefinition
     ) -> RoutineToolDecision:
-        """Default to approval for effects; only current, snapshotted consent may waive it.
+        """Whether the routine, on top of the agent's own gate, makes this call wait.
 
-        The owner's narrowing applies on top, to the root agent's tools: `off`
-        refuses the call and `ask` requires approval whatever else decided.
+        `off` refuses it. In a reviewed routine an effectful call asks unless its
+        review allows it and the creator may still allow it; a trusting routine
+        leaves the decision to the agent unless the review says ask.
         """
         async with get_db_context() as db:
             await self.check_in(db, agent_id)
-            narrowed = await self._narrowed(db, agent_id, spec, tool)
-            if narrowed == "off":
+            trigger = (
+                self._require_trigger(
+                    await agent_trigger_repo.get(
+                        db, self.routine_id, organization_id=self.organization_id
+                    )
+                )
+                if self.routine_kind == "trigger"
+                else None
+            )
+            root = agent_id == self.root_agent_id
+            key = self.tool_key(spec, tool) if root and trigger is not None else None
+            setting = None if key is None else self.tool_settings.get(key)
+            if setting == "off":
                 raise AuthorizationError(message="This tool is turned off for this routine")
-            decision = await self._decision(db, agent_id, spec, tool)
-            if narrowed == "ask":
+            effect = await self._effect(db, spec, tool, trigger)
+            if self.routine_kind == "watch":
+                # A watch reviews its one source, not tools: every effect asks.
+                return RoutineToolDecision(required=effect is not False)
+            assert self.source_policy is not None
+            policy = self.source_policy
+            # The same rule the review and the readiness count show. Standing
+            # consent is assumed here and checked below only where it decides.
+            outcome = (
+                decide(
+                    effect=effect,
+                    setting=setting,
+                    mode=policy.mode,
+                    grandfathered=policy.grandfathered,
+                    can_allow=True,
+                )
+                if root
+                else decide_delegate(
+                    effect=effect,
+                    delegates=policy.delegates,
+                    mode=policy.mode,
+                    grandfathered=policy.grandfathered,
+                    can_allow=True,
+                )
+            )
+            if outcome == "run":
+                # The normal ApprovalGate still enforces the agent, connection,
+                # mandatory platform and native consent floors.
+                return RoutineToolDecision()
+            if outcome == "ask" or not await allow_holds(
+                db, organization_id=self.organization_id, user_id=self.user_id
+            ):
                 return RoutineToolDecision(required=True)
-            return decision
+            return RoutineToolDecision(required=True, consented_by=self.user_id)
 
-    async def _narrowed(
-        self, db: AsyncSession, agent_id: UUID, spec: AgentSpec, tool: ToolDefinition
-    ) -> RoutineToolSettingValue | None:
-        if (
-            self.routine_kind != "trigger"
-            or agent_id != self.root_agent_id
-            or self.tool_settings is None
-        ):
-            return None
-        key = self.tool_key(spec, tool)
-        if key is None:
-            return None
-        trigger = self._require_trigger(
-            await agent_trigger_repo.get(db, self.routine_id, organization_id=self.organization_id)
-        )
-        # A narrowing saved mid-run applies at once; one removed mid-run waits
-        # for the next run.
-        return stricter(
-            self.tool_settings.get(key), read_tool_settings(trigger.tool_settings).get(key)
-        )
+    async def _effect(
+        self,
+        db: AsyncSession,
+        spec: AgentSpec,
+        tool: ToolDefinition,
+        trigger: AgentTrigger | None,
+    ) -> bool | None:
+        """Whether the call changes something: False for a read, None when unknown.
 
-    async def _decision(
-        self, db: AsyncSession, agent_id: UUID, spec: AgentSpec, tool: ToolDefinition
-    ) -> RoutineToolDecision:
+        An MCP tool is checked against the reviewed account on the way.
+        """
         if (
             tool.name == "agenticos_publish_inbox_finding"
             and (tool.metadata or {}).get(PLATFORM_TOOL) is True
         ):
             # Private reporting is the run's output, not a standing grant to
             # operate the platform. An explicit spec gate still applies.
-            return RoutineToolDecision()
-        if self.action_mode == "agent" or (
-            self.action_mode is None
-            and self.source_policy is not None
-            and self.source_policy.mode == "follow_agent"
-        ):
-            origin = tool_origin(tool)
-            if origin is not None:
-                await self._mcp_in(db, origin)
-            # The normal ApprovalGate still enforces the agent, connection,
-            # mandatory platform and native consent floors.
-            return RoutineToolDecision()
+            return False
         # The native loader has no registry capability_id. Its owned kind,
         # not an MCP tool's claimed name/read-only hint, identifies a skill
         # instruction read. Explicit agent gates still run in ApprovalGate.
@@ -641,73 +627,34 @@ class RoutineAuthority:
             and tool_origin(tool) is None
             and any(binding.id == "skills" and binding.enabled for binding in spec.capabilities)
         ):
-            return RoutineToolDecision()
+            return False
         if tool.capability_id is None:
             origin = tool_origin(tool)
             if origin is None and tool.name == SEARCH_TOOLS:
-                return RoutineToolDecision()
+                return False
             # The platform's own server, marked so by the run's toolset and
             # never by the server: what it sends lands under `meta`.
-            platform = (
-                _platform_tool_names().get(tool.name)
-                if origin is None and (tool.metadata or {}).get(PLATFORM_TOOL) is True
-                else None
-            )
-            if platform is not None:
-                if not needs_approval(tool, "writes"):
-                    return RoutineToolDecision()
-                return RoutineToolDecision(
-                    required=True,
-                    consented_by=await self._consent_in(
-                        db,
-                        agent_id,
-                        RoutinePlatformActionKey(kind="platform", tool_id=platform),
-                    ),
-                )
+            if (
+                origin is None
+                and (tool.metadata or {}).get(PLATFORM_TOOL) is True
+                and _platform_tool_names().get(tool.name) is not None
+            ):
+                return needs_approval(tool, "writes")
             if origin is not None:
                 await self._mcp_in(db, origin)
-            required = needs_approval(tool, "writes")
-            if not required or origin is None or not 1 <= len(origin.tool_id) <= 1000:
-                return RoutineToolDecision(required=required)
-            key = RoutineMcpActionKey(
-                connection_id=origin.connection_id,
-                authorization_generation=origin.identity.authorization_generation,
-                endpoint_hash=origin.identity.endpoint_hash,
-                tool_id=origin.tool_id,
-            )
-            return RoutineToolDecision(
-                required=True, consented_by=await self._consent_in(db, agent_id, key)
-            )
+            return needs_approval(tool, "writes")
         for binding in spec.capabilities:
             if not binding.enabled or binding.id != tool.capability_id:
                 continue
             definition = capability(binding.id)
             for declared in definition.effective_tools(binding.tool_overrides):
-                if declared.name != tool.name:
-                    continue
-                trigger = (
-                    await agent_trigger_repo.get_by_id(db, self.routine_id, fresh=True)
-                    if self.routine_kind == "trigger"
-                    else None
-                )
-                effect = routine_effect(
-                    definition,
-                    declared,
-                    local=trigger is not None and trigger.local_target is not None,
-                )
-                if not effect:
-                    return RoutineToolDecision()
-                return RoutineToolDecision(
-                    required=True,
-                    consented_by=await self._consent_in(
-                        db,
-                        agent_id,
-                        RoutineActionKey(capability_id=binding.id, tool_id=declared.id),
-                    ),
-                )
-        # Framework/third-party capability tools absent from the declared catalog
-        # have no authority that the routine can grant by guessing a name.
-        return RoutineToolDecision(required=True)
+                if declared.name == tool.name:
+                    return routine_effect(
+                        definition,
+                        declared,
+                        local=trigger is not None and trigger.local_target is not None,
+                    )
+        return None
 
     async def _mcp_in(self, db: AsyncSession, origin: McpToolOrigin) -> None:
         expected = None if self.mcp_sources is None else self.mcp_sources.get(origin.connection_id)
@@ -764,57 +711,3 @@ class RoutineAuthority:
             )
         ):
             raise _refused()
-
-    async def _consent_in(
-        self, db: AsyncSession, agent_id: UUID, key: RoutineAction
-    ) -> UUID | None:
-        if (
-            self.routine_kind != "trigger"
-            or self.action_mode == "manual"
-            or agent_id != self.root_agent_id
-            or not self.action_consents
-            or self.root_version_id is None
-        ):
-            return None
-        trigger = await agent_trigger_repo.get_by_id(db, self.routine_id, fresh=True)
-        organization = await organization_repo.get_by_id(db, self.organization_id)
-        trigger = self._require_trigger(trigger)
-        if organization is None:
-            raise _refused()
-        if not organization.chat_may_waive_approvals:
-            return None
-        member = await member_repo.get_active(
-            db, organization_id=self.organization_id, user_id=self.user_id
-        )
-        if member is None:
-            raise _refused()
-        if not AuthContext(
-            user_id=self.user_id, organization_id=self.organization_id, role=member.role
-        ).has(Perm.APPROVALS_DECIDE):
-            return None
-        try:
-            current = CONSENTS.validate_python(trigger.action_consents)
-        except PydanticValidationError:
-            raise _refused() from None
-        version = await agent_repo.get_version(
-            db, self.root_version_id, organization_id=self.organization_id
-        )
-        if version is None:
-            return None
-        instructions = await instruction_fingerprint(
-            db,
-            organization_id=self.organization_id,
-            spec=AgentSpec.model_validate(version.spec),
-            project_id=trigger.project_id,
-        )
-        for consent in self.action_consents:
-            if (
-                consent in current
-                and consent.consented_by == self.user_id
-                and consent.version_id == self.root_version_id
-                and consent.intent_hash == action_intent(trigger)
-                and consent.instructions_hash == instructions
-                and action_key(consent) == key
-            ):
-                return self.user_id
-        return None

@@ -6405,7 +6405,13 @@
         }
       },
       "starterAgentMissing": "Ta rola teraz nic nie robi: agent startowy AgenticOS, pod którym jest zapisywana, nie istnieje, nie jest opublikowany albo zmieniono jego nazwę. Opublikuj go ponownie pod uchwytem agenticos."
-    }
+    },
+    "routineTrust": "Rutyny mogą ufać swojemu agentowi",
+    "routineTrustDescription": "Czy rutyna może używać przyszłych narzędzi i źródeł swojego agenta bez ponownego przeglądu przez jej twórcę.",
+    "routineTrustHint": "Gdy to jest włączone, ktoś, kto może decydować o zatwierdzeniach, może pozwolić rutynie harmonogramu podążać za agentem: konta organizacji, narzędzia i źródła, które agent zyska później, są używane bez nowego przeglądu. Konta osobiste nadal wymagają przeglądu, a twórca dostaje powiadomienie o rozszerzeniu dostępu. Domyślnie wyłączone.",
+    "routineTrustAllowed": "Rutyny mogą teraz ufać swojemu agentowi",
+    "routineTrustForbidden": "Rutyny nie mogą już ufać swojemu agentowi",
+    "routineTrustFailed": "Nie udało się zmienić, czy rutyny mogą ufać swojemu agentowi"
   },
   "theme": {
     "darkMode": "Tryb ciemny",
@@ -7857,8 +7863,8 @@
         "body": "Obok notatek agenci zapisują fakty, preferencje i decyzje razem ze źródłem. Popraw wpis własnymi słowami od wybranej daty, a stara wersja zostanie w historii; albo przestań go używać."
       },
       "routine-access": {
-        "title": "Przejrzyj dostęp rutyny",
-        "body": "Otwórz tarczę przy swojej rutynie, aby przejrzeć konta i zasoby źródłowe, a następnie osobno wybrać stałe wyjątki dla działań."
+        "title": "Dostęp rutyny",
+        "body": "Otwórz tarczę przy swojej rutynie, aby wybrać, które narzędzia działają swobodnie, najpierw pytają lub są wyłączone, i przejrzeć źródła, do których sięga."
       },
       "project-tracking": {
         "title": "Pilnuj projektu",
@@ -9140,8 +9146,6 @@
     "lookPosition": "Wygląd {current} z {total}"
   },
   "triggers": {
-    "setupReviewTitle": "Sprawdź dostęp rutyny",
-    "enableRoutine": "Włącz rutynę",
     "finishLater": "Dokończ później",
     "stopWaitingRun": "Zatrzymaj oczekujące uruchomienie",
     "deliveryPending": "Wysyłanie ostatniego wyniku do czatu",
@@ -9452,57 +9456,11 @@
     "endsAtLabel": "Koniec (czas urządzenia)",
     "endsAtHint": "Pozostaw puste, aby działać do zatrzymania. Ta data używa strefy {zone}, niezależnie od strefy harmonogramu.",
     "endsAtInvalid": "Wybierz prawidłową przyszłą datę albo wyczyść pole, aby usunąć koniec.",
-    "actionConsents": {
-      "personalAccount": "{name} · Twoje konto",
-      "organizationAccount": "{name} · konto organizacji",
-      "title": "Zgody na działania",
-      "description": "Działania rutyny domyślnie wymagają zatwierdzenia. Zezwól tylko wybranym działaniom wykonywać się bez pytania. Zgoda dotyczy tej opublikowanej wersji i konfiguracji rutyny; zatwierdzenia wymagane przez agenta nadal obowiązują. Każde działanie MCP dotyczy wyłącznie wskazanego konta.",
-      "retry": "Spróbuj ponownie",
-      "empty": "Ta wersja nie ma działań, dla których można tu udzielić zgody.",
-      "revokeAll": "Cofnij wszystkie",
-      "save": "Zapisz zgody",
-      "search": "Szukaj akcji",
-      "selectGroup": "Zaznacz dozwolone akcje w {name}",
-      "noMatches": "Brak akcji pasujących do wyszukiwania.",
-      "changed": {
-        "version": "Zmieniła się opublikowana wersja agenta. Sprawdź ponownie jej akcje.",
-        "intent": "Zmieniła się praca lub miejsce docelowe routine. Sprawdź ponownie akcje.",
-        "instructions": "Zmieniły się instrukcje skill, context lub projektu. Sprawdź ponownie akcje.",
-        "actions": "Niektóre poprzednio wybrane akcje są niedostępne, wymagają akceptacji lub mają inną autoryzację konta. Nie zostaną zaznaczone ponownie."
-      },
-      "capabilitiesSection": "Capabilities",
-      "groupCount": "{selected} z {total}",
-      "useAgent": "Użyj ustawień agenta",
-      "useAgentHint": "Zaznacza dokładnie te działania, które agent już w czacie wykonuje bez pytania, i zastępuje obecne zaznaczenie. Zgoda tutaj może tylko zawęzić to, na co pozwalają ustawienia agenta, nigdy tego nie poszerza: działania, przed którym agent pyta, nie ma na liście. Nic się nie zapisuje, dopóki nie wybierzesz Zapisz zgody.",
-      "allowHeading": "Pozwól tym działaniom działać bez pytania o zgodę",
-      "alwaysAsks": "Zawsze pyta: wymagane przez agenta lub platformę"
-    },
     "sourceConsents": {
-      "title": "Źródła",
-      "description": "Wybierz, czy rutyna korzysta z ustawień agenta, czy zachowuje sprawdzony zestaw źródeł. Reguły zatwierdzania ustawia się osobno.",
-      "retry": "Spróbuj ponownie",
-      "current": "Zatwierdzone źródła są aktualne.",
-      "changed": "Twórca rutyny musi sprawdzić zmieniony dostęp lub zachowanie przed kolejnym runem.",
-      "unavailable": "Najpierw sprawdź lub ponownie połącz źródła: {names}",
-      "accept": "Zatwierdź te źródła",
-      "inspectAgent": "Sprawdź połączenia agenta",
-      "kind": "{kind, select, capability {Capabilities} skill {Skille} context {Pliki kontekstu} knowledge {Bazy wiedzy} table {Tabele} delegate {Agenci-delegaci} remote_agent {Zdalni agenci} platform {Platforma} mcp_account {Konta MCP} chat_connection {Połączenia czatu} phone {Telefon} terminal_account {Konta terminala} terminal_credential {Dane dostępowe terminala} event_source {Źródło zdarzeń} other {Inne}}",
-      "kindCount": "{name} ({count})",
-      "unnamed": "Już niedostępne",
-      "modeLabel": "Tryb dostępu",
-      "followAgent": "Ustawienia agenta",
-      "restricted": "Sprawdzony zestaw",
-      "followHint": "Zaczyna z bieżącym dostępem i zachowaniem opublikowanego agenta. Późniejsze rozszerzenia dostępu lub zmiany zachowania wymagają przeglądu przez twórcę rutyny. Nadal obowiązują uprawnienia agenta, wymagane zgody i lokalne uprawnienia.",
-      "restrictedHint": "Zachowaj ten sprawdzony zestaw źródeł. Zmiany źródeł agenta wymagają kolejnego przeglądu.",
-      "followCurrent": "Rutyna korzysta z agenta w granicach zatwierdzonego dostępu i zachowania.",
-      "selectionPending": "Zapisz, aby zastosować ten tryb dostępu.",
-      "followUnavailable": "Niedostępne źródła: {names}. Ustawienia agenta nie przywracają połączeń ani nie omijają wymaganych uprawnień.",
-      "saveMode": "Zapisz tryb dostępu",
       "reviewBeforeActivation": "Sprawdź dostęp przed włączeniem",
-      "reviewBeforeActivationHint": "Opcjonalnie: zapisz wstrzymaną rutynę, sprawdź zestaw źródeł agenta, a następnie włącz rutynę.",
+      "reviewBeforeActivationHint": "Opcjonalnie: zapisz wstrzymaną rutynę, wybierz, co może robić i do czego sięgać, a następnie ją włącz.",
       "runsAsYou": "Działa jako Ty. Nadal obowiązują Twoje uprawnienia i wymagane zgody.",
-      "agentIdentity": "Korzysta z dostępu agenta. Dostęp do kont osobistych jest wyłączony.",
-      "requiredUnavailable": "Wymagane źródła są niedostępne: {names}. Przywróć dostęp przed zapisaniem lub włączeniem rutyny."
+      "agentIdentity": "Korzysta z dostępu agenta. Dostęp do kont osobistych jest wyłączony."
     },
     "advancedOptions": "Opcje zaawansowane",
     "advancedOptionsHint": "Domyślnie: bieżąca opublikowana wersja, ochrona przed błędami i Twoje preferencje powiadomień.",
@@ -9525,14 +9483,6 @@
       "mention": "Komentarz nie zawierał wymaganej wzmianki.",
       "conclusion": "Wynik workflow nie pasował.",
       "not_branch": "Push usuwał gałąź lub nie dotyczył gałęzi."
-    },
-    "approvalMode": {
-      "label": "Zatwierdzanie narzędzi",
-      "hint": "Publikowanie do Inboxu jest dostępne od razu. Obowiązkowe zgody agenta i platformy nadal obowiązują.",
-      "automatic": "Uruchamiaj dozwolone narzędzia automatycznie",
-      "manual": "Pytaj przed działaniami",
-      "custom": "Wybierz zgody dla każdego narzędzia",
-      "existing": "Zachowaj obecne zgody"
     },
     "chatModeLabel": "Rozmowy",
     "chatMode": {
@@ -9561,29 +9511,70 @@
       "awaiting_approval": "{held, select, yes {Poprzedni run czeka na zatwierdzenie. Nowy run nie wystartuje, dopóki ktoś nie podejmie decyzji.} other {Poprzedni run czeka na zatwierdzenie.}}",
       "awaiting_answer": "{held, select, yes {Poprzedni run czeka na odpowiedź. Nowy run nie wystartuje, dopóki jej nie dostanie.} other {Poprzedni run czeka na odpowiedź.}}",
       "budget_exhausted": "Budżet na ten miesiąc jest wyczerpany. Rutyna uruchomi się ponownie pierwszego dnia miesiąca.",
-      "actions_need_approval": "{count, plural, =1 {1 działanie nie ma stałej zgody i będzie wymagać zatwierdzenia, jeśli zostanie użyte.} few {# działania nie mają stałej zgody i będą wymagać zatwierdzenia, jeśli zostaną użyte.} other {# działań nie ma stałej zgody i będzie wymagać zatwierdzenia, jeśli zostaną użyte.}}",
+      "actions_need_approval": "{count, plural, =1 {1 narzędzie pyta przed użyciem, więc run, który go użyje, czeka na zatwierdzenie.} few {# narzędzia pytają przed użyciem, więc run, który ich użyje, czeka na zatwierdzenie.} other {# narzędzi pyta przed użyciem, więc run, który ich użyje, czeka na zatwierdzenie.}}",
       "readiness_checking": "Sprawdzanie, czy rutyna może się uruchomić…",
-      "readiness_unavailable": "Nie udało się sprawdzić gotowości rutyny. Uruchom teraz nadal sprawdzi jej uprawnienia."
+      "readiness_unavailable": "Nie udało się sprawdzić gotowości rutyny. Uruchom teraz nadal sprawdzi jej uprawnienia.",
+      "trust_not_allowed": "Ufa swojemu agentowi, na co jej twórca lub organizacja już nie pozwala. Przejrzyj jej dostęp ponownie."
     },
-    "toolSettings": {
-      "title": "Narzędzia rutyny",
-      "description": "Domyślnie obowiązują ustawienia agenta. Dla tej rutyny możesz wymagać zgody przed użyciem narzędzia lub je wyłączyć. Wymagane zgody nadal obowiązują; delegowani agenci zachowują własne ustawienia.",
-      "legacyMode": "Zapis włączy reguły zatwierdzania agenta i usunie poprzednie stałe zgody tej rutyny.",
-      "agentAsks": "Agent wymaga zatwierdzenia",
-      "agentFree": "Agent pozwala na użycie automatyczne",
-      "follow": "Jak u agenta",
-      "ask": "Pytaj za każdym razem",
+    "access": {
+      "label": "Dostęp rutyny",
+      "title": "{named, select, yes {Dostęp rutyny: {name}} other {Dostęp rutyny}}",
+      "description": "Wybierz, co ta rutyna może robić bez pytania Cię, i sprawdź, do czego ma dostęp.",
+      "retry": "Spróbuj ponownie",
+      "stale": "Rutyna, źródła jej agenta lub jej narzędzia zmieniły się w trakcie przeglądu. Sprawdź aktualny stan i zapisz ponownie.",
+      "tabTools": "Narzędzia",
+      "tabSources": "Źródła",
+      "banner": {
+        "setup": "Ta rutyna nie została jeszcze przejrzana. Wybierz, co może robić, i zapisz, aby ją włączyć.",
+        "sources": "Narzędzia lub źródła agenta zmieniły się od ostatniego przeglądu. Przejrzyj je i zapisz, zanim rutyna znowu się uruchomi.",
+        "routine_changed": "Rutyna zmieniła się od ostatniego przeglądu, na przykład jej prompt, to, jako kto działa, lub miejsce dostarczania. Przejrzyj jej dostęp i zapisz, zanim znowu się uruchomi.",
+        "platform_identity": "Serwer MCP platformy wymaga, aby ta rutyna działała jako jej twórca. Włącz działanie jako Ty w ustawieniach rutyny.",
+        "unavailable": "Niektóre źródła tej rutyny są niedostępne: {names}. Sprawdź połączenia agenta, a następnie ponownie zapisz przegląd.",
+        "requiredUnavailable": "Ta rutyna potrzebuje niedostępnych źródeł: {names}. Przywróć je przed zapisaniem.",
+        "trustNotAllowed": "{reason, select, permission {Nie możesz już decydować o zatwierdzeniach, więc ta rutyna nie może już ufać swojemu agentowi.} organization {Twoja organizacja nie pozwala już rutynom ufać swojemu agentowi.} event {Rutyna uruchamiana przez zdarzenie nie może ufać swojemu agentowi.} other {Tylko Ty, zalogowany w konsoli, możesz pozwolić tej rutynie ufać jej agentowi.}} Zapisz jej przegląd, aby znowu mogła działać.",
+        "allowBlocked": "{reason, select, permission {Nie możesz decydować o zatwierdzeniach, więc narzędzia, które coś zmieniają, najpierw pytają.} organization {Twoja organizacja wyłączyła stałe zgody, więc narzędzia, które coś zmieniają, najpierw pytają.} other {Tylko Ty, zalogowany w konsoli, możesz pozwolić narzędziom działać bez pytania.}}"
+      },
+      "openApprovalSettings": "Otwórz ustawienia zatwierdzeń",
+      "inspectAgent": "Sprawdź połączenia agenta",
+      "search": "Szukaj narzędzi",
+      "setAllCurrent": "Ustaw wszystkie: {choice, select, agent {Jak agent} ask {Pytaj o wszystko} allow {Działaj swobodnie, gdzie można} other {Własne}}",
+      "setAllAgent": "Jak agent",
+      "setAllAsk": "Pytaj o wszystko",
+      "setAllAllow": "Działaj swobodnie, gdzie można",
+      "unlisted": "Sprawdź te połączenia, aby wyświetlić ich narzędzia: {names}.",
+      "noTools": "Ta wersja agenta nie daje rutynie żadnych narzędzi.",
+      "noMatches": "Żadne narzędzie nie pasuje do wyszukiwania.",
+      "capabilities": "Capabilities",
+      "personalAccount": "{name} · Twoje konto",
+      "organizationAccount": "{name} · konto organizacji",
+      "allow": "Działaj swobodnie",
+      "ask": "Najpierw pytaj",
       "off": "Wyłączone",
-      "search": "Znajdź narzędzie",
-      "reset": "Ustawienia agenta dla wszystkich narzędzi",
-      "empty": "Ta rutyna nie ma konfigurowalnych narzędzi.",
-      "noMatches": "Brak narzędzi pasujących do wyszukiwania.",
-      "personalAccount": "Konto osobiste · {name}",
-      "organizationAccount": "Konto organizacji · {name}",
-      "unavailable": "Sprawdź te połączenia, aby zobaczyć ich narzędzia: {names}.",
-      "unavailableSettings": "Ograniczenia niedostępnych narzędzi",
-      "unavailableSettingsBody": "Zachowujemy te ograniczenia, nawet gdy narzędzie nie jest obecnie dostępne. Usuń wybrane ograniczenie, aby przestało obowiązywać.",
-      "removeRestriction": "Usuń ograniczenie dla {name}"
+      "reads": "Odczyt",
+      "changes": "Zmiany",
+      "locked": "Zawsze pyta (wymaga tego agent)",
+      "effectiveNow": "{state, select, run {Teraz działa bez pytania} ask {Teraz najpierw pyta} consent {Teraz działa na Twojej stałej zgodzie} other {Teraz wyłączone}}",
+      "grandfathered": "Ta rutyna nadal używa narzędzi tak, jak pozwala jej agent, jak przed wprowadzeniem dostępu rutyn. Zapis zastosuje zamiast tego poniższe ustawienia.",
+      "allowRefused": "{reason, select, permission {Wymaga uprawnienia do decydowania o zatwierdzeniach.} organization {Twoja organizacja wyłączyła stałe zgody.} other {Tylko Ty, zalogowany w konsoli, możesz pozwolić narzędziom działać bez pytania.}}",
+      "delegates": "Agenci-delegaci",
+      "delegatesHint": "Narzędzia, które coś zmieniają w agentach, którym ten agent deleguje pracę.",
+      "noSources": "Ta rutyna nie korzysta z żadnych źródeł.",
+      "kindCount": "{name} ({count})",
+      "unavailableMark": "Niedostępne",
+      "requiredMark": "Niedostępne, wymagane",
+      "dangerZone": "Strefa zagrożenia",
+      "trust": "Ufaj agentowi",
+      "trustWarning": "Przyszłe narzędzia i źródła agenta, w tym konta organizacji, które inni połączą później, będą używane bez pytania Cię. Twoje konta osobiste nadal wymagają przeglądu, a o rozszerzeniu dostępu dostaniesz powiadomienie. Narzędzia ustawione na „Najpierw pytaj” lub „Wyłączone” zachowują swoje ustawienie.",
+      "trustRefused": "{reason, select, permission {Włączenie tego wymaga uprawnienia do decydowania o zatwierdzeniach.} organization {Twoja organizacja nie pozwala rutynom ufać swojemu agentowi.} event {Rutyna uruchamiana przez zdarzenie nie może ufać swojemu agentowi.} other {Tylko Ty, zalogowany w konsoli, możesz to włączyć.}}",
+      "trustSetting": "Otwórz ustawienia zatwierdzeń",
+      "trustConfirmTitle": "Ufać agentowi?",
+      "trustConfirmDescription": "Ta rutyna będzie bez pytania używać wszystkiego, co jej agent zyska później, w tym kont organizacji połączonych przez innych. Twoje konta osobiste nadal wymagają przeglądu, a o rozszerzeniu jej dostępu dostaniesz powiadomienie.",
+      "summary": "Swobodnie: {allow}, najpierw pytaj: {ask}, wyłączone: {off}",
+      "save": "Zapisz zmiany",
+      "saveAndEnable": "Zapisz i włącz",
+      "trustsAgent": "Ufa agentowi",
+      "kind": "{kind, select, capability {Capabilities} skill {Skille} context {Pliki kontekstu} knowledge {Bazy wiedzy} table {Tabele} delegate {Agenci-delegaci} remote_agent {Zdalni agenci} platform {Platforma} mcp_account {Konta MCP} chat_connection {Połączenia czatu} phone {Telefon} terminal_account {Konta terminala} terminal_credential {Dane dostępowe terminala} event_source {Źródło zdarzeń} other {Inne}}",
+      "unnamed": "Już niedostępne"
     }
   },
   "portals": {
@@ -11954,7 +11945,8 @@
         "securityEvent": "W ciągu minuty przyszło więcej zdarzeń bezpieczeństwa, niż ta skrzynka pokazuje osobno. Każde z nich jest w dzienniku audytu.",
         "configurationChanged": "Ustawienia wdrożenia zmieniono w ciągu minuty więcej razy, niż ta skrzynka pokazuje osobno. Każda zmiana jest w dzienniku audytu.",
         "backgroundTaskPaused": "W ciągu minuty wstrzymano więcej rodzajów zadań w tle, niż ta skrzynka pokazuje osobno. Każdy jest na stronie Zadania w tle."
-      }
+      },
+      "routineAccessExpanded": "{named, select, yes {Rutyna {routine}} other {Twoja rutyna}} ufa swojemu agentowi i teraz sięga także do: {sources}"
     },
     "needsAttention": "Wymaga uwagi"
   },
