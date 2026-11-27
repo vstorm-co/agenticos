@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import Link from "next/link";
 import { XCircle } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -9,7 +11,7 @@ import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
 import type { EvalRun } from "@/types/eval-runs";
 import { EvalStatusBadge } from "./eval-status-badge";
-import { percent, usd } from "./format";
+import { percent } from "./format";
 import { sideName, type SideCheck } from "./names";
 import { VERDICT_TONE } from "./verdict-headline";
 
@@ -75,6 +77,7 @@ function stageOf(run: EvalRun): SideCheck | null {
 export function EvalRunRow({ run, agentName }: { run: EvalRun; agentName?: string }) {
   const t = useTranslations("evals");
   const locale = useLocale();
+  const money = useMoney();
   const candidates = run.arms.filter((arm) => arm.role === "candidate");
   const first = candidates[0];
   const stage = stageOf(run);
@@ -115,7 +118,9 @@ export function EvalRunRow({ run, agentName }: { run: EvalRun; agentName?: strin
               })}
             </span>
           ))}
-          <span className="text-muted-foreground tabular-nums">{usd(run.cost_usd, locale)}</span>
+          <span className="text-muted-foreground tabular-nums">
+            {money.cost(run.cost_usd, locale)}
+          </span>
           {run.status !== "completed" && <EvalStatusBadge status={run.status} />}
         </span>
       </Link>

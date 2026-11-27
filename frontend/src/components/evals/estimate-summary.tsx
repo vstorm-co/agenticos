@@ -1,5 +1,8 @@
 "use client";
 
+import { compareUsd, negateUsd, sumUsd } from "@/lib/money";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 
@@ -7,7 +10,6 @@ import { ROUTES } from "@/lib/constants";
 import { cn, formatDateTime } from "@/lib/utils";
 import type { ArmEstimate, EvalRunEstimate, ProposalCheckRecord } from "@/types/eval-runs";
 import type { DatasetScoring } from "@/types/scoring";
-import { usd } from "./format";
 import { sideName } from "./names";
 
 /** What grades a dataset's answers, by name, in the order the scorers run. */
@@ -94,6 +96,7 @@ export function EstimateSummary({
 }) {
   const t = useTranslations("evals.estimate");
   const locale = useLocale();
+  const money = useMoney();
   const judge = judgeName ?? t("judge");
   // A judge grading on the model it grades favours answers like its own.
   const judgedOwnModel = estimate.arms.find(
@@ -107,19 +110,19 @@ export function EstimateSummary({
         {estimate.arms.map((arm, index) => (
           <li key={index} className="flex items-center justify-between gap-3">
             <ArmLine arm={arm} agentId={agentId} check={estimate.proposal_check} />
-            <span className="tabular-nums">{usd(arm.cost_usd, locale)}</span>
+            <span className="tabular-nums">{money.cost(arm.cost_usd, locale)}</span>
           </li>
         ))}
-        {Number(estimate.judge_usd) > 0 && (
+        {compareUsd(estimate.judge_usd, "0") === 1 && (
           <li className="flex items-center justify-between gap-3">
             <span className="text-muted-foreground">{judge}</span>
-            <span className="tabular-nums">{usd(estimate.judge_usd, locale)}</span>
+            <span className="tabular-nums">{money.cost(estimate.judge_usd, locale)}</span>
           </li>
         )}
       </ul>
       <p className="flex items-center justify-between gap-3 border-t pt-3 font-medium">
         <span>{t("total", { count: estimate.cases })}</span>
-        <span className="tabular-nums">{usd(estimate.expected_usd, locale)}</span>
+        <span className="tabular-nums">{money.cost(estimate.expected_usd, locale)}</span>
       </p>
       {scoring && (
         <p className="text-muted-foreground text-xs">
@@ -128,10 +131,7 @@ export function EstimateSummary({
       )}
       <p className="text-muted-foreground text-xs">
         {t("reruns", {
-          amount: usd(
-            String(Number(estimate.total_usd) + Number(estimate.rerun_ceiling_usd)),
-            locale,
-          ),
+          amount: money.cost(sumUsd(estimate.total_usd, estimate.rerun_ceiling_usd), locale),
         })}
       </p>
       <dl className="space-y-1 text-xs">
@@ -144,14 +144,14 @@ export function EstimateSummary({
             <dd
               className={cn(
                 "max-w-[60%] text-right font-medium tabular-nums",
-                balance !== null && Number(balance) < 0 && "text-destructive-ink",
+                balance !== null && compareUsd(balance, "0") === -1 && "text-destructive-ink",
               )}
             >
               {balance === null
                 ? t("noCap")
-                : Number(balance) < 0
-                  ? t("overBudget", { amount: usd(String(-Number(balance)), locale) })
-                  : usd(balance, locale)}
+                : compareUsd(balance, "0") === -1
+                  ? t("overBudget", { amount: money.cost(negateUsd(balance), locale) })
+                  : money.cost(balance, locale)}
             </dd>
           </div>
         ))}

@@ -262,3 +262,22 @@ class TestApprovalMailNamesWhoAsked:
         context = {"agent_name": "Bot", "tools": "send_email", "asked_by": ""}
         _, _, text = render_email(key.value, context)
         assert "\n\n\n" not in text
+
+
+def test_queued_legacy_budget_mail_keeps_its_explicit_usd_amount() -> None:
+    _, html, text = render_email("budget_exceeded", {"spent": "12.50"})
+    assert "$12.50" in html and "$12.50" in text
+    assert "[[reported_spent]]" not in html
+    _, _, unknown = render_email("budget_exceeded", {})
+    assert "USD amount unavailable" in unknown
+    _, _, modern = render_email(
+        "budget_exceeded", {"spent": "12.50", "reported_spent": "PLN 50.00"}
+    )
+    assert "PLN 50.00" in modern and "$12.50" not in modern
+
+
+def test_usage_report_mail_retains_its_snapshot_and_old_queued_reports_remain_usd() -> None:
+    _, _, old = render_email("usage_report", {"total": "12.50"})
+    assert "$12.50" in old and "[[reported_total]]" not in old
+    _, html, text = render_email("usage_report", {"total": "12.50", "reported_total": "PLN 50.00"})
+    assert "PLN 50.00" in html and "PLN 50.00" in text and "$12.50" not in text

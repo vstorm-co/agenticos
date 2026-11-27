@@ -22244,10 +22244,12 @@
     "quoteHint": "Taxa dos relatórios: 1 USD = {rate} {currency}. Fica fixa até alterar a preferência de moeda; os novos custos dos modelos usam as taxas de preços atuais.",
     "spentOfLimit": "Gasto este mês: {spent} de {limit}.",
     "spentNoLimit": "Gasto este mês: {spent}. Sem limite.",
-    "amountPositive": "Introduza um valor superior a zero.",
+    "amountPositive": "Insira um valor superior a zero.",
     "amountMaximum": "Introduza no máximo {amount} {currency}.",
     "switchOrganizationHint": "Mude para esta organização antes de alterar os limites. As permissões, despesas e taxa dos relatórios devem pertencer à mesma organização.",
-    "switchOrganization": "Mudar para esta organização"
+    "switchOrganization": "Mudar para esta organização",
+    "criterionLimit": "Custo ≤ {amount}",
+    "criterionObserved": "Observado: {amount}; limite: {limit}."
   },
   "portability": {
     "exportTitle": "Exportar agente",

@@ -22247,7 +22247,9 @@
     "amountPositive": "Voer een bedrag groter dan nul in.",
     "amountMaximum": "Voer maximaal {amount} {currency} in.",
     "switchOrganizationHint": "Schakel naar deze organisatie voordat u de limieten wijzigt. Rechten, uitgaven en rapportagekoers moeten bij dezelfde organisatie horen.",
-    "switchOrganization": "Naar deze organisatie schakelen"
+    "switchOrganization": "Naar deze organisatie schakelen",
+    "criterionLimit": "Kosten ≤ {amount}",
+    "criterionObserved": "Gemeten: {amount}; limiet: {limit}."
   },
   "portability": {
     "exportTitle": "Agent exporteren",

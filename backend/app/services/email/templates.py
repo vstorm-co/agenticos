@@ -85,6 +85,17 @@ def _render(template: str, context: dict[str, Any], *, escape: bool = False) -> 
 
 def render_email(key: str, context: dict[str, Any]) -> tuple[str, str, str]:
     """Return (subject, html, text) for the given template key and context."""
+    # Queued notices from before currency snapshots carry only accounting USD.
+    legacy = {
+        "budget_exceeded": ("spent", "reported_spent"),
+        "usage_report": ("total", "reported_total"),
+    }.get(key)
+    if legacy is not None and legacy[1] not in context:
+        amount = context.get(legacy[0])
+        context = {
+            **context,
+            legacy[1]: f"${amount}" if amount is not None else "USD amount unavailable",
+        }
     html_raw = _load_raw(key, "html")
     text_raw = _load_raw(key, "txt")
 

@@ -1,8 +1,9 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useLocale, useTranslations } from "next-intl";
 
-import { usd } from "@/components/evals/format";
 import { Checkbox, Label } from "@/components/ui";
 import type { ContinuationEstimate } from "@/types/improvement";
 import type { SkillCheck } from "@/types/skill-checks";
@@ -25,6 +26,7 @@ export function MainAloneChoice({
 }) {
   const t = useTranslations("skillImprovement.mainAlone");
   const locale = useLocale();
+  const money = useMoney();
   const price = (quote as SkillContinuationEstimate).main_alone_usd;
   return (
     <div className="flex items-start gap-2">
@@ -34,7 +36,7 @@ export function MainAloneChoice({
         onCheckedChange={(next) => onChange(next === true)}
       />
       <Label htmlFor="skill-main-alone" className="leading-snug font-normal">
-        {price ? t("choicePriced", { cost: usd(price, locale) }) : t("choice")}
+        {price ? t("choicePriced", { cost: money.cost(price, locale) }) : t("choice")}
         <span className="text-muted-foreground block text-xs">{t("choiceWhy")}</span>
       </Label>
     </div>

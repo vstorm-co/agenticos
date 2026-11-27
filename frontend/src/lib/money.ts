@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import type { CurrencyContext } from "@/lib/currency-api";
+import type { CurrencyContext, ReportingQuote } from "@/lib/currency-api";
 
 // Keep financial arithmetic independent of graph/widget Decimal configuration.
 const Money = Decimal.clone({ precision: 128, rounding: Decimal.ROUND_HALF_EVEN });
@@ -18,6 +18,7 @@ export interface MonetaryWrite {
 }
 interface MoneyDisplay {
   currency: string | null;
+  runCost(value: Amount, partial: boolean, locale: string): string;
   available: boolean;
   quote: string | null;
   amount(value: Amount): number | null;
@@ -120,11 +121,14 @@ export function moneyFor(context: CurrencyContext | null): MoneyDisplay {
     if (result === null || currency === null) return "—";
     const absolute = result.abs();
     if (!absolute.isZero() && absolute.lt("0.000000000001")) {
-      return `< ${localized(new Money("0.000000000001"), currency, locale, 12)}`;
+      return `${result.isNegative() ? "> -" : "< "}${localized(new Money("0.000000000001"), currency, locale, 12)}`;
     }
     const digits =
       !absolute.isZero() && absolute.lt("0.01")
-        ? Math.min(12, Math.max(4, 1 - absolute.e))
+        ? Math.max(
+            4,
+            result.toDecimalPlaces(Math.min(12, Math.max(4, 1 - absolute.e))).decimalPlaces(),
+          )
         : Math.min(4, Math.max(2, result.toDecimalPlaces(4).decimalPlaces()));
     return localized(result, currency, locale, digits);
   };
@@ -138,6 +142,13 @@ export function moneyFor(context: CurrencyContext | null): MoneyDisplay {
     format,
     formatAmount,
     cost,
+    runCost(value, partial, locale) {
+      const shown = cost(value, locale);
+      if (!partial || shown === "—") return shown;
+      return shown.startsWith("<") || shown.startsWith(">")
+        ? `> ${format("0", locale)}`
+        : `${shown}+`;
+    },
   };
 }
 
@@ -155,4 +166,39 @@ export function canonicalUsd(value: Amount): string {
   // i18n-exempt: an invalid typed API amount is a contract failure, not form copy.
   if (parsed === null) throw new TypeError("Invalid accounting USD amount");
   return parsed.toFixed();
+}
+
+/** An average in accounting units; rounding belongs only to its final display. */
+export function averageUsd(total: string, count: number): string | null {
+  const amount = decimal(total);
+  return amount !== null && Number.isSafeInteger(count) && count >= 0
+    ? amount.div(Math.max(1, count)).toFixed()
+    : null;
+}
+
+/** Sign changes retain the API decimal string instead of a binary-number conversion. */
+export function negateUsd(value: string): string | null {
+  return decimal(value)?.negated().toFixed() ?? null;
+}
+
+/** Sum available canonical receipts without changing their accounting unit. */
+export function sumUsd(...values: string[]): string | null {
+  let sum = new Money(0);
+  for (const value of values) {
+    const parsed = decimal(value);
+    if (parsed === null) return null;
+    sum = sum.plus(parsed);
+  }
+  return sum.toFixed();
+}
+
+/** Notifications retain their own quote; old rows explicitly remain USD. */
+export function moneyForQuote(quote: ReportingQuote | null): MoneyDisplay {
+  return moneyFor({
+    currency: quote?.currency ?? "USD",
+    default_currency: quote?.currency ?? "USD",
+    inherited: false,
+    reporting_units_per_usd: quote ? quote.units_per_usd : "1",
+    rates: {},
+  });
 }

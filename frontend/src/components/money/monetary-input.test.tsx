@@ -10,9 +10,6 @@ import { MonetaryInput } from "./monetary-input";
 
 let context: CurrencyContext | undefined;
 vi.mock("@/hooks/use-currencies", () => ({ useCurrencies: () => ({ data: context }) }));
-vi.mock("@/hooks/use-organizations", () => ({
-  useTenantId: () => useOrgStore((state) => state.activeOrgId),
-}));
 const save = vi.fn();
 function Form({ maxUsd }: { maxUsd?: string } = {}) {
   const monetary = useMonetaryInputs();

@@ -77,11 +77,7 @@ export function WorkflowStats({ workflowId }: { workflowId: string }) {
 function StatsBody({ stats, locale }: { stats: Stats; locale: string }) {
   const t = useTranslations("pages.workflows.stats");
   const money = useMoney();
-  const formatCost = (amount: number): string => {
-    const converted = money.amount(amount);
-    const digits = converted !== null && converted !== 0 && Math.abs(converted) < 1 ? 4 : 2;
-    return money.formatAmount(converted, locale, digits);
-  };
+  const formatCost = (amount: number): string => money.cost(amount, locale);
   // A step taken out of the workflow keeps its past runs; its rows are hidden unless asked
   // for. An approval step is a step too, so this one switch covers both tables.
   const [showRemoved, setShowRemoved] = useState(false);
@@ -121,7 +117,7 @@ function StatsBody({ stats, locale }: { stats: Stats; locale: string }) {
         />
         <FigureCard
           label={t("cost")}
-          value={`${formatCost(stats.cost_usd)}${stats.cost_is_partial ? "+" : ""}`}
+          value={money.runCost(stats.cost_usd, stats.cost_is_partial, locale)}
           caption={
             budget === null
               ? t("monthSpent", { amount: formatCost(stats.month_cost_usd) })

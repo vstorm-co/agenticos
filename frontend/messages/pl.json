@@ -22228,10 +22228,12 @@
     "quoteHint": "Kurs raportowania: 1 USD = {rate} {currency}. Pozostaje stały do zmiany preferowanej waluty; nowe koszty modeli używają bieżących kursów cenowych.",
     "spentOfLimit": "W tym miesiącu wydano {spent} z {limit}.",
     "spentNoLimit": "W tym miesiącu wydano {spent}. Bez limitu.",
-    "amountPositive": "Wpisz kwotę większą od zera.",
+    "amountPositive": "Podaj kwotę większą od zera.",
     "amountMaximum": "Wpisz maksymalnie {amount} {currency}.",
     "switchOrganizationHint": "Przełącz się na tę organizację przed zmianą jej limitów. Uprawnienia, wydatki i kurs raportowania muszą dotyczyć tej samej organizacji.",
-    "switchOrganization": "Przełącz na tę organizację"
+    "switchOrganization": "Przełącz na tę organizację",
+    "criterionLimit": "Koszt ≤ {amount}",
+    "criterionObserved": "Zmierzono {amount}; limit {limit}."
   },
   "portability": {
     "exportTitle": "Eksportuj agenta",

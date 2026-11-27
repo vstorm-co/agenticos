@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, CircleDashed, FlaskConical, Plus, Trash2, XCircle } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import {
   Button,
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui";
 import { useStepEvals } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { formatCostUsd } from "@/lib/utils";
+import { useMoney } from "@/components/providers/currency-provider";
 import { knownInput, knownOutputs } from "@/lib/workflows/step-data";
 import type {
   EvalCase,
@@ -42,10 +42,6 @@ export const MODEL_STEPS: ReadonlySet<string> = new Set([
 
 const KINDS: EvalExpectation["kind"][] = ["contains", "not_contains", "equals"];
 
-function usd(amount: number): string {
-  return formatCostUsd(amount);
-}
-
 /**
  * A model step's evals: the cases it should handle, and trying them all.
  *
@@ -63,6 +59,8 @@ export function StepEvals({
   graph: WorkflowGraph;
   node: NodeInstance;
 }) {
+  const money = useMoney();
+  const locale = useLocale();
   const t = useTranslations("workflows.evals");
   const stepData = useWorkflowEditorStore((state) => state.stepData);
   const { cases, latest, isLoading, create, remove, run } = useStepEvals(workflowId, node.id);
@@ -88,7 +86,9 @@ export function StepEvals({
               {t("pending", { count: latest.pending })}
             </span>
           )}
-          <span className="text-muted-foreground text-xs">{usd(latest.cost_usd)}</span>
+          <span className="text-muted-foreground text-xs">
+            {money.cost(latest.cost_usd, locale)}
+          </span>
         </div>
       )}
 

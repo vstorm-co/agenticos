@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { CircleHelp, Coins, Gauge, Hash, ListChecks, Timer } from "lucide-react";
@@ -9,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
 import type { ArmSummary, ComparisonSide, EvalRunArm } from "@/types/eval-runs";
-import { percent, seconds, usd } from "./format";
+import { percent, seconds } from "./format";
 import { sideName, type SideCheck } from "./names";
 
 function SideLabel({
@@ -58,6 +60,7 @@ function SummaryCell({ label, children }: { label: string; children: ReactNode }
 function SummaryCells({ summary, live }: { summary: ArmSummary | undefined; live: boolean }) {
   const t = useTranslations("evals.arms");
   const locale = useLocale();
+  const money = useMoney();
   return (
     <>
       <SummaryCell label={t("passRate")}>{percent(summary?.pass_rate ?? null, locale)}</SummaryCell>
@@ -68,7 +71,7 @@ function SummaryCells({ summary, live }: { summary: ArmSummary | undefined; live
         {summary === undefined ? "—" : summary.incomplete + summary.ungraded}
       </SummaryCell>
       <SummaryCell label={t("costPerPass")}>
-        {usd(summary?.cost_per_pass_usd ?? null, locale)}
+        {money.cost(summary?.cost_per_pass_usd ?? null, locale)}
       </SummaryCell>
       <SummaryCell label={t("tokens")}>
         {summary === undefined || summary.avg_tokens === null
@@ -116,6 +119,7 @@ export function ArmsTable({
   const t = useTranslations("evals.arms");
   const tSide = useTranslations("evals");
   const locale = useLocale();
+  const money = useMoney();
   const earlier =
     baseline !== null && baselineSummary !== null && !arms.some((arm) => arm.role === "baseline")
       ? baseline
@@ -137,7 +141,7 @@ export function ArmsTable({
     },
     {
       label: t("costPerPass"),
-      value: usd(summary?.cost_per_pass_usd ?? null, locale),
+      value: money.cost(summary?.cost_per_pass_usd ?? null, locale),
       icon: Coins,
     },
     {

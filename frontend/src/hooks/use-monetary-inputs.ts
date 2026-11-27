@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { useTenantId } from "@/hooks/use-organizations";
+import { useOrgStore } from "@/stores";
 import { useChanged } from "@/hooks/use-changed";
 import { useMoney } from "@/components/providers/currency-provider";
 import { ApiError } from "@/lib/api-error";
@@ -22,7 +22,7 @@ export interface MonetaryInputs {
 /** Explicit declarations belong to this form, never to a global currency store. */
 export function useMonetaryInputs(identity: string = ""): MonetaryInputs {
   const money = useMoney();
-  const tenant = useTenantId();
+  const tenant = useOrgStore((state) => state.activeOrgId);
   const t = useTranslations("currencies");
   const [draft, setDraft] = useState<{
     revision: number;

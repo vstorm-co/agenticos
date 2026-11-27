@@ -1,6 +1,6 @@
 """Explicit currency units and manual rates; recorded USD costs are immutable."""
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 from typing import Annotated, Self
 
@@ -94,3 +94,17 @@ class MonetaryTerm(BaseModel):
             if converted != self.cost_usd:
                 raise ValueError("Original monetary terms must match their recorded conversion")
         return self
+
+
+def sum_usd(values: Iterable[Decimal]) -> Decimal:
+    """Add supported receipt values without the process's default 28-digit rounding."""
+    with localcontext() as context:
+        context.prec = 128
+        return sum(values, Decimal(0))
+
+
+def difference_usd(left: Decimal, right: Decimal) -> Decimal:
+    """Subtract accounting values at the same precision used for conversion and totals."""
+    with localcontext() as context:
+        context.prec = 128
+        return left - right

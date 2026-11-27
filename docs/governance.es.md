@@ -1,5 +1,5 @@
 ---
-source_sha: "0a8bc4a04587"
+source_sha: "523f05415aaa"
 ---
 
 # Governance { #governance }
@@ -1505,6 +1505,10 @@ La contabilidad y los campos existentes de la API siguen en USD. La consola conv
 Con una cotización fijada de 4 PLN por USD, `monthly_budget_usd: "25"` puede acompañarse de `monetary_inputs: {"monthly_budget_usd": {"amount": "100", "currency": "PLN"}}`. Una edición explícita mediante la API anterior en USD sustituye solo las condiciones de ese campo. Una modificación no relacionada las conserva. Clonar y los formatos compatibles de exportación/importación conservan las condiciones históricas validadas sin revalorizar el límite USD.
 
 Los límites en moneda extranjera se redondean a seis decimales USD; se rechazan importes que se convertirían en cero. Los presupuestos de agente y umbrales de nodos/comprobaciones con valores float conservan su formato y rechazan declaraciones que no puedan representar exactamente. Un criterio de coste de dataset sigue siendo un umbral de aprobado/suspenso, no una autorización de gasto. Cambiar la moneda de informes no altera los importes comparados para aplicar límites.
+
+Las nuevas notificaciones de presupuesto e informes periódicos conservan la cotización de informes del momento de su creación. Los reintentos de entrega y la lectura desde otra organización no revalorizan importes. Las notificaciones antiguas pendientes conservan sus valores USD originales. Los nuevos resultados de criterios de coste incluyen importes estructurados para mostrarlos en la moneda de informes; las frases de criterios guardadas anteriormente conservan su redacción USD original.
+
+Los límites mensuales de rutinas conservan seis decimales USD. Se rechaza una precisión fraccionaria mayor antes de almacenar. Se bloquea la vuelta a la columna anterior de cuatro decimales mientras algún límite se redondearía o excedería su capacidad.
 
 
 ## Aprobaciones { #approvals }

@@ -192,7 +192,7 @@ describe("WorkflowStats", () => {
     );
     expect(screen.getByText("PLN 0.0492+")).toBeVisible();
     expect(screen.getByText("PLN 2.00 of PLN 4.00 this month, test runs included")).toBeVisible();
-    expect(screen.getByText("PLN 0.0400")).toBeVisible();
+    expect(screen.getByText("PLN 0.04")).toBeVisible();
 
     state.currency = { ...state.currency, rates: { USD: "1", PLN: "8" } };
     view.rerender(
@@ -210,7 +210,7 @@ describe("WorkflowStats", () => {
         <WorkflowStats workflowId="wf" />
       </CurrencyProvider>,
     );
-    expect(screen.getByText("—+")).toBeVisible();
+    expect(screen.getAllByText("—")).toHaveLength(3);
     expect(screen.getByText("— of — this month, test runs included")).toBeVisible();
     expect(screen.queryByText(/PLN/)).not.toBeInTheDocument();
   });
@@ -224,7 +224,7 @@ describe("WorkflowStats", () => {
     expect(screen.getByText("4.2 s")).toBeVisible();
     expect(screen.getByText("95 in 100 within 1 min 15 s")).toBeVisible();
     expect(screen.getByText("$0.0123")).toBeVisible();
-    expect(screen.getByText("$0.5000 this month, test runs included")).toBeVisible();
+    expect(screen.getByText("$0.50 this month, test runs included")).toBeVisible();
   });
 
   it("lists the steps costliest first, naming one by its type, and a removed one when asked", async () => {
@@ -253,7 +253,7 @@ describe("WorkflowStats", () => {
     render(<WorkflowStats workflowId="wf" />);
 
     expect(screen.getByText("$2.00+")).toBeVisible();
-    expect(screen.getByText("$0.5000 of $0.5000 this month, test runs included")).toHaveClass(
+    expect(screen.getByText("$0.50 of $0.50 this month, test runs included")).toHaveClass(
       "text-destructive",
     );
   });

@@ -120,3 +120,59 @@ async def test_reporting_backfill_snapshots_existing_rates_without_reinterpretin
             change.upgrade()
 
     await db.run_sync(exercise)
+
+
+async def test_routine_budget_precision_survives_upgrade_and_lossy_downgrade_is_refused(
+    db: AsyncSession,
+) -> None:
+    change = migration("0379_trigger_budget_precision")
+
+    def exercise(session: Session) -> None:
+        connection = session.connection()
+        connection.execute(
+            text(
+                "CREATE TEMP TABLE agent_triggers (monthly_budget_usd numeric(12,4)) ON COMMIT DROP"
+            )
+        )
+        connection.execute(text("INSERT INTO agent_triggers VALUES (25.0001),(NULL)"))
+        with Operations.context(MigrationContext.configure(connection)):
+            change.upgrade()
+            assert connection.scalar(
+                text(
+                    "SELECT monthly_budget_usd FROM agent_triggers WHERE monthly_budget_usd IS NOT NULL"
+                )
+            ) == Decimal("25.000100")
+            for value in ("25.000001", "99999999999999999999999999999999.999999"):
+                connection.execute(
+                    text(
+                        "UPDATE agent_triggers SET monthly_budget_usd=:value WHERE monthly_budget_usd IS NOT NULL"
+                    ),
+                    {"value": Decimal(value)},
+                )
+                with pytest.raises(RuntimeError, match="four-decimal capacity"):
+                    change.downgrade()
+                assert connection.scalar(
+                    text(
+                        "SELECT monthly_budget_usd FROM agent_triggers WHERE monthly_budget_usd IS NOT NULL"
+                    )
+                ) == Decimal(value)
+            connection.execute(
+                text(
+                    "UPDATE agent_triggers SET monthly_budget_usd=25.0001 WHERE monthly_budget_usd IS NOT NULL"
+                )
+            )
+            change.downgrade()
+            assert connection.scalar(
+                text(
+                    "SELECT monthly_budget_usd FROM agent_triggers WHERE monthly_budget_usd IS NOT NULL"
+                )
+            ) == Decimal("25.0001")
+            change.upgrade()
+            assert (
+                connection.scalar(
+                    text("SELECT count(*) FROM agent_triggers WHERE monthly_budget_usd IS NULL")
+                )
+                == 1
+            )
+
+    await db.run_sync(exercise)

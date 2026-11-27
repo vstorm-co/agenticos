@@ -18734,7 +18734,9 @@
     "amountPositive": "Sıfırdan büyük bir tutar girin.",
     "amountMaximum": "En fazla {amount} {currency} girin.",
     "switchOrganizationHint": "Limitlerini değiştirmeden önce bu organizasyona geçin. İzinler, harcamalar ve raporlama kuru aynı organizasyona ait olmalıdır.",
-    "switchOrganization": "Bu organizasyona geç"
+    "switchOrganization": "Bu organizasyona geç",
+    "criterionLimit": "Maliyet ≤ {amount}",
+    "criterionObserved": "Ölçülen: {amount}; sınır: {limit}."
   },
   "evals": {
     "title": "Eval'ler",

@@ -21949,7 +21949,9 @@
     "amountPositive": "Saisissez un montant supérieur à zéro.",
     "amountMaximum": "Saisissez au maximum {amount} {currency}.",
     "switchOrganizationHint": "Passez à cette organisation avant de modifier ses plafonds. Les autorisations, dépenses et taux de rapport doivent correspondre à la même organisation.",
-    "switchOrganization": "Passer à cette organisation"
+    "switchOrganization": "Passer à cette organisation",
+    "criterionLimit": "Coût ≤ {amount}",
+    "criterionObserved": "Coût observé : {amount} ; plafond : {limit}."
   },
   "modelPricing": {
     "title": "Tarification",

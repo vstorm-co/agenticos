@@ -1,4 +1,6 @@
 "use client";
+
+import { useMoney } from "@/components/providers/currency-provider";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { DataTable, type Column } from "@/components/ui/data-table";
@@ -8,7 +10,7 @@ import { ROUTES } from "@/lib/constants";
 import type { EvalRun } from "@/types/eval-runs";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { VerdictChip } from "./run-row";
-import { percent, usd } from "./format";
+import { percent } from "./format";
 import { sideName } from "./names";
 
 export function RunsTable({
@@ -20,6 +22,7 @@ export function RunsTable({
 }) {
   const t = useTranslations("evals");
   const locale = useLocale();
+  const money = useMoney();
   const columns: Column<EvalRun>[] = [
     {
       key: "run",
@@ -145,7 +148,7 @@ export function RunsTable({
       key: "cost",
       header: t("table.cost"),
       align: "right",
-      cell: (run) => usd(run.cost_usd, locale),
+      cell: (run) => money.cost(run.cost_usd, locale),
       hideBelow: "lg",
     },
   ];

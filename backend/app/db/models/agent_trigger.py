@@ -449,7 +449,7 @@ class AgentTrigger(Base, TimestampMixin):
     # "Paused - budget" and starts again on the first of the next month, with nothing to
     # resume by hand. Null is no limit of its own; the agent's and the organization's
     # limits apply either way, and this only ever narrows.
-    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    monthly_budget_usd: Mapped[Decimal | None] = mapped_column(Numeric(38, 6), nullable=True)
     # When a schedule stops by itself - "keep an eye on this until Friday". Null runs
     # until somebody stops it. The first fire due after this instant pauses it instead.
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -1,5 +1,5 @@
 ---
-source_sha: "0a8bc4a04587"
+source_sha: "523f05415aaa"
 ---
 
 # Governance { #governance }
@@ -1590,6 +1590,10 @@ Buchführung und vorhandene API-Felder bleiben USD. Die Konsole rechnet den eing
 Bei einem gespeicherten Kurs von 4 PLN je USD kann etwa `monthly_budget_usd: "25"` von `monetary_inputs: {"monthly_budget_usd": {"amount": "100", "currency": "PLN"}}` begleitet werden. Eine ausdrückliche USD-Änderung eines älteren Clients ersetzt nur die ursprünglichen Bedingungen dieses Feldes. Andere Patches erhalten sie. Klonen sowie unterstützte Exporte und Importe übernehmen geprüfte historische Bedingungen ohne Neubewertung des USD-Limits.
 
 Fremdwährungslimits werden auf sechs USD-Nachkommastellen gerundet; auf null fallende Beträge werden abgelehnt. Ältere Float-Budgets von Agenten und Schritt- oder Prüfschwellen behalten ihr Format und lehnen nicht exakt darstellbare Deklarationen ab. Ein Kostenkriterium bleibt eine Bewertungsschwelle, keine Ausgabenberechtigung. Ein Wechsel der Berichtswährung ändert niemals die bei der Durchsetzung verglichenen Kosten oder Limits.
+
+Neue Budgetmitteilungen und periodische Nutzungsberichte speichern den Berichtskurs ihrer Erstellung. Wiederholte Zustellungen und das Lesen aus einer anderen Organisation bewerten Beträge nicht neu. Bereits wartende ältere Mitteilungen behalten ihre ursprünglichen USD-Werte. Neue Kostenprüfungen enthalten strukturierte Beträge zur Anzeige in der Berichtswährung; ältere gespeicherte Kriteriensätze behalten ihren ursprünglichen USD-Wortlaut.
+
+Monatliche Routinenlimits bewahren sechs USD-Nachkommastellen. Höhere Nachkommagenauigkeit wird vor dem Speichern abgelehnt. Die Rückkehr zur früheren Routinen-Spalte mit vier Nachkommastellen wird blockiert, solange ein Limit gerundet würde oder den Wertebereich überschritte.
 
 
 ## Freigaben { #approvals }

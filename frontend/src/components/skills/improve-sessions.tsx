@@ -1,10 +1,11 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { usd } from "@/components/evals/format";
 import { ErrorState } from "@/components/states";
 import { Button, ListCard, Skeleton } from "@/components/ui";
 import { getErrorMessage } from "@/lib/api-error";
@@ -57,6 +58,7 @@ export function ImproveSessions({
   const t = useTranslations("skills.page.history.sessions");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
+  const money = useMoney();
   return (
     <ListCard
       title={t("title")}
@@ -97,7 +99,7 @@ export function ImproveSessions({
                       who: session.created_by?.name ?? t("unknownStarter"),
                       when: formatDateTime(session.created_at, locale),
                       line: session.line_name,
-                      cost: usd(session.spent_usd, locale),
+                      cost: money.cost(session.spent_usd, locale),
                     })}
                   </p>
                 </div>

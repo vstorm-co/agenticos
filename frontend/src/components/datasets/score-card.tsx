@@ -1,5 +1,7 @@
 "use client";
 
+import { CostCriterionName, CostCriterionReason } from "@/components/money/cost-criterion";
+
 import { useState } from "react";
 import Link from "next/link";
 import { ExternalLink, TriangleAlert } from "lucide-react";
@@ -65,14 +67,19 @@ function ResultRow({ result, linksRuns }: { result: ScorerResult; linksRuns: boo
           {(result.scorer === "judge" || result.scorer === "check") && (
             <>
               {" "}
-              · <span className="font-mono text-xs">{result.name}</span>
+              ·{" "}
+              <span className="font-mono text-xs">
+                <CostCriterionName result={result} />
+              </span>
             </>
           )}
           {!result.required && (
             <span className="text-muted-foreground ml-2 text-xs">{t("optional")}</span>
           )}
         </p>
-        <p className="text-muted-foreground break-words">{known ? t(known) : result.reason}</p>
+        <p className="text-muted-foreground break-words">
+          <CostCriterionReason result={result} fallback={known ? t(known) : result.reason} />
+        </p>
         {result.rule && (
           <p className="text-muted-foreground mt-1 text-xs">{t("rule", { rule: result.rule })}</p>
         )}
@@ -163,7 +170,7 @@ function Results({ results, linksRuns }: { results: ScorerResult[]; linksRuns: b
       <ul className="divide-y">
         {shown.map((result, index) => (
           <ResultRow
-            key={`${result.scorer}:${result.name}:${index}`}
+            key={`${result.scorer}:$<CostCriterionName result={result} />:${index}`}
             result={result}
             linksRuns={linksRuns}
           />

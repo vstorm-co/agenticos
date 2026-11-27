@@ -22141,10 +22141,12 @@
     "quoteHint": "Berichtskurs: 1 USD = {rate} {currency}. Er bleibt bis zur Änderung der Währungspräferenz fest; neue Modellkosten verwenden die aktuellen Preiskurse.",
     "spentOfLimit": "Diesen Monat {spent} von {limit} ausgegeben.",
     "spentNoLimit": "Diesen Monat {spent} ausgegeben. Kein Limit.",
-    "amountPositive": "Geben Sie einen Betrag größer als null ein.",
+    "amountPositive": "Geben Sie einen positiven Betrag ein.",
     "amountMaximum": "Geben Sie höchstens {amount} {currency} ein.",
     "switchOrganizationHint": "Wechseln Sie zu dieser Organisation, bevor Sie deren Limits ändern. Berechtigungen, Ausgaben und Berichtskurs müssen zur gleichen Organisation gehören.",
-    "switchOrganization": "Zu dieser Organisation wechseln"
+    "switchOrganization": "Zu dieser Organisation wechseln",
+    "criterionLimit": "Kosten ≤ {amount}",
+    "criterionObserved": "Gemessen: {amount}; Grenze: {limit}."
   },
   "portability": {
     "exportTitle": "Agent exportieren",

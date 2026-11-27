@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
@@ -33,7 +35,6 @@ import type { EvalRunRequest } from "@/types/eval-runs";
 import { Perm } from "@/types/permissions";
 import { EstimateSummary } from "./estimate-summary";
 import { type EvalTarget, TARGET_REQUEST, useEvalTarget } from "./eval-target";
-import { usd } from "./format";
 import { StartEvalFields, TargetChoice, Toggle } from "./start-eval-fields";
 
 /** How long the fields sit still before the estimate is asked for again. */
@@ -73,6 +74,7 @@ export function StartEvalDialog({
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
   const locale = useLocale();
+  const money = useMoney();
   const router = useRouter();
   const { can } = usePermissions();
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -281,7 +283,7 @@ export function StartEvalDialog({
             onClick={() => full && void run(full).catch(() => undefined)}
           >
             {priced
-              ? t("runFor", { amount: usd(priced.expected_usd, locale) })
+              ? t("runFor", { amount: money.cost(priced.expected_usd, locale) })
               : full !== null && !failure
                 ? t("estimating")
                 : t("start")}

@@ -334,7 +334,7 @@ function NotificationRow({
             unread ? "text-foreground font-medium" : "text-muted-foreground",
           )}
         >
-          {notificationSummary(item, tNotifications, tStop)}
+          {notificationSummary(item, tNotifications, tStop, locale)}
         </span>
         <NotificationMeta item={item}>{timeAgo(item.created_at, tTime, locale)}</NotificationMeta>
       </span>

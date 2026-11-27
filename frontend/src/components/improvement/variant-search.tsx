@@ -1,8 +1,9 @@
 "use client";
+
+import { useMoney } from "@/components/providers/currency-provider";
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, Card } from "@/components/ui";
-import { usd } from "@/components/evals/format";
 import { useImprovement } from "@/hooks/use-improvements";
 import { getErrorMessage } from "@/lib/api-error";
 import { subjectOf } from "@/lib/improvement-subject";
@@ -25,6 +26,7 @@ export function VariantSearch({
   const t = useTranslations("improvement.search");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
+  const money = useMoney();
   const actions = useImprovement(subjectOf(session), session.id);
   const [error, setError] = useState<string | null>(null);
   const search = currentAttempt(session)?.variant_search;
@@ -43,8 +45,8 @@ export function VariantSearch({
       </p>
       <p>
         {t("spent", {
-          cost: usd(search.cost_usd, locale),
-          budget: usd(search.budget_usd, locale),
+          cost: money.cost(search.cost_usd, locale),
+          budget: money.cost(search.budget_usd, locale),
         })}
       </p>
       <p>{t("scores", { seed: percent(search.seed_score), best: percent(search.best_score) })}</p>

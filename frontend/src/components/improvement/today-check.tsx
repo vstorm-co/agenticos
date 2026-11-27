@@ -1,11 +1,12 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { TriangleAlert } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { StepError } from "./step-error";
-import { usd } from "@/components/evals/format";
 import { Button, Checkbox } from "@/components/ui";
 import { useDraftEvalRuns, useEvalRun, useEvalRuns } from "@/hooks/use-eval-runs";
 import { getErrorMessage } from "@/lib/api-error";
@@ -92,6 +93,7 @@ function TodayStart({
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
+  const money = useMoney();
   const runs = useEvalRuns(agentId);
   const [chosen, setChosen] = useState<boolean | null>(null);
   const [quote, setQuote] = useState<{
@@ -142,7 +144,7 @@ function TodayStart({
       </label>
       {priced && (
         <p className="text-sm">
-          {t("todayCheckQuote", { count: priced.cases, cost: usd(cost(priced), locale) })}
+          {t("todayCheckQuote", { count: priced.cases, cost: money.cost(cost(priced), locale) })}
         </p>
       )}
       <Button

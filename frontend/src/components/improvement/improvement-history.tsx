@@ -1,10 +1,11 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import Link from "next/link";
 import { History } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { usd } from "@/components/evals/format";
 import { ErrorState, LoadingState } from "@/components/states";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui";
 import { useImprovements } from "@/hooks/use-improvements";
@@ -37,6 +38,7 @@ function useResult(): (session: Improvement) => string {
 function Row({ session }: { session: Improvement }) {
   const t = useTranslations("improvement");
   const locale = useLocale();
+  const money = useMoney();
   const result = useResult();
   const starter = session.timeline.find((event) => event.action === "improvement.started");
   const decision =
@@ -65,9 +67,9 @@ function Row({ session }: { session: Improvement }) {
           {starter?.actor_name
             ? t("history.startedBy", {
                 name: starter.actor_name,
-                cost: usd(session.spent_usd, locale),
+                cost: money.cost(session.spent_usd, locale),
               })
-            : t("history.cost", { cost: usd(session.spent_usd, locale) })}
+            : t("history.cost", { cost: money.cost(session.spent_usd, locale) })}
         </span>
       </Link>
     </li>

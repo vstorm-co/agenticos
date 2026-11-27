@@ -1,5 +1,5 @@
 ---
-source_sha: "0a8bc4a04587"
+source_sha: "523f05415aaa"
 ---
 
 # Governance { #governance }
@@ -1497,6 +1497,10 @@ Księgowanie i dotychczasowe pola API pozostają w USD. Konsola przelicza wpisan
 Na przykład przy zapisanym kursie 4 PLN za USD polu `monthly_budget_usd: "25"` może towarzyszyć `monetary_inputs: {"monthly_budget_usd": {"amount": "100", "currency": "PLN"}}`. Jawny zapis USD ze starszego klienta zastępuje pierwotne warunki tylko tego pola. Niezwiązana poprawka je zachowuje. Klonowanie oraz obsługiwane eksporty i importy przenoszą zweryfikowane warunki historyczne bez przeszacowania limitu USD.
 
 Limity w walucie obcej są zaokrąglane do sześciu miejsc dziesiętnych USD; kwota, która stałaby się zerem, jest odrzucana. Starsze budżety agentów i progi kroków lub kryteriów oparte na float zachowują format i odrzucają niedokładnie reprezentowalne deklaracje. Kryterium kosztu datasetu pozostaje progiem oceny, nie zgodą na wydawanie pieniędzy. Zmiana waluty raportowania nie zmienia kosztów ani limitów porównywanych przy egzekwowaniu budżetu.
+
+Nowe powiadomienia budżetowe i okresowe raporty użycia zachowują kurs raportowy z chwili utworzenia. Ponowienia dostarczenia oraz odczyt z innej organizacji nie przeliczają kwot ponownie. Starsze oczekujące powiadomienia zachowują pierwotne wartości USD. Nowe wyniki kryteriów kosztowych zawierają ustrukturyzowane kwoty do prezentacji w walucie raportowej; starsze zapisane zdania kryteriów pozostają w pierwotnym brzmieniu USD.
+
+Miesięczne limity rutyn zachowują sześć miejsc dziesiętnych USD. Zapis z większą precyzją ułamkową jest odrzucany przed bazą. Powrót do poprzedniej kolumny rutyn z czterema miejscami jest blokowany, jeśli limit zostałby zaokrąglony lub przekroczył zakres.
 
 
 ## Zatwierdzenia { #approvals }

@@ -46,6 +46,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep estimates, workflow receipts and cost criteria in the organization’s
+  reporting currency. Budget and periodic usage notices retain their own quote
+  across delivery retries; legacy queued messages keep their USD amounts.
+
 - Keep a Stav bill with missing FX visibly unpriced instead of replacing it with a catalog estimate. Retain its original billed amount and currency, known cost subtotals and partial-usage safeguards.
 
 - Prevent model editors from changing raw request routing or credentials on custom-priced profiles without budget authority. Keep omitted token usage partially priced, including streams and nested calls, and stop further capped requests while retaining known cost subtotals.
@@ -69,6 +73,11 @@ Two things are versioned separately from this file and worth knowing about:
 - Display workflow statistics, dashboard spending, run history and conversation costs in the organization currency, independently of language. Show unknown amounts when a reporting rate is unavailable; preserve stored USD accounting and existing cap values.
 
 ### Upgrading
+
+- Apply `0379_trigger_budget_precision.py` for routine monthly limits: six USD
+  fractional digits are retained. Additional fractional precision is refused
+  before storage; downgrade refuses limits that would round or overflow the
+  former four-decimal column.
 
 - Apply `0375_model_profile_pricing.py`, `0376_monetary_cost_capacity.py`, `0377_currency_settings.py` and `0378_currency_accounting_terms.py` before starting the API. Profiles retain automatic pricing by default. Monetary columns retain six fractional places; ingestion receipts retain twelve. Downgrade refuses amounts outside the former range or original non-USD limit terms that would be lost.
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useState } from "react";
 import { ListFilters } from "@/components/ui/list-filters";
 import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
@@ -19,7 +21,7 @@ import {
 } from "@/components/ui";
 import { useNodeCatalog, useRunHistory, useUrlState, useWorkflows } from "@/hooks";
 import { ROUTES } from "@/lib/constants";
-import { formatRunCostUsd, formatDateTime, formatRunDuration } from "@/lib/utils";
+import { formatDateTime, formatRunDuration } from "@/lib/utils";
 import { RUN_HISTORY_PAGE } from "@/lib/workflows/runs-api";
 import type { WorkflowRunRead, WorkflowRunStatus } from "@/lib/workflows/types";
 
@@ -74,6 +76,7 @@ const SINCE_MS: Record<string, number> = {
 export function RunHistory({ workflowId }: { workflowId?: string }) {
   const t = useTranslations("pages.workflows");
   const locale = useLocale();
+  const money = useMoney();
   const tc = useTranslations("common");
   const router = useRouter();
   const [status, setStatus] = useUrlState("status");
@@ -168,7 +171,7 @@ export function RunHistory({ workflowId }: { workflowId?: string }) {
       key: "cost",
       header: t("runColumns.cost"),
       align: "right",
-      cell: (run) => formatRunCostUsd(run.spent_cost, run.cost_is_partial),
+      cell: (run) => money.runCost(run.spent_cost, run.cost_is_partial, locale),
       hideBelow: "md",
     },
   ];

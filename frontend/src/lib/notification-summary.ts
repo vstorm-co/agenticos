@@ -1,8 +1,8 @@
 import type { Translate } from "@/lib/agent-step-captions";
 import { ATTEMPT_RESULT_REASONS } from "@/lib/improvement-steps";
 import type { MovedCriterion, Notification } from "@/lib/notifications-api";
-import { usd, wordedSummary } from "@/lib/notification-wording";
-import { formatCostUsd } from "@/lib/utils";
+import { wordedSummary } from "@/lib/notification-wording";
+import { moneyForQuote } from "@/lib/money";
 
 const IMPROVEMENT = ["ready", "stopped", "failed", "stale"];
 const TEST = ["completed", "failed", "cancelled", "budget_exceeded"];
@@ -33,8 +33,13 @@ const STOP_REASONS = [
  * reader's language, from the outcome the server keeps beside its English summary;
  * anything else, or a status this console does not know yet, keeps that summary.
  */
-export function notificationSummary(item: Notification, t: Translate, tStop: Translate): string {
-  const worded = paramsSummary(item, t);
+export function notificationSummary(
+  item: Notification,
+  t: Translate,
+  tStop: Translate,
+  locale = "en-US",
+): string {
+  const worded = paramsSummary(item, t, locale);
   if (worded !== null) return worded;
   const outcome = item.outcome;
   if (!outcome) return item.summary;
@@ -89,8 +94,10 @@ function criteriaSentence(criteria: MovedCriterion[], t: Translate): string {
 }
 
 /** A row worded from the values the server kept: by its `wording` when it names one. */
-function paramsSummary(item: Notification, t: Translate): string | null {
-  if (item.wording_params) return wordedSummary(item.wording_params, t);
+function paramsSummary(item: Notification, t: Translate, locale: string): string | null {
+  const money = moneyForQuote(item.reporting_quote ?? null);
+  const amount = (value: string) => money.cost(value, locale);
+  if (item.wording_params) return wordedSummary(item.wording_params, t, amount);
   const params = item.params;
   if (!params) return null;
   switch (item.event_type) {
@@ -102,8 +109,8 @@ function paramsSummary(item: Notification, t: Translate): string | null {
         // A department's cap names its department when the row says which.
         scope: params.scope === "group" && params.subject ? "department" : (params.scope ?? ""),
         department: params.subject ?? "",
-        spent: formatCostUsd(Number(params.spent_usd ?? "0")),
-        limit: usd(params.limit_usd ?? "0"),
+        spent: amount(params.spent_usd ?? "0"),
+        limit: amount(params.limit_usd ?? "0"),
       });
     case "workflow_notification":
       return t("kind.workflowApproval", { title: params.approval_title ?? "" });
@@ -111,7 +118,7 @@ function paramsSummary(item: Notification, t: Translate): string | null {
       return t("kind.budgetWarning", {
         group: params.group_name ?? "",
         share: params.share ?? "",
-        limit: usd(params.limit ?? "0"),
+        limit: amount(params.limit ?? "0"),
       });
     default:
       return null;

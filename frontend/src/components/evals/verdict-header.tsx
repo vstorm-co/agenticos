@@ -1,5 +1,8 @@
 "use client";
 
+import { compareUsd, sumUsd } from "@/lib/money";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import Link from "next/link";
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { GitCompare, ListFilter, RotateCcw, Settings2, Square, TriangleAlert } from "lucide-react";
@@ -16,7 +19,7 @@ import { SuiteCheckVerdict } from "./suite-check-verdict";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { ResultOverview } from "./result-overview";
 import { sideName } from "./names";
-import { percent, usd } from "./format";
+import { percent } from "./format";
 import { SendToReviewButton } from "./send-to-review-button";
 import { JudgeNotes } from "./judge-notes";
 import { UngradedNote } from "./ungraded-note";
@@ -76,6 +79,7 @@ export function VerdictHeader({
   const tc = useTranslations("common");
   const journey = useTranslations("datasets.journey");
   const locale = useLocale();
+  const money = useMoney();
   const live = run.status === "queued" || run.status === "running";
   const reruns = run.attempts_total - run.first_total;
   const compares = run.paired || comparison?.baseline != null;
@@ -307,16 +311,16 @@ export function VerdictHeader({
               {stage
                 ? t("runMetaStage", {
                     date: formatDateTime(run.created_at, locale),
-                    cost: usd(run.cost_usd, locale),
+                    cost: money.cost(run.cost_usd, locale),
                   })
                 : t("runMeta", {
                     date: formatDateTime(run.created_at, locale),
-                    cost: usd(run.cost_usd, locale),
-                    estimate: usd(run.expected_usd, locale),
+                    cost: money.cost(run.cost_usd, locale),
+                    estimate: money.cost(run.expected_usd, locale),
                     ceiling:
-                      compares && Number(run.rerun_ceiling_usd) > 0
-                        ? usd(
-                            String(Number(run.estimate_usd) + Number(run.rerun_ceiling_usd)),
+                      compares && compareUsd(run.rerun_ceiling_usd ?? "0", "0") === 1
+                        ? money.cost(
+                            sumUsd(run.estimate_usd ?? "0", run.rerun_ceiling_usd ?? "0"),
                             locale,
                           )
                         : "none",

@@ -1,9 +1,10 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
-import { usd } from "@/components/evals/format";
 import { useAgentTestSet } from "@/hooks/use-agent-test-set";
 import { useCaseGenerations } from "@/hooks/use-case-generation";
 import { getErrorMessage } from "@/lib/api-error";
@@ -28,6 +29,7 @@ export function WriteQuestions({
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
+  const money = useMoney();
   const testSet = useAgentTestSet(agentId);
   const [quote, setQuote] = useState<AgentTestSetEstimate | null>(null);
   const [built, setBuilt] = useState<AgentTestSetBootstrap | null>(null);
@@ -54,7 +56,10 @@ export function WriteQuestions({
       {quote ? (
         <p className="text-sm">
           {quote.priced
-            ? t("writeQuestionsQuote", { count: quote.generate, cost: usd(quote.cost_usd, locale) })
+            ? t("writeQuestionsQuote", {
+                count: quote.generate,
+                cost: money.cost(quote.cost_usd, locale),
+              })
             : t("writeQuestionsUnpriced")}
         </p>
       ) : (

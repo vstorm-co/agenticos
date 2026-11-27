@@ -1408,6 +1408,10 @@ For example, with the reporting quote fixed at 4 PLN per USD, `monthly_budget_us
 
 Foreign-currency limits round to six USD decimal places; amounts that would become zero are refused. Legacy float-valued agent specs and node/check thresholds keep their format and reject declarations that cannot be represented exactly there. A dataset cost criterion remains a pass/fail threshold, not spending authorization. Switching reporting currency never changes which costs or limits the enforcement compares.
 
+New budget and periodic usage notifications retain the reporting quote used when they were created. Delivery retries and viewing a notice from another organization do not revalue its amounts. Queued legacy notices retain their original USD values. New cost-check results carry structured monetary evidence for reporting-currency display; older stored criterion sentences retain their original USD wording.
+
+Routine monthly limits preserve six USD decimal places. Writes with extra fractional precision are refused before storage. Downgrading to the previous four-decimal routine column is blocked while a limit would be rounded or overflow.
+
 
 ## Approvals
 
