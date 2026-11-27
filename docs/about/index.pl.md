@@ -1,5 +1,5 @@
 ---
-source_sha: "77658c876710"
+source_sha: "3e2a9620fb45"
 ---
 
 # O AgenticOS { #about-agenticos }
@@ -53,7 +53,7 @@ go porównujesz.
 | Kontrola dostępu | [Katalog uprawnień](../permissions.md) w kodzie, role złożone z niego, granty per zasób, które poszerzają i nigdy nie zawężają. `approval: required` jest tutaj `sudo` — run parkuje i czeka na człowieka |
 | Sterowniki | [28 providerów modeli](../models.md) za profilem modelu i [dowolny serwer MCP po URL](../mcp.md). Zmień profil, a przesuną się wszyscy agenci, którzy go używają, bez publikowania żadnego z nich na nowo |
 | System plików | [Kolekcje, skille i kontekst](../file-processing.md) w Twoim własnym Postgresie, z embeddingami kluczowanymi per organizacja |
-| Powłoka | Jeden runner za [czatem webowym, API, Slackiem, Telegramem, widgetem, hostowaną stroną i harmonogramem](../channels.md) |
+| Powłoka | Jeden runner za [czatem webowym, API, Slackiem, Microsoft Teams, Telegramem, e-mailem, SMS-ami, linią telefoniczną, widgetem, hostowaną stroną i harmonogramem](../channels.md) |
 | Log audytowy | Każdy run, każda decyzja o approvalu, każda rotacja sekretu — z wartościami, nigdy z wierszami i nigdy z kluczem otwartym tekstem |
 
 !!! info "Dlaczego ten test jest napisany tak, by stosować go również do nas"
@@ -71,9 +71,10 @@ historię runów, koszt i status, a nie trend, na którym można działać. Jest
 [roadmapie](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md) jako R11.
 
 Dwie kolejne luki warte poznania, zanim zaczniesz porównywać: nie ma jeszcze
-SAML ani SCIM — logowanie to JWT, klucze API, Google OAuth i magic linki — i nie
-ma zestawu do ewaluacji, więc testowanie agenta przed opublikowaniem to coś, co
-robisz ręcznie.
+SAML ani SCIM — logowanie to OIDC SSO, LDAP, Kerberos, Google i e-mail, a dostawca
+tożsamości obsługujący tylko SAML łączy się przez brokera, np. Keycloak — a role
+to sześć wbudowanych, bez ról niestandardowych. Testowanie agenta przed
+opublikowaniem obejmują [ewaluacje](../evals.md) na wersjonowanych datasetach.
 
 ## Dla kogo to jest { #who-it-is-for }
 
