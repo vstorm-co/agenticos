@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Link from "next/link";
 import { Bot, Database, Layers, LayoutTemplate, Plus, Star, Unlink, Workflow } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -144,6 +144,7 @@ export function ProjectResources({ project }: { project: Project }) {
 }
 
 function AddResources({ projectId, close }: { projectId: string; close: () => void }) {
+  const descriptionPrefix = useId();
   const t = useTranslations("projects.resources");
   const common = useTranslations("common");
   const errors = useTranslations("errors");
@@ -224,6 +225,7 @@ function AddResources({ projectId, close }: { projectId: string; close: () => vo
               >
                 <Checkbox
                   aria-label={item.name}
+                  aria-describedby={`${descriptionPrefix}-${kind}-${item.id}`}
                   checked={linked.has(item.id) || selected.includes(item.id)}
                   disabled={
                     linked.has(item.id) ||
@@ -239,7 +241,11 @@ function AddResources({ projectId, close }: { projectId: string; close: () => vo
                 <ResourceMark kind={kind} item={item} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{item.name}</span>
-                  <span className="text-muted-foreground mt-0.5 line-clamp-2 block text-xs">
+                  <span
+                    id={`${descriptionPrefix}-${kind}-${item.id}`}
+                    title={item.description || t(kind)}
+                    className="text-muted-foreground mt-0.5 line-clamp-2 text-xs"
+                  >
                     {item.description || t(kind)}
                   </span>
                 </span>

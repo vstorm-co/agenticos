@@ -194,3 +194,19 @@ it("does not load an unauthorized catalog or enable linking while candidate data
   expect(screen.getByRole("button", { name: "Add selected (0)" })).toBeDisabled();
   expect(screen.queryByRole("checkbox")).toBeNull();
 });
+
+it("keeps long picker descriptions to two visual lines without losing their accessible text", async () => {
+  const description = "Evidence and assumptions for the quarterly research project. "
+    .repeat(12)
+    .trim();
+  candidates.data = [{ id: "long-description", name: "Research", description, slug: "research" }];
+  render(<ProjectResources project={project} />);
+  await userEvent.click(screen.getByRole("button", { name: "Add existing resources" }));
+  const checkbox = screen.getByRole("checkbox", { name: "Research" });
+  expect(checkbox).toHaveAccessibleDescription(description);
+  const text = screen.getByText(description);
+  expect(text).toHaveAttribute("title", description);
+  // Tailwind line-clamp requires display:-webkit-box; block cancels it on phones.
+  expect(text).toHaveClass("line-clamp-2");
+  expect(text).not.toHaveClass("block");
+});
