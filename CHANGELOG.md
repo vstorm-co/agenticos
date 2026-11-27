@@ -103,6 +103,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Acknowledge live Browser and Desktop takeover only to the socket that acquired control, and avoid repeated viewport resizing when environment expiry updates.
+
 - Keep long project resource descriptions to two lines in the picker while preserving their full accessible description.
 
 - Preserve workflow-worker cancellation while stopping the dispatch lease heartbeat, so concurrent cleanup cannot turn cancellation into a successful dispatch.

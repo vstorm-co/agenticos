@@ -133,22 +133,22 @@ export function useLiveConversationEnvironment(
     return () => disconnect();
   }, [authenticated, enabled, environment.id, state, terminal, connect, disconnect]);
   const status = current?.status ?? "connecting";
+  const canControl = current?.environment?.can_control === true;
+  const control = current?.environment?.control;
+  const ready = current?.environment?.state === "ready";
   const send = useCallback(
     (command: BrowserCommand) => {
-      const authority = current?.environment;
       if (
         authenticated &&
         enabled &&
         status === "live" &&
-        authority?.state === "ready" &&
-        authority.can_control &&
-        (command.type === "take_over"
-          ? authority.control !== "agent"
-          : authority.control === "human")
+        ready &&
+        canControl &&
+        (command.type === "take_over" ? control !== "agent" : control === "human")
       )
         sendMessage(command);
     },
-    [authenticated, enabled, status, current?.environment, sendMessage],
+    [authenticated, enabled, status, ready, canControl, control, sendMessage],
   );
   const retry = useCallback(() => {
     if (!authenticated || !enabled || environment.id === null || environment.state !== "ready")

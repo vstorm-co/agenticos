@@ -112,13 +112,20 @@ async def stream_environment(
             checked_at = time.monotonic()
 
     async def event(
-        kind: Literal["browser_opened", "browser_frame", "browser_control_error"],
+        kind: Literal[
+            "browser_opened",
+            "browser_frame",
+            "browser_control_error",
+            "browser_held",
+            "browser_released",
+        ],
         *,
         image: str | None = None,
         url: str | None = None,
         title: str | None = None,
         navigable: bool = False,
         detail: str | None = None,
+        by_user_id: str | None = None,
     ) -> None:
         nonlocal sequence
         sequence += 1
@@ -134,6 +141,7 @@ async def stream_environment(
                     title=title,
                     navigable=navigable,
                     detail=detail,
+                    by_user_id=by_user_id,
                 )
             )
         )
@@ -178,11 +186,15 @@ async def stream_environment(
                             await candidate.close()
                             raise
                         driver = candidate
+                    else:
+                        await driver.require()
+                    await event("browser_held", by_user_id=str(ctx.subject_id))
                     await refresh(force=True, touch=True)
                 elif command.type == "give_back":
                     if driver is not None:
                         await driver.close()
                         driver = None
+                    await event("browser_released")
                     await refresh(force=True, touch=True)
                 else:
                     if driver is None:

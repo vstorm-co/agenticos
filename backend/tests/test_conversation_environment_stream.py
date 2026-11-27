@@ -327,3 +327,65 @@ async def test_passive_frames_and_periodic_reauthentication_do_not_renew_idle(
     assert case.row.expires_at == start + timedelta(seconds=60)
     assert stream.runtime.picture.await_count == 2
     assert case.socket.close.await_args.kwargs["code"] == 4403
+
+
+async def test_held_identity_acknowledges_only_this_sockets_successful_claim(clock_case):
+    case, _clock = clock_case
+    case.socket.receive_text.side_effect = [
+        json.dumps({"type": "take_over"}),
+        json.dumps({"type": "give_back"}),
+        WebSocketDisconnect(),
+    ]
+    await run(case)
+    ownership = [
+        frame["data"]
+        for frame in case.frames
+        if frame["type"] == "browser_event"
+        and frame["data"]["kind"] in ("browser_held", "browser_released")
+    ]
+    assert [event["kind"] for event in ownership] == ["browser_held", "browser_released"]
+    assert ownership[0]["by_user_id"] == str(case.ctx.subject_id)
+    assert ownership[1]["by_user_id"] is None
+
+
+async def test_refused_physical_claim_never_acknowledges_human_ownership(clock_case, monkeypatch):
+    from app.core.exceptions import ConflictError
+
+    case, _clock = clock_case
+    monkeypatch.setattr(
+        stream.EnvironmentDriver,
+        "acquire",
+        AsyncMock(side_effect=ConflictError(message="Already held")),
+    )
+    case.socket.receive_text.side_effect = [
+        json.dumps({"type": "take_over"}),
+        WebSocketDisconnect(),
+    ]
+    await run(case)
+    kinds = [frame["data"]["kind"] for frame in case.frames if frame["type"] == "browser_event"]
+    assert "browser_held" not in kinds
+    assert "browser_control_error" in kinds
+    stream.runtime.perform.assert_not_awaited()
+
+
+async def test_repeated_takeover_rechecks_the_existing_socket_lease_before_ack(
+    clock_case, monkeypatch
+):
+    from app.core.exceptions import ConflictError
+
+    case, _clock = clock_case
+    require = AsyncMock(side_effect=ConflictError(message="Lease lost"))
+    monkeypatch.setattr(stream.EnvironmentDriver, "require", require)
+    case.socket.receive_text.side_effect = [
+        json.dumps({"type": "take_over"}),
+        json.dumps({"type": "take_over"}),
+        WebSocketDisconnect(),
+    ]
+    await run(case)
+    held = [
+        frame
+        for frame in case.frames
+        if frame["type"] == "browser_event" and frame["data"]["kind"] == "browser_held"
+    ]
+    assert len(held) == 1
+    require.assert_awaited_once()

@@ -251,3 +251,39 @@ it("handles refusal before the first state without retaining another session", (
   expect(result.current.environment).toBeNull();
   expect(socket.connect).not.toHaveBeenCalled();
 });
+
+it("keeps input callbacks stable when only the authority expiry timestamp changes", () => {
+  const { result } = renderHook(() =>
+    useLiveConversationEnvironment("chat/one", environment, true),
+  );
+  act(() => view());
+  const send = result.current.send;
+  act(() =>
+    emit({
+      type: "environment_state",
+      data: { ...environment, expires_at: "2026-12-01T00:00:00Z" },
+    }),
+  );
+  expect(result.current.send).toBe(send);
+  act(() => emit({ type: "environment_state", data: { ...environment, control: "human" } }));
+  const humanSend = result.current.send;
+  expect(humanSend).not.toBe(send);
+  act(() =>
+    emit({
+      type: "environment_state",
+      data: { ...environment, control: "human", expires_at: "2026-12-02T00:00:00Z" },
+    }),
+  );
+  expect(result.current.send).toBe(humanSend);
+  act(() => result.current.send({ type: "type", text: "hello" }));
+  expect(socket.sendMessage).toHaveBeenLastCalledWith({ type: "type", text: "hello" });
+  act(() =>
+    emit({
+      type: "environment_state",
+      data: { ...environment, control: "agent", can_control: false },
+    }),
+  );
+  socket.sendMessage.mockClear();
+  act(() => result.current.send({ type: "type", text: "refused" }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+});
