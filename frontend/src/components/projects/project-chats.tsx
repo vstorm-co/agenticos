@@ -22,10 +22,10 @@ import type { Project } from "@/types/projects";
 /**
  * The project's chats as a table.
  *
- * The page header's New chat starts a one-to-one chat; the team-room button
- * stays in this list's header, so it is reachable before the first chat
- * exists. The list is not marked empty: on an empty list the header hides,
- * and the button would go with it, exactly when there is nothing yet.
+ * The page header's New chat starts a one-to-one chat, not a team room, so
+ * the team-room button stays reachable on an empty project as well: the list
+ * header hides when there is nothing yet, and the button with it, so the
+ * empty state carries its own below the invitation.
  *
  * Everybody's, not the reader's alone: a project's chats are its members', so
  * each row says whose it is, which agents answer in it, when it last moved or
@@ -35,7 +35,9 @@ import type { Project } from "@/types/projects";
 export function ProjectChats({ project }: { project: Project }) {
   const t = useTranslations("projects");
   const tErrors = useTranslations("errors");
-  const { chats, isLoading, error, hasMore, loadingMore, loadMore } = useProjectChats(project.id);
+  const { chats, total, isLoading, error, hasMore, loadingMore, loadMore } = useProjectChats(
+    project.id,
+  );
   const columns = useChatColumns();
   const router = useRouter();
 
@@ -44,17 +46,30 @@ export function ProjectChats({ project }: { project: Project }) {
   ) : undefined;
 
   return (
-    <ListCard namedByPage fill title={t("chats")} controls={newChat}>
+    <ListCard
+      namedByPage
+      fill
+      title={t("chats")}
+      controls={newChat}
+      empty={!isLoading && !error && total === 0}
+    >
       {isLoading ? (
         <LoadingState variant="skeleton-list" rows={3} />
       ) : error ? (
         <ErrorState description={getErrorMessage(error, tErrors)} />
       ) : chats.length === 0 ? (
-        <ListCardEmpty
-          icon={MessageSquare}
-          title={t("noChatsYet")}
-          description={project.can_use ? t("noChatsHint") : t("noChatsViewer")}
-        />
+        <>
+          <ListCardEmpty
+            icon={MessageSquare}
+            title={t("noChatsYet")}
+            description={project.can_use ? t("noChatsHint") : t("noChatsViewer")}
+          />
+          {project.can_use && (
+            <div className="flex justify-center pb-5">
+              <StartTeamRoom key={project.id} projectId={project.id} />
+            </div>
+          )}
+        </>
       ) : (
         <>
           <DataTable<ProjectChat>
