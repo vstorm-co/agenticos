@@ -1,0 +1,9 @@
+# Visible organization teams with repository write access own the review surface.
+# CODEOWNERS requests review; branch rules separately enforce required approval.
+* @vstorm-co/engineers
+
+# Security policy and publishing authority need the technical leads' review.
+/.github/CODEOWNERS @vstorm-co/tech-leads
+/.github/workflows/ @vstorm-co/tech-leads
+/SECURITY* @vstorm-co/tech-leads
+/docs/security* @vstorm-co/tech-leads

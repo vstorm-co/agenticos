@@ -1,5 +1,5 @@
 ---
-source_sha: "d50ec9782238"
+source_sha: "333d3f26e149"
 ---
 
 # Seguridad { #security }
@@ -482,3 +482,19 @@ perfil y no una sugerencia.
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   lee [Protección de datos](data-protection.md) y [Licencias](licenses.md) junto a
   esta página.
+
+## Verificar imágenes publicadas { #verifying-published-images }
+
+El workflow de publicación firma cada digest de manifiesto multiplataforma con Cosign sin claves mediante OIDC de GitHub Actions. Los builds nuevos incluyen procedencia BuildKit; una imagen reutilizada conserva su procedencia original. La firma acredita la publicación mediante este workflow, no una nueva compilación. Las imágenes históricas sin firma requieren publicarse de nuevo mediante el workflow actualizado.
+
+Verifique el digest que va a desplegar, el emisor GitHub y la identidad exacta del workflow. En una ejecución de release, sustituya `refs/heads/main` por su `refs/tags/vX.Y.Z`. No acepte cualquier identidad de certificado ni verifique solo una etiqueta mutable.
+
+```bash
+IMAGE_DIGEST=sha256:...
+cosign verify \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity https://github.com/vstorm-co/agenticos/.github/workflows/images.yml@refs/heads/main \
+  "ghcr.io/vstorm-co/agenticos-backend@$IMAGE_DIGEST"
+```
+
+Compose y el script de despliegue no exigen automáticamente la verificación de firmas. Un fallo de verificación debe detener el despliegue controlado por el operador. Los SBOM de release siguen siendo inventarios separados.

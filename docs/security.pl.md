@@ -1,5 +1,5 @@
 ---
-source_sha: "d50ec9782238"
+source_sha: "333d3f26e149"
 ---
 
 # Bezpieczeństwo { #security }
@@ -473,3 +473,19 @@ nie sugestią.
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   obok tej strony czytaj [Ochronę danych](data-protection.md) i
   [Licencje](licenses.md).
+
+## Weryfikacja publikowanych obrazów { #verifying-published-images }
+
+Workflow publikacji podpisuje digest każdego wieloplatformowego manifestu bezkluczowym Cosign przez OIDC GitHub Actions. Nowe buildy zawierają provenance BuildKit; ponowne użycie obrazu zachowuje jego pierwotne provenance. Podpis potwierdza publikację przez ten workflow, a nie ponowne zbudowanie użytego obrazu. Historyczne obrazy bez podpisu wymagają ponownej publikacji przez zaktualizowany workflow.
+
+Zweryfikuj digest, który chcesz wdrożyć, wystawcę GitHub i dokładną tożsamość workflow. Dla wydania zastąp `refs/heads/main` jego `refs/tags/vX.Y.Z`. Nie akceptuj dowolnej tożsamości certyfikatu ani samego zmiennego tagu.
+
+```bash
+IMAGE_DIGEST=sha256:...
+cosign verify \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity https://github.com/vstorm-co/agenticos/.github/workflows/images.yml@refs/heads/main \
+  "ghcr.io/vstorm-co/agenticos-backend@$IMAGE_DIGEST"
+```
+
+Compose i skrypt wdrożenia nie wymuszają automatycznie weryfikacji podpisu. Błąd weryfikacji musi zatrzymać wdrożenie sterowane przez operatora. Dotychczasowe SBOM-y wydania pozostają osobnymi inwentarzami.

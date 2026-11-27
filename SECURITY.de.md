@@ -1,4 +1,4 @@
-<!-- source_sha: 471d6c338ae3 -->
+<!-- source_sha: 91ef88072269 -->
 
 # Sicherheit
 
@@ -11,7 +11,7 @@
 
 ## Eine Schwachstelle melden
 
-E-Mail: **kacper.wlodarczyk@vstorm.co** (oder eröffnen Sie ein privates Security Advisory im Repo). Bitte geben Sie an:
+Melden Sie Schwachstellen über ein [privates Security Advisory](https://github.com/vstorm-co/agenticos/security/advisories/new). Veröffentlichen Sie keine Exploit-Details in öffentlichen Issues. Bitte geben Sie an:
 
 - Betroffene Version / betroffener Commit
 - Schritte zur Reproduktion
@@ -63,6 +63,6 @@ ausliefern, und ihre Lizenzen in [Lizenzen](docs/licenses.de.md).
 
 ## Bekannte Einschränkungen
 
-- **Kein 2FA / MFA** ab Werk.
-- **Kein SAML / OIDC** über Google OAuth hinaus. Enterprise-SSO braucht eine eigene IdP-Integration.
+- **MFA:** lokale Passwörter haben keinen eingebauten zweiten Faktor. Erzwingen Sie MFA beim Identitätsanbieter für generisches OIDC-SSO.
+- **SSO:** generische OIDC-Discovery (Authorization Code mit PKCE), Google OAuth, LDAP und Kerberos werden unterstützt. Natives SAML und SCIM werden nicht unterstützt; siehe [Directory](docs/directory.de.md).
 - **Keine automatische PII-Schwärzung** in Logs — achten Sie darauf, was Sie loggen.

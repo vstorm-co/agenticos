@@ -1,4 +1,4 @@
-<!-- source_sha: 471d6c338ae3 -->
+<!-- source_sha: 91ef88072269 -->
 
 # Bezpieczeństwo
 
@@ -10,7 +10,7 @@
 
 ## Zgłaszanie podatności
 
-E-mail: **kacper.wlodarczyk@vstorm.co** (albo załóż prywatne security advisory w repozytorium). Dołącz:
+Zgłaszaj podatności przez [prywatne security advisory](https://github.com/vstorm-co/agenticos/security/advisories/new). Nie publikuj szczegółów exploita w publicznym issue. Dołącz:
 
 - Wersję / commit, którego to dotyczy
 - Kroki do odtworzenia
@@ -58,6 +58,6 @@ obrazy, i ich licencje — [Licencje](docs/licenses.pl.md).
 
 ## Znane ograniczenia
 
-- **Brak 2FA / MFA** od ręki.
-- **Brak SAML / OIDC** poza Google OAuth. Enterprise SSO wymaga własnej integracji z IdP.
+- **MFA:** logowanie lokalnym hasłem nie ma wbudowanego drugiego składnika. Przy SSO przez generic OIDC wymuś MFA u dostawcy tożsamości.
+- **SSO:** obsługujemy generic OIDC discovery (authorization code z PKCE), Google OAuth, LDAP i Kerberos. Brak natywnego SAML i SCIM; zobacz [Directory](docs/directory.pl.md).
 - **Brak automatycznego maskowania PII** w logach — uważaj, co logujesz.

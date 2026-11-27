@@ -250,6 +250,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
           outputs: type=image,push-by-digest=true,name-canonical=true,push=true
+          provenance: mode=max
           # One cache scope per image and architecture, or the builds evict
           # each other's layers from the one 10 GB store.
           cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }}
@@ -286,6 +287,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -358,6 +360,27 @@ jobs:
           docker buildx imagetools create "${tags[@]}" \
             --annotation "index:org.opencontainers.image.description=$DESCRIPTION" \
             "${refs[@]}"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@881c63bd87e38389154debd8331404ce7ca8a3ab # v4.1.4
+        with:
+          cosign-release: v3.1.6
+
+      # Sign the immutable index, including its platform provenance descriptors.
+      # Retagging/reusing an image does not claim that it was rebuilt in this run.
+      - name: Sign the published manifest
+        env:
+          IMAGE: ${{ env.IMAGE_PREFIX }}-${{ matrix.image }}
+          SHORT: ${{ needs.resolve.outputs.short }}
+          SOURCE_SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          set -euo pipefail
+          digest=$(docker buildx imagetools inspect "$IMAGE:sha-$SHORT" --format '{{json .Manifest}}' | jq -er '.digest | select(test("^sha256:[0-9a-f]{64}$"))')
+          cosign sign --yes -a "publication-commit=$SOURCE_SHA" "$IMAGE@$digest"
+          cosign verify \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity "https://github.com/$GITHUB_REPOSITORY/.github/workflows/images.yml@$GITHUB_REF" \
+            -a "publication-commit=$SOURCE_SHA" "$IMAGE@$digest"
 
       - name: Show what was published
         env:

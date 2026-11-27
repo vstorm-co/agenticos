@@ -1,5 +1,5 @@
 ---
-source_sha: "d50ec9782238"
+source_sha: "333d3f26e149"
 ---
 
 # Sicherheit { #security }
@@ -508,3 +508,19 @@ und kein Vorschlag.
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   lies [Datenschutz](data-protection.md) und [Lizenzen](licenses.md) neben dieser
   Seite.
+
+## Veröffentlichte Images verifizieren { #verifying-published-images }
+
+Der Veröffentlichungs-Workflow signiert jeden Multi-Plattform-Manifest-Digest mit schlüssellosem Cosign über GitHub Actions OIDC. Neue Builds enthalten BuildKit-Provenienz; wiederverwendete Images behalten ihre ursprüngliche Build-Provenienz. Die Signatur bestätigt die Veröffentlichung durch diesen Workflow, keinen erneuten Build. Historische unsignierte Images benötigen eine erneute Veröffentlichung durch den aktualisierten Workflow.
+
+Prüfen Sie den vorgesehenen Digest, den GitHub-Aussteller und die genaue Workflow-Identität. Ersetzen Sie für einen Release-Lauf `refs/heads/main` durch dessen `refs/tags/vX.Y.Z`. Akzeptieren Sie keine beliebige Zertifikatsidentität und prüfen Sie nicht nur einen veränderlichen Tag.
+
+```bash
+IMAGE_DIGEST=sha256:...
+cosign verify \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity https://github.com/vstorm-co/agenticos/.github/workflows/images.yml@refs/heads/main \
+  "ghcr.io/vstorm-co/agenticos-backend@$IMAGE_DIGEST"
+```
+
+Compose und das Deployment-Skript erzwingen die Signaturprüfung nicht automatisch. Ein Verifikationsfehler muss die vom Betreiber gesteuerte Bereitstellung stoppen. Release-SBOMs bleiben separate Inventardokumente.
