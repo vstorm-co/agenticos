@@ -2,7 +2,7 @@
 title: "AgenticOS vs Microsoft Agent 365"
 seo_title: "AgenticOS vs Microsoft Agent 365: Agents selbst steuern"
 description: "Agent 365 ist die Steuerungsebene von Microsoft für Agents in Microsoft 365. Vergleichen Sie AgenticOS: Agents auf Ihren Servern bauen, betreiben und steuern."
-source_sha: "c7529954399e"
+source_sha: "e9f224ddf26a"
 ---
 
 # AgenticOS vs Microsoft Agent 365 { #agenticos-vs-microsoft-agent-365 }
@@ -12,6 +12,8 @@ Microsoft Agent 365 ist eine Steuerungsebene für die Agents eines Unternehmens 
 Wenn Ihr Unternehmen auf Microsoft 365 läuft und die vorhandenen Agents erfassen und überwachen möchte, passt Agent 365 in diese Umgebung. Wenn Sie die Agents selbst und die Regeln darüber auf einer Infrastruktur unter Ihrer Kontrolle und mit jedem Modell möchten, erledigt AgenticOS beides an einem Ort.
 
 Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basisversion: v1.10.0. Umfang Agent 365: die allgemeine Verfügbarkeit von Microsoft um den 1. Mai 2026 laut Presseberichten, kein getesteter Tenant. Zum Bauen von Agents im Microsoft-Stack siehe [AgenticOS vs Copilot Studio](copilot-studio.md).
+
+Die AgenticOS-Funktionsangaben wurden am 27. November 2026 anhand von v1.95.0 aktualisiert. Das Prüfdatum der Anbieterquellen oben bleibt unverändert; dies ist keine neue Preisprüfung.
 
 ## Auf einen Blick { #at-a-glance }
 
@@ -43,7 +45,7 @@ AgenticOS steht unter Apache-2.0. Ein Prüfer kann nachlesen, wie eine Regel dur
 
 - Ihr Unternehmen standardisiert auf Microsoft 365, und Ihre Agents entstehen in Copilot Studio oder in Microsoft-Produkten.
 - Sie brauchen ein Verzeichnis aller Agents über Microsoft-Werkzeuge hinweg mit den Richtlinien von Purview.
-- Microsoft Teams ist heute Ihr Hauptkanal; AgenticOS hat noch keinen Teams-Kanal.
+- Ihre Agents müssen innerhalb von Microsoft 365 mit Entra und Purview gesteuert werden. AgenticOS antwortet in [Microsoft Teams](../channels.md#microsoft-teams), steuert seine Agents aber in seiner eigenen Konsole und seinem eigenen Audit-Log.
 
 ## Häufig gestellte Fragen { #frequently-asked-questions }
 

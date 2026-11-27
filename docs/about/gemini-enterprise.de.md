@@ -1,8 +1,8 @@
 ---
-source_sha: "9993496881e6"
+source_sha: "9c17f44cfe92"
 title: "AgenticOS vs Gemini Enterprise"
 seo_title: "AgenticOS vs Gemini Enterprise: selbst gehostete Alternative"
-description: "Google Gemini Enterprise vs. AgenticOS: jedes Modell in jedem Agent, keine Platzgebühr, keine Erstellungskontingente, acht Oberflächen, auf Ihren Servern."
+description: "Google Gemini Enterprise vs. AgenticOS: jedes Modell in jedem Agent, keine Platzgebühr, keine Erstellungskontingente, viele Kanäle, eigene Server."
 ---
 
 # AgenticOS vs Gemini Enterprise { #agenticos-vs-gemini-enterprise }
@@ -11,6 +11,8 @@ Google Gemini Enterprise, ehemals Agentspace, gibt Mitarbeitern einen Assistente
 
 Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.10.0. Gemini-Enterprise-Umfang: Produktseite, Dokumentation und Release Notes von Google, kein getestetes Projekt.
 
+Die AgenticOS-Funktionsangaben wurden am 27. November 2026 anhand von v1.95.0 aktualisiert. Das Prüfdatum der Anbieterquellen oben bleibt unverändert; dies ist keine neue Preisprüfung.
+
 ## Auf einen Blick { #at-a-glance }
 
 | Bereich | Gemini Enterprise | AgenticOS |
@@ -18,8 +20,8 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. Agenti
 | Wo es läuft | Google Cloud, in `global`, `us`, `eu` und einigen nationalen Regionen | Ihre Infrastruktur |
 | Quellcode | Proprietär | Apache-2.0 |
 | Modelle | Gemini in der App und im Workflow Builder; andere Modelle nur in eigenen Agents auf der Agent Platform | 28 Provider in jedem Agent, einschließlich lokaler |
-| Wer es nutzt | Mitarbeiter mit einem Platz | Mitarbeiter, Kunden und Systeme, auf acht Oberflächen |
-| Oberflächen | Web-App, mobile App, Slack | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
+| Wer es nutzt | Mitarbeiter mit einem Platz | Mitarbeiter, Kunden und Systeme, auf über einem Dutzend Oberflächen |
+| Oberflächen | Web-App, mobile App, Slack | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, E-Mail, iMessage, Telefonanrufe |
 | Erstellen | Workflow Builder; eigene und Partner-Agents bei Standard und Plus | Der Builder, für jeden Agent |
 | Limits | Tägliche gepoolte Kontingente, etwa ein neuer Agent pro Tag bei Standard | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |
 | Ausgabenkontrolle | Monatliche Ausgabenlimits auf dem Rechnungskonto | Budgets pro Agent, Warnungen an die Personen Ihrer Wahl |

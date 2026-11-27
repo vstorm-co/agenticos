@@ -12,6 +12,8 @@ If you want one helpful colleague in chat by this afternoon, Viktor is quick to 
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Viktor scope: its public product, pricing, security and enterprise pages and changelog, not a tested account or negotiated contract.
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | Viktor | AgenticOS |
@@ -21,7 +23,7 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 | Source | Proprietary | Apache-2.0 |
 | Models | OpenAI, Anthropic, Google and xAI models in a picker; your own OpenRouter key | 28 providers, including Ollama and LiteLLM on your own hardware |
 | Knowledge | Workspace memory and connected tools | Document collections in your Postgres, with five sync connectors |
-| Surfaces | Slack, Teams, Discord, its own email inbox, web, desktop and mobile apps, API | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Surfaces | Slack, Teams, Discord, its own email inbox, web, desktop and mobile apps, API | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, email, iMessage, telephone calls |
 | Access | Workspace level; its pages differ on role-based access | Six roles, 33 permissions and per-resource grants, per organization |
 | Spend control | The credit pool with a monthly cap on auto top-ups; per-user caps on Enterprise | A monthly budget per agent and per organization, checked before each model request |
 | Pricing | Free with up to $100 of credits; Team $100 a month for 40,000 shared credits; Enterprise custom | No licence fee; you pay model providers and infrastructure |
@@ -58,7 +60,7 @@ Viktor learns from conversations and connected tools. AgenticOS adds managed doc
 - You want one assistant in Slack or Teams with no infrastructure to run.
 - Its catalog of more than 9,800 tools and its code sandbox cover your tasks.
 - Credit billing and US hosting meet your requirements.
-- You need Microsoft Teams, a phone line or an email inbox today. AgenticOS has no Teams, phone or email conversation channel yet; its [voice calls](../voice.md) run in the browser.
+- You want one teammate that starts working in minutes without anyone running a server, with thousands of ready integrations. AgenticOS covers [Microsoft Teams](../channels.md#microsoft-teams), [email](../channels.md#email) and [telephone calls](../voice.md#telephone-calls) too, but you deploy and operate it.
 
 ## Try one handbook question
 
@@ -74,7 +76,7 @@ Yes, if you want more than one shared assistant. AgenticOS runs many agents, eac
 
 ### Can AgenticOS answer in Slack like Viktor?
 
-Yes. A published agent answers in Slack, and a linked user runs as themselves. AgenticOS also answers in Telegram, Mattermost, a website widget, a hosted page and the HTTP API. It has no Microsoft Teams channel yet.
+Yes. A published agent answers in Slack, and a linked user runs as themselves. AgenticOS also answers in Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, email, iMessage, a website widget, a hosted page and the HTTP API, and takes telephone calls.
 
 ### How does pricing compare?
 

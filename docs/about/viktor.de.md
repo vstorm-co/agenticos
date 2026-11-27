@@ -1,5 +1,5 @@
 ---
-source_sha: "3f2886a77dd8"
+source_sha: "e7a398718c54"
 title: "AgenticOS vs Viktor"
 seo_title: "AgenticOS vs Viktor: selbst gehostete Teammate-Alternative"
 description: "Viktor ist ein KI-Teammate pro Slack- oder Teams-Workspace. AgenticOS bietet viele kontrollierte Agents, jedes Modell und Budgets pro Agent auf Ihren Servern."
@@ -13,6 +13,8 @@ Wenn Sie noch heute Nachmittag einen hilfsbereiten Kollegen im Chat haben möcht
 
 Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basis: v1.10.0. Umfang bei Viktor: die öffentlichen Produkt-, Preis-, Sicherheits- und Enterprise-Seiten sowie das Changelog, kein getestetes Konto und kein verhandelter Vertrag.
 
+Die AgenticOS-Funktionsangaben wurden am 27. November 2026 anhand von v1.95.0 aktualisiert. Das Prüfdatum der Anbieterquellen oben bleibt unverändert; dies ist keine neue Preisprüfung.
+
 ## Auf einen Blick { #at-a-glance }
 
 | Bereich | Viktor | AgenticOS |
@@ -22,7 +24,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. Agenti
 | Quellcode | Proprietär | Apache-2.0 |
 | Modelle | Modelle von OpenAI, Anthropic, Google und xAI zur Auswahl; Ihr eigener OpenRouter-Schlüssel | 28 Provider, darunter Ollama und LiteLLM auf Ihrer eigenen Hardware |
 | Wissen | Workspace-Gedächtnis und verbundene Werkzeuge | Dokumentensammlungen in Ihrem Postgres, mit fünf Sync-Konnektoren |
-| Oberflächen | Slack, Teams, Discord, ein eigenes E-Mail-Postfach, Web-, Desktop- und Mobil-Apps, API | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
+| Oberflächen | Slack, Teams, Discord, ein eigenes E-Mail-Postfach, Web-, Desktop- und Mobil-Apps, API | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, E-Mail, iMessage, Telefonanrufe |
 | Zugriff | Auf Workspace-Ebene; seine Seiten machen unterschiedliche Angaben zu rollenbasiertem Zugriff | Sechs Rollen, 33 Berechtigungen und Grants pro Ressource, pro Organisation |
 | Ausgabenkontrolle | Der Credit-Pool mit einer monatlichen Obergrenze für automatisches Aufladen; Limits pro Nutzer im Enterprise-Tarif | Ein monatliches Budget pro Agent und pro Organisation, vor jeder Modellanfrage geprüft |
 | Preise | Free mit Credits im Wert von bis zu 100 $; Team für 100 $ im Monat für 40.000 geteilte Credits; Enterprise individuell | Keine Lizenzgebühr; Sie bezahlen Modell-Provider und Infrastruktur |
@@ -59,7 +61,7 @@ Viktor lernt aus Konversationen und verbundenen Werkzeugen. AgenticOS ergänzt v
 - Sie möchten einen Assistenten in Slack oder Teams, ohne Infrastruktur betreiben zu müssen.
 - Sein Katalog von mehr als 9.800 Tools und seine Code-Sandbox decken Ihre Aufgaben ab.
 - Credit-Abrechnung und Hosting in den USA erfüllen Ihre Anforderungen.
-- Sie brauchen heute Microsoft Teams, eine Telefonleitung oder ein E-Mail-Postfach. AgenticOS hat noch keinen Konversationskanal für Teams, Telefon oder E-Mail; seine [Sprachanrufe](../voice.md) laufen im Browser.
+- Sie wollen einen Teammate, der in Minuten arbeitet, ohne dass jemand einen Server betreibt, mit Tausenden fertigen Integrationen. AgenticOS deckt [Microsoft Teams](../channels.md#microsoft-teams), [E-Mail](../channels.md#email) und [Telefonanrufe](../voice.md#telephone-calls) ebenfalls ab, aber Sie stellen es selbst bereit und betreiben es.
 
 ## Eine Handbuchfrage ausprobieren { #try-one-handbook-question }
 
@@ -75,7 +77,7 @@ Ja, wenn Sie mehr als einen gemeinsamen Assistenten möchten. AgenticOS betreibt
 
 ### Kann AgenticOS wie Viktor in Slack antworten? { #can-agenticos-answer-in-slack-like-viktor }
 
-Ja. Ein veröffentlichter Agent antwortet in Slack, und ein verknüpfter Benutzer läuft als er selbst. AgenticOS antwortet außerdem in Telegram, Mattermost, einem Website-Widget, auf einer gehosteten Seite und über die HTTP-API. Einen Kanal für Microsoft Teams hat es noch nicht.
+Ja. Ein veröffentlichter Agent antwortet in Slack, und ein verknüpfter Benutzer läuft als er selbst. AgenticOS antwortet außerdem in Microsoft Teams, Telegram, Mattermost, Discord, Matrix, per SMS, per E-Mail, über iMessage, in einem Website-Widget, auf einer gehosteten Seite und über die HTTP-API, und nimmt Telefonanrufe an.
 
 ### Wie unterscheiden sich die Preise? { #how-does-pricing-compare }
 

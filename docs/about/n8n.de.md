@@ -1,5 +1,5 @@
 ---
-source_sha: "e65292f64912"
+source_sha: "64778db1845f"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: Apache-2.0-Alternative für KI-Agents"
 description: "n8n und AgenticOS für KI-Agents: Lizenz, SSO und Rollen ohne kostenpflichtige Tarife, Budgets pro Agent statt Ausführungskontingenten, und Freigaben."
@@ -13,7 +13,7 @@ Beide passen gut zusammen. n8n bewegt Daten nach Zeitplan zwischen Systemen. Age
 
 Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.10.0. n8n-Umfang: Preisseite, Dokumentation und Lizenz in n8n@2.44.5, kein getesteter Cloud-Tarif und keine selbst betriebene Enterprise-Lizenz.
 
-Die AgenticOS-Funktionsangaben wurden am 2. November 2026 anhand von v1.35.0 aktualisiert. Das Prüfdatum der Anbieterquellen oben bleibt unverändert; dies ist keine neue Preisprüfung.
+Die AgenticOS-Funktionsangaben wurden am 27. November 2026 anhand von v1.95.0 aktualisiert. Das Prüfdatum der Anbieterquellen oben bleibt unverändert; dies ist keine neue Preisprüfung.
 
 Verfügbarkeit nativer Agents und Wissenskonfiguration im Selbstbetrieb wurden am 2. November 2026 in der offiziellen n8n-Dokumentation erneut geprüft. Native Agents sind in der Vorschau auf Cloud- und selbst betriebenen Plänen ab 2.32.3 verfügbar. Dies aktualisiert nicht die obige Preisprüfung.
 
@@ -65,7 +65,7 @@ n8n baut Retrieval aus Knoten: Loader, Embeddings und ein Vektorspeicher Ihrer W
 
 - Die Aufgabe besteht darin, Daten zwischen vielen Systemen zu bewegen, mit Verzweigungen, Wiederholungen und Zeitplänen.
 - Du bevorzugst die Knotenbibliothek, Integrationen und Workflow-Bearbeitung dieses Produkts. AgenticOS hat ebenfalls einen visuellen Builder; verfügbare Knoten und Ausführungssemantik unterscheiden sich.
-- Sie benötigen die Review-Kanäle wie Microsoft Teams, WhatsApp oder Gmail oder die Evaluationsmetriken. AgenticOS hat beides noch nicht.
+- Sie benötigen seine Kanäle für menschliche Prüfung wie WhatsApp oder Gmail oder seine Bibliothek an Integrations-Nodes. AgenticOS hat [Microsoft Teams](../channels.md#microsoft-teams), [E-Mail](../channels.md#email) und [Eval-Runs](../evals.md), aber keinen WhatsApp-Kanal und weit weniger fertige Integrationen.
 
 ## Beides zusammen nutzen { #use-them-together }
 

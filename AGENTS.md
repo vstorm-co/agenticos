@@ -294,6 +294,8 @@ retranslated is how a stale translation stops being visible.
 | Help, contributing, extending the platform | `docs/resources/index.md` |
 | Why it exists, and what it is not | `docs/about/index.md` |
 | How it compares with other products, and its own gaps | `docs/about/comparison.md` |
+| One comparison guide per product or category: open-source platforms, self-hosted chats, European vendors, agents in Slack, a DIY stack | `docs/about/<product>.md`, linked from `docs/about/comparison.md` |
+| Which rivals' licences carry conditions, with the clauses quoted | `docs/about/licence-terms.md` |
 | The six decisions that shape the codebase | `docs/about/design.md` (repo only) |
 | Delivery state and what is left | `docs/ROADMAP.md` (repo only) |
 | Every notable change | `docs/release-notes.md` (reads `CHANGELOG.md`) |
