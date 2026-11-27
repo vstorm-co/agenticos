@@ -455,6 +455,7 @@ async def test_delegate_checkpoint_identity_and_frozen_approval_arguments(
     assert script.requests == 2
 
 
+@pytest.mark.security
 async def test_the_run_view_shows_the_arguments_an_approval_let_run() -> None:
     """Built as the factory builds it, the manifest sits outside the gate, which runs the
     approved arguments rather than the ones the script asked with."""
