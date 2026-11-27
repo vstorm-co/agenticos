@@ -103,6 +103,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Keep the mobile Safari composer and header inside the visible viewport while the keyboard opens, including delayed viewport events and visual-only panning; typing no longer has to trigger the first layout update.
 
+- Preserve the frozen reporting quote when an organization saves its existing currency preference; only a real preference change snapshots the current exchange rate.
+
 - Validate restored browser sign-in cookies against the pinned CDP contract without exposing malformed cookie values in errors. Development type checks now include the optional browser client used in production.
 
 - Keep legacy per-run browser activity visible when switching chat tabs. Reuse a conversation-owned browser only after a fresh readiness read; passive routing never starts an environment or replaces the selected Desktop or Visuals pane.

@@ -575,14 +575,10 @@ class OrganizationService:
                 target_id=str(org.id),
                 details={"fields": sorted(console_fields)},
             )
-        if "currency" in data.model_fields_set:
-            if data.currency is not None:
-                currencies = await CurrencyService(self.db).settings()
-                if data.currency not in currencies.rates:
-                    raise refused_field(
-                        "currency", "Choose a currency with a configured exchange rate"
-                    )
+        if "currency" in data.model_fields_set and data.currency != org.currency:
             currencies = await CurrencyService(self.db).settings()
+            if data.currency is not None and data.currency not in currencies.rates:
+                raise refused_field("currency", "Choose a currency with a configured exchange rate")
             org = await organization_repo.set_currency(
                 self.db,
                 org,
