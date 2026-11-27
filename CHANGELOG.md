@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Changed
+
+- A context file, skill or authoring proposal that quotes a credential now says so in the console, which holds Accept, Apply and the check - and choosing that change in Improve's Changes step - instead of letting the request fail (#3480).
+
 ## [1.95.0] - 2026-11-26
 
 ### Fixed
