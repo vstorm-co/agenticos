@@ -63,6 +63,18 @@ function opened(): void {
   });
 }
 
+function held(by = "actor"): void {
+  emit({
+    type: "browser_event",
+    data: {
+      kind: "browser_held",
+      call_id: environment.id,
+      step: 2,
+      by_user_id: by,
+    },
+  });
+}
+
 function view(title = "Prepared page"): void {
   emit({ type: "environment_state", data: environment });
   opened();
@@ -124,6 +136,9 @@ it("keeps the actual page and current driver independent of an agent run", () =>
   act(() => result.current.send({ type: "take_over" }));
   expect(socket.sendMessage).not.toHaveBeenCalled();
   act(() => emit({ type: "environment_state", data: { ...environment, control: "human" } }));
+  act(() => result.current.send({ type: "click", x: 1, y: 1 }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() => held());
   act(() => result.current.send({ type: "click", x: 1, y: 1 }));
   expect(socket.sendMessage).toHaveBeenCalledWith({ type: "click", x: 1, y: 1 });
 });
@@ -266,6 +281,7 @@ it("keeps input callbacks stable when only the authority expiry timestamp change
   );
   expect(result.current.send).toBe(send);
   act(() => emit({ type: "environment_state", data: { ...environment, control: "human" } }));
+  act(() => held());
   const humanSend = result.current.send;
   expect(humanSend).not.toBe(send);
   act(() =>
@@ -285,5 +301,79 @@ it("keeps input callbacks stable when only the authority expiry timestamp change
   );
   socket.sendMessage.mockClear();
   act(() => result.current.send({ type: "type", text: "refused" }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+});
+
+it("retains observation but requires a fresh socket state and own ACK after quick hide/show", () => {
+  const { result, rerender } = renderHook(
+    ({ visible }) => useLiveConversationEnvironment("chat", environment, visible),
+    { initialProps: { visible: true } },
+  );
+  act(() => view());
+  act(() => emit({ type: "environment_state", data: { ...environment, control: "human" } }));
+  act(() => held());
+  const oldMessage = options.onMessage;
+  const oldClose = options.onClose;
+  const oldSend = result.current.send;
+  const originalIdentity = options.identity;
+  expect(result.current.browse?.heldById).toBe("actor");
+  rerender({ visible: false });
+  expect(result.current.status).toBe("connecting");
+  expect(result.current.browse?.image).toBe("data:image/jpeg;base64,AA==");
+  expect(result.current.browse?.heldById).toBeNull();
+  const hiddenMessage = options.onMessage;
+  rerender({ visible: true });
+  expect(options.identity).not.toBe(originalIdentity);
+  expect(options.messageScope).toBe(options.identity);
+  expect(result.current.status).toBe("connecting");
+  expect(result.current.browse?.heldById).toBeNull();
+  socket.sendMessage.mockClear();
+  act(() => {
+    oldSend({ type: "type", text: "old callback" });
+    result.current.send({ type: "type", text: "before handshake" });
+    oldMessage?.(new MessageEvent("message", { data: JSON.stringify(picture("Old socket")) }));
+    oldClose?.(new CloseEvent("close", { code: 4403 }));
+    hiddenMessage?.(new MessageEvent("message", { data: "malformed hidden socket" }));
+  });
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  expect(result.current.status).toBe("connecting");
+  expect(result.current.browse?.title).toBe("Prepared page");
+  act(() => emit({ type: "environment_state", data: { ...environment, control: "human" } }));
+  act(opened);
+  act(() => emit(picture()));
+  expect(result.current.status).toBe("live");
+  expect(result.current.browse?.heldById).toBeNull();
+  act(() => result.current.send({ type: "type", text: "global human is not ownership" }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() => held("other-person"));
+  act(() => result.current.send({ type: "type", text: "another holder" }));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() => held());
+  act(() => result.current.send({ type: "type", text: "acknowledged" }));
+  expect(socket.sendMessage).toHaveBeenCalledExactlyOnceWith({
+    type: "type",
+    text: "acknowledged",
+  });
+});
+
+it("forgets a held hint when current state releases control and refuses callbacks after unmount", () => {
+  const { result, unmount } = renderHook(() =>
+    useLiveConversationEnvironment("chat", environment, true),
+  );
+  act(() => view());
+  act(() => emit({ type: "environment_state", data: { ...environment, control: "human" } }));
+  act(() => held());
+  act(() => emit({ type: "environment_state", data: environment }));
+  expect(result.current.browse?.heldById).toBeNull();
+  const message = options.onMessage;
+  const close = options.onClose;
+  const send = result.current.send;
+  unmount();
+  socket.sendMessage.mockClear();
+  act(() => {
+    message?.(new MessageEvent("message", { data: "late" }));
+    close?.(new CloseEvent("close", { code: 4403 }));
+    send({ type: "take_over" });
+  });
   expect(socket.sendMessage).not.toHaveBeenCalled();
 });
