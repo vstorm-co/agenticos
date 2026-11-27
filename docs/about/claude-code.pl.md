@@ -1,5 +1,5 @@
 ---
-source_sha: "3b14d176991a"
+source_sha: "608e23f116cf"
 title: "AgenticOS vs Claude Code"
 seo_title: "AgenticOS vs Claude Code: agenci dla firmy czy do kodowania"
 description: "Claude Code to agent do kodowania dla programistów. AgenticOS to platforma open source dla firmowych agentów AI. Zobacz, czym się różnią i jak używać obu."
@@ -12,6 +12,8 @@ Claude Code to agentowe narzędzie do kodowania od Anthropic. Czyta repozytorium
 Większość zespołów inżynierskich będzie chciała obu. Claude Code pisze i przegląda kod. AgenticOS publikuje, nadzoruje i rozlicza agentów, których ten kod umożliwia.
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Claude Code: dokumentacja Anthropic na code.claude.com, strony cennika i publiczne repozytorium, a nie przetestowane wdrożenie enterprise.
+
+Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
 
 ## W skrócie { #at-a-glance }
 
@@ -31,7 +33,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 
 ### Agent dla ludzi, którzy nigdy nie otwierają terminala { #an-agent-for-people-who-never-open-a-terminal }
 
-Claude Code nie ma buildera dla użytkowników biznesowych ani ścieżki publikacji dla osób, które nie są programistami. Jego funkcja Channels, w research preview, wpycha zdarzenia do własnej, otwartej sesji programisty; nie publikuje agenta dla innych ludzi. W AgenticOS właściciel biznesowy pisze instrukcje, włącza [capabilities](../reference/capabilities.md), podpina kolekcję wiedzy i [publikuje wersję](../concepts.md#version). Ten sam agent odpowiada potem w [czacie webowym, widgecie, Slacku, Telegramie, Mattermost i przez API](../channels.md).
+Claude Code nie ma buildera dla użytkowników biznesowych ani ścieżki publikacji dla osób, które nie są programistami. Jego funkcja Channels, w research preview, wpycha zdarzenia do własnej, otwartej sesji programisty; nie publikuje agenta dla innych ludzi. W AgenticOS właściciel biznesowy pisze instrukcje, włącza [capabilities](../reference/capabilities.md), podpina kolekcję wiedzy i [publikuje wersję](../concepts.md#version). Ten sam agent odpowiada potem w [czacie webowym, widgecie, Slacku, Microsoft Teams, Telegramie, Mattermost, e-mailu, SMS-ach i przez API](../channels.md).
 
 ### Nadzór, który siedzi na serwerze { #governance-that-sits-on-the-server }
 

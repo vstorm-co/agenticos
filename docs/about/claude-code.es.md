@@ -1,5 +1,5 @@
 ---
-source_sha: "3b14d176991a"
+source_sha: "608e23f116cf"
 title: "AgenticOS vs Claude Code"
 seo_title: "AgenticOS vs Claude Code: agents de empresa o de código"
 description: "Claude Code es un agent de código para desarrolladores. AgenticOS es una plataforma open source de agents de IA para empresas. Diferencias y cómo usar ambos."
@@ -12,6 +12,8 @@ Claude Code es la herramienta de programación agéntica de Anthropic. Lee un re
 La mayoría de los equipos de ingeniería querrán ambos. Claude Code escribe y revisa código. AgenticOS publica, gobierna y mide el consumo de los agents que ese código hace posibles.
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Claude Code: la documentación de Anthropic en code.claude.com, sus páginas de precios y el repositorio público; no un despliegue empresarial probado.
+
+Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
 
 ## De un vistazo { #at-a-glance }
 
@@ -31,7 +33,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026
 
 ### Un agent para personas que nunca abren un terminal { #an-agent-for-people-who-never-open-a-terminal }
 
-Claude Code no tiene un builder para usuarios de negocio ni un flujo de publicación para quienes no son desarrolladores. Su función Channels, en research preview, envía eventos a la sesión abierta del propio desarrollador; no publica un agent para otras personas. En AgenticOS un responsable de negocio escribe las instrucciones, activa [capabilities](../reference/capabilities.md), vincula una colección de conocimiento y [publica una versión](../concepts.md#version). El mismo agent responde entonces en [el chat web, un widget, Slack, Telegram, Mattermost y la API](../channels.md).
+Claude Code no tiene un builder para usuarios de negocio ni un flujo de publicación para quienes no son desarrolladores. Su función Channels, en research preview, envía eventos a la sesión abierta del propio desarrollador; no publica un agent para otras personas. En AgenticOS un responsable de negocio escribe las instrucciones, activa [capabilities](../reference/capabilities.md), vincula una colección de conocimiento y [publica una versión](../concepts.md#version). El mismo agent responde entonces en [el chat web, un widget, Slack, Microsoft Teams, Telegram, Mattermost, el correo electrónico, SMS y la API](../channels.md).
 
 ### Una gobernanza que reside en el servidor { #governance-that-sits-on-the-server }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "9993496881e6"
+source_sha: "44c39e68097a"
 title: "AgenticOS vs Gemini Enterprise"
 seo_title: "AgenticOS vs Gemini Enterprise: alternatywa self-hosted"
 description: "Porównaj Google Gemini Enterprise z AgenticOS: dowolny model w każdym agencie, bez opłat za stanowisko i limitów budowania, osiem powierzchni, własne serwery."
@@ -11,6 +11,8 @@ Google Gemini Enterprise, wcześniej Agentspace, daje pracownikom asystenta, wys
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Gemini Enterprise: strona produktu Google, dokumentacja i informacje o wydaniach, bez testowanego projektu.
 
+Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
+
 ## W skrócie { #at-a-glance }
 
 | Obszar | Gemini Enterprise | AgenticOS |
@@ -19,7 +21,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 | Kod | Własnościowy | Apache-2.0 |
 | Modele | Gemini w aplikacji i w Workflow Builder; inne modele tylko w agentach niestandardowych na Agent Platform | 28 providerów w każdym agencie, w tym lokalne |
 | Kto z niego korzysta | Pracownicy ze stanowiskiem | Pracownicy, klienci i systemy, na ośmiu powierzchniach |
-| Powierzchnie | Aplikacja webowa, aplikacja mobilna, Slack | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Powierzchnie | Aplikacja webowa, aplikacja mobilna, Slack | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, e-mail, iMessage, połączenia telefoniczne |
 | Budowanie | Workflow Builder; agenci niestandardowi i partnerscy w Standard i Plus | Builder, dla każdego agenta |
 | Limity | Dzienne współdzielone limity, na przykład jeden nowy agent dziennie w Standard | Budżet na agenta i na organizację, sprawdzany przed każdym zapytaniem do modelu |
 | Kontrola wydatków | Miesięczne limity wydatków na koncie rozliczeniowym | Budżety na agenta, alerty do wybranych przez ciebie osób |

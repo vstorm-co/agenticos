@@ -12,6 +12,8 @@ Most engineering teams will want both. Claude Code writes and reviews code. Agen
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Claude Code scope: Anthropic's documentation at code.claude.com, its pricing pages and the public repository, not a tested enterprise rollout.
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | Claude Code | AgenticOS |
@@ -30,7 +32,7 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 
 ### An agent for people who never open a terminal
 
-Claude Code has no business-user builder and no publish flow for non-developers. Its Channels feature, in research preview, pushes events into a developer's own running session; it does not publish an agent to other people. In AgenticOS a business owner writes instructions, switches on [capabilities](../reference/capabilities.md), binds a knowledge collection and [publishes a version](../concepts.md#version). The same agent then answers in [web chat, a widget, Slack, Telegram, Mattermost and the API](../channels.md).
+Claude Code has no business-user builder and no publish flow for non-developers. Its Channels feature, in research preview, pushes events into a developer's own running session; it does not publish an agent to other people. In AgenticOS a business owner writes instructions, switches on [capabilities](../reference/capabilities.md), binds a knowledge collection and [publishes a version](../concepts.md#version). The same agent then answers in [web chat, a widget, Slack, Microsoft Teams, Telegram, Mattermost, email, SMS and the API](../channels.md).
 
 ### Governance that sits on the server
 

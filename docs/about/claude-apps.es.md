@@ -1,5 +1,5 @@
 ---
-source_sha: "b46700ad236c"
+source_sha: "9bb3f520b0f4"
 title: "AgenticOS vs Claude"
 seo_title: "AgenticOS vs Claude Team y Enterprise: agents que son tuyos"
 description: "Compara Claude Team y Enterprise con AgenticOS: agents autoalojados con Claude u otro modelo, budgets por agent, aprobaciones, auditoría y sin coste por puesto."
@@ -13,6 +13,8 @@ No son excluyentes. AgenticOS puede ejecutar modelos Claude a través de la API 
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Claude: las páginas de precios, de producto y del Help Center de Anthropic para los planes Team y Enterprise; no una cuenta probada.
 
+Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
+
 ## De un vistazo { #at-a-glance }
 
 | Área | Claude Team / Enterprise | AgenticOS |
@@ -23,7 +25,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026
 | Modelos | Solo Claude | 28 providers, Claude incluido, y modelos locales |
 | Qué construyes | Projects, skills y plugins para las personas que chatean | Agents publicados, cada uno un spec versionado |
 | Quién lo usa | Empleados con un puesto | Empleados, clientes y sistemas, en ocho superficies |
-| Superficies | Web, escritorio, móvil, Chrome, Microsoft 365, Slack mediante Claude Tag en beta | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Telegram, Mattermost |
+| Superficies | Web, escritorio, móvil, Chrome, Microsoft 365, Slack mediante Claude Tag en beta | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, correo electrónico, iMessage, llamadas telefónicas |
 | Control del gasto | Límites de gasto por organización y por usuario | Un budget por agent y por organización, comprobado antes de cada petición al modelo |
 | Aprobaciones | El usuario que actúa, o un modo automático si la organización lo permite | Un run queda detenido hasta que decide una persona con `approvals:decide` |
 | Registro de auditoría | Enterprise; 180 días de eventos en CSV | Todos los planes; con detección de manipulaciones, exportado en CSV o JSONL |

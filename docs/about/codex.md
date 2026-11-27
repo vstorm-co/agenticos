@@ -12,6 +12,8 @@ The two share some ground: an Apache-2.0 licence for the open parts, MCP, sandbo
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Codex scope: OpenAI's Codex documentation at learn.chatgpt.com, its pricing page and the `openai/codex` repository, not a tested enterprise rollout.
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | OpenAI Codex | AgenticOS |

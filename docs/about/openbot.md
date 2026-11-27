@@ -1,6 +1,6 @@
 # AgenticOS vs OpenBot
 
-Sources checked 2 November 2026. AgenticOS feature baseline: v1.35.0. No OpenBot account or migration was tested.
+Sources checked 2 November 2026. AgenticOS feature baseline: v1.35.0; refreshed on 27 November 2026 against v1.95.0. No OpenBot account or migration was tested.
 
 OpenBot is the local-first AI teammate workspace at openbot.run, backed by nightly-labs/openbot. Its official site also describes team servers and hosting options. It can run existing agent providers, so “local-first” does not mean every model call stays on the computer.
 

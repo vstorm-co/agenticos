@@ -1,5 +1,5 @@
 ---
-source_sha: "3b14d176991a"
+source_sha: "608e23f116cf"
 title: "AgenticOS vs Claude Code"
 seo_title: "AgenticOS vs Claude Code: Firmen-Agents oder Coding-Agent"
 description: "Claude Code ist ein Coding-Agent für Entwickler, AgenticOS eine Open-Source-Plattform für KI-Agents im Unternehmen. Die Unterschiede und wie Sie beide nutzen."
@@ -12,6 +12,8 @@ Claude Code ist das agentische Coding-Werkzeug von Anthropic. Es liest ein Repos
 Die meisten Entwicklungsteams werden beides wollen. Claude Code schreibt und prüft Code. AgenticOS veröffentlicht, steuert und misst die Agents, die dieser Code möglich macht.
 
 Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basis: v1.10.0. Umfang bei Claude Code: die Dokumentation von Anthropic auf code.claude.com, seine Preisseiten und das öffentliche Repository, kein getesteter Enterprise-Rollout.
+
+Die AgenticOS-Funktionsangaben wurden am 27. November 2026 anhand von v1.95.0 aktualisiert. Das Prüfdatum der Anbieterquellen oben bleibt unverändert; dies ist keine neue Preisprüfung.
 
 ## Auf einen Blick { #at-a-glance }
 
@@ -31,7 +33,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. Agenti
 
 ### Ein Agent für Menschen, die nie ein Terminal öffnen { #an-agent-for-people-who-never-open-a-terminal }
 
-Claude Code hat keinen Builder für Fachanwender und keinen Veröffentlichungsablauf für Nicht-Entwickler. Seine Funktion Channels, in der Research Preview, schiebt Ereignisse in die laufende Session eines Entwicklers; sie veröffentlicht keinen Agent für andere Menschen. In AgenticOS schreibt ein fachlicher Verantwortlicher Instruktionen, schaltet [Capabilities](../reference/capabilities.md) ein, bindet eine Wissenssammlung an und [veröffentlicht eine Version](../concepts.md#version). Derselbe Agent antwortet dann [im Web-Chat, in einem Widget, in Slack, Telegram, Mattermost und über die API](../channels.md).
+Claude Code hat keinen Builder für Fachanwender und keinen Veröffentlichungsablauf für Nicht-Entwickler. Seine Funktion Channels, in der Research Preview, schiebt Ereignisse in die laufende Session eines Entwicklers; sie veröffentlicht keinen Agent für andere Menschen. In AgenticOS schreibt ein fachlicher Verantwortlicher Instruktionen, schaltet [Capabilities](../reference/capabilities.md) ein, bindet eine Wissenssammlung an und [veröffentlicht eine Version](../concepts.md#version). Derselbe Agent antwortet dann [im Web-Chat, in einem Widget, in Slack, Microsoft Teams, Telegram, Mattermost, per E-Mail, per SMS und über die API](../channels.md).
 
 ### Governance, die auf dem Server sitzt { #governance-that-sits-on-the-server }
 
