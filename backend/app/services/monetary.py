@@ -247,20 +247,34 @@ class MonetaryService:
         from app.schemas.scoring import CHECK, CeilingCheck
 
         result: list[T] = []
+        unmatched = list(previous or ())
         for index, check in enumerate(checks):
             if check.type != "max_cost_usd":
                 result.append(check)
                 continue
             try:
                 priced = CHECK.validate_python(check.model_dump(by_alias=True))
-                old_raw = (
-                    previous[index] if previous is not None and index < len(previous) else None
+                assert isinstance(priced, CeilingCheck)
+                candidates = [
+                    (position, CHECK.validate_python(candidate.model_dump(by_alias=True)))
+                    for position, candidate in enumerate(unmatched)
+                    if candidate.type == "max_cost_usd"
+                ]
+                identity = priced.model_dump(exclude={"monetary_input", "monetary_term"})
+                matching = [
+                    (position, candidate)
+                    for position, candidate in candidates
+                    if isinstance(candidate, CeilingCheck)
+                    and candidate.model_dump(exclude={"monetary_input", "monetary_term"})
+                    == identity
+                ]
+                selected = next(
+                    (item for item in matching if item[1].monetary_term == priced.monetary_term),
+                    matching[0] if matching else None,
                 )
-                old = (
-                    CHECK.validate_python(old_raw.model_dump(by_alias=True))
-                    if old_raw is not None and old_raw.type == "max_cost_usd"
-                    else None
-                )
+                old = selected[1] if selected is not None else None
+                if selected is not None:
+                    unmatched.pop(selected[0])
             except ValidationError as error:
                 raise BadRequestError(
                     message="Invalid monetary criterion",

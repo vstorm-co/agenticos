@@ -460,3 +460,67 @@ async def test_one_write_reuses_its_quote_but_another_write_reads_fresh_terms() 
             inputs={"max_run_usd": CurrencyAmount(amount="100", currency="PLN")},
         )
         assert context.await_count == 2
+
+
+@pytest.mark.parametrize("raw", [False, True])
+async def test_removing_or_reordering_checks_preserves_the_cost_criterion_origin(raw: bool) -> None:
+    from app.schemas.scoring import CaseCheck, CeilingCheck, TextCheck
+
+    term = MonetaryTerm(amount="100", currency="PLN", units_per_usd="4", cost_usd="25")
+    cost = CeilingCheck(type="max_cost_usd", value=25, monetary_term=term)
+    text = TextCheck(type="contains", value="answer")
+    service = MonetaryService(AsyncMock())
+    if raw:
+        old = [CaseCheck.model_validate(item.model_dump(mode="json")) for item in (text, cost)]
+        checks = [CaseCheck.model_validate(cost.model_dump(mode="json"))]
+        result = await service.checks(uuid4(), checks, previous=old)
+    else:
+        result = await service.checks(uuid4(), [cost, text], previous=[text, cost])
+    assert result[0].model_dump(mode="json")["monetary_term"] == term.model_dump(mode="json")
+
+
+async def test_duplicate_cost_thresholds_keep_their_own_declared_origins_when_reordered() -> None:
+    from app.schemas.scoring import CeilingCheck
+
+    pln = CeilingCheck(
+        type="max_cost_usd",
+        value=25,
+        monetary_term=MonetaryTerm(
+            amount="100",
+            currency="PLN",
+            units_per_usd="4",
+            cost_usd="25",
+        ),
+    )
+    eur = CeilingCheck(
+        type="max_cost_usd",
+        value=25,
+        monetary_term=MonetaryTerm(
+            amount="20",
+            currency="EUR",
+            units_per_usd="0.8",
+            cost_usd="25",
+        ),
+    )
+    result = await MonetaryService(AsyncMock()).checks(uuid4(), [eur, pln], previous=[pln, eur])
+    assert [item.monetary_term for item in result] == [eur.monetary_term, pln.monetary_term]
+
+
+async def test_changing_the_criterion_family_does_not_inherit_another_origin() -> None:
+    from app.schemas.scoring import CeilingCheck
+
+    old = CeilingCheck(
+        type="max_cost_usd",
+        value=25,
+        family="billing",
+        monetary_term=MonetaryTerm(
+            amount="100",
+            currency="PLN",
+            units_per_usd="4",
+            cost_usd="25",
+        ),
+    )
+    new = old.model_copy(update={"family": "customer_total"})
+    result = await MonetaryService(AsyncMock()).checks(uuid4(), [new], previous=[old])
+    assert result[0].monetary_term is not None
+    assert result[0].monetary_term.currency == "USD"
