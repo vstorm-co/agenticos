@@ -373,7 +373,10 @@ export interface ManifestCodeRun {
     tool_call_id?: string;
     tool: string;
     args: string;
-    status: "returned" | "failed" | "awaiting_approval";
+    /** `held`, `replayed` and `divergent`: an isolated run answered it without running it. */
+    status: "returned" | "failed" | "awaiting_approval" | "held" | "replayed" | "divergent";
+    /** Why a `held` call was not run: `writes`, `external` or `needs_approval`. */
+    reason?: string | null;
   }[];
   /** Calls past the ones listed - a script that loops can make thousands. */
   omitted_calls?: number;

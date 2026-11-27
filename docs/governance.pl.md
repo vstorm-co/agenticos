@@ -1,5 +1,5 @@
 ---
-source_sha: "822050191fb7"
+source_sha: "e92ceb15539c"
 ---
 
 # Governance { #governance }
@@ -1433,6 +1433,20 @@ może kontynuować skrypt bez nowej tury modelu i powtarzania zakończonych oper
 Odrzucenie zgody podnosi `RuntimeError` wewnątrz skryptu; kod narzędzia nie działa.
 Zgoda na samo `run_code` nie zatwierdza operacji wewnątrz skryptu.
 
+W ewaluacji, i w każdym innym runie w izolacji, `run_code` działa, a o każdym
+wywołaniu ze skryptu decydują osobno
+[zasady izolacji](environments.md#in-an-eval): odczyt własnych danych tego
+wdrożenia działa, a odczyt spoza wdrożenia albo zapis jest wstrzymywany i
+zapisywany z argumentami. Uruchomienie skryptu nie przepuszcza niczego, czego
+nie dostałoby bezpośrednie wywołanie.
+
+Każde wywołanie skryptu jest zachowywane z runem, pod skryptem: narzędzie,
+argumenty i wynik, do 100 wywołań i około 1 MB na skrypt. Ewaluacja ocenia te wywołania w
+miejsce skryptu i wymienia je pod nim
+([oczekiwane wywołania narzędzi](datasets.md#trajectory)). Nagranie runu
+odpowiada na każde z nich, gdy ewaluacja uruchamia skrypt ponownie, więc
+odtworzenie też je wymienia.
+
 Surowy stan interpretera ma limit 512 kB, a wszystkie checkpointy kodu jednego
 runu — łącznie 1 MB JSON. Atomowe rezerwacje w bazie ograniczają przechowywane
 checkpointy do 8 MB na użytkownika inicjującego (łącznie w organizacjach) i 32 MB
@@ -1451,6 +1465,8 @@ robocze, wykresy, rysunki) pozostają zwykłymi narzędziami. Sesje pytające pr
 każdym narzędziem i runy rutyn zachowują dotychczasową politykę narzędzi natywnych.
 Widok runu pokazuje każdy skrypt raz, wraz z wywołaniami i ich stanem zgody lub
 wykonania po kolejnych wznowieniach.
+W izolowanym runie pokazuje też, które wywołania zostały wstrzymane (i dlaczego),
+wzięte z nagrania albo w nim nieobecne.
 
 ### Raportowanie { #reporting }
 

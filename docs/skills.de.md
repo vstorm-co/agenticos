@@ -1,5 +1,5 @@
 ---
-source_sha: "4f9850e16b2b"
+source_sha: "eca45e30f36a"
 ---
 
 # Skills { #skills }
@@ -956,7 +956,9 @@ Problemen, die diese Sitzung gemeldet hat. Nur ein Problem, das eine Zeile des
 Skills mit dem falschen Wert oder der falschen Regel zitiert, nimmt die
 Kriterien des Agents mit; schweigt der Skill nur, ist das Problem ein Rat, und
 der Agent bleibt an diese Kriterien gebunden - siehe [Wenn der Fehler in einem
-Skill liegt](authoring.md#when-the-fault-is-in-a-skill).
+Skill liegt](authoring.md#when-the-fault-is-in-a-skill). Ein Problem, das eine
+Antwort zitiert, die die Prüfung dieser Session bewertet, wird nicht übergeben,
+sondern gezählt.
 
 Was eine Sitzung schreibt - Titel und Zusammenfassung jedes Problems und den
 vorgeschlagenen Text -, stammt aus allen Antworten, die die Person lesen konnte, als

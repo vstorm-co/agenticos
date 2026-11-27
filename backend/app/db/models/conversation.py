@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from sqlalchemy import (
     BigInteger,
@@ -492,6 +492,27 @@ class Message(Base, TimestampMixin):
         return f"<Message(id={self.id}, role={self.role})>"
 
 
+class ScriptCallEntry(TypedDict):
+    """One call a `run_code` script made, as its row keeps it.
+
+    `result` is what a direct call's row would hold; `outcome` is `success`,
+    `failed` or `denied`.
+    """
+
+    tool_call_id: str
+    tool_name: str
+    args: dict[str, Any]
+    result: str
+    outcome: str
+
+
+class ScriptCalls(TypedDict):
+    """What a `run_code` script called, in the order it asked, and how many were not kept."""
+
+    calls: list[ScriptCallEntry]
+    omitted: int
+
+
 class ToolCall(Base):
     """ToolCall model - record of a tool invocation.
 
@@ -512,6 +533,10 @@ class ToolCall(Base):
             call, when one did - what a server's call log reads (#2072). Not
             inferred from the tool name: a member's own connection can share
             the server's name and so its prefix.
+        script_calls: For a `run_code` call, every call its script made, as
+            `{"calls": [...], "omitted": n}` - what an eval scores and a recording
+            answers. Not separate rows, so nothing that lists a turn's calls
+            shows them or sends them back to the model.
     """
 
     __tablename__ = "tool_calls"
@@ -529,6 +554,7 @@ class ToolCall(Base):
     presentation_kind: Mapped[str | None] = mapped_column(String(16), nullable=True)
     args: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False, default=dict)
     result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    script_calls: Mapped[ScriptCalls | None] = mapped_column(JSONB, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

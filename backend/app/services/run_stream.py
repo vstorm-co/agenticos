@@ -47,7 +47,7 @@ from app.agents.tool_call_ids import fresh_call_id, used_call_ids
 from app.core.tool_identity import ToolIdentity
 from app.services.agent_chat import display_output
 from app.services.chat_timeline import TurnTimeline
-from app.services.transcript import tool_failure_notice, tool_result_text
+from app.services.transcript import script_calls_record, tool_failure_notice, tool_result_text
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +109,26 @@ class RunFrames:
         if isinstance(deps, AgentDeps):
             self._deps = deps
             self._resolved_draft_tools = deps.draft_tool_names
+        try:
+            await self._nodes(agent_run)
+        finally:
+            self._keep_script_calls()
+
+    def _keep_script_calls(self) -> None:
+        """Put what each `run_code` script called on its collected call, however the run ended.
+
+        A script parked on an approval has no result yet, and still keeps the calls
+        it settled before the park.
+        """
+        if self._deps is None:
+            return
+        scripts = self._deps.code_continuations.script_calls
+        for call in self.tool_calls:
+            record = script_calls_record(scripts.get(call["tool_call_id"], ()))
+            if record is not None:
+                call["script_calls"] = record
+
+    async def _nodes(self, agent_run: Any) -> None:
         async for node in agent_run:
             if Agent.is_user_prompt_node(node):
                 said = node.user_prompt if isinstance(node.user_prompt, str) else self.prompt

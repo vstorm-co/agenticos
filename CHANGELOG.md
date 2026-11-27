@@ -22,6 +22,23 @@ Two things are versioned separately from this file and worth knowing about:
 ### Changed
 
 - Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
+- Evals, suites, promotion gates and Improve checks of an agent that fetches pages, searches the web or delegates to another system's agent no longer do any of it live. The call is recorded and the model is told it was not sent, so such an agent can score differently from production. A case answered from its recording still gets what the original run fetched.
+- Evaluate code-mode agents with their tools. Each call a script makes is decided on its own by the isolation rules, graded in the script's place and listed under it in the eval case and the run view. A recording of a code-mode run answers each call its script made. When a script made more calls than its run kept, its expected tool calls are not graded.
+
+### Security
+
+- Hold every read an isolated run would send outside the deployment: web fetches and searches, MCP tools not marked read-only and closed-world on a connection that trusts those marks, and tasks for another system's agent. A remote delegate's credentials are not unsealed in an isolated run.
+- Keep what an Improve check measures away from the helper writing the next attempt:
+  - earlier attempts are read as their verdict and counts only;
+  - a skill session started from an agent's Improve withholds problems quoting a measured answer and says how many;
+  - a Try again note quoting a measured question the caller may read is refused;
+  - the Architect reads a session check's flipped questions by id only.
+
+### Upgrading
+
+- Migration `0376_intercepted_call_external` adds `external` as a reason an isolated run held a call. Downgrade records such calls as `writes`.
+- Migration `0377_tool_call_script_calls` adds `tool_calls.script_calls`. Downgrade drops it, and with it what code-mode scripts called.
+- An MCP tool on a production connection now runs in an isolated run only when the connection trusts its server's hints and the tool is marked `readOnlyHint: true` and `openWorldHint: false`. Trust a connection's hints in its settings to let such reads run in evals again.
 
 ## [1.95.0] - 2026-11-26
 

@@ -44,6 +44,15 @@ pages nobody approved. A version published before that refusal existed is refuse
 again when it is assembled, because nothing re-validates a frozen version
 (`approval.refuse_ungateable_approvals`, #871).
 
+**It does not run in an eval.** An isolated run executes text nobody has
+reviewed, and a fetch sends whatever the model put into the URL, so the guard
+holds every `web_fetch` with the reason `external` - with `allowed_domains` or
+without, since a listed site can still receive the query string. A `native` or
+`auto` binding is built as `local` for such a run (`kept_local` in
+`app/agents/isolation.py`, from `ProviderExecuted.kept_local`), which is the
+one switch to `local` that is safe: the call reaches the guard and goes no
+further.
+
 Without `offset`, the page arrives as Markdown truncated at `max_content_chars`.
 Local fetchers also accept a character `offset` and `limit`, starting at zero.
 Continue at `next_offset` on the same URL. Each call uses the same download

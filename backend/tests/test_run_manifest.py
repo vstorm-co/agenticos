@@ -381,6 +381,27 @@ class TestARecordTooLargeToKeep:
         # The trimmed record still reads back: the route builds this schema from it.
         assert ManifestCodeRun.model_validate(first).calls[0].args == ""
 
+    def test_a_held_call_keeps_why_when_its_script_is_trimmed(self):
+        """The run view explains a held call by its reason, in a large run as in a small one."""
+        script = {
+            "tool_call_id": "c-1",
+            "code": "x" * 20_000,
+            "calls": [
+                {"tool": "send", "args": "a" * 200, "status": "held", "reason": "writes"},
+                {"tool": "lookup", "args": "a" * 200, "status": "replayed"},
+            ]
+            * 50,
+            "omitted_calls": 0,
+        }
+
+        payload, truncated = fit(self._payload(code_runs=[script] * 30))
+
+        assert truncated
+        held, replayed = ManifestCodeRun.model_validate(payload["code_runs"][0]).calls[:2]
+        assert (held.status, held.reason) == ("held", "writes")
+        assert (replayed.status, replayed.reason) == ("replayed", None)
+        assert "reason" not in replayed.model_dump()
+
     def test_a_schema_goes_before_the_sentence_that_explains_it(self):
         """What is left of a tool is its name and its description - the half that
         explains behaviour, and the half readable nowhere else."""

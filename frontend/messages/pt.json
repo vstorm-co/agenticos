@@ -4789,8 +4789,8 @@
     "cardYoursAndOrganizations": "Sua e da organização",
     "accountActions": "Mais para {name}",
     "watch": "Acompanhar",
-    "trustReadOnlyHints": "Permitir que avaliações chamem ferramentas que este servidor marca como somente leitura",
-    "trustReadOnlyHintsHint": "As avaliações bloqueiam cada chamada a um servidor de produção, a menos que você confie nele: a marca de somente leitura é uma declaração do próprio servidor. {count, plural, =0 {Nenhuma ferramenta aqui declara isso.} =1 {1 ferramenta aqui declara isso.} other {# ferramentas aqui declaram isso.}}",
+    "trustReadOnlyHints": "Permitir que avaliações chamem ferramentas que este servidor marca como somente leitura e de mundo fechado (closed-world)",
+    "trustReadOnlyHintsHint": "As avaliações bloqueiam cada chamada a um servidor de produção, a menos que você confie nele, e então executam só as ferramentas que ele marca como somente leitura e de mundo fechado (closed-world), ou seja, que não alcançam nada além deste servidor. As duas marcas são declarações do próprio servidor. {count, plural, =0 {Nenhuma ferramenta aqui declara ser somente leitura.} =1 {1 ferramenta aqui declara ser somente leitura.} other {# ferramentas aqui declaram ser somente leitura.}}",
     "googleOAuthClientRequired": "O Google exige um Client ID e um client secret do Google Cloud antes que você possa conectar.",
     "googleOAuthSetupGuide": "Abrir guia de configuração do Google",
     "oauthRequiredClient": "Cliente OAuth do Google Cloud",
@@ -8060,6 +8060,7 @@
       "codeRuns": "{count, plural, =1 {1 script} other {# scripts}}",
       "codeRunCalls": "{count, plural, =0 {Não chamou ferramentas} =1 {Fez 1 chamada de ferramenta} other {Fez # chamadas de ferramenta}}",
       "codeRunOmittedCalls": "{count, plural, =1 {e mais 1 chamada, não listada} other {e mais # chamadas, não listadas}}",
+      "codeCallState": "{status, select, held {{reason, select, writes {não executada (teria gravado dados)} external {não executada (teria alcançado o exterior)} needs_approval {não executada (exige aprovação)} other {não executada}}} replayed {da gravação} divergent {não está na gravação} other {Desconhecido}}",
       "cacheBust": "invalidação de cache",
       "cacheExpired": "cache expirado",
       "cacheBustDetail": "{missed, number} tokens em cache não lidos de volta do cache - algo anterior a eles no prompt mudou",
@@ -15498,7 +15499,8 @@
         "judgeGradedTwice": "O juiz avaliou este critério mais de uma vez, então nenhuma das avaliações conta.",
         "judgeUngraded": "O juiz não deu nota na escala para este critério.",
         "judgeReasonEcho": "O juiz repetiu o critério em vez de explicar por que a resposta o atende.",
-        "judgeCounterUnsupported": "O juiz aprovou a resposta como diferente do contraexemplo, embora a resposta repita o contraexemplo ou o juiz tenha citado apenas o que os dois têm em comum."
+        "judgeCounterUnsupported": "O juiz aprovou a resposta como diferente do contraexemplo, embora a resposta repita o contraexemplo ou o juiz tenha citado apenas o que os dois têm em comum.",
+        "scriptCallsNotKept": "Um script no modo de código fez mais chamadas do que o run guardou, por isso as chamadas de ferramentas não foram avaliadas."
       },
       "scoreRun": "Avaliar em relação a um caso",
       "scoreRunBody": "Executa todos os avaliadores configurados no dataset sobre a resposta desta execução. O resultado é guardado no dataset.",
@@ -16420,6 +16422,7 @@
         "executed": "executada",
         "replayed": "da gravação",
         "blocked": "não executada (teria gravado dados)",
+        "blockedReason": "{reason, select, external {não executada (teria alcançado o exterior)} needs_approval {não executada (exige aprovação)} other {não executada (teria gravado dados)}}",
         "divergent": "não está na gravação"
       },
       "scorer": {
@@ -18888,6 +18891,7 @@
       "loading": "Lendo o que deu errado…",
       "summary": "{count, plural, =0 {Nenhum problema com a skill encontrado} =1 {1 problema com a skill} other {# problemas com a skill}}{elsewhere, plural, =0 {} other {, # respostas cujo problema está em outro lugar}}{fine, plural, =0 {} other {, # que estavam bem}}.",
       "usageUnknown": "{count, plural, =1 {1 resposta é de antes de os carregamentos da skill serem registrados e não é contada.} other {# respostas são de antes de os carregamentos da skill serem registrados e não são contadas.}}",
+      "seedWithheld": "{count, plural, =1 {1 problema repassado pela sessão do agente foi deixado de fora: ele cita uma resposta a uma pergunta que a verificação desta skill avalia.} other {# problemas repassados pela sessão do agente foram deixados de fora: eles citam respostas a perguntas que a verificação desta skill avalia.}}",
       "agent": "{name} ({runs})",
       "occursIn": "Em {runs, plural, =1 {1 resposta} other {# respostas}}, em {agents}{hidden, plural, =0 {} =1 { e 1 agente que você não vê} other { e # agentes que você não vê}}.",
       "hiddenExamples": "{count, plural, =1 {+1 exemplo oculto} other {+# exemplos ocultos}}"

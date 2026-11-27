@@ -3293,6 +3293,7 @@
       "codeRuns": "{count, plural, one {1 skrypt} few {# skrypty} many {# skryptów} other {# skryptu}}",
       "codeRunCalls": "{count, plural, =0 {Nie wywołał żadnego narzędzia} one {Wywołał 1 narzędzie} few {Wywołał # narzędzia} many {Wywołał # narzędzi} other {Wywołał # narzędzia}}",
       "codeRunOmittedCalls": "{count, plural, one {i jeszcze 1 wywołanie, niewymienione} few {i jeszcze # wywołania, niewymienione} many {i jeszcze # wywołań, niewymienionych} other {i jeszcze # wywołania, niewymienione}}",
+      "codeCallState": "{status, select, held {{reason, select, writes {nie wykonane (zapisałoby dane)} external {nie wykonane (sięgnęłoby poza wdrożenie)} needs_approval {nie wykonane (wymaga zatwierdzenia)} other {nie wykonane}}} replayed {z nagrania} divergent {brak w nagraniu} other {Nieznany}}",
       "cacheBust": "cache zerwany",
       "cacheExpired": "cache wygasł",
       "cacheBustDetail": "{missed, number} tokenów z cache nieodczytanych z cache - coś przed nimi w prompcie się zmieniło",
@@ -8361,8 +8362,8 @@
     "storedEncryptedNeverShown": "Zapisane w postaci zaszyfrowanej i nigdy więcej niepokazywane.",
     "theOrganizations": "Organizacji",
     "toolSelectionSaved": "Wybór narzędzi zapisany.",
-    "trustReadOnlyHints": "Pozwól ewaluacjom wywoływać narzędzia, które ten serwer oznacza jako tylko do odczytu",
-    "trustReadOnlyHintsHint": "Ewaluacje wstrzymują każde wywołanie serwera produkcyjnego, chyba że mu ufasz: oznaczenie „tylko do odczytu” to deklaracja samego serwera. {count, plural, =0 {Żadne narzędzie tutaj go nie deklaruje.} =1 {Deklaruje je 1 narzędzie.} few {Deklarują je # narzędzia.} many {Deklaruje je # narzędzi.} other {Deklaruje je # narzędzia.}}",
+    "trustReadOnlyHints": "Pozwól ewaluacjom wywoływać narzędzia, które ten serwer oznacza jako tylko do odczytu i zamknięte (closed-world)",
+    "trustReadOnlyHintsHint": "Ewaluacje wstrzymują każde wywołanie serwera produkcyjnego, chyba że mu ufasz, a wtedy uruchamiają tylko narzędzia, które oznacza jednocześnie jako tylko do odczytu i zamknięte (closed-world) – nie sięgają nigdzie poza ten serwer. Oba oznaczenia to deklaracje samego serwera. {count, plural, =0 {Żadne narzędzie tutaj nie deklaruje, że tylko czyta.} =1 {1 narzędzie deklaruje, że tylko czyta.} few {# narzędzia deklarują, że tylko czytają.} many {# narzędzi deklaruje, że tylko czyta.} other {# narzędzia deklaruje, że tylko czyta.}}",
     "tools": "Narzędzia",
     "toolsFrom": "Narzędzia z „{name}”",
     "toolsSelected": "{on} z {total} włączonych",
@@ -15387,7 +15388,8 @@
         "judgeGradedTwice": "Sędzia ocenił to kryterium więcej niż raz, więc żadna z ocen się nie liczy.",
         "judgeUngraded": "Sędzia nie dał oceny na skali za to kryterium.",
         "judgeReasonEcho": "Sędzia powtórzył kryterium, zamiast napisać, dlaczego odpowiedź je spełnia.",
-        "judgeCounterUnsupported": "Sędzia uznał, że odpowiedź różni się od kontrprzykładu, choć odpowiedź go powtarza albo sędzia zacytował tylko to, co oba mówią."
+        "judgeCounterUnsupported": "Sędzia uznał, że odpowiedź różni się od kontrprzykładu, choć odpowiedź go powtarza albo sędzia zacytował tylko to, co oba mówią.",
+        "scriptCallsNotKept": "Skrypt trybu kodu wykonał więcej wywołań, niż run zachował, więc jego wywołania narzędzi nie zostały ocenione."
       },
       "scoreRun": "Oceń względem przypadku",
       "scoreRunBody": "Uruchom na odpowiedzi tego runu wszystkie oceniacze skonfigurowane w datasecie. Wynik zostanie zapisany w datasecie.",
@@ -16309,6 +16311,7 @@
         "executed": "uruchomione",
         "replayed": "z nagrania",
         "blocked": "nie wykonane (zapisałoby dane)",
+        "blockedReason": "{reason, select, external {nie wykonane (sięgnęłoby poza wdrożenie)} needs_approval {nie wykonane (wymaga zatwierdzenia)} other {nie wykonane (zapisałoby dane)}}",
         "divergent": "brak w nagraniu"
       },
       "scorer": {
@@ -18777,6 +18780,7 @@
       "loading": "Czytanie, co poszło nie tak…",
       "summary": "{count, plural, =0 {Nie znaleziono problemu ze skillem} one {# problem ze skillem} few {# problemy ze skillem} many {# problemów ze skillem} other {# problemu ze skillem}}{elsewhere, plural, =0 {} other {, # odpowiedzi z problemem gdzie indziej}}{fine, plural, =0 {} other {, # w porządku}}.",
       "usageUnknown": "{count, plural, one {# odpowiedź jest sprzed zapisywania wczytań skilli i nie jest liczona.} few {# odpowiedzi są sprzed zapisywania wczytań skilli i nie są liczone.} many {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.} other {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.}}",
+      "seedWithheld": "{count, plural, one {# problem przekazany z sesji agenta został pominięty: cytuje odpowiedź na pytanie, które ocenia sprawdzenie tego skilla.} few {# problemy przekazane z sesji agenta zostały pominięte: cytują odpowiedzi na pytania, które ocenia sprawdzenie tego skilla.} many {# problemów przekazanych z sesji agenta zostało pominiętych: cytują odpowiedzi na pytania, które ocenia sprawdzenie tego skilla.} other {# problemów przekazanych z sesji agenta zostało pominiętych: cytują odpowiedzi na pytania, które ocenia sprawdzenie tego skilla.}}",
       "agent": "{name} ({runs})",
       "occursIn": "W {runs, plural, one {# odpowiedzi} few {# odpowiedziach} many {# odpowiedziach} other {# odpowiedzi}}, u: {agents}{hidden, plural, =0 {} one { i # agenta, którego nie widzisz} few { i # agentów, których nie widzisz} many { i # agentów, których nie widzisz} other { i # agenta, którego nie widzisz}}.",
       "hiddenExamples": "{count, plural, one {+# ukryty przykład} few {+# ukryte przykłady} many {+# ukrytych przykładów} other {+# ukrytego przykładu}}"

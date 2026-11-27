@@ -25,9 +25,9 @@ from app.agents.approval import (
 )
 from app.agents.capabilities.approval._capability import ApprovalGate
 from app.agents.code_checkpoint import CodeCheckpoint
-from app.agents.code_mode import CodeCalls, code_mode
+from app.agents.code_mode import CodeCallArguments, CodeCalls, code_mode
 from app.agents.deps import AgentDeps
-from app.agents.manifest import RunRecorder
+from app.agents.manifest import RunRecorder, as_payload
 from app.agents.mcp import NEEDS_APPROVAL
 from app.agents.tool_errors import ToolErrors
 
@@ -193,8 +193,9 @@ async def test_an_unrestorable_checkpoint_never_runs_an_approved_tool(damage: st
 class _Script:
     """A fresh agent/worker and JSON-round-tripped state for every segment."""
 
-    def __init__(self, code: str, *, sequential: bool = False) -> None:
+    def __init__(self, code: str, *, sequential: bool = False, built_order: bool = False) -> None:
         self.code = code
+        self.built_order = built_order
         self.effects: list[int] = []
         self.reads: list[int] = []
         self.active = 0
@@ -269,12 +270,26 @@ class _Script:
             FunctionModel(self.respond),
             output_type=str | DeferredToolRequests,
             toolsets=[self.tools],
-            capabilities=[
-                ToolErrors(),
-                self.gate,
-                code_mode(approval_required=frozenset(), asking=frozenset(), max_tool_calls=100),
-                CodeCalls(self.recorder),
-            ],
+            capabilities=(
+                [
+                    ToolErrors(),
+                    CodeCalls(self.recorder),
+                    self.gate,
+                    code_mode(
+                        approval_required=frozenset(), asking=frozenset(), max_tool_calls=100
+                    ),
+                    CodeCallArguments(),
+                ]
+                if self.built_order
+                else [
+                    ToolErrors(),
+                    self.gate,
+                    code_mode(
+                        approval_required=frozenset(), asking=frozenset(), max_tool_calls=100
+                    ),
+                    CodeCalls(self.recorder),
+                ]
+            ),
         )
         result = await agent.run(
             "work" if not self.history else None,
@@ -438,6 +453,25 @@ async def test_delegate_checkpoint_identity_and_frozen_approval_arguments(
     assert (await script.step()).output == "done"
     assert script.effects == [99]
     assert script.requests == 2
+
+
+@pytest.mark.security
+async def test_the_run_view_shows_the_arguments_an_approval_let_run() -> None:
+    """Built as the factory builds it, the manifest sits outside the gate, which runs the
+    approved arguments rather than the ones the script asked with."""
+    script = _Script("await write(i=1)", built_order=True)
+    assert isinstance((await script.step()).output, DeferredToolRequests)
+    (parked,) = as_payload(script.recorder)["code_runs"][0]["calls"]
+    assert (parked["args"], parked["status"]) == ('{"i": 1}', "awaiting_approval")
+    (pending,) = script.pending
+    script.decisions[pending] = ApprovalGranted({"i": 99})
+    script.pending.clear()
+
+    assert (await script.step()).output == "done"
+
+    assert script.effects == [99]
+    (ran,) = as_payload(script.recorder)["code_runs"][0]["calls"]
+    assert (ran["args"], ran["status"]) == ('{"i": 99}', "returned")
 
 
 def test_a_resumed_manifest_replaces_the_partial_script_without_losing_other_scripts() -> None:
@@ -996,3 +1030,81 @@ async def test_invalid_sleep_cannot_credit_the_persisted_budget(module: str, dur
     script.approve()
     assert (await script.step()).output == "done"
     assert script.effects == [1]
+
+
+async def test_each_segment_reports_only_the_script_calls_it_settled() -> None:
+    """Calls made before a park go into the parked turn; the resume adds only the rest.
+
+    The transcript appends each segment's calls to the script's row, so a call
+    reported twice would be answered twice from a recording of the run.
+    """
+    script = "answers=[]\nfor i in range(3):\n    try:\n        answers.append(await write(i=i))\n    except RuntimeError:\n        answers.append('rejected')\nanswers"
+    toolset = FunctionToolset[AgentDeps](id="writes")
+
+    @toolset.tool(metadata={NEEDS_APPROVAL: True})
+    async def write(ctx: RunContext[AgentDeps], i: int) -> int:
+        return i * 2
+
+    decisions: dict[str, bool] = {}
+
+    async def approve(request: ApprovalRequest) -> ApprovalDecision:
+        decision = decisions.get(request.tool_call_id)
+        if decision is None:
+            decisions.setdefault(request.tool_call_id, request.tool_args["i"] != 1)
+            return ApprovalPending()
+        return ApprovalGranted(request.tool_args) if decision else ApprovalRejected("no")
+
+    def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        if any(isinstance(part, ToolReturnPart) for message in messages for part in message.parts):
+            return ModelResponse(parts=[TextPart("done")])
+        return ModelResponse(
+            parts=[ToolCallPart("run_code", {"code": script}, tool_call_id="script")]
+        )
+
+    history: list[ModelMessage] = []
+    checkpoints: dict[str, CodeCheckpoint] = {}
+    replay: DeferredToolResults | None = None
+    segments: list[list[tuple[str, str]]] = []
+    for _ in range(4):
+        deps = AgentDeps(request_approval=approve)
+        deps.code_continuations.checkpoints.update(checkpoints)
+        agent = Agent[AgentDeps, str | DeferredToolRequests](
+            FunctionModel(model),
+            output_type=str | DeferredToolRequests,
+            toolsets=[toolset],
+            capabilities=[
+                ApprovalGate(required_tool_names=frozenset({"write"})),
+                code_mode(
+                    approval_required=frozenset({"write"}), asking=frozenset(), max_tool_calls=5
+                ),
+            ],
+        )
+        result = await agent.run(
+            "write" if not history else None,
+            deps=deps,
+            message_history=history,
+            deferred_tool_results=replay,
+        )
+        segments.append(
+            [
+                (made.call.tool_call_id, made.returned.outcome)
+                for made in deps.code_continuations.script_calls.get("script", [])
+            ]
+        )
+        history = ModelMessagesTypeAdapter.validate_json(
+            ModelMessagesTypeAdapter.dump_json(result.all_messages())
+        )
+        checkpoints = {
+            key: CodeCheckpoint.model_validate(json.loads(value.model_dump_json()))
+            for key, value in deps.code_continuations.checkpoints.items()
+        }
+        if not isinstance(result.output, DeferredToolRequests):
+            break
+        replay = DeferredToolResults(approvals={"script": ToolApproved()})
+
+    assert segments == [
+        [],
+        [("script__1", "success")],
+        [("script__2", "failed")],
+        [("script__3", "success")],
+    ]

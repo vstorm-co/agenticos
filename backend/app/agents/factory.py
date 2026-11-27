@@ -88,11 +88,11 @@ from app.agents.capabilities.system_reminders import (
 )
 from app.agents.capabilities.tool_search import ConfiguredToolSearch, ToolSearchConfig
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, web_reach
-from app.agents.code_mode import CodeCalls, code_mode
+from app.agents.code_mode import CodeCallArguments, CodeCalls, code_mode
 from app.agents.computer_on_use import REQUEST_COMPUTER_ACCESS, RequestComputerOnUse
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
-from app.agents.isolation import IsolationGuard, RunIsolation, capability_tools
+from app.agents.isolation import IsolationGuard, RunIsolation, capability_tools, kept_local
 from app.agents.loop_guard import LoopGuard
 from app.agents.manifest import RecordedToolSearch, RecordingModel, RunRecorder
 from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec
@@ -103,6 +103,7 @@ from app.agents.run_reviewer import RunReviewer
 from app.agents.setup_briefing import SetupBriefing
 from app.agents.spec import AgentSpec
 from app.agents.steering import Steering
+from app.agents.subagent_runtime import SUBAGENT_RUNTIME_RESOURCE, SubagentRuntime
 from app.agents.tool_call_ids import UniqueToolCallIds
 from app.agents.tool_errors import ToolErrors
 from app.agents.tool_identity import CaptureToolIdentity
@@ -373,6 +374,8 @@ def build_agent(
         bindings = [
             binding for binding in bindings if capability_def(binding.capability_id).voice == "live"
         ]
+    if isolation is not None:
+        bindings = [kept_local(binding) for binding in bindings]
     # Built before the capabilities, not after: compaction reads it to decide
     # whether this window has room for a summary at all, and the reading is
     # filled by the capability appended at the end of the list below.
@@ -544,6 +547,9 @@ def build_agent(
         tool_ids=approval_tool_ids(spec),
         asking_tool_names=asking,
     )
+    # Off unless the spec asks, and never under a session that asks before every
+    # tool: nothing could be folded into a script there.
+    scripts_run = spec.code_mode.enabled and not gate_every_tool and routine_action_check is None
     capabilities: list[Any] = [
         # First, so every hook after it - the approval gate and the guardrails
         # among them - sees the arguments the tool will actually be called with.
@@ -560,6 +566,9 @@ def build_agent(
         # request from that history must find them there.
         Steering(),
         budget,
+        # Outside the isolation guard and the approval gate: the manifest lists every
+        # call a script asks for, including those the two answer without running.
+        *([CodeCalls(recorder=recorder, isolation=isolation)] if scripts_run else []),
         *(
             ()
             if isolation is None
@@ -569,6 +578,7 @@ def build_agent(
                     tools=capability_tools(spec, test_bindings=test_bindings),
                     agent_id=agent_id,
                     approval=gate,
+                    remote_delegates=_remote_delegates(resources),
                 ),
             )
         ),
@@ -600,8 +610,6 @@ def build_agent(
             else []
         ),
         *_reviewers(spec, reviewer_models or {}, recorder),
-        # Off unless the spec asks, and never under a session that asks before
-        # every tool: nothing could be folded into a script there.
         *(
             [
                 code_mode(
@@ -609,9 +617,9 @@ def build_agent(
                     asking=asking,
                     max_tool_calls=spec.code_mode.max_tool_calls,
                 ),
-                CodeCalls(recorder=recorder),
+                CodeCallArguments(),
             ]
-            if spec.code_mode.enabled and not gate_every_tool and routine_action_check is None
+            if scripts_run
             else []
         ),
         # Every agent: a moved cache prefix costs the most on exactly the long,
@@ -697,6 +705,12 @@ def build_agent(
         ),
         repairs=repairs,
     )
+
+
+def _remote_delegates(resources: Mapping[str, Any] | None) -> frozenset[str]:
+    """The delegates of the run's delegation tree at this level that are remote agents."""
+    runtime = (resources or {}).get(SUBAGENT_RUNTIME_RESOURCE)
+    return runtime.remote_names if isinstance(runtime, SubagentRuntime) else frozenset()
 
 
 def _reviewers(

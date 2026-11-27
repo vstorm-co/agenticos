@@ -545,6 +545,18 @@ class EvalCallRead(BaseSchema):
     args: dict[str, Any]
     outcome: CallOutcomeLiteral
     reason: str | None = None
+    script: bool = Field(
+        default=False,
+        description="A code-mode script: the calls it made follow it and are graded in its place",
+    )
+    parent: str | None = Field(
+        default=None, description="For a call a code-mode script made, the script's call id"
+    )
+    omitted: int = Field(
+        default=0,
+        description="For a code-mode script, how many of its calls its run did not keep; "
+        "the trajectory is not graded when any were left out",
+    )
 
 
 class EvalAttemptRead(BaseSchema):

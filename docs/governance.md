@@ -1346,6 +1346,20 @@ the script without another model request or repeating completed operations.
 Rejecting the call raises a `RuntimeError` inside the script; its handler never
 runs. Approving `run_code` itself does not approve any nested operation.
 
+In an eval, and in every other isolated run, `run_code` runs, and each call the
+script makes is decided on its own by the
+[isolation rules](environments.md#in-an-eval): a read of this deployment's own
+data runs, a read from outside it or a write is held and recorded with its
+arguments. Running the script lets nothing through that a direct call would not
+get.
+
+Each call the script makes is kept with the run, under the script: its tool,
+arguments and result, up to 100 calls and
+about 1 MB a script. An eval grades those calls in
+the script's place and lists them under it
+([expected tool calls](datasets.md#trajectory)). A recording of the run answers
+each of them when an eval runs the script again, so the replay lists them too.
+
 The checkpoint is server-owned and bounded. A raw interpreter snapshot may be
 at most 512 kB; all code checkpoints in one run may occupy at most 1 MB of JSON.
 Atomic database reservations cap retained checkpoints at 8 MB per initiating
@@ -1361,6 +1375,8 @@ Questions, delegations and tools whose call is what the person sees (drafts,
 charts, drawings) stay native. Sessions that ask before every tool and routine
 runs keep their native-tool policy. The run view lists each script once, with
 its calls and their approval/execution status across resumptions.
+In an isolated run it also says which calls were held (and why), answered from
+the recording, or not in it.
 
 ### Reporting
 

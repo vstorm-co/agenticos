@@ -32,6 +32,9 @@ import { RunModelInput } from "./run-model-input";
  * a different sentence from a request that failed. Drawing both as an empty
  * panel would claim the agent was given no prompt and no tools.
  */
+/** Statuses of a script call an isolated run answered without running it. */
+const ISOLATED = new Set<string>(["held", "replayed", "divergent"]);
+
 export function RunManifest({ runId }: { runId: string }) {
   const t = useTranslations("pages.runs");
   const ts = useTranslations("states");
@@ -117,6 +120,14 @@ export function RunManifest({ runId }: { runId: string }) {
                       {call.status === "awaiting_approval" && (
                         <Badge variant="outline" className="shrink-0 font-sans">
                           {t("toolState", { status: "awaiting_approval" })}
+                        </Badge>
+                      )}
+                      {ISOLATED.has(call.status) && (
+                        <Badge variant="outline" className="shrink-0 font-sans">
+                          {t("codeCallState", {
+                            status: call.status,
+                            reason: call.reason ?? "unknown",
+                          })}
                         </Badge>
                       )}
                     </li>

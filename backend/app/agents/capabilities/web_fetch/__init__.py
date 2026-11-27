@@ -150,6 +150,7 @@ class WebFetchConfig(BaseModel):
         tools=("web_fetch",),
         field="method",
         equals=tuple(sorted(PROVIDER_EXECUTED_METHODS)),
+        kept_local="local",
     ),
 )
 def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:

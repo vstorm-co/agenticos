@@ -1,5 +1,5 @@
 ---
-source_sha: "822050191fb7"
+source_sha: "e92ceb15539c"
 ---
 
 # Governance { #governance }
@@ -1438,6 +1438,20 @@ continuar el script sin otro turno del modelo ni repetir operaciones terminadas.
 El rechazo lanza un `RuntimeError` dentro del script; el código de la herramienta
 no se ejecuta. Aprobar `run_code` no aprueba ninguna operación interna.
 
+En un eval, y en cualquier otro run aislado, `run_code` se ejecuta, y cada
+llamada del script se decide por separado con las
+[reglas de aislamiento](environments.md#in-an-eval): una lectura de los datos
+propios de este despliegue se ejecuta; una lectura de fuera o una escritura se
+retiene y se registra con sus argumentos. Ejecutar el script no deja pasar nada
+que una llamada directa no obtendría.
+
+Cada llamada que hace el script se guarda con el run, bajo el script: su
+herramienta, sus argumentos y su resultado, hasta 100 llamadas y alrededor de 1 MB por script. Un
+eval califica esas llamadas en lugar del script y las enumera bajo él
+([llamadas a herramientas esperadas](datasets.md#trajectory)). Una grabación del
+run responde a cada una cuando un eval vuelve a ejecutar el script, así que la
+reproducción también las enumera.
+
 El estado guardado pertenece al servidor y tiene un límite de tamaño. La captura
 bruta del intérprete admite hasta 512 kB y todos los checkpoints de código de un
 run, hasta 1 MB de JSON. Las reservas atómicas en la base de datos limitan los
@@ -1456,6 +1470,8 @@ gráficos, dibujos) siguen siendo nativas. Las sesiones que preguntan antes de
 cada herramienta y los runs de rutinas mantienen su política de herramientas
 nativas. La vista del run muestra cada script una sola vez, con sus llamadas y
 su estado de aprobación o ejecución a través de las reanudaciones.
+En un run aislado también indica qué llamadas se retuvieron (y por qué), cuáles se
+respondieron desde la grabación y cuáles no estaban en ella.
 
 ### Informes { #reporting }
 

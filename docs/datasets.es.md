@@ -1,5 +1,5 @@
 ---
-source_sha: "a4c2f48f28ee"
+source_sha: "5e293badfee9"
 title: "Datasets"
 description: "Los datasets guardan las preguntas con las que se prueba un agent: casos versionados escritos a mano, importados de CSV o JSONL o tomados de una respuesta valorada."
 ---
@@ -517,6 +517,14 @@ contando como una llamada que hizo el agent.
 Una llamada se compara por el nombre de herramienta que registró el run, que es
 el nombre después de cualquier sustitución en el spec. Un caso escrito antes de
 que se renombrara una herramienta espera el nombre antiguo.
+
+Un agent en [modo código](governance.md#code-mode) llama a una sola herramienta,
+`run_code`, y su script llama al resto. En lugar del script se comparan sus
+llamadas, en el orden en que el script las pidió, y un script que no llamó a
+nada se compara como `run_code`. Un run guarda las primeras 100 llamadas de cada script, hasta alrededor de 1 MB; cuando un script hizo más, sus llamadas a herramientas esperadas no se
+califican, porque las llamadas omitidas podrían aprobar o suspender el caso. Un caso creado con
+**Añadir al dataset** a partir de una respuesta en modo código espera las
+llamadas del script, no `run_code`.
 
 ### El juez { #judge }
 El calificador es un ayudante de evaluación definido en código. Su modelo, instrucciones, criterios, escala y umbral pertenecen a **Grading** de este dataset. El selector de provider, modelo y clave y el editor Markdown son los mismos que en Agent Builder. Editar requiere `datasets:edit`; añadir modelos, `connections:manage`. No hace falta crear ni publicar otro agent.

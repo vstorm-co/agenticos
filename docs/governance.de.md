@@ -1,5 +1,5 @@
 ---
-source_sha: "822050191fb7"
+source_sha: "e92ceb15539c"
 ---
 
 # Governance { #governance }
@@ -1522,6 +1522,20 @@ einen weiteren Modell-Turn oder abgeschlossene Operationen zu wiederholen.
 Eine Ablehnung löst im Skript einen `RuntimeError` aus; der Tool-Handler läuft
 nicht. Die Freigabe von `run_code` selbst genehmigt keine verschachtelte Operation.
 
+In einem Eval und in jedem anderen isolierten Run läuft `run_code`, und über
+jeden Aufruf des Skripts entscheiden einzeln die
+[Isolationsregeln](environments.md#in-an-eval): Ein Lesezugriff auf die eigenen
+Daten dieses Deployments läuft, ein Lesezugriff nach außen oder ein Schreibzugriff
+wird angehalten und mit seinen Argumenten aufgezeichnet. Das Ausführen des Skripts
+lässt nichts durch, was ein direkter Aufruf nicht bekäme.
+
+Jeder Aufruf des Skripts wird mit dem Run aufbewahrt, unter dem Skript: sein
+Tool, seine Argumente und sein Ergebnis, bis zu 100 Aufrufe und etwa 1 MB pro Skript. Ein Eval
+bewertet diese Aufrufe an Stelle des Skripts und führt sie darunter auf
+([erwartete Tool-Aufrufe](datasets.md#trajectory)). Eine Aufzeichnung des Runs
+beantwortet jeden von ihnen, wenn ein Eval das Skript erneut ausführt, sodass
+auch die Wiedergabe sie aufführt.
+
 Der gespeicherte Zustand gehört dem Server und hat eine Größenbegrenzung. Der
 rohe Interpreterzustand ist auf 512 kB begrenzt, alle Code-Checkpoints eines Runs
 zusammen auf 1 MB JSON. Atomare Datenbankreservierungen begrenzen gespeicherte
@@ -1539,6 +1553,8 @@ Zeichnungen) bleiben nativ. Sitzungen, die vor jedem Tool fragen, und Routine-Ru
 behalten ihre bisherige Richtlinie für native Tools. Die Run-Ansicht zeigt jedes
 Skript einmal mit seinen Aufrufen und deren Freigabe- oder Ausführungsstatus
 über alle Fortsetzungen hinweg.
+In einem isolierten Run zeigt sie auch, welche Aufrufe zurückgehalten wurden (und
+warum), aus der Aufzeichnung beantwortet wurden oder in ihr fehlten.
 
 ### Berichte { #reporting }
 

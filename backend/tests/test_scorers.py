@@ -42,6 +42,7 @@ from app.services.scorers import (
     ScoredCall,
     case_passed,
     copies,
+    every_call_kept,
     graded,
     holds,
     judge_criteria,
@@ -52,8 +53,10 @@ from app.services.scorers import (
     restates,
     run_checks,
     score_trajectory,
+    scored_calls,
     verdict_schema,
 )
+from app.services.transcript import RecordedToolCall
 
 
 def _answer(text: str = "", **overrides) -> ScoredAnswer:
@@ -256,6 +259,91 @@ EMAIL = {"tool": "send_email", "args": {}}
 
 def _calls(*specs: tuple[str, dict]) -> list[ScoredCall]:
     return [ScoredCall(tool=tool, args=args) for tool, args in specs]
+
+
+def _script(*made: tuple[str, dict], omitted: int = 0) -> RecordedToolCall:
+    """A `run_code` call whose script made these calls, as its row keeps them."""
+    return RecordedToolCall(
+        tool_call_id="c9",
+        tool_name="run_code",
+        args={"code": "..."},
+        result="done",
+        script_calls={
+            "calls": [
+                {
+                    "tool_call_id": f"c9__{n}",
+                    "tool_name": tool,
+                    "args": args,
+                    "result": "ok",
+                    "outcome": "success",
+                }
+                for n, (tool, args) in enumerate(made, start=1)
+            ],
+            "omitted": omitted,
+        },
+    )
+
+
+class TestScriptedCalls:
+    """A code-mode agent is graded on what its script called, as any agent is on its calls."""
+
+    @pytest.mark.parametrize("mode", ["any", "in_order", "exact"])
+    def test_a_scripts_calls_are_graded_in_its_place_in_every_mode(self, mode) -> None:
+        calls = scored_calls(
+            [_script(("search_kb", {"query": "refunds"}), ("lookup_order", {}))], blocked=()
+        )
+
+        result = score_trajectory([SEARCH, LOOKUP], list(calls), order_mode=mode, required=True)
+
+        assert [call.tool for call in calls] == ["search_kb", "lookup_order"]
+        assert result is not None
+        assert result.status == "pass"
+
+    def test_a_script_that_called_nothing_is_graded_as_itself(self) -> None:
+        plain = RecordedToolCall(tool_call_id="c1", tool_name="run_code", args={"code": "1"})
+
+        assert scored_calls([plain], blocked=()) == (
+            ScoredCall(tool="run_code", args={"code": "1"}),
+        )
+
+    @pytest.mark.parametrize("mode", ["any", "in_order", "exact"])
+    def test_a_script_with_calls_its_run_did_not_keep_is_not_graded(self, mode) -> None:
+        """Graded on the calls kept, `exact` could pass a script that did more and `any`
+        fail one whose expected call is among those left out."""
+        script = _script(("search_kb", {"query": "refunds"}), ("lookup_order", {}), omitted=3)
+
+        result = score_trajectory(
+            [SEARCH, LOOKUP],
+            list(scored_calls([script], blocked=())),
+            order_mode=mode,
+            required=True,
+            complete=every_call_kept([script]),
+        )
+
+        assert result is not None
+        assert (result.status, result.reason_code) == ("skipped", "script_calls_not_kept")
+        assert case_passed([result]) is None
+
+    def test_calls_are_whole_unless_a_script_left_some_out(self) -> None:
+        plain = RecordedToolCall(tool_call_id="c1", tool_name="lookup", args={})
+
+        assert every_call_kept([plain, _script(("lookup", {}))])
+        assert not every_call_kept([plain, _script(("lookup", {}), omitted=1)])
+
+    def test_a_call_the_script_was_kept_from_making_counts_as_blocked(self) -> None:
+        calls = scored_calls(
+            [
+                _script(("search_kb", {}), ("send_email", {})),
+                RecordedToolCall(tool_call_id="c2", tool_name="send_email", args={}),
+            ],
+            blocked={"c9__2", "c2"},
+        )
+
+        assert [(call.tool, call.blocked) for call in calls] == [
+            ("search_kb", False),
+            ("send_email", True),
+            ("send_email", True),
+        ]
 
 
 class TestTrajectory:
