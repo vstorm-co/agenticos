@@ -4,6 +4,7 @@ import { useLocale } from "next-intl";
 
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { separatorsFor } from "@/lib/number-parts";
+import { useMoney } from "@/components/providers/currency-provider";
 
 /**
  * The two figures worth rolling, both wrapping :func:`AnimatedCounter` with the
@@ -55,12 +56,20 @@ interface AnimatedAmountProps {
  * Money, rolling to its new value rather than being replaced by it.
  *
  * The separators come from the active locale, so a Polish reader sees
- * `1 234,56` where an English one sees `1,234.56`. The currency symbol does
- * not: the ledger is in dollars whatever language is asking, which is what
- * `formatUsd` already assumes.
+ * `1 234,56` where an English one sees `1,234.56`. The organization currency
+ * comes from the shared money context. Non-USD values use one formatted reading.
  */
 export function AnimatedAmount({ value, decimals = 2, label, className }: AnimatedAmountProps) {
-  const { separator, decimalSeparator } = separatorsFor(useLocale());
+  const locale = useLocale();
+  const money = useMoney();
+  const { separator, decimalSeparator } = separatorsFor(locale);
+  if (money.currency !== "USD" || !money.available) {
+    return (
+      <span className={className} aria-label={label}>
+        {money.format(value, locale, decimals)}
+      </span>
+    );
+  }
 
   return (
     <AnimatedCounter

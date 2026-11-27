@@ -679,7 +679,9 @@ class TestBudget:
         ctx, _, _ = await _setup(db)
         spec = AgentSpec(name="Clerk", instructions="Be brief.", model_profile_id=uuid.uuid4())
         resolved = SimpleNamespace(
-            model="m", provider="p", credential=SimpleNamespace(custom_pricing=None)
+            model="m",
+            provider="p",
+            credential=SimpleNamespace(custom_pricing=None, exchange_rates={"USD": Decimal(1)}),
         )
 
         with (

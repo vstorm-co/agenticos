@@ -59,6 +59,7 @@ from app.schemas.deployment_settings import (
 )
 from app.schemas.push import ApnsKeyUpdate, ApnsRead
 from app.services.apns import ApnsService, check_key
+from app.services.currency import CurrencyService
 from app.services.file_storage import IMAGE_MIME_TYPES, MAX_AVATAR_SIZE, get_file_storage
 from app.services.notifications import NotificationService
 
@@ -161,6 +162,9 @@ class DeploymentSettingsService:
         branding = _branding(row)
         branding.password_sign_in_enabled = row.password_sign_in_enabled if row else True
         return DeploymentSettingsRead(
+            currency_settings=row.currency_settings if row else None,
+            effective_currency_settings=CurrencyService.effective(row),
+            environment_currency_settings=CurrencyService.environment(),
             **branding.model_dump(),
             password_sign_in_forced=settings.AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED,
             chat_costs_available=row.chat_costs_available if row else None,
@@ -249,6 +253,8 @@ class DeploymentSettingsService:
         came from.
         """
         update_data = writable(data, over=DeploymentSettings)
+        if data.currency_settings is not None:
+            update_data["currency_settings"] = data.currency_settings.model_dump(mode="json")
         if not update_data:
             raise BadRequestError(message="Nothing to change")
         if update_data.get("default_organization_id") is not None:

@@ -21,6 +21,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Display workflow statistics, dashboard spending, run history and conversation costs in the organization currency, independently of language. Show unknown amounts when a reporting rate is unavailable; preserve stored USD accounting and existing cap values.
+
+- Select a currency for custom model token prices and convert usage to accounting USD with a recorded rate snapshot. Configure manual rates in administration or `CURRENCY_RATES`; retain `STAV_NOK_PER_USD` as a legacy fallback.
+
 - Set flat USD token prices per model profile in the console and API, including cache rates and explicit free usage. Fallbacks and delegates use their own profile prices; keyless usage reaches budgets and reports. Existing recorded costs remain unchanged.
 
 ### Changed
@@ -32,6 +36,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Prevent model editors from changing raw request routing or credentials on custom-priced profiles without budget authority. Keep omitted token usage partially priced, including streams and nested calls, and stop further capped requests while retaining known cost subtotals.
 
 ### Upgrading
+
+- Apply `0377_currency_settings.py` for manual deployment exchange rates and nullable organization currency preferences. Existing prices and USD limits retain their units. Before downgrading, restore automatic pricing or explicitly reprice any non-USD custom model prices in USD.
 
 - Apply `0375_model_profile_pricing.py` and `0376_monetary_cost_capacity.py` before starting the API. Existing profiles retain automatic pricing. Monetary storage retains six fractional places and accepts high custom-priced costs; downgrading requires amounts to fit the former column range. Changing or restoring model prices requires `budgets:manage` as well as connection management.
 

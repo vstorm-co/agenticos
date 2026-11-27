@@ -1,11 +1,12 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 
-import { formatUsd } from "@/components/dashboard/format";
 import {
   FlaskConical,
   Activity,
@@ -96,6 +97,7 @@ export function FocusedRun({
   const t = useTranslations("pages.runs");
   const tTime = useTranslations("time");
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   const { can } = usePermissions();
   const meId = useAuthStore((state) => state.user?.id ?? null);
   const { run, isLoading, error, refetch } = useRun(runId);
@@ -337,7 +339,7 @@ export function FocusedRun({
             {run.output_tokens.toLocaleString(locale)}
           </Fact>
           <Fact label={t("cost")}>
-            {formatUsd(run.cost_usd, locale, 4)}
+            {formatMoney(run.cost_usd, locale, 4)}
             {run.cost_is_partial && (
               <span className="text-muted-foreground" title={t("modelRunHadNo")}>
                 {" +"}

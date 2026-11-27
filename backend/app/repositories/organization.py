@@ -688,6 +688,15 @@ async def set_onboarding_reminders(
     return result.scalar_one()
 
 
+async def set_currency(
+    db: AsyncSession, org: Organization, *, currency: str | None
+) -> Organization:
+    org.currency = currency
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def set_chat_cost_visibility(
     db: AsyncSession, org: Organization, *, policy: ChatCostVisibility | None
 ) -> Organization:

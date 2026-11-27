@@ -285,3 +285,23 @@ async def test_invalid_custom_rates_are_refused_before_creation(
     )
     assert response.status_code == 422
     assert created.await_count == 0
+
+
+async def test_pricing_form_can_read_the_effective_currency_without_reading_credentials(
+    client: AsyncClient, owner: None
+):
+    from app.schemas.currency import CurrencyContext
+
+    context = CurrencyContext(
+        currency="PLN",
+        default_currency="USD",
+        inherited=False,
+        rates={"USD": "1", "PLN": "4", "EUR": "0.9"},
+    )
+    app.dependency_overrides[deps.get_model_profile_service] = lambda: MagicMock(
+        currency_context=AsyncMock(return_value=context)
+    )
+    response = await client.get(f"{_V1}/providers/currencies")
+    assert response.status_code == 200
+    assert response.json()["currency"] == "PLN"
+    assert response.json()["rates"]["EUR"] == "0.9"

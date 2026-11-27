@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { CHART_TOOLTIP_CONTENT, CHART_TOOLTIP_ITEM, CHART_TOOLTIP_LABEL } from "@/lib/chart-styles";
 
 import { useTranslations } from "next-intl";
@@ -16,8 +18,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-
-import { formatUsd } from "../format";
 
 import { AREA_FILL_OPACITY, LINE_WIDTH } from "@/lib/dashboard/system";
 
@@ -42,6 +42,7 @@ export function TrendChartImpl({
   money?: boolean;
 }) {
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   // One axis configuration, two marks. Recharts wants a different chart element
   // for each, and duplicating the axes to switch between them is how the two
   // drift into disagreeing about their own scale.
@@ -84,7 +85,7 @@ export function TrendChartImpl({
           tickCount={4}
           // Counts are whole; dollars are not, and a run costs cents.
           allowDecimals={money}
-          tickFormatter={money ? (value: number) => formatUsd(value, locale) : undefined}
+          tickFormatter={money ? (value: number) => formatMoney(value, locale) : undefined}
           tick={{
             fontFamily: "var(--font-mono)",
             fill: "var(--color-muted-foreground)",
@@ -99,7 +100,7 @@ export function TrendChartImpl({
           contentStyle={CHART_TOOLTIP_CONTENT}
           itemStyle={CHART_TOOLTIP_ITEM}
           labelStyle={CHART_TOOLTIP_LABEL}
-          formatter={money ? (value) => formatUsd(Number(value), locale, 4) : undefined}
+          formatter={money ? (value) => formatMoney(Number(value), locale, 4) : undefined}
         />
         <defs>
           <linearGradient id={washId} x1="0" y1="0" x2="0" y2="1">

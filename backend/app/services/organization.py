@@ -30,6 +30,7 @@ from app.repositories import (
 )
 from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
 from app.schemas.console_presentation import ConsoleNotices, stored_role_defaults
+from app.schemas.currency import CurrencyContext
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationList,
@@ -37,6 +38,7 @@ from app.schemas.organization import (
     OrganizationUpdate,
 )
 from app.services import skill_library, speech_to_text
+from app.services.currency import CurrencyService
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.file_storage import avatar_filename, get_file_storage
 from app.services.invitation_admission import admits
@@ -108,6 +110,7 @@ def _org_read(
         member_count=member_count,
         role=role,
         monthly_budget_usd=org.monthly_budget_usd,
+        currency=org.currency,
         proactive_limit_usd=org.proactive_limit_usd,
         proactive_enabled=org.proactive_enabled,
         proactive_model_profile_id=org.proactive_model_profile_id,
@@ -141,6 +144,10 @@ class OrganizationService:
         # drop the tenant's vector tables with; None everywhere else, so ordinary
         # org operations do not pay for one they never use (#9).
         self._vector_store = vector_store
+
+    async def currency_context(self, org_id: UUID, requester_id: UUID) -> CurrencyContext:
+        await self.get_for_user(org_id, requester_id)
+        return await CurrencyService(self.db).context(org_id)
 
     async def get_by_id(self, org_id: UUID) -> Organization:
         org = await organization_repo.get_by_id(self.db, org_id)
@@ -557,6 +564,14 @@ class OrganizationService:
                 target_id=str(org.id),
                 details={"fields": sorted(console_fields)},
             )
+        if "currency" in data.model_fields_set:
+            if data.currency is not None:
+                currencies = await CurrencyService(self.db).settings()
+                if data.currency not in currencies.rates:
+                    raise refused_field(
+                        "currency", "Choose a currency with a configured exchange rate"
+                    )
+            org = await organization_repo.set_currency(self.db, org, currency=data.currency)
 
         if "onboarding_reminders" in data.model_fields_set:
             org = await organization_repo.set_onboarding_reminders(

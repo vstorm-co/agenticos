@@ -10,6 +10,11 @@ import type { LogQuery, RunHistoryQuery } from "@/lib/workflows/types";
 import type { SharingResourceType } from "@/types/sharing";
 
 export const qk = {
+  currencies: {
+    all: () => ["currencies"] as const,
+    current: (org: string | null) => ["currencies", org, "current"] as const,
+    organization: (org: string) => ["currencies", org, "settings"] as const,
+  },
   portability: {
     exportPreview: (
       org: string | null,

@@ -7,6 +7,7 @@ import { Check, KeyRound, Plus, Save } from "lucide-react";
 import { canonicalJson } from "@/lib/canonical-json";
 import { NO_FAILURE, submitFailure } from "@/lib/api-error";
 import { hasKey, LISTED_AT_ENDPOINT, LISTED_WITH_KEY, runsAgents } from "@/lib/model-profiles";
+import { useCurrencies } from "@/hooks/use-currencies";
 import { ModelPricing, sameTokenPricing, validTokenPricing } from "./model-pricing";
 import type { TokenPricing } from "@/types/providers";
 import { ModelSourceSelect } from "./model-source-select";
@@ -277,6 +278,8 @@ export function AddModel({
   collapseConnection = false,
   generationSettings = false,
 }: AddModelProps) {
+  const { data: currencyContext } = useCurrencies();
+  const pricingCurrencies = Object.keys(currencyContext?.rates ?? { USD: "1" });
   const fieldId = useId();
   const settingsFields = useRef<HTMLDivElement>(null);
   const [params, setParams] = useState<Record<string, unknown>>(selected?.params ?? {});
@@ -780,6 +783,7 @@ export function AddModel({
         {canManagePricing && (
           <ModelPricing
             value={customPricing}
+            currencies={pricingCurrencies}
             automatic={null}
             disabled={disabled}
             onChange={(value) => {
@@ -1101,6 +1105,7 @@ export function AddModel({
       {provider !== undefined && canManagePricing && (
         <ModelPricing
           value={customPricing}
+          currencies={pricingCurrencies}
           automatic={
             suggestions.find((entry) => entry.id === model.trim())?.automatic_pricing ??
             (selected?.provider === providerId && selected.model === model.trim()

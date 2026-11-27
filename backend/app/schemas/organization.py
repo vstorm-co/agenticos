@@ -9,6 +9,7 @@ from uuid import UUID
 from pydantic import AfterValidator, EmailStr, Field, field_validator
 
 from app.core.chat_costs import ChatCostVisibility
+from app.core.currency import CurrencyCode
 from app.core.permissions import OrgRoleName
 from app.db.models.organization import MembershipSourceLiteral, OnboardingStep, ProactiveTiming
 from app.db.models.watch import MIN_WATCH_MINUTES
@@ -65,6 +66,10 @@ class OrganizationUpdate(BaseSchema):
     console_role_defaults: RoleConsoleChanges | None = None
     console_notices: ConsoleNotices | None = None
     chat_cost_visibility: ChatCostVisibility | None = None
+    currency: CurrencyCode | None = Field(
+        default=None,
+        description="Preferred reporting currency; null inherits the deployment default. Existing prices and limits keep their original units.",
+    )
     chat_home_defaults: ChatHomeOverrides | None = None
     onboarding_reminders: OnboardingReminderOverrides | None = None
     name: str | None = Field(default=None, min_length=2, max_length=128)
@@ -221,6 +226,7 @@ class OrganizationRead(BaseSchema, TimestampSchema):
     console_role_defaults: dict[str, StoredRoleConsole] = Field(default_factory=dict)
     console_notices: ConsoleNotices = Field(default_factory=ConsoleNotices)
     chat_cost_visibility: ChatCostVisibility = ChatCostVisibility.EVERYONE
+    currency: CurrencyCode | None = None
     chat_home_defaults: ChatHomeOverrides | None = None
     onboarding_reminders: OnboardingReminderOverrides | None = None
     id: _ID

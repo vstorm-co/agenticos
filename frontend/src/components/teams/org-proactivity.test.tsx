@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OrgProactivity } from "./org-proactivity";
 vi.mock("@/hooks/use-system-agents", () => ({ useSystemAgents: () => ({ roles: [] }) }));
+vi.mock("@/hooks/use-currencies", () => ({ useCurrencies: () => ({ data: undefined }) }));
 import type { ModelProfile } from "@/types/providers";
 import type { Organization } from "@/types";
 import { Perm, type Permission } from "@/types/permissions";

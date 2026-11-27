@@ -1,5 +1,5 @@
 ---
-source_sha: "822050191fb7"
+source_sha: "ecd04900d5c2"
 ---
 
 # Governance { #governance }
@@ -263,6 +263,8 @@ a nie odrzucony, więc kompaktowanie przekraczające limit zatrzymuje run na
 kolejnym żądaniu.
 
 ### Koszt, którego nie dało się zmierzyć, mówi o tym wprost { #a-cost-that-could-not-be-measured-says-so }
+
+Stav przyjmuje też kursy wdrożenia dla waluty rachunku, w tym EUR. Ustawiony kurs NOK ma pierwszeństwo przed opisanym poniżej starszym `STAV_NOK_PER_USD`. USD pozostaje walutą zapisu kosztu, a zużycie zachowuje faktyczną walutę rachunku i zastosowany kurs.
 
 Koszt naliczony przez Stav ma pierwszeństwo przed katalogiem: `usage.cost` z
 `cost_currency` lub nagłówki `x-stav-cost` i `x-stav-cost-currency`. Dotyczy to

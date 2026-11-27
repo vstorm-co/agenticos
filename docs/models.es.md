@@ -1,5 +1,5 @@
 ---
-source_sha: "f37df64b435d"
+source_sha: "e92fc3dfc743"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -871,7 +871,7 @@ conviene saber:
 - Actualizar los precios es subir una dependencia.
 
 En la sección **Precios** de un perfil puedes sustituir los precios automáticos
-de tokens. Indica entrada y salida en USD por millón de tokens. Las tarifas de
+de tokens. Indica entrada y salida por millón de tokens en la moneda elegida (USD por defecto). Las tarifas de
 lectura y escritura de caché son opcionales; si quedan vacías, usan la de entrada.
 Un cero explícito es un precio. La API utiliza `custom_pricing`: omitirlo en una
 actualización conserva el ajuste; enviar `null` restaura el precio automático.
@@ -901,6 +901,23 @@ informe por clave.
 
 El coste se comprueba *antes* de cada petición al modelo y se registra incluso
 cuando el run falla. Ver [Budgets](governance.md#budgets).
+
+Los precios propios incluyen un código `currency`, independiente de la organización
+y del idioma. Los administradores mantienen tipos manuales en **Monedas y tipos de
+cambio**. Son unidades de moneda por USD: con EUR a `0.9`, `9 EUR` se registran como
+`10 USD`. El uso conserva importe, moneda y tipo aplicados; los cambios posteriores
+no sobrescriben ese coste en USD. Los costes de cero se registran como `0 USD`
+aunque falte el tipo de cambio. Si hay un límite de gasto, se requiere un tipo
+de cambio antes de la inferencia cuando alguna tarifa por token del perfil puede
+generar un cargo. Esto incluye las lecturas y escrituras de caché.
+
+Las estadísticas de workflows (totales, textos del presupuesto mensual y costes
+de pasos), el gasto del panel, el historial de ejecuciones, los costes de conversación y el
+presupuesto restante se muestran en la moneda efectiva de la organización. Estas
+vistas usan el tipo manual actual: cambiarlo modifica el equivalente mostrado,
+pero el coste registrado en USD permanece fijo. Sin tipo de presentación, el
+importe queda desconocido. Las entradas de presupuesto y las demás vistas de
+estimaciones siguen en USD mientras se completa el resto de #3221.
 
 ### Una delegación resuelve su propio perfil { #a-delegation-resolves-its-own-profile }
 

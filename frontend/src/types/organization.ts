@@ -77,6 +77,7 @@ export interface Organization {
   console_role_defaults?: Partial<Record<OrgRole, ConsoleRoleDefaults>>;
   console_notices?: ConsoleNotices;
   chat_cost_visibility?: ChatCostVisibility;
+  currency?: string | null;
   chat_home_defaults?: ChatHomeOverrides | null;
   onboarding_reminders?: OnboardingReminderOverrides | null;
   id: string;

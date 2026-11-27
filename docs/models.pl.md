@@ -1,5 +1,5 @@
 ---
-source_sha: "f37df64b435d"
+source_sha: "e92fc3dfc743"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -847,7 +847,7 @@ do domu, co oznacza dwie rzeczy warte wiedzenia:
 - Aktualizacja cen to podbicie zależności.
 
 W sekcji **Cennik** profilu modelu możesz zastąpić automatyczne ceny tokenów.
-Ustaw stawki wejścia i wyjścia w USD za milion tokenów. Stawki odczytu i zapisu
+Ustaw stawki wejścia i wyjścia za milion tokenów w wybranej walucie (domyślnie USD). Stawki odczytu i zapisu
 cache są opcjonalne; puste dziedziczą cenę wejścia. Jawne zero jest ceną.
 API udostępnia ten sam dokument jako `custom_pricing`: pominięcie przy aktualizacji
 zachowuje ustawienie, a `null` przywraca wycenę automatyczną.
@@ -876,6 +876,22 @@ Nie mają [sekretu w vault](secrets.md) do przypisania w raporcie według klucza
 
 Koszt sprawdzany jest *przed* każdym żądaniem do modelu i zapisywany nawet wtedy,
 gdy run się nie powiedzie. Zobacz [Budżety](governance.md#budgets).
+
+Własny cennik zawiera kod `currency`, niezależny od organizacji i języka interfejsu.
+Administrator wdrożenia ustawia ręczne kursy w sekcji **Waluty i kursy wymiany**
+ustawień administracyjnych. Kurs oznacza jednostki waluty za USD: przy EUR równym
+`0.9` koszt `9 EUR` zapisuje się jako `10 USD`. Zużycie zachowuje pierwotną kwotę,
+walutę i zastosowany kurs; późniejsze zmiany nie nadpisują kosztu w USD. Koszt
+zerowy jest zapisywany jako `0 USD` nawet bez kursu. Jeśli obowiązuje limit
+wydatków, przed inferencją wymagany jest kurs wymiany, gdy dowolna stawka
+profilu może naliczyć opłatę za tokeny. Dotyczy to też odczytów i zapisów cache.
+
+Statystyki workflow (sumy, opisy miesięcznych budżetów i koszty kroków), wydatki
+na pulpicie, historia uruchomień, koszty rozmów i pozostały budżet są
+wyświetlane w efektywnej walucie organizacji. Widoki używają bieżącego ręcznego
+kursu: zmiana kursu zmienia wyświetlany odpowiednik, ale zapisany koszt USD
+pozostaje stały. Brak kursu raportowego oznacza nieznaną kwotę. Pola budżetów i
+pozostałe widoki szacunków nadal używają USD do czasu ukończenia reszty #3221.
 
 ### Delegacja rozwiązuje własny profil { #a-delegation-resolves-its-own-profile }
 

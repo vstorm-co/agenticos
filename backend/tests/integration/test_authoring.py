@@ -362,7 +362,9 @@ def _environment():
                     label="gpt-test",
                     model="gpt-test",
                     provider="openai",
-                    credential=SimpleNamespace(custom_pricing=None),
+                    credential=SimpleNamespace(
+                        custom_pricing=None, exchange_rates={"USD": Decimal(1)}
+                    ),
                 )
             ),
         ),

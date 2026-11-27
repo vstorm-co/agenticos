@@ -1,6 +1,7 @@
 """Agent Improve reports a skill's problems for the skill and never writes the skill into the agent."""
 
 import uuid
+from collections.abc import Mapping
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -478,8 +479,10 @@ async def test_the_estimate_prices_the_skill_bodies_the_improver_will_read(db: A
         _provider: str,
         *,
         custom_pricing: TokenPricing | None,
+        exchange_rates: Mapping[str, Decimal],
     ) -> Decimal:
         assert custom_pricing is None
+        assert exchange_rates == {"USD": Decimal(1)}
         return Decimal(usage.input_tokens) / 10_000
 
     with patch(

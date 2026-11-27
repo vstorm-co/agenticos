@@ -1,5 +1,5 @@
 ---
-source_sha: "f37df64b435d"
+source_sha: "e92fc3dfc743"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -899,7 +899,7 @@ dafür zu Hause an, was zwei wissenswerte Dinge bedeutet:
 - Preise zu aktualisieren ist ein Abhängigkeits-Update.
 
 Im Abschnitt **Preise** eines Modellprofils können Sie automatische Tokenpreise
-überschreiben. Eingabe und Ausgabe werden in USD pro Million Tokens angegeben.
+überschreiben. Eingabe und Ausgabe werden pro Million Tokens in der gewählten Währung angegeben (standardmäßig USD).
 Cache-Lese- und Schreibpreise sind optional und übernehmen bei leerem Feld den
 Eingabepreis. Eine ausdrückliche Null ist ein Preis. Die API verwendet dafür
 `custom_pricing`: Auslassen beim Aktualisieren behält die Einstellung bei,
@@ -929,6 +929,24 @@ Sie haben kein [Vault-Secret](secrets.md) für eine Zuordnung im Schlüsselberic
 
 Die Kosten werden *vor* jeder Modellanfrage geprüft und auch dann erfasst, wenn
 der Run fehlschlägt. Siehe [Budgets](governance.md#budgets).
+
+Eigene Preise enthalten einen `currency`-Code, unabhängig von Organisation und
+Oberflächensprache. Administratoren pflegen manuelle Kurse unter **Währungen und
+Wechselkurse**. Ein Kurs bedeutet Währungseinheiten pro USD: Bei EUR `0.9` werden
+`9 EUR` als `10 USD` erfasst. Die Nutzung behält ursprünglichen Betrag, Währung und
+angewendeten Kurs; spätere Änderungen überschreiben diese USD-Kosten nicht.
+Kosten von null werden auch ohne Wechselkurs als `0 USD` erfasst. Bei einem
+Ausgabenlimit ist vor der Inferenz ein Wechselkurs erforderlich, sobald einer
+der Tokenpreise des Profils Kosten verursachen kann. Das gilt auch für
+Lese- und Schreibzugriffe auf den Cache.
+
+Workflow-Statistiken (Gesamtkosten, monatliche Budgetangaben und Schrittkosten),
+Dashboard-Ausgaben, Run-Verlauf, Unterhaltungskosten und verbleibende Budgets
+werden in der effektiven Organisationswährung angezeigt. Die Ansicht verwendet
+den aktuellen manuellen Kurs: Eine Kursänderung ändert den angezeigten Gegenwert,
+während die gespeicherten USD-Kosten gleich bleiben. Fehlende Berichtskurse
+ergeben unbekannte Beträge. Budgeteingaben und übrige Schätzungsansichten bleiben
+bis zum Abschluss des restlichen #3221 in USD.
 
 ### Eine Delegation löst ihr eigenes Profile auf { #a-delegation-resolves-its-own-profile }
 

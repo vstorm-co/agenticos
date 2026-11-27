@@ -111,7 +111,9 @@ def _providers(db, ctx, *, fail_draft=False):
                     model="gpt-4o-mini",
                     provider="openai",
                     label="Helper",
-                    credential=SimpleNamespace(custom_pricing=None),
+                    credential=SimpleNamespace(
+                        custom_pricing=None, exchange_rates={"USD": Decimal(1)}
+                    ),
                 )
             ),
         ),
