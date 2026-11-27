@@ -2770,7 +2770,9 @@ def _candidate_of(check: SkillCheck) -> Candidate:
             )
             for name, item in sorted(files.items())
         ),
-        manifest_metadata=check.candidate_manifest_metadata,
+        # Checks created before frontmatter snapshots existed had no metadata.
+        # Bind that empty snapshot explicitly rather than inherit a newer live skill.
+        manifest_metadata=check.candidate_manifest_metadata or {},
     )
 
 

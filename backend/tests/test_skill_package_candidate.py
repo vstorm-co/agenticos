@@ -120,3 +120,28 @@ def test_instruction_whitespace_survives_edit_check_and_read_boundaries() -> Non
         ).content
         == body
     )
+
+
+def test_legacy_queued_check_does_not_inherit_new_live_frontmatter() -> None:
+    from app.db.models.skill import Skill
+    from app.services.skill_library import split_frontmatter
+    from app.services.skill_workspace import render_body
+
+    row = SkillCheck(
+        candidate_description="Description",
+        candidate_content="Old instructions",
+        candidate_resources=None,
+        candidate_manifest_metadata=None,
+    )
+    resumed = _candidate_of(row)
+    assert resumed.manifest_metadata == {}
+    live = Skill(
+        name="template",
+        description="New description",
+        content="New instructions",
+        manifest_metadata={"license": "new-license", "allowed-tools": ["execute"]},
+        resources=[],
+    )
+    metadata, body = split_frontmatter(render_body(live, resumed.body()))
+    assert metadata == {"name": "template", "description": "Description"}
+    assert body.strip() == "Old instructions"

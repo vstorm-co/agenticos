@@ -56,3 +56,22 @@ async def test_success_keeps_workspace_owned_by_terminal_run_cleanup(
     monkeypatch.setattr(service.workspaces, "close", close)
     assert await service._materialise_initial_skills(opened(), [], {}) is state
     close.assert_not_awaited()
+
+
+async def test_cleanup_flush_refusal_is_visible_without_masking_asset_failure(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from app.services.sandbox_workspace import WorkspaceFlushFailure
+
+    original = ExternalServiceError(message="Required asset unavailable")
+    monkeypatch.setattr(agent_runner, "materialise_skills", AsyncMock(side_effect=original))
+    service = AgentRunnerService(MagicMock(spec=AsyncSession))
+    close = AsyncMock(
+        return_value=WorkspaceFlushFailure(ExternalServiceError(message="Cleanup flush refused"))
+    )
+    monkeypatch.setattr(service.workspaces, "close", close)
+    with pytest.raises(ExternalServiceError) as caught:
+        await service._materialise_initial_skills(opened(), [], {})
+    assert caught.value is original
+    assert "skill_preparation_cleanup_failed" in caplog.text
+    close.assert_awaited_once()

@@ -424,3 +424,13 @@ async def test_proposal_metadata_accepts_exact_column_limits():
     )
     changes = await collect_changes(workspace, MaterialisedSkills())
     assert changes[0].name == name and changes[0].description == description
+
+
+async def test_required_binary_asset_write_refusal_fails_instead_of_claiming_a_file() -> None:
+    from app.core.exceptions import ExternalServiceError
+
+    body = encode_skill_file(b"\0\xff")
+    workspace = document_workspace(CappedStateBackend(max_bytes=1))
+    skill = _Skill(resources=[_Resource("assets/template.xlsx", body.content, body.encoding)])
+    with pytest.raises(ExternalServiceError, match="required binary skill asset"):
+        await materialise(workspace, [skill])
