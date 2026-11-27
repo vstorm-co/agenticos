@@ -101,6 +101,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Validate restored browser sign-in cookies against the pinned CDP contract without exposing malformed cookie values in errors. Development type checks now include the optional browser client used in production.
+
 - Keep legacy per-run browser activity visible when switching chat tabs. Reuse a conversation-owned browser only after a fresh readiness read; passive routing never starts an environment or replaces the selected Desktop or Visuals pane.
 
 - Explain when a proposed change quotes a credential and hold Apply, Accept and checks before submission; historical suggestions show the refusal without offering unavailable actions.

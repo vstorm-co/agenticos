@@ -14,9 +14,13 @@ import ipaddress
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from urllib.parse import urlsplit
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from cdp_use.cdp.fetch.events import RequestPausedEvent
+    from cdp_use.cdp.fetch.types import HeaderEntry
 
 from app.agents.capabilities.browser_use._endpoint import pin_host, version_url, websocket_url
 from app.core.config import settings
@@ -342,7 +346,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
 
     try:
         # ty: `cdp-use` arrives with the `browser` extra, as for `browser_use`.
-        from cdp_use import CDPClient  # ty: ignore[import-not-found]
+        from cdp_use import CDPClient
     except ImportError as exc:
         raise RenderUnavailableError("Drawing visuals needs the `browser` extra.") from exc
 
@@ -357,7 +361,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
 
     client = CDPClient(socket)
     await client.start()
-    pending: set[asyncio.Task[Any]] = set()
+    pending: set[asyncio.Task[None]] = set()
     budget = RenderRequestBudget()
     context_id: str | None = None
     target: str | None = None
@@ -381,7 +385,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
                     session_id=session,
                 )
                 return
-            headers = [
+            headers: list[HeaderEntry] = [
                 {"name": "Content-Type", "value": reply.content_type},
                 {"name": "Access-Control-Allow-Origin", "value": "*"},
             ]
@@ -397,7 +401,7 @@ async def _photograph(  # pragma: no cover - needs a live browser
                 session_id=session,
             )
 
-        def paused(event: dict[str, Any], session_id: str | None) -> None:
+        def paused(event: RequestPausedEvent, session_id: str | None) -> None:
             if session_id == session and budget.admit(len(pending)):
                 task = asyncio.ensure_future(respond(event["requestId"], event["request"]["url"]))
                 pending.add(task)

@@ -7,7 +7,7 @@ in a module that runs without one. What is here is I/O and the one piece of
 JavaScript that reads a page.
 
 `cdp-use` is imported inside the functions that use it. The `browser` extra is
-absent from a default install and from CI, and the capability has to register,
+absent from a default production install, and the capability has to register,
 enumerate its tool and build its toolset without it - so an agent bound to it on a
 deployment that never installed the extra fails that one tool with an install
 line, rather than failing to start.
@@ -24,12 +24,13 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 import anyio
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, JsonValue, TypeAdapter, ValidationError
 
 if TYPE_CHECKING:
-    # The optional browser extra supplies this SDK; the adapter below has typed
-    # application inputs/results even when its transport is not installed.
-    from cdp_use import CDPClient  # ty: ignore[import-not-found]
+    from cdp_use import CDPClient
+    from cdp_use.cdp.emulation.commands import SetUserAgentOverrideParameters
+    from cdp_use.cdp.emulation.types import UserAgentBrandVersion
+    from cdp_use.cdp.storage.commands import SetCookiesParameters
 
 from app.agents.browser_sign_ins import (
     SignIn,
@@ -374,7 +375,7 @@ reads as native code.
 """
 
 
-def headful_user_agent(version: Mapping[str, object]) -> dict[str, object] | None:
+def headful_user_agent(version: Mapping[str, object]) -> SetUserAgentOverrideParameters | None:
     """The user agent override that drops `Headless`, or `None` where there is none.
 
     A headless Chromium says so in its user agent and in its client hints, and
@@ -391,7 +392,10 @@ def headful_user_agent(version: Mapping[str, object]) -> dict[str, object] | Non
     product = str(version.get("product", ""))
     full = product.split("/", 1)[1] if "/" in product else ""
     major = full.split(".", 1)[0] or "0"
-    brands = [{"brand": "Chromium", "version": major}, {"brand": "Not.A/Brand", "version": "99"}]
+    brands: list[UserAgentBrandVersion] = [
+        {"brand": "Chromium", "version": major},
+        {"brand": "Not.A/Brand", "version": "99"},
+    ]
     return {
         "userAgent": agent.replace("HeadlessChrome", "Chrome"),
         "userAgentMetadata": {
@@ -408,7 +412,7 @@ def headful_user_agent(version: Mapping[str, object]) -> dict[str, object] | Non
 
 def user_agent_override(
     version: Mapping[str, object], locale: str | None
-) -> dict[str, object] | None:
+) -> SetUserAgentOverrideParameters | None:
     """What `Emulation.setUserAgentOverride` is sent, or `None` for nothing to change.
 
     The headful user agent where the browser is headless, and the organization's
@@ -418,8 +422,28 @@ def user_agent_override(
     override = headful_user_agent(version)
     if locale is None:
         return override
-    base = override or {"userAgent": str(version.get("userAgent", ""))}
+    base: SetUserAgentOverrideParameters = override or {
+        "userAgent": str(version.get("userAgent", ""))
+    }
     return {**base, "acceptLanguage": locale}
+
+
+def restored_cookie_parameters(
+    cookies: list[dict[str, JsonValue]], context_id: str | None
+) -> SetCookiesParameters:
+    """Validate saved JSON cookies against the pinned CDP wire contract."""
+    from cdp_use.cdp.network.types import CookieParam
+
+    try:
+        restored = TypeAdapter(list[CookieParam]).validate_python(
+            cookie_params(cookies), strict=True
+        )
+    except ValidationError:
+        raise EndpointError("Saved browser sign-in cookies are invalid.") from None
+    params: SetCookiesParameters = {"cookies": restored}
+    if context_id is not None:
+        params["browserContextId"] = context_id
+    return params
 
 
 def context_params(route: BrowserRoute | None, *, hosted: bool = False) -> dict[str, object]:
@@ -1382,12 +1406,9 @@ async def _browser_client(  # pragma: no cover - optional CDP transport
     try:
         import httpx
 
-        # ty: `cdp-use` arrives with the `browser` extra, which a default install
-        # and CI deliberately do not have - the whole design of this package is
-        # that everything but this function works without it. The import is
-        # inside the `try` for the same reason, and the `except` below is what a
-        # deployment missing the extra actually gets.
-        from cdp_use import CDPClient  # ty: ignore[import-not-found]
+        # The SDK is in development dependencies for typed adapter checks;
+        # production can omit the browser extra and gets an explicit refusal.
+        from cdp_use import CDPClient
     except ImportError as exc:
         raise RuntimeError(MISSING_EXTRA) from exc
 
@@ -1578,15 +1599,10 @@ async def open_page(  # pragma: no cover - needs a live browser
                 session_id=session,
             )
             if retained is None:
-                cookies = cookie_params(
-                    [cookie for sign_in in sign_ins for cookie in sign_in.cookies]
-                )
+                cookies = [cookie for sign_in in sign_ins for cookie in sign_in.cookies]
                 if cookies:
                     await client.send.Storage.setCookies(
-                        params={
-                            "cookies": cookies,
-                            **({"browserContextId": context_id} if context_id else {}),
-                        }
+                        params=restored_cookie_parameters(cookies, context_id)
                     )
                 if any(sign_in.local_storage for sign_in in sign_ins):
                     await client.send.Page.addScriptToEvaluateOnNewDocument(

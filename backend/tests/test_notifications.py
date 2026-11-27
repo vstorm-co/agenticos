@@ -2694,6 +2694,7 @@ async def test_department_warning_keeps_a_sub_cent_limit() -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.security
 async def test_budget_delivery_and_console_numbers_share_the_same_retained_quote(written):
     owner_id = uuid.uuid4()
     snapshot = ReportingQuote(currency="PLN", units_per_usd="4")

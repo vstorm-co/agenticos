@@ -264,6 +264,7 @@ class TestApprovalMailNamesWhoAsked:
         assert "\n\n\n" not in text
 
 
+@pytest.mark.security
 def test_queued_legacy_budget_mail_keeps_its_explicit_usd_amount() -> None:
     _, html, text = render_email("budget_exceeded", {"spent": "12.50"})
     assert "$12.50" in html and "$12.50" in text

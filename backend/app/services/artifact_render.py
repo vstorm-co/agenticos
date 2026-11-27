@@ -874,7 +874,8 @@ def _attribute(value: str) -> str:
 class _CdpUseClient(Protocol):
     """The part of `cdp_use.CDPClient` a render uses."""
 
-    register: object
+    @property
+    def register(self) -> object: ...
 
     async def send_raw(
         self, method: str, params: CdpPayload | None = None, session_id: str | None = None
@@ -963,8 +964,8 @@ async def _connect(endpoint: str) -> CdpConnection:
     """
     try:
         # ty: `cdp-use` arrives with the `browser` extra, which a default install
-        # and CI do not have; the `except` is what such a deployment gets.
-        from cdp_use import CDPClient  # ty: ignore[import-not-found]
+        # need not have; the `except` is what such a deployment gets.
+        from cdp_use import CDPClient
     except ImportError as missing:
         raise ConfigurationError(message=NO_EXTRA) from missing
     try:
