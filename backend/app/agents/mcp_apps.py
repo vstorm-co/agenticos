@@ -80,6 +80,12 @@ class McpAppRecord(TypedDict):
     """The binding's approval policy for this server."""
     tool_approval: dict[str, ApprovalMode]
     """The binding's per-tool approvals, by the server's names."""
+    endpoint_hash: str
+    """The SHA-256 of the connection's URL when the call was made: a repointed
+    connection is another server, whose page and tools this call never had."""
+    authorization_generation: str | None
+    """The connection's credential generation when the call was made: a replaced
+    token or a new sign-in is another account."""
 
 
 _STORED: TypeAdapter[McpAppRecord] = TypeAdapter(McpAppRecord)
@@ -156,30 +162,31 @@ def _toolset_record(metadata: dict[str, Any]) -> MCPAppToolResult | None:
 
 
 def _without_binary(result: dict[str, Any]) -> dict[str, Any]:
-    """The result with image, audio and blob data dropped: the page gets the rest.
+    """The result without its image, audio and blob blocks: the page gets the rest.
 
     In wire form they are base64 strings, kept with the call for ever and sent to
-    every reader; a page that needs one reads it from the server instead.
+    every reader; a page that needs one reads it from the server instead. The
+    blocks go whole: one without its data is not a valid content block, and a
+    page that validates the result would refuse all of it.
     """
     content = result.get("content")
     if not isinstance(content, list):
         return result
-    blocks: list[Any] = []
-    for block in content:
-        match block:
-            case {"type": "image" | "audio"}:
-                blocks.append({key: value for key, value in block.items() if key != "data"})
-            case {"type": "resource", "resource": {"blob": _} as resource}:
-                blocks.append(
-                    {
-                        **block,
-                        "resource": {
-                            key: value for key, value in resource.items() if key != "blob"
-                        },
-                    }
+    blocks = [
+        block
+        for block in content
+        if not (
+            isinstance(block, dict)
+            and (
+                block.get("type") in ("image", "audio")
+                or (
+                    block.get("type") == "resource"
+                    and isinstance(block.get("resource"), dict)
+                    and "blob" in block["resource"]
                 )
-            case _:
-                blocks.append(block)
+            )
+        )
+    ]
     return {**result, "content": blocks}
 
 
@@ -203,6 +210,8 @@ class McpAppResults(WrapperToolset[Any]):
     allowed_tools: list[str] | None = None
     approval: McpApproval = "none"
     tool_approval: Mapping[str, ApprovalMode] = dataclasses.field(default_factory=dict)
+    endpoint_hash: str = ""
+    authorization_generation: UUID | None = None
 
     async def call_tool(
         self, name: str, tool_args: dict[str, Any], ctx: RunContext[Any], tool: ToolsetTool[Any]
@@ -224,6 +233,10 @@ class McpAppResults(WrapperToolset[Any]):
             allowed_tools=self.allowed_tools,
             approval=self.approval,
             tool_approval=dict(self.tool_approval),
+            endpoint_hash=self.endpoint_hash,
+            authorization_generation=(
+                str(self.authorization_generation) if self.authorization_generation else None
+            ),
         )
         if len(json.dumps(record, default=str)) > MAX_RECORD_BYTES:
             return _without_record(result)

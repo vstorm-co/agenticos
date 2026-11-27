@@ -545,6 +545,8 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         allowed_tools=spec.allowed_tools,
         approval=spec.approval,
         tool_approval=spec.tool_approval,
+        endpoint_hash=hashlib.sha256(spec.url.encode()).hexdigest(),
+        authorization_generation=spec.authorization_generation,
     )
     if spec.source_connection_id is not None and spec.authorization_generation is not None:
         server = SourceStamped(

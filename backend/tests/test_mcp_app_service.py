@@ -8,9 +8,11 @@ refused rather than run.
 """
 
 import base64
+import hashlib
+from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from mcp.types import Tool, ToolAnnotations
@@ -30,6 +32,7 @@ from app.services.mcp_app import McpAppService
 pytestmark = pytest.mark.anyio
 
 PAGE = "ui://charts/viewer.html"
+GENERATION = "6f1c1f4e-1111-4c8a-9a54-0d1e1c1f4e11"
 HTML = "<!doctype html><title>chart</title>"
 
 
@@ -47,6 +50,8 @@ def _record(connection_id: Any, **overrides: Any) -> dict[str, Any]:
         "allowed_tools": None,
         "approval": "writes",
         "tool_approval": {},
+        "endpoint_hash": hashlib.sha256(b"https://charts.example.com/mcp").hexdigest(),
+        "authorization_generation": GENERATION,
         **overrides,
     }
 
@@ -63,6 +68,7 @@ def _connection(ctx: AuthContext, **overrides: Any) -> MagicMock:
         "user_id": None,
         "organization_id": ctx.organization_id,
         "allowed_tools": None,
+        "authorization_generation": UUID(GENERATION),
     }
     return MagicMock(**(fields | overrides))
 
@@ -139,6 +145,15 @@ def world(monkeypatch):
     monkeypatch.setattr(module, "MCPToolset", _toolset)
     monkeypatch.setattr(module, "app_client", lambda url, headers, **_: ("client", url, headers))
     monkeypatch.setattr(module, "record_audit", audit)
+    audit_sessions: list[Any] = []
+
+    @asynccontextmanager
+    async def _own_session():
+        session = MagicMock(name="audit session")
+        audit_sessions.append(session)
+        yield session
+
+    monkeypatch.setattr(module, "get_db_context", _own_session)
     return MagicMock(
         ctx=ctx,
         connection=connection,
@@ -146,6 +161,7 @@ def world(monkeypatch):
         server=server,
         get_conversation=get_conversation,
         audit=audit,
+        audit_sessions=audit_sessions,
         built=built,
         service=McpAppService(MagicMock()),
     )
@@ -202,6 +218,20 @@ class TestFrame:
     async def test_a_connection_that_no_longer_shows_pages_here_has_none(self, world, change):
         for key, value in change.items():
             setattr(world.connection, key, value)
+
+        with pytest.raises(NotFoundError):
+            await world.service.frame(world.ctx, conversation_id=uuid4(), tool_call_id="call-1")
+
+    async def test_a_connection_repointed_at_another_server_has_none(self, world):
+        """Its page and tools are another server's, which this call never had."""
+        world.connection.url = "https://elsewhere.example.com/mcp"
+
+        with pytest.raises(NotFoundError):
+            await world.service.frame(world.ctx, conversation_id=uuid4(), tool_call_id="call-1")
+
+    async def test_a_connection_signed_in_again_has_none(self, world):
+        """A replaced token or a new sign-in may be another account."""
+        world.connection.authorization_generation = uuid4()
 
         with pytest.raises(NotFoundError):
             await world.service.frame(world.ctx, conversation_id=uuid4(), tool_call_id="call-1")
@@ -313,6 +343,26 @@ class TestToolCall:
         assert audit["target_id"] == str(world.connection.id)
         assert audit["details"]["tool"] == "data_query"
         assert "widget_id" not in str(audit["details"])
+        # In a session of its own, which commits whatever the request does after.
+        assert world.audit.await_args.args[0] is world.audit_sessions[0]
+
+    async def test_a_call_is_audited_before_it_goes_out(self, world):
+        """A server can carry out a write and lose the answer: the entry is there."""
+
+        async def lost(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+            world.audit.assert_awaited_once()
+            raise OSError("connection reset after the write")
+
+        world.server.call_tool_for_app = lost
+
+        with pytest.raises(ExternalServiceError):
+            await _relay(world)
+        world.audit.assert_awaited_once()
+
+    async def test_a_refused_tool_is_not_audited_as_called(self, world):
+        with pytest.raises(AuthorizationError):
+            await _relay(world, name="drop_tables")
+        world.audit.assert_not_awaited()
 
     async def test_a_tool_the_server_does_not_list_is_refused(self, world):
         with pytest.raises(AuthorizationError):

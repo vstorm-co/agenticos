@@ -158,12 +158,41 @@ describe("McpAppFrame", () => {
     expect(api.mcpAppCallTool).not.toHaveBeenCalled();
   });
 
-  it("says so when the page cannot be had", async () => {
-    api.mcpAppFrameUrl.mockRejectedValue(new Error("404"));
-    render(<McpAppFrame conversationId="conv-1" call={call()} />);
+  it("asks again for an address the turn's row was not saved for yet", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      api.mcpAppFrameUrl
+        .mockRejectedValueOnce(new Error("404"))
+        .mockResolvedValueOnce("https://content.example.com/api/v1/artifact-content/mcp-app/tok");
+      render(<McpAppFrame conversationId="conv-1" call={call()} />);
 
-    expect(await screen.findByText("This result's page could not be loaded.")).toBeInTheDocument();
-    expect(document.querySelector("iframe")).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+
+      await waitFor(() => expect(frameOf()).not.toBeNull());
+      expect(api.mcpAppFrameUrl).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says so when the page cannot be had after asking a few times", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      api.mcpAppFrameUrl.mockRejectedValue(new Error("404"));
+      render(<McpAppFrame conversationId="conv-1" call={call()} />);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+
+      expect(screen.getByText("This result's page could not be loaded.")).toBeInTheDocument();
+      expect(api.mcpAppFrameUrl).toHaveBeenCalledTimes(4);
+      expect(document.querySelector("iframe")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -7,7 +7,7 @@ stamp it with the connection and the run's policy where it is on, and keep it
 small enough to store with the call.
 """
 
-import json
+import hashlib
 from contextlib import asynccontextmanager
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -58,6 +58,8 @@ def _stored(**overrides: Any) -> dict[str, Any]:
         "allowed_tools": None,
         "approval": "writes",
         "tool_approval": {},
+        "endpoint_hash": "0" * 64,
+        "authorization_generation": None,
         **overrides,
     }
 
@@ -172,13 +174,15 @@ class TestAppResults:
         assert with_content.content == "see"
 
     async def test_with_pages_on_the_record_names_its_connection_and_the_runs_policy(self):
-        connection = uuid4()
+        connection, generation = uuid4(), uuid4()
         toolset = _wrapping(
             ToolReturn(return_value="5 rows", metadata={"mcp_app": _raw(), "trace": 1}),
             connection_id=connection,
             allowed_tools=["data_query", "chart_show"],
             approval="all",
             tool_approval={"data_query": "never"},
+            endpoint_hash="e" * 64,
+            authorization_generation=generation,
         )
 
         result = await _call(toolset)
@@ -195,6 +199,8 @@ class TestAppResults:
             "allowed_tools": ["data_query", "chart_show"],
             "approval": "all",
             "tool_approval": {"data_query": "never"},
+            "endpoint_hash": "e" * 64,
+            "authorization_generation": str(generation),
         }
 
     async def test_binary_content_is_not_kept_for_the_page(self):
@@ -213,9 +219,11 @@ class TestAppResults:
         )
 
         content = app_record(result.metadata)["result"]["content"]  # type: ignore[index]
-        assert "aGVsbG8=" not in json.dumps(content)
-        assert content[3] == {"type": "resource", "resource": {"uri": "file:///b", "text": "kept"}}
-        assert content[4] == {"type": "text", "text": "kept"}
+        # Whole blocks go: one without its data is not valid MCP content.
+        assert content == [
+            {"type": "resource", "resource": {"uri": "file:///b", "text": "kept"}},
+            {"type": "text", "text": "kept"},
+        ]
 
     async def test_a_result_without_a_content_list_is_kept_as_it_is(self):
         raw = _raw()
@@ -278,6 +286,7 @@ class TestServing:
         apps = toolset.wrapped.wrapped.wrapped.wrapped
         assert isinstance(apps, McpAppResults)
         assert apps.connection_id == spec.source_connection_id
+        assert apps.endpoint_hash == hashlib.sha256(spec.url.encode()).hexdigest()
         server = apps.wrapped
         assert isinstance(server, MCPToolset)
         client = server.client

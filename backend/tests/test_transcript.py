@@ -129,6 +129,8 @@ class TestReadingToolCallsOffARun:
             "allowed_tools": None,
             "approval": "writes",
             "tool_approval": {},
+            "endpoint_hash": "0" * 64,
+            "authorization_generation": None,
         }
         returned = ModelRequest(
             parts=[
@@ -156,6 +158,8 @@ class TestReadingToolCallsOffARun:
             "allowed_tools": None,
             "approval": "all",
             "tool_approval": {},
+            "endpoint_hash": "0" * 64,
+            "authorization_generation": None,
         }
         resumed = ModelRequest(
             parts=[

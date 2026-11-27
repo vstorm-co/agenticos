@@ -18,6 +18,9 @@ const INITIAL_HEIGHT = 320;
 /** The tallest a page stands under the message; past this it scrolls inside its frame. */
 const MAX_HEIGHT = 900;
 const MIN_HEIGHT = 80;
+/** How often a page's address is asked for before the frame gives up, and the first wait. */
+const FRAME_ATTEMPTS = 4;
+const FRAME_RETRY_MS = 750;
 
 /**
  * One MCP Apps page under the message whose tool call it belongs to (#3450).
@@ -51,14 +54,26 @@ export function McpAppFrame({ conversationId, call }: { conversationId: string; 
     setFailed(true);
   };
 
+  // The turn's end reaches the browser a moment before its row is saved, so an
+  // address asked for at once can be refused: ask again a few times before
+  // saying the page cannot be had.
   useEffect(() => {
     let current = true;
-    mcpAppFrameUrl(conversationId, call.id).then(
-      (address) => current && setUrl(address),
-      () => current && setFailed(true),
-    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ask = (attempt: number) => {
+      mcpAppFrameUrl(conversationId, call.id).then(
+        (address) => current && setUrl(address),
+        () => {
+          if (!current) return;
+          if (attempt + 1 >= FRAME_ATTEMPTS) setFailed(true);
+          else timer = setTimeout(() => ask(attempt + 1), FRAME_RETRY_MS * (attempt + 1));
+        },
+      );
+    };
+    ask(0);
     return () => {
       current = false;
+      clearTimeout(timer);
     };
   }, [conversationId, call.id]);
 

@@ -19,6 +19,7 @@ connection only for that person.
 """
 
 import base64
+import hashlib
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -50,6 +51,7 @@ from app.core.permissions import AuthContext
 from app.core.security import create_mcp_app_view_token, read_uuid_claim, verify_special_token
 from app.db.models.conversation import ToolCall
 from app.db.models.mcp_connection import McpConnection
+from app.db.session import get_db_context
 from app.repositories import conversation as conversation_repo
 from app.repositories import mcp_connection as mcp_connection_repo
 from app.services.artifact import content_address
@@ -173,26 +175,28 @@ class McpAppService:
                 meta=tool.meta,
                 read_only=_read_only(tool.annotations),
             )
+            # Recorded before the call goes out, and committed on its own: a server
+            # can carry out a write and lose the answer, and a request that fails
+            # then would take an entry in its own transaction down with it. The
+            # tool and where it was asked from, never its arguments: those are the
+            # page's, and as likely to hold a person's data as a model's would.
+            async with get_db_context() as audit_db:
+                await record_audit(
+                    audit_db,
+                    actor_user_id=ctx.subject_id,
+                    organization_id=ctx.organization_id,
+                    action="mcp_connection.app_tool_called",
+                    target_type="mcp_connection",
+                    target_id=str(connection.id),
+                    details={
+                        "tool": name,
+                        "conversation_id": str(conversation_id),
+                        "tool_call_id": str(call.id),
+                    },
+                )
             return await toolset.call_tool_for_app(name, arguments)
 
-        result = await self._relay(connection, relay)
-        # The tool and where it was asked from, never its arguments: those are the
-        # page's, and as likely to hold a person's data as a model's would.
-        await record_audit(
-            self.db,
-            actor_user_id=ctx.subject_id,
-            organization_id=ctx.organization_id,
-            action="mcp_connection.app_tool_called",
-            target_type="mcp_connection",
-            target_id=str(connection.id),
-            details={
-                "tool": name,
-                "conversation_id": str(conversation_id),
-                "tool_call_id": str(call.id),
-                "is_error": result.get("isError") is True,
-            },
-        )
-        return result
+        return await self._relay(connection, relay)
 
     async def read_resource(
         self, ctx: AuthContext, *, conversation_id: UUID, tool_call_id: str, uri: str
@@ -247,10 +251,14 @@ class McpAppService:
 
         A person's own connection answers to that person alone: a colleague
         reading the conversation does not get to use somebody else's account.
+        And it is the connection the call was made through: one repointed at
+        another server, or signed in again as another account, is not.
         """
         connection = await mcp_connection_repo.get_by_id(self.db, UUID(record["connection_id"]))
         if (
             connection is None
+            or hashlib.sha256(connection.url.encode()).hexdigest() != record["endpoint_hash"]
+            or str(connection.authorization_generation) != record["authorization_generation"]
             or connection.purpose != "mcp"
             or not connection.is_enabled
             or not connection.mcp_apps

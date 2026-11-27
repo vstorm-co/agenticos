@@ -2801,6 +2801,8 @@ class TestForwardingToolEvents:
             "allowed_tools": None,
             "approval": "writes",
             "tool_approval": {},
+            "endpoint_hash": "0" * 64,
+            "authorization_generation": None,
         }
 
         async def _events():
