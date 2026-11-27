@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -24,6 +24,8 @@ import {
   SharedMemoryClaims,
   SharedMemoryNotes,
 } from "./memory-object-library";
+
+import { MemoryObjectMerge } from "./memory-object-merge";
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -102,6 +104,7 @@ describe("company memory objects", () => {
       agent_name: null,
       scope: "profile",
       subject: "headcount",
+      value: 20,
       statement: "20 employees",
       kind: "fact",
       origin: "agent",
@@ -144,9 +147,10 @@ describe("company memory objects", () => {
     const revised = screen.getByRole("textbox", { name: "statement" });
     await user.clear(revised);
     await user.type(revised, "22 employees");
+    fireEvent.change(screen.getByLabelText("typedValue"), { target: { value: "22" } });
     await user.click(screen.getByRole("button", { name: "save" }));
     await waitFor(() =>
-      expect(amendHistoricalClaim).toHaveBeenCalledWith(claim.id, "22 employees", undefined),
+      expect(amendHistoricalClaim).toHaveBeenCalledWith(claim.id, "22 employees", undefined, 22),
     );
   });
 });
@@ -393,4 +397,61 @@ it("lets a shared memory editor review an alias and undo it from the original ti
   await user.click(await screen.findByRole("button", { name: "undoNamed" }));
   expect(undoMemoryObjectMerge).toHaveBeenCalledWith("organization", target.id, association.id);
   await waitFor(() => expect(screen.queryByRole("button", { name: "undoNamed" })).toBeNull());
+});
+
+it("keeps alias and candidate paging independent and reports a refused merge", async () => {
+  const target = { id: "atlas", kind: "company", name: "Atlas" } as const;
+  const source = {
+    id: "branch",
+    kind: "company",
+    name: "Atlas Region",
+    external_key: "crm:2",
+  } as const;
+  scopeOf.mockReturnValue("all");
+  vi.mocked(getMemoryObjectMerges).mockImplementation(async (_library, _id, cursor) => ({
+    items: [],
+    next_cursor: cursor ? null : "alias-page",
+  }));
+  vi.mocked(getMemoryObjects).mockImplementation(async (_library, _q, _kind, cursor) => ({
+    items: [source],
+    next_cursor: cursor ? null : "candidate-page",
+  }));
+  vi.mocked(mergeMemoryObject).mockRejectedValueOnce(new Error("retired"));
+  mount(<MemoryObjectMerge org="o" library="organization" object={target} />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "moreAliases" }));
+  await waitFor(() =>
+    expect(getMemoryObjectMerges).toHaveBeenLastCalledWith("organization", "atlas", "alias-page"),
+  );
+  await user.click(screen.getByRole("button", { name: "firstPage" }));
+  await waitFor(() =>
+    expect(getMemoryObjectMerges).toHaveBeenLastCalledWith("organization", "atlas", null),
+  );
+
+  await user.click(await screen.findByRole("button", { name: "moreCandidates" }));
+  await waitFor(() =>
+    expect(getMemoryObjects).toHaveBeenLastCalledWith(
+      "organization",
+      "",
+      "all",
+      "candidate-page",
+      "atlas",
+    ),
+  );
+  const form = within(screen.getByRole("form"));
+  await user.click(form.getByRole("button", { name: "firstPage" }));
+  await user.type(form.getByPlaceholderText("findAlias"), "Region");
+  await waitFor(() =>
+    expect(getMemoryObjects).toHaveBeenLastCalledWith(
+      "organization",
+      "Region",
+      "all",
+      null,
+      "atlas",
+    ),
+  );
+  const candidate = await form.findByRole("option", { name: "Atlas Region (crm:2)" });
+  await user.selectOptions(form.getByRole("combobox", { name: "chooseAlias" }), candidate);
+  await user.click(form.getByRole("button", { name: "merge" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("mergeFailed");
 });

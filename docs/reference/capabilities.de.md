@@ -1,5 +1,5 @@
 ---
-source_sha: "42f16110d160"
+source_sha: "13c9b2043aaf"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -561,6 +561,8 @@ die Auswahl, wird sie erneut geprüft.
 Ein Schalter, **Allow personal memory**, streicht den personenbezogenen Speicher
 vollständig, aus Compliance- oder Datenschutzgründen; die in Gruppenchats
 geführten Notizen bleiben.
+
+Eine reine Textkorrektur behält den typisierten Wert. Ändere **Gespeicherter Wert** im Editor oder übergib `value` an `correct_memory`, um ihn zu ersetzen. Eine neue Bezeichnung für denselben externen Schlüssel erhält den Objektverlauf unter derselben ID.
 
 ### Objektaliase und Nachpflege { #memory-object-operations }
 

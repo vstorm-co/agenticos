@@ -1,4 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as renderUI, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
@@ -10,6 +12,15 @@ vi.mock("@/lib/file-access", async (original) => ({
   ...(await original<typeof import("@/lib/file-access")>()),
   saveBlob: vi.fn(),
 }));
+function render(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderUI(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+}
+
 const note: MemoryNote = {
   id: "note",
   agent_id: "agent",

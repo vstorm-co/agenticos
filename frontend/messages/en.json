@@ -7256,6 +7256,7 @@
         "correct": "Correct memory",
         "retract": "Stop using",
         "statement": "Corrected statement",
+        "typedValue": "Recorded value",
         "effectiveFrom": "Holds from",
         "cancel": "Cancel",
         "save": "Save correction",

@@ -495,7 +495,7 @@ async def test_the_job_reads_one_run_in_its_own_session(
     assert (
         await memory_tasks.extract_memory(ExtractMemory(organization_id=org_id, run_id=run_id)) == 3
     )
-    read.assert_awaited_once_with(db, org_id, run_id)
+    read.assert_awaited_once_with(db, org_id, run_id, write_notes=True)
 
 
 @pytest.mark.parametrize("moved", ["project", "edit share"])
@@ -915,7 +915,11 @@ async def test_the_worker_preserves_a_room_audience(
     )
     assert await memory_tasks.extract_memory(payload) == 1
     read.assert_awaited_once_with(
-        db, org_id, run_id, audience=RunAudience(user_id=user_id, room_key="room:slack:C123")
+        db,
+        org_id,
+        run_id,
+        audience=RunAudience(user_id=user_id, room_key="room:slack:C123"),
+        write_notes=True,
     )
 
 

@@ -119,6 +119,7 @@ from app.db.models.context_proposal import ContextProposal
 from app.db.models.memory import AgentMemoryFile, MemoryNoteRevision
 from app.db.models.memory_claim import (
     MemoryClaim,
+    MemoryClaimEvidence,
     MemoryClaimRevision,
     MemoryInboxDecision,
     MemoryInboxRule,

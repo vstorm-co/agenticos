@@ -513,6 +513,8 @@ set of candidates changes, the editor reviews the updated list.
 One switch, **Allow personal memory**, drops the per-person store entirely for
 compliance or privacy; the notes kept in group chats stay.
 
+Corrections keep the current typed value when you edit the wording. Change **Recorded value** in the editor or pass `value` to `correct_memory` to replace it. A new label for an existing external key keeps the object's history under the same ID.
+
 ### Object aliases and backfill { #memory-object-operations }
 
 In an object's timeline, open **Object aliases** to review another object of

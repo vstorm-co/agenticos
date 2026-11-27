@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import {
@@ -14,9 +14,17 @@ import { MemoryOperations } from "./memory-operations";
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@/hooks/use-members", () => ({ useMembers: () => ({ members: [], error: null }) }));
 vi.mock("@/components/orgs/member-picker", () => ({
-  MemberPicker: ({ onToggle }: { onToggle: (id: string) => void }) => (
-    <button type="button" onClick={() => onToggle("reviewer")}>
-      Select reviewer
+  MemberPicker: ({
+    onToggle,
+    label,
+    selected,
+  }: {
+    onToggle: (id: string) => void;
+    label: (count: number) => string;
+    selected: string[];
+  }) => (
+    <button type="button" aria-label="Select reviewer" onClick={() => onToggle("reviewer")}>
+      {label(selected.length)}
     </button>
   ),
 }));
@@ -28,6 +36,15 @@ vi.mock("@/lib/memory-api", async (importOriginal) => ({
   runMemoryObjectBackfill: vi.fn(),
   setMemoryInboxRule: vi.fn(),
 }));
+
+function mount() {
+  const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={query}>
+      <MemoryOperations />
+    </QueryClientProvider>,
+  );
+}
 
 it("saves a reviewed shadow rule and resumes the existing backfill", async () => {
   vi.mocked(getMemoryInboxRule).mockResolvedValue({
@@ -44,12 +61,7 @@ it("saves a reviewed shadow rule and resumes the existing backfill", async () =>
   vi.mocked(setMemoryInboxRule).mockImplementation(async (rule) => ({ ...rule, version: 7 }));
 
   const user = userEvent.setup();
-  const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
-    <QueryClientProvider client={query}>
-      <MemoryOperations />
-    </QueryClientProvider>,
-  );
+  mount();
 
   await user.selectOptions(await screen.findByRole("combobox", { name: "modeLabel" }), "shadow");
   expect(screen.getByRole("button", { name: "save" })).toBeDisabled();
@@ -68,4 +80,44 @@ it("saves a reviewed shadow rule and resumes the existing backfill", async () =>
   );
   await user.click(await screen.findByRole("button", { name: "resume" }));
   expect(runMemoryObjectBackfill).toHaveBeenCalledWith(false, expect.anything());
+});
+
+it("refreshes a stale rule and reads outcomes from a chosen version", async () => {
+  const rule = {
+    version: 6,
+    mode: "live",
+    sources: ["gmail"],
+    recipient_ids: ["reviewer"],
+    include_review: false,
+  } as const;
+  vi.mocked(getMemoryInboxRule)
+    .mockResolvedValue({ ...rule, sources: ["gmail"], recipient_ids: ["reviewer"] })
+    .mockResolvedValueOnce({ ...rule, sources: ["gmail"], recipient_ids: ["reviewer"] });
+  vi.mocked(getMemoryInboxDecisions).mockResolvedValue([
+    { change: "review", outcome: "shadow", count: 2 },
+  ]);
+  vi.mocked(getMemoryObjectBackfill).mockResolvedValue(null);
+  vi.mocked(setMemoryInboxRule).mockRejectedValueOnce(new Error("stale version"));
+  mount();
+  const user = userEvent.setup();
+  const version = await screen.findByRole("spinbutton", { name: "version" });
+  fireEvent.change(version, { target: { value: "5" } });
+  expect(await screen.findByText("outcome")).toBeVisible();
+  expect(getMemoryInboxDecisions).toHaveBeenCalledWith(5);
+  await user.click(screen.getByRole("button", { name: "reload" }));
+  await waitFor(() => expect(getMemoryInboxDecisions).toHaveBeenLastCalledWith(5));
+
+  await user.click(screen.getByRole("checkbox", { name: "webhook" }));
+  await user.click(screen.getByRole("checkbox", { name: "gmail" }));
+  await user.click(screen.getByRole("button", { name: "Select reviewer" }));
+  expect(screen.getByRole("button", { name: "save" })).toBeDisabled();
+  await user.click(screen.getByRole("button", { name: "Select reviewer" }));
+  await user.click(screen.getByRole("button", { name: "save" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("saveFailed");
+  await user.click(screen.getAllByRole("button", { name: "reload" })[0]!);
+  await waitFor(() => expect(screen.queryByText("saveFailed")).toBeNull());
+  expect(setMemoryInboxRule).toHaveBeenCalledWith(
+    expect.objectContaining({ sources: ["webhook"] }),
+    expect.anything(),
+  );
 });

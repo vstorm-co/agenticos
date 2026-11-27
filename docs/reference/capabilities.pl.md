@@ -1,5 +1,5 @@
 ---
-source_sha: "42f16110d160"
+source_sha: "13c9b2043aaf"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -536,6 +536,8 @@ a decyzja trafia do audytu. Zmiana kandydatów wymaga ponownego przeglądu.
 Jeden przełącznik, **Allow personal memory**, znosi magazyn osobowy w całości ze
 względu na zgodność albo prywatność; notatki prowadzone na czatach grupowych
 zostają.
+
+Korekta samego tekstu zachowuje zapisaną wartość typowaną. Zmień pole **Zapisana wartość** w edytorze lub przekaż `value` do `correct_memory`, aby ją zastąpić. Nowa nazwa dla istniejącego klucza zewnętrznego zachowuje historię obiektu pod tym samym ID.
 
 ### Aliasy i uzupełnianie obiektów { #memory-object-operations }
 

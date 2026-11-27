@@ -127,6 +127,8 @@ export async function reviewDecisionCase(
   });
 }
 
+export type MemoryValue = string | number | boolean;
+
 export interface MemoryClaim {
   id: string;
   agent_id: string | null;
@@ -135,7 +137,7 @@ export interface MemoryClaim {
   scope: "profile" | "agent" | "organization" | "group";
   subject: string | null;
   object_id?: string | null;
-  value?: string | number | boolean | null;
+  value?: MemoryValue | null;
   statement: string;
   kind: string;
   origin: "agent" | "person" | "consolidation";
@@ -183,11 +185,13 @@ export async function correctClaim(
   statement: string,
   effectiveFrom: string | null,
   episode?: DecisionEpisode,
+  value?: MemoryValue,
 ): Promise<MemoryClaim> {
   return apiClient.post<MemoryClaim>(`${ROOT}/claims/mine/${id}/correct`, {
     statement,
     effective_from: effectiveFrom,
     ...(episode ? { episode } : {}),
+    ...(value === undefined ? {} : { value }),
   });
 }
 
@@ -299,11 +303,17 @@ export function shareMemoryNote(note: MemoryNote, groupId: string | null) {
   });
 }
 
-export function amendHistoricalClaim(id: string, statement: string, episode?: DecisionEpisode) {
+export function amendHistoricalClaim(
+  id: string,
+  statement: string,
+  episode?: DecisionEpisode,
+  value?: MemoryValue,
+) {
   return apiClient.post<MemoryClaim>(`${ROOT}/claims/mine/${id}/correct`, {
     statement,
     episode,
     historical: true,
+    ...(value === undefined ? {} : { value }),
   });
 }
 

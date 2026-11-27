@@ -166,18 +166,13 @@ async def remember(
     if effective_to is not None and (effective_from is None or effective_to <= effective_from):
         raise BadRequestError(message="Memory validity must have a start before its end")
     if object_ref is not None:
-        identity_key = (
-            f"external:{object_ref.external_key}"
-            if object_ref.external_key is not None
-            else f"name:{' '.join(object_ref.name.casefold().split())}"
-        )
         entity = await claim_repo.put_object(
             db,
             organization_id=organization_id,
             scope_key=scope.scope_key,
             kind=object_ref.kind,
             name=object_ref.name,
-            identity_key=identity_key,
+            identity_key=object_ref.identity_key,
         )
         object_id = entity.id
     episode_data = None if episode is None else episode.model_dump(mode="json")
@@ -333,6 +328,7 @@ async def correct(
     *,
     claim: MemoryClaim,
     statement: str,
+    value: MemoryValue | None = None,
     author_user_id: UUID,
     effective_from: datetime | None = None,
     episode: DecisionEpisode | None = None,
@@ -358,6 +354,7 @@ async def correct(
         organization_id=claim.organization_id,
         scope=ClaimScope(claim.scope_key, claim.agent_id),
         statement=statement,
+        value=claim.value if value is None else value,
         subject=subject,
         object_id=claim.object_id,
         mail_event_id=claim.mail_event_id if origin == "agent" else None,
@@ -385,6 +382,7 @@ async def amend_observation(
     *,
     claim: MemoryClaim,
     statement: str,
+    value: MemoryValue | None = None,
     author_user_id: UUID,
     episode: DecisionEpisode | None = None,
 ) -> MemoryClaim:
@@ -410,6 +408,7 @@ async def amend_observation(
         scope_key=row.scope_key,
         agent_id=row.agent_id,
         statement=statement.strip(),
+        value=row.value if value is None else value,
         object_id=row.object_id,
         subject=row.subject,
         kind=row.kind,
@@ -505,6 +504,7 @@ async def share(
             kind=entity.kind,
             name=entity.name,
             identity_key=entity.identity_key,
+            refresh_name=False,
         )
         target_object_id = target_entity.id
     result = await remember(

@@ -57,6 +57,7 @@ class ClaimView:
     episode: DecisionEpisode | None = None
     object_id: UUID | None = None
     effective_to: datetime | None = None
+    value: MemoryValue | None = None
 
 
 def _view(claim: MemoryClaim) -> ClaimView:
@@ -68,6 +69,7 @@ def _view(claim: MemoryClaim) -> ClaimView:
         object_id=claim.object_id,
         effective_to=claim.effective_to,
         statement=claim.statement,
+        value=claim.value,
         subject=claim.subject,
         kind=claim.kind,
         origin=claim.origin,
@@ -241,6 +243,7 @@ async def correct(
     run_id: UUID | None,
     conversation_id: UUID | None,
     agent_id: UUID | None,
+    value: MemoryValue | None = None,
 ) -> ClaimView | None:
     """An agent's record of a person's correction, in a scope they may read; `None` if none.
 
@@ -280,6 +283,7 @@ async def correct(
                 db,
                 claim=claim,
                 statement=statement,
+                value=value,
                 author_user_id=author_user_id,
                 effective_from=effective_from,
                 origin="agent",

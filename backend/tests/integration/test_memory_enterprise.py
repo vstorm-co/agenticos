@@ -1841,3 +1841,89 @@ async def test_inbox_checks_the_still_authorized_source_at_delivery(
     grant.is_enabled = False
     await db.flush()
     assert (await center.list_inbox(member, after=None, limit=10))[0] == []
+
+
+@pytest.mark.parametrize("historical", [False, True])
+@pytest.mark.parametrize("replacement", [None, 0, False, "2026-12-04"])
+async def test_corrections_preserve_or_replace_typed_values(
+    db: AsyncSession, historical: bool, replacement: int | bool | str | None
+) -> None:
+    org, owner, _ = await _org(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    end = start + timedelta(days=1) if historical else None
+    original = (
+        await claims.remember(
+            db,
+            organization_id=org.id,
+            scope=ClaimScope(person_owner_key(owner.id)),
+            statement="Atlas headcount was 20",
+            object_ref=MemoryObjectRef(kind="company", name="Atlas"),
+            subject="headcount",
+            value=20,
+            effective_from=start,
+            effective_to=end,
+        )
+    ).claim
+
+    new = await MemoryService(db).correct_claim(
+        ctx,
+        original.id,
+        MemoryClaimCorrect(
+            statement="Corrected Atlas observation", historical=historical, value=replacement
+        ),
+    )
+
+    expected = 20 if replacement is None else replacement
+    assert type(new.value) is type(expected)
+    assert new.value == expected
+    assert original.value == 20 and new.object_id == original.object_id
+    assert new.supersedes_id == original.id
+    if historical:
+        assert (new.effective_from, new.effective_to) == (start, end)
+
+
+async def test_external_identity_can_rename_without_losing_claim_links(db: AsyncSession) -> None:
+    org, owner, _ = await _org(db)
+    personal, shared = person_owner_key(owner.id), organization_owner_key(org.id)
+    ref = MemoryObjectRef(kind="company", name="Atlas", external_key="crm:atlas")
+    private_fact = await claims.remember(
+        db,
+        organization_id=org.id,
+        scope=ClaimScope(personal),
+        object_ref=ref,
+        statement="Atlas renewed",
+    )
+    old = await claims.remember(
+        db,
+        organization_id=org.id,
+        scope=ClaimScope(shared),
+        object_ref=ref,
+        statement="Atlas renewed",
+    )
+    # Keep the original ORM row in the session so RETURNING has to refresh it.
+    old_obj = await memory_claim.get_object(
+        db,
+        organization_id=org.id,
+        scope_keys=[shared],
+        object_id=old.claim.object_id,
+    )
+    assert old_obj is not None and old_obj.name == "Atlas"
+    new = await claims.remember(
+        db,
+        organization_id=org.id,
+        scope=ClaimScope(shared),
+        object_ref=ref.model_copy(update={"name": "Atlas Group"}),
+        statement="Atlas Group renewed",
+    )
+    assert new.claim.object_id == old_obj.id == old.claim.object_id
+    assert old_obj.name == "Atlas Group"
+
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    store = MemoryService(db)
+    await store.publish_claim(ctx, private_fact.claim.id, MemoryClaimShare(confirmed=True))
+    assert old_obj.name == "Atlas Group"  # A copy with the old label cannot undo the rename.
+    page = await store.objects(
+        ctx, library="organization", kind="company", q="Atlas Group", cursor=None, limit=10
+    )
+    assert [(obj.id, obj.name) for obj in page.items] == [(old_obj.id, "Atlas Group")]

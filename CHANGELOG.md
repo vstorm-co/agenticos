@@ -31,6 +31,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Preserve typed values in memory corrections, refresh external object labels, and extract the same property on distinct objects from one conversation.
 - Preserve validity dates when publishing memories and rank relevant memories before limiting the result set.
 - Save short cross-chat handoffs and other working notes through the Notes tool when the agent needs to refer to them later.
 

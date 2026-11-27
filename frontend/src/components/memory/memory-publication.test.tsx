@@ -180,3 +180,34 @@ it("opts a note into updates and restores a previous body using the new revision
     post.mockRestore();
   }
 });
+
+it("pages through note history before restoring", async () => {
+  const stamp = "2026-11-27T00:00:00Z";
+  const get = vi.spyOn(apiClient, "get").mockImplementation(async (path) => ({
+    items: [
+      {
+        id: path.endsWith("skip=5") ? "older" : "newer",
+        content: path.endsWith("skip=5") ? "Older body" : "Newer body",
+        replaced_at: stamp,
+        changed_by: "agent",
+      },
+    ],
+    total: 6,
+  }));
+  const noop = vi.fn();
+  try {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <NoteDetail note={note} onClose={noop} update={noop} setActive={noop} remove={noop} />
+      </QueryClientProvider>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "noteHistory" }));
+    await user.click(await screen.findByRole("button", { name: "noteOlderVersions" }));
+    expect(get).toHaveBeenCalledWith("/memory/mine/note/revisions?skip=5");
+    await user.click(screen.getByRole("button", { name: "noteNewerVersions" }));
+    expect(await screen.findByRole("button", { name: "noteOlderVersions" })).toBeVisible();
+  } finally {
+    get.mockRestore();
+  }
+});

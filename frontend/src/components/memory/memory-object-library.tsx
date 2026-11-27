@@ -19,6 +19,7 @@ import {
   resolveSharedMemoryConflict,
   type DecisionEpisode,
   type MemoryClaim,
+  type MemoryValue,
   type MemoryLibrary,
   type MemoryObjectKind,
 } from "@/lib/memory-api";
@@ -201,8 +202,15 @@ function HistoricalCorrection({ claim }: { claim: MemoryClaim }) {
   const client = useQueryClient();
   const [editing, setEditing] = useState(false);
   const save = useMutation({
-    mutationFn: ({ statement, episode }: { statement: string; episode?: DecisionEpisode }) =>
-      amendHistoricalClaim(claim.id, statement, episode),
+    mutationFn: ({
+      statement,
+      episode,
+      value,
+    }: {
+      statement: string;
+      episode?: DecisionEpisode;
+      value?: MemoryValue;
+    }) => amendHistoricalClaim(claim.id, statement, episode, value),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: qk.memory.all(org) });
       setEditing(false);
@@ -224,8 +232,8 @@ function HistoricalCorrection({ claim }: { claim: MemoryClaim }) {
           save.reset();
           setEditing(false);
         }}
-        onSave={async (statement, _date, episode) => {
-          await save.mutateAsync({ statement, episode }).catch(() => undefined);
+        onSave={async (statement, _date, episode, value) => {
+          await save.mutateAsync({ statement, episode, value }).catch(() => undefined);
         }}
       />
       {save.error && (

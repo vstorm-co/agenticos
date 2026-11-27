@@ -149,15 +149,19 @@ class _Extraction(BaseModel):
 
     @model_validator(mode="after")
     def distinct_subjects(self) -> Self:
-        subjects = [
-            subject
-            for claim in self.claims
-            if (subject := _claims.normalise_subject(claim.subject)) is not None
-        ]
-        if len(set(subjects)) != len(subjects):
-            raise ValueError(
-                "Use one claim per subject. Give distinct attributes distinct subjects."
-            )
+        seen: set[tuple[str, str | None, str | None]] = set()
+        for claim in self.claims:
+            topic = _claims.normalise_subject(claim.subject)
+            ref = claim.object_ref
+            if ref is not None:
+                key = (topic or "description", ref.kind, ref.identity_key)
+            elif topic is not None:
+                key = (topic, None, None)
+            else:
+                continue
+            if key in seen:
+                raise ValueError("Use one claim per subject on each object.")
+            seen.add(key)
         return self
 
 

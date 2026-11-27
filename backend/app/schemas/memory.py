@@ -178,6 +178,10 @@ class MemoryClaimCorrect(BaseSchema):
     """Replace a current claim or amend the exact interval of a historical observation."""
 
     statement: str = Field(min_length=1, max_length=600)
+    value: MemoryValue | None = Field(
+        default=None,
+        description="New typed value. Omit or use null to preserve the previous value.",
+    )
     effective_from: AwareDatetime | None = None
     episode: DecisionEpisode | None = None
     historical: bool = False
@@ -197,6 +201,12 @@ class MemoryObjectRef(BaseSchema):
         Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=260)]
         | None
     ) = None
+
+    @property
+    def identity_key(self) -> str:
+        if self.external_key is not None:
+            return f"external:{self.external_key}"
+        return f"name:{' '.join(self.name.casefold().split())}"
 
 
 class MemoryObjectRead(BaseSchema):

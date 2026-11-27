@@ -49,6 +49,22 @@ describe("the claims API", () => {
     );
   });
 
+  it("serializes false and zero for current and historical corrections", async () => {
+    await correctClaim("c-1", "Inactive", null, undefined, false);
+    await amendHistoricalClaim("c-2", "No employees", undefined, 0);
+    expect(apiClient.post).toHaveBeenCalledWith("/memory/claims/mine/c-1/correct", {
+      statement: "Inactive",
+      effective_from: null,
+      value: false,
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/memory/claims/mine/c-2/correct", {
+      statement: "No employees",
+      episode: undefined,
+      historical: true,
+      value: 0,
+    });
+  });
+
   it("posts a correction with its effective date, and a retraction with nothing", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({ id: "c-1" });
 

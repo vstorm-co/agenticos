@@ -455,31 +455,40 @@ async def put_object(
     kind: str,
     name: str,
     identity_key: str,
+    refresh_name: bool = True,
 ) -> MemoryObject:
-    """Get or create an identity. A stable external key survives a changed label."""
-    result = await db.execute(
-        pg_insert(MemoryObject)
-        .values(
-            organization_id=organization_id,
-            scope_key=scope_key,
-            kind=kind,
-            name=name,
-            identity_key=identity_key,
+    """Keep the stable identity and refresh its label on an external-key write."""
+    insert = pg_insert(MemoryObject).values(
+        organization_id=organization_id,
+        scope_key=scope_key,
+        kind=kind,
+        name=name,
+        identity_key=identity_key,
+    )
+    if refresh_name and identity_key.startswith("external:"):
+        statement = insert.on_conflict_do_update(
+            constraint="uq_memory_objects_identity",
+            set_={"name": insert.excluded.name, "updated_at": func.now()},
+            where=MemoryObject.name.is_distinct_from(insert.excluded.name),
         )
-        .on_conflict_do_nothing(constraint="uq_memory_objects_identity")
-        .returning(MemoryObject)
+    else:
+        statement = insert.on_conflict_do_nothing(constraint="uq_memory_objects_identity")
+    result = await db.execute(
+        statement.returning(MemoryObject).execution_options(populate_existing=True)
     )
     found = result.scalar_one_or_none()
     if found is not None:
         return found
     return (
         await db.execute(
-            select(MemoryObject).where(
+            select(MemoryObject)
+            .where(
                 MemoryObject.organization_id == organization_id,
                 MemoryObject.scope_key == scope_key,
                 MemoryObject.kind == kind,
                 MemoryObject.identity_key == identity_key,
             )
+            .execution_options(populate_existing=True)
         )
     ).scalar_one()
 

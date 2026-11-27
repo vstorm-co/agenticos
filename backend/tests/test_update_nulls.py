@@ -55,6 +55,7 @@ from app.db.models.knowledge_base import KnowledgeBase
 from app.db.models.local_service import LocalService
 from app.db.models.mcp_connection import McpConnection
 from app.db.models.memory import AgentMemoryFile
+from app.db.models.memory_claim import MemoryInboxRule
 from app.db.models.notification_route import NotificationRoute
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.organization_assistant import OrganizationAssistant
@@ -109,7 +110,7 @@ from app.schemas.mcp_connection import (
     OrgMcpConnectionUpdate,
     PortalPollIntervalUpdate,
 )
-from app.schemas.memory import MemoryNoteUpdate
+from app.schemas.memory import MemoryInboxRuleUpdate, MemoryNoteAutoUpdate, MemoryNoteUpdate
 from app.schemas.model_profile import ModelProfileUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.notification_route import NotificationRouteUpdate
@@ -199,6 +200,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     SystemAgentUpdate: SystemAgentProfile,
     McpConnectionUpdate: McpConnection,
     MemoryNoteUpdate: AgentMemoryFile,
+    MemoryNoteAutoUpdate: AgentMemoryFile,
+    MemoryInboxRuleUpdate: MemoryInboxRule,
     ModelProfileUpdate: ModelProfile,
     NotificationPreferenceUpdate: None,
     OrgMcpConnectionUpdate: McpConnection,

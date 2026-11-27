@@ -13,6 +13,7 @@ import {
   type DecisionEpisode,
   type MemoryClaimFilters,
   type MemoryClaimPage,
+  type MemoryValue,
 } from "@/lib/memory-api";
 import { useChanged } from "./use-changed";
 import { qk } from "@/lib/query-keys";
@@ -32,6 +33,7 @@ interface UseMyClaimsResult {
     statement: string,
     effectiveFrom: string | null,
     episode?: DecisionEpisode,
+    value?: MemoryValue,
   ) => Promise<boolean>;
   retract: (id: string) => Promise<boolean>;
 }
@@ -72,10 +74,8 @@ export function useMyClaims(filters: MemoryClaimFilters = {}): UseMyClaimsResult
       statement: string;
       effectiveFrom: string | null;
       episode?: DecisionEpisode;
-    }) =>
-      input.episode
-        ? correctClaim(input.id, input.statement, input.effectiveFrom, input.episode)
-        : correctClaim(input.id, input.statement, input.effectiveFrom),
+      value?: MemoryValue;
+    }) => correctClaim(input.id, input.statement, input.effectiveFrom, input.episode, input.value),
     onSuccess: invalidate,
     onError: (cause) => toast.error(getErrorMessage(cause, t)),
   });
@@ -94,13 +94,15 @@ export function useMyClaims(filters: MemoryClaimFilters = {}): UseMyClaimsResult
       statement: string,
       effectiveFrom: string | null,
       episode?: DecisionEpisode,
+      value?: MemoryValue,
     ) => {
       try {
         await correction.mutateAsync({
           id,
           statement,
           effectiveFrom,
-          ...(episode ? { episode } : {}),
+          episode,
+          value,
         });
         return true;
       } catch {

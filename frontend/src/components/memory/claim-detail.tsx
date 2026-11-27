@@ -15,7 +15,12 @@ import {
   DialogFooter,
 } from "@/components/ui";
 import { DIALOG_WIDE, DIALOG_COLUMN, DIALOG_BODY } from "@/lib/dialog-sizes";
-import { shareMemoryClaim, type MemoryClaim, type DecisionEpisode } from "@/lib/memory-api";
+import {
+  shareMemoryClaim,
+  type MemoryClaim,
+  type DecisionEpisode,
+  type MemoryValue,
+} from "@/lib/memory-api";
 import type { AgentUsage } from "@/types/agents";
 import { DecisionEvidence } from "./decision-evidence";
 import { ClaimEditor } from "./claim-editor";
@@ -40,6 +45,7 @@ export function ClaimDetail({
     statement: string,
     from: string | null,
     episode?: DecisionEpisode,
+    value?: MemoryValue,
   ) => Promise<boolean>;
   retract: (id: string) => Promise<boolean>;
 }) {
@@ -78,8 +84,8 @@ export function ClaimDetail({
             <ClaimEditor
               claim={claim}
               onCancel={() => setEditing(false)}
-              onSave={async (statement, from, episode) => {
-                if (await correct(claim.id, statement, from, episode)) onClose();
+              onSave={async (statement, from, episode, value) => {
+                if (await correct(claim.id, statement, from, episode, value)) onClose();
               }}
             />
           ) : (

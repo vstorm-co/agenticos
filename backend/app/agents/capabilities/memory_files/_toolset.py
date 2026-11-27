@@ -197,7 +197,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         kind: str = "note",
         object_id: UUID | None = None,
     ) -> str:
-        """Save a new note under a name, so a later conversation can find it.
+        """Save a named working note, handoff, checklist or reference for a later conversation.
 
         Use for a requested working note or reusable context such as a handoff,
         checklist or reference you will need in a later conversation. Notes can
@@ -507,6 +507,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         claim_id: str,
         statement: str,
         effective_from: str | None = None,
+        value: MemoryValue | None = None,
     ) -> str:
         """Record the person's correction of a claim, keeping the history it corrects.
 
@@ -519,6 +520,8 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             claim_id: The id from `recall`.
             statement: The corrected sentence.
             effective_from: ISO date it takes effect, if not now.
+            value: The new typed value (text, integer, boolean) if it changed.
+                Omit it to preserve the stored value.
 
         Returns:
             A confirmation, or why the claim could not be corrected.
@@ -542,6 +545,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 claim_id=identifier,
                 scopes=scopes,
                 statement=statement,
+                value=value,
                 author_user_id=UUID(str(audience.user_id)),
                 effective_from=start,
                 run_id=deps.run_id,

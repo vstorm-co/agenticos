@@ -37,15 +37,13 @@ _DEADLINE_LINE = re.compile(r"^Deadline:[ \t]{1,12}(\d{4}-\d{2}-\d{2}|cancelled)
 class MemoryObservationConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    object_kind: MemoryObjectKind
+    object_kind: MemoryObjectKind = Field(title="Object type")
     object_name: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)
-    ]
-    object_key: str = Field(
-        min_length=1, max_length=260, description="External business object key."
-    )
+    ] = Field(title="Object name")
+    object_key: str = Field(title="Business object key", min_length=1, max_length=260)
     subject: str = Field(
-        min_length=1, max_length=120, description="Business property. Use deadline for Gmail."
+        title="Property", min_length=1, max_length=120, description="Use deadline for Gmail."
     )
 
     @field_validator("subject")

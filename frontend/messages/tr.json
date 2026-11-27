@@ -2561,6 +2561,9 @@
       }
     },
     "memory": {
+      "claims": {
+        "typedValue": "Kaydedilen değer"
+      },
       "operations": {
         "title": "Gelen kutusu ve geçmişi tamamlama",
         "inbox": "Bellek bildirim kuralı",

@@ -6526,6 +6526,7 @@
         "correct": "Erinnerung korrigieren",
         "retract": "Nicht mehr verwenden",
         "statement": "Korrigierte Aussage",
+        "typedValue": "Gespeicherter Wert",
         "effectiveFrom": "Gilt ab",
         "cancel": "Abbrechen",
         "save": "Korrektur speichern",

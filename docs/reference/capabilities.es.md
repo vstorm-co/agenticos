@@ -1,5 +1,5 @@
 ---
-source_sha: "42f16110d160"
+source_sha: "13c9b2043aaf"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -547,6 +547,8 @@ de candidatos, se revisa de nuevo.
 Un interruptor, **Allow personal memory**, elimina por completo el almacén por
 persona, por motivos de cumplimiento o de privacidad; las notas guardadas en chats
 de grupo se quedan.
+
+Una corrección del texto conserva el valor tipado. Edita **Valor registrado** o pasa `value` a `correct_memory` para sustituirlo. Una etiqueta nueva para la misma clave externa conserva el historial del objeto con el mismo ID.
 
 ### Alias de objetos y actualización del historial { #memory-object-operations }
 

@@ -892,6 +892,7 @@ class MemoryService:
                 self.db,
                 claim=row,
                 statement=data.statement,
+                value=data.value,
                 author_user_id=ctx.subject_id,
                 episode=data.episode,
             )
@@ -901,6 +902,7 @@ class MemoryService:
                 self.db,
                 claim=row,
                 statement=data.statement,
+                value=data.value,
                 author_user_id=ctx.subject_id,
                 effective_from=data.effective_from,
                 episode=data.episode,

@@ -311,6 +311,13 @@ class TestCorrect:
         assert "earlier version is kept" in out
         assert ledger["correct"].await_args.kwargs["author_user_id"] == PERSON
 
+    async def test_the_correct_tool_passes_a_false_replacement(self, ledger):
+        result = await _tools().correct_memory(
+            _ctx(_deps()), str(CLAIM), "Billing disabled", value=False
+        )
+        assert "Corrected" in result
+        assert ledger["correct"].await_args.kwargs["value"] is False
+
     async def test_a_claim_the_whole_organization_reads_is_not_the_persons_to_rewrite(self, ledger):
         ledger["correct"].side_effect = ShareRefused("needs context:edit")
 

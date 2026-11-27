@@ -396,3 +396,105 @@ async def test_an_older_relevant_note_is_considered_before_newer_unrelated_notes
         limit=1,
     )
     assert [item.id for item in selected] == [note.id]
+
+
+async def test_one_session_can_record_the_same_property_on_distinct_projects(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data = await world(db)
+    quote = "Anna owns Atlas. Piotr owns Boreal."
+    run, _ = await session(db, data, at=datetime.now(UTC), content=quote)
+
+    async def think(_self, _ctx, *, output_type, **_kwargs):
+        return output_type.model_validate(
+            {
+                "claims": [
+                    {
+                        "statement": sentence,
+                        "subject": "owner",
+                        "evidence": sentence,
+                        "object_ref": {"kind": "project", "name": project},
+                    }
+                    for sentence, project in [
+                        ("Anna owns Atlas.", "Atlas"),
+                        ("Piotr owns Boreal.", "Boreal"),
+                    ]
+                ]
+            }
+        )
+
+    monkeypatch.setattr(extraction.ProactiveThinker, "think", think)
+    assert await extraction.extract(db, data.owner.organization_id, run) == 2
+    page = await MemoryService(db).my_claims(data.owner, skip=0, limit=10, history=False)
+    assert {claim.statement for claim in page.items} == {"Anna owns Atlas.", "Piotr owns Boreal."}
+    assert len({claim.object_id for claim in page.items} - {None}) == 2
+
+
+async def test_note_consent_rejects_stale_revisions_and_oversized_bodies(db: AsyncSession) -> None:
+    data = await world(db)
+    svc = MemoryService(db)
+    note = data.note
+
+    with pytest.raises(ConflictError, match="note changed"):
+        await svc.set_note_auto_update(
+            data.owner,
+            note.id,
+            MemoryNoteAutoUpdate(enabled=True, expected_updated_at=datetime.now(UTC)),
+        )
+    note.content = "x" * 4001
+    await db.flush()
+    await db.refresh(note)
+    revision = note.updated_at
+    with pytest.raises(ConflictError, match="at most 4000 characters"):
+        await svc.set_note_auto_update(
+            data.owner,
+            note.id,
+            MemoryNoteAutoUpdate(enabled=True, expected_updated_at=revision),
+        )
+
+    # A retry of the current setting does not modify the consent revision.
+    again = await svc.set_note_auto_update(
+        data.owner,
+        note.id,
+        MemoryNoteAutoUpdate(enabled=False, expected_updated_at=revision),
+    )
+    assert again.updated_at == revision and not again.auto_update
+
+
+async def test_blank_maintenance_output_does_not_create_or_version_notes(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    data = await world(db)
+    run, _ = await session(db, data, at=datetime.now(UTC))
+
+    async def think(_self, _ctx, *, output_type, **_kwargs):
+        return output_type.model_validate(
+            {"note": {"action": "create", "name": "blank", "content": "  ", "evidence": QUOTE}}
+        )
+
+    monkeypatch.setattr(extraction.ProactiveThinker, "think", think)
+    await extraction.extract(db, data.owner.organization_id, run)
+    listing = await MemoryService(db).mine(data.owner, skip=0, limit=10)
+    assert [note.name for note in listing.items] == ["rollout"]
+    assert await db.scalar(select(MemoryNoteRevision.id)) is None
+
+
+async def test_unchanged_note_has_no_new_revision_and_candidates_can_be_unranked(
+    db: AsyncSession,
+) -> None:
+    data = await world(db)
+    note = data.note
+    await memory_repo.replace_content(db, file=note, content=note.content, changed_by="person")
+    assert await db.scalar(select(MemoryNoteRevision.id)) is None
+    note.auto_update = True
+    await db.flush()
+    candidates = await memory_repo.automatic_notes(
+        db,
+        organization_id=data.owner.organization_id,
+        agent_id=data.agent_id,
+        owner_key=person_owner_key(data.owner.subject_id),
+        terms=[],
+        max_chars=4000,
+        limit=4,
+    )
+    assert [row.id for row in candidates] == [note.id]
