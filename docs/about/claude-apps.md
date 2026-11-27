@@ -23,7 +23,7 @@ AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The 
 | Source | Proprietary | Apache-2.0 |
 | Models | Claude only | 28 providers, Claude included, and local models |
 | What you build | Projects, skills and plugins for people who chat | Published agents, each a versioned spec |
-| Who uses it | Employees with a seat | Employees, customers and systems, on eight surfaces |
+| Who uses it | Employees with a seat | Employees, customers and systems, on over a dozen surfaces |
 | Surfaces | Web, desktop, mobile, Chrome, Microsoft 365, Slack through Claude Tag in beta | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, email, iMessage, telephone calls |
 | Spend control | Organization and user spend caps | A budget per agent and per organization, checked before each model request |
 | Approvals | The acting user, or an automatic mode the organization may allow | A run parks until a person with `approvals:decide` decides |

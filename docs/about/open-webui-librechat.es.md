@@ -2,7 +2,7 @@
 title: "AgenticOS vs Open WebUI y LibreChat"
 seo_title: "AgenticOS vs Open WebUI y LibreChat: chat o agents"
 description: "Compara Open WebUI, LibreChat y AgenticOS: un chat corporativo autoalojado frente a una plataforma de agents gobernados, licencias, budgets y canales."
-source_sha: "0ebd89321d70"
+source_sha: "041b493e450a"
 ---
 
 # AgenticOS vs Open WebUI y LibreChat { #agenticos-vs-open-webui-and-librechat }
@@ -67,7 +67,7 @@ Sí. Muchos equipos mantienen una interfaz de chat y ejecutan agents gobernados 
 
 ### ¿Qué licencia es más permisiva? { #which-licence-is-more-permissive }
 
-AgenticOS es Apache-2.0 en su totalidad. El núcleo de LibreChat es MIT con un panel de administración AGPL-3.0. La licencia BSD-3 de Open WebUI añade una cláusula de marca por encima de 50 usuarios.
+El código propio de AgenticOS es Apache-2.0, sin directorio enterprise ni cláusula de marca; los componentes incluidos mantienen sus licencias, y el parser de PDF por defecto es AGPL-3.0 ([detalles](../licenses.md#the-agpl-component)). El núcleo de LibreChat es MIT con un panel de administración AGPL-3.0. La licencia BSD-3 de Open WebUI añade una cláusula de marca por encima de 50 usuarios.
 
 ## Comparativas relacionadas { #related-comparisons }
 

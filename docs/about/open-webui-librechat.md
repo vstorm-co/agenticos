@@ -66,7 +66,7 @@ Yes. Many teams keep a chat interface and run governed agents beside it. Agentic
 
 ### Which licence is more permissive?
 
-AgenticOS is Apache-2.0 throughout. LibreChat's core is MIT with an AGPL-3.0 admin panel. Open WebUI's BSD-3 licence adds a branding clause above 50 users.
+AgenticOS's own code is Apache-2.0, with no enterprise directory or branding clause; bundled components keep their own licences, and the default PDF parser is AGPL-3.0 ([details](../licenses.md#the-agpl-component)). LibreChat's core is MIT with an AGPL-3.0 admin panel. Open WebUI's BSD-3 licence adds a branding clause above 50 users.
 
 ## Related comparisons
 

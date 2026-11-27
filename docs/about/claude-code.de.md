@@ -1,5 +1,5 @@
 ---
-source_sha: "608e23f116cf"
+source_sha: "6a1550e4df44"
 title: "AgenticOS vs Claude Code"
 seo_title: "AgenticOS vs Claude Code: Firmen-Agents oder Coding-Agent"
 description: "Claude Code ist ein Coding-Agent für Entwickler, AgenticOS eine Open-Source-Plattform für KI-Agents im Unternehmen. Die Unterschiede und wie Sie beide nutzen."
@@ -24,7 +24,7 @@ Die AgenticOS-Funktionsangaben wurden am 27. November 2026 anhand von v1.95.0 ak
 | Wo es läuft | Entwicklerrechner; Cloud-Sessions auf der Infrastruktur von Anthropic oder Ihrer eigenen | Ihre Infrastruktur, als gemeinsamer Dienst |
 | Quellcode | Proprietär: "All rights reserved" | Apache-2.0 |
 | Modelle | Nur Claude, über Anthropic, Amazon Bedrock, Claude Platform on AWS, die Agent Platform von Google Cloud (früher Vertex AI) oder Microsoft Foundry | 28 Provider, Claude eingeschlossen |
-| Endnutzer | Der Entwickler an der Tastatur | Mitarbeiter, Kunden und Systeme, auf acht Oberflächen |
+| Endnutzer | Der Entwickler an der Tastatur | Mitarbeiter, Kunden und Systeme, auf über einem Dutzend Oberflächen |
 | Freigaben | Der Entwickler oder ein Klassifikator im Auto-Modus | Eine Person mit `approvals:decide`, aus einer gemeinsamen Warteschlange |
 | Ausgabenkontrolle | Tarifkontingent, Nutzungs-Credits mit Ausgabenlimits oder API-Abrechnung; `--max-budget-usd` pro Run im Print-Modus | Ein monatliches Budget pro Agent und pro Organisation |
 | Preise | Enthalten in Pro, Max, Team und Enterprise; Anthropic nennt 150–250 $ pro Entwickler und Monat bei API-Abrechnung | Keine Lizenzgebühr; Modellnutzung und Infrastruktur |

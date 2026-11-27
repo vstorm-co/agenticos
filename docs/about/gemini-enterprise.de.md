@@ -1,8 +1,8 @@
 ---
-source_sha: "44c39e68097a"
+source_sha: "9c17f44cfe92"
 title: "AgenticOS vs Gemini Enterprise"
 seo_title: "AgenticOS vs Gemini Enterprise: selbst gehostete Alternative"
-description: "Google Gemini Enterprise vs. AgenticOS: jedes Modell in jedem Agent, keine Platzgebühr, keine Erstellungskontingente, acht Oberflächen, auf Ihren Servern."
+description: "Google Gemini Enterprise vs. AgenticOS: jedes Modell in jedem Agent, keine Platzgebühr, keine Erstellungskontingente, viele Kanäle, eigene Server."
 ---
 
 # AgenticOS vs Gemini Enterprise { #agenticos-vs-gemini-enterprise }
@@ -20,7 +20,7 @@ Die AgenticOS-Funktionsangaben wurden am 27. November 2026 anhand von v1.95.0 ak
 | Wo es läuft | Google Cloud, in `global`, `us`, `eu` und einigen nationalen Regionen | Ihre Infrastruktur |
 | Quellcode | Proprietär | Apache-2.0 |
 | Modelle | Gemini in der App und im Workflow Builder; andere Modelle nur in eigenen Agents auf der Agent Platform | 28 Provider in jedem Agent, einschließlich lokaler |
-| Wer es nutzt | Mitarbeiter mit einem Platz | Mitarbeiter, Kunden und Systeme, auf acht Oberflächen |
+| Wer es nutzt | Mitarbeiter mit einem Platz | Mitarbeiter, Kunden und Systeme, auf über einem Dutzend Oberflächen |
 | Oberflächen | Web-App, mobile App, Slack | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, E-Mail, iMessage, Telefonanrufe |
 | Erstellen | Workflow Builder; eigene und Partner-Agents bei Standard und Plus | Der Builder, für jeden Agent |
 | Limits | Tägliche gepoolte Kontingente, etwa ein neuer Agent pro Tag bei Standard | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |

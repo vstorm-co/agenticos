@@ -1,14 +1,14 @@
 ---
 title: "AgenticOS vs ChatGPT"
 seo_title: "AgenticOS vs ChatGPT Enterprise: a self-hosted alternative"
-description: "Compare ChatGPT Business, Enterprise and workspace agents with AgenticOS: self-hosted, any model, eight surfaces, per-agent budgets and audit logs."
+description: "Compare ChatGPT Business, Enterprise and workspace agents with AgenticOS: self-hosted, any model, over a dozen surfaces, per-agent budgets and audit logs."
 ---
 
 # AgenticOS vs ChatGPT
 
 ChatGPT Business and Enterprise give employees OpenAI's assistant, and in 2026 added workspace agents: shared agents built in ChatGPT and run in ChatGPT, Slack, on a schedule or from an API trigger. They are OpenAI's closest match to AgenticOS. The differences are where they run, which models they use and who can reach them.
 
-AgenticOS runs on your infrastructure, uses the model you choose and publishes one agent to eight surfaces. That includes a website widget and an API that returns the answer.
+AgenticOS runs on your infrastructure, uses the model you choose and publishes one agent to over a dozen surfaces. That includes a website widget and an API that returns the answer.
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. ChatGPT scope: OpenAI's pricing, business-data, Help Center and developer pages, not a tested workspace. Workspace agents are a research preview, so check the current state before deciding.
 
@@ -72,7 +72,7 @@ Build the [shared document agent](../howto/first-document-agent.md) as a workspa
 
 ### Is AgenticOS a self-hosted alternative to ChatGPT Enterprise?
 
-For agents your organization owns, yes. It runs on your infrastructure, uses OpenAI or any other provider, and publishes each agent to eight surfaces with its own budget and run history. It does not replace ChatGPT as an assistant for every employee.
+For agents your organization owns, yes. It runs on your infrastructure, uses OpenAI or any other provider, and publishes each agent to over a dozen surfaces with its own budget and run history. It does not replace ChatGPT as an assistant for every employee.
 
 ### Can AgenticOS use OpenAI models?
 

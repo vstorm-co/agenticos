@@ -8,7 +8,7 @@ description: "Compare Mistral's Le Chat Enterprise and AI Studio with AgenticOS:
 
 Mistral sells a package of models and platform: Le Chat Enterprise as a company assistant, no-code agents, and AI Studio for building and running AI applications, in the cloud, serverless or self-hosted. Its brand stands for European sovereignty. AgenticOS adds a different kind of sovereignty: the platform is open source and the choice of model stays yours, Mistral's included.
 
-Maintained by the AgenticOS team. Sources checked 26 November 2026. AgenticOS baseline: v1.95.0. Mistral scope: its AI Studio and Le Chat Enterprise product pages, not a tested deployment. Pricing is not published.
+Maintained by the AgenticOS team. Sources checked 26 November 2026. AgenticOS baseline: v1.95.0. Mistral scope: its AI Studio and Le Chat Enterprise product pages and its Studio governance and approvals documentation, not a tested deployment. Pricing is not published.
 
 ## At a glance
 
@@ -18,8 +18,8 @@ Maintained by the AgenticOS team. Sources checked 26 November 2026. AgenticOS ba
 | Licence | Proprietary platform; open-weight models available | Apache-2.0; see [bundled component licences](../licenses.md) |
 | Where it runs | Mistral's cloud, serverless, or self-hosted editions | Your infrastructure |
 | Models | Mainly Mistral's | 28 providers, Mistral included, and local models |
-| Spend control | Not described publicly | A monthly budget per agent and per organization, checked before each model request |
-| Approvals and audit | Not described publicly | Approvals per capability, tool and MCP connection; tamper-evident audit log |
+| Spend control | A monthly spending limit per workspace | A monthly budget per agent and per organization, checked before each model request |
+| Approvals and audit | Allow, ask or deny per tool and argument, answered by a person; audit logs on Enterprise plans | Approvals per capability, tool and MCP connection; tamper-evident audit log |
 | Channels | Le Chat apps and integrations | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, email, iMessage, telephone calls |
 | Pricing | Through sales | No licence fee; model usage at your provider's rates |
 
@@ -35,7 +35,7 @@ Mistral's open weights do not make its platform open. Every part of AgenticOS is
 
 ### Governance described in public
 
-AgenticOS documents its [budgets](../governance.md#budgets), [approvals](../governance.md#approvals), [audit log](../governance.md#audit) and [permissions](../permissions.md) in full, so a review can check them before a pilot.
+Mistral documents a monthly spending limit per workspace, approval policies per tool and audit logs on Enterprise plans. AgenticOS adds a [budget per agent](../governance.md#budgets) checked before each model request, an [approvals queue](../governance.md#approvals) for the people you choose and the [audit log](../governance.md#audit) in every deployment, and documents its [permissions](../permissions.md) in full.
 
 ## When Mistral is the better fit
 
@@ -65,3 +65,5 @@ Both can run on your infrastructure. AgenticOS adds an open-source platform and 
 
 - [Mistral AI Studio](https://mistral.ai/products/ai-studio): the platform and its deployment options.
 - [Le Chat Enterprise](https://mistral.ai/products/le-chat): the company assistant and its agents.
+- [Studio governance](https://docs.mistral.ai/studio/governance): workspace spending limits and Enterprise audit logs.
+- [Agent approvals](https://docs.mistral.ai/studio/agents/learn/agent/approvals): allow, ask or deny per tool.

@@ -2,7 +2,7 @@
 title: "AgenticOS vs Onyx"
 seo_title: "AgenticOS vs Onyx: wyszukiwarka firmowa czy agenci firmy"
 description: "Porównaj Onyx i AgenticOS: wyszukiwanie i czat firmowy a agenci firmy z governance, licencja ee, limity wydatków, zatwierdzenia, kanały i ceny."
-source_sha: "2b8016318665"
+source_sha: "e335c0e76f47"
 ---
 
 # AgenticOS vs Onyx { #agenticos-vs-onyx }
@@ -58,7 +58,7 @@ Podłącz to samo źródło w obu produktach i zadaj pytania z [pierwszego agent
 
 ### Czy Onyx jest open source? { #is-onyx-open-source }
 
-W większości jest na MIT. Kod w katalogach `ee` jest na Onyx Enterprise License, która wymaga licencji na stanowiska do użytku produkcyjnego. AgenticOS jest w całości na Apache-2.0.
+W większości jest na MIT. Kod w katalogach `ee` jest na Onyx Enterprise License, która wymaga licencji na stanowiska do użytku produkcyjnego. AgenticOS nie ma katalogu enterprise: jego własny kod jest na Apache-2.0, a dołączone komponenty mają własne licencje, jak domyślny parser PDF na AGPL-3.0 ([szczegóły](../licenses.md#the-agpl-component)).
 
 ### Czy AgenticOS zastępuje wyszukiwarkę firmową? { #does-agenticos-replace-enterprise-search }
 

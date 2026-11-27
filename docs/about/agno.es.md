@@ -2,7 +2,7 @@
 title: "AgenticOS vs Agno AgentOS"
 seo_title: "AgenticOS vs Agno AgentOS: dos productos, nombres parecidos"
 description: "AgenticOS y Agno AgentOS son productos distintos. Compara un framework de Python con un plano de control alojado y una plataforma Apache-2.0."
-source_sha: "211952466dfc"
+source_sha: "27f9abea1741"
 ---
 
 # AgenticOS vs Agno AgentOS { #agenticos-vs-agno-agentos }
@@ -22,7 +22,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 26 de noviembre de 20
 | Control del gasto | No descrito | Un budget mensual por agent y por organización, comprobado antes de cada petición al modelo |
 | Aprobaciones | Las resuelve un administrador en el plano de control o mediante la API | Aprobación por capability, herramienta y conexión MCP, decidida por las personas que elijas |
 | Acceso | JWT de cualquier proveedor de identidad; SAML como complemento de pago | SSO con OIDC, LDAP y Kerberos en todos los despliegues |
-| Tenants | No descritos | Muchas organizaciones en un despliegue |
+| Tenants | Aislamiento opcional de datos por usuario para despliegues multi-tenant; organizaciones separadas en un despliegue no descritas | Muchas organizaciones en un despliegue |
 | Canales | Slack, Telegram, WhatsApp, Discord | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, correo electrónico, iMessage, llamadas telefónicas |
 | Precios | Plano de control gratuito para un AgentOS local; Pro 150 USD al mes por una conexión y tres puestos; SAML +300 USD al mes; Enterprise | Sin coste de licencia; el uso de modelos a las tarifas de tu provider |
 
@@ -38,7 +38,7 @@ El framework y el runtime de Agno son Apache-2.0, pero el plano de control que l
 
 ### Gobernanza incluida { #governance-included }
 
-AgenticOS comprueba los [budgets](../governance.md#enforcement-is-before-the-request) antes de cada petición al modelo, detiene los runs a la espera de [aprobaciones](../governance.md#approvals), escribe un [registro de auditoría con detección de manipulaciones](../governance.md#audit) y atiende a [muchas organizaciones](../concepts.md#organizations) desde un despliegue. Agno no describe budgets ni multi-tenancy, y SAML cuesta aparte.
+AgenticOS comprueba los [budgets](../governance.md#enforcement-is-before-the-request) antes de cada petición al modelo, detiene los runs a la espera de [aprobaciones](../governance.md#approvals), escribe un [registro de auditoría con detección de manipulaciones](../governance.md#audit) y atiende a [muchas organizaciones](../concepts.md#organizations) desde un despliegue. Agno documenta un aislamiento opcional de datos por usuario, pero no budgets ni organizaciones separadas en un despliegue, y SAML cuesta aparte.
 
 ## Cuándo encaja mejor Agno { #when-agno-is-the-better-fit }
 
@@ -73,4 +73,5 @@ El framework y el runtime de Agno son gratuitos; su plano de control empieza en 
 - [Precios de Agno](https://www.agno.com/pricing): planes y complementos del plano de control.
 - [Plano de control de AgentOS](https://docs.agno.com/agent-os/control-plane): cómo se conectan el runtime y el plano de control.
 - [The rise of AgentOS](https://www.agno.com/blog/the-rise-of-agentos): la descripción de AgentOS según Agno.
+- [Security and auth](https://docs.agno.com/features/security-and-auth): el aislamiento opcional de datos por usuario y sus límites.
 - [`agno-agi/agno`](https://github.com/agno-agi/agno): el framework, su licencia y la versión 3.2.

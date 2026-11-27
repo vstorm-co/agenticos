@@ -2,14 +2,14 @@
 title: "AgenticOS vs Mistral AI Studio"
 seo_title: "AgenticOS vs Mistral AI Studio i Le Chat Enterprise"
 description: "Porównaj Le Chat Enterprise i AI Studio od Mistral z AgenticOS: suwerenność przez jednego dostawcę modeli albo platforma na Apache-2.0 z dowolnym modelem."
-source_sha: "841ea9e6df7e"
+source_sha: "a67d118647bc"
 ---
 
 # AgenticOS vs Mistral AI Studio { #agenticos-vs-mistral-ai-studio }
 
 Mistral sprzedaje pakiet modeli i platformy: Le Chat Enterprise jako asystenta firmowego, agentów no-code i AI Studio do budowania i uruchamiania aplikacji AI, w chmurze, w trybie serverless albo self-hosted. Jego marka oznacza europejską suwerenność. AgenticOS dodaje inny rodzaj suwerenności: platforma jest open source, a wybór modelu zostaje po Twojej stronie, także modeli Mistrala.
 
-Utrzymuje zespół AgenticOS. Źródła sprawdzono 26 listopada 2026. Wersja bazowa AgenticOS: v1.95.0. Zakres Mistral: strony produktowe AI Studio i Le Chat Enterprise, a nie przetestowane wdrożenie. Cennik nie jest publikowany.
+Utrzymuje zespół AgenticOS. Źródła sprawdzono 26 listopada 2026. Wersja bazowa AgenticOS: v1.95.0. Zakres Mistral: strony produktowe AI Studio i Le Chat Enterprise oraz dokumentacja governance i zatwierdzeń w Studio, a nie przetestowane wdrożenie. Cennik nie jest publikowany.
 
 ## W skrócie { #at-a-glance }
 
@@ -19,8 +19,8 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 26 listopada 2026. Wersja baz
 | Licencja | Własnościowa platforma; dostępne modele open-weight | Apache-2.0; zobacz [licencje dołączonych komponentów](../licenses.md) |
 | Gdzie działa | Chmura Mistrala, serverless albo edycje self-hosted | Twoja infrastruktura |
 | Modele | Głównie Mistrala | 28 providerów, w tym Mistral, i modele lokalne |
-| Kontrola wydatków | Nieopisana publicznie | Miesięczny budżet per agent i per organizacja, sprawdzany przed każdym wywołaniem modelu |
-| Zatwierdzenia i audyt | Nieopisane publicznie | Zatwierdzenia per capability, narzędzie i połączenie MCP; log audytowy wykrywający manipulacje |
+| Kontrola wydatków | Miesięczny limit wydatków per workspace | Miesięczny budżet per agent i per organizacja, sprawdzany przed każdym wywołaniem modelu |
+| Zatwierdzenia i audyt | Allow, ask albo deny per narzędzie i argument, odpowiada człowiek; logi audytowe w planach Enterprise | Zatwierdzenia per capability, narzędzie i połączenie MCP; log audytowy wykrywający manipulacje |
 | Kanały | Aplikacje Le Chat i integracje | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, e-mail, iMessage, połączenia telefoniczne |
 | Cennik | Przez dział sprzedaży | Bez opłaty licencyjnej; użycie modeli po stawkach providera |
 
@@ -36,7 +36,7 @@ Otwarte wagi modeli Mistrala nie czynią otwartą jego platformy. Każda częś�
 
 ### Governance opisane publicznie { #governance-described-in-public }
 
-AgenticOS w pełni dokumentuje swoje [budżety](../governance.md#budgets), [zatwierdzenia](../governance.md#approvals), [log audytowy](../governance.md#audit) i [uprawnienia](../permissions.md), więc przegląd może je sprawdzić przed pilotażem.
+Mistral dokumentuje miesięczny limit wydatków per workspace, polityki zatwierdzeń per narzędzie i logi audytowe w planach Enterprise. AgenticOS dodaje [budżet per agent](../governance.md#budgets) sprawdzany przed każdym wywołaniem modelu, [kolejkę zatwierdzeń](../governance.md#approvals) dla wybranych osób i [log audytowy](../governance.md#audit) w każdym wdrożeniu, a swoje [uprawnienia](../permissions.md) dokumentuje w całości.
 
 ## Kiedy Mistral pasuje lepiej { #when-mistral-is-the-better-fit }
 
@@ -66,3 +66,5 @@ Oba mogą działać na Twojej infrastrukturze. AgenticOS dodaje platformę open 
 
 - [Mistral AI Studio](https://mistral.ai/products/ai-studio): platforma i jej opcje wdrożenia.
 - [Le Chat Enterprise](https://mistral.ai/products/le-chat): asystent firmowy i jego agenci.
+- [Governance w Studio](https://docs.mistral.ai/studio/governance): limity wydatków per workspace i logi audytowe w Enterprise.
+- [Zatwierdzenia agentów](https://docs.mistral.ai/studio/agents/learn/agent/approvals): allow, ask albo deny per narzędzie.

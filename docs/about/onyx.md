@@ -57,7 +57,7 @@ Connect the same source in both products and ask the [first document agent](../h
 
 ### Is Onyx open source?
 
-Most of it is MIT. Code in its `ee` directories is under the Onyx Enterprise License, which needs a seat licence for production use. AgenticOS is Apache-2.0 throughout.
+Most of it is MIT. Code in its `ee` directories is under the Onyx Enterprise License, which needs a seat licence for production use. AgenticOS has no enterprise directory: its own code is Apache-2.0, and bundled components keep their own licences, such as the AGPL-3.0 default PDF parser ([details](../licenses.md#the-agpl-component)).
 
 ### Does AgenticOS replace enterprise search?
 

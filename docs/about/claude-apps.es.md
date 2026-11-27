@@ -1,5 +1,5 @@
 ---
-source_sha: "9bb3f520b0f4"
+source_sha: "83f682984d07"
 title: "AgenticOS vs Claude"
 seo_title: "AgenticOS vs Claude Team y Enterprise: agents que son tuyos"
 description: "Compara Claude Team y Enterprise con AgenticOS: agents autoalojados con Claude u otro modelo, budgets por agent, aprobaciones, auditoría y sin coste por puesto."
@@ -24,7 +24,7 @@ Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.
 | Código fuente | Propietario | Apache-2.0 |
 | Modelos | Solo Claude | 28 providers, Claude incluido, y modelos locales |
 | Qué construyes | Projects, skills y plugins para las personas que chatean | Agents publicados, cada uno un spec versionado |
-| Quién lo usa | Empleados con un puesto | Empleados, clientes y sistemas, en ocho superficies |
+| Quién lo usa | Empleados con un puesto | Empleados, clientes y sistemas, en más de una docena de superficies |
 | Superficies | Web, escritorio, móvil, Chrome, Microsoft 365, Slack mediante Claude Tag en beta | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, correo electrónico, iMessage, llamadas telefónicas |
 | Control del gasto | Límites de gasto por organización y por usuario | Un budget por agent y por organización, comprobado antes de cada petición al modelo |
 | Aprobaciones | El usuario que actúa, o un modo automático si la organización lo permite | Un run queda detenido hasta que decide una persona con `approvals:decide` |

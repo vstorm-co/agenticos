@@ -1,5 +1,5 @@
 ---
-source_sha: "5881de747c1a"
+source_sha: "9a4f545a35b8"
 title: "AgenticOS vergleichen"
 seo_title: "AgenticOS im Vergleich: souveräne Schicht für KI-Agents"
 description: "AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Dify, n8n, Kortix, LobeHub, Onyx, Open WebUI, Langdock, Dust, deepset und Agents in Slack."
@@ -102,7 +102,7 @@ Souveränität bedeutet hier vier Dinge, die Sie entscheiden: wo das Produkt lä
 | OpenClaw / NemoClaw | Ihr Rechner oder Server | Viele | Open Source; NemoClaw ist die Distribution von NVIDIA | Anmeldung, Audit und Zugriffskontrolle: minimal in OpenClaw; ergänzt durch NemoClaw |
 | Wonderful | Mandantenfähiges SaaS, Single-Tenant, Ihre Cloud oder netzwerkisoliert on-premises | Pro Aufgabe von der Plattform geroutet | Proprietär; Agents und Konfiguration lassen sich über UI oder API exportieren | Anmeldung: auf seinen Seiten nicht angegeben · Audit: Audit-Logs im AI Gateway · Ausgaben: Budgetgrenzen pro Team |
 
-Dify, n8n, Onyx, Open WebUI, LibreChat und deepset laufen ebenfalls auf Ihren eigenen Servern, und Wonderful bietet eine netzwerkisolierte On-Premises-Bereitstellung. Unter den Produkten in dieser Tabelle ist AgenticOS das einzige, bei dem alle vier Antworten bei Ihnen bleiben.
+Dify, n8n, Onyx, Open WebUI, LibreChat und deepset laufen ebenfalls auf Ihren eigenen Servern, und Wonderful bietet eine netzwerkisolierte On-Premises-Bereitstellung. Auch bei LibreChat bleiben alle vier Antworten bei Ihnen; AgenticOS ergänzt ein Budget pro Agent, geprüft vor jeder Modellanfrage, Freigaben durch andere Personen und viele Organisationen in einer Bereitstellung.
 
 Wer AgenticOS selbst betreibt, macht damit nicht jedes Modell, jeden Parser und jedes Werkzeug lokal. Jeden externen Dienst fügen Sie selbst hinzu; siehe [standardmäßig verlässt nichts das System](../data-protection.md#nothing-leaves-by-default).
 

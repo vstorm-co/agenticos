@@ -23,7 +23,7 @@ AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The 
 | Where it runs | Developer machines; cloud sessions on Anthropic's infrastructure or your own | Your infrastructure, as a shared service |
 | Source | Proprietary: "All rights reserved" | Apache-2.0 |
 | Models | Claude only, through Anthropic, Amazon Bedrock, Claude Platform on AWS, Google Cloud's Agent Platform (formerly Vertex AI) or Microsoft Foundry | 28 providers, Claude included |
-| End users | The developer at the keyboard | Employees, customers and systems, on eight surfaces |
+| End users | The developer at the keyboard | Employees, customers and systems, on over a dozen surfaces |
 | Approvals | The developer, or a classifier in auto mode | A person with `approvals:decide`, from a shared queue |
 | Spend control | Plan allowance, usage credits with spend limits, or API billing; `--max-budget-usd` per run in print mode | A monthly budget per agent and per organization |
 | Pricing | Included in Pro, Max, Team and Enterprise; Anthropic cites $150–250 per developer per month on API billing | No licence fee; model usage and infrastructure |

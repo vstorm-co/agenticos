@@ -101,7 +101,7 @@ Sovereignty here means four things you decide: where the product runs, which mod
 | OpenClaw / NemoClaw | Your machine or server | Many | Open source; NemoClaw is NVIDIA's distribution | Sign-in, audit and access control: minimal in OpenClaw; added by NemoClaw |
 | Wonderful | Multi-tenant SaaS, single-tenant, your cloud, or air-gapped on-premises | Routed per task by the platform | Proprietary; agents and configuration export through its UI or API | Sign-in: not stated on its pages · Audit: audit logs in its AI Gateway · Spend: budget caps per team |
 
-Dify, n8n, Onyx, Open WebUI, LibreChat and deepset also run on your own servers, and Wonderful offers air-gapped on-premises deployment. Among the products in this table, AgenticOS is the one where all four answers stay with you.
+Dify, n8n, Onyx, Open WebUI, LibreChat and deepset also run on your own servers, and Wonderful offers air-gapped on-premises deployment. LibreChat also keeps all four answers with you; AgenticOS adds a budget per agent checked before each model request, approvals decided by other people and many organizations in one deployment.
 
 Running AgenticOS yourself does not make every model, parser or tool local. Each outside service is one you add; see [what leaves by default](../data-protection.md#nothing-leaves-by-default).
 

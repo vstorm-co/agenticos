@@ -2,7 +2,7 @@
 title: "AgenticOS vs deepset"
 seo_title: "AgenticOS vs deepset Haystack Enterprise Platform"
 description: "Die Haystack Enterprise Platform von deepset im Vergleich mit AgenticOS: souveräne KI-Pipelines mit Behördenreferenzen gegen eine offene Plattform."
-source_sha: "330dd816d6ea"
+source_sha: "d53a219041fc"
 ---
 
 # AgenticOS vs deepset { #agenticos-vs-deepset }
@@ -55,7 +55,7 @@ Sie können AgenticOS heute aus seinem Repository installieren und einen Pilot a
 
 ### Ist AgenticOS eine souveräne KI-Plattform wie deepset? { #is-agenticos-a-sovereign-ai-platform-like-deepset }
 
-Beide laufen auf Ihrer Infrastruktur, auch netzwerkisoliert, mit jedem Modell. In AgenticOS steht die gesamte Anwendung unter Apache-2.0; bei deepset ist das Haystack-Framework offen und die Plattform proprietär.
+Beide laufen auf Ihrer Infrastruktur, auch netzwerkisoliert, mit jedem Modell. In AgenticOS steht die gesamte Anwendung unter Apache-2.0, abgesehen von enthaltenen Komponenten mit eigenen Lizenzen wie dem AGPL-3.0-PDF-Parser; bei deepset ist das Haystack-Framework offen und die Plattform proprietär.
 
 ### Kann AgenticOS auf STACKIT oder einer anderen europäischen Cloud laufen? { #can-agenticos-run-on-stackit-or-another-european-cloud }
 

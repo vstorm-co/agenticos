@@ -21,7 +21,7 @@ Maintained by the AgenticOS team. Sources checked 26 November 2026. AgenticOS ba
 | Spend control | Not described | A monthly budget per agent and per organization, checked before each model request |
 | Approvals | Resolved by an administrator in the control plane or through the API | Approval per capability, tool and MCP connection, decided by the people you choose |
 | Sign-in | JWT from any identity provider; SAML as a paid add-on | OIDC SSO, LDAP and Kerberos in every deployment |
-| Tenancy | Not described | Many organizations in one deployment |
+| Tenancy | Opt-in per-user data isolation for multi-tenant deployments; separate organizations in one deployment not described | Many organizations in one deployment |
 | Channels | Slack, Telegram, WhatsApp, Discord | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, email, iMessage, telephone calls |
 | Pricing | Free control plane for a local AgentOS; Pro $150 a month for one connection and three seats; SAML +$300 a month; Enterprise | No licence fee; model usage at your provider's rates |
 
@@ -37,7 +37,7 @@ Agno's framework and runtime are Apache-2.0, but the control plane that monitors
 
 ### Governance included
 
-AgenticOS checks [budgets](../governance.md#enforcement-is-before-the-request) before each model request, parks runs for [approvals](../governance.md#approvals), writes a [tamper-evident audit log](../governance.md#audit) and serves [many organizations](../concepts.md#organizations) from one deployment. Agno does not describe budgets or multi-tenancy, and SAML costs extra.
+AgenticOS checks [budgets](../governance.md#enforcement-is-before-the-request) before each model request, parks runs for [approvals](../governance.md#approvals), writes a [tamper-evident audit log](../governance.md#audit) and serves [many organizations](../concepts.md#organizations) from one deployment. Agno documents opt-in per-user data isolation, but not budgets or separate organizations in one deployment, and SAML costs extra.
 
 ## When Agno is the better fit
 
@@ -72,4 +72,5 @@ Agno's framework and runtime are free; its control plane starts at $150 a month 
 - [Agno pricing](https://www.agno.com/pricing): control-plane plans and add-ons.
 - [AgentOS control plane](https://docs.agno.com/agent-os/control-plane): how the runtime and control plane connect.
 - [The rise of AgentOS](https://www.agno.com/blog/the-rise-of-agentos): Agno's description of AgentOS.
+- [Security and auth](https://docs.agno.com/features/security-and-auth): opt-in per-user data isolation and its limits.
 - [`agno-agi/agno`](https://github.com/agno-agi/agno): the framework, its licence and release 3.2.

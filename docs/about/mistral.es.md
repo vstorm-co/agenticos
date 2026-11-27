@@ -2,14 +2,14 @@
 title: "AgenticOS vs Mistral AI Studio"
 seo_title: "AgenticOS vs Mistral AI Studio y Le Chat Enterprise"
 description: "Compara Le Chat Enterprise y AI Studio de Mistral con AgenticOS: soberanía con un único proveedor de modelos, o una plataforma Apache-2.0 con cualquier modelo."
-source_sha: "841ea9e6df7e"
+source_sha: "a67d118647bc"
 ---
 
 # AgenticOS vs Mistral AI Studio { #agenticos-vs-mistral-ai-studio }
 
 Mistral vende un paquete de modelos y plataforma: Le Chat Enterprise como asistente corporativo, agents sin código y AI Studio para crear y ejecutar aplicaciones de IA, en la nube, serverless o autoalojado. Su marca representa la soberanía europea. AgenticOS añade otra clase de soberanía: la plataforma es de código abierto y la elección del modelo sigue siendo tuya, incluidos los de Mistral.
 
-Mantenido por el equipo de AgenticOS. Fuentes revisadas el 26 de noviembre de 2026. Versión de referencia de AgenticOS: v1.95.0. Alcance de Mistral: las páginas de producto de AI Studio y Le Chat Enterprise; no un despliegue probado. Los precios no están publicados.
+Mantenido por el equipo de AgenticOS. Fuentes revisadas el 26 de noviembre de 2026. Versión de referencia de AgenticOS: v1.95.0. Alcance de Mistral: las páginas de producto de AI Studio y Le Chat Enterprise y la documentación de gobernanza y aprobaciones de Studio; no un despliegue probado. Los precios no están publicados.
 
 ## De un vistazo { #at-a-glance }
 
@@ -19,8 +19,8 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 26 de noviembre de 20
 | Licencia | Plataforma propietaria; modelos open-weight disponibles | Apache-2.0; consulta las [licencias de los componentes incluidos](../licenses.md) |
 | Dónde se ejecuta | Nube de Mistral, serverless o ediciones autoalojadas | Tu infraestructura |
 | Modelos | Sobre todo los de Mistral | 28 providers, Mistral incluido, y modelos locales |
-| Control del gasto | No descrito públicamente | Un budget mensual por agent y por organización, comprobado antes de cada petición al modelo |
-| Aprobaciones y auditoría | No descritas públicamente | Aprobaciones por capability, herramienta y conexión MCP; registro de auditoría con detección de manipulaciones |
+| Control del gasto | Un límite de gasto mensual por workspace | Un budget mensual por agent y por organización, comprobado antes de cada petición al modelo |
+| Aprobaciones y auditoría | Allow, ask o deny por herramienta y argumento, respondido por una persona; registros de auditoría en los planes Enterprise | Aprobaciones por capability, herramienta y conexión MCP; registro de auditoría con detección de manipulaciones |
 | Canales | Apps de Le Chat e integraciones | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, correo electrónico, iMessage, llamadas telefónicas |
 | Precios | A través de ventas | Sin coste de licencia; el uso de modelos a las tarifas de tu provider |
 
@@ -36,7 +36,7 @@ Los pesos abiertos de Mistral no hacen abierta su plataforma. Todas las partes d
 
 ### Gobernanza descrita en público { #governance-described-in-public }
 
-AgenticOS documenta por completo sus [budgets](../governance.md#budgets), [aprobaciones](../governance.md#approvals), su [registro de auditoría](../governance.md#audit) y sus [permisos](../permissions.md), así que una revisión puede comprobarlos antes de un piloto.
+Mistral documenta un límite de gasto mensual por workspace, políticas de aprobación por herramienta y registros de auditoría en los planes Enterprise. AgenticOS añade un [budget por agent](../governance.md#budgets) comprobado antes de cada petición al modelo, una [cola de aprobaciones](../governance.md#approvals) para las personas que elijas y el [registro de auditoría](../governance.md#audit) en todos los despliegues, y documenta por completo sus [permisos](../permissions.md).
 
 ## Cuándo encaja mejor Mistral { #when-mistral-is-the-better-fit }
 
@@ -66,3 +66,5 @@ Ambos pueden ejecutarse en tu infraestructura. AgenticOS añade una plataforma d
 
 - [Mistral AI Studio](https://mistral.ai/products/ai-studio): la plataforma y sus opciones de despliegue.
 - [Le Chat Enterprise](https://mistral.ai/products/le-chat): el asistente corporativo y sus agents.
+- [Gobernanza de Studio](https://docs.mistral.ai/studio/governance): límites de gasto por workspace y registros de auditoría en Enterprise.
+- [Aprobaciones de agents](https://docs.mistral.ai/studio/agents/learn/agent/approvals): allow, ask o deny por herramienta.

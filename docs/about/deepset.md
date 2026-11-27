@@ -54,7 +54,7 @@ You can install AgenticOS today from its repository and run a pilot on your own 
 
 ### Is AgenticOS a sovereign AI platform like deepset?
 
-Both run on your infrastructure, including air-gapped, with any model. In AgenticOS the whole application is Apache-2.0; at deepset the Haystack framework is open and the platform is proprietary.
+Both run on your infrastructure, including air-gapped, with any model. In AgenticOS the whole application is Apache-2.0, apart from bundled components with their own licences such as the AGPL-3.0 PDF parser; at deepset the Haystack framework is open and the platform is proprietary.
 
 ### Can AgenticOS run on STACKIT or another European cloud?
 

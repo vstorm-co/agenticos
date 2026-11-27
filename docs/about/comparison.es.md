@@ -1,5 +1,5 @@
 ---
-source_sha: "5881de747c1a"
+source_sha: "9a4f545a35b8"
 title: "Compara AgenticOS"
 seo_title: "Comparativas de AgenticOS: capa soberana de agents de IA"
 description: "Compara AgenticOS con Claude, ChatGPT, Copilot Studio, Dify, n8n, Kortix, LobeHub, Onyx, Open WebUI, Langdock, Dust, deepset y los agents en Slack."
@@ -102,7 +102,7 @@ Aquí la soberanía significa cuatro cosas que decides tú: dónde se ejecuta el
 | OpenClaw / NemoClaw | Tu equipo o servidor | Muchos | Código abierto; NemoClaw es la distribución de NVIDIA | Inicio de sesión, auditoría y control de acceso: mínimos en OpenClaw; añadidos por NemoClaw |
 | Wonderful | SaaS multiinquilino, single-tenant, tu nube o on-premises aislado de la red | Enrutados por tarea por la plataforma | Propietaria; los agents y la configuración se exportan desde su UI o su API | Inicio de sesión: no indicado en sus páginas · Auditoría: registros de auditoría en su AI Gateway · Gasto: topes de presupuesto por equipo |
 
-Dify, n8n, Onyx, Open WebUI, LibreChat y deepset también funcionan en tus propios servidores, y Wonderful ofrece un despliegue on-premises aislado de la red. Entre los productos de esta tabla, AgenticOS es el único en el que las cuatro respuestas quedan en tus manos.
+Dify, n8n, Onyx, Open WebUI, LibreChat y deepset también funcionan en tus propios servidores, y Wonderful ofrece un despliegue on-premises aislado de la red. LibreChat también deja las cuatro respuestas en tus manos; AgenticOS añade un budget por agent comprobado antes de cada petición al modelo, aprobaciones decididas por otras personas y muchas organizaciones en un despliegue.
 
 Operar AgenticOS tú mismo no hace locales todos los modelos, parsers y herramientas. Cada servicio externo lo añades tú; consulta [por defecto no sale nada](../data-protection.md#nothing-leaves-by-default).
 

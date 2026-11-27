@@ -1,5 +1,5 @@
 ---
-source_sha: "9bb3f520b0f4"
+source_sha: "83f682984d07"
 title: "AgenticOS vs Claude"
 seo_title: "AgenticOS vs Claude Team i Enterprise: agenci na własność"
 description: "Claude Team i Enterprise a AgenticOS: agenci self-hosted na Claude lub dowolnym modelu, budżety per agent, zatwierdzenia, logi audytu, bez opłaty za stanowisko."
@@ -24,7 +24,7 @@ Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Dat
 | Źródła | Własnościowe | Apache-2.0 |
 | Modele | Tylko Claude | 28 providerów, w tym Claude, oraz modele lokalne |
 | Co budujesz | Projects, skille i pluginy dla osób, które czatują | Opublikowanych agentów, każdy jako wersjonowany spec |
-| Kto korzysta | Pracownicy ze stanowiskiem | Pracownicy, klienci i systemy, na ośmiu powierzchniach |
+| Kto korzysta | Pracownicy ze stanowiskiem | Pracownicy, klienci i systemy, na kilkunastu powierzchniach |
 | Powierzchnie | Web, desktop, mobile, Chrome, Microsoft 365, Slack przez Claude Tag w becie | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, e-mail, iMessage, połączenia telefoniczne |
 | Kontrola wydatków | Limity wydatków organizacji i użytkownika | Budżet per agent i per organizacja, sprawdzany przed każdym żądaniem do modelu |
 | Zatwierdzenia | Działający użytkownik albo tryb automatyczny, jeśli organizacja na niego pozwala | Run czeka, aż zdecyduje osoba z `approvals:decide` |

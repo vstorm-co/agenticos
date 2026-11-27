@@ -1,5 +1,5 @@
 ---
-source_sha: "54eb6ada335e"
+source_sha: "1154cce3cc5d"
 title: "AgenticOS vs OpenAI Codex"
 seo_title: "AgenticOS vs OpenAI Codex: agenci dla firmy czy do kodowania"
 description: "OpenAI Codex to agent programistyczny dla deweloperów. AgenticOS to platforma open source self-hosted dla zarządzanych agentów firmy. Porównaj je i połącz."
@@ -24,7 +24,7 @@ Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Dat
 | Gdzie działa | Maszyny deweloperów; zadania w chmurze w kontenerach zarządzanych przez OpenAI | Twoja infrastruktura, jako usługa współdzielona |
 | Kod | CLI na Apache-2.0; chmura, przegląd kodu i aplikacja ChatGPT własnościowe | Apache-2.0 |
 | Modele | OpenAI z logowaniem przez ChatGPT; CLI przyjmuje też Ollama, LM Studio, Bedrock i własnych providerów | 28 providerów, ustawianych w profilu modelu |
-| Użytkownicy końcowi | Deweloper | Pracownicy, klienci i systemy, na ośmiu powierzchniach |
+| Użytkownicy końcowi | Deweloper | Pracownicy, klienci i systemy, na kilkunastu powierzchniach |
 | Zatwierdzenia | Tryby sandboksa i polityki zatwierdzeń przy biurku dewelopera | Osoba z `approvals:decide`, ze wspólnej kolejki |
 | Kontrola wydatków | Limity na pięciogodzinne okno na stanowiskach Plus i Standard Business oraz kredyty współdzielone z ChatGPT Work | Miesięczny budżet na agenta i na organizację |
 | Cennik | W każdym planie ChatGPT, od Free do Enterprise; OpenAI szacuje 100–200 USD na dewelopera miesięcznie w kredytach | Brak opłaty licencyjnej; użycie modeli i infrastruktura |
@@ -33,7 +33,7 @@ Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Dat
 
 ### Agenci dla osób spoza inżynierii { #agents-for-people-outside-engineering }
 
-Funkcje chmurowe Codex wymagają planu ChatGPT, a jego użytkownikami są deweloperzy. Do firmowych agentów OpenAI wskazuje zamiast tego workspace agents w ChatGPT; zobacz [AgenticOS vs ChatGPT](chatgpt.md). AgenticOS daje zespołowi biznesowemu całą ścieżkę: instrukcje, [capability](../reference/capabilities.md), wiedzę, budżet, [opublikowaną wersję](../concepts.md#version) i [osiem powierzchni](../channels.md).
+Funkcje chmurowe Codex wymagają planu ChatGPT, a jego użytkownikami są deweloperzy. Do firmowych agentów OpenAI wskazuje zamiast tego workspace agents w ChatGPT; zobacz [AgenticOS vs ChatGPT](chatgpt.md). AgenticOS daje zespołowi biznesowemu całą ścieżkę: instrukcje, [capability](../reference/capabilities.md), wiedzę, budżet, [opublikowaną wersję](../concepts.md#version) i [kilkanaście powierzchni](../channels.md).
 
 ### Reguły obowiązujące wszystkich naraz { #rules-that-hold-for-everyone-at-once }
 
