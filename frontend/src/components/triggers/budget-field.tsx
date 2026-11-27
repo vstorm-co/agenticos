@@ -2,7 +2,10 @@
 
 import { useTranslations } from "next-intl";
 
-import { FormField, Input } from "@/components/ui";
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMoney } from "@/components/providers/currency-provider";
+import type { MonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { FormField } from "@/components/ui";
 
 /**
  * A routine's own monthly limit (#2575): what its runs may cost in a calendar month.
@@ -14,25 +17,28 @@ export function BudgetField({
   value,
   onChange,
   error,
+  monetary,
 }: {
+  monetary: MonetaryInputs;
   value: string;
   onChange: (value: string) => void;
   error?: string;
 }) {
+  const money = useMoney();
   const t = useTranslations("triggers");
   return (
     <FormField
-      label={t("budgetLabel")}
+      label={t("budgetLabel", { currency: money.currency ?? "—" })}
       htmlFor="trigger-budget"
       description={t("budgetHint")}
       error={error ?? (parseBudget(value) === undefined ? t("budgetInvalid") : undefined)}
     >
-      <Input
+      <MonetaryInput
         id="trigger-budget"
-        type="text"
-        inputMode="decimal"
+        monetary={monetary}
+        field="monthly_budget_usd"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onValueChange={onChange}
         placeholder={t("budgetPlaceholder")}
       />
     </FormField>

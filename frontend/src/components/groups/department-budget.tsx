@@ -1,12 +1,14 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useState } from "react";
 import { Download } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { HeadroomBar } from "@/components/dashboard/widgets/budget-headroom";
-import { formatUsd } from "@/components/dashboard/format";
+
 import { ErrorState } from "@/components/states";
 import { Button, Figure, ListCard } from "@/components/ui";
 import { useGroupSpend } from "@/hooks";
@@ -24,6 +26,7 @@ import type { Group } from "@/types/groups";
 export function DepartmentBudget({ orgId, group }: { orgId: string; group: Group }) {
   const t = useTranslations("groups");
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   const tErrors = useTranslations("errors");
   const { spend, isLoading, error } = useGroupSpend(orgId);
   const [saving, setSaving] = useState(false);
@@ -58,13 +61,13 @@ export function DepartmentBudget({ orgId, group }: { orgId: string; group: Group
       ) : (
         <div className="space-y-3">
           <Figure
-            value={formatUsd(used, locale)}
+            value={formatMoney(used, locale)}
             caption={
               cap === null
                 ? t("noCapSpent")
                 : t("ofCap", {
-                    cap: formatUsd(cap, locale),
-                    left: formatUsd(Math.max(cap - used, 0), locale),
+                    cap: formatMoney(cap, locale),
+                    left: formatMoney(Math.max(cap - used, 0), locale),
                   })
             }
           />

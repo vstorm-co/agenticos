@@ -1,5 +1,5 @@
 ---
-source_sha: "822050191fb7"
+source_sha: "0a8bc4a04587"
 ---
 
 # Governance { #governance }
@@ -266,6 +266,8 @@ petición siguiente.
 
 ### Un coste que no se pudo medir lo dice { #a-cost-that-could-not-be-measured-says-so }
 
+Stav también acepta tipos del despliegue para la moneda facturada, incluido EUR. Un tipo NOK configurado tiene prioridad sobre el antiguo `STAV_NOK_PER_USD` descrito a continuación. USD sigue como unidad de registro; el uso conserva la moneda facturada y el tipo aplicado.
+
 El coste facturado por Stav prevalece sobre el catálogo: `usage.cost` con
 `cost_currency`, o las cabeceras `x-stav-cost` y `x-stav-cost-currency`. Incluye
 Chat Completions y Responses, también con streaming. USD se usa directamente;
@@ -273,8 +275,9 @@ NOK requiere `STAV_NOK_PER_USD` ([configuración](configuration.md)), mantenido
 por el operador. Indica NOK por dólar: `10` dividiría NOK entre 10; no es una
 recomendación de tipo actual. No se consulta ningún tipo automáticamente.
 Usage conserva el importe, la moneda, el tipo y el coste en USD; el ledger
-marca la fuente como informada por el proveedor. Los importes inválidos, las
-monedas no admitidas o la conversión ausente mantienen el catálogo como respaldo.
+marca la fuente como informada por el proveedor.
+
+Un coste inválido o ausente permite usar el catálogo. Una factura válida sin tipo compatible queda sin precio: conserva el importe y la moneda originales e impide nuevas solicitudes con límite. Los precios de tokens personalizados siguen siendo la autoridad.
 
 Sin un coste utilizable informado por el proveedor, se usa `genai-prices`.
 El paquete no conoce todos los modelos. Cuando un run llega a uno del que no
@@ -1494,6 +1497,15 @@ sus busts, expiraciones y los tokens en caché que no se leyeron de vuelta en la
 ventana - una medida del fallo, no de lo que se volvió a cobrar, ya que una
 compactación también puede acortar el prompt que la caché guardaba.
 La tarjeta no aparece mientras todas las cachés aguantaron.
+
+### Moneda del límite { #limit-currency }
+
+La contabilidad y los campos existentes de la API siguen en USD. La consola convierte el importe introducido en la moneda de informes usando la cotización fijada de la organización y envía la declaración original junto al valor USD. El servidor verifica la conversión con su propia cotización. Una cotización obsoleta, incoherente, no admitida o ausente impide guardar el límite. Usa cadenas decimales para conservar la precisión.
+
+Con una cotización fijada de 4 PLN por USD, `monthly_budget_usd: "25"` puede acompañarse de `monetary_inputs: {"monthly_budget_usd": {"amount": "100", "currency": "PLN"}}`. Una edición explícita mediante la API anterior en USD sustituye solo las condiciones de ese campo. Una modificación no relacionada las conserva. Clonar y los formatos compatibles de exportación/importación conservan las condiciones históricas validadas sin revalorizar el límite USD.
+
+Los límites en moneda extranjera se redondean a seis decimales USD; se rechazan importes que se convertirían en cero. Los presupuestos de agente y umbrales de nodos/comprobaciones con valores float conservan su formato y rechazan declaraciones que no puedan representar exactamente. Un criterio de coste de dataset sigue siendo un umbral de aprobado/suspenso, no una autorización de gasto. Cambiar la moneda de informes no altera los importes comparados para aplicar límites.
+
 
 ## Aprobaciones { #approvals }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "0bb86fae5329"
+source_sha: "b10ab946c123"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -355,6 +355,9 @@ w organizacji, Member edytuje tylko własne. Sekret można też udostępnić
 konkretnemu członkowi albo agentowi przez resource grant, który poszerza dostęp
 do tego jednego wiersza, nie awansując nikogo. Zobacz
 [Uprawnienia](permissions.md).
+
+Rotowanie poświadczenia z sejfu używanego przez profil modelu z własnymi cenami
+wymaga także uprawnienia `budgets:manage`.
 
 ## Operacje { #operations }
 

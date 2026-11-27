@@ -1,5 +1,5 @@
 ---
-source_sha: "9a57eadec91e"
+source_sha: "02fa31bb1dcc"
 ---
 
 # El despliegue en sí { #the-deployment-itself }
@@ -19,7 +19,11 @@ redespliegue, sin variable de entorno, sin reconstrucción.
     Es la misma autoridad que ya administra usuarios y tenants en toda la
     instalación.
 
-La consola agrupa los ajustes en Identidad, Acceso y cuentas, Anuncios y modo de mantenimiento, Voz y móvil, y Actualizaciones y diagnóstico. Cada sección tiene una URL que puedes compartir con `?section=`. Abrir otro enlace de sección conserva los cambios sin guardar. Guardar aplica los campos editados de todas las secciones; Descartar cambios restaura sus valores guardados. Las imágenes y las credenciales de notificaciones móviles mantienen su guardado independiente.
+La consola agrupa los ajustes en Identidad, Acceso y cuentas, Anuncios y modo de mantenimiento, Servicios y costes, y Actualizaciones y diagnóstico. Cada sección tiene una URL que puedes compartir con `?section=`. Abrir otro enlace de sección conserva los cambios sin guardar. Guardar aplica los campos editados de todas las secciones; Descartar cambios restaura sus valores guardados. Las imágenes y las credenciales de notificaciones móviles mantienen su guardado independiente.
+
+Servicios y costes también contiene tipos manuales y la preferencia monetaria predeterminada de la organización. Los tipos son unidades de moneda por USD; USD debe ser exactamente 1. Borrar la sustitución restaura `DEFAULT_ORG_CURRENCY` y `CURRENCY_RATES`. No se reinterpretan precios guardados ni límites USD existentes.
+
+Los costes de informes, las estimaciones y los formularios de límites comparten una cotización fijada por organización. Cambiar los tipos manuales afecta a futuras conversiones de precios, no a esa cotización. Cambiar explícitamente la moneda de organización o la predeterminada del despliegue fija otra cotización sin reescribir recibos ni límites USD. Se conservan las declaraciones originales; consulta [moneda del límite](governance.es.md#limit-currency).
 
 ## Identidad { #identity }
 

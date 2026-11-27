@@ -32,6 +32,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, Field, field_validator
 
+from app.core.currency import CurrencySettings
 from app.core.retention import MAX_RETENTION_DAYS, MIN_RETENTION_DAYS
 from app.core.sign_in_methods import SignInProvider
 from app.schemas.base import BaseSchema
@@ -164,6 +165,9 @@ class DeploymentLimits(BaseSchema):
 
 
 class DeploymentSettingsRead(BrandingRead):
+    currency_settings: CurrencySettings | None = None
+    effective_currency_settings: CurrencySettings = Field(default_factory=CurrencySettings)
+    environment_currency_settings: CurrencySettings = Field(default_factory=CurrencySettings)
     """The administrator's view: everything, in one request."""
 
     password_sign_in_forced: bool = False
@@ -211,6 +215,7 @@ class DeploymentSettingsRead(BrandingRead):
 
 
 class DeploymentSettingsUpdate(BaseSchema):
+    currency_settings: CurrencySettings | None = None
     """A partial write. Every field is optional; `null` clears an override.
 
     "Clears" rather than "blanks": a nullable column keeps the explicit `null` and

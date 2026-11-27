@@ -40,6 +40,7 @@ from app.repositories import (
     resource_grant_repo,
     skill_repo,
 )
+from app.repositories.monetary import set_terms as set_monetary_terms
 from app.schemas.group import GroupCreate, GroupResource, GroupUpdate
 from app.services.access import (
     AGENT,
@@ -50,6 +51,7 @@ from app.services.access import (
     SKILL,
     accessible_ids,
 )
+from app.services.monetary import MonetaryService
 
 
 class GroupService:
@@ -164,6 +166,11 @@ class GroupService:
             key_scopes=key_scopes,
         )
         await self._refuse_taken_name(organization_id, data.name)
+        terms = await MonetaryService(self.db).terms(
+            organization_id,
+            values={"monthly_budget_usd": data.monthly_budget_usd},
+            inputs=data.monetary_inputs,
+        )
         try:
             async with self.db.begin_nested():
                 group = await group_repo.create(
@@ -179,6 +186,9 @@ class GroupService:
             raise AlreadyExistsError(
                 message="A group with this name already exists", details={"name": data.name}
             ) from exc
+        await set_monetary_terms(
+            self.db, group, terms=terms, fields=frozenset({"monthly_budget_usd"})
+        )
         await record_audit(
             self.db,
             actor_user_id=requester_id,
@@ -207,6 +217,18 @@ class GroupService:
             key_scopes=key_scopes,
         )
         group = await self._group(organization_id, group_id)
+        terms = await MonetaryService(self.db).terms(
+            organization_id,
+            values={"monthly_budget_usd": data.monthly_budget_usd}
+            if "monthly_budget_usd" in data.model_fields_set
+            else {},
+            inputs=data.monetary_inputs,
+            previous=group.monetary_terms,
+        )
+        if "monthly_budget_usd" in data.model_fields_set:
+            await set_monetary_terms(
+                self.db, group, terms=terms, fields=frozenset({"monthly_budget_usd"})
+            )
         name = data.name if data.name is not None else group.name
         # A description sent as null clears it; one not sent at all is left alone.
         sent = data.model_fields_set

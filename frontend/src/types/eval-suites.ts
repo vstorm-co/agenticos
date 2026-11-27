@@ -176,7 +176,7 @@ export interface EvalSuiteInput {
   on_promotion: boolean;
   on_dependency_change: boolean;
   schedule: EvalSuiteSchedule | null;
-  max_run_usd: string | null;
+  max_run_usd?: string | null;
 }
 
 export interface EvalSuiteEstimateRequest {

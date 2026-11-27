@@ -12,7 +12,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, JsonValue
 
 from app.db.models.improvement import (
     DroppedHunk,
@@ -25,6 +25,7 @@ from app.db.models.skill_check import CheckMode, CheckOutcome
 from app.db.models.skill_improvement import SkillImprovementOutcome, SkillImprovementPurpose
 from app.schemas.authoring import EvidenceQuote
 from app.schemas.base import BaseSchema
+from app.schemas.currency import MonetaryInputSchema
 from app.schemas.improvement import (
     ContinuationConsent,
     ContinuationEstimate,
@@ -54,7 +55,7 @@ class SkillVersionRef(BaseSchema):
     number: int
 
 
-class SkillImprovementTarget(BaseSchema):
+class SkillImprovementTarget(MonetaryInputSchema):
     """Which line a session improves, and how far back it reads - estimating and starting alike."""
 
     fork_id: UUID | None = Field(
@@ -88,7 +89,7 @@ type MainAlone = Literal["off", "same", "checked"]
 asked for, not needed because the merge is main, or checked."""
 
 
-class SkillMergeStart(BaseSchema):
+class SkillMergeStart(MonetaryInputSchema):
     budget_usd: Decimal = Field(
         ge=0,
         max_digits=12,
@@ -183,6 +184,8 @@ class SkillImprovementIterationRead(BaseSchema):
 
 class SkillImprovementRead(BaseSchema):
     """One session on a skill line, as its wizard reads it."""
+
+    monetary_terms: dict[str, JsonValue] = Field(default_factory=dict)
 
     round_hint: Literal["no_change", "inconclusive"] | None = None
     next_step: Literal["propose", "check"] | None = Field(
@@ -318,7 +321,7 @@ class SkillImprovementProblems(BaseSchema):
     usage_unknown: int
 
 
-class SkillContinue(BaseSchema):
+class SkillContinue(MonetaryInputSchema):
     budget_usd: Decimal | None = Field(
         default=None,
         gt=0,

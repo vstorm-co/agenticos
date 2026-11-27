@@ -5,11 +5,12 @@ from decimal import Decimal
 from typing import Literal, get_args
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, JsonValue
 
 from app.db.models.organization import MembershipSourceLiteral
 from app.db.models.resource_grant import GrantLevelLiteral
 from app.schemas.base import BaseSchema
+from app.schemas.currency import MonetaryInputSchema
 from app.schemas.organization import MonthlyBudgetUsd
 
 GroupIcon = Literal[
@@ -39,7 +40,7 @@ def as_group_icon(value: str | None) -> GroupIcon | None:
     raise ValueError(f"Not a group icon: {value!r}")
 
 
-class GroupCreate(BaseSchema):
+class GroupCreate(MonetaryInputSchema):
     name: str = Field(min_length=1, max_length=128)
     description: str | None = Field(default=None, max_length=500)
     icon: GroupIcon | None = None
@@ -52,7 +53,7 @@ class GroupCreate(BaseSchema):
     )
 
 
-class GroupUpdate(BaseSchema):
+class GroupUpdate(MonetaryInputSchema):
     """Rename a group or change its description; an omitted field is left as it is."""
 
     name: str | None = Field(default=None, min_length=1, max_length=128)
@@ -64,6 +65,8 @@ class GroupUpdate(BaseSchema):
 
 
 class GroupRead(BaseSchema):
+    monetary_terms: dict[str, JsonValue] = Field(default_factory=dict)
+
     id: UUID
     organization_id: UUID
     name: str

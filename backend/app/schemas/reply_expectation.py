@@ -13,6 +13,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.schemas.currency import MonetaryInputSchema
+
 ThreadId = Annotated[
     str, StringConstraints(min_length=1, max_length=2048, pattern=r"^[^\x00-\x1f\x7f]+$")
 ]
@@ -35,7 +37,7 @@ class ReplyExpectationInput(BaseModel):
         return self
 
 
-class ReplyDraftSelection(BaseModel):
+class ReplyDraftSelection(MonetaryInputSchema):
     """Explicit model and per-draft budget; the draft has no sending tools."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")

@@ -1,9 +1,13 @@
 "use client";
 
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { type ReactNode, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Button, ConfirmDialog, Input, Label, Textarea } from "@/components/ui";
-import { limitText, limitValue, usd } from "@/components/evals/format";
+import { Button, ConfirmDialog, Label, Textarea } from "@/components/ui";
+import { limitValue } from "@/components/evals/format";
 import { useImprovement } from "@/hooks/use-improvements";
 import { mayContinue, subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage } from "@/lib/api-error";
@@ -70,13 +74,16 @@ export function ContinueSession({
   emphasis?: { again: Variant; end: Variant };
   onStarted: () => void;
 }) {
+  const monetary = useMonetaryInputs();
+  const money = useMoney();
+  const tm = useTranslations("currencies");
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const actions = useImprovement(subjectOf(session), session.id);
   const [open, setOpen] = useState(false);
   const [discarding, setDiscarding] = useState(false);
-  const [budget, setBudget] = useState(() => limitText(session.budget_usd, locale));
+  const [budget, setBudget] = useState(() => session.budget_usd);
   const [note, setNote] = useState("");
   const [quoted, setQuoted] = useState<{ key: string; value: ContinuationEstimate } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -175,13 +182,16 @@ export function ContinueSession({
               <p className="text-muted-foreground text-xs">{t("helperNoteHint")}</p>
             </div>
           )}
-          <Label htmlFor="continuation-budget">{t("budget")}</Label>
-          <Input
+          <Label htmlFor="continuation-budget">
+            {tm("budgetLabel", { currency: money.currency ?? "—" })}
+          </Label>
+          <MonetaryInput
             id="continuation-budget"
             className="max-w-sm"
-            inputMode="decimal"
+            monetary={monetary}
+            field="budget_usd"
             value={budget}
-            onChange={(event) => setBudget(event.target.value)}
+            onValueChange={setBudget}
           />
           <Button
             variant="outline"
@@ -203,7 +213,7 @@ export function ContinueSession({
                   mode: quote.mode,
                   number: quote.number,
                   max: session.max_iterations,
-                  cost: usd(quote.total_usd, locale),
+                  cost: money.cost(quote.total_usd, locale),
                 })}
               </p>
               {!quote.affordable && <p>{t("continuationUnaffordable")}</p>}
@@ -214,6 +224,7 @@ export function ContinueSession({
                   void act(async () => {
                     await actions.continueSession.mutateAsync({
                       ...quote,
+                      body: monetary.payload({}),
                       ...(attempt && note.trim() ? { note: note.trim() } : {}),
                     });
                     setQuoted(null);

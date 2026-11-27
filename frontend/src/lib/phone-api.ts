@@ -5,6 +5,7 @@ export interface PhoneChoice {
   label: string;
 }
 export interface PhoneEndpointConfig {
+  monetary_inputs?: Record<string, import("@/lib/money").CurrencyAmount>;
   enabled: boolean;
   inbound_embed_id: string | null;
   max_call_seconds: number;

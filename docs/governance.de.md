@@ -1,5 +1,5 @@
 ---
-source_sha: "822050191fb7"
+source_sha: "0a8bc4a04587"
 ---
 
 # Governance { #governance }
@@ -276,6 +276,8 @@ Ausgabe wird festgehalten statt abgelehnt, sodass eine Kompaktierung, die ein Ca
 
 ### Kosten, die sich nicht messen ließen, sagen das { #a-cost-that-could-not-be-measured-says-so }
 
+Stav akzeptiert auch Bereitstellungskurse für die Rechnungswährung, einschließlich EUR. Ein konfigurierter NOK-Kurs hat Vorrang vor dem unten beschriebenen bisherigen `STAV_NOK_PER_USD`. USD bleibt die gespeicherte Abrechnungseinheit; die Nutzung behält Rechnungswährung und angewendeten Kurs.
+
 Die von Stav berechneten Kosten haben Vorrang vor dem Katalog: `usage.cost`
 mit `cost_currency` oder die Header `x-stav-cost` und `x-stav-cost-currency`.
 Das gilt für Chat Completions und Responses, auch beim Streaming. USD wird
@@ -284,8 +286,9 @@ direkt verwendet; NOK erfordert `STAV_NOK_PER_USD`
 pro Dollar an: `10` würde NOK durch 10 teilen und ist keine Empfehlung für den
 aktuellen Kurs. Es wird kein Kurs automatisch abgerufen. Usage bewahrt Betrag,
 Währung, Kurs und USD-Kosten; das Ledger markiert die Quelle als vom Anbieter
-gemeldet. Ungültige Beträge, nicht unterstützte Währungen oder fehlende
-Umrechnung lassen den Katalog-Fallback bestehen.
+gemeldet.
+
+Ein ungültiger oder fehlender Anbieterbetrag erlaubt den Katalog-Fallback. Eine gültige Rechnung ohne unterstützten Kurs bleibt unbepreist: ursprünglicher Betrag und Währung bleiben erhalten, und ein gedeckelter Lauf verweigert weitere Anfragen. Konfigurierte eigene Tokenpreise bleiben maßgeblich.
 
 Ohne verwendbare vom Anbieter gemeldete Kosten gilt: `genai-prices` kennt nicht jedes Modell. Trifft ein Run auf eines, für das es
 keinen Eintrag hat, wird diese Anfrage mit null gebucht und der Run als
@@ -1579,6 +1582,15 @@ der Cache nicht gehalten hat: eine Karte _Prompt-Cache_, eine Zeile pro Agent
 und Modell, mit Busts, Abläufen und den gecachten Tokens, die nicht zurückgelesen
 wurden, im Zeitraum - ein Maß für den Fehlgriff, nicht für erneut Berechnetes, da
 auch eine Komprimierung den gecachten Prompt verkleinern kann. Solange jeder Cache gehalten hat, erscheint die Karte nicht.
+
+### Limitwährung { #limit-currency }
+
+Buchführung und vorhandene API-Felder bleiben USD. Die Konsole rechnet den eingegebenen Berichtswährungsbetrag mit dem gespeicherten Organisationskurs um und sendet die ursprüngliche Deklaration neben dem USD-Wert. Der Server prüft die Umrechnung mit seinem eigenen Kurs. Ein veralteter, widersprüchlicher, nicht unterstützter oder fehlender Kurs kann kein Limit schreiben. Dezimale Zeichenketten bewahren die Eingabegenauigkeit.
+
+Bei einem gespeicherten Kurs von 4 PLN je USD kann etwa `monthly_budget_usd: "25"` von `monetary_inputs: {"monthly_budget_usd": {"amount": "100", "currency": "PLN"}}` begleitet werden. Eine ausdrückliche USD-Änderung eines älteren Clients ersetzt nur die ursprünglichen Bedingungen dieses Feldes. Andere Patches erhalten sie. Klonen sowie unterstützte Exporte und Importe übernehmen geprüfte historische Bedingungen ohne Neubewertung des USD-Limits.
+
+Fremdwährungslimits werden auf sechs USD-Nachkommastellen gerundet; auf null fallende Beträge werden abgelehnt. Ältere Float-Budgets von Agenten und Schritt- oder Prüfschwellen behalten ihr Format und lehnen nicht exakt darstellbare Deklarationen ab. Ein Kostenkriterium bleibt eine Bewertungsschwelle, keine Ausgabenberechtigung. Ein Wechsel der Berichtswährung ändert niemals die bei der Durchsetzung verglichenen Kosten oder Limits.
+
 
 ## Freigaben { #approvals }
 

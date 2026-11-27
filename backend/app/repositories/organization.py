@@ -207,6 +207,7 @@ async def create(
     is_personal: bool = False,
     avatar_url: str | None = None,
     monthly_budget_usd: Decimal | None = None,
+    reporting_quote: dict[str, JsonValue] | None = None,
 ) -> Organization:
     org = Organization(
         name=name,
@@ -215,6 +216,7 @@ async def create(
         is_personal=is_personal,
         avatar_url=avatar_url,
         monthly_budget_usd=monthly_budget_usd,
+        reporting_quote=reporting_quote or {"currency": "USD", "units_per_usd": "1"},
     )
     db.add(org)
     await db.flush()
@@ -688,6 +690,20 @@ async def set_onboarding_reminders(
     return result.scalar_one()
 
 
+async def set_currency(
+    db: AsyncSession,
+    org: Organization,
+    *,
+    currency: str | None,
+    reporting_quote: dict[str, JsonValue],
+) -> Organization:
+    org.currency = currency
+    org.reporting_quote = reporting_quote
+    await db.flush()
+    await db.refresh(org)
+    return org
+
+
 async def set_chat_cost_visibility(
     db: AsyncSession, org: Organization, *, policy: ChatCostVisibility | None
 ) -> Organization:
@@ -751,3 +767,21 @@ async def set_console_notices(
     )
     await db.flush()
     return result.scalar_one()
+
+
+async def inherited_reporting_quotes(db: AsyncSession) -> list[Organization]:
+    """Lock inherited display quotes during an explicit default-currency change."""
+    result = await db.execute(
+        select(Organization)
+        .where(Organization.currency.is_(None))
+        .order_by(Organization.id)
+        .with_for_update()
+    )
+    return list(result.scalars().all())
+
+
+async def set_reporting_quote(
+    db: AsyncSession, org: Organization, *, quote: dict[str, JsonValue]
+) -> None:
+    org.reporting_quote = quote
+    await db.flush()

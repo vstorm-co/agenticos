@@ -237,7 +237,7 @@ async def reconnect_official_chatgpt_sign_in(
 
 @router.patch("/{secret_id}", response_model=SecretRead)
 async def update_secret(secret_id: UUID, data: SecretUpdate, service: SecretSvc, ctx: Auth) -> Any:
-    """Rename, re-describe or rotate. A rotation cannot change the kind."""
+    """Rename, re-describe or rotate. Rotating a key with custom model prices needs budget permission."""
     return await service.update(
         ctx,
         secret_id,

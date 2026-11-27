@@ -60,6 +60,7 @@ async def list_groups(org_id: UUID, service: GroupSvc, ctx: PathOrgAuth) -> Any:
             description=group.description,
             icon=as_group_icon(group.icon),
             monthly_budget_usd=group.monthly_budget_usd,
+            monetary_terms=group.monetary_terms or {},
             member_count=count,
             created_at=group.created_at,
         )
@@ -146,6 +147,7 @@ async def create_group(org_id: UUID, data: GroupCreate, service: GroupSvc, ctx: 
         description=group.description,
         icon=as_group_icon(group.icon),
         monthly_budget_usd=group.monthly_budget_usd,
+        monetary_terms=group.monetary_terms or {},
         member_count=0,
         created_at=group.created_at,
     )
@@ -166,6 +168,7 @@ async def update_group(
         description=group.description,
         icon=as_group_icon(group.icon),
         monthly_budget_usd=group.monthly_budget_usd,
+        monetary_terms=group.monetary_terms or {},
         member_count=count,
         created_at=group.created_at,
     )

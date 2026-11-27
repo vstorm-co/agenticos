@@ -194,6 +194,7 @@ def _profile(
     profile.base_url = base_url
     profile.api = api
     profile.region = region
+    profile.custom_pricing = None
     profile.params = {}
     profile.fallback_profile_ids = [str(pid) for pid in (fallbacks or [])]
     profile.runs_without_key = False
@@ -732,6 +733,7 @@ class TestProfileCreation:
             await ModelProfileService(_db()).create_profile(
                 ctx,
                 label="Prod",
+                custom_pricing=None,
                 provider="openai",
                 model="gpt-4.1",
                 secret_id=secret.id,
@@ -919,6 +921,43 @@ _STORED = object()
 class TestEditingAProfileInPlace:
     """A key or endpoint change keeps the id every agent names (#2478)."""
 
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("setting", ["extra_body", "extra_headers"])
+    @pytest.mark.parametrize("scoped_key", [False, True])
+    async def test_changing_priced_transport_settings_requires_budget_authority(
+        self, setting: str, scoped_key: bool
+    ) -> None:
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.OWNER if scoped_key else OrgRoleName.BUILDER,
+            key_scopes=frozenset({Perm.CONNECTIONS_MANAGE.value}) if scoped_key else None,
+        )
+        profile = _profile(ctx, api="chat")
+        profile.custom_pricing = {"input": "0", "output": "0"}
+        transport = (
+            {"model": "expensive-model"}
+            if setting == "extra_body"
+            else {"Authorization": "Bearer replacement-test-key"}
+        )
+        with pytest.raises(AuthorizationError, match="budgets:manage"):
+            await self._update(ctx, profile, {"params": {setting: transport}})
+
+        profile.params = {setting: transport}
+        with pytest.raises(AuthorizationError, match="budgets:manage"):
+            await self._update(ctx, profile, {"params": {}})
+
+        _, update, _, _ = await self._update(
+            ctx, profile, {"params": {setting: transport, "temperature": 0.5}}
+        )
+        assert update.await_args.kwargs["update_data"] == {
+            "params": {setting: transport, "temperature": 0.5}
+        }
+
+        _, update, _, _ = await self._update(_ctx(ctx.organization_id), profile, {"params": {}})
+        assert update.await_args.kwargs["update_data"] == {"params": {}}
+
     async def _update(self, ctx, profile, changes, *, secret=_STORED, visible=True, taken=None):
         if secret is _STORED:
             # The key the profile already has, visible to the caller unless a test
@@ -1008,6 +1047,47 @@ class TestEditingAProfileInPlace:
         # The names of what changed, never the values: an endpoint can carry
         # more than a host, and a key id says which secret moved.
         assert audit.await_args.kwargs["details"] == {"fields": ["secret_id"]}
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    @pytest.mark.parametrize("binding", ["key", "endpoint", "keyless"])
+    @pytest.mark.parametrize("scoped_key", [False, True])
+    async def test_rebinding_a_priced_model_requires_budget_authority(
+        self, binding: str, scoped_key: bool
+    ) -> None:
+        ctx = AuthContext(
+            user_id=uuid.uuid4(),
+            organization_id=uuid.uuid4(),
+            role=OrgRoleName.OWNER if scoped_key else OrgRoleName.BUILDER,
+            key_scopes=frozenset({Perm.CONNECTIONS_MANAGE.value}) if scoped_key else None,
+        )
+        profile = _profile(ctx, api="chat", base_url="https://original.example/v1")
+        profile.custom_pricing = {"input": "0", "output": "0"}
+        secret = _vault_secret(ctx, purpose="openai")
+        if binding == "keyless":
+            profile.secret_id = None
+        changes = {
+            "key": {"secret_id": secret.id},
+            "endpoint": {"base_url": "https://other.example/v1"},
+            "keyless": {"secret_id": None},
+        }[binding]
+
+        with pytest.raises(AuthorizationError, match="requires budgets:manage"):
+            await self._update(ctx, profile, changes, secret=secret)
+
+        _, update, _, _ = await self._update(
+            ctx,
+            profile,
+            {"secret_id": profile.secret_id, "label": "New label"}
+            if binding != "keyless"
+            else {"label": "New label"},
+        )
+        assert update.await_args.kwargs["update_data"] == {"label": "New label"}
+
+        _, update, _, _ = await self._update(
+            _ctx(ctx.organization_id), profile, changes, secret=secret
+        )
+        assert "custom_pricing" not in update.await_args.kwargs["update_data"]
 
     @pytest.mark.anyio
     async def test_a_profile_from_another_organization_is_not_found(self):
@@ -2563,6 +2643,7 @@ class TestTheWindowAModelAccepts:
         profile = MagicMock(
             id=uuid.uuid4(),
             label="Prod",
+            custom_pricing=None,
             provider="ollama",
             model="llama3.3",
             params={},
@@ -3051,3 +3132,63 @@ async def test_vertex_routing_records_effective_sdk_location(
     ):
         resolved = await ModelProfileService(_db()).resolve_credential(ctx.organization_id, profile)
     assert resolved.routing == {"project": "demo-project", "location": expected}
+
+
+@pytest.mark.anyio
+async def test_new_keyless_profiles_persist_custom_prices():
+    from app.schemas.token_pricing import TokenPricing
+
+    rates = TokenPricing(input="0", output="2")
+    db = _db()
+    db.refresh = AsyncMock()
+    with (
+        patch(
+            "app.services.model_profile.validate_endpoint_url",
+            AsyncMock(return_value="http://localhost:11434/v1"),
+        ),
+        patch("app.services.model_profile.models_for", AsyncMock(return_value=([], "unlisted"))),
+        patch("app.services.system_agents.SystemAgentService.adopt_model", AsyncMock()),
+    ):
+        profile = await ModelProfileService(db).create_profile(
+            _ctx(),
+            label="House",
+            provider="ollama",
+            model="alias",
+            secret_id=None,
+            base_url="http://localhost:11434/v1",
+            custom_pricing=rates,
+        )
+    assert profile.custom_pricing == rates.model_dump(mode="json")
+    assert profile.secret_id is None and profile.runs_without_key
+
+
+@pytest.mark.anyio
+@pytest.mark.security
+@pytest.mark.parametrize("scoped_key", [False, True])
+async def test_model_prices_require_budget_authority_even_when_connections_are_manageable(
+    scoped_key: bool,
+) -> None:
+    from app.schemas.token_pricing import TokenPricing
+
+    ctx = AuthContext(
+        user_id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        role=OrgRoleName.OWNER if scoped_key else OrgRoleName.BUILDER,
+        key_scopes=frozenset({Perm.CONNECTIONS_MANAGE.value}) if scoped_key else None,
+    )
+    rates = TokenPricing(input="0", output="0")
+    service = ModelProfileService(_db())
+    with pytest.raises(AuthorizationError, match="budgets:manage"):
+        await service.create_profile(
+            ctx,
+            label="Free",
+            provider="ollama",
+            model="alias",
+            secret_id=None,
+            custom_pricing=rates,
+        )
+    for pricing in (rates, None):
+        with pytest.raises(AuthorizationError, match="budgets:manage"):
+            await service.update_profile(
+                ctx, uuid.uuid4(), ModelProfileUpdate(custom_pricing=pricing)
+            )

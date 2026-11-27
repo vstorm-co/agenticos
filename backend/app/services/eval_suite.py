@@ -107,6 +107,7 @@ from app.services.dataset import DatasetService
 from app.services.eval_comparison import Attempt
 from app.services.eval_run import EvalRunService, scoring_hash
 from app.services.eval_suite_threshold import judge
+from app.services.monetary import MonetaryService
 from app.worker.jobs import CHECK_EVAL_SUITES, Tick
 
 logger = logging.getLogger(__name__)
@@ -658,6 +659,11 @@ class EvalSuiteService:
         if data.environment_id is not None:
             await self._check_environment(ctx, agent, data.environment_id)
         await self._check_name(ctx, agent, data.name)
+        terms = await MonetaryService(self.db).terms(
+            ctx.organization_id,
+            values={"max_run_usd": data.max_run_usd},
+            inputs=data.monetary_inputs,
+        )
         now = datetime.now(UTC)
         try:
             async with self.db.begin_nested():
@@ -676,6 +682,7 @@ class EvalSuiteService:
                         on_promotion=data.on_promotion,
                         on_dependency_change=data.on_dependency_change,
                         max_run_usd=data.max_run_usd,
+                        monetary_terms=terms,
                         **self._threshold_columns(data.threshold),
                         **self._schedule_columns(data.schedule, now=now),
                     ),
@@ -698,7 +705,13 @@ class EvalSuiteService:
         # Held for the write, so a pin moved meanwhile is not left on another dataset.
         await eval_suite_repo.lock(self.db, suite.id, organization_id=ctx.organization_id)
         fields = data.model_fields_set
-        values: dict[str, Any] = {"owner_user_id": ctx.user_id}
+        terms = await MonetaryService(self.db).terms(
+            ctx.organization_id,
+            values={"max_run_usd": data.max_run_usd} if "max_run_usd" in fields else {},
+            inputs=data.monetary_inputs,
+            previous=suite.monetary_terms,
+        )
+        values: dict[str, Any] = {"owner_user_id": ctx.user_id, "monetary_terms": terms}
         if data.name is not None and data.name != suite.name:
             await self._check_name(ctx, agent, data.name)
             values["name"] = data.name

@@ -19,11 +19,36 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-### Security
+### Added
 
-- Require connection access when selecting a new keyed Docling parser, and exclude stale endpoint references from embedding connection Tests so a retired endpoint never receives a collection’s chunks.
+- Set custom token prices per model profile in a chosen currency, including cache prices and explicit free usage. Each profile, fallback and delegate keeps its own rates; accounting receipts retain the original price and conversion snapshot.
+
+- Configure supported currencies and manual pricing rates in administration or `CURRENCY_RATES`, and choose an organization reporting currency independently of language. Costs, estimates and monetary inputs share a persisted reporting quote; pricing-rate edits do not revalue recorded USD spend or configured limits.
+
+- Enter limits in the reporting currency and retain their original amount, currency and quote on the owning resource. Agent budgets, routines, workflows and their node caps, background roles, phone routing, eval suites, Improve sessions and cost-check criteria keep compatible accounting USD fields.
+
+
+- Set flat USD token prices per model profile in the console and API, including cache rates and explicit free usage. Fallbacks and delegates use their own profile prices; keyless usage reaches budgets and reports. Existing recorded costs remain unchanged.
+
+- Preview a role’s navigation, dashboard cards, catalog restrictions and product prompts together, without impersonating a member or loading private widget data.
+- Embed a knowledge base through any OpenAI-compatible endpoint your organization registers, with an optional Vault key: pick **Custom (OpenAI-compatible)**, a service connection and a typed model, then **Test** before creating. Test before saving a change to a knowledge base's embeddings or to a connection's address or key; the Test re-embeds stored chunks and compares them with the vectors already indexed.
+- Knowledge base search marks where a result matches the query: the exact phrase when it appears, otherwise the query's words.
+- Retry a failed document from the documents list (the icon beside **Failed**). A retry reads with the collection's settings as they are now, plus any changes pending for the next uploads.
+- A deployment admin can create a deployment-wide knowledge base, searchable by every organization, from **Create knowledge base**.
+- Parse a knowledge base's documents through your own Docling Serve, registered as a service connection with an optional Vault key. A **Test** checks the address and key without converting anything. Chunks keep their pages, and a conversion that is still running is collected by Retry instead of being submitted again.
+
+### Changed
+
+- `POST /rag/documents/{id}/retry` now parses with the collection's current settings and accepts an optional `ingestion_override` body; with no body the file keeps the changes it was uploaded with. A retry no longer replaces another document of the same file, even after an upload with `replace=true`.
+- The knowledge base header's **Parse options** is now **Settings** and opens the collection's own settings; one-off settings for the next uploads moved to **Upload with different settings…** on the **Upload** button, and the banner's **Clear** is now **Revert**.
+- A `.docx` is now read by the collection's parser when it reads Word (LiteParse, LlamaParse, Docling), and otherwise by the built-in Word reader, which now keeps headings and tables as markdown in document order instead of dropping tables; `.txt` and `.md` still use the built-in text reader. The ML document analysis and recognition services follow the same rule, and now recognise a scanned `.docx`. A `.docx`, `.pptx` or `.xlsx` over the chat archive limits is refused at parse time under every parser, so a very large `.pptx` or `.xlsx` that LiteParse or LlamaParse used to read is now refused.
+- A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. The Integrations tab on the Knowledge bases page shows each connection's API style and key, and local services are now called service connections.
 
 ### Fixed
+
+- Keep a Stav bill with missing FX visibly unpriced instead of replacing it with a catalog estimate. Retain its original billed amount and currency, known cost subtotals and partial-usage safeguards.
+
+- Prevent model editors from changing raw request routing or credentials on custom-priced profiles without budget authority. Keep omitted token usage partially priced, including streams and nested calls, and stop further capped requests while retaining known cost subtotals.
 
 - Refuse malformed service-address ports before saving, and allow repairing a legacy invalid address without leaking its credentials into audit entries.
 
@@ -38,14 +63,18 @@ Two things are versioned separately from this file and worth knowing about:
 - Retrying a failed document no longer removes another upload of the same file; it replaces only what its own failed attempt left.
 - An app-scoped knowledge base is checked as itself when it is created or edited: its parser connection and OCR server must be deployment-wide and it cannot use a LlamaParse key, because its syncs resolve them with no organization. Before, a connection only the creator's organization could see was accepted and every sync then failed to find it.
 
-### Changed
+### Security
 
-- `POST /rag/documents/{id}/retry` now parses with the collection's current settings and accepts an optional `ingestion_override` body; with no body the file keeps the changes it was uploaded with. A retry no longer replaces another document of the same file, even after an upload with `replace=true`.
-- The knowledge base header's **Parse options** is now **Settings** and opens the collection's own settings; one-off settings for the next uploads moved to **Upload with different settings…** on the **Upload** button, and the banner's **Clear** is now **Revert**.
-- A `.docx` is now read by the collection's parser when it reads Word (LiteParse, LlamaParse, Docling), and otherwise by the built-in Word reader, which now keeps headings and tables as markdown in document order instead of dropping tables; `.txt` and `.md` still use the built-in text reader. The ML document analysis and recognition services follow the same rule, and now recognise a scanned `.docx`. A `.docx`, `.pptx` or `.xlsx` over the chat archive limits is refused at parse time under every parser, so a very large `.pptx` or `.xlsx` that LiteParse or LlamaParse used to read is now refused.
-- A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. The Integrations tab on the Knowledge bases page shows each connection's API style and key, and local services are now called service connections.
+- Require connection access when selecting a new keyed Docling parser, and exclude stale endpoint references from embedding connection Tests so a retired endpoint never receives a collection’s chunks.
+- Display workflow statistics, dashboard spending, run history and conversation costs in the organization currency, independently of language. Show unknown amounts when a reporting rate is unavailable; preserve stored USD accounting and existing cap values.
 
 ### Upgrading
+
+- Apply `0375_model_profile_pricing.py`, `0376_monetary_cost_capacity.py`, `0377_currency_settings.py` and `0378_currency_accounting_terms.py` before starting the API. Profiles retain automatic pricing by default. Monetary columns retain six fractional places; ingestion receipts retain twelve. Downgrade refuses amounts outside the former range or original non-USD limit terms that would be lost.
+
+- Recorded USD receipts and existing USD limits are not reinterpreted. Reporting quotes are frozen at organization creation, explicit currency preference/default changes and the initial migration/startup reconciliation. A rate-only edit affects future source-price conversions. An explicit reporting-currency change changes displayed equivalents, never accounting receipts or limits.
+
+- Model price changes require `budgets:manage` as well as connection management. Existing USD API fields retain their units; optional `monetary_inputs` declarations are checked against the authoritative quote. Legacy float-valued agent specs retain their format and refuse declarations that cannot be represented exactly at that boundary.
 
 - A keyed custom embedding endpoint under an organization USD cap must use a catalog-priced model and report valid token usage. Fix its reporting/model or intentionally remove that cap before retrying a policy-refused ingest/search. Ingestion and sync still admit whole work windows; already admitted work may overshoot, and unknown provider fees remain partial.
 - Migration `0367_embedding_probe_spend_precision.py` (revision `0367_embedding_probe_spend`) widens ingestion and diagnostic receipts to 12 fractional digits, preserving the previous integer range. Historically rounded receipts cannot be reconstructed or repriced. Downgrade refuses if it would discard fractional financial data.
@@ -54,15 +83,6 @@ Two things are versioned separately from this file and worth knowing about:
 - Migration `0366_docling_parser.py` widens the service connection kind to include `document_parser` and adds `rag_documents.parser_task`. Downgrading is refused while a document parser connection exists.
 - A LlamaParse collection now uploads new `.docx` files to LlamaParse.
 - A LiteParse collection now needs LibreOffice to read `.docx`. The backend image ships it; a host that runs the backend outside the image must install it.
-
-### Added
-
-- Preview a role’s navigation, dashboard cards, catalog restrictions and product prompts together, without impersonating a member or loading private widget data.
-- Embed a knowledge base through any OpenAI-compatible endpoint your organization registers, with an optional Vault key: pick **Custom (OpenAI-compatible)**, a service connection and a typed model, then **Test** before creating. Test before saving a change to a knowledge base's embeddings or to a connection's address or key; the Test re-embeds stored chunks and compares them with the vectors already indexed.
-- Knowledge base search marks where a result matches the query: the exact phrase when it appears, otherwise the query's words.
-- Retry a failed document from the documents list (the icon beside **Failed**). A retry reads with the collection's settings as they are now, plus any changes pending for the next uploads.
-- A deployment admin can create a deployment-wide knowledge base, searchable by every organization, from **Create knowledge base**.
-- Parse a knowledge base's documents through your own Docling Serve, registered as a service connection with an optional Vault key. A **Test** checks the address and key without converting anything. Chunks keep their pages, and a conversion that is still running is collected by Retry instead of being submitted again.
 
 ## [1.95.0] - 2026-11-26
 

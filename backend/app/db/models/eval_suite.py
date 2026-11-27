@@ -20,6 +20,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
+from pydantic import JsonValue
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -99,6 +100,10 @@ class EvalSuite(Base, TimestampMixin):
 
     __tablename__ = "eval_suites"
 
+    monetary_terms: Mapped[dict[str, JsonValue]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'")
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
@@ -140,7 +145,7 @@ class EvalSuite(Base, TimestampMixin):
     # twenty per cent more cost per passed case or p95 latency, and no more.
     max_cost_per_pass_rise: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
     max_p95_rise: Mapped[Decimal | None] = mapped_column(Numeric(8, 4), nullable=True)
-    max_run_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    max_run_usd: Mapped[Decimal | None] = mapped_column(Numeric(38, 6), nullable=True)
     on_publish: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     on_promotion: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     on_dependency_change: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

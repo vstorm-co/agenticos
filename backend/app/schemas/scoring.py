@@ -9,6 +9,7 @@ a person's verdict on it.
 
 from collections.abc import Sequence
 from datetime import datetime
+from decimal import Decimal
 from typing import Annotated, Literal, Self
 from uuid import UUID
 
@@ -27,6 +28,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.currency import CurrencyAmount, MonetaryTerm
 from app.schemas.base import BaseSchema
 from app.schemas.dataset_helpers import PipelineInstructions
 
@@ -171,6 +173,18 @@ class CeilingCheck(_CheckBase):
 
     type: Literal["max_cost_usd", "max_latency_ms"]
     value: float = Field(ge=0)
+    monetary_input: CurrencyAmount | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    monetary_term: MonetaryTerm | None = Field(default=None, exclude_if=lambda value: value is None)
+
+    @model_validator(mode="after")
+    def currency_only_for_cost(self) -> Self:
+        if self.type != "max_cost_usd" and (
+            self.monetary_input is not None or self.monetary_term is not None
+        ):
+            raise ValueError("Only a monetary threshold can carry currency terms")
+        return self
 
 
 class LengthCheck(_CheckBase):
@@ -420,6 +434,8 @@ class ScorerResult(BaseSchema):
     judge_run_id: UUID | None = None
     knowledge: list[KnowledgeFinding] = Field(default_factory=list)
     family: str | None = None
+    cost_limit_usd: Decimal | None = Field(default=None, exclude_if=lambda value: value is None)
+    cost_observed_usd: Decimal | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class ExpectedToolCall(BaseSchema):

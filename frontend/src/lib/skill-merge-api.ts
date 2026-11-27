@@ -3,6 +3,7 @@
  * session that merges them, the merge Changes edits, and who main has left behind.
  */
 
+import type { CurrencyAmount } from "@/lib/money";
 import { apiClient } from "./api-client";
 import type { SkillImprovement } from "@/types/skill-improvement";
 import type {
@@ -34,9 +35,11 @@ export function startSkillMerge(
   forkId: string,
   kind: MergeKind,
   budgetUsd: string,
+  monetaryInputs?: Record<string, CurrencyAmount>,
 ): Promise<SkillImprovement> {
   return apiClient.post<SkillImprovement>(forkRoot(skillId, forkId, kind), {
     budget_usd: budgetUsd,
+    ...(monetaryInputs ? { monetary_inputs: monetaryInputs } : {}),
   });
 }
 

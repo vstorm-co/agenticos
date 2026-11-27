@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useLocale, useTranslations } from "next-intl";
 
 import { usePeopleUsage, useUsageStats } from "@/hooks";
@@ -8,7 +10,7 @@ import Link from "next/link";
 import { MemberIdentity } from "@/components/orgs/member-identity";
 import { runsHref } from "@/lib/runs/filter-params";
 import { timeAgo } from "@/lib/utils";
-import { formatUsd } from "../format";
+
 import { WidgetFrame } from "../widget-frame";
 import { Users } from "lucide-react";
 
@@ -32,6 +34,7 @@ export function TopPeopleWidget({ title, hint, period, seeAll, options }: Dashbo
   const t = useTranslations("dashboard.widgets.top-people");
   const tTime = useTranslations("time");
   const locale = useLocale();
+  const { format: formatMoney } = useMoney();
   const { byUser, isLoading, error, refetch } = usePeopleUsage(
     { from: period.from, to: period.to },
     { limit: ROWS, filter: { agentId: options?.agentId, groupId: options?.groupId } },
@@ -95,7 +98,7 @@ export function TopPeopleWidget({ title, hint, period, seeAll, options }: Dashbo
                       {person.runs}
                     </td>
                     <td className="text-foreground py-1.5 text-right tabular-nums">
-                      {formatUsd(Number(person.cost_usd), locale)}
+                      {formatMoney(Number(person.cost_usd), locale)}
                     </td>
                     <td className="text-muted-foreground py-1.5 text-right">
                       {timeAgo(person.last_run_at, tTime, locale)}

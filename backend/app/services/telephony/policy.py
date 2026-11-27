@@ -28,6 +28,7 @@ from app.schemas.telephony import (
 )
 from app.services.access import acting_member
 from app.services.agent_registry import AgentRegistryService
+from app.services.monetary import MonetaryService
 from app.services.telephony.provider import NUMBER, PhoneCredentials, credentials, url
 
 
@@ -232,6 +233,19 @@ class PhonePolicyService:
                 bot_id=bot.id,
                 bot_generation=bot.authorization_generation,
             )
+        row.monetary_terms = await MonetaryService(self.db).terms(
+            ctx.organization_id,
+            values={
+                field: value
+                for field, value in {
+                    "daily_budget_usd": data.daily_budget_usd,
+                    "price_per_minute_usd": data.price_per_minute_usd,
+                }.items()
+                if value != getattr(row, field) or field in data.monetary_inputs
+            },
+            inputs=data.monetary_inputs,
+            previous=row.monetary_terms,
+        )
         row.bot_generation = bot.authorization_generation
         row.generation = uuid4()
         row.enabled = data.enabled
@@ -262,6 +276,7 @@ class PhonePolicyService:
     def read_endpoint(row: PhoneEndpoint, bot: ChannelBot) -> PhoneEndpointRead:
         return PhoneEndpointRead(
             **PhoneEndpointConfig.model_validate(row, from_attributes=True).model_dump(),
+            monetary_terms=row.monetary_terms or {},
             id=row.id,
             bot_id=bot.id,
             bot_name=bot.name,

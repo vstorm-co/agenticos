@@ -49,7 +49,7 @@ export interface GroupCreate {
   name: string;
   description: string | null;
   icon?: GroupIcon | null;
-  monthly_budget_usd?: number | null;
+  monthly_budget_usd?: string | number | null;
 }
 
 /** A partial change. `description: null` clears it; an absent key leaves it. */
@@ -58,7 +58,7 @@ export interface GroupUpdate {
   description?: string | null;
   icon?: GroupIcon | null;
   /** `null` removes the cap; an absent key keeps it. */
-  monthly_budget_usd?: number | null;
+  monthly_budget_usd?: string | number | null;
 }
 
 export interface GroupMember {

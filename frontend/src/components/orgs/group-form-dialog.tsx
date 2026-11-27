@@ -1,5 +1,14 @@
 "use client";
 
+import { CurrencyOrganizationSwitch } from "@/components/money/currency-organization-switch";
+import { useTenantId } from "@/hooks/use-organizations";
+import { usePermissions } from "@/hooks/use-permissions";
+import { Perm } from "@/types/permissions";
+import { MonetaryInput } from "@/components/money/monetary-input";
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { canonicalUsd } from "@/lib/money";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { Check } from "lucide-react";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
@@ -31,7 +40,7 @@ const MAX_DESCRIPTION = 500;
 
 /** The stored cap as the input shows it - `50`, not the API's `50.000000`. Empty is none. */
 function asBudgetInput(cap: string | null | undefined): string {
-  return cap == null ? "" : String(Number(cap));
+  return canonicalUsd(cap);
 }
 
 interface GroupFormDialogProps {
@@ -47,8 +56,30 @@ interface GroupFormDialogProps {
  * Mounted only while open, so each opening starts from the group as it stands
  * rather than from whatever the last one left typed.
  */
-export function GroupFormDialog({ orgId, group, onClose }: GroupFormDialogProps) {
+export function GroupFormDialog(props: GroupFormDialogProps) {
+  const tenant = useTenantId();
   const t = useTranslations("groups");
+  if (tenant !== props.orgId)
+    return (
+      <Dialog open onOpenChange={props.onClose}>
+        <DialogContent className={cn(DIALOG_CONFIRM, DIALOG_COLUMN)}>
+          <DialogHeader>
+            <DialogTitle>{props.group ? t("editGroup") : t("newGroup")}</DialogTitle>
+            <DialogDescription>{t("formDescription")}</DialogDescription>
+          </DialogHeader>
+          <CurrencyOrganizationSwitch organizationId={props.orgId} />
+        </DialogContent>
+      </Dialog>
+    );
+  return <GroupFormFields {...props} />;
+}
+
+function GroupFormFields({ orgId, group, onClose }: GroupFormDialogProps) {
+  const { can } = usePermissions();
+  const canBudget = can(Perm.budgetsManage);
+  const t = useTranslations("groups");
+  const monetary = useMonetaryInputs();
+  const money = useMoney();
   const tErrors = useTranslations("errors");
   const { create, update } = useGroups(orgId);
   const [name, setName] = useState(group?.name ?? "");
@@ -68,11 +99,17 @@ export function GroupFormDialog({ orgId, group, onClose }: GroupFormDialogProps)
       name: name.trim(),
       description: description.trim() || null,
       icon,
-      monthly_budget_usd: budget.trim() === "" ? null : Number(budget),
+      ...(canBudget &&
+      (!group ||
+        budget !== asBudgetInput(group.monthly_budget_usd) ||
+        monetary.has("monthly_budget_usd"))
+        ? { monthly_budget_usd: budget.trim() === "" ? null : budget }
+        : {}),
     };
     try {
-      if (group) await update.mutateAsync({ groupId: group.id, input });
-      else await create.mutateAsync(input);
+      const payload = monetary.payload(input);
+      if (group) await update.mutateAsync({ groupId: group.id, input: payload });
+      else await create.mutateAsync(payload);
       onClose();
     } catch (error) {
       // A taken name is a fact about the name, so it goes under that field.
@@ -169,28 +206,29 @@ export function GroupFormDialog({ orgId, group, onClose }: GroupFormDialogProps)
                   })}
                 </div>
               </div>
-              <MoreOptions
-                label={t("budgetOptions")}
-                open={optionsOpen}
-                onOpenChange={setOptionsOpen}
-              >
-                <FormField
-                  label={t("monthlyBudget")}
-                  htmlFor="group-budget"
-                  error={problems.monthly_budget_usd}
-                  description={t("monthlyBudgetHint")}
+              {canBudget && (
+                <MoreOptions
+                  label={t("budgetOptions")}
+                  open={optionsOpen}
+                  onOpenChange={setOptionsOpen}
                 >
-                  <Input
-                    id="group-budget"
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={budget}
-                    onChange={(e) => setBudget(e.target.value)}
-                    placeholder={t("noBudget")}
-                  />
-                </FormField>
-              </MoreOptions>
+                  <FormField
+                    label={t("monthlyBudget", { currency: money.currency ?? "—" })}
+                    htmlFor="group-budget"
+                    error={problems.monthly_budget_usd}
+                    description={t("monthlyBudgetHint")}
+                  >
+                    <MonetaryInput
+                      id="group-budget"
+                      monetary={monetary}
+                      field="monthly_budget_usd"
+                      value={budget}
+                      onValueChange={setBudget}
+                      placeholder={t("noBudget")}
+                    />
+                  </FormField>
+                </MoreOptions>
+              )}
             </fieldset>
           </div>
           <DialogFooter>

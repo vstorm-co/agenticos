@@ -827,13 +827,49 @@ home for them, which means two things worth knowing:
   `claude-sonnet-5-5` does.
 - Updating prices is a dependency bump.
 
-!!! warning "A keyless provider records no spend"
+You can override automatic token prices in a model profile's **Pricing** section.
+Set input and output rates per million tokens in the selected currency (USD by default); cache read and write rates
+are optional and inherit the input rate when empty. An explicit zero is a price.
+The API exposes the same document as `custom_pricing`; omit it to keep the saved
+setting on update, or send `null` to restore automatic pricing.
 
-    Spend is attributed to the [vault secret](secrets.md) the run resolved to, and
-    a keyless provider has none to attribute it to.
+Changing or restoring prices requires `budgets:manage`, in addition to model connection management. That permission also applies when changing the key, endpoint, `extra_body` or `extra_headers` of a profile with custom prices: raw request settings can change which model runs or which account pays. Other generation settings, such as temperature, retain their existing permissions.
+
+Subscription profiles support the same optional token prices; these measure budget usage, not subscription allowance. Original provider bills remain available in usage metadata when custom rates override accounting.
+
+Custom rates take precedence over catalog prices and provider-reported bills.
+They follow the profile that actually answers, including fallbacks, delegates
+and models without a key. Cache tokens are charged once, using normalized usage.
+Estimates use the profile's rates when they would otherwise use catalog prices;
+estimates based on historical runs remain based on those recorded costs.
+
+Changing a price affects newly resolved usage without rewriting historical run
+or message costs. Invalid token counts or omitted usage remain partially priced;
+known subtotals are retained, and an active dollar budget refuses further requests
+after incomplete custom-priced usage. Automatic mode
+preserves the existing catalog and provider-bill resolution. The form shows
+indicative base-tier catalog rates where available; a provider's actual bill is
+known only after the request. Custom prices do not configure realtime voice or
+unit-priced image, audio and video generation.
+
+A keyless model's priced requests count toward organization spending and budgets.
+They have no [vault secret](secrets.md) to attribute a key-level report to.
 
 Cost is checked *before* each model request and recorded even when the run fails.
 See [Budgets](governance.md#budgets).
+
+Custom pricing carries a `currency` code, independently of the organization and
+UI language. Deployment administrators configure manual rates in **Currencies and
+exchange rates** under administration settings. Rates are currency units per USD:
+with EUR at `0.9`, a `9 EUR` cost records `10 USD`. Usage retains the original
+amount, currency and applied rate; later changes do not rewrite that USD cost.
+Zero costs record as `0 USD` even if the currency's rate is unavailable. A
+spending cap requires a configured exchange rate before inference if any of the
+profile's token prices can incur a charge, including cache reads and writes.
+
+Workflow statistics, dashboard spending, run history, conversation costs and budget headroom use the organization's persisted reporting quote. It is captured at organization creation, an explicit currency preference/default change, or migration/startup reconciliation. Pricing-rate edits do not refresh it. An explicit currency preference change changes displayed equivalents, never stored USD receipts or limits. Missing reporting quotes stay visibly unknown.
+
+Limit forms use that same quote. Original configured amount, currency and quote are retained beside the accounting USD limit; unrelated edits preserve them. Workflow caps, Improve budgets and cost-check criteria retain their existing enforcement semantics. Legacy agent specs still carry a float-valued USD budget and refuse a declared amount that cannot be represented exactly at that boundary. See [limit currency](governance.md#limit-currency) for the API contract.
 
 ### A delegation resolves its own profile
 

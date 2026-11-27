@@ -1,5 +1,7 @@
 "use client";
 
+import type { CurrencyAmount } from "@/lib/money";
+
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { qk } from "@/lib/query-keys";
@@ -26,7 +28,12 @@ export function useSkillImprovements(skillId: string, origin: SkillImprovementOr
   });
   const estimate = useMutation({ mutationFn: () => estimateSkillImprovement(skillId, origin) });
   const start = useMutation({
-    mutationFn: (budgetUsd: string) => startSkillImprovement(skillId, origin, budgetUsd),
+    mutationFn: (
+      value: string | { budget_usd: string; monetary_inputs: Record<string, CurrencyAmount> },
+    ) =>
+      typeof value === "string"
+        ? startSkillImprovement(skillId, origin, value)
+        : startSkillImprovement(skillId, origin, value.budget_usd, value.monetary_inputs),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.skills.all() }),
   });
   return {
@@ -129,8 +136,15 @@ export function useSkillRecheck(skillId: string, sessionId: string) {
     mutationFn: (budget: string) => estimateSkillRecheck(skillId, sessionId, budget),
   });
   const recheck = useMutation({
-    mutationFn: ({ quote, budget }: { quote: SkillContinuationEstimate; budget: string }) =>
-      recheckSkillImprovement(skillId, sessionId, quote, budget),
+    mutationFn: ({
+      quote,
+      budget,
+      monetary_inputs,
+    }: {
+      quote: SkillContinuationEstimate;
+      budget: string;
+      monetary_inputs?: Record<string, CurrencyAmount>;
+    }) => recheckSkillImprovement(skillId, sessionId, quote, budget, monetary_inputs),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.improvements.all() }),
   });
   return { estimate, recheck };

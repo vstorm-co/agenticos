@@ -1,5 +1,7 @@
 "use client";
 
+import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { useMoney } from "@/components/providers/currency-provider";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
@@ -24,7 +26,7 @@ import { useOrgStore } from "@/stores/org-store";
 import type { EvalSuite, EvalSuiteInput, EvalSuiteSchedule } from "@/types/eval-suites";
 import { Perm } from "@/types/permissions";
 import { UngradedWarning } from "../estimate-summary";
-import { usd } from "../format";
+
 import { scheduleChoice, scheduleCron } from "./suite-format";
 import {
   type SuiteForm,
@@ -116,6 +118,9 @@ export function SuiteFormDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const t = useTranslations("evals.suites.form");
+  const monetary = useMonetaryInputs(suite?.id ?? "new");
+  const money = useMoney();
+  const [clientFailure, setClientFailure] = useState<unknown>(null);
   const tErrors = useTranslations("errors");
   const locale = useLocale();
   const { can } = usePermissions();
@@ -146,7 +151,7 @@ export function SuiteFormDialog({
     ? (input: EvalSuiteInput) => update.mutateAsync({ suiteId: suite.id, input })
     : (input: EvalSuiteInput) => create.mutateAsync(input);
   const saving = create.isPending || update.isPending;
-  const failure = create.error ?? update.error ?? estimate.error;
+  const failure = clientFailure ?? create.error ?? update.error ?? estimate.error;
   const assistanceOff =
     failure instanceof ApiError &&
     failure.details?.reason === "ai_assistance_off" &&
@@ -172,6 +177,7 @@ export function SuiteFormDialog({
             />
             <SuiteWhenFields form={form} onChange={(patch) => setForm({ ...form, ...patch })} />
             <SuiteThresholdFields
+              monetary={monetary}
               form={form}
               onChange={(patch) => setForm({ ...form, ...patch })}
             />
@@ -180,7 +186,7 @@ export function SuiteFormDialog({
             <div className="bg-muted/50 space-y-1 rounded-lg p-3 text-sm">
               <p>
                 {t("estimateRun", {
-                  amount: usd(
+                  amount: money.cost(
                     String(Number(priced.run.total_usd) + Number(priced.run.rerun_ceiling_usd)),
                     locale,
                   ),
@@ -190,7 +196,7 @@ export function SuiteFormDialog({
               {priced.paired_run && (
                 <p className="text-muted-foreground text-xs">
                   {t("estimatePaired", {
-                    amount: usd(
+                    amount: money.cost(
                       String(
                         Number(priced.paired_run.total_usd) +
                           Number(priced.paired_run.rerun_ceiling_usd),
@@ -203,7 +209,7 @@ export function SuiteFormDialog({
               {priced.monthly_usd !== null && priced.fires_per_month !== null && (
                 <p className="text-muted-foreground text-xs">
                   {t("estimateMonth", {
-                    amount: usd(priced.monthly_usd, locale),
+                    amount: money.cost(priced.monthly_usd, locale),
                     count: priced.fires_per_month,
                   })}
                 </p>
@@ -233,11 +239,22 @@ export function SuiteFormDialog({
           <Button
             loading={saving}
             disabled={!ready || saving}
-            onClick={() =>
-              void save(inputFor(form))
-                .then(() => onOpenChange(false))
-                .catch(() => undefined)
-            }
+            onClick={async () => {
+              setClientFailure(null);
+              try {
+                const input = inputFor(form);
+                if (
+                  suite &&
+                  form.maxRunUsd === (suite.max_run_usd ?? "") &&
+                  !monetary.has("max_run_usd")
+                )
+                  delete input.max_run_usd;
+                await save(monetary.payload(input));
+                onOpenChange(false);
+              } catch (error) {
+                setClientFailure(error);
+              }
+            }}
           >
             {suite ? t("save") : t("create")}
           </Button>

@@ -187,6 +187,7 @@ from app.services.model_profile import (
     sign_in_person,
     usable_for_agents,
 )
+from app.services.monetary import MonetaryService
 from app.services.notifications import NotificationService
 from app.services.personal_model_key import personal_profile_problem
 from app.services.personal_model_policy import (
@@ -2000,6 +2001,7 @@ class AgentRegistryService:
         from_starter: bool = False,
         choose_model: bool = True,
         pipeline_kind: AgentKind | None = None,
+        preserve_monetary_terms: bool = False,
     ) -> Agent:
         """Create an agent in draft.
 
@@ -2030,6 +2032,9 @@ class AgentRegistryService:
             await self._refuse_past_the_ceiling(ctx)
         elif pipeline_kind == AgentKind.AGENT:
             raise ValueError("A pipeline identity must have a helper kind")
+        spec = await MonetaryService(self.db).agent_budget(
+            ctx.organization_id, spec, preserve_terms=preserve_monetary_terms
+        )
         if from_starter:
             spec = await self._from_the_starter(ctx, spec)
         elif not spec.instructions.strip():
@@ -2158,7 +2163,7 @@ class AgentRegistryService:
         spec = AgentSpec.model_validate(
             {**source.draft_spec, "name": name or await self._free_copy_name(ctx, source.name)}
         )
-        clone = await self.create(ctx, spec)
+        clone = await self.create(ctx, spec, preserve_monetary_terms=True)
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -2266,6 +2271,9 @@ class AgentRegistryService:
             self._check_draft_revision(
                 AgentSpec.model_validate(agent.draft_spec), expected_revision
             )
+        spec = await MonetaryService(self.db).agent_budget(
+            ctx.organization_id, spec, previous=AgentSpec.model_validate(agent.draft_spec)
+        )
         spec = _without_unselectable(spec)
         await skill_repo.hold(self.db, bound_skill_ids(spec), organization_id=ctx.organization_id)
         if agent.kind != AgentKind.AGENT.value:
@@ -3912,6 +3920,13 @@ class AgentRegistryService:
         suggestions stay open, because the draft they were made for was not frozen.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
+        previous = AgentSpec.model_validate(agent.draft_spec)
+        spec = await MonetaryService(self.db).agent_budget(
+            ctx.organization_id, spec, previous=previous
+        )
+        draft = await MonetaryService(self.db).agent_budget(
+            ctx.organization_id, draft, previous=previous
+        )
         await self.validate_spec(ctx, spec, agent_id=agent.id)
         return await self._freeze(ctx, agent, spec, note=note, draft=draft)
 

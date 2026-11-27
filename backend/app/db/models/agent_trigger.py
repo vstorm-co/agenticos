@@ -41,6 +41,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from pydantic import JsonValue
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -186,6 +187,10 @@ class AgentTrigger(Base, TimestampMixin):
     """One schedule that fires one agent."""
 
     __tablename__ = "agent_triggers"
+
+    monetary_terms: Mapped[dict[str, JsonValue]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'")
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4

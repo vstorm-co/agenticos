@@ -6,12 +6,13 @@ from typing import Literal, Self
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from app.schemas.base import BaseSchema
+from app.schemas.currency import MonetaryInputSchema
 
 
-class PhoneEndpointConfig(BaseSchema):
+class PhoneEndpointConfig(MonetaryInputSchema):
     model_config = ConfigDict(extra="forbid")
     enabled: bool = False
     inbound_embed_id: UUID | None = None
@@ -30,6 +31,8 @@ class PhoneEndpointConfig(BaseSchema):
 
 
 class PhoneEndpointRead(PhoneEndpointConfig):
+    monetary_terms: dict[str, JsonValue] = Field(default_factory=dict)
+
     model_config = ConfigDict(from_attributes=True)
     id: UUID
     bot_id: UUID
