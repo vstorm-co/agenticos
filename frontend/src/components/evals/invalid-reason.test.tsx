@@ -105,7 +105,9 @@ it("words an Improve result that cannot be compared from the catalog, not the se
       }}
     />,
   );
-  expect(screen.getByText("The two sides were graded by a different judge, model or rubric.")).toBeVisible();
+  expect(
+    screen.getByText("The two sides were graded by a different judge, model or rubric."),
+  ).toBeVisible();
   // In English the catalog text and the server's sentence coincide, so the
   // absence check names the server's sentence instead of its words.
   expect(screen.queryByText(ENGLISH)).not.toBeInTheDocument();
