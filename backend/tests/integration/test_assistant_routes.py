@@ -30,7 +30,7 @@ from app.main import app
 from app.schemas.api_key import ApiKeyCreate
 from app.services.api_key import ApiKeyService
 from tests.integration.test_authoring import _environment as _environment
-from tests.integration.test_improvement_pipeline import _ready_proposal
+from tests.integration.test_improvement_pipeline import _ready_proposal, reviewed
 from tests.integration.test_platform_mcp import _owner_key, _run_context
 from tests.integration.test_platform_mcp import served as served
 
@@ -258,7 +258,9 @@ class TestAcceptingThroughTheTools:
             refused = await http.post(
                 _url(f"/agents/{agent.id}/improvements/{ready.id}/finish"),
                 headers=_bearer(key),
-                json={"confirmed": True, "publish": True},
+                json=(await reviewed(db, ctx, agent.id, ready.id, publish=True)).model_dump(
+                    mode="json"
+                ),
             )
 
         assert refused.status_code == 409
@@ -302,7 +304,9 @@ class TestAcceptingThroughTheTools:
             accepted = await http.post(
                 _url(f"/agents/{agent.id}/improvements/{ready.id}/finish"),
                 headers=_bearer(key),
-                json={"confirmed": True, "publish": False},
+                json=(await reviewed(db, ctx, agent.id, ready.id, publish=False)).model_dump(
+                    mode="json"
+                ),
             )
 
         assert accepted.status_code == 200, accepted.text

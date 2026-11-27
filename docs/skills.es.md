@@ -1,5 +1,5 @@
 ---
-source_sha: "4f9850e16b2b"
+source_sha: "924906565e36"
 ---
 
 # Skills { #skills }
@@ -889,6 +889,10 @@ agent](authoring.md#the-improve-wizard): Entender, Cambios, Comprobación, Resul
 detiene para ti después de Entender, después de Cambios y en el resultado, y no
 cambia nada hasta que aceptas.
 
+Un cambio propuesto a la descripción del skill muestra la descripción antigua y la
+nueva, como lo hace un cambio de su texto. Un cambio sin texto que mostrar se deja
+fuera, y uno elegido se rechaza antes de comprobarlo.
+
 Un paso que no puede ejecutarse - su ayudante está archivado o fuera de alcance,
 o la evidencia que recibió ya no está - falla con el motivo en la sesión, y
 **Retry this step within the spending limit** lo vuelve a ejecutar, como quien lo
@@ -959,6 +963,11 @@ Lo que ofrece Aceptar depende del resultado:
   preguntas de prueba**, al lado, escribe las preguntas propias del skill a partir
   de respuestas en las que los agents lo cargaron, para poder comprobarlos la
   próxima vez.
+
+Cada decisión nombra la comprobación que la persona revisó - su `check_id` y su
+`result_hash`, o los de la de main solo al volver a main - y se rechaza con `409`
+cuando la sesión tiene otro resultado o una revisión lo juzgó de nuevo: lea la
+sesión de nuevo y revíselo.
 
 Cuando la línea recibe una versión nueva, o cambian sus agents, después de la
 comprobación, el resultado deja de valer y ofrece **Check again** en lugar de

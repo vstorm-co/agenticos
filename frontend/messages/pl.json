@@ -16747,6 +16747,7 @@
       "tool": "Narzędzie {tool}",
       "instructions": "Instrukcje",
       "fromVerify": "Ze sprawdzenia Twoich zmian",
+      "reworded": "Przeredagowane w kroku Zmiany",
       "status": {
         "accepted": "Przyjęta do wersji roboczej",
         "dismissed": "Odrzucona"
@@ -16941,6 +16942,7 @@
         "no_change": "Niczego nie zmienia",
         "unknown_tool": "Agent nie ma takiego narzędzia",
         "invalid_tool_change": "Nazwa albo opis narzędzia, których agent nie może użyć",
+        "hidden_characters": "Jego tekst zawiera znaki, których człowiek nie widzi",
         "not_a_target": "Tego asystent nie może zmieniać",
         "operation": "To ustawienie nie pozwala na taką zmianę",
         "loosens_approval": "Poluzowałaby zatwierdzanie",
@@ -16948,6 +16950,7 @@
         "unknown_capability": "Nie ma takiej capability",
         "invalid_config": "Jej ustawienia są niepoprawne",
         "does_not_apply": "Nie pasuje do wersji roboczej",
+        "reaches_network": "Dodaje capability, która sięga poza to wdrożenie. Dodaj ją w Builderze, gdzie ustawia się jej limity",
         "not_grantable": "Dodaje coś, czego osoba, która poprosiła, nie może przyznać",
         "dismissed_before": "Ktoś już ją wcześniej odrzucił",
         "unsupported": "Mówi, że edycja ma poparcie, ale bez dowodu, który dałoby się sprawdzić",
@@ -17118,6 +17121,9 @@
     "gapsLabel": "{count, plural, one {1 otwarta luka w wiedzy} few {# otwarte luki w wiedzy} many {# otwartych luk w wiedzy} other {# otwartej luki w wiedzy}}"
   },
   "improvement": {
+    "acceptChanged": "Próba, którą chciałeś przyjąć, zmieniła się od czasu, gdy ją oglądałeś. Sesja została odświeżona; obejrzyj ją jeszcze raz.",
+    "unmeasuredEdits": "Wersja robocza miała edycje sprzed startu tej sesji. Publikacja wypuści także je, a żaden check ich nie zmierzył.",
+    "publishUnmeasuredEdits": "Opublikuj także te edycje",
     "attributionUnconfirmed": "Zmiana {number}: wynik nie jest potwierdzony.",
     "includeInTest": "Uwzględnij w teście",
     "includeChange": "Uwzględnij zmianę {number} w teście",
@@ -22229,6 +22235,7 @@
       "context_gone": "Plik kontekstu już nie istnieje.",
       "no_edit_context": "Osoba, która to uruchomiła, nie może już edytować pliku kontekstu.",
       "unknown_skill_use": "Nie wiadomo, czy któryś run w tym oknie użył skilla. {runs, plural, one {# oceniony negatywnie albo nieudany run pochodzi sprzed zapisywania użyć, więc nie wiadomo, czy go użył.} few {# ocenione negatywnie albo nieudane runy pochodzą sprzed zapisywania użyć, więc nie wiadomo, czy go użyły.} many {# ocenionych negatywnie albo nieudanych runów pochodzi sprzed zapisywania użyć, więc nie wiadomo, czy go użyły.} other {# ocenionego negatywnie albo nieudanego runu pochodzi sprzed zapisywania użyć, więc nie wiadomo, czy go użyły.}}",
+      "hidden_characters": "Proponowany tekst zawiera znaki, których nie widać, więc go nie zapisano. Poproś ponownie.",
       "no_evidence": "Na razie nie ma z czego się uczyć: żaden run w tym oknie nie został oceniony ani nie zakończył się niepowodzeniem. Poszerz okno albo wróć, gdy ludzie ocenią kilka odpowiedzi.",
       "key_revoked": "Klucz API, którym to uruchomiono, został unieważniony albo już nie istnieje, więc działanie zatrzymano.",
       "not_a_member": "Osoba, która to uruchomiła, nie jest już członkiem organizacji.",

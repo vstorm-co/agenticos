@@ -49,6 +49,7 @@ const REQUEST: Record<Exclude<AuthoringFailure, StepFailure>, readonly string[]>
   context_gone: [],
   no_edit_context: [],
   unknown_skill_use: ["runs"],
+  hidden_characters: [],
   no_evidence: [],
   key_revoked: [],
   not_a_member: [],

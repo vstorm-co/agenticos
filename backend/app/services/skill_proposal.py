@@ -38,6 +38,7 @@ from app.core.exceptions import (
     ConcurrentChangeError,
     NotFoundError,
 )
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm
 from app.core.redaction import holds_credential
 from app.db.models.skill import Skill
@@ -56,6 +57,18 @@ from app.services.skill_workspace import SkillChange
 from app.services.skills import SkillService
 
 logger = logging.getLogger(__name__)
+
+PROPOSAL_HIDES_TEXT = (
+    "This change holds characters a person cannot see, so it is neither checked nor "
+    "applied. Dismiss it and ask again."
+)
+
+
+def proposal_hides_text(proposal: SkillProposal) -> bool:
+    """Whether a proposed skill change holds a character a person cannot see, anywhere in it."""
+    return holds_refused(
+        [proposal.name, proposal.description, proposal.content, dict(proposal.resources or {})]
+    )
 
 
 PROPOSAL_QUOTES_CREDENTIAL = (
@@ -311,6 +324,11 @@ class SkillProposalService:
         """
         proposal = await self.get(ctx, proposal_id)
         self._refuse_second_decision(proposal, decision.revision)
+        if proposal_hides_text(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_HIDES_TEXT,
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
+            )
         if proposal_quotes_credential(proposal):
             raise BadRequestError(
                 message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}

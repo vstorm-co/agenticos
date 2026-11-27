@@ -40,6 +40,7 @@ from app.core.exceptions import (
     ValidationError,
 )
 from app.core.field_errors import field_details, refused_field
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm, Scope
 from app.db.models.agent import Agent, AgentStatus
 from app.db.models.authoring import (
@@ -150,7 +151,8 @@ from app.services import improvement_states as rules
 from app.services.access import SKILL, accessible_ids, member_context
 from app.services.agent_registry import AgentRegistryService
 from app.services.api_key import job_context
-from app.services.authoring import AuthoringService
+from app.services.authoring import AuthoringService, refuse_never_accepted
+from app.services.authoring_config import published_spec
 from app.services.authoring_evidence import MAX_EVIDENCE_RUNS, EvidencePack, PackedRun
 from app.services.background_jobs import enqueue
 from app.services.collection_access import readable_kb, writable_kb
@@ -320,6 +322,17 @@ class EarlierAttempt:
     fixed: int
     broken: int
     criteria: tuple[CriterionMoveRead, ...]
+
+
+def result_hash(attempt: ImprovementIteration) -> str:
+    """A fingerprint of an attempt's verdict and detail as stored, whoever reads it.
+
+    A person's review of a case judges the attempt again in place, keeping its
+    number and its candidate, so these alone do not say what was measured.
+    """
+    measured = {"verdict": attempt.verdict, "detail": attempt.verdict_detail}
+    canonical = json.dumps(measured, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def _change_excerpt(text: str | None) -> str | None:
@@ -1276,6 +1289,7 @@ class ImprovementPipelineService:
                 self.db, agent_id=run.agent_id, organization_id=run.organization_id
             )
             result.next_version = 1 if latest is None else latest.version + 1
+            result.unmeasured_draft_edits = await self._unmeasured_draft_edits(run)
             suites = await EvalSuiteService(self.db).list_for_agent(ctx, run.agent_id)
             result.offer_automatic_check = not suites.items
         result.can_restart = await self._may_continue(ctx, run)
@@ -1299,7 +1313,12 @@ class ImprovementPipelineService:
         result.spent_usd = await improvement_repo.spent(
             self.db, run.id, organization_id=run.organization_id
         )
-        result.iterations = [ImprovementIterationRead.model_validate(item) for item in iterations]
+        result.iterations = [
+            ImprovementIterationRead.model_validate(item).model_copy(
+                update={"result_hash": result_hash(item)}
+            )
+            for item in iterations
+        ]
         searched = [
             (attempt, row)
             for attempt, row in zip(result.iterations, iterations, strict=True)
@@ -1574,6 +1593,21 @@ class ImprovementPipelineService:
                 message="Wait for this session's checks to finish, or stop the session"
             )
         selected, hunks = await self._measured_selection(run)
+        if (
+            selected.number != data.attempt
+            or selected.candidate_spec_hash != data.candidate_spec_hash
+            or result_hash(selected) != data.result_hash
+        ):
+            raise ConcurrentChangeError(
+                message=(
+                    "The attempt waiting to be accepted, or its result, changed since you "
+                    "reviewed it. Refresh the session and review it again."
+                ),
+                details={"attempt": selected.number, "reviewed_attempt": data.attempt},
+            )
+        for hunk in hunks:
+            if hunk.status == HunkStatus.PENDING:
+                refuse_never_accepted(hunk)
         agent = await self.authoring._editable(ctx, agent_id)
         projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), hunks
@@ -1584,7 +1618,20 @@ class ImprovementPipelineService:
             != selected.candidate_spec_hash
         ):
             raise ConcurrentChangeError(
-                message="The selected changes differ from the checked candidate; check them again"
+                message=(
+                    "The draft changed since this attempt was measured. Refresh the session "
+                    "and check the changes again before accepting them."
+                )
+            )
+        if (
+            data.publish
+            and not data.publish_unmeasured_edits
+            and await self._unmeasured_draft_edits(run)
+        ):
+            raise refused_field(
+                "publish_unmeasured_edits",
+                "The draft held edits before this session started, which it did not measure. "
+                "Confirm them to publish, or keep the changes as a draft.",
             )
         for hunk in hunks:
             if hunk.status == HunkStatus.PENDING:
@@ -1648,6 +1695,21 @@ class ImprovementPipelineService:
             session=await self._read(ctx, run),
             version_id=None if version is None else version.id,
             version=None if version is None else version.version,
+        )
+
+    async def _unmeasured_draft_edits(self, run: ImprovementRun) -> bool:
+        """Whether the draft differed from its published base when the session started.
+
+        Such edits are in both sides of every check, so they were never measured as a
+        change, and publishing the accepted attempt releases them with it.
+        """
+        if run.base_version_id is None:
+            return True
+        base = await agent_repo.get_version(
+            self.db, run.base_version_id, organization_id=run.organization_id
+        )
+        return base is None or spec_hash(AgentSpec.model_validate(base.spec)) != (
+            run.base_draft_hash
         )
 
     @staticmethod
@@ -2456,7 +2518,12 @@ class ImprovementPipelineService:
             await self._move(run, rules.Transition(Status.STALE, stage, StopReason.STALE))
 
     async def _settle_decisions(self, run: ImprovementRun) -> None:
-        """Observe human decisions without acquiring an agent lock after the parent lock."""
+        """Observe human decisions without acquiring an agent lock after the parent lock.
+
+        A session kept as a draft moves only when a person decides again: a publish of
+        what it measured, an undo that puts a change back in front of them - while no
+        other session is open on the agent - or dismissing every change it kept.
+        """
         rounds = await improvement_repo.list_iterations(
             self.db, organization_id=run.organization_id, run_id=run.id
         )
@@ -2474,7 +2541,8 @@ class ImprovementPipelineService:
             # Exposing another of its own rounds is not a person's decision.
             if current is not None and current.improvement_run_id == run.id:
                 return
-        if batch is None or batch.status == BatchStatus.SUPERSEDED:
+        kept = run.status == Status.ACCEPTED
+        if batch is None or (batch.status == BatchStatus.SUPERSEDED and not kept):
             status = Status.REJECTED
         else:
             hunks = await authoring_repo.list_hunks(
@@ -2487,7 +2555,18 @@ class ImprovementPipelineService:
             ]
             accepted = any(h.status == HunkStatus.ACCEPTED for h in hunks)
             pending = any(h.status == HunkStatus.PENDING for h in hunks)
-            if batch.status == BatchStatus.PUBLISHED:
+            if batch.status == BatchStatus.SUPERSEDED:
+                # A kept draft's changes stay in the draft whatever replaced its batch:
+                # only a publish of what it measured, or a draft put back to the
+                # published version, still moves it.
+                published = await self._measured_version(run, selected, hunks)
+                if published:
+                    status = Status.PUBLISHED
+                elif await self._draft_is_published(run):
+                    status = Status.REJECTED
+                else:
+                    return
+            elif batch.status == BatchStatus.PUBLISHED:
                 status = Status.PUBLISHED if accepted else Status.REJECTED
                 if accepted:
                     published = await self._measured_version(run, selected, hunks)
@@ -2495,6 +2574,14 @@ class ImprovementPipelineService:
                 status = Status.READY
             else:
                 status = Status.ACCEPTED if accepted else Status.REJECTED
+        if (
+            kept
+            and status == Status.READY
+            and await improvement_repo.get_open(
+                self.db, organization_id=run.organization_id, agent_id=run.agent_id
+            )
+        ):
+            return
         if run.status != status:
             self._allow(run, status)
             await improvement_repo.update_run(
@@ -2510,15 +2597,41 @@ class ImprovementPipelineService:
         selected: ImprovementIteration,
         hunks: list[SpecProposalHunk],
     ) -> dict[str, UUID | int]:
-        """The agent's newest version, when it is the candidate this session measured."""
+        """The newest version published since the session started that is the candidate it
+        measured, or nothing when none is.
+
+        A sweep may come after more than one publish, so every version newer than the
+        session's base is looked at, newest first.
+        """
+        for version in await agent_repo.list_versions_after(
+            self.db,
+            agent_id=run.agent_id,
+            organization_id=run.organization_id,
+            version_id=run.base_version_id,
+        ):
+            spec, skills = authoring_hunks.as_measured(
+                AgentSpec.model_validate(version.spec), hunks
+            )
+            if spec_hash(spec, skills) == selected.candidate_spec_hash:
+                return {"published_version_id": version.id, "published_version": version.version}
+        return {}
+
+    async def _draft_is_published(self, run: ImprovementRun) -> bool:
+        """Whether the draft is the session's base version again, as discarding it leaves it.
+
+        Only while nothing was published since the base: a later publish that took the
+        kept changes with other edits also leaves the draft equal to its version.
+        """
+        agent = await agent_repo.get(self.db, run.agent_id, organization_id=run.organization_id)
         version = await agent_repo.newest_version(
             self.db, agent_id=run.agent_id, organization_id=run.organization_id
         )
-        assert version is not None, "a batch is closed as published by a publish"
-        spec, skills = authoring_hunks.as_measured(AgentSpec.model_validate(version.spec), hunks)
-        if spec_hash(spec, skills) != selected.candidate_spec_hash:
-            return {}
-        return {"published_version_id": version.id, "published_version": version.version}
+        return (
+            agent is not None
+            and version is not None
+            and version.id == run.base_version_id
+            and AgentSpec.model_validate(agent.draft_spec) == AgentSpec.model_validate(version.spec)
+        )
 
     async def _audit(
         self,
@@ -3188,11 +3301,20 @@ class ImprovementPipelineService:
         if filter_policy:
             # The same policy as interactive authoring runs again at this boundary,
             # including historical or manually inserted proposal rows.
+            published = await published_spec(
+                self.db, agent_id=agent.id, organization_id=run.organization_id
+            )
             for hunk in pending:
+                if holds_refused(
+                    [hunk.new_text, hunk.edited_text, hunk.new_name, hunk.new_description]
+                ):
+                    dropped.append(hunk.id)
+                    reasons.append({"hunk_id": str(hunk.id), "reason": "hidden_characters"})
+                    continue
                 if hunk.kind != HunkKind.SPEC_FIELD.value:
                     continue
                 staged = authoring_fields.stage(
-                    draft, hunk.path or "", hunk.op or "", hunk.new_value
+                    draft, hunk.path or "", hunk.op or "", hunk.new_value, published=published
                 )
                 if isinstance(staged, str):
                     dropped.append(hunk.id)

@@ -16858,6 +16858,7 @@
       "tool": "Tool {tool}",
       "instructions": "Instructies",
       "fromVerify": "Uit het verifiëren van je bewerkingen",
+      "reworded": "Anders geformuleerd bij de stap Wijzigingen",
       "status": {
         "accepted": "Opgenomen in het concept",
         "dismissed": "Verworpen"
@@ -17052,6 +17053,7 @@
         "no_change": "Het wijzigt niets",
         "unknown_tool": "De agent heeft zo'n tool niet",
         "invalid_tool_change": "Een toolnaam of -beschrijving die de agent niet kan gebruiken",
+        "hidden_characters": "De tekst bevat tekens die een mens niet kan zien",
         "not_a_target": "Niet iets wat de assistent mag wijzigen",
         "operation": "Geen wijziging die die instelling toestaat",
         "loosens_approval": "Het zou goedkeuring versoepelen",
@@ -17059,6 +17061,7 @@
         "unknown_capability": "Zo'n capability bestaat niet",
         "invalid_config": "De instellingen ervan zijn niet geldig",
         "does_not_apply": "Het past niet bij het concept",
+        "reaches_network": "Het voegt een capability toe die buiten deze deployment reikt. Voeg die toe in de Builder, waar de grenzen ervan worden ingesteld",
         "not_grantable": "Het voegt iets toe wat de persoon die het vroeg niet mag toekennen",
         "dismissed_before": "Iemand heeft het eerder verworpen",
         "unsupported": "Zei dat de bewerking ondersteund is, zonder bewijs dat kon worden gecontroleerd",
@@ -17229,6 +17232,9 @@
     "gapsLabel": "{count, plural, =1 {1 open kennislacune} other {# open kennislacunes}}"
   },
   "improvement": {
+    "acceptChanged": "De poging die je wilde accepteren is veranderd sinds je ernaar keek. De sessie is vernieuwd; bekijk hem opnieuw.",
+    "unmeasuredEdits": "Het concept bevatte wijzigingen van vóór de start van deze sessie. Publiceren brengt ook die live, en geen controle heeft ze gemeten.",
+    "publishUnmeasuredEdits": "Ook die wijzigingen publiceren",
     "attributionUnconfirmed": "Wijziging {number}: het resultaat is niet bevestigd.",
     "includeInTest": "Opnemen in de test",
     "includeChange": "Wijziging {number} opnemen in de test",
@@ -22245,6 +22251,7 @@
       "context_gone": "Het contextbestand bestaat niet meer.",
       "no_edit_context": "Wie dit heeft gestart, mag het contextbestand niet meer bewerken.",
       "unknown_skill_use": "Van geen enkele run in deze periode is bekend dat hij de skill heeft gebruikt. {runs, plural, one {# negatief beoordeelde of mislukte run is van voordat gebruik werd vastgelegd, dus of hij de skill gebruikte, is onbekend.} other {# negatief beoordeelde of mislukte runs zijn van voordat gebruik werd vastgelegd, dus of ze hem gebruikten, is onbekend.}}",
+      "hidden_characters": "De voorgestelde tekst bevat tekens die je niet kunt zien, dus hij is niet opgeslagen. Vraag het opnieuw.",
       "no_evidence": "Nog niets om van te leren: geen enkele run in deze periode is beoordeeld of mislukt. Verruim de periode, of kom terug als er antwoorden zijn beoordeeld.",
       "key_revoked": "De API-sleutel waarmee dit is gestart, is ingetrokken of bestaat niet meer, dus het is gestopt.",
       "not_a_member": "Wie dit heeft gestart, is geen lid meer.",

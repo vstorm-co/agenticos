@@ -16509,6 +16509,7 @@
       "tool": "Outil {tool}",
       "instructions": "Instructions",
       "fromVerify": "Issue de la vérification de vos modifications",
+      "reworded": "Reformulée à l’étape Modifications",
       "status": {
         "accepted": "Acceptée dans le brouillon",
         "dismissed": "Écartée"
@@ -16703,6 +16704,7 @@
         "no_change": "Elle ne change rien",
         "unknown_tool": "L’agent n’a pas un tel outil",
         "invalid_tool_change": "Un nom ou une description d’outil que l’agent ne peut pas utiliser",
+        "hidden_characters": "Son texte contient des caractères qu’une personne ne peut pas voir",
         "not_a_target": "Ce n’est pas quelque chose que l’assistant peut modifier",
         "operation": "Ce n’est pas une modification que ce paramètre autorise",
         "loosens_approval": "Elle assouplirait l’approbation",
@@ -16710,6 +16712,7 @@
         "unknown_capability": "Aucune capability de ce nom",
         "invalid_config": "Ses paramètres ne sont pas valides",
         "does_not_apply": "Elle ne correspond pas au brouillon",
+        "reaches_network": "Elle ajoute une capability qui sort de ce déploiement. Ajoutez-la dans le Builder, où ses limites se règlent",
         "not_grantable": "Elle ajoute quelque chose que la personne à l’origine de la demande ne peut pas accorder",
         "dismissed_before": "Quelqu’un l’a déjà écartée",
         "unsupported": "A indiqué que la modification est appuyée, sans preuve vérifiable",
@@ -16880,6 +16883,9 @@
     "gapsLabel": "{count, plural, =1 {1 lacune de connaissance ouverte} other {# lacunes de connaissance ouvertes}}"
   },
   "improvement": {
+    "acceptChanged": "La tentative que vous alliez accepter a changé depuis que vous l’avez examinée. La session a été actualisée ; examinez-la à nouveau.",
+    "unmeasuredEdits": "Le brouillon contenait des modifications antérieures au début de cette session. La publication les diffuse aussi, et aucun contrôle ne les a mesurées.",
+    "publishUnmeasuredEdits": "Publier aussi ces modifications",
     "attributionUnconfirmed": "Modification {number} : le résultat n’est pas confirmé.",
     "includeInTest": "Inclure dans le test",
     "includeChange": "Inclure la modification {number} dans le test",
@@ -21729,6 +21735,7 @@
       "context_gone": "Le fichier de contexte n’existe plus.",
       "no_edit_context": "La personne qui a lancé ceci ne peut plus modifier le fichier de contexte.",
       "unknown_skill_use": "Aucun run de cette période n’est connu pour avoir utilisé le skill. {runs, plural, one {# run mal noté ou en échec date d’avant l’enregistrement des utilisations, on ne sait donc pas s’il a utilisé le skill.} other {# runs mal notés ou en échec datent d’avant l’enregistrement des utilisations, on ne sait donc pas s’ils l’ont utilisé.}}",
+      "hidden_characters": "Le texte proposé contient des caractères invisibles, il n’a donc pas été enregistré. Demandez à nouveau.",
       "no_evidence": "Rien à apprendre pour l’instant : aucun run de cette période n’a été noté ni n’a échoué. Élargissez la période, ou revenez quand des réponses auront été notées.",
       "key_revoked": "La clé API qui a lancé ceci a été révoquée ou n’existe plus, ceci a donc été arrêté.",
       "not_a_member": "La personne qui a lancé ceci n’est plus membre.",

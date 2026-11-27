@@ -126,7 +126,12 @@ from app.services.improvement_states import criterion_details, family_details
 from app.services.notifications import NotificationService
 from app.services.scoring import ScoringService
 from app.services.skill_agents import LineAgent, SkillAgentService
-from app.services.skill_proposal import PROPOSAL_QUOTES_CREDENTIAL, proposal_quotes_credential
+from app.services.skill_proposal import (
+    PROPOSAL_HIDES_TEXT,
+    PROPOSAL_QUOTES_CREDENTIAL,
+    proposal_hides_text,
+    proposal_quotes_credential,
+)
 from app.services.skill_versions import SkillVersionService, manifest_of
 
 logger = logging.getLogger(__name__)
@@ -289,6 +294,11 @@ class SkillCheckService:
             )
         if proposal.fork_id != data.fork_id:
             raise refused_field("fork_id", "The proposal is for another line of this skill")
+        if proposal_hides_text(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_HIDES_TEXT,
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
+            )
         if proposal_quotes_credential(proposal):
             raise BadRequestError(
                 message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
@@ -1573,6 +1583,7 @@ class SkillCheckService:
                 SkillCheckRead(
                     id=check.id,
                     skill_id=check.skill_id,
+                    result_hash=result_hash(check, mine),
                     source=CheckSource(check.source),
                     agent_id=check.agent_id if check.agent_id in shown_agents else None,
                     candidate_version_id=check.candidate_version_id,
@@ -2557,6 +2568,34 @@ _NAME_TRIES = 10
 """Names a skill's test questions may take, numbered after the first, before giving up."""
 
 _HELPED = frozenset({AgentState.BETTER.value, AgentState.CRITERIA_BETTER.value})
+
+
+def result_hash(check: SkillCheck, rows: Sequence[SkillCheckAgent]) -> str:
+    """A fingerprint of a check's verdict and every agent's judged result, whoever reads it.
+
+    A person's review of a case judges the check's agents again in place, keeping
+    the check's id, so the id alone does not say what was measured.
+    """
+    agents = [
+        {
+            "agent_id": row.agent_id,
+            "state": row.state,
+            "unknown_reason": row.unknown_reason,
+            "fixed": row.fixed,
+            "broken": row.broken,
+            "held_out": row.held_out,
+            "fixed_confirmed": row.fixed_confirmed,
+            "regressions_confirmed": row.regressions_confirmed,
+            "noisy": row.noisy,
+            "stages": row.stages,
+            "criteria": row.criteria,
+            "families": row.families,
+        }
+        for row in sorted(rows, key=lambda row: str(row.agent_id))
+    ]
+    measured = {"verdict": check.verdict, "agents": agents}
+    canonical = json.dumps(measured, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 def _chosen_for_fork(

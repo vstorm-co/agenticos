@@ -1,5 +1,5 @@
 ---
-source_sha: "4f9850e16b2b"
+source_sha: "924906565e36"
 ---
 
 # Skills { #skills }
@@ -944,6 +944,10 @@ das [Verbessern eines Agents](authoring.md#the-improve-wizard): Verstehen, Ände
 Ergebnis und Annehmen. Sie hält nach Verstehen, nach Änderungen und beim Ergebnis
 für Sie an und ändert nichts, bevor Sie annehmen.
 
+Eine vorgeschlagene Änderung der Beschreibung des Skills zeigt die alte und die
+neue Beschreibung, wie eine Änderung seines Textes. Eine Änderung ohne Text zum
+Anzeigen wird weggelassen, und eine gewählte wird vor der Prüfung abgelehnt.
+
 Ein Schritt, der nicht laufen kann - sein Helfer ist archiviert oder nicht
 erreichbar, oder die übergebenen Belege sind weg -, schlägt mit dem Grund in der
 Sitzung fehl, und **Retry this step within the spending limit** führt ihn erneut
@@ -1019,6 +1023,12 @@ Was Annehmen anbietet, folgt aus dem Ergebnis:
   **Testfragen hinzufügen** daneben schreibt die eigenen Fragen des Skills aus
   Antworten, in denen Agents ihn geladen haben, damit sie beim nächsten Mal
   geprüft werden können.
+
+Jede Entscheidung nennt die Prüfung, die die Person angesehen hat - ihre
+`check_id` und ihren `result_hash` oder, bei der Rückkehr zu main, die der Prüfung
+von main allein - und wird mit `409` abgelehnt, wenn die Sitzung ein anderes
+Ergebnis hat oder eine neue Bewertung eines Falls es geändert hat: Lesen Sie die
+Sitzung erneut und sehen Sie es an.
 
 Bekommt die Linie nach der Prüfung eine neue Version oder ändern sich ihre
 Agents, gilt das Ergebnis nicht mehr und bietet statt des Anwendens **Erneut

@@ -16858,6 +16858,7 @@
       "tool": "Ferramenta {tool}",
       "instructions": "Instruções",
       "fromVerify": "Da verificação das suas edições",
+      "reworded": "Reescrita na etapa Alterações",
       "status": {
         "accepted": "Aceita no rascunho",
         "dismissed": "Descartada"
@@ -17052,6 +17053,7 @@
         "no_change": "Ela não altera nada",
         "unknown_tool": "O agente não tem essa ferramenta",
         "invalid_tool_change": "Um nome ou descrição de ferramenta que o agente não pode usar",
+        "hidden_characters": "O texto contém caracteres que uma pessoa não consegue ver",
         "not_a_target": "Algo que o assistente não pode alterar",
         "operation": "Não é uma alteração permitida para essa configuração",
         "loosens_approval": "Ela afrouxaria a aprovação",
@@ -17059,6 +17061,7 @@
         "unknown_capability": "Esta capacidade não existe",
         "invalid_config": "As configurações dela não são válidas",
         "does_not_apply": "Não se encaixa no rascunho",
+        "reaches_network": "Ela adiciona uma capability que vai além desta implantação. Adicione-a no Builder, onde se definem os limites dela",
         "not_grantable": "Ela adiciona algo que quem pediu não pode conceder",
         "dismissed_before": "Alguém a descartou antes",
         "unsupported": "Afirmou que a edição é respaldada, sem evidência verificável",
@@ -17229,6 +17232,9 @@
     "gapsLabel": "{count, plural, =1 {1 lacuna aberta na base de conhecimento} other {# lacunas abertas na base de conhecimento}}"
   },
   "improvement": {
+    "acceptChanged": "A tentativa que você ia aceitar mudou desde que a revisou. A sessão foi atualizada; revise-a novamente.",
+    "unmeasuredEdits": "O rascunho tinha edições anteriores ao início desta sessão. Publicar também as libera, e nenhuma verificação as mediu.",
+    "publishUnmeasuredEdits": "Publicar também essas edições",
     "attributionUnconfirmed": "Alteração {number}: o resultado não foi confirmado.",
     "includeInTest": "Incluir no teste",
     "includeChange": "Incluir a alteração {number} no teste",
@@ -22245,6 +22251,7 @@
       "context_gone": "O arquivo de contexto já não existe.",
       "no_edit_context": "Quem iniciou isto já não pode editar o arquivo de contexto.",
       "unknown_skill_use": "Não se sabe de nenhum run neste período que tenha usado o skill. {runs, plural, one {# run com avaliação negativa ou com falha é de antes de os usos serem registrados, por isso não se sabe se ele usou o skill.} other {# runs com avaliação negativa ou com falha são de antes de os usos serem registrados, por isso não se sabe se eles o usaram.}}",
+      "hidden_characters": "O texto proposto contém caracteres que não se veem, por isso não foi registado. Peça novamente.",
       "no_evidence": "Ainda não há nada com que aprender: nenhum run neste período foi avaliado ou falhou. Amplie o período ou volte quando algumas respostas tiverem sido avaliadas.",
       "key_revoked": "A chave de API que iniciou isto foi revogada ou já não existe, por isso foi interrompido.",
       "not_a_member": "Quem iniciou isto já não é membro.",

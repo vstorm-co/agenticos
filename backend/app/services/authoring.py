@@ -50,6 +50,7 @@ from app.core.exceptions import (
     NotFoundError,
     PaymentRequiredError,
 )
+from app.core.hidden_text import holds_refused
 from app.core.permissions import AuthContext, Perm
 from app.core.redaction import holds_credential
 from app.db.models.agent import Agent, AgentStatus
@@ -59,6 +60,7 @@ from app.db.models.authoring import (
     AuthoringStatus,
     AuthoringTarget,
     BatchStatus,
+    FieldOp,
     HunkKind,
     HunkStatus,
     SpecProposalBatch,
@@ -124,16 +126,25 @@ from app.services.access import (
     resolve_access,
 )
 from app.services.agent_registry import AgentRegistryService
-from app.services.authoring_config import ConfigurationService
+from app.services.authoring_config import ConfigurationService, published_spec
 from app.services.authoring_evidence import EvidencePack, EvidenceService
 from app.services.background_jobs import enqueue
 from app.services.context import ContextService
-from app.services.context_proposal import context_quotes_credential
+from app.services.context_proposal import (
+    CONTEXT_HIDES_TEXT,
+    context_hides_text,
+    context_quotes_credential,
+)
 from app.services.dataset import redact_credentials, redact_json
 from app.services.eval_run import Admission, EvalRunService, spec_hash
 from app.services.eval_suite import EvalSuiteService
 from app.services.model_profile import ModelProfileService
-from app.services.skill_proposal import PROPOSAL_QUOTES_CREDENTIAL, proposal_quotes_credential
+from app.services.skill_proposal import (
+    PROPOSAL_HIDES_TEXT,
+    PROPOSAL_QUOTES_CREDENTIAL,
+    proposal_hides_text,
+    proposal_quotes_credential,
+)
 from app.services.skills import SkillService, improver_skill_chars
 from app.services.spend import month_start, organization_monthly_spend
 from app.services.system_agent_runner import SystemAgentRunner
@@ -179,6 +190,19 @@ _STANDING_REFUSALS = {
         "This suggestion removes or reconfigures a safeguard, which the assistant may not "
         "propose. Change safeguards in the Builder, or dismiss it."
     ),
+    "hidden_characters": (
+        "This suggestion holds characters a person cannot see, so it is never accepted. "
+        "Dismiss it, or write the change in the Builder."
+    ),
+    "reaches_network": (
+        "This suggestion adds a capability that reaches beyond this deployment, which the "
+        "assistant may not propose. Add it in the Builder, where its limits are set, or "
+        "dismiss it."
+    ),
+    "loosens_approval": (
+        "This suggestion adds back a capability asking for less approval than the published "
+        "version does. Change approval in the Builder, or dismiss it."
+    ),
 }
 
 _GATE_MESSAGES = {
@@ -201,6 +225,31 @@ _GATE_MESSAGES = {
         "failed, then run the check again."
     ),
 }
+
+
+def refuse_never_accepted(hunk: SpecProposalHunk) -> None:
+    """Refuse a stored change the assistant may never propose, whatever the draft holds.
+
+    Raises:
+        BadRequestError: Its text holds characters a person cannot see, it is not a
+            change the assistant may propose, or it removes or reconfigures a safeguard.
+    """
+    if holds_refused(
+        [hunk.new_text, hunk.edited_text, hunk.new_name, hunk.new_description, hunk.new_value]
+    ):
+        raise BadRequestError(
+            message=_STANDING_REFUSALS["hidden_characters"],
+            details={"hunk_id": hunk.id, "reason": "hidden_characters"},
+        )
+    if hunk.kind != HunkKind.SPEC_FIELD.value:
+        return
+    refused = authoring_fields.standing_refusal(
+        hunk.path or "", hunk.op or "", hunk.base_value, hunk.new_value
+    )
+    if refused is not None:
+        raise BadRequestError(
+            message=_STANDING_REFUSALS[refused], details={"hunk_id": hunk.id, "reason": refused}
+        )
 
 
 def _changes_model(hunk: SpecProposalHunk) -> bool:
@@ -1134,7 +1183,9 @@ class AuthoringService:
             path=hunk.path,
             op=hunk.op,
             base_value=hunk.base_value,
-            new_value=redact_json(hunk.new_value)[0],
+            new_value=redact_json(
+                authoring_fields.as_accepted(hunk.path or "", hunk.op or "", hunk.new_value)
+            )[0],
             accepted_value=redact_json(hunk.accepted_value)[0],
             effect=hunk.effect,
             names={key: name for key, name in names.items() if _refers_to(hunk, key)},
@@ -1200,6 +1251,7 @@ class AuthoringService:
         spec = AgentSpec.model_validate(agent.draft_spec)
         written: AgentSpec | None = None
         if decision.action == "accept":
+            refuse_never_accepted(hunk)
             supplied = decision.text if decision.text is not None else decision.value
             quoted = (
                 authoring_hunks.hunk_quotes_credential(hunk)
@@ -1457,13 +1509,24 @@ class AuthoringService:
             AuthorizationError: It adds something the person accepting it may not
                 grant: a capability, a collection, a context file, a model, MCP tools.
         """
-        refused = authoring_fields.standing_refusal(
-            hunk.path or "", hunk.op or "", hunk.base_value, hunk.new_value
-        )
-        if refused is not None:
-            raise BadRequestError(
-                message=_STANDING_REFUSALS[refused], details={"hunk_id": hunk.id, "reason": refused}
+        refuse_never_accepted(hunk)
+        if hunk.path == "capabilities" and hunk.op == FieldOp.ADD.value:
+            assert batch.agent_id is not None, "a field change belongs to an agent's batch"
+            published = await published_spec(
+                self.db, agent_id=batch.agent_id, organization_id=ctx.organization_id
             )
+            refused = authoring_fields.readd_refusal(
+                published,
+                spec,
+                hunk.path,
+                hunk.op,
+                authoring_fields.as_accepted(hunk.path, hunk.op, hunk.new_value),
+            )
+            if refused is not None:
+                raise BadRequestError(
+                    message=_STANDING_REFUSALS[refused],
+                    details={"hunk_id": hunk.id, "reason": refused},
+                )
         value = hunk.new_value
         if decision.value is not None:
             if hunk.path not in _EDITABLE and not (hunk.path or "").endswith("/description"):
@@ -1562,7 +1625,7 @@ class AuthoringService:
         return moved
 
     async def dismiss_all(self, ctx: AuthContext, agent_id: UUID) -> AgentAuthoringRead:
-        """Dismiss every pending hunk of the open batch."""
+        """Dismiss every pending hunk of the open batch, each audited as one dismissal is."""
         agent = await self._editable(ctx, agent_id)
         batch = await authoring_repo.get_open_batch(
             self.db, organization_id=ctx.organization_id, agent_id=agent.id, lock=True
@@ -1571,14 +1634,25 @@ class AuthoringService:
             for hunk in await authoring_repo.list_hunks(
                 self.db, organization_id=ctx.organization_id, batch_id=batch.id
             ):
-                if hunk.status == HunkStatus.PENDING.value:
-                    await authoring_repo.decide_hunk(
+                if hunk.status != HunkStatus.PENDING.value:
+                    continue
+                dismissed = await authoring_repo.decide_hunk(
+                    self.db,
+                    organization_id=ctx.organization_id,
+                    hunk_id=hunk.id,
+                    expected=HunkStatus.PENDING,
+                    status=HunkStatus.DISMISSED,
+                    decided_by=ctx.user_id,
+                )
+                if dismissed is not None:
+                    await record_audit(
                         self.db,
+                        actor_user_id=ctx.subject_id,
                         organization_id=ctx.organization_id,
-                        hunk_id=hunk.id,
-                        expected=HunkStatus.PENDING,
-                        status=HunkStatus.DISMISSED,
-                        decided_by=ctx.user_id,
+                        action="authoring.suggestion_dismiss",
+                        target_type="agent",
+                        target_id=str(agent.id),
+                        details={"hunk_id": str(hunk.id), "kind": hunk.kind},
                     )
         return await self._read(ctx, agent)
 
@@ -1603,6 +1677,8 @@ class AuthoringService:
                 message="No suggestion is waiting to be checked",
                 details={"agent_id": agent.id},
             )
+        for hunk in pending:
+            refuse_never_accepted(hunk)
         authoring_hunks.refuse_quoted_credentials(pending)
         projected, skipped = authoring_hunks.projection(
             AgentSpec.model_validate(agent.draft_spec), pending
@@ -1774,6 +1850,11 @@ class AuthoringService:
             raise NotFoundError(
                 message="No change to this skill is waiting", details={"skill_id": skill.id}
             )
+        if proposal_hides_text(proposal):
+            raise BadRequestError(
+                message=PROPOSAL_HIDES_TEXT,
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
+            )
         if proposal_quotes_credential(proposal):
             raise BadRequestError(
                 message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
@@ -1896,6 +1977,11 @@ class AuthoringService:
                 message="No change to this context file is waiting",
                 details={"context_id": file.id},
             )
+        if context_hides_text(proposal):
+            raise BadRequestError(
+                message=CONTEXT_HIDES_TEXT,
+                details={"proposal_id": proposal.id, "reason": "hidden_characters"},
+            )
         if context_quotes_credential(proposal):
             raise BadRequestError(
                 message=PROPOSAL_QUOTES_CREDENTIAL, details={"proposal_id": proposal.id}
@@ -2006,10 +2092,8 @@ class AuthoringService:
             baseline_spec=checked.baseline_spec,
             proposal_check=checked.proposal,
         )
-        await authoring_repo.update_batch(
-            self.db,
-            batch=batch,
-            values={"check_eval_run_ids": [*batch.check_eval_run_ids, started.id]},
+        await authoring_repo.append_check_run(
+            self.db, organization_id=ctx.organization_id, batch=batch, run_id=started.id
         )
         return started
 

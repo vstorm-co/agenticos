@@ -1,5 +1,5 @@
 ---
-source_sha: "4f9850e16b2b"
+source_sha: "924906565e36"
 ---
 
 # Skille { #skills }
@@ -871,6 +871,10 @@ agenta](authoring.md#the-improve-wizard): Zrozumienie, Zmiany, Sprawdzenie, Wyni
 się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
 nie zaakceptujesz.
 
+Proponowana zmiana opisu skilla pokazuje stary i nowy opis, tak jak zmiana jego
+treści. Zmiana bez tekstu do pokazania jest pomijana, a wybrana jest odrzucana,
+zanim zostanie sprawdzona.
+
 Krok, który nie może się wykonać - jego helper jest zarchiwizowany albo poza
 zasięgiem, albo zniknęły dowody, które dostał - kończy się błędem z powodem
 zapisanym w sesji, a **Retry this step within the spending limit** wykonuje go
@@ -938,6 +942,11 @@ To, co proponuje Akceptacja, wynika z wyniku:
   zastosowane. **Dodaj pytania testowe** obok zapisuje własne pytania skilla z
   odpowiedzi, w których agenci go wczytali, żeby następnym razem dało się ich
   sprawdzić.
+
+Każda decyzja wskazuje check, który osoba obejrzała - jego `check_id` i
+`result_hash` albo, przy powrocie do main, te same pola checku samego main - i jest
+odrzucana z `409`, gdy sesja ma inny wynik albo przegląd ocenił go na nowo:
+odczytaj sesję jeszcze raz i obejrzyj go.
 
 Gdy po sprawdzeniu linia dostanie nową wersję albo zmienią się jej agenci, wynik
 przestaje obowiązywać i zamiast zastosowania proponuje **Sprawdź ponownie**: te
