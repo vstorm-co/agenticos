@@ -1,5 +1,5 @@
 ---
-source_sha: "5a47cc875ed7"
+source_sha: "5a8cc4116f25"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -180,6 +180,23 @@ proveedor. Las comprobaciones de actualización de skills, los borradores de
 conocimiento y los guardias de una puerta de promoción aceptan `quoted_usd` igual, y
 `GET .../gate/estimate` pone precio a los guardias que iniciaría la puerta.
 
+El run conserva ese precio. Los runs con cotización ejecutan un intento a la vez,
+incluida su calificación; los runs sin cotización mantienen la concurrencia
+configurada. Antes de la siguiente respuesta, el worker compara el gasto registrado
+más la estimación de respuesta y calificación con la cotización. Antes de calificar
+con coste añade también la estimación de calificación congelada, que cubre juntos
+la rúbrica, la referencia y los criterios de juez del caso. No encola repeticiones
+de confirmación que superarían la cotización. Una suite usa igual su límite y una
+etapa de comprobación de skill lo que dejó la etapa anterior del máximo aceptado
+para el agente.
+
+Un run detenido termina como `budget_exceeded`, conserva respuestas y calificaciones
+y nombra el precio aceptado en el error y la notificación. Una respuesta o
+calificación en curso puede costar más de lo estimado y superar la cotización.
+Esto limita la admisión de intentos, no cada solicitud al proveedor: una respuesta
+puede incluir varias solicitudes al modelo o a herramientas. Aquí no se implementa
+un límite estricto por solicitud al proveedor.
+
 Un borrador de conocimiento en cola conserva su cotización. El worker vuelve a
 comprobarla antes de recuperar datos o ejecutar el modelo y rechaza precios
 mayores o desconocidos. Los clientes y trabajos existentes sin cotización no cambian.
@@ -187,7 +204,8 @@ mayores o desconocidos. Los clientes y trabajos existentes sin cotización no ca
 El límite de gasto estimado de una suite también incluye repeticiones y ambos
 lados cuando se comparan. La primera estimación de publicación incluye la versión
 existente como baseline de la siguiente publicación, incluso si solo hay una.
-Este límite solo decide si se inicia; no detiene una evaluación en curso.
+El run conserva el límite como su precio y se mantiene en él mientras se
+ejecuta, como un run con cotización.
 Cualquier aumento positivo de coste por caso aprobado o latencia desde cero
 supera cualquier límite porcentual.
 
@@ -348,7 +366,8 @@ Cada intento sale de una de cuatro maneras (`state` en el intento):
   reintentos del caso aprueben;
 - **incompleto** cuando el provider falló tras sus reintentos (un error 5xx,
   408 o 429, o ninguna respuesta), un evaluador lanzó una excepción, el run se
-  canceló o se quedó sin budget, o sus intentos empataron;
+  canceló, se quedó sin budget o llegó al precio con el que se inició, o sus
+  intentos empataron;
 - calificación sin un evaluador obligatorio aplicable a algún caso: añade una comprobación, una herramienta esperada o criterios;
 
 Ninguno de los dos últimos es nunca un aprobado; el resumen los cuenta aparte

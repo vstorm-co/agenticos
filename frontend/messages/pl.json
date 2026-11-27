@@ -11774,7 +11774,9 @@
     "agentControls": "Steruje agent",
     "otherViewerControls": "Steruje inny użytkownik",
     "viewOnly": "Tylko podgląd",
-    "takingOverShort": "Przejmowanie…"
+    "takingOverShort": "Przejmowanie…",
+    "openPages": "Otwarte strony przeglądarki",
+    "untitledPage": "Strona bez tytułu"
   },
   "remoteAgents": {
     "optionalSettings": "Uwierzytelnianie i identyfikator (opcjonalne)",
@@ -12114,7 +12116,8 @@
         "completed": "Twój test się zakończył.",
         "failed": "Twojego testu nie udało się dokończyć.",
         "cancelled": "Twój test został anulowany.",
-        "budget_exceeded": "Twój test zatrzymał się na budżecie."
+        "budget_exceeded": "Twój test zatrzymał się na budżecie.",
+        "quote": "Twój test zatrzymał się na zaakceptowanej cenie."
       },
       "questions": {
         "ready": "Pytania testowe są napisane i czekają na Twój przegląd.",
@@ -18925,6 +18928,46 @@
       "workflowBody": "Przypisz narzędzia do nazwanych funkcji i wywołuj je z Pythona. Każda akcja zachowuje swoje uprawnienia, zatwierdzenia i zapis wykonania.",
       "organizationTitle": "Ustaw domyślne opcje organizacji",
       "organizationBody": "Skonfiguruj menu, katalogi, dashboard i komunikaty dla ról oraz widoczność kosztów. Użytkownicy mogą dostosować opcje, na które pozwala polityka organizacji."
+    },
+    "scopes": {
+      "progress": "Postęp konfiguracji",
+      "stages": "Etapy konfiguracji",
+      "position": "Etap {current} z {total}",
+      "completed": "Ukończono",
+      "saveFailed": "Nie udało się zapisać postępu konfiguracji. Spróbuj ponownie przejść ten krok.",
+      "allDoneTitle": "Konfiguracja jest gotowa",
+      "allDoneHint": "Wspólna konfiguracja jest gotowa, a Twój osobisty postęp został zachowany. Możesz przejrzeć dowolny etap lub otworzyć aplikację.",
+      "openApp": "Otwórz aplikację",
+      "workspaceTitle": "Utwórz lub wybierz organizację",
+      "workspaceHint": "Konfiguracja wdrożenia jest gotowa. Wybierz przestrzeń firmy, aby ustawić wspólne wartości domyślne, a następnie przejdź do ustawień osobistych.",
+      "loadFailed": "Nie udało się wczytać konfiguracji",
+      "deployment": {
+        "title": "Konfiguracja wdrożenia",
+        "hint": "Ustawienia wspólne dla całego wdrożenia. Administrator aplikacji przechodzi ten etap tylko raz.",
+        "short": "Wdrożenie"
+      },
+      "organization": {
+        "title": "Konfiguracja organizacji",
+        "hint": "Ustawienia wspólne dla tej organizacji. Jedna uprawniona osoba przechodzi ten etap dla całego zespołu.",
+        "short": "Organizacja"
+      },
+      "personal": {
+        "title": "Twoja konfiguracja osobista",
+        "hint": "Twój profil, połączenia i preferencje. Ten postęp należy tylko do Ciebie.",
+        "short": "Osobiste"
+      },
+      "modelsShared": "Opcjonalny wspólny dostęp do dostawców skonfiguruj w Vault z widocznością dla organizacji. Ten krok nie zmienia Twojego osobistego wyboru modelu.",
+      "toolsShared": "Opcjonalny wspólny dostęp do narzędzi korzysta z połączeń MCP należących do organizacji. Prywatne konta połącz później w konfiguracji osobistej.",
+      "openVault": "Otwórz Vault",
+      "openConnections": "Otwórz połączenia MCP",
+      "returnToSetup": "Strona otworzy się w nowej karcie. Po zakończeniu wróć do tego kreatora.",
+      "resourcesPermission": "Nie masz uprawnień do przeglądania tych wspólnych zasobów. Możesz kontynuować; uprawniona osoba skonfiguruje je później.",
+      "sharedReview": "Ten wspólny etap jest ukończony. Otwarty formularz pozostaje dostępny do sprawdzenia. Kontynuuj, gdy zechcesz go opuścić.",
+      "continueReview": "Przejdź do następnego etapu",
+      "stageCompleted": "{stage} — ukończono",
+      "continueShort": "Dalej",
+      "skipShort": "Pomiń",
+      "finishShort": "Zakończ"
     }
   },
   "skillImprovement": {
@@ -19067,7 +19110,7 @@
     "understand": {
       "title": "Zrozumienie",
       "loading": "Czytanie, co poszło nie tak…",
-      "summary": "{count, plural, =0 {Nie znaleziono problemu ze skillem} one {# problem ze skillem} few {# problemy ze skillem} many {# problemów ze skillem} other {# problemu ze skillem}}{elsewhere, plural, =0 {} other {, # odpowiedzi z problemem gdzie indziej}}{fine, plural, =0 {} other {, # w porządku}}.",
+      "summary": "{count, plural, =0 {Nie znaleziono problemu ze skillem} one {# problem ze skillem} few {# problemy ze skillem} many {# problemów ze skillem} other {# problemu ze skillem}}{elsewhere, plural, =0 {} =1 {, 1 odpowiedź z problemem gdzie indziej} other {, # odpowiedzi z problemem gdzie indziej}}{fine, plural, =0 {} =1 {, 1 w porządku} other {, # w porządku}}.",
       "usageUnknown": "{count, plural, one {# odpowiedź jest sprzed zapisywania wczytań skilli i nie jest liczona.} few {# odpowiedzi są sprzed zapisywania wczytań skilli i nie są liczone.} many {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.} other {# odpowiedzi jest sprzed zapisywania wczytań skilli i nie są liczone.}}",
       "seedWithheld": "{count, plural, one {# problem przekazany z sesji agenta został pominięty: cytuje odpowiedź na pytanie, które ocenia sprawdzenie tego skilla.} few {# problemy przekazane z sesji agenta zostały pominięte: cytują odpowiedzi na pytania, które ocenia sprawdzenie tego skilla.} many {# problemów przekazanych z sesji agenta zostało pominiętych: cytują odpowiedzi na pytania, które ocenia sprawdzenie tego skilla.} other {# problemów przekazanych z sesji agenta zostało pominiętych: cytują odpowiedzi na pytania, które ocenia sprawdzenie tego skilla.}}",
       "agent": "{name} ({runs})",

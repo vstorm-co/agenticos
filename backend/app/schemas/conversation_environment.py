@@ -60,3 +60,23 @@ class ConversationEnvironmentList(BaseModel):
     """The browser and desktop available to this chat and selected agent."""
 
     items: list[ConversationEnvironmentRead]
+
+
+class ConversationBrowserTab(BaseModel):
+    """An actually open, registered page; its id is an application tab name, not a CDP handle."""
+
+    id: str = Field(min_length=1, max_length=200)
+    title: str = Field(max_length=512)
+    url: str = Field(max_length=8192)
+
+
+class ConversationBrowserTabs(BaseModel):
+    environment_id: UUID
+    tabs: list[ConversationBrowserTab] = Field(max_length=8)
+    active_tab_id: str | None
+
+
+class ActivateEnvironmentTab(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    type: Literal["activate_tab"]
+    tab_id: str = Field(min_length=1, max_length=200)

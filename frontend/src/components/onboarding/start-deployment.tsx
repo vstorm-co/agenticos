@@ -28,7 +28,7 @@ export function StartDeployment({
   onBack,
   active = true,
 }: {
-  org: Organization;
+  org?: Organization;
   onContinue: () => void;
   /** Back to the wizard's previous step, from this step's first question. */
   onBack?: () => void;
@@ -38,15 +38,18 @@ export function StartDeployment({
   const { settings, isLoading, error, refetch, save } = useDeploymentSettings();
   const router = useRouter();
   const search = useSearchParams();
+  const questions: readonly (typeof QUESTIONS)[number][] = org
+    ? QUESTIONS
+    : QUESTIONS.filter((question) => question !== "destination");
   const requested =
-    search.get("workspace") === org.id && search.get("start-step") === "admin.deployment"
-      ? QUESTIONS.find((item) => item === search.get("question"))
+    search.get("workspace") === (org?.id ?? null) && search.get("start-step") === "admin.deployment"
+      ? questions.find((item) => item === search.get("question"))
       : undefined;
   const [question, setQuestion] = useState<(typeof QUESTIONS)[number]>(requested ?? "access");
-  const index = QUESTIONS.indexOf(question);
+  const index = questions.indexOf(question);
   useEffect(() => {
-    if (active) rememberStartQuestion("admin.deployment", org.id, question);
-  }, [active, question, org.id]);
+    if (active) rememberStartQuestion("admin.deployment", org?.id ?? null, question);
+  }, [active, question, org?.id]);
   const [edits, setEdits] = useState<DeploymentSettingsPatch>({});
   const [failed, setFailed] = useState(false);
   if (isLoading)
@@ -65,7 +68,7 @@ export function StartDeployment({
   const next = () => {
     setEdits({});
     setFailed(false);
-    const following = QUESTIONS[index + 1];
+    const following = questions[index + 1];
     if (following) setQuestion(following);
     else onContinue();
   };
@@ -95,13 +98,13 @@ export function StartDeployment({
           ? () => {
               setEdits({});
               setFailed(false);
-              const previous = QUESTIONS[index - 1];
+              const previous = questions[index - 1];
               if (previous) setQuestion(previous);
             }
           : onBack
       }
       onContinue={() => void submit()}
-      onSkip={index < QUESTIONS.length - 1 ? next : undefined}
+      onSkip={index < questions.length - 1 ? next : undefined}
     >
       {question === "access" && (
         <DeploymentAccess
@@ -110,7 +113,7 @@ export function StartDeployment({
           onChange={(mode) => set({ signup_mode: mode })}
         />
       )}
-      {question === "destination" && (
+      {question === "destination" && org && (
         <DeploymentDestination
           org={org}
           defaultOrg={draft.default_organization_id}
@@ -129,7 +132,7 @@ export function StartDeployment({
         />
       )}
       {question === "extras" && (
-        <DeploymentExtras maintenance={settings.maintenance_mode} orgId={org.id} />
+        <DeploymentExtras maintenance={settings.maintenance_mode} orgId={org?.id} />
       )}
       {failed && (
         <p role="alert" className="text-destructive-ink mt-4 text-sm">

@@ -74,6 +74,7 @@ export const qk = {
       ["improvements", agentId, runId, "changes", attempt] as const,
   },
   onboarding: {
+    deployment: (user: string) => ["onboarding", "deployment", user] as const,
     preview: (org: string, user: string) => ["onboarding", "preview", org, user] as const,
     all: () => ["onboarding"] as const,
     state: (user: string, org: string) => ["onboarding", user, org] as const,

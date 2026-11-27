@@ -61,12 +61,22 @@ describe("SkillUnderstand", () => {
     expect(screen.getByText("+3 hidden examples")).toBeVisible();
     expect(
       screen.getByText(
-        "1 problem with the skill, 2 answers whose trouble lies elsewhere, 1 that were fine.",
+        "1 problem with the skill, 2 answers whose trouble lies elsewhere, 1 that was fine.",
       ),
     ).toBeVisible();
     expect(screen.getByText(/5 answers are from before skill loads/)).toBeVisible();
     expect(screen.queryByText(/handed over from the agent's session/)).toBeNull();
     expect(apiClient.get).toHaveBeenCalledWith("/skills/k1/improvements/s1/evidence");
+  });
+
+  it("counts a single answer in the singular", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({ ...PROBLEMS, not_the_skill: 1, not_a_problem: 2 });
+    mount();
+    expect(
+      await screen.findByText(
+        "1 problem with the skill, 1 answer whose trouble lies elsewhere, 2 that were fine.",
+      ),
+    ).toBeVisible();
   });
 
   it("says when nothing points at the skill", async () => {

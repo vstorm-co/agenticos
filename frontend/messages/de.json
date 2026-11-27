@@ -11622,7 +11622,8 @@
         "completed": "Ihr Test ist abgeschlossen.",
         "failed": "Ihr Test konnte nicht abgeschlossen werden.",
         "cancelled": "Ihr Test wurde abgebrochen.",
-        "budget_exceeded": "Ihr Test wurde am Budget angehalten."
+        "budget_exceeded": "Ihr Test wurde am Budget angehalten.",
+        "quote": "Ihr Test wurde bei dem von Ihnen akzeptierten Preis angehalten."
       },
       "questions": {
         "ready": "Ihre Testfragen sind geschrieben und warten auf Ihre Prüfung.",
@@ -14945,7 +14946,9 @@
     "agentControls": "Agent steuert",
     "otherViewerControls": "Andere Person steuert",
     "viewOnly": "Nur ansehen",
-    "takingOverShort": "Übernahme…"
+    "takingOverShort": "Übernahme…",
+    "openPages": "Geöffnete Browserseiten",
+    "untitledPage": "Unbenannte Seite"
   },
   "remoteAgents": {
     "optionalSettings": "Authentifizierung und Kennung (optional)",
@@ -18838,6 +18841,46 @@
       "workflowBody": "Verknüpfe Werkzeuge mit benannten Funktionen und rufe sie aus Python auf. Jede Aktion behält ihre Berechtigungen, Freigaben und Ausführungsprotokolle.",
       "organizationTitle": "Organisationsvorgaben festlegen",
       "organizationBody": "Konfiguriere Navigation, Kataloge, Dashboard und Hinweise je Rolle sowie die Kostensichtbarkeit. Mitglieder können erlaubte Optionen persönlich anpassen."
+    },
+    "scopes": {
+      "progress": "Einrichtungsfortschritt",
+      "stages": "Einrichtungsschritte",
+      "position": "Phase {current} von {total}",
+      "completed": "Abgeschlossen",
+      "saveFailed": "Dein Einrichtungsfortschritt konnte nicht gespeichert werden. Versuche diesen Schritt erneut.",
+      "allDoneTitle": "Die Einrichtung ist abgeschlossen",
+      "allDoneHint": "Die gemeinsame Einrichtung ist abgeschlossen und dein persönlicher Fortschritt bleibt erhalten. Überprüfe eine Phase oder öffne die App.",
+      "openApp": "App öffnen",
+      "workspaceTitle": "Organisation erstellen oder auswählen",
+      "workspaceHint": "Die Bereitstellung ist eingerichtet. Wähle einen Unternehmensbereich für die gemeinsamen Standardwerte und fahre dann mit deiner persönlichen Einrichtung fort.",
+      "loadFailed": "Einrichtung konnte nicht geladen werden",
+      "deployment": {
+        "title": "Bereitstellung einrichten",
+        "hint": "Gilt für diese gesamte Bereitstellung. Ein Anwendungsadministrator schließt diese Phase einmal ab.",
+        "short": "Installation"
+      },
+      "organization": {
+        "title": "Organisation einrichten",
+        "hint": "Gilt für diese Organisation. Eine berechtigte Person schließt diese Phase für das Team ab.",
+        "short": "Organisation"
+      },
+      "personal": {
+        "title": "Deine persönliche Einrichtung",
+        "hint": "Dein Profil, deine Verbindungen und Einstellungen. Dieser Fortschritt gehört dir.",
+        "short": "Persönlich"
+      },
+      "modelsShared": "Optionaler gemeinsamer Anbieterzugriff gehört mit Organisationssichtbarkeit in den Vault. Dieser Schritt ändert nicht deine persönliche Modellauswahl.",
+      "toolsShared": "Optionaler gemeinsamer Werkzeugzugriff verwendet MCP-Verbindungen der Organisation. Verbinde private Konten später in deiner persönlichen Einrichtung.",
+      "openVault": "Vault öffnen",
+      "openConnections": "MCP-Verbindungen öffnen",
+      "returnToSetup": "Die Seite wird in einem neuen Tab geöffnet. Kehre danach zu dieser Einrichtung zurück.",
+      "resourcesPermission": "Deine Berechtigungen erlauben das Anzeigen dieser gemeinsamen Ressourcen nicht. Du kannst fortfahren; eine berechtigte Person kann sie später einrichten.",
+      "sharedReview": "Diese gemeinsame Phase ist abgeschlossen. Dein geöffnetes Formular bleibt zur Überprüfung verfügbar. Fahre fort, wenn du es verlassen möchtest.",
+      "continueReview": "Zur nächsten Phase",
+      "stageCompleted": "{stage} — Abgeschlossen",
+      "continueShort": "Weiter",
+      "skipShort": "Überspringen",
+      "finishShort": "Fertig"
     }
   },
   "skillImprovement": {
@@ -18980,7 +19023,7 @@
     "understand": {
       "title": "Verstehen",
       "loading": "Lese, was schiefging…",
-      "summary": "{count, plural, =0 {Kein Problem mit dem Skill gefunden} =1 {1 Problem mit dem Skill} other {# Probleme mit dem Skill}}{elsewhere, plural, =0 {} other {, # Antworten mit dem Problem anderswo}}{fine, plural, =0 {} other {, # in Ordnung}}.",
+      "summary": "{count, plural, =0 {Kein Problem mit dem Skill gefunden} =1 {1 Problem mit dem Skill} other {# Probleme mit dem Skill}}{elsewhere, plural, =0 {} =1 {, 1 Antwort mit dem Problem anderswo} other {, # Antworten mit dem Problem anderswo}}{fine, plural, =0 {} =1 {, 1 in Ordnung} other {, # in Ordnung}}.",
       "usageUnknown": "{count, plural, =1 {1 Antwort stammt aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und wird nicht gezählt.} other {# Antworten stammen aus der Zeit vor der Aufzeichnung von Skill-Ladevorgängen und werden nicht gezählt.}}",
       "seedWithheld": "{count, plural, =1 {1 aus der Sitzung des Agents übergebenes Problem wird ausgelassen: Es zitiert eine Antwort auf eine Frage, die die Prüfung dieses Skills bewertet.} other {# aus der Sitzung des Agents übergebene Probleme werden ausgelassen: Sie zitieren Antworten auf Fragen, die die Prüfung dieses Skills bewertet.}}",
       "agent": "{name} ({runs})",

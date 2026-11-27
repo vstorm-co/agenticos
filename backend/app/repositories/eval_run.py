@@ -2,14 +2,17 @@
 
 from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import String, and_, cast, column, exists, func, not_, or_, select, true, update
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.locks import LockScope, hold_subject
+from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import HunkStatus, SpecProposalBatch, SpecProposalHunk
 from app.db.models.background_job import BackgroundJob
 from app.db.models.case_score import CaseScore
@@ -664,7 +667,9 @@ async def claim_next(
     organization, so two workers - of this run or of another - cannot both read
     a count one below the limit and both start. A run that is no longer live
     yields nothing, which is how cancelling stops what has not started.
-    `SKIP LOCKED` lets two workers of one run claim different attempts at once.
+    Unquoted runs can claim different attempts at once. A quoted run admits only
+    one attempt until its answer and grading settle: estimates cannot reserve an
+    upper bound on several concurrent provider responses.
 
     An attempt holds its slot until it ends, whatever its run did meanwhile: a
     cancelled run lets the cases it started finish, and they still call the
@@ -682,6 +687,23 @@ async def claim_next(
     )
     if int(running or 0) >= org_limit:
         return None
+    quoted = await db.scalar(
+        select(EvalRun.quoted_usd).where(
+            EvalRun.id == eval_run_id, EvalRun.organization_id == organization_id
+        )
+    )
+    if quoted is not None:
+        active = await db.scalar(
+            select(func.count())
+            .select_from(EvalRunCase)
+            .where(
+                EvalRunCase.eval_run_id == eval_run_id,
+                EvalRunCase.organization_id == organization_id,
+                EvalRunCase.status == CaseAttemptStatus.RUNNING.value,
+            )
+        )
+        if active:
+            return None
     result = await db.execute(
         select(EvalRunCase)
         .join(EvalRun, EvalRun.id == EvalRunCase.eval_run_id)
@@ -716,6 +738,61 @@ async def count_by_status(
         .group_by(EvalRunCase.status)
     )
     return {status: int(count) for status, count in result.all()}
+
+
+class Spending(NamedTuple):
+    """What a run has spent on the attempts it finished, and what it has under way."""
+
+    spent_usd: Decimal
+    running: int
+    pending: int
+    first_attempts: int
+
+
+async def spending(db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID) -> Spending:
+    """What a run has spent so far, counted as its read counts it.
+
+    The attempts' answers and the judge runs that graded them; an attempt still
+    running has written neither yet, so it is counted in `running` instead.
+    """
+    of_run = (
+        EvalRunCase.eval_run_id == eval_run_id,
+        EvalRunCase.organization_id == organization_id,
+    )
+    answers = await db.scalar(
+        select(func.coalesce(func.sum(EvalRunCase.cost_usd), 0)).where(*of_run)
+    )
+    result = (
+        func.jsonb_array_elements(CaseScore.results)
+        .table_valued(column("value", JSONB))
+        .render_derived(name="result")
+    )
+    judge_runs = (
+        select(cast(result.c.value["judge_run_id"].astext, PG_UUID(as_uuid=True)))
+        .select_from(EvalRunCase)
+        .join(CaseScore, CaseScore.id == EvalRunCase.case_score_id)
+        .join(result, true())
+        .where(*of_run, CaseScore.organization_id == organization_id)
+    )
+    judged = await db.scalar(
+        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+            AgentRun.organization_id == organization_id, AgentRun.id.in_(judge_runs)
+        )
+    )
+    counts = await db.execute(
+        select(
+            func.count().filter(EvalRunCase.status == CaseAttemptStatus.RUNNING.value),
+            func.count().filter(EvalRunCase.status == CaseAttemptStatus.PENDING.value),
+            func.count().filter(EvalRunCase.attempt == 0),
+        ).where(*of_run)
+    )
+    running, pending, firsts = counts.one()
+    return Spending(
+        spent_usd=Decimal(answers or 0) + Decimal(judged or 0),
+        running=int(running),
+        pending=int(pending),
+        first_attempts=int(firsts),
+    )
 
 
 async def skip_pending(db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID) -> int:

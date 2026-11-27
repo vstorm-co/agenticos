@@ -26,6 +26,8 @@ import { PersonalCodingAccount } from "@/components/settings/coding-accounts";
 import { Perm } from "@/types/permissions";
 import { catalogModelName } from "@/lib/model-profiles";
 import { cn } from "@/lib/utils";
+import { ChatApprovalSelector } from "./chat-approval-selector";
+import type { ApprovalMode } from "@/stores/chat-controls-store";
 import { ChatModelPicker } from "./chat-model-picker";
 import { PersonalModelConnection } from "./personal-model-connection";
 import { ConversationNotifications, WorkOn } from "./work-on";
@@ -133,21 +135,23 @@ function ComposerModelControl({ onChange }: { onChange?: (id: string | null) => 
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="min-w-0 text-xs"
+                className="touch:min-h-11 touch:min-w-11 min-w-0 px-2 text-xs"
+                aria-label={t("backAgentAposS")}
+                title={t("backAgentAposS")}
                 onClick={() => {
                   change(null);
                   setOpen(false);
                 }}
               >
                 <RotateCcw aria-hidden className="size-3.5 shrink-0" />
-                <span className="truncate">{t("backAgentAposS")}</span>
+                <span className="hidden truncate sm:inline">{t("backAgentAposS")}</span>
               </Button>
             )}
             <button
               type="button"
               aria-label={common("close")}
               onClick={() => setOpen(false)}
-              className="hover:bg-muted grid size-7 place-items-center rounded-md"
+              className="hover:bg-muted touch:size-11 grid size-8 shrink-0 place-items-center rounded-md"
             >
               <X className="size-3.5" aria-hidden />
             </button>
@@ -185,6 +189,9 @@ export function ChatComposerControls({
   agentCapabilities,
   onModelProfileChange,
   settingsOnly = false,
+  floating = false,
+  approvalDisabled = false,
+  onApprovalModeChange,
 }: {
   usageSlot?: ReactNode;
   desktop: boolean;
@@ -192,6 +199,9 @@ export function ChatComposerControls({
   agentCapabilities?: readonly string[] | null;
   onModelProfileChange?: (id: string | null) => void;
   settingsOnly?: boolean;
+  floating?: boolean;
+  approvalDisabled?: boolean;
+  onApprovalModeChange?: (mode: ApprovalMode) => void;
 }) {
   const t = useTranslations("chat.controls");
   const chat = useTranslations("chat");
@@ -216,7 +226,11 @@ export function ChatComposerControls({
               data-chat-settings
               data-chat-settings-trigger
               data-tour="chat-settings"
-              className="focus-visible:ring-ring text-muted-foreground hover:bg-muted grid size-9 shrink-0 place-items-center rounded-lg outline-none focus-visible:ring-2"
+              className={cn(
+                "focus-visible:ring-ring text-muted-foreground hover:bg-muted grid size-9 shrink-0 place-items-center rounded-lg outline-none focus-visible:ring-2",
+                floating &&
+                  "bg-background/90 size-11 rounded-full border shadow-sm backdrop-blur-md",
+              )}
             >
               <SlidersHorizontal className="size-4" aria-hidden />
             </button>
@@ -232,8 +246,8 @@ export function ChatComposerControls({
             }}
             data-chat-settings-panel
             aria-label={t("label")}
-            side="top"
-            align="end"
+            side={floating ? "bottom" : "top"}
+            align={floating ? "start" : "end"}
             className="max-h-[min(520px,var(--radix-popover-content-available-height))] w-[min(360px,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl p-0"
           >
             <div className="chat-settings-heading">
@@ -245,12 +259,22 @@ export function ChatComposerControls({
                 type="button"
                 aria-label={common("close")}
                 onClick={() => setOpen(false)}
-                className="hover:bg-muted grid size-7 place-items-center rounded-md"
+                className="hover:bg-muted touch:size-11 grid size-8 shrink-0 place-items-center rounded-md"
               >
                 <X className="size-3.5" aria-hidden />
               </button>
             </div>
             <div className="chat-settings-body">
+              {floating && (
+                <div className="space-y-2 p-2">
+                  <ComposerModelControl onChange={onModelProfileChange} />
+                  <ChatApprovalSelector
+                    onChange={onApprovalModeChange}
+                    disabled={approvalDisabled}
+                  />
+                  {usageSlot}
+                </div>
+              )}
               <YourConnections />
               {(desktop ||
                 agentCapabilities?.some(

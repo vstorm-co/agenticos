@@ -2,15 +2,9 @@
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FolderOpen, Globe, Monitor } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 import { useTranslations } from "next-intl";
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui";
+import { Button } from "@/components/ui";
 import { useConversationEnvironments } from "@/hooks/use-conversation-environments";
 import type { EnvironmentExecutionTarget } from "@/lib/conversation-environments-api";
 import { isRunning, type Browse } from "@/lib/browse";
@@ -30,7 +24,7 @@ interface Props {
   preparing: boolean;
 }
 
-/** The workspace menu opens views; provisioning requires the view's explicit Start. */
+/** One click restores the last available workspace pane; viewing never provisions a provider. */
 export function ConversationEnvironments({
   conversationId,
   agentId,
@@ -46,7 +40,7 @@ export function ConversationEnvironments({
   const common = useTranslations("common");
   const workspace = useRequiredChatWorkspace();
   const trigger = useRef<HTMLButtonElement>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [failed, setFailed] = useState(false);
   const selected = workspace.environment;
   const visible =
@@ -58,7 +52,7 @@ export function ConversationEnvironments({
   const environments = useConversationEnvironments(
     conversationId,
     agentId,
-    menuOpen || visible || browserActive,
+    opening || visible || browserActive,
     target,
   );
   const { refresh } = environments;
@@ -145,54 +139,74 @@ export function ConversationEnvironments({
     }
   }
 
+  async function openWorkspace() {
+    if (conversationId === null) {
+      const first = panels[0];
+      if (!first) {
+        workspace.openPanel("files", trigger.current);
+        return;
+      }
+      await open(first);
+      return;
+    }
+    const last = workspace.activePanel ?? workspace.lastPanel;
+    if (
+      last === "files" ||
+      (last === "visuals" && workspace.selection !== null) ||
+      ((last === "browser" || last === "desktop") &&
+        (panels.includes(last) || (last === "browser" && workspace.browserId !== null)))
+    ) {
+      workspace.openPanel(last, trigger.current);
+      return;
+    }
+    if (workspace.browserId !== null) {
+      workspace.openPanel("browser", trigger.current);
+      return;
+    }
+    setOpening(true);
+    setFailed(false);
+    try {
+      const result = await refresh();
+      if (result === null) return; // The query's actor/organization/selection fence changed.
+      if (result.error) throw result.error;
+      const ready = result.data?.items.find(
+        (item) =>
+          panels.includes(item.kind) && (item.state === "ready" || item.state === "starting"),
+      );
+      if (ready) workspace.openEnvironment(ready.kind, trigger.current);
+      else workspace.openPanel("files", trigger.current);
+    } catch {
+      setFailed(true);
+      const fallback = panels[0];
+      if (fallback) workspace.openEnvironment(fallback, trigger.current);
+      else workspace.openPanel("files", trigger.current);
+    } finally {
+      setOpening(false);
+    }
+  }
+
   return (
     <>
       {buttonSlot &&
         createPortal(
-          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-            <span data-tour="chat-environments" className="inline-flex">
-              <DropdownMenuTrigger asChild>
-                <Button
-                  ref={trigger}
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={t("open")}
-                  title={t("open")}
-                  data-tour="chat-workspace-open"
-                  className="touch:size-11 size-8 shrink-0"
-                >
-                  <FolderOpen className="size-4" aria-hidden />
-                </Button>
-              </DropdownMenuTrigger>
-            </span>
-            <DropdownMenuContent
-              align="start"
-              onCloseAutoFocus={(event) => {
-                if (visible) event.preventDefault();
-              }}
+          <span data-tour="chat-environments" className="inline-flex">
+            <Button
+              ref={trigger}
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t("open")}
+              title={t("open")}
+              data-tour="chat-workspace-open"
+              className="touch:size-11 size-8 shrink-0"
+              disabled={preparing || opening}
+              loading={preparing || opening}
+              aria-busy={preparing || opening}
+              onClick={() => void openWorkspace()}
             >
-              <DropdownMenuItem
-                disabled={conversationId === null || preparing}
-                onSelect={() => {
-                  workspace.openPanel("files", trigger.current);
-                }}
-              >
-                <FolderOpen className="size-4" aria-hidden />
-                {t("files")}
-              </DropdownMenuItem>
-              {panels.map((kind) => (
-                <DropdownMenuItem key={kind} disabled={preparing} onSelect={() => void open(kind)}>
-                  {kind === "browser" ? (
-                    <Globe className="size-4" aria-hidden />
-                  ) : (
-                    <Monitor className="size-4" aria-hidden />
-                  )}
-                  {t(kind)}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>,
+              <FolderOpen className="size-4" aria-hidden />
+            </Button>
+          </span>,
           buttonSlot,
         )}
       {panels.map((kind) => {

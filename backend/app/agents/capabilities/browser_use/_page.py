@@ -1416,6 +1416,46 @@ class _TargetAnswer(BaseModel):
     target_info: _TargetInfo = Field(alias="targetInfo")
 
 
+class OpenBrowserPage(BaseModel):
+    """Display metadata, without the provider's context or target identity."""
+
+    title: str
+    url: str
+
+
+class _ListedTarget(BaseModel):
+    target_id: str = Field(alias="targetId")
+    context_id: str | None = Field(default=None, alias="browserContextId")
+    type: str
+    title: str = ""
+    url: str = ""
+
+
+class _TargetListing(BaseModel):
+    targets: list[_ListedTarget] = Field(alias="targetInfos")
+
+
+async def open_browser_pages(
+    *, cdp_url: str, route: BrowserRoute | None, targets: dict[str, BrowserTarget]
+) -> dict[str, OpenBrowserPage]:
+    """Read only exact registered page identities; never enumerate another owner's tabs."""
+    async with _browser_client(cdp_url, route) as client:
+        try:
+            answer = _TargetListing.model_validate(await client.send.Target.getTargets())
+        except ValidationError as exc:
+            raise EndpointError("The browser could not report its open pages.") from exc
+    observed = {
+        (target.context_id, target.target_id): target
+        for target in answer.targets
+        if target.type == "page"
+    }
+    return {
+        tab_id: OpenBrowserPage(title=actual.title[:512], url=actual.url[:8192])
+        for tab_id, expected in targets.items()
+        if (actual := observed.get((expected.context_id, expected.target_id))) is not None
+    }
+
+
 class _BrowserContexts(BaseModel):
     contexts: list[str] = Field(alias="browserContextIds")
 

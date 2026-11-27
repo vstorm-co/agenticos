@@ -1386,3 +1386,21 @@ it("reports a role policy read failure instead of rendering a different home lay
   await userEvent.click(screen.getByRole("button", { name: "common.retry" }));
   expect(retry).toHaveBeenCalledOnce();
 });
+
+it("discloses compact arrangement actions without writing a preference on open", async () => {
+  auth.role = "owner";
+  params.set("view", "org");
+  render(<DashboardPage />, { wrapper });
+  await screen.findByText("dashboard.edit.customize");
+  const before = vi.mocked(apiClient.put).mock.calls.length;
+  await userEvent.click(screen.getByRole("button", { name: "dashboard.morePageActions" }));
+  const controls = screen.getAllByRole("button", { name: "dashboard.edit.customize" });
+  expect(controls).toHaveLength(2);
+  expect(vi.mocked(apiClient.put).mock.calls).toHaveLength(before);
+  const mobile = controls.find((button) => button.closest("[data-radix-popper-content-wrapper]"));
+  expect(mobile).toBeTruthy();
+  if (!mobile) throw new Error("Missing disclosed arrangement action");
+  await userEvent.click(mobile);
+  expect(await screen.findByText("dashboard.edit.addWidget")).toBeInTheDocument();
+  expect(vi.mocked(apiClient.put).mock.calls).toHaveLength(before);
+});

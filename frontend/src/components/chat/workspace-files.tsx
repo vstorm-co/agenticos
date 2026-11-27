@@ -309,12 +309,18 @@ function Files({
         {({ fullscreen, toggleFullscreen }) =>
           opened ? (
             <>
-              <div className="shrink-0 space-y-1 p-4 pb-3">
+              <div
+                className={
+                  host.shared ? "shrink-0 space-y-1 px-3 py-2" : "shrink-0 space-y-1 p-4 pb-3"
+                }
+              >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="flex items-center gap-2 text-sm font-medium">
-                    <FolderOpen className="h-4 w-4" aria-hidden />
-                    {t("title")}
-                  </p>
+                  {!host.shared && (
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      <FolderOpen className="h-4 w-4" aria-hidden />
+                      {t("title")}
+                    </p>
+                  )}
                   {zipFolder && (
                     <button
                       type="button"
@@ -396,8 +402,11 @@ function Files({
                 )}
 
                 {localRoot === null && cloud.origins.length > 0 && (
-                  <div className="space-y-2">
-                    <label htmlFor={`${panelId}-origin`} className="text-xs font-medium">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <label
+                      htmlFor={`${panelId}-origin`}
+                      className="text-muted-foreground shrink-0 text-xs"
+                    >
                       {t("fileLocation")}
                     </label>
                     <Select
@@ -407,7 +416,10 @@ function Files({
                         cloud.selectOrigin(key);
                       }}
                     >
-                      <SelectTrigger id={`${panelId}-origin`} className="w-full">
+                      <SelectTrigger
+                        id={`${panelId}-origin`}
+                        className="h-9 min-h-9 min-w-0 flex-1 text-xs pointer-coarse:min-h-11"
+                      >
                         <SelectValue placeholder={t("chooseLocation")} />
                       </SelectTrigger>
                       <SelectContent>

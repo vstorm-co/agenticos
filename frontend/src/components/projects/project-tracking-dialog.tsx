@@ -6,7 +6,7 @@ import { useAgents } from "@/hooks/use-agents";
 import { useProjectTrackingReview } from "@/hooks/use-project-tracking";
 import type { ProjectTrackingCreate } from "@/lib/project-tracking-api";
 import { getErrorMessage } from "@/lib/api-error";
-import { DIALOG_FORM, DIALOG_COLUMN } from "@/lib/dialog-sizes";
+import { DIALOG_FORM, DIALOG_COLUMN, DIALOG_BODY } from "@/lib/dialog-sizes";
 import type { Project } from "@/types/projects";
 import { ErrorState } from "@/components/states/error-state";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
@@ -89,7 +89,7 @@ export function ProjectTrackingDialog({
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+        <div className={`${DIALOG_BODY} space-y-4`}>
           <p className="text-muted-foreground text-sm">{t("audience")}</p>
           {isLoading ? (
             <Spinner />

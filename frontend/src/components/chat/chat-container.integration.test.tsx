@@ -2425,3 +2425,29 @@ it.each([
     ).toBe(false);
   },
 );
+
+it("opens only the rendered chat settings entry point from the slash command", async () => {
+  mount();
+  const hiddenTrigger = document.createElement("button");
+  hiddenTrigger.setAttribute("data-chat-settings-trigger", "");
+  const hiddenClick = vi.fn();
+  hiddenTrigger.addEventListener("click", hiddenClick);
+  document.body.prepend(hiddenTrigger);
+  try {
+    const triggers = document.querySelectorAll<HTMLButtonElement>("[data-chat-settings-trigger]");
+    const visible = [...triggers].find((trigger) => trigger !== hiddenTrigger);
+    if (!visible) throw new Error("Missing chat settings trigger");
+    const rect = new DOMRect(100, 10, 44, 44);
+    vi.spyOn(visible, "getClientRects").mockReturnValue(
+      Object.assign([rect], { item: (index: number) => (index === 0 ? rect : null) }),
+    );
+    const editor = screen.getByRole("textbox", { name: "Type a message..." });
+    await userEvent.type(editor, "/settings");
+    await userEvent.keyboard("{Enter}");
+    expect(visible).toHaveAttribute("data-state", "open");
+    expect(hiddenClick).not.toHaveBeenCalled();
+    expect(socket.send).not.toHaveBeenCalled();
+  } finally {
+    hiddenTrigger.remove();
+  }
+});

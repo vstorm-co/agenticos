@@ -1,5 +1,5 @@
 ---
-source_sha: "354b8e1f3ee4"
+source_sha: "f6da4a88723a"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -1437,7 +1437,9 @@ Der Chats-Kopf bietet **Neueste Aktivität zuerst (flache Liste)**. Projektchats
 
 ## Live-Browser und Desktop { #live-environments }
 
-Im eigenen privaten Chat bündelt **Workspace** die Bereiche **Files**, **Browser** und **Desktop**. Browser und Desktop erscheinen, wenn der ausgewählte veröffentlichte Agent die Capability aktiviert hat und Sie ihn ausführen dürfen. Ein leerer Projektchat lässt sich ohne Nachricht und ohne Modellaufruf anlegen. **Open** startet die gewählte Umgebung ausdrücklich; das Öffnen des Menüs startet nichts. Gekoppelte lokale Geräte behalten ihre bisherigen Bedienelemente.
+Im eigenen privaten Chat öffnet **Workspace** mit einem Klick die zuletzt verfügbare Ansicht. Ohne vorherige Auswahl öffnet sich ein laufender Browser oder Desktop, andernfalls Files. Browser und Desktop sind verfügbar, wenn der ausgewählte veröffentlichte Agent die Capability aktiviert und Sie ihn ausführen dürfen. Ein leerer Projektchat lässt sich ohne Nachricht oder Modellaufruf erstellen. Das Öffnen des Panels stellt keine Umgebung bereit; erst **Open environment** startet sie ausdrücklich. Gekoppelte lokale Geräte behalten ihre bisherigen Bedienelemente.
+
+Browser zeigt zusätzlich eine Zeile tatsächlich geöffneter Seiten, getrennt von den Workspace-Ansichten. Die Auswahl bewahrt Formulare und JavaScript-Zustand der Seite. Die Liste enthält höchstens acht aktive registrierte Ziele dieses Gesprächs; historische Links und fremde Browserkontexte werden nicht zu Tabs. Metadaten werden über den bestehenden Stream innerhalb von fünf Sekunden aktualisiert. Eine ruhende Seite lässt sich ohne Take over wechseln; Agentensteuerung oder die Eingabelease einer anderen Person verhindern die Auswahl. Vor der Anzeige und Eingabe wartet der Bildschirm auf ein frisches Bild der ausgewählten Seite.
 
 Die kompakte Tableiste bündelt verfügbare Ansichten über dem Live-Bild. **Umgebungsoptionen** enthält die Laufzeitregel, **Verfügbarkeit prüfen** und **Umgebung beenden**. Das Beenden erfordert eine Bestätigung. Öffnen und Prüfen zeigen Fortschritt oder eine kontrollierte Ablehnung. Eine ausgeblendete Ansicht bleibt mit ihrem Adressentwurf gemountet; beim Wiederverbinden bleibt das gespeicherte Bild bis zur aktuellen Bereitschaft verborgen.
 
@@ -1450,3 +1452,10 @@ Konfiguration und Fehlerverhalten stehen unter [Sitzungslaufzeiten](sandbox.de.m
 Browserkontexte sind je Eigentümer und Unterhaltung isoliert. Ein Desktop folgt dagegen dem konfigurierten Workspace- oder Projektumfang: Ein agentenweiter oder sonst gemeinsam genutzter Executor besitzt eine gemeinsame physische Oberfläche. Die Steuerungslease serialisiert Eingaben und macht den Desktop nicht privat. Das Eigentümermenü schützt die Anbindung dieser Chatansicht, nicht den Bildschirminhalt eines bewusst gemeinsam genutzten Executors.
 
 Delegierte behalten eigene Aktivitätsansichten für Browser und Desktop. Ein Delegierter, der denselben Remote-Desktop nutzt, muss dessen physische Steuerung vor dem Start oder der Bedienung übernehmen; eine andere aktive Steuerung verhindert den Start. Ein unabhängiger Browser eines Delegierten wird niemals durch die gespeicherte Umgebung des Hauptagenten ersetzt.
+
+
+## Bedienelemente in schmalen Chats und auf Telefonen { #narrow-chat-controls }
+
+In einem schmalen Chat enthält die schwebende Schaltfläche **Chat controls** über dem Gespräch Modell, Freigabemodus, Kontextnutzung und lokale Werkzeuge. Anhänge, Agent, Workspace und Senden bleiben in einer Zeile; breite Chats behalten die unteren Bedienelemente. Auf Telefonen steht die Anbieterauswahl über der Modellliste, sodass die gesamte Breite für Modellnamen verfügbar bleibt.
+
+Auf Telefonen befinden sich Dashboard-Layouts und Anpassung unter **Weitere Seitenaktionen**. Die Tabellensuche teilt sich eine Zeile mit kompakten Schaltflächen für Filter, Sortierung und Ansichtseinstellungen; **Gruppieren nach** steht in den Ansichtseinstellungen. Onboarding-Aktionen verwenden kurze mobile Beschriftungen und behalten ihre vollständigen zugänglichen Namen. Projektverfolgungsdialoge lassen Platz um fokussierte Felder, damit deren Fokusrahmen sichtbar bleiben.

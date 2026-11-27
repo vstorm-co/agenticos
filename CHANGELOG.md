@@ -49,6 +49,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Select real open pages in a retained Browser from a compact live tab strip, and open the last chat workspace view with one click. Selecting a page preserves its live state and respects the current controller; observing the page list does not extend its idle lifetime.
+
 - Add the community Turkish README, with reciprocal language links and the same source-fingerprint, section and link checks as other README translations. Documentation links fall back to English where no Turkish page exists.
 
 - Onboarding separates shared deployment setup, shared organization setup and personal progress, in that order. App administrators can begin before the first organization exists; organization completion is shared with every administrator holding `org:settings`. Existing personal completions and snoozes remain unchanged.
@@ -97,6 +99,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Keep narrow chat composers to one control row, with model, permissions and usage in floating chat settings. Stack the model source picker on phones, preserve focus rings inside project tracking, and compact secondary dashboard and table controls.
+
+- Keep an eval run’s accepted quote, suite ceiling or remaining skill-check allowance while the worker admits answers, grading and confirming reruns. Stop further paid work with a distinct quote reason; an already admitted request can still exceed its estimate (#3467).
+
 - Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
 
 - `POST /rag/documents/{id}/retry` now parses with the collection's current settings and accepts an optional `ingestion_override` body; with no body the file keeps the changes it was uploaded with. A retry no longer replaces another document of the same file, even after an upload with `replace=true`.
@@ -108,6 +114,10 @@ Two things are versioned separately from this file and worth knowing about:
 - A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. The Integrations tab on the Knowledge bases page shows each connection's API style and key, and local services are now called service connections.
 
 ### Fixed
+
+- Count a single answer in the singular throughout the skill Improve Understand summary, in every console language (#3483).
+
+- Count inline specialists in a skill card’s Drafted by list and in knowledge base and Context Used by lists, subject to the same agent visibility rules (#3288, #3298).
 
 - Give Inbox filters the shared animated selection and keyboard controls, align the plan with the chat composer, and clarify that task automation updates the project’s existing task table.
 
@@ -212,6 +222,8 @@ Two things are versioned separately from this file and worth knowing about:
 - An app-scoped knowledge base is checked as itself when it is created or edited: its parser connection and OCR server must be deployment-wide and it cannot use a LlamaParse key, because its syncs resolve them with no organization. Before, a connection only the creator's organization could see was accepted and every sync then failed to find it.
 
 ### Upgrading
+
+- Apply `0386_eval_run_quoted_usd.py` after `0385_shared_onboarding_scopes.py`. Existing eval runs retain their previous behavior without a stored quote.
 
 - Apply `0385_shared_onboarding_scopes.py` after `0384_environment_layout_driver.py`. Existing deployments and organizations deliberately start with unfinished shared setup stages, including for existing administrators; no configured-state backfill completes them. Personal progress is untouched. Downgrade removes shared progress only.
 

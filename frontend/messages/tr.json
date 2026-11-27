@@ -428,6 +428,11 @@
     "clearSearch": "Aramayı temizle"
   },
   "notifications": {
+    "outcome": {
+      "test": {
+        "quote": "Testiniz, kabul ettiğiniz fiyat sınırında durduruldu."
+      }
+    },
     "needsAttention": "İlgilenilmesi gerekiyor",
     "markAllRead": "Tümünü okundu işaretle",
     "loadMore": "Daha fazla yükle",
@@ -14187,7 +14192,9 @@
     "agentControls": "Aracı kontrol ediyor",
     "otherViewerControls": "Başka kullanıcı kontrol ediyor",
     "viewOnly": "Yalnızca görüntüleme",
-    "takingOverShort": "Kontrol alınıyor…"
+    "takingOverShort": "Kontrol alınıyor…",
+    "openPages": "Açık tarayıcı sayfaları",
+    "untitledPage": "Başlıksız sayfa"
   },
   "remoteAgents": {
     "optionalSettings": "Kimlik doğrulama ve tanıtıcı (isteğe bağlı)",
@@ -14750,6 +14757,46 @@
       "workflowBody": "Araçları adlandırılmış işlevlere bağlayıp Python'dan çağırın. Her eylem kendi izinlerini, onaylarını ve yürütme kaydını korur.",
       "organizationTitle": "Kuruluş varsayılanlarını belirleyin",
       "organizationBody": "Her rol için gezinmeyi, katalogları, panoyu ve bildirimleri, ayrıca maliyet görünürlüğünü yapılandırın. Üyeler politikanızın izin verdiği seçenekleri kişiselleştirebilir."
+    },
+    "scopes": {
+      "progress": "Kurulum ilerlemesi",
+      "stages": "Kurulum aşamaları",
+      "position": "Aşama {current} / {total}",
+      "completed": "Tamamlandı",
+      "saveFailed": "Kurulum ilerlemen kaydedilemedi. Bu adımı tekrar dene.",
+      "allDoneTitle": "Kurulum tamamlandı",
+      "allDoneHint": "Ortak kurulum tamamlandı ve kişisel ilerlemen korundu. Bir aşamayı incele veya uygulamayı aç.",
+      "openApp": "Uygulamayı aç",
+      "workspaceTitle": "Bir kuruluş oluştur veya seç",
+      "workspaceHint": "Dağıtım kurulumu tamamlandı. Ortak varsayılanları için bir şirket çalışma alanı seç, ardından kişisel kurulumuna devam et.",
+      "loadFailed": "Kurulum yüklenemedi",
+      "deployment": {
+        "title": "Dağıtımı yapılandır",
+        "hint": "Bu dağıtımın tamamında paylaşılır. Bir uygulama yöneticisi bu aşamayı bir kez tamamlar.",
+        "short": "Dağıtım"
+      },
+      "organization": {
+        "title": "Kuruluşu yapılandır",
+        "hint": "Bu kuruluşta paylaşılır. Yetkili bir kişi bu aşamayı ekip adına tamamlar.",
+        "short": "Kuruluş"
+      },
+      "personal": {
+        "title": "Kişisel kurulumun",
+        "hint": "Profilin, bağlantıların ve tercihlerin. Bu ilerleme sana aittir.",
+        "short": "Kişisel"
+      },
+      "modelsShared": "İsteğe bağlı ortak sağlayıcı erişimi, kuruluş görünürlüğüyle Vault üzerinden yapılandırılır. Bu adım kişisel model seçimini değiştirmez.",
+      "toolsShared": "İsteğe bağlı ortak araç erişimi, kuruluşa ait MCP bağlantılarını kullanır. Özel hesaplarını daha sonra kişisel kurulumunda bağla.",
+      "openVault": "Vault’u aç",
+      "openConnections": "MCP bağlantılarını aç",
+      "returnToSetup": "Sayfa yeni bir sekmede açılır. İşin bittiğinde bu kuruluma dön.",
+      "resourcesPermission": "Bu ortak kaynakları görüntüleme iznin yok. Devam edebilirsin; yetkili bir kişi bunları daha sonra yapılandırabilir.",
+      "sharedReview": "Bu ortak aşama tamamlandı. Açık formun inceleme için korunur. Formdan ayrılmaya hazır olduğunda devam et.",
+      "continueReview": "Sonraki aşamaya geç",
+      "stageCompleted": "{stage} — Tamamlandı",
+      "continueShort": "Devam",
+      "skipShort": "Atla",
+      "finishShort": "Bitir"
     }
   },
   "notificationRoutes": {
@@ -19769,7 +19816,7 @@
     "understand": {
       "title": "Anlama",
       "loading": "Neyin yanlış gittiği okunuyor…",
-      "summary": "{count, plural, =0 {Skill'de sorun bulunmadı} =1 {Skill'de 1 sorun} other {Skill'de # sorun}}{elsewhere, plural, =0 {} other {, sorunu başka yerde olan # yanıt}}{fine, plural, =0 {} other {, sorunsuz # yanıt}}.",
+      "summary": "{count, plural, =0 {Skill'de sorun bulunmadı} =1 {Skill'de 1 sorun} other {Skill'de # sorun}}{elsewhere, plural, =0 {} =1 {, sorunu başka yerde olan 1 yanıt} other {, sorunu başka yerde olan # yanıt}}{fine, plural, =0 {} =1 {, sorunsuz 1 yanıt} other {, sorunsuz # yanıt}}.",
       "usageUnknown": "{count, plural, =1 {1 yanıt, skill yüklemelerinin kaydedilmeye başlanmasından önceye ait ve sayılmaz.} other {# yanıt, skill yüklemelerinin kaydedilmeye başlanmasından önceye ait ve sayılmaz.}}",
       "agent": "{name} ({runs})",
       "occursIn": "{runs, plural, =1 {1 yanıtta} other {# yanıtta}}; {agents}{hidden, plural, =0 {} =1 { ve göremediğiniz 1 agent} other { ve göremediğiniz # agent}} üzerinde.",

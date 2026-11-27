@@ -1643,12 +1643,14 @@ class NotificationService:
             use_savepoint=True,
         )
 
-    async def eval_run_finished(self, run: EvalRun) -> None:
+    async def eval_run_finished(self, run: EvalRun, *, at_quote: bool = False) -> None:
         """Announce a terminal eval; only a manual check notifies its requester.
 
         Suite and improvement checks have their own terminal notification, so
         every child finishing must not produce another inbox entry. Answers,
-        grading notes and provider errors never enter this notice.
+        grading notes and provider errors never enter this notice. `at_quote` is a
+        run that stopped at the price it was started at rather than at a budget,
+        and its notice says so.
         """
         from app.services import change_feed
 
@@ -1687,7 +1689,12 @@ class NotificationService:
             event_type=NotificationEventType.EVAL_RUN_FINISHED,
             occurrence_id=run.id,
             status=run.status,
-            summary=_EVAL_SUMMARY.get(run.status, "Your test has ended."),
+            reason=_AT_QUOTE if at_quote else None,
+            summary=(
+                "Your test stopped at the price you accepted."
+                if at_quote
+                else _EVAL_SUMMARY.get(run.status, "Your test has ended.")
+            ),
             path=f"/agents/{run.agent_id}/evals/{run.id}",
         )
 
@@ -1717,6 +1724,7 @@ class NotificationService:
         status: str,
         summary: str,
         path: str,
+        reason: str | None = None,
     ) -> None:
         if user_id is None:
             return
@@ -1732,6 +1740,7 @@ class NotificationService:
             context_url=link,
             render_context={
                 "status": status,
+                **({} if reason is None else {"reason": reason}),
                 "app_name": settings.PROJECT_NAME,
                 "run_url": absolute_context_url(link),
             },
@@ -2764,6 +2773,7 @@ def _reason_text(reason: ThresholdReason) -> str:
             return "the comparison is invalid"
 
 
+_AT_QUOTE = "quote"
 _EVAL_SUMMARY = {
     "completed": "Your test finished.",
     "failed": "Your test could not finish.",

@@ -23,6 +23,7 @@ from app.agents.capabilities.browser_use._page import (
     BrowserTarget,
     PagePolicy,
     dispose_browser_target,
+    open_browser_pages,
     open_page,
 )
 from app.agents.capabilities.browser_use._route import recheck
@@ -45,6 +46,7 @@ from app.core.exceptions import ConflictError
 from app.db.session import get_worker_db_context
 from app.repositories import agent_workspace as workspace_repo
 from app.repositories import pending_sandbox_destroy as pending_destroy_repo
+from app.schemas.conversation_environment import ConversationBrowserTab, ConversationBrowserTabs
 from app.services.conversation_environment_policy import (
     BrowserEnvironmentSettings,
     DesktopEnvironmentSettings,
@@ -100,6 +102,22 @@ class EnvironmentPicture:
     url: str | None = None
     title: str | None = None
     navigable: bool = False
+
+
+async def browser_tabs(resource: BrowserEnvironmentResource) -> ConversationBrowserTabs:
+    pages = await open_browser_pages(
+        cdp_url=resource.cdp_url,
+        route=resource.route.restore() if resource.route is not None else None,
+        targets=resource.tabs,
+    )
+    return ConversationBrowserTabs(
+        environment_id=resource.environment_id,
+        tabs=[
+            ConversationBrowserTab(id=tab_id, title=page.title, url=page.url)
+            for tab_id, page in pages.items()
+        ],
+        active_tab_id=resource.active if resource.active in pages else None,
+    )
 
 
 async def picture(view: EnvironmentView) -> EnvironmentPicture:

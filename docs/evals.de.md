@@ -1,5 +1,5 @@
 ---
-source_sha: "5a47cc875ed7"
+source_sha: "5a8cc4116f25"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -197,6 +197,23 @@ und begrenzt nicht die endgültige Rechnung des Anbieters. Skill-Update-Prüfung
 Wissensentwürfe und die Wächter einer Promotion-Schranke nehmen `quoted_usd` genauso,
 und `GET .../gate/estimate` bepreist die Wächter, die ein Lauf der Schranke starten würde.
 
+Der Run behält diesen Preis. Runs mit Angebot führen jeweils nur einen Versuch
+samt Bewertung aus; Runs ohne Angebot behalten ihre konfigurierte Parallelität.
+Vor der nächsten Antwort vergleicht der Worker die erfassten Ausgaben plus die
+Schätzung für Antwort und Bewertung mit dem Angebot. Vor einer kostenpflichtigen
+Bewertung addiert er außerdem die eingefrorene Bewertungsschätzung, die Rubrik,
+Referenz und fallspezifische Richterkriterien gemeinsam umfasst. Bestätigende
+Wiederholungen über dem Angebot werden nicht eingereiht. Eine Suite verwendet
+entsprechend ihre Grenze, eine Skill-Prüfungsstufe den vom vorherigen Schritt
+übrigen akzeptierten Höchstbetrag des Agenten.
+
+Ein gestoppter Run endet als `budget_exceeded`, behält Antworten und Bewertungen
+und nennt den akzeptierten Preis in Fehler und Benachrichtigung. Eine laufende
+Antwort oder Bewertung kann teurer als geschätzt sein und das Angebot übersteigen.
+Dies begrenzt den Start von Versuchen, nicht jede Anbieteranfrage: eine Antwort
+kann mehrere Modell- oder Werkzeuganfragen enthalten. Eine harte Grenze je
+Anbieteranfrage ist hier nicht implementiert.
+
 Ein eingereihter Wissensentwurf behält sein Angebot. Der Worker prüft die
 Schätzung vor Abruf oder Modellarbeit erneut und lehnt einen höheren oder
 unbekannten Preis ab. Bestehende Clients und Jobs ohne Angebot bleiben unverändert.
@@ -204,7 +221,8 @@ unbekannten Preis ab. Bestehende Clients und Jobs ohne Angebot bleiben unveränd
 Auch die geschätzte Ausgabengrenze einer Suite enthält Wiederholungen und bei
 Paaren beide Seiten. Die erste Veröffentlichungsschätzung enthält die bestehende
 Version als Baseline der nächsten Veröffentlichung, selbst bei nur einer Version.
-Diese Grenze entscheidet nur über den Start; sie stoppt keinen laufenden Test.
+Der Run behält die Grenze als seinen Preis und wird während des Laufs daran
+gehalten, wie ein Run mit Angebot.
 Jeder positive Kosten- oder Latenzanstieg von einer Baseline von null überschreitet
 jede Prozentgrenze.
 
@@ -375,8 +393,9 @@ Jeder Versuch geht auf eine von vier Arten aus (`state` am Versuch):
   durchfallen lässt, auch wenn die Wiederholungen des Falls bestehen;
 - **unvollständig**, wenn der Provider nach seinen Wiederholungen gescheitert
   ist (ein Fehler 5xx, 408 oder 429 oder gar keine Antwort), ein Bewerter eine
-  Ausnahme geworfen hat, der Run abgebrochen wurde oder das Budget ausging, oder
-  seine Versuche unentschieden ausgingen;
+  Ausnahme geworfen hat, der Run abgebrochen wurde, das Budget ausging oder der
+  Run den Preis erreichte, mit dem er gestartet wurde, oder seine Versuche
+  unentschieden ausgingen;
 - Bewertung ohne erforderlichen Scorer, der einen Fall entscheiden kann: ergänze eine Prüfung, einen erwarteten Werkzeugaufruf oder Bewertungskriterien;
 
 Keiner der letzten beiden ist je bestanden; die Zusammenfassung zählt sie

@@ -107,7 +107,7 @@ it("replaces a deferred-close socket on quick hide/show and waits for its own ne
   expect(first.close).toHaveBeenCalledOnce();
   const second = Socket.instances[1]!;
   expect(second.url).toBe(first.url);
-  expect(second.protocols).toEqual(["access_token.session", "environment"]);
+  expect(second.protocols).toEqual(["access_token.session", "environment", "environment.tabs.v1"]);
   expect(result.current.status).toBe("connecting");
   act(() => {
     oldMessage?.(

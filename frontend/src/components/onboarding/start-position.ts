@@ -1,7 +1,12 @@
 /** A tab's place in the walkthrough, not evidence of completion or saved edits. */
-export function rememberStartPosition(step: string, organizationId: string | null): void {
+export function rememberStartPosition(
+  step: string,
+  organizationId: string | null,
+  scope?: string,
+): void {
   const url = new URL(window.location.href);
   url.searchParams.set("start-step", step);
+  if (scope) url.searchParams.set("start-scope", scope);
   url.searchParams.delete("question");
   if (organizationId) url.searchParams.set("workspace", organizationId);
   else url.searchParams.delete("workspace");
@@ -12,7 +17,7 @@ export function rememberStartPosition(step: string, organizationId: string | nul
 /** Hidden or stale steps must not replace the active organization's URL. */
 export function rememberStartQuestion(
   step: string,
-  organizationId: string,
+  organizationId: string | null,
   question: string,
 ): void {
   const url = new URL(window.location.href);

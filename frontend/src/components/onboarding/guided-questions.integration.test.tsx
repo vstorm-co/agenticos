@@ -525,3 +525,17 @@ it("holds currency-dependent choices until the reporting quote is available", as
   expect(env.budget).not.toHaveBeenCalled();
   expect(env.next).toHaveBeenCalledOnce();
 });
+
+it("runs deployment setup before the first organization without a fake destination or automatic completion", async () => {
+  window.history.replaceState(
+    null,
+    "",
+    "/onboarding?start-scope=deployment&start-step=admin.deployment",
+  );
+  render(<StartDeployment onContinue={env.next} />);
+  expect(env.next).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+  expect(screen.getByRole("heading", { name: "A first hello for your team?" })).toBeVisible();
+  expect(screen.queryByText("Northwind")).not.toBeInTheDocument();
+  expect(env.next).not.toHaveBeenCalled();
+});

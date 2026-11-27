@@ -118,8 +118,10 @@ function RoutingControls() {
       <div data-testid="routing">
         {workspace.activePanel}:{workspace.environment ?? "activity"}
       </div>
-      <button onClick={() => workspace.openPanel("browser")}>Browser tab</button>
-      <button onClick={() => workspace.openPanel("desktop")}>Desktop tab</button>
+      <div role="tablist">
+        <button onClick={() => workspace.openPanel("browser")}>Browser tab</button>
+        <button onClick={() => workspace.openPanel("desktop")}>Desktop tab</button>
+      </div>
       <button onClick={() => workspace.showVisual("visual", false)}>Show visual</button>
     </>
   );
@@ -134,7 +136,7 @@ beforeEach(() => {
     items: [environment, { ...environment, kind: "desktop" }],
     isLoading: false,
     error: null,
-    refresh: vi.fn(),
+    refresh: vi.fn().mockImplementation(async () => readResult()),
     remember: vi.fn(),
     start: vi.fn().mockResolvedValue(environment),
     end: vi.fn(),
@@ -148,8 +150,9 @@ it("opens a passive view and provisions only after the explicit start", async ()
   render(<Harness />);
   expect(useConversationEnvironments).toHaveBeenLastCalledWith("chat", agent, false, "agent");
   await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
-  await waitFor(() => expect(prepare).toHaveBeenCalledOnce());
+  await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
+  expect(prepare).not.toHaveBeenCalled();
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   expect(api.start).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Prepare test environment" }));
   expect(api.start).toHaveBeenCalledWith({ conversation: "chat", agent, kind: "browser" });
@@ -160,8 +163,7 @@ it("opens a passive view and provisions only after the explicit start", async ()
 it("can file an empty chat before its first message without provisioning", async () => {
   render(<Harness conversation={null} />);
   await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
-  expect(screen.getByRole("menuitem", { name: "Files" })).toHaveAttribute("aria-disabled", "true");
-  await userEvent.click(screen.getByRole("menuitem", { name: "Desktop" }));
+  await userEvent.click(screen.getByRole("button", { name: "Desktop tab" }));
   await waitFor(() => expect(prepare).toHaveBeenCalledOnce());
   expect(screen.getByRole("status")).toHaveTextContent("Loading environment");
   expect(api.start).not.toHaveBeenCalled();
@@ -170,7 +172,7 @@ it("shows a failed empty-chat preparation and permits retry", async () => {
   vi.mocked(prepare).mockResolvedValueOnce(null).mockResolvedValueOnce(null);
   render(<Harness conversation={null} />);
   await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
+  await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not load");
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
   await waitFor(() => expect(prepare).toHaveBeenCalledTimes(2));
@@ -179,29 +181,28 @@ it("reports read failure and refreshes without provisioning", async () => {
   api.error = new Error("Unavailable");
   render(<Harness />);
   await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
+  await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
   await act(async () => {});
   expect(screen.getByRole("alert")).toHaveTextContent("Could not load");
   await userEvent.click(screen.getByRole("button", { name: "Retry" }));
-  expect(api.refresh).toHaveBeenCalledOnce();
+  expect(api.refresh).toHaveBeenCalledTimes(2);
   expect(api.start).not.toHaveBeenCalled();
 });
 
 it("can end, refresh and remember the selected desktop through its own address", async () => {
   render(<Harness />);
   await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Desktop" }));
+  await userEvent.click(screen.getByRole("button", { name: "Desktop tab" }));
   await userEvent.click(screen.getByRole("button", { name: "End test environment" }));
   expect(api.end).toHaveBeenCalledWith({ conversation: "chat", agent, kind: "desktop" });
   await userEvent.click(screen.getByRole("button", { name: "Refresh test state" }));
-  expect(api.refresh).toHaveBeenCalledOnce();
+  expect(api.refresh).toHaveBeenCalledTimes(2);
   await userEvent.click(screen.getByRole("button", { name: "Receive test state" }));
   expect(api.remember).toHaveBeenCalledWith({ ...environment, kind: "desktop" });
 });
 it("opens Files without creating or provisioning an environment", async () => {
   render(<Harness />);
   await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Files" }));
   expect(prepare).not.toHaveBeenCalled();
   expect(api.start).not.toHaveBeenCalled();
 });
@@ -209,7 +210,7 @@ it("shows a controlled failure when empty-chat creation throws", async () => {
   vi.mocked(prepare).mockRejectedValue(new Error("Private transport detail"));
   render(<Harness conversation={null} />);
   await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
+  await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not load");
   expect(screen.queryByText("Private transport detail")).not.toBeInTheDocument();
 });
@@ -218,7 +219,7 @@ it("holds the loading geometry until a readiness read arrives", async () => {
   api.isLoading = true;
   render(<Harness />);
   await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
+  await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
   expect(screen.getByRole("status")).toHaveTextContent("Loading environment");
   expect(api.start).not.toHaveBeenCalled();
 });
@@ -243,12 +244,16 @@ it("keeps a legacy browser activity visible after a read finds no owned environm
   expect(api.start).not.toHaveBeenCalled();
 });
 
-it("keeps an explicit manual Browser selection when returning from Desktop", async () => {
+it("keeps the selected owned Browser when returning from Desktop", async () => {
+  api.items = [
+    { ...environment, id: ownedId, state: "ready" },
+    { ...environment, kind: "desktop" },
+  ];
   useBrowserPanelStore.getState().open("legacy-call", true);
   vi.mocked(api.refresh).mockResolvedValue(readResult());
-  render(<Harness />);
+  render(<Harness browses={activity("legacy-call")} />);
   await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
+  await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
   expect(screen.getByTestId("routing")).toHaveTextContent("browser:browser");
   await userEvent.click(screen.getByRole("button", { name: "Desktop tab" }));
   await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
@@ -374,11 +379,15 @@ it.each(["failed", "expired", "not_started"] as const)(
 );
 
 it("refreshes an already selected owned browser when another activity call arrives", async () => {
+  api.items = [
+    { ...environment, id: ownedId, state: "ready" },
+    { ...environment, kind: "desktop" },
+  ];
   vi.mocked(api.refresh).mockResolvedValue(readResult());
   useBrowserPanelStore.getState().open("first-call", true);
-  render(<Harness />);
+  render(<Harness browses={activity("first-call")} />);
   await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
+  await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
   await act(async () => useBrowserPanelStore.getState().open("second-call", true));
   expect(api.refresh).toHaveBeenCalledTimes(2);
   expect(screen.getByTestId("routing")).toHaveTextContent("browser:browser");
@@ -395,11 +404,15 @@ it("keeps legacy activity when the refresh was cancelled by a scope change", asy
 });
 
 it("falls back to legacy activity when the selected agent no longer offers the remembered browser", async () => {
+  api.items = [
+    { ...environment, id: ownedId, state: "ready" },
+    { ...environment, kind: "desktop" },
+  ];
   vi.mocked(api.refresh).mockResolvedValue(readResult());
   useBrowserPanelStore.getState().open("legacy-call", true);
-  const view = render(<Harness />);
+  const view = render(<Harness browses={activity("legacy-call")} />);
   await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
+  await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
   expect(screen.getByTestId("routing")).toHaveTextContent("browser:browser");
   view.rerender(<Harness availablePanels={[]} />);
   await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
@@ -488,10 +501,10 @@ it("does not reopen a dismissed desktop on the next tool action in the same envi
 
 it("propagates an explicit refresh refusal to the view rather than reporting success", async () => {
   const error = new Error("Controlled refresh refusal");
-  vi.mocked(api.refresh).mockResolvedValue({ data: undefined, error });
   render(<Harness />);
   await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
+  await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
+  vi.mocked(api.refresh).mockResolvedValue({ data: undefined, error });
   await userEvent.click(screen.getByRole("button", { name: "Refresh test state" }));
   await waitFor(() => expect(lifetime.errors).toEqual([error]));
 });
@@ -508,4 +521,38 @@ it("keeps sources open when a desktop becomes ready in the background", async ()
   expect(useSourcesPanelStore.getState().isOpen).toBe(true);
   expect(screen.getByTestId("routing")).toHaveTextContent(":activity");
   expect(api.start).not.toHaveBeenCalled();
+});
+
+it("opens the live pane in one click and restores that last tab after hiding it", async () => {
+  api.items = [environment, { ...environment, kind: "desktop", id: ownedId, state: "ready" }];
+  render(<Harness />);
+  await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
+  await waitFor(() => expect(screen.getByTestId("routing")).toHaveTextContent("desktop:desktop"));
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  expect(api.start).not.toHaveBeenCalled();
+  expect(prepare).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Close workspace" }));
+  await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
+  expect(screen.getByTestId("routing")).toHaveTextContent("desktop:desktop");
+  expect(api.refresh).toHaveBeenCalledOnce();
+});
+
+it("opens Files on a read error when the agent has no Browser or Desktop capability", async () => {
+  vi.mocked(api.refresh).mockResolvedValue({ data: undefined, error: new Error("Offline") });
+  render(<Harness availablePanels={[]} />);
+  await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
+  await waitFor(() => expect(screen.getByTestId("routing")).toHaveTextContent("files:activity"));
+  expect(lifetime.mounts).toEqual([]);
+  expect(api.start).not.toHaveBeenCalled();
+  expect(prepare).not.toHaveBeenCalled();
+});
+
+it("opens the uncreated Files view for an empty chat without inventing a browser", async () => {
+  render(<Harness conversation={null} availablePanels={[]} />);
+  await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
+  expect(screen.getByTestId("routing")).toHaveTextContent("files:activity");
+  expect(lifetime.mounts).toEqual([]);
+  expect(api.start).not.toHaveBeenCalled();
+  expect(api.refresh).not.toHaveBeenCalled();
+  expect(prepare).not.toHaveBeenCalled();
 });

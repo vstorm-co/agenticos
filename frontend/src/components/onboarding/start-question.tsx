@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { ErrorState } from "@/components/states";
 import { Button } from "@/components/ui";
 import { StartActions, StartBack } from "./start-navigation";
+import { StartActionLabel } from "./start-action-label";
 import { StartStageArtwork } from "./start-stage-artwork";
 import layout from "./administration.module.css";
 import { useStartVariant } from "./start-experience";
@@ -34,6 +35,7 @@ export function StartQuestion({
   onSkip?: () => void;
 }) {
   const t = useTranslations("start.guided");
+  const scopes = useTranslations("start.scopes");
   const studio = useStartVariant() === "studio";
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -55,11 +57,14 @@ export function StartQuestion({
           <StartActions back={onBack && <StartBack onClick={onBack} disabled={pending} />}>
             {onSkip && (
               <Button variant="ghost" disabled={pending} onClick={onSkip}>
-                {t("keepCurrent")}
+                <StartActionLabel full={t("keepCurrent")} short={scopes("skipShort")} />
               </Button>
             )}
             <Button disabled={pending} onClick={onContinue}>
-              {pending ? t("saving") : t("continue")}
+              <StartActionLabel
+                full={pending ? t("saving") : t("continue")}
+                short={pending ? t("saving") : scopes("continueShort")}
+              />
               <ArrowRight size={15} aria-hidden />
             </Button>
           </StartActions>

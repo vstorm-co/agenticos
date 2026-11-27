@@ -129,7 +129,7 @@ Conversation agents are ordered by their latest message or top-level run, newest
 
 When **Approve everything** is unavailable, chat settings distinguish missing approval-decision permission from an organization policy that disables standing consent. A person allowed to decide approvals gets a link to **Budget and approvals**, where that policy can be changed explicitly. The chat never changes organization policy automatically.
 
-The composer shows the active permission mode beside the agent picker. Open the label to change the saved mode before sending. The same permission and organization waiver checks apply as in Chat controls. Automatically granted calls retain approved audit entries; only genuinely pending calls show actionable approval prompts.
+On wide chats, the composer shows the active permission mode beside the agent picker. Open the label to change the saved mode before sending. The same permission and organization waiver checks apply as in Chat controls. Automatically granted calls retain approved audit entries; only genuinely pending calls show actionable approval prompts.
 
 Centered phone dialogs keep a 12px gutter on every edge. Compact page headers place the title and actions on one row when they fit. Context descriptions open from the editor toolbar.
 
@@ -1326,7 +1326,9 @@ The Chats header offers **Most recent first (flat list)**. It combines project a
 
 ## Live browser and desktop { #live-environments }
 
-In your own private chat, **Workspace** groups **Files**, **Browser** and **Desktop**. Browser and Desktop appear when the selected published agent enables that capability and you can run it. An empty project chat can first be created without sending a message or starting a model. **Open** then explicitly starts the selected environment; opening the menu alone starts nothing. Paired local-device flows keep their existing controls.
+In your own private chat, **Workspace** opens the last available pane with one click. Without an earlier selection it opens a live Browser or Desktop, otherwise Files. Browser and Desktop are available when the selected published agent enables that capability and you can run it. An empty project chat can first be created without sending a message or starting a model. Opening the panel never provisions an environment; **Open environment** explicitly starts one. Paired local-device flows keep their existing controls.
+
+Browser also has a row of actual open pages, separate from the Workspace views. Select a page to keep its existing form and JavaScript state. The list contains only live registered targets owned by this conversation, with at most eight entries; historical links and foreign browser contexts never become tabs. Page metadata updates on the existing stream, within five seconds. Switching an idle page does not require Take over; agent control or another person’s input lease prevents selection. The screen waits for a fresh frame from the selected page before showing pixels or accepting input.
 
 The compact tab strip keeps available views together above the live screen. Open **Environment options** for the lifetime policy, **Check availability** and **End environment**. End asks for confirmation. Opening and checking report progress or a controlled refusal. A hidden pane preserves its mounted view and draft address; reconnecting hides the cached screen until fresh readiness arrives.
 
@@ -1339,3 +1341,10 @@ See [session lifetimes](sandbox.md#conversation-environments) for configuration 
 Browser contexts are isolated per owner and conversation. A desktop follows its configured workspace or project scope: an agent-scoped or otherwise shared executor has a shared physical GUI. The driver lease serializes control; it does not make that shared desktop private. An owner-only menu protects who can attach this chat's view, not the screen content of a deliberately shared executor.
 
 Delegates keep their own browser and desktop activity views. A delegate using the same remote desktop must acquire its physical driver before starting or driving that screen; another active driver prevents startup. An independent delegate browser is never substituted with the primary agent's saved environment.
+
+
+## Narrow chat and page controls { #narrow-chat-controls }
+
+On a narrow chat, the floating **Chat controls** button above the transcript holds the model, permission mode, context usage and local tools. The composer keeps attachments, agent, Workspace and Send in one row; wider chats retain their bottom controls. The model library puts its provider selector above the model list on phones, leaving the full width for model names.
+
+On phones, dashboard layouts and customization move into **More page actions**. Table search shares a row with compact filter, sort and view-settings buttons; **Group by** is inside view settings. Onboarding keeps short mobile action labels with their full accessible names. Project tracking dialogs leave space around focused fields so their focus outlines remain visible.

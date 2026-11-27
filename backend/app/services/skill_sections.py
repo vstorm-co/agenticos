@@ -2,10 +2,10 @@
 
 Arranging orders what a caller may already see and nothing else. The skills it
 sorts are `skill_repo.list_visible_keys`, the flat listing's own predicate, and
-the agents it names come from `agents_serving_skills` and `agents_using`, which
-leave out every agent the caller cannot view. So a section can neither show a
-skill nor name an agent the flat listing would not, and no section stands for a
-folder: who a skill reaches is still its audience and its grants.
+the agents it names come from `skill_bindings`, which leaves out every agent the
+caller cannot view. So a section can neither show a skill nor name an agent the
+flat listing would not, and no section stands for a folder: who a skill reaches
+is still its audience and its grants.
 """
 
 from collections.abc import Iterable, Mapping, Sequence

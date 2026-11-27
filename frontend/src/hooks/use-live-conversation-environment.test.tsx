@@ -98,7 +98,11 @@ it("opens an authenticated environment socket without starting any run", () => {
   expect(options.url).toBe(
     `ws://console.example/api/v1/ws/conversations/chat%2Fone/environments/${environment.id}?project_execution_target=agent`,
   );
-  expect(options.protocols?.()).toEqual(["access_token.initial-token", "environment"]);
+  expect(options.protocols?.()).toEqual([
+    "access_token.initial-token",
+    "environment",
+    "environment.tabs.v1",
+  ]);
   expect(options.messageScope).toBe(options.identity);
   expect(socket.connect).toHaveBeenCalledOnce();
   expect(result.current.status).toBe("connecting");
@@ -179,7 +183,11 @@ it("keeps the socket on token refresh and presents the new token on reconnect", 
   act(() => useAuthStore.setState({ accessToken: "refreshed-token" }));
   expect(socket.connect).toHaveBeenCalledOnce();
   expect(socket.disconnect).not.toHaveBeenCalled();
-  expect(options.protocols?.()).toEqual(["access_token.refreshed-token", "environment"]);
+  expect(options.protocols?.()).toEqual([
+    "access_token.refreshed-token",
+    "environment",
+    "environment.tabs.v1",
+  ]);
 });
 
 it.each([
@@ -444,4 +452,149 @@ it("does not turn desktop/view-only snapshots into viewer resize authority", () 
   );
   act(() => result.current.send({ type: "resize", width: 640, height: 900, scale: 1 }));
   expect(socket.sendMessage).not.toHaveBeenCalled();
+});
+
+it("selects real live pages without takeover and never shows an overtaken page frame", () => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  const tabs = {
+    environment_id: environment.id,
+    tabs: [
+      { id: "main", title: "One", url: "https://one.test" },
+      { id: "second", title: "Two", url: "https://two.test" },
+    ],
+    active_tab_id: "main",
+  };
+  act(() => {
+    view();
+    emit({ type: "environment_tabs", data: tabs });
+    emit({ ...picture(), data: { ...picture().data, tab_id: "main" } });
+  });
+  act(() => result.current.activateTab("second"));
+  expect(socket.sendMessage).toHaveBeenCalledExactlyOnceWith({
+    type: "activate_tab",
+    tab_id: "second",
+  });
+  expect(result.current.selectingTab).toBe(true);
+  expect(result.current.browse?.image).toBeNull();
+  act(() => emit({ type: "environment_tabs", data: { ...tabs, active_tab_id: "second" } }));
+  expect(result.current.browse?.image).toBeNull();
+  expect(result.current.browse?.title).toBe("Two");
+  act(() => emit({ ...picture(), data: { ...picture().data, tab_id: "main", step: 50 } }));
+  expect(result.current.browse?.image).toBeNull();
+  act(() => emit({ ...picture(), data: { ...picture().data, tab_id: "second", step: 51 } }));
+  expect(result.current.browse?.image).not.toBeNull();
+  socket.sendMessage.mockClear();
+  act(() => result.current.activateTab("forged"));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+});
+
+it("never sends a tab selection while hidden or while the agent controls the environment", () => {
+  const { result, rerender } = renderHook(
+    ({ enabled }) => useLiveConversationEnvironment("chat", environment, enabled),
+    { initialProps: { enabled: true } },
+  );
+  act(() => {
+    view();
+    emit({
+      type: "environment_tabs",
+      data: {
+        environment_id: environment.id,
+        tabs: [{ id: "main", title: "One", url: "https://one.test" }],
+        active_tab_id: "main",
+      },
+    });
+    emit({
+      type: "environment_state",
+      data: { ...environment, control: "agent", can_control: false },
+    });
+  });
+  act(() => result.current.activateTab("main"));
+  rerender({ enabled: false });
+  act(() => result.current.activateTab("main"));
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+});
+
+it("keeps input disabled until this selection is acknowledged or refused", () => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  act(() => {
+    view();
+    emit({
+      type: "environment_tabs",
+      data: {
+        environment_id: environment.id,
+        tabs: [
+          { id: "main", title: "One", url: "https://one.test" },
+          { id: "second", title: "Two", url: "https://two.test" },
+        ],
+        active_tab_id: "main",
+      },
+    });
+    held();
+    emit({ type: "environment_state", data: { ...environment, control: "human" } });
+  });
+  act(() => result.current.activateTab("second"));
+  socket.sendMessage.mockClear();
+  act(() => {
+    result.current.send({ type: "click", x: 1, y: 1 });
+    emit({
+      type: "browser_event",
+      data: {
+        kind: "browser_control_error",
+        call_id: environment.id,
+        step: 4,
+        operation: "activate_tab",
+        tab_id: "unrelated",
+        detail: "Old refusal",
+      },
+    });
+  });
+  expect(result.current.selectingTab).toBe(true);
+  expect(socket.sendMessage).not.toHaveBeenCalled();
+  act(() =>
+    emit({
+      type: "browser_event",
+      data: {
+        kind: "browser_control_error",
+        call_id: environment.id,
+        step: 5,
+        operation: "activate_tab",
+        tab_id: "second",
+        detail: "The page closed",
+      },
+    }),
+  );
+  expect(result.current.selectingTab).toBe(false);
+  expect(result.current.browse?.image).toBeNull();
+});
+
+it("abandons an unacknowledged selection when the current socket reconnects", () => {
+  const { result } = renderHook(() => useLiveConversationEnvironment("chat", environment, true));
+  const tabs = {
+    environment_id: environment.id,
+    tabs: [
+      { id: "main", title: "One", url: "https://one.test" },
+      { id: "second", title: "Two", url: "https://two.test" },
+    ],
+    active_tab_id: "main",
+  };
+  act(() => {
+    view();
+    emit({ type: "environment_tabs", data: tabs });
+  });
+  act(() => result.current.activateTab("second"));
+  expect(result.current.selectingTab).toBe(true);
+  act(() => options.onClose?.(new CloseEvent("close", { code: 1006 })));
+  act(() => {
+    view();
+    emit({ type: "environment_tabs", data: tabs });
+    emit({ ...picture(), data: { ...picture().data, tab_id: "main" } });
+  });
+  expect(result.current.selectingTab).toBe(false);
+  expect(result.current.browse?.image).not.toBeNull();
+  socket.sendMessage.mockClear();
+  act(() => result.current.activateTab("second"));
+  expect(socket.sendMessage).toHaveBeenCalledExactlyOnceWith({
+    type: "activate_tab",
+    tab_id: "second",
+  });
 });

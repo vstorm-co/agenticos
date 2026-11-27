@@ -179,7 +179,9 @@
     inset-inline-end: 1rem;
   }
   .footer {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    min-block-size: 64px;
+    padding-block: 0.5rem max(0.5rem, env(safe-area-inset-bottom, 0px));
     gap: 0.5rem;
   }
   .position {

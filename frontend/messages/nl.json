@@ -11820,7 +11820,8 @@
         "completed": "Je test is afgerond.",
         "failed": "Je test kon niet worden afgerond.",
         "cancelled": "Je test is geannuleerd.",
-        "budget_exceeded": "Je test is gestopt bij zijn budget."
+        "budget_exceeded": "Je test is gestopt bij zijn budget.",
+        "quote": "Je test is gestopt bij de prijs die je hebt geaccepteerd."
       },
       "questions": {
         "ready": "Je testvragen zijn geschreven en wachten op je review.",
@@ -15143,7 +15144,9 @@
     "agentControls": "Agent bestuurt",
     "otherViewerControls": "Andere kijker bestuurt",
     "viewOnly": "Alleen kijken",
-    "takingOverShort": "Overnemen…"
+    "takingOverShort": "Overnemen…",
+    "openPages": "Geopende browserpagina’s",
+    "untitledPage": "Naamloze pagina"
   },
   "remoteAgents": {
     "optionalSettings": "Authenticatie en handle (optioneel)",
@@ -19036,6 +19039,46 @@
       "workflowBody": "Koppel tools aan benoemde functies en roep ze aan vanuit Python. Elke actie behoudt de eigen rechten, goedkeuringen en het uitvoeringslogboek.",
       "organizationTitle": "Organisatiestandaarden instellen",
       "organizationBody": "Configureer navigatie, catalogi, dashboard en meldingen per rol en bepaal de zichtbaarheid van kosten. Leden kunnen toegestane opties persoonlijk aanpassen."
+    },
+    "scopes": {
+      "progress": "Voortgang van de configuratie",
+      "stages": "Configuratiefasen",
+      "position": "Fase {current} van {total}",
+      "completed": "Voltooid",
+      "saveFailed": "Je configuratievoortgang kon niet worden opgeslagen. Probeer deze stap opnieuw.",
+      "allDoneTitle": "De configuratie is voltooid",
+      "allDoneHint": "De gedeelde configuratie is voltooid en je persoonlijke voortgang blijft bewaard. Bekijk een fase of open de app.",
+      "openApp": "Open de app",
+      "workspaceTitle": "Maak of kies een organisatie",
+      "workspaceHint": "De implementatie is ingesteld. Kies een bedrijfswerkruimte voor de gedeelde standaardinstellingen en ga daarna door met je persoonlijke configuratie.",
+      "loadFailed": "Configuratie kon niet worden geladen",
+      "deployment": {
+        "title": "Implementatie instellen",
+        "hint": "Gedeeld voor deze hele implementatie. Een applicatiebeheerder voltooit deze fase één keer.",
+        "short": "Implementatie"
+      },
+      "organization": {
+        "title": "Organisatie instellen",
+        "hint": "Gedeeld voor deze organisatie. Eén bevoegde persoon voltooit deze fase voor het team.",
+        "short": "Organisatie"
+      },
+      "personal": {
+        "title": "Je persoonlijke configuratie",
+        "hint": "Je profiel, verbindingen en voorkeuren. Deze voortgang is van jou.",
+        "short": "Persoonlijk"
+      },
+      "modelsShared": "Optionele gedeelde toegang tot providers hoort in de Vault met zichtbaarheid voor de organisatie. Deze stap wijzigt je persoonlijke modelkeuze niet.",
+      "toolsShared": "Optionele gedeelde toegang tot tools gebruikt MCP-verbindingen van de organisatie. Verbind privéaccounts later tijdens je persoonlijke configuratie.",
+      "openVault": "Open de Vault",
+      "openConnections": "Open MCP-verbindingen",
+      "returnToSetup": "De pagina opent in een nieuw tabblad. Keer daarna terug naar deze configuratie.",
+      "resourcesPermission": "Je hebt geen toestemming om deze gedeelde bronnen te bekijken. Je kunt doorgaan; een bevoegde persoon kan ze later configureren.",
+      "sharedReview": "Deze gedeelde fase is voltooid. Je geopende formulier blijft beschikbaar om te controleren. Ga verder wanneer je het wilt verlaten.",
+      "continueReview": "Ga naar de volgende fase",
+      "stageCompleted": "{stage} — Voltooid",
+      "continueShort": "Doorgaan",
+      "skipShort": "Overslaan",
+      "finishShort": "Afronden"
     }
   },
   "skillImprovement": {
@@ -19178,7 +19221,7 @@
     "understand": {
       "title": "Begrijpen",
       "loading": "Lezen wat er misging…",
-      "summary": "{count, plural, =0 {Geen probleem met de skill gevonden} =1 {1 probleem met de skill} other {# problemen met de skill}}{elsewhere, plural, =0 {} other {, # antwoorden waarvan het probleem elders ligt}}{fine, plural, =0 {} other {, # die in orde waren}}.",
+      "summary": "{count, plural, =0 {Geen probleem met de skill gevonden} =1 {1 probleem met de skill} other {# problemen met de skill}}{elsewhere, plural, =0 {} =1 {, 1 antwoord waarvan het probleem elders ligt} other {, # antwoorden waarvan het probleem elders ligt}}{fine, plural, =0 {} =1 {, 1 die in orde was} other {, # die in orde waren}}.",
       "usageUnknown": "{count, plural, =1 {1 antwoord dateert van voordat het laden van skills werd vastgelegd en wordt niet meegeteld.} other {# antwoorden dateren van voordat het laden van skills werd vastgelegd en worden niet meegeteld.}}",
       "seedWithheld": "{count, plural, =1 {1 probleem uit de sessie van de agent is weggelaten: het citeert een antwoord op een vraag die de controle van deze skill beoordeelt.} other {# problemen uit de sessie van de agent zijn weggelaten: ze citeren antwoorden op vragen die de controle van deze skill beoordeelt.}}",
       "agent": "{name} ({runs})",

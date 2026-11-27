@@ -168,14 +168,29 @@ provider's eventual bill. Skill update checks, knowledge drafts and a promotion
 gate's guards take a `quoted_usd` the same way, and `GET .../gate/estimate` prices
 the guards a gate run would start.
 
+The run keeps that price. Quoted runs execute one attempt at a time, including
+its grading; runs without a quote retain their configured concurrency. Before the
+next answer, the worker compares recorded spend plus its estimated answer and
+grading cost with the quote. Before paid grading it also adds the frozen grading
+estimate, covering the rubric, reference and case-level judge criteria together.
+Confirmation reruns that would exceed the quote are not queued. A suite uses its
+ceiling the same way, and a skill check's stage uses what the preceding stage left
+of the agent's accepted maximum.
+
+A stopped run ends `budget_exceeded`, keeps its answers and grades, and names the
+accepted price in its error and notification. One active answer or grading can
+cost more than estimated and finish above the quote. This limits admission of
+attempts, not each provider request: an agent can make several model/tool requests
+within one answer. A hard per-provider-request cap is not implemented here.
+
 A queued knowledge draft retains its quote. Its worker checks the estimate
 again before retrieval or model work, and refuses a higher or unknown price.
 Existing clients and jobs without a quote retain their previous behavior.
 
 A suite's estimated spend cap also includes confirming reruns and both sides
 when paired. Its first publish estimate includes the existing version as the
-next publication's baseline even when only one version exists. This estimate
-cap only decides whether to start; it never stops an eval already in progress.
+next publication's baseline even when only one version exists. The run keeps
+the cap as its price and is held to it while it runs, as a quoted run is.
 A cost-per-pass or latency percentage ceiling is exceeded by any positive
 increase from a zero baseline.
 
@@ -328,8 +343,8 @@ Every attempt comes out one of four ways (`state` on the attempt):
   limit, a loop, a guardrail, a request the provider refused - which fails a
   suite outright, even when the case's reruns pass;
 - **incomplete** when the provider failed after its retries (an error 5xx, 408
-  or 429, or no answer at all), a scorer raised, the run was cancelled or ran
-  out of budget, or its tries tied;
+  or 429, or no answer at all), a scorer raised, the run was cancelled, ran
+  out of budget or reached the price it was started at, or its tries tied;
 - **ungraded** when no required scorer applies to the answer.
 
 Neither of the last two is ever a pass; the summary counts them apart

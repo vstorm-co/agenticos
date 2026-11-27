@@ -1655,3 +1655,13 @@ it("closes a standalone files panel and returns focus to its own opener", async 
   expect(opener).toHaveFocus();
   expect(screen.queryByRole("tabpanel", { name: "Files" })).not.toBeInTheDocument();
 });
+
+it("uses the shared workspace tab as its Files heading and keeps ownership visible", async () => {
+  draw(
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" attachments={[]} revision={0} />,
+  );
+  await openPanel();
+  const panel = screen.getByRole("tabpanel", { name: "Files" });
+  expect(within(panel).getAllByText("Files")).toHaveLength(1);
+  expect(within(panel).getByText(/This conversation/)).toBeVisible();
+});

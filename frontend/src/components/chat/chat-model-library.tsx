@@ -9,6 +9,11 @@ import { ProviderRow } from "@/components/vault/provider-row";
 import {
   Button,
   Skeleton,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Spinner,
   Tabs,
   TabsList,
@@ -78,13 +83,31 @@ export function ChatModelLibrary(props: ChatModelLibraryProps) {
       : entry.group !== "subscriptions" && entry.group !== "custom" && entry.connected === group;
   return (
     <div
-      className="grid h-[440px] min-h-0 flex-1 grid-cols-[minmax(112px,32%)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] sm:grid-cols-[196px_minmax(0,1fr)]"
+      className="grid h-[440px] min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] sm:grid-cols-[196px_minmax(0,1fr)] sm:grid-rows-[minmax(0,1fr)]"
       data-chat-model-library
     >
+      <div className="border-border border-b p-2 sm:hidden" data-chat-model-provider-select>
+        <Select
+          value={props.providerId}
+          onValueChange={props.onProviderChange}
+          disabled={props.loadingProviders}
+        >
+          <SelectTrigger aria-label={t("provider")} className="min-h-11 w-full">
+            <SelectValue placeholder={t("provider")} />
+          </SelectTrigger>
+          <SelectContent>
+            {sorted.map((entry) => (
+              <SelectItem key={entry.id} value={entry.id} textValue={entry.label}>
+                <ProviderRow provider={entry.mark ?? entry.id} name={entry.label} />
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <div
         role="group"
         aria-label={t("provider")}
-        className="border-border bg-muted/20 min-h-0 scrollbar-thin overflow-y-auto overscroll-contain border-r p-1.5"
+        className="border-border bg-muted/20 hidden min-h-0 scrollbar-thin overflow-y-auto overscroll-contain border-r p-1.5 sm:block"
       >
         {props.loadingProviders ? (
           <div className="space-y-2 p-2" role="status">
@@ -337,7 +360,12 @@ export function ChatModelPane(props: ChatModelPaneProps) {
                     {props.catalogConnection}
                   </div>
                 )}
-                <Command shouldFilter={false} loop className="flex min-h-0 flex-1 flex-col">
+                <Command
+                  label={t("searchModels")}
+                  shouldFilter={false}
+                  loop
+                  className="flex min-h-0 flex-1 flex-col"
+                >
                   <div
                     id={searchId}
                     data-model-search

@@ -134,3 +134,32 @@ describe("view settings", () => {
     expect(change).not.toHaveBeenCalled();
   });
 });
+
+it("reveals responsive grouping controls inside view settings without changing records on open", async () => {
+  const change = vi.fn();
+  const toggle = vi.fn();
+  render(
+    <ViewSettingsPopover
+      columns={columns}
+      visible={null}
+      display={DEFAULT_TABLE_DISPLAY}
+      onChange={change}
+      onToggle={toggle}
+      controls={
+        <label>
+          Group by
+          <select defaultValue="status">
+            <option value="status">Status</option>
+          </select>
+        </label>
+      }
+    />,
+  );
+  expect(screen.queryByRole("combobox", { name: "Group by" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "View settings" }));
+  const grouping = screen.getByRole("combobox", { name: "Group by" });
+  expect(grouping.parentElement?.parentElement).toHaveClass("sm:hidden");
+  expect(grouping).toHaveValue("status");
+  expect(change).not.toHaveBeenCalled();
+  expect(toggle).not.toHaveBeenCalled();
+});

@@ -1,7 +1,11 @@
 import { startVariant } from "./variants";
+import { START_SCOPES } from "@/lib/onboarding-api";
+import { scopeForStartStep } from "./scopes";
 
 /** A browser-local navigation hint; it never holds drafts, authority or completion. */
 const STEPS = new Set([
+  "preferences.language",
+  "preferences.appearance",
   ...[
     "workspace",
     "identity",
@@ -38,7 +42,15 @@ export function safeStartLocation(href: string | undefined, organizationId: stri
   const keys = [...url.searchParams.keys()];
   if (
     new Set(keys).size !== keys.length ||
-    keys.some((key) => !["start-step", "workspace", "question", "variant"].includes(key))
+    keys.some(
+      (key) => !["start-step", "start-scope", "workspace", "question", "variant"].includes(key),
+    )
+  )
+    return null;
+  const scope = url.searchParams.get("start-scope");
+  if (
+    scope !== null &&
+    (!START_SCOPES.some((item) => item === scope) || scopeForStartStep(step) !== scope)
   )
     return null;
   const variant = url.searchParams.get("variant");

@@ -1146,6 +1146,7 @@ class EvalSuiteService:
             scoring=_pinned_scoring(suite),
             judge_version_id=suite.pinned_judge_version_id,
             judge_pinned=pin_of(suite) is not None,
+            hold_usd=suite.max_run_usd,
         )
         result = await eval_suite_repo.add_result(
             self.db,
@@ -1599,6 +1600,7 @@ class EvalSuiteService:
                     scoring=_pinned_scoring(suite),
                     judge_version_id=suite.pinned_judge_version_id,
                     judge_pinned=pin_of(suite) is not None,
+                    hold_usd=suite.max_run_usd,
                 )
         except _OverCap as over:
             message = (

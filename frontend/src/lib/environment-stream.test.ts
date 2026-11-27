@@ -59,3 +59,32 @@ describe("environment stream boundary", () => {
     ).toEqual({ type: "browser_event", data });
   });
 });
+
+it("accepts actual owned tab snapshots and rejects forged, duplicate or stale identities", () => {
+  const data = {
+    environment_id: expected.id,
+    tabs: [{ id: "main", title: "One", url: "https://one.example" }],
+    active_tab_id: "main",
+  };
+  expect(parseEnvironmentEvent({ type: "environment_tabs", data }, expected)).toEqual({
+    type: "environment_tabs",
+    data,
+  });
+  for (const invalid of [
+    { ...data, environment_id: "44444444-4444-4444-8444-444444444444" },
+    { ...data, tabs: [...data.tabs, ...data.tabs] },
+    { ...data, active_tab_id: "closed" },
+    {
+      ...data,
+      tabs: Array.from({ length: 9 }, (_, index) => ({
+        id: String(index),
+        title: "Page",
+        url: "about:blank",
+      })),
+    },
+  ])
+    expect(parseEnvironmentEvent({ type: "environment_tabs", data: invalid }, expected)).toBeNull();
+  expect(
+    parseEnvironmentEvent({ type: "environment_tabs", data }, { ...expected, kind: "desktop" }),
+  ).toBeNull();
+});

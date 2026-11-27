@@ -105,7 +105,10 @@ async def test_unknown_kinds_and_selectors_are_refused_before_service(
     service.read.assert_not_awaited()
 
 
-async def test_socket_uses_authenticated_subprotocol_and_requested_target(monkeypatch):
+@pytest.mark.parametrize("tabs_enabled", [False, True])
+async def test_socket_uses_authenticated_subprotocol_and_requested_target(
+    monkeypatch, tabs_enabled
+):
     from types import SimpleNamespace
 
     from app.api.routes.v1 import conversation_environments as routes
@@ -114,6 +117,9 @@ async def test_socket_uses_authenticated_subprotocol_and_requested_target(monkey
     socket.state = SimpleNamespace(
         accept_subprotocol="environment", auth_token="test-only-private-token"
     )
+    socket.scope = {
+        "subprotocols": ["environment", "environment.tabs.v1"] if tabs_enabled else ["environment"]
+    }
     stream = AsyncMock()
     monkeypatch.setattr(routes, "stream_environment", stream)
     conversation, environment = uuid4(), uuid4()
@@ -125,4 +131,5 @@ async def test_socket_uses_authenticated_subprotocol_and_requested_target(monkey
         conversation_id=conversation,
         environment_id=environment,
         execution_target="project",
+        tabs_enabled=tabs_enabled,
     )

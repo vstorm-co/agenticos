@@ -11936,7 +11936,8 @@
         "completed": "Your test finished.",
         "failed": "Your test could not finish.",
         "cancelled": "Your test was cancelled.",
-        "budget_exceeded": "Your test stopped at its budget."
+        "budget_exceeded": "Your test stopped at its budget.",
+        "quote": "Your test stopped at the price you accepted."
       },
       "questions": {
         "ready": "Your test questions are written and wait for your review.",
@@ -15259,7 +15260,9 @@
     "agentControls": "Agent controls",
     "otherViewerControls": "Another viewer controls",
     "viewOnly": "View only",
-    "takingOverShort": "Taking over…"
+    "takingOverShort": "Taking over…",
+    "openPages": "Open browser pages",
+    "untitledPage": "Untitled page"
   },
   "remoteAgents": {
     "optionalSettings": "Authentication and handle (optional)",
@@ -19152,6 +19155,46 @@
       "workflowBody": "Bind tools to named functions and call them from Python. Each action keeps its permissions, approvals and execution record.",
       "organizationTitle": "Set organization defaults",
       "organizationBody": "Configure navigation, catalogs, dashboard and notices for each role, and control cost visibility. Members can personalize what your policy allows."
+    },
+    "scopes": {
+      "progress": "Setup progress",
+      "stages": "Setup stages",
+      "position": "Stage {current} of {total}",
+      "completed": "Completed",
+      "saveFailed": "Your setup progress could not be saved. Try this step again.",
+      "allDoneTitle": "Setup is complete",
+      "allDoneHint": "Shared setup is finished and your personal progress is preserved. Review any stage or open the app.",
+      "openApp": "Open the app",
+      "workspaceTitle": "Create or choose an organization",
+      "workspaceHint": "Deployment setup is complete. Choose a company workspace for its shared defaults, then continue with your personal setup.",
+      "loadFailed": "Could not load setup",
+      "deployment": {
+        "title": "Set up the deployment",
+        "hint": "Shared across this deployment. An application administrator completes this stage once.",
+        "short": "Deployment"
+      },
+      "organization": {
+        "title": "Set up the organization",
+        "hint": "Shared across this organization. One authorized person completes this stage for the team.",
+        "short": "Organization"
+      },
+      "personal": {
+        "title": "Your personal setup",
+        "hint": "Your profile, connections and preferences. This progress belongs to you.",
+        "short": "Personal"
+      },
+      "modelsShared": "Optional shared provider access belongs in the Vault with organization visibility. This step does not change your personal model selection.",
+      "toolsShared": "Optional shared tool access uses organization-owned MCP connections. Connect private accounts later in your personal setup.",
+      "openVault": "Open the Vault",
+      "openConnections": "Open MCP connections",
+      "returnToSetup": "The page opens in a new tab. Return to this setup when you are finished.",
+      "resourcesPermission": "Your permissions do not include viewing these shared resources. You can continue; an authorized person can configure them later.",
+      "sharedReview": "This shared stage is complete. Your open form stays available for review. Continue when you are ready to leave it.",
+      "continueReview": "Continue to the next stage",
+      "stageCompleted": "{stage} — Completed",
+      "continueShort": "Continue",
+      "skipShort": "Skip",
+      "finishShort": "Finish"
     }
   },
   "skillImprovement": {
@@ -19294,7 +19337,7 @@
     "understand": {
       "title": "Understand",
       "loading": "Reading what went wrong…",
-      "summary": "{count, plural, =0 {No problem with the skill found} =1 {1 problem with the skill} other {# problems with the skill}}{elsewhere, plural, =0 {} other {, # answers whose trouble lies elsewhere}}{fine, plural, =0 {} other {, # that were fine}}.",
+      "summary": "{count, plural, =0 {No problem with the skill found} =1 {1 problem with the skill} other {# problems with the skill}}{elsewhere, plural, =0 {} =1 {, 1 answer whose trouble lies elsewhere} other {, # answers whose trouble lies elsewhere}}{fine, plural, =0 {} =1 {, 1 that was fine} other {, # that were fine}}.",
       "usageUnknown": "{count, plural, =1 {1 answer is from before skill loads were recorded and is not counted.} other {# answers are from before skill loads were recorded and are not counted.}}",
       "seedWithheld": "{count, plural, =1 {1 problem handed over from the agent's session is left out: it quotes an answer to a question this skill's check grades.} other {# problems handed over from the agent's session are left out: they quote answers to questions this skill's check grades.}}",
       "agent": "{name} ({runs})",

@@ -102,7 +102,9 @@ async def environment_live(
 
     Current membership, the conversation, agent and provider policy are checked
     again before commands and periodically while observing. Provider IDs and
-    credentials never travel over this socket.
+    credentials never travel over this socket. Clients offering environment.tabs.v1
+    additionally receive live page metadata and may select registered pages under
+    the physical driver lease; older clients retain the original frame protocol.
     """
     await websocket.accept(subprotocol=websocket.state.accept_subprotocol)
     await stream_environment(
@@ -111,4 +113,5 @@ async def environment_live(
         conversation_id=conversation_id,
         environment_id=environment_id,
         execution_target=project_execution_target or "agent",
+        tabs_enabled="environment.tabs.v1" in websocket.scope.get("subprotocols", []),
     )

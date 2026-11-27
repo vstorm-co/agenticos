@@ -82,7 +82,16 @@ async function openEndConfirmation() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  live = { status: "live", environment: ready, browse: picture!, send: vi.fn(), retry: vi.fn() };
+  live = {
+    status: "live",
+    environment: ready,
+    browse: picture!,
+    tabs: null,
+    selectingTab: false,
+    activateTab: vi.fn(),
+    send: vi.fn(),
+    retry: vi.fn(),
+  };
   vi.mocked(useLiveConversationEnvironment).mockImplementation(() => live);
 });
 

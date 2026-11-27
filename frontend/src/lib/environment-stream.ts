@@ -48,7 +48,29 @@ const frame = z.object({
   detail: text,
 });
 
+export const environmentTabs = z
+  .object({
+    environment_id: z.uuid(),
+    tabs: z
+      .array(
+        z.object({
+          id: z.string().min(1).max(200),
+          title: z.string().max(512),
+          url: z.string().max(8192),
+        }),
+      )
+      .max(8),
+    active_tab_id: z.string().nullable(),
+  })
+  .refine(
+    (value) =>
+      new Set(value.tabs.map((tab) => tab.id)).size === value.tabs.length &&
+      (value.active_tab_id === null || value.tabs.some((tab) => tab.id === value.active_tab_id)),
+  );
+export type EnvironmentTabs = z.infer<typeof environmentTabs>;
+
 const event = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("environment_tabs"), data: environmentTabs }),
   z.object({ type: z.literal("environment_state"), data: conversationEnvironment }),
   z.object({ type: z.literal("browser_event"), data: frame }),
 ]);
@@ -62,6 +84,10 @@ export function parseEnvironmentEvent(
 ): EnvironmentStreamEvent | null {
   const parsed = event.safeParse(value);
   if (!parsed.success) return null;
+  if (parsed.data.type === "environment_tabs")
+    return expected.kind === "browser" && parsed.data.data.environment_id === expected.id
+      ? parsed.data
+      : null;
   if (parsed.data.type === "browser_event")
     return parsed.data.data.call_id === expected.id ? parsed.data : null;
   const actual = parsed.data.data;

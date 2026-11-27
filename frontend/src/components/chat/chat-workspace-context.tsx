@@ -27,6 +27,7 @@ interface Workspace {
   id: string;
   shared: boolean;
   activePanel: WorkspacePanel | null;
+  lastPanel: WorkspacePanel | null;
   environment: WorkspaceEnvironment | null;
   environmentPanels: readonly WorkspaceEnvironment[];
   openEnvironment: (kind: WorkspaceEnvironment, from?: HTMLElement | null) => void;
@@ -103,6 +104,7 @@ export function ChatWorkspaceProvider({
     return () => useChatPanelStore.getState().setBrowserOpen(false);
   }, [activePanel, shared, mainChat]);
   const [fullscreen, setFullscreen] = useState(false);
+  const [lastPanel, setLastPanel] = useState<WorkspacePanel | null>(null);
   const close = useCallback(() => {
     setActivePanel(null);
     requestAnimationFrame(() => {
@@ -114,6 +116,7 @@ export function ChatWorkspaceProvider({
       rememberOpener(from);
       closeSources();
       setActivePanel(panel);
+      setLastPanel(panel);
       if (panel === "desktop" && environmentPanels.includes(panel)) setEnvironment(panel);
       else if (panel === "browser") {
         if (environmentPanels.includes(panel) && (browserEnvironment || browserId === null))
@@ -130,6 +133,7 @@ export function ChatWorkspaceProvider({
       setEnvironment(kind);
       if (kind === "browser") setBrowserEnvironment(true);
       setActivePanel(kind);
+      setLastPanel(kind);
     },
     [rememberOpener, closeSources],
   );
@@ -140,6 +144,7 @@ export function ChatWorkspaceProvider({
       setSelection({ id });
       setFullscreen(expanded);
       setActivePanel("visuals");
+      setLastPanel("visuals");
     },
     [closeSources, rememberOpener],
   );
@@ -171,6 +176,7 @@ export function ChatWorkspaceProvider({
     setPreviousConversation(conversationId);
     if (previousConversation !== null) {
       setSelection(null);
+      setLastPanel(null);
       setEnvironment(null);
       setBrowserEnvironment(false);
       setActivePanel(null);
@@ -186,6 +192,7 @@ export function ChatWorkspaceProvider({
         id,
         shared,
         activePanel,
+        lastPanel,
         environment,
         environmentPanels,
         openEnvironment,

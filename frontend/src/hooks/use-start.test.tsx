@@ -30,10 +30,15 @@ const sample: Onboarding = {
 };
 const scope = vi.hoisted(() => ({ user: "user" as string | null, org: "org" as string | null }));
 vi.mock("@/stores", () => ({
-  useAuthStore: (pick: (state: { user: { id: string } | null }) => unknown) =>
-    pick({ user: scope.user ? { id: scope.user } : null }),
-  useOrgStore: (pick: (state: { activeOrgId: string | null }) => unknown) =>
-    pick({ activeOrgId: scope.org }),
+  useAuthStore: Object.assign(
+    (pick: (state: { user: { id: string } | null }) => unknown) =>
+      pick({ user: scope.user ? { id: scope.user } : null }),
+    { getState: () => ({ user: scope.user ? { id: scope.user } : null }) },
+  ),
+  useOrgStore: Object.assign(
+    (pick: (state: { activeOrgId: string | null }) => unknown) => pick({ activeOrgId: scope.org }),
+    { getState: () => ({ activeOrgId: scope.org }) },
+  ),
 }));
 vi.mock("@/lib/onboarding-api", () => ({
   readOnboarding: vi.fn(),
@@ -86,7 +91,7 @@ it("refreshes agents and readiness after explicit preparation", async () => {
   await act(async () => {
     await result.current.prepare.mutateAsync("model");
   });
-  expect(prepareStarter).toHaveBeenCalledWith("model");
+  expect(prepareStarter).toHaveBeenCalledWith("model", "org");
   expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.agents.all() });
   expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.onboarding.state("user", "org") });
 });

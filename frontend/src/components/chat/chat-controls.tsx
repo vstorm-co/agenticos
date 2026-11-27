@@ -39,6 +39,9 @@ export type { ApprovalMode } from "@/stores/chat-controls-store";
 
 interface ChatControlsProps {
   settingsOnly?: boolean;
+  /** One compact entry point above a narrow main chat. */
+  floating?: boolean;
+  approvalDisabled?: boolean;
   usageSlot?: ReactNode;
   agentCapabilities?: readonly string[] | null;
   /** The model profile this conversation runs on, or null for the agent's own. */
@@ -84,6 +87,8 @@ interface ChatControlsProps {
  */
 export function ChatControls({
   settingsOnly = false,
+  floating = false,
+  approvalDisabled = false,
   usageSlot,
   onModelProfileChange,
   onApprovalModeChange,
@@ -152,7 +157,10 @@ export function ChatControls({
   if (mainChat)
     return (
       <ChatComposerControls
-        settingsOnly={settingsOnly}
+        settingsOnly={settingsOnly || floating}
+        floating={floating}
+        approvalDisabled={approvalDisabled}
+        onApprovalModeChange={onApprovalModeChange}
         usageSlot={usageSlot}
         desktop={desktop}
         harnesses={harnesses}

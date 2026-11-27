@@ -493,10 +493,10 @@
   }
   .experience[data-onboarding-variant="studio"] :global([data-start-navigation]) {
     grid-row: 5;
-    min-block-size: 96px;
+    min-block-size: 64px;
   }
   .experience[data-onboarding-variant="studio"] :global([data-start-forward] > button:last-child) {
-    min-inline-size: min(136px, 36vw);
+    min-inline-size: 88px;
   }
   .experience[data-onboarding-variant="launchpad"] .journey {
     grid-template-columns: minmax(0, 1fr);
@@ -641,4 +641,45 @@
   font-size: clamp(26px, 2.4vw, 32px);
   line-height: 1.2;
   letter-spacing: -0.035em;
+}
+
+.experience[data-onboarding-variant="studio"]
+  :global([data-start-frame][data-start-single] [data-start-content]),
+.experience[data-onboarding-variant="studio"]
+  :global([data-start-frame][data-start-single] [data-start-navigation]) {
+  grid-column: 1 / -1;
+  justify-self: center;
+}
+@media (max-width: 950px) {
+  .experience[data-onboarding-variant="studio"] :global([data-start-frame][data-start-single]) {
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+  }
+  .experience[data-onboarding-variant="studio"]
+    :global([data-start-frame][data-start-single] [data-start-content]) {
+    grid-row: 3;
+  }
+  .experience[data-onboarding-variant="studio"]
+    :global([data-start-frame][data-start-single] [data-start-navigation]) {
+    grid-row: 4;
+  }
+  .experience[data-onboarding-variant="studio"] :global([data-start-header]) {
+    margin-block: 16px 8px;
+  }
+}
+@media (max-width: 640px) {
+  .experience[data-onboarding-variant="studio"] :global([data-start-frame]) {
+    padding-inline: 16px;
+    padding-block-start: 16px;
+  }
+  .experience[data-onboarding-variant="studio"] :global([data-start-topbar]) {
+    gap: 12px;
+  }
+}
+@media (max-width: 640px) {
+  .experience[data-onboarding-variant="studio"] :global([data-start-forward] > button) {
+    min-inline-size: 44px;
+  }
+  .experience[data-onboarding-variant="studio"] :global([data-start-forward] > button:last-child) {
+    min-inline-size: 88px;
+  }
 }

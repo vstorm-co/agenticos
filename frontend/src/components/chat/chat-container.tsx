@@ -842,7 +842,9 @@ export function ChatContainer({
       }
     },
     openSettings: () => {
-      document.querySelector<HTMLButtonElement>("[data-chat-settings-trigger]")?.click();
+      [...document.querySelectorAll<HTMLButtonElement>("[data-chat-settings-trigger]")]
+        .find((trigger) => trigger.getClientRects().length > 0)
+        ?.click();
     },
   };
 
@@ -1516,6 +1518,29 @@ function ChatUIContent({
             showDailyBriefing && "chat-home-timeline",
           )}
         >
+          {mainChat && !viewOnly && !accessState && (
+            <div className="chat-floating-controls" data-chat-floating-controls>
+              <ChatControls
+                floating
+                agentCapabilities={agentCapabilities}
+                agentModel={agentModel}
+                onModelProfileChange={onModelProfileChange}
+                onApprovalModeChange={onApprovalModeChange}
+                approvalDisabled={isProcessing || readOnly}
+                usageSlot={
+                  <div className="text-muted-foreground flex items-center gap-2 text-xs">
+                    <span>{t("input.contextUsed")}</span>
+                    <UsageMeter
+                      usage={lastUsage}
+                      workspace={workspace}
+                      total={conversationCost}
+                      contextWindow={contextWindow}
+                    />
+                  </div>
+                }
+              />
+            </div>
+          )}
           {!compact && <TurnRail entries={railEntries} />}
           <BrowserPanelAutoOpen browses={browses} />
           <div

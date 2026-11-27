@@ -350,6 +350,32 @@ describe("BrowserWindow - the page laid out for the window showing it", () => {
     expect(disconnected).toBe(true);
   });
 
+  it("fits a newly selected real page even when panel geometry is unchanged", () => {
+    const live = control();
+    const tabs = {
+      environment_id: "11111111-1111-4111-8111-111111111111",
+      tabs: [
+        { id: "main", title: "One", url: "https://one.test" },
+        { id: "second", title: "Two", url: "https://two.test" },
+      ],
+      active_tab_id: "main",
+    };
+    const view = render(
+      <BrowserWindow browse={browse()} control={live} tabs={tabs} onActivateTab={vi.fn()} />,
+    );
+    expect(live.send).toHaveBeenCalledTimes(1);
+    view.rerender(
+      <BrowserWindow
+        browse={browse()}
+        control={live}
+        tabs={{ ...tabs, active_tab_id: "second" }}
+        onActivateTab={vi.fn()}
+      />,
+    );
+    expect(live.send).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("tab", { name: "Two" })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("keeps large-screen resize requests within the server limits", () => {
     vi.stubGlobal("devicePixelRatio", 2);
     const live = control();

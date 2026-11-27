@@ -123,8 +123,13 @@ export function RecordFiltersPopover({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
-          <ListFilter className="h-4 w-4" /> {t("button")}
+        <Button
+          variant="outline"
+          size="sm"
+          className="touch:min-h-11 touch:min-w-11 max-sm:size-11 max-sm:px-0"
+        >
+          <ListFilter className="h-4 w-4" aria-hidden />
+          <span className="max-sm:sr-only">{t("button")}</span>
           {active > 0 && (
             <span className="bg-foreground text-background rounded-full px-1.5 text-[11px] font-medium tabular-nums">
               {active}

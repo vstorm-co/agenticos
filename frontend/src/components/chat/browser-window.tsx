@@ -2,7 +2,7 @@
 
 import { NATIVE_CHOICE } from "@/components/ui/control-styles";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   ExternalLink,
   Globe,
@@ -36,6 +36,8 @@ import { BrowserNavigation } from "./browser-navigation";
 import { BrowserCommentLayer, type PageComment } from "./browser-comment";
 import type { BrowseOutcome } from "@/types/chat";
 import { OUTCOME_TONE, StepTimeline } from "./browser-view";
+import type { EnvironmentTabs } from "@/lib/environment-stream";
+import { BrowserPageTabs } from "./browser-page-tabs";
 import { LiveViewport } from "./live-viewport";
 
 /** What a person may do with the browser, as the window offers it. */
@@ -202,7 +204,7 @@ const FIT_SETTLE_MS = 250;
  * moment, so dragging the panel's edge does not lay the page out sixty times.
  * The browser applies it between steps.
  */
-function useFitPage(control: BrowseControl | null) {
+function useFitPage(control: BrowseControl | null, pageIdentity: string | null) {
   const ref = useRef<HTMLDivElement>(null);
   const [asked, setAsked] = useState<{ width: number; height: number } | null>(null);
   const send = control?.send;
@@ -233,7 +235,7 @@ function useFitPage(control: BrowseControl | null) {
       clearTimeout(timer);
       observer.disconnect();
     };
-  }, [send]);
+  }, [send, pageIdentity]);
   return { ref, asked };
 }
 
@@ -295,6 +297,9 @@ export function BrowserWindow({
   browse,
   surface = "browser",
   controlState,
+  tabs,
+  onActivateTab,
+  selectingTab = false,
   control,
   onClose,
   maximized,
@@ -310,6 +315,9 @@ export function BrowserWindow({
   surface?: "browser" | "desktop";
   /** Fresh physical control state for a retained environment, distinct from this socket’s own ACK. */
   controlState?: ConversationEnvironment["control"];
+  tabs?: EnvironmentTabs | null;
+  onActivateTab?: (id: string) => void;
+  selectingTab?: boolean;
   control: BrowseControl | null;
   onClose?: () => void;
   maximized?: boolean;
@@ -327,6 +335,7 @@ export function BrowserWindow({
 }) {
   const t = useTranslations("chat");
   const tb = useTranslations("browse");
+  const tabId = useId();
   const menuLabel = menuItems === undefined ? t("browserMenu") : t("environmentView.options");
   const heading = surface === "desktop" ? t("environmentView.desktopTitle") : t("browserHeading");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -344,7 +353,7 @@ export function BrowserWindow({
     canDrive &&
     surface === "browser" &&
     (controlState === undefined || controlState === "none" || hold.holding);
-  const { ref: pageRef, asked } = useFitPage(canFit ? control : null);
+  const { ref: pageRef, asked } = useFitPage(canFit ? control : null, tabs?.active_tab_id ?? null);
   const fitted = useFitted(browse.image, asked, waitForFit && canFit);
   const controlLabel =
     hold.holding && canDrive
@@ -363,6 +372,15 @@ export function BrowserWindow({
       aria-label={heading}
       className="bg-background @container/browser-window flex h-full min-h-0 min-w-0 flex-col"
     >
+      {tabs && tabs.tabs.length > 0 && onActivateTab && (
+        <BrowserPageTabs
+          tabs={tabs}
+          disabled={selectingTab || !canDrive || (controlState !== "none" && !hold.holding)}
+          onActivate={onActivateTab}
+          id={tabId}
+          panelId={`${tabId}-page`}
+        />
+      )}
       <div className="bg-muted/25 border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b p-1.5 @min-[640px]/browser-window:flex-nowrap">
         <div
           className={cn(
@@ -430,7 +448,7 @@ export function BrowserWindow({
                   // take-over asks again rather than inheriting a tick.
                   setRemember(false);
                 }}
-                className="bg-foreground text-background hover:bg-foreground/90 flex h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-medium pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+                className="border-border bg-background text-foreground hover:bg-muted flex h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2 text-xs font-medium pointer-coarse:min-h-11 pointer-coarse:min-w-11"
               >
                 <Undo2 className="size-4" aria-hidden />
                 <span>{tb("giveBack")}</span>
@@ -442,7 +460,7 @@ export function BrowserWindow({
                 onClick={hold.takeOver}
                 disabled={hold.waiting}
                 title={tb("takeOverHint")}
-                className="bg-foreground text-background hover:bg-foreground/90 flex h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-medium disabled:opacity-60 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+                className="border-border bg-background text-foreground hover:bg-muted flex h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2 text-xs font-medium disabled:opacity-60 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
               >
                 <Hand className="size-4" aria-hidden />
                 <span>{hold.waiting ? tb("takingOverShort") : tb("takeOver")}</span>
@@ -544,7 +562,17 @@ export function BrowserWindow({
           asked for the page to be laid out at its own size (see `useFitPage`),
           so the picture fills it 1:1 rather than being a laptop screen shrunk
           into a column. Activity does not cover the page. */}
-      <div ref={pageRef} className="bg-background relative min-h-0 flex-1 overflow-hidden">
+      <div
+        ref={pageRef}
+        id={`${tabId}-page`}
+        role={tabs?.tabs.length ? "tabpanel" : undefined}
+        aria-labelledby={
+          tabs?.active_tab_id
+            ? `${tabId}-${tabs.tabs.findIndex((tab) => tab.id === tabs.active_tab_id)}`
+            : undefined
+        }
+        className="bg-background relative min-h-0 flex-1 overflow-hidden"
+      >
         <div className="h-full scrollbar-thin overflow-y-auto">
           {browse.image && fitted ? (
             // The comment picker sits beside the remote screen rather than inside

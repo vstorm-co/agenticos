@@ -677,3 +677,29 @@
     transform: translateY(0);
   }
 }
+
+@media (max-width: 640px) {
+  .wizardNavigation {
+    gap: 6px;
+    min-block-size: 64px;
+    margin-block-start: 16px;
+    padding-block: 8px max(8px, env(safe-area-inset-bottom));
+  }
+  .wizardForward {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+  .wizardForward > button,
+  .wizardNavigation > fieldset > div:first-child > button {
+    min-inline-size: 44px;
+    min-block-size: 44px;
+    block-size: auto;
+    padding-inline: 8px;
+    font-size: 12px;
+    line-height: 1.25;
+    white-space: normal;
+  }
+  .wizardForward > button {
+    flex-shrink: 1;
+  }
+}

@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
 import { StartActions } from "./start-navigation";
+import { StartActionLabel } from "./start-action-label";
 import { StartConfigurationGuide } from "./start-configuration-guide";
 import { useStart } from "@/hooks/use-start";
 import { useRouter } from "@/lib/locale-navigation";
@@ -11,6 +12,7 @@ import { useRouter } from "@/lib/locale-navigation";
 /** Completing the walkthrough never requires optional fields or an AI run. */
 export function StartFinish() {
   const t = useTranslations("start");
+  const scopes = useTranslations("start.scopes");
   const state = useStart();
   const router = useRouter();
   const active = useRef(true);
@@ -38,7 +40,7 @@ export function StartFinish() {
             )
           }
         >
-          {t("administration.finishSetup")}
+          <StartActionLabel full={t("administration.finishSetup")} short={scopes("finishShort")} />
         </Button>
       </StartActions>
       {state.save.error && <p role="alert">{t("loadFailed")}</p>}

@@ -644,13 +644,13 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
           </div>
           <div
             data-table-view-toolbar
-            className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-wrap [&>button]:h-9"
+            className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-2 sm:flex sm:flex-wrap [&>button]:min-h-11 sm:[&>button]:min-h-9"
           >
             <SearchInput
               value={searchDraft}
               onChange={setSearchDraft}
               placeholder={t("search")}
-              className="col-span-full min-w-0 sm:w-56 sm:flex-none"
+              className="min-w-0 sm:w-56 sm:flex-none"
             />
             <RecordFiltersPopover
               columns={liveColumns.filter(filterable)}
@@ -659,6 +659,29 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
             />
             <RecordSortPopover columns={allColumns} sort={sort} onChange={setSort} />
             <ViewSettingsPopover
+              controls={
+                tab === "kanban" && groupBy !== null && groupable.length > 1 ? (
+                  <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+                    {t("kanbanGroupBy")}
+                    <Select
+                      value={groupBy ?? ""}
+                      disabled={groupingPending}
+                      onValueChange={(value) => void chooseGrouping(value)}
+                    >
+                      <SelectTrigger className="h-9 w-36" aria-label={t("kanbanGroupBy")}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groupable.map((column) => (
+                          <SelectItem key={column.id} value={column.id}>
+                            {column.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null
+              }
               actions={
                 canManage && (
                   <Button
@@ -704,7 +727,7 @@ export default function TableDetailPage({ params }: { params: Promise<{ id: stri
               }}
             />
             {tab === "kanban" && groupBy !== null && groupable.length > 1 && (
-              <div className="text-muted-foreground col-span-full flex flex-wrap items-center gap-2 text-xs sm:col-auto">
+              <div className="text-muted-foreground hidden items-center gap-2 text-xs sm:flex">
                 {t("kanbanGroupBy")}
                 <Select
                   value={groupBy ?? ""}

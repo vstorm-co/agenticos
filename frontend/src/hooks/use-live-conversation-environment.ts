@@ -7,7 +7,7 @@ import { useWebSocket } from "@/hooks/use-websocket";
 import type { BrowserCommand } from "@/hooks/use-live-browse";
 import { applyBrowserFrame, type Browse } from "@/lib/browse";
 import type { ConversationEnvironment } from "@/lib/conversation-environments-api";
-import { parseEnvironmentEvent } from "@/lib/environment-stream";
+import { parseEnvironmentEvent, type EnvironmentTabs } from "@/lib/environment-stream";
 import { useAuthStore } from "@/stores/auth-store";
 import { useOrgStore } from "@/stores/org-store";
 
@@ -18,6 +18,7 @@ interface Snapshot {
   status: Status;
   environment: ConversationEnvironment | null;
   browses: Browse[];
+  tabs: EnvironmentTabs | null;
 }
 
 /** Disconnecting a view releases its socket, never its remote browser or desktop. */
@@ -59,6 +60,7 @@ export function useLiveConversationEnvironment(
     };
   }, [socketScope]);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [pendingTab, setPendingTab] = useState<{ socket: string; id: string } | null>(null);
   const invalidScope = useRef<string | null>(null);
   const current = snapshot?.scope === scope && environment.state === "ready" ? snapshot : null;
   const fresh = current !== null && current.epoch === epoch;
@@ -69,7 +71,9 @@ export function useLiveConversationEnvironment(
   );
   const protocols = useCallback(() => {
     const currentToken = useAuthStore.getState().accessToken;
-    return currentToken ? [`access_token.${currentToken}`, "environment"] : undefined;
+    return currentToken
+      ? [`access_token.${currentToken}`, "environment", "environment.tabs.v1"]
+      : undefined;
   }, []);
   const onMessage = useCallback(
     (message: MessageEvent) => {
@@ -79,17 +83,53 @@ export function useLiveConversationEnvironment(
         payload = JSON.parse(String(message.data));
       } catch {
         invalidScope.current = socketScope;
-        setSnapshot({ scope, epoch, status: "malformed", environment: null, browses: [] });
+        setSnapshot({
+          scope,
+          epoch,
+          status: "malformed",
+          environment: null,
+          browses: [],
+          tabs: null,
+        });
         return;
       }
       const parsed = parseEnvironmentEvent(payload, environment);
       if (parsed === null) {
         invalidScope.current = socketScope;
-        setSnapshot({ scope, epoch, status: "malformed", environment: null, browses: [] });
+        setSnapshot({
+          scope,
+          epoch,
+          status: "malformed",
+          environment: null,
+          browses: [],
+          tabs: null,
+        });
         return;
+      }
+      const selectionError =
+        parsed.type === "browser_event" &&
+        parsed.data.kind === "browser_control_error" &&
+        parsed.data.operation === "activate_tab";
+      if (parsed.type === "environment_tabs") {
+        setPendingTab((pending) =>
+          pending?.socket === socketScope && pending.id === parsed.data.active_tab_id
+            ? null
+            : pending,
+        );
+      } else if (selectionError) {
+        setPendingTab((pending) =>
+          pending?.socket === socketScope && pending.id === parsed.data.tab_id ? null : pending,
+        );
       }
       setSnapshot((previous) => {
         const same = previous?.scope === scope ? previous : null;
+        if (
+          parsed.type === "browser_event" &&
+          parsed.data.kind === "browser_frame" &&
+          same?.tabs &&
+          parsed.data.tab_id !== same.tabs.active_tab_id
+        )
+          return previous;
         const next =
           parsed.type === "environment_state"
             ? parsed.data
@@ -104,6 +144,25 @@ export function useLiveConversationEnvironment(
         const observed = released
           ? browses.map((browse) => ({ ...browse, heldBy: null, heldById: null }))
           : browses;
+        const selectedPage =
+          parsed.type === "environment_tabs"
+            ? parsed.data.tabs.find((tab) => tab.id === parsed.data.active_tab_id)
+            : undefined;
+        const switched =
+          parsed.type === "environment_tabs" &&
+          same?.tabs?.active_tab_id !== parsed.data.active_tab_id;
+        const selectedBrowses =
+          switched || selectionError
+            ? observed.map((browse) => ({
+                ...browse,
+                image: null,
+                pointer: null,
+                tabId:
+                  parsed.type === "environment_tabs" ? parsed.data.active_tab_id : browse.tabId,
+                url: selectedPage?.url ?? null,
+                title: selectedPage?.title ?? null,
+              }))
+            : observed;
         return {
           scope,
           epoch,
@@ -116,12 +175,18 @@ export function useLiveConversationEnvironment(
                   ? "live"
                   : "connecting",
           environment: next,
+          tabs:
+            state !== "ready"
+              ? null
+              : parsed.type === "environment_tabs"
+                ? parsed.data
+                : (same?.tabs ?? null),
           browses:
             state !== "ready"
               ? []
               : parsed.type === "browser_event"
-                ? applyBrowserFrame(observed, parsed.data)
-                : observed,
+                ? applyBrowserFrame(selectedBrowses, parsed.data)
+                : selectedBrowses,
         };
       });
     },
@@ -130,6 +195,7 @@ export function useLiveConversationEnvironment(
   const onClose = useCallback(
     (event: CloseEvent) => {
       if (currentSocket.current !== socketScope) return;
+      setPendingTab((pending) => (pending?.socket === socketScope ? null : pending));
       const status: Status =
         invalidScope.current === socketScope
           ? "malformed"
@@ -144,6 +210,7 @@ export function useLiveConversationEnvironment(
         status,
         environment: previous?.scope === scope ? previous.environment : null,
         browses: [],
+        tabs: null,
       }));
     },
     [scope, socketScope, epoch],
@@ -169,8 +236,15 @@ export function useLiveConversationEnvironment(
   const status = fresh ? current.status : "connecting";
   const observed = current?.browses.find((browse) => browse.callId === environment.id) ?? null;
   // Keep observation pixels without carrying another socket's control grant.
+  const selectingTab = pendingTab?.socket === socketScope;
   const browse =
-    !fresh && observed !== null ? { ...observed, heldBy: null, heldById: null } : observed;
+    observed === null
+      ? null
+      : {
+          ...observed,
+          ...(!fresh ? { heldBy: null, heldById: null } : {}),
+          ...(selectingTab ? { image: null, pointer: null } : {}),
+        };
   const holding = actor !== null && browse?.heldById === actor;
   const canControl = actor !== null && current?.environment?.can_control === true;
   const control = current?.environment?.control;
@@ -184,6 +258,7 @@ export function useLiveConversationEnvironment(
         status === "live" &&
         ready &&
         canControl &&
+        (!selectingTab || command.type === "give_back") &&
         (command.type === "take_over"
           ? control !== "agent"
           : command.type === "resize"
@@ -200,9 +275,43 @@ export function useLiveConversationEnvironment(
       status,
       ready,
       canControl,
+      selectingTab,
       control,
       holding,
       environment.kind,
+      sendMessage,
+    ],
+  );
+  const activateTab = useCallback(
+    (tabId: string) => {
+      if (
+        currentSocket.current === socketScope &&
+        authenticated &&
+        enabled &&
+        status === "live" &&
+        ready &&
+        canControl &&
+        environment.kind === "browser" &&
+        (control === "none" || (control === "human" && holding)) &&
+        !selectingTab &&
+        current?.tabs?.tabs.some((tab) => tab.id === tabId)
+      ) {
+        setPendingTab({ socket: socketScope, id: tabId });
+        sendMessage({ type: "activate_tab", tab_id: tabId });
+      }
+    },
+    [
+      socketScope,
+      authenticated,
+      enabled,
+      status,
+      ready,
+      canControl,
+      environment.kind,
+      control,
+      holding,
+      current?.tabs,
+      selectingTab,
       sendMessage,
     ],
   );
@@ -218,6 +327,9 @@ export function useLiveConversationEnvironment(
     status,
     environment: current?.environment,
     browse,
+    tabs: current?.tabs ?? null,
+    activateTab,
+    selectingTab,
     send,
     retry,
   };

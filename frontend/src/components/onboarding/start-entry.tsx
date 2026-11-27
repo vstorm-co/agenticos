@@ -5,6 +5,7 @@ import { useRouter } from "@/lib/locale-navigation";
 import { useOrganizationList } from "@/hooks/use-organizations";
 import { useStart } from "@/hooks/use-start";
 import { shouldOfferStart } from "@/lib/onboarding-api";
+import { pendingSharedStart, startIsComplete } from "@/lib/onboarding/scopes";
 import { setUrlParam } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
 import { useOnboardingLocationStore } from "@/stores/onboarding-location-store";
@@ -22,14 +23,19 @@ export function StartEntry() {
   const appAdmin = useAuthStore((state) => state.user?.is_app_admin === true);
   const automatic = search.get("welcome") === "1";
   const freshEntry = search.get("entry") === "account" || search.get("entry") === "joined";
-  const resuming = search.has("start-step");
+  const resuming = search.has("start-step") || search.has("start-scope");
   const [preferencesFinished, setPreferencesFinished] = useState(false);
-  const showPreferences =
+  const wantsPreferences =
     freshEntry && !resuming && !preferencesFinished && search.get("preferences") !== "done";
   const userId = useAuthStore((state) => state.user?.id);
   const state = useStart();
   const scope = state.data?.organization_id;
-  const completed = state.data?.completed;
+  const completed = state.data ? startIsComplete(state.data) : undefined;
+  const showPreferences =
+    wantsPreferences &&
+    !state.isLoading &&
+    !(appAdmin && state.waitingForScope) &&
+    state.data?.scopes === undefined;
   const query = search.toString();
   useEffect(() => {
     if (!userId || !scope || state.error || state.isLoading) return;
@@ -38,7 +44,7 @@ export function StartEntry() {
     else {
       const search = new URLSearchParams(query);
       const location = new URLSearchParams();
-      for (const key of ["start-step", "workspace", "question", "variant"]) {
+      for (const key of ["start-step", "start-scope", "workspace", "question", "variant"]) {
         const value = search.get(key);
         if (value !== null) location.set(key, value);
       }
@@ -60,6 +66,7 @@ export function StartEntry() {
     !freshEntry &&
     !memberWelcome &&
     !!state.data &&
+    !pendingSharedStart(state.data) &&
     !shouldOfferStart(state.data);
   useEffect(() => {
     if (established) router.replace("/chat");
@@ -100,5 +107,5 @@ export function StartEntry() {
         }
       />
     );
-  return <StartHub />;
+  return <StartHub invitation={freshEntry ? invitation : undefined} />;
 }

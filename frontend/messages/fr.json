@@ -11583,7 +11583,8 @@
         "completed": "Votre test est terminé.",
         "failed": "Votre test n’a pas pu aboutir.",
         "cancelled": "Votre test a été annulé.",
-        "budget_exceeded": "Votre test s’est arrêté à son budget."
+        "budget_exceeded": "Votre test s’est arrêté à son budget.",
+        "quote": "Votre test s’est arrêté au prix que vous avez accepté."
       },
       "questions": {
         "ready": "Vos questions de test sont rédigées et attendent votre revue.",
@@ -14868,7 +14869,9 @@
     "agentControls": "L’agent contrôle",
     "otherViewerControls": "Un autre utilisateur contrôle",
     "viewOnly": "Lecture seule",
-    "takingOverShort": "Prise de contrôle…"
+    "takingOverShort": "Prise de contrôle…",
+    "openPages": "Pages ouvertes du navigateur",
+    "untitledPage": "Page sans titre"
   },
   "remoteAgents": {
     "optionalSettings": "Authentification et handle (facultatif)",
@@ -18582,6 +18585,46 @@
       "workflowBody": "Associez des outils à des fonctions nommées et appelez-les depuis Python. Chaque action conserve ses autorisations, approbations et traces d'exécution.",
       "organizationTitle": "Définir les réglages de l'organisation",
       "organizationBody": "Configurez navigation, catalogues, tableau de bord et messages par rôle, ainsi que la visibilité des coûts. Les membres personnalisent les options autorisées."
+    },
+    "scopes": {
+      "progress": "Progression de la configuration",
+      "stages": "Étapes de configuration",
+      "position": "Étape {current} sur {total}",
+      "completed": "Terminé",
+      "saveFailed": "Impossible d’enregistrer votre progression. Réessayez cette étape.",
+      "allDoneTitle": "La configuration est terminée",
+      "allDoneHint": "La configuration partagée est terminée et votre progression personnelle est conservée. Consultez une étape ou ouvrez l’application.",
+      "openApp": "Ouvrir l’application",
+      "workspaceTitle": "Créer ou choisir une organisation",
+      "workspaceHint": "Le déploiement est configuré. Choisissez un espace d’entreprise pour ses paramètres partagés, puis poursuivez votre configuration personnelle.",
+      "loadFailed": "Impossible de charger la configuration",
+      "deployment": {
+        "title": "Configurer le déploiement",
+        "hint": "Partagé par tout ce déploiement. Un administrateur de l’application termine cette étape une seule fois.",
+        "short": "Déploiement"
+      },
+      "organization": {
+        "title": "Configurer l’organisation",
+        "hint": "Partagé par cette organisation. Une personne autorisée termine cette étape pour l’équipe.",
+        "short": "Organisation"
+      },
+      "personal": {
+        "title": "Votre configuration personnelle",
+        "hint": "Votre profil, vos connexions et vos préférences. Cette progression vous appartient.",
+        "short": "Personnel"
+      },
+      "modelsShared": "L’accès partagé facultatif aux fournisseurs se configure dans le Vault avec une visibilité pour l’organisation. Cette étape ne change pas votre modèle personnel.",
+      "toolsShared": "L’accès partagé facultatif aux outils utilise les connexions MCP de l’organisation. Connectez vos comptes privés plus tard dans votre configuration personnelle.",
+      "openVault": "Ouvrir le Vault",
+      "openConnections": "Ouvrir les connexions MCP",
+      "returnToSetup": "La page s’ouvre dans un nouvel onglet. Revenez ensuite à cette configuration.",
+      "resourcesPermission": "Vos autorisations ne permettent pas de consulter ces ressources partagées. Vous pouvez continuer ; une personne autorisée pourra les configurer plus tard.",
+      "sharedReview": "Cette étape partagée est terminée. Votre formulaire reste ouvert pour vérification. Continuez lorsque vous souhaitez le quitter.",
+      "continueReview": "Passer à l’étape suivante",
+      "stageCompleted": "{stage} — Terminé",
+      "continueShort": "Continuer",
+      "skipShort": "Ignorer",
+      "finishShort": "Terminer"
     }
   },
   "skillImprovement": {
@@ -18724,7 +18767,7 @@
     "understand": {
       "title": "Comprendre",
       "loading": "Lecture de ce qui n’a pas fonctionné…",
-      "summary": "{count, plural, =0 {Aucun problème trouvé avec le skill} =1 {1 problème avec le skill} other {# problèmes avec le skill}}{elsewhere, plural, =0 {} other {, # réponses dont le problème vient d’ailleurs}}{fine, plural, =0 {} other {, # qui étaient correctes}}.",
+      "summary": "{count, plural, =0 {Aucun problème trouvé avec le skill} =1 {1 problème avec le skill} other {# problèmes avec le skill}}{elsewhere, plural, =0 {} =1 {, 1 réponse dont le problème vient d’ailleurs} other {, # réponses dont le problème vient d’ailleurs}}{fine, plural, =0 {} =1 {, 1 qui était correcte} other {, # qui étaient correctes}}.",
       "usageUnknown": "{count, plural, =1 {1 réponse date d’avant l’enregistrement des chargements de skill et n’est pas comptée.} other {# réponses datent d’avant l’enregistrement des chargements de skill et ne sont pas comptées.}}",
       "seedWithheld": "{count, plural, =1 {1 problème transmis par la session de l’agent est écarté : il cite une réponse à une question que la vérification de ce skill note.} other {# problèmes transmis par la session de l’agent sont écartés : ils citent des réponses à des questions que la vérification de ce skill note.}}",
       "agent": "{name} ({runs})",

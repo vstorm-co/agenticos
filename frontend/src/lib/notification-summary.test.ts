@@ -57,6 +57,14 @@ it("words finished tests and question writing", () => {
       stop,
     ),
   ).toBe("outcome.test.budget_exceeded");
+  // Stopped at the price the person accepted, not at an agent's or organization's budget.
+  expect(
+    notificationSummary(
+      row("eval_run_finished", { status: "budget_exceeded", reason: "quote" }),
+      t,
+      stop,
+    ),
+  ).toBe("outcome.test.quote");
   expect(
     notificationSummary(
       row("case_generation_finished", { status: "ready", reason: null }),

@@ -11820,7 +11820,8 @@
         "completed": "Seu teste foi concluído.",
         "failed": "Seu teste não pôde ser concluído.",
         "cancelled": "Seu teste foi cancelado.",
-        "budget_exceeded": "Seu teste parou ao atingir o orçamento."
+        "budget_exceeded": "Seu teste parou ao atingir o orçamento.",
+        "quote": "Seu teste parou ao atingir o preço que você aceitou."
       },
       "questions": {
         "ready": "Suas perguntas de teste foram escritas e aguardam sua revisão.",
@@ -15143,7 +15144,9 @@
     "agentControls": "O agente controla",
     "otherViewerControls": "Outro usuário controla",
     "viewOnly": "Somente visualização",
-    "takingOverShort": "Assumindo…"
+    "takingOverShort": "Assumindo…",
+    "openPages": "Páginas abertas do navegador",
+    "untitledPage": "Página sem título"
   },
   "remoteAgents": {
     "optionalSettings": "Autenticação e identificador (opcional)",
@@ -19036,6 +19039,46 @@
       "workflowBody": "Associe ferramentas a funções com nome e invoque-as em Python. Cada ação mantém as suas permissões, aprovações e registo de execução.",
       "organizationTitle": "Definir padrões da organização",
       "organizationBody": "Configure navegação, catálogos, dashboard e avisos por função, além da visibilidade dos custos. Os membros podem personalizar as opções permitidas."
+    },
+    "scopes": {
+      "progress": "Progresso da configuração",
+      "stages": "Etapas da configuração",
+      "position": "Etapa {current} de {total}",
+      "completed": "Concluído",
+      "saveFailed": "Não foi possível guardar o progresso da configuração. Tenta novamente esta etapa.",
+      "allDoneTitle": "A configuração está concluída",
+      "allDoneHint": "A configuração partilhada está concluída e o teu progresso pessoal foi preservado. Revê qualquer etapa ou abre a aplicação.",
+      "openApp": "Abrir a aplicação",
+      "workspaceTitle": "Criar ou escolher uma organização",
+      "workspaceHint": "A instalação está configurada. Escolhe um espaço da empresa para as predefinições partilhadas e continua com a tua configuração pessoal.",
+      "loadFailed": "Não foi possível carregar a configuração",
+      "deployment": {
+        "title": "Configurar a instalação",
+        "hint": "Partilhado por toda esta instalação. Um administrador da aplicação conclui esta etapa uma única vez.",
+        "short": "Instalação"
+      },
+      "organization": {
+        "title": "Configurar a organização",
+        "hint": "Partilhado por esta organização. Uma pessoa autorizada conclui esta etapa para a equipa.",
+        "short": "Organização"
+      },
+      "personal": {
+        "title": "A tua configuração pessoal",
+        "hint": "O teu perfil, ligações e preferências. Este progresso pertence-te.",
+        "short": "Pessoal"
+      },
+      "modelsShared": "O acesso partilhado opcional aos fornecedores configura-se no Vault com visibilidade para a organização. Esta etapa não altera o teu modelo pessoal.",
+      "toolsShared": "O acesso partilhado opcional às ferramentas usa ligações MCP da organização. Liga as contas privadas mais tarde na tua configuração pessoal.",
+      "openVault": "Abrir o Vault",
+      "openConnections": "Abrir ligações MCP",
+      "returnToSetup": "A página abre num novo separador. Regressa a esta configuração quando terminares.",
+      "resourcesPermission": "As tuas permissões não permitem ver estes recursos partilhados. Podes continuar; uma pessoa autorizada pode configurá-los mais tarde.",
+      "sharedReview": "Esta etapa partilhada está concluída. O formulário aberto continua disponível para revisão. Continua quando quiseres sair dele.",
+      "continueReview": "Continuar para a próxima etapa",
+      "stageCompleted": "{stage} — Concluído",
+      "continueShort": "Continuar",
+      "skipShort": "Ignorar",
+      "finishShort": "Concluir"
     }
   },
   "skillImprovement": {
@@ -19178,7 +19221,7 @@
     "understand": {
       "title": "Entender",
       "loading": "Lendo o que deu errado…",
-      "summary": "{count, plural, =0 {Nenhum problema com a skill encontrado} =1 {1 problema com a skill} other {# problemas com a skill}}{elsewhere, plural, =0 {} other {, # respostas cujo problema está em outro lugar}}{fine, plural, =0 {} other {, # que estavam bem}}.",
+      "summary": "{count, plural, =0 {Nenhum problema com a skill encontrado} =1 {1 problema com a skill} other {# problemas com a skill}}{elsewhere, plural, =0 {} =1 {, 1 resposta cujo problema está em outro lugar} other {, # respostas cujo problema está em outro lugar}}{fine, plural, =0 {} =1 {, 1 que estava bem} other {, # que estavam bem}}.",
       "usageUnknown": "{count, plural, =1 {1 resposta é de antes de os carregamentos da skill serem registrados e não é contada.} other {# respostas são de antes de os carregamentos da skill serem registrados e não são contadas.}}",
       "seedWithheld": "{count, plural, =1 {1 problema repassado pela sessão do agente foi deixado de fora: ele cita uma resposta a uma pergunta que a verificação desta skill avalia.} other {# problemas repassados pela sessão do agente foram deixados de fora: eles citam respostas a perguntas que a verificação desta skill avalia.}}",
       "agent": "{name} ({runs})",

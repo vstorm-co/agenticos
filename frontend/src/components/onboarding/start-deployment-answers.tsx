@@ -170,14 +170,14 @@ export function DeploymentAnnouncement({
   );
 }
 
-export function DeploymentExtras({ maintenance, orgId }: { maintenance: boolean; orgId: string }) {
+export function DeploymentExtras({ maintenance, orgId }: { maintenance: boolean; orgId?: string }) {
   const t = useTranslations("start.guided");
   return (
     <div className={styles.extras}>
       {(
         [
           [Palette, "branding", "/admin/settings?section=identity"],
-          [Mic, "voice", `/orgs/${orgId}/members?tab=voice`],
+          ...(orgId ? ([[Mic, "voice", `/orgs/${orgId}/members?tab=voice`]] as const) : []),
           [Smartphone, "mobile", "/admin/settings?section=services"],
           [ShieldCheck, "maintenance", "/admin/settings?section=notices"],
         ] as const
