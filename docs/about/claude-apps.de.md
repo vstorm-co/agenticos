@@ -1,5 +1,5 @@
 ---
-source_sha: "b46700ad236c"
+source_sha: "83f682984d07"
 title: "AgenticOS vs Claude"
 seo_title: "AgenticOS vs Claude Team und Enterprise: eigene Agents"
 description: "Claude Team und Enterprise vs. AgenticOS: selbst gehostete Agents auf Claude oder jedem Modell, Budgets je Agent, Freigaben, Audit-Logs, ohne Gebühr pro Nutzer."
@@ -13,6 +13,8 @@ Sie schließen einander nicht aus. AgenticOS kann Claude-Modelle über die Anthr
 
 Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basis: v1.10.0. Umfang bei Claude: die Preis-, Produkt- und Help-Center-Seiten von Anthropic zu den Tarifen Team und Enterprise, kein getestetes Konto.
 
+Die AgenticOS-Funktionsangaben wurden am 27. November 2026 anhand von v1.95.0 aktualisiert. Das Prüfdatum der Anbieterquellen oben bleibt unverändert; dies ist keine neue Preisprüfung.
+
 ## Auf einen Blick { #at-a-glance }
 
 | Bereich | Claude Team / Enterprise | AgenticOS |
@@ -22,8 +24,8 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. Agenti
 | Quellcode | Proprietär | Apache-2.0 |
 | Modelle | Nur Claude | 28 Provider, Claude eingeschlossen, und lokale Modelle |
 | Was Sie bauen | Projects, Skills und Plugins für Menschen, die chatten | Veröffentlichte Agents, jeder ein versionierter Spec |
-| Wer es nutzt | Mitarbeiter mit einer Nutzerlizenz | Mitarbeiter, Kunden und Systeme, auf acht Oberflächen |
-| Oberflächen | Web, Desktop, Mobil, Chrome, Microsoft 365, Slack über Claude Tag in der Beta | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
+| Wer es nutzt | Mitarbeiter mit einer Nutzerlizenz | Mitarbeiter, Kunden und Systeme, auf über einem Dutzend Oberflächen |
+| Oberflächen | Web, Desktop, Mobil, Chrome, Microsoft 365, Slack über Claude Tag in der Beta | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, E-Mail, iMessage, Telefonanrufe |
 | Ausgabenkontrolle | Ausgabenlimits für Organisation und Benutzer | Ein Budget pro Agent und pro Organisation, vor jeder Modellanfrage geprüft |
 | Freigaben | Der handelnde Benutzer oder ein automatischer Modus, wenn die Organisation ihn erlaubt | Ein Run wartet, bis eine Person mit `approvals:decide` entscheidet |
 | Audit-Log | Enterprise; Ereignisse von 180 Tagen als CSV | In jedem Tarif; mit Manipulationsnachweis, als CSV oder JSONL exportiert |

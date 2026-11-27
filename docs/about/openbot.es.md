@@ -1,11 +1,11 @@
 ---
 title: "AgenticOS vs OpenBot"
-source_sha: "0c33b6189dc2"
+source_sha: "4cde0bd71baf"
 ---
 
 # AgenticOS vs OpenBot { #agenticos-vs-openbot }
 
-Fuentes revisadas el 2 de noviembre de 2026. Base de funciones AgenticOS: v1.35.0. No se ha probado una cuenta OpenBot ni una migración.
+Fuentes revisadas el 2 de noviembre de 2026. Base de funciones AgenticOS: v1.35.0; actualizada el 27 de noviembre de 2026 con v1.95.0. No se ha probado una cuenta OpenBot ni una migración.
 
 OpenBot es el entorno local-first de compañeros de IA en openbot.run, con el repositorio nightly-labs/openbot. La web oficial también describe servidores de equipo y opciones de hosting. Puede usar proveedores externos de agentes; local-first no significa que todas las llamadas al modelo permanezcan en el equipo.
 

@@ -12,6 +12,8 @@ The two share some ground: an Apache-2.0 licence for the open parts, MCP, sandbo
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Codex scope: OpenAI's Codex documentation at learn.chatgpt.com, its pricing page and the `openai/codex` repository, not a tested enterprise rollout.
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | OpenAI Codex | AgenticOS |
@@ -21,7 +23,7 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 | Where it runs | Developer machines; cloud tasks in OpenAI-managed containers | Your infrastructure, as a shared service |
 | Source | CLI Apache-2.0; cloud, review and ChatGPT app proprietary | Apache-2.0 |
 | Models | OpenAI with a ChatGPT sign-in; the CLI also takes Ollama, LM Studio, Bedrock and custom providers | 28 providers, set per model profile |
-| End users | The developer | Employees, customers and systems, on eight surfaces |
+| End users | The developer | Employees, customers and systems, on over a dozen surfaces |
 | Approvals | Sandbox modes and approval policies at the developer's desk | A person with `approvals:decide`, from a shared queue |
 | Spend control | Limits per five-hour window on Plus and Standard Business seats, and credits shared with ChatGPT Work | A monthly budget per agent and per organization |
 | Pricing | Included in every ChatGPT plan, Free to Enterprise; OpenAI estimates $100–$200 per developer per month on credits | No licence fee; model usage and infrastructure |
@@ -30,7 +32,7 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 
 ### Agents for people outside engineering
 
-Codex cloud features need a ChatGPT plan, and its users are developers. For company agents, OpenAI points to ChatGPT workspace agents instead; see [AgenticOS vs ChatGPT](chatgpt.md). AgenticOS gives a business team the whole path: instructions, [capabilities](../reference/capabilities.md), knowledge, a budget, a [published version](../concepts.md#version) and [eight surfaces](../channels.md).
+Codex cloud features need a ChatGPT plan, and its users are developers. For company agents, OpenAI points to ChatGPT workspace agents instead; see [AgenticOS vs ChatGPT](chatgpt.md). AgenticOS gives a business team the whole path: instructions, [capabilities](../reference/capabilities.md), knowledge, a budget, a [published version](../concepts.md#version) and [over a dozen surfaces](../channels.md).
 
 ### Rules that hold for everyone at once
 

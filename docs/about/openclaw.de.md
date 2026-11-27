@@ -2,7 +2,7 @@
 title: "AgenticOS vs OpenClaw"
 seo_title: "AgenticOS vs OpenClaw und NemoClaw: Agents für ein Unternehmen"
 description: "OpenClaw ist ein persönlicher Open-Source-Agent; NVIDIA NemoClaw härtet ihn für Unternehmen. Vergleichen Sie AgenticOS: viele gesteuerte Agents, im Browser gebaut."
-source_sha: "3766ef375937"
+source_sha: "cd49343f01a0"
 ---
 
 # AgenticOS vs OpenClaw { #agenticos-vs-openclaw }
@@ -12,6 +12,8 @@ OpenClaw ist ein persönlicher Open-Source-KI-Agent und eines der Projekte mit d
 Wenn Sie einen persönlichen Assistenten möchten, den Sie selbst betreiben, ist OpenClaw die naheliegende Open-Source-Wahl. Wenn ein Unternehmen Agents für seine Teams braucht, gesteuert und geteilt, ist AgenticOS genau dafür gebaut, und ebenfalls Open Source.
 
 Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basisversion: v1.10.0. Umfang OpenClaw und NemoClaw: öffentliche Berichte über die Projekte, einschließlich der Ankündigung von NVIDIA vom 16. März 2026, keine getestete Installation.
+
+Die AgenticOS-Funktionsangaben wurden am 27. November 2026 anhand von v1.95.0 aktualisiert. Das Prüfdatum der Anbieterquellen oben bleibt unverändert; dies ist keine neue Preisprüfung.
 
 ## Auf einen Blick { #at-a-glance }
 
@@ -37,7 +39,7 @@ Berichte über OpenClaw zählten Zehntausende im Internet offen erreichbare Inst
 
 ### Im Browser gebaut { #built-in-a-browser }
 
-Ein OpenClaw-Assistent wird in Dateien konfiguriert. Ein AgenticOS-Agent wird in der Konsole gebaut - Anweisungen, Modell, Werkzeuge, Wissen, Budget - und in Versionen veröffentlicht, die im Web-Chat, in Slack, Telegram, Mattermost, einem Widget und über die API antworten.
+Ein OpenClaw-Assistent wird in Dateien konfiguriert. Ein AgenticOS-Agent wird in der Konsole gebaut - Anweisungen, Modell, Werkzeuge, Wissen, Budget - und in Versionen veröffentlicht, die im Web-Chat, in Slack, Microsoft Teams, Telegram, Mattermost, per E-Mail, per SMS, in einem Widget und über die API antworten.
 
 ## Wann OpenClaw genügt { #when-openclaw-is-enough }
 
