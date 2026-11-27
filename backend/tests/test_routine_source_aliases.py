@@ -37,6 +37,7 @@ def test_starter_visibility_accepts_only_the_historical_presentation_hashes() ->
     from app.services.routine_sources import (
         _NON_SOURCE_FIELDS,
         RoutineSourceSnapshot,
+        _within_ceiling,
         compatible_spec_fingerprints,
         spec_fingerprint,
     )
@@ -66,17 +67,13 @@ def test_starter_visibility_accepts_only_the_historical_presentation_hashes() ->
                 {**material, "show_starters": visible}, sort_keys=True, separators=(",", ":")
             ).encode()
         ).hexdigest()
-        assert snapshot.matches_restricted(policy.model_copy(update={"spec_hash": legacy}))
+        # A review saved before behavior was recorded compares its spec, as a ceiling.
+        assert _within_ceiling(policy, policy.model_copy(update={"spec_hash": legacy}), snapshot)
     assert spec_fingerprint(spec.model_copy(update={"show_starters": False})) == policy.spec_hash
-    for changed in (
-        policy.model_copy(update={"spec_hash": "f" * 64}),
-        policy.model_copy(update={"scope_hash": "c" * 64}),
-        policy.model_copy(update={"consented_by": uuid4()}),
-    ):
-        assert not snapshot.matches_restricted(changed)
+    assert not _within_ceiling(policy, policy.model_copy(update={"spec_hash": "f" * 64}), snapshot)
     changed = spec.model_copy(update={"collection_ids": [uuid4()]})
-    assert not snapshot.matches_restricted(
-        policy.model_copy(update={"spec_hash": spec_fingerprint(changed)})
+    assert not _within_ceiling(
+        policy, policy.model_copy(update={"spec_hash": spec_fingerprint(changed)}), snapshot
     )
 
 
@@ -129,8 +126,10 @@ async def test_readiness_preserves_a_historical_review_without_writing(
         organization_id=trigger.organization_id,
         role=OrgRoleName.MEMBER,
     )
-    current, refreshed = await service.current(ctx, trigger, expected_id=policy.id)
-    assert refreshed and current.spec_hash == spec_fingerprint(spec)
+    admission = await service.current(ctx, trigger, expected_id=policy.id)
+    current = admission.policy
+    assert admission.refreshed and not admission.expanded
+    assert current.spec_hash == spec_fingerprint(spec)
     assert trigger.approved_sources == before
     db.flush.assert_not_awaited()
     admitted = await service.require_current(ctx, trigger, expected_id=policy.id)

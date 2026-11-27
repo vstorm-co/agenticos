@@ -10225,17 +10225,26 @@ async def test_a_revoked_routine_is_refused_before_models_or_mcp_connections_are
         "unavailable",
         "offline_reviewed",
         "unexpected",
+        "reviewed_account",
+        "reviewed_elsewhere",
+        "unlisted_account",
         "materialized_skill",
         "materialized_context",
     ],
 )
 @pytest.mark.parametrize("has_dispatch", [False, True])
-@pytest.mark.parametrize("mode", ["follow_agent", "restricted"])
+@pytest.mark.parametrize("mode", ["reviewed", "trust_agent"])
 async def test_routine_origin_and_live_tool_guard_are_attached_during_preparation(
     change, has_dispatch: bool, mode
 ) -> None:
+    """Every resolved account a run reaches is one the review names, as the same identity.
+
+    An optional source that is unavailable leaves the run without it. A trusting
+    routine ignores accounts its review left out: `allows_tool` drops their tools.
+    """
     from app.agents.mcp import McpSourceIdentity
     from app.agents.routine_authority import RoutineGuard
+    from app.schemas.routine_sources import RoutineSourceAccount
     from app.services.routine_authority import RoutineAuthority
 
     ctx = replace(
@@ -10285,15 +10294,24 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     from app.schemas.routine_sources import RoutineSourcePolicy
     from app.services.routine_sources import spec_fingerprint
 
+    account_id = uuid.uuid4()
+    reviewed = RoutineSourceAccount(endpoint_hash="a" * 64, authorization_generation=uuid.uuid4())
+    identity = McpSourceIdentity(
+        endpoint_hash=reviewed.endpoint_hash,
+        authorization_generation=reviewed.authorization_generation,
+    )
     source_policy = RoutineSourcePolicy(
         mode=mode,
         behavior=materialized_behavior(
             [approved_skill] if change == "materialized_skill" else [],
             [approved_context] if change == "materialized_context" else [],
-        )
-        if mode == "follow_agent"
-        else None,
-        root_mcp_ids=(uuid.uuid4(),) if change == "offline_reviewed" else (),
+        ),
+        root_mcp_ids=(account_id,)
+        if change in {"offline_reviewed", "reviewed_account", "reviewed_elsewhere"}
+        else (),
+        mcp_sources={account_id: reviewed}
+        if change in {"reviewed_account", "reviewed_elsewhere", "unlisted_account"}
+        else {},
         id=uuid.uuid4(),
         consented_by=ctx.subject_id,
         reviewed_at=datetime.now(UTC),
@@ -10309,6 +10327,7 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
         role=ctx.role,
         acts_as_creator=change == "personal",
         source_policy=source_policy,
+        mcp_sources={account_id: identity},
     )
     resolved = ResolvedMcpToolsets(
         toolsets=[],
@@ -10321,6 +10340,14 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
             )
         }
         if change == "unexpected"
+        else {
+            account_id: McpSourceIdentity(
+                endpoint_hash="a" * 64, authorization_generation=uuid.uuid4()
+            )
+        }
+        if change == "reviewed_elsewhere"
+        else {account_id: identity}
+        if change in {"reviewed_account", "unlisted_account"}
         else {},
     )
     with (
@@ -10363,9 +10390,9 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
         patch("app.services.agent_runner.build_agent", return_value=MagicMock()) as build,
     ):
         if (
-            change == "unexpected"
-            or (change in {"unavailable", "offline_reviewed"} and mode == "restricted")
-            or (change in {"materialized_skill", "materialized_context"} and mode == "follow_agent")
+            change in {"reviewed_elsewhere", "unlisted_account"}
+            or (change == "unexpected" and mode == "reviewed")
+            or (change in {"materialized_skill", "materialized_context"} and mode == "reviewed")
         ):
             from app.services.routine_sources import RoutineSourcesRequired
 
@@ -10380,7 +10407,16 @@ async def test_routine_origin_and_live_tool_guard_are_attached_during_preparatio
     assert credential.await_args.kwargs["run_id"] == create.await_args.kwargs["run_id"]
     assert credential.await_args.kwargs["reporting_only"] is True
     assert create.await_args.kwargs["trigger_id"] == ctx.routine_id
-    assert create.await_args.kwargs["routine_policy"]["mcp_sources"] == {}
+    assert create.await_args.kwargs["routine_policy"]["mcp_sources"] == {
+        str(account_id): {
+            "endpoint_hash": identity.endpoint_hash,
+            "authorization_generation": str(identity.authorization_generation),
+            "tool_prefix": None,
+        }
+    }
+    assert not {"action_mode", "action_consents", "tool_settings"} & set(
+        create.await_args.kwargs["routine_policy"]
+    )
     assert (
         create.await_args.kwargs["routine_policy"]["acts_as_creator"] == authority.acts_as_creator
     )
@@ -10467,7 +10503,6 @@ async def test_watch_preparation_uses_the_selected_agent_with_approved_sources_a
     authority = SimpleNamespace(
         check=AsyncMock(),
         sources=approved,
-        action_consents=(),
         action_policy=AsyncMock(),
         routine_kind="watch",
         source_policy=None,
@@ -11977,7 +12012,7 @@ async def test_routine_delegate_consumes_only_its_exact_reviewed_resources(topol
         resources=[],
     )
     policy = RoutineSourcePolicy(
-        mode="follow_agent",
+        mode="reviewed",
         id=uuid.uuid4(),
         consented_by=ctx.subject_id,
         reviewed_at=datetime.now(UTC),

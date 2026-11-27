@@ -6073,8 +6073,8 @@
         "body": "Neben Notizen halten Agents Fakten, Vorlieben und Entscheidungen mit ihrer Herkunft fest. Korrigieren Sie einen Eintrag mit eigenen Worten ab einem Datum, die alte Fassung bleibt im Verlauf; oder nehmen Sie ihn außer Gebrauch."
       },
       "routine-access": {
-        "title": "Routinezugriff prüfen",
-        "body": "Öffnen Sie das Schild Ihrer Routine, um Quellkonten und Ressourcen zu prüfen und anschließend dauerhafte Aktionsausnahmen getrennt auszuwählen."
+        "title": "Routinezugriff",
+        "body": "Öffnen Sie das Schild Ihrer Routine, um festzulegen, welche Tools frei laufen, zuerst fragen oder aus bleiben, und um die Quellen zu prüfen, die sie erreicht."
       },
       "project-tracking": {
         "title": "Projekt im Blick behalten",
@@ -10082,7 +10082,13 @@
         }
       },
       "starterAgentMissing": "Diese Rolle tut gerade nichts: Der AgenticOS-Starter-Agent, unter dem sie aufgezeichnet wird, fehlt, ist nicht veröffentlicht oder umbenannt. Veröffentlichen Sie ihn erneut unter dem Handle agenticos."
-    }
+    },
+    "routineTrust": "Routinen dürfen ihrem Agenten vertrauen",
+    "routineTrustDescription": "Ob eine Routine künftige Tools und Quellen ihres Agenten nutzen darf, ohne dass ihr Ersteller sie erneut prüft.",
+    "routineTrustHint": "Ist dies aktiv, kann jemand, der über Freigaben entscheiden darf, eine geplante Routine ihrem Agenten folgen lassen: Organisationskonten, Tools und Quellen, die der Agent später erhält, werden ohne neue Prüfung genutzt. Persönliche Konten müssen weiterhin geprüft werden, und der Ersteller wird benachrichtigt, wenn der Zugriff wächst. Standardmäßig aus.",
+    "routineTrustAllowed": "Routinen dürfen ihrem Agenten jetzt vertrauen",
+    "routineTrustForbidden": "Routinen dürfen ihrem Agenten nicht mehr vertrauen",
+    "routineTrustFailed": "Es ließ sich nicht ändern, ob Routinen ihrem Agenten vertrauen dürfen"
   },
   "theme": {
     "darkMode": "Dunkler Modus",
@@ -10343,8 +10349,6 @@
     "lookPosition": "Look {current} von {total}"
   },
   "triggers": {
-    "setupReviewTitle": "Zugriff der Routine prüfen",
-    "enableRoutine": "Routine aktivieren",
     "finishLater": "Später fortfahren",
     "stopWaitingRun": "Wartende Ausführung stoppen",
     "deliveryPending": "Letzte Antwort wird an den Chat gesendet",
@@ -10651,57 +10655,11 @@
     "endsAtLabel": "Endet am (Gerätezeit)",
     "endsAtHint": "Leer lassen, um bis zum Stoppen fortzufahren. Diese Zeit verwendet {zone}, unabhängig von der Zeitzone des Zeitplans.",
     "endsAtInvalid": "Wählen Sie einen gültigen Zeitpunkt in der Zukunft oder leeren Sie das Feld, um das Ende zu entfernen.",
-    "actionConsents": {
-      "personalAccount": "{name} · dein Konto",
-      "organizationAccount": "{name} · Organisationskonto",
-      "title": "Aktionsfreigaben",
-      "description": "Routinenaktionen benötigen standardmäßig eine Bestätigung. Erlaube nur ausgewählte Aktionen ohne Rückfrage. Die Freigabe gilt für diese veröffentlichte Version und Routinenkonfiguration; vom Agenten verlangte Bestätigungen bleiben bestehen. Jede MCP-Aktion gilt nur für das benannte Konto.",
-      "retry": "Erneut versuchen",
-      "empty": "Diese Version hat hier keine freigebbaren Aktionen.",
-      "revokeAll": "Alle widerrufen",
-      "save": "Freigaben speichern",
-      "search": "Aktionen suchen",
-      "selectGroup": "Zulässige Aktionen in {name} auswählen",
-      "noMatches": "Keine Aktionen entsprechen der Suche.",
-      "changed": {
-        "version": "Die veröffentlichte Agent-Version hat sich geändert. Prüfe ihre Aktionen erneut.",
-        "intent": "Aufgabe oder Ziel der Routine haben sich geändert. Prüfe ihre Aktionen erneut.",
-        "instructions": "Anweisungen von Skill, Context oder Projekt haben sich geändert. Prüfe die Aktionen erneut.",
-        "actions": "Einige zuvor ausgewählte Aktionen sind nicht verfügbar, benötigen eine Freigabe oder haben eine andere Kontoautorisierung. Sie werden nicht erneut ausgewählt."
-      },
-      "capabilitiesSection": "Capabilities",
-      "groupCount": "{selected} von {total}",
-      "useAgent": "Einstellungen des Agenten verwenden",
-      "useAgentHint": "Wählt genau die Aktionen, die dieser Agent im Chat schon ohne Nachfrage ausführt, und ersetzt die aktuelle Auswahl. Eine Freigabe hier kann nur eingrenzen, was die Einstellungen des Agenten erlauben, nie erweitern: Eine Aktion, vor der der Agent fragt, wird nicht angeboten. Gespeichert wird erst mit Freigaben speichern.",
-      "allowHeading": "Diese Aktionen ohne Bestätigung ausführen lassen",
-      "alwaysAsks": "Fragt immer: vom Agenten oder der Plattform vorgeschrieben"
-    },
     "sourceConsents": {
-      "title": "Quellen",
-      "description": "Wählen Sie, ob die Routine dem Agent folgt oder einen geprüften Quellenstand behält. Freigaberegeln werden separat eingestellt.",
-      "retry": "Erneut versuchen",
-      "current": "Die geprüften Quellen sind aktuell.",
-      "changed": "Vor dem nächsten Run muss die erstellende Person den geänderten Zugriff oder das geänderte Verhalten prüfen.",
-      "unavailable": "Prüfen oder verbinden Sie zuerst diese Quellen: {names}",
-      "accept": "Diese Quellen genehmigen",
-      "inspectAgent": "Verbindungen des Agenten prüfen",
-      "kind": "{kind, select, capability {Capabilities} skill {Skills} context {Kontextdateien} knowledge {Wissensdatenbanken} table {Tabellen} delegate {Delegierte Agenten} remote_agent {Entfernte Agenten} platform {Plattform} mcp_account {MCP-Konten} chat_connection {Chat-Verbindungen} phone {Telefon} terminal_account {Terminal-Konten} terminal_credential {Terminal-Zugangsdaten} event_source {Ereignisquelle} other {Sonstige}}",
-      "kindCount": "{name} ({count})",
-      "unnamed": "Nicht mehr verfügbar",
-      "modeLabel": "Zugriffsmodus",
-      "followAgent": "Agent folgen",
-      "restricted": "Geprüfter Stand",
-      "followHint": "Startet mit dem aktuellen Zugriff und Verhalten des veröffentlichten Agents. Spätere Zugriffserweiterungen oder Verhaltensänderungen muss die Person prüfen, die die Routine erstellt hat. Agent-Berechtigungen, Pflichtfreigaben und lokale Zugriffsrechte gelten weiterhin.",
-      "restrictedHint": "Behalten Sie diesen geprüften Quellenstand. Änderungen an den Quellen des Agents erfordern eine erneute Prüfung.",
-      "followCurrent": "Diese Routine folgt dem Agent innerhalb ihres genehmigten Zugriffs und Verhaltens.",
-      "selectionPending": "Speichern Sie, um diesen Zugriffsmodus anzuwenden.",
-      "followUnavailable": "Nicht verfügbare Quellen: {names}. Dem Agent zu folgen stellt keine Verbindungen wieder her und umgeht keine erforderlichen Berechtigungen.",
-      "saveMode": "Zugriffsmodus speichern",
       "reviewBeforeActivation": "Zugriff vor dem Aktivieren prüfen",
-      "reviewBeforeActivationHint": "Optional: pausiert speichern, den Quellenstand des Agents prüfen und die Routine anschließend aktivieren.",
+      "reviewBeforeActivationHint": "Optional: pausiert speichern, festlegen, was die Routine tun und erreichen darf, und sie anschließend aktivieren.",
       "runsAsYou": "Wird als Sie ausgeführt. Ihre Berechtigungen und Pflichtfreigaben gelten weiterhin.",
-      "agentIdentity": "Nutzt den eigenen Zugriff des Agents. Persönliche Konten sind ausgeschlossen.",
-      "requiredUnavailable": "Erforderliche Quellen sind nicht verfügbar: {names}. Stellen Sie den Zugriff wieder her, bevor Sie diese Routine speichern oder aktivieren."
+      "agentIdentity": "Nutzt den eigenen Zugriff des Agents. Persönliche Konten sind ausgeschlossen."
     },
     "advancedOptions": "Erweiterte Optionen",
     "advancedOptionsHint": "Standard: aktuelle veröffentlichte Version, Fehlerschutz und deine Benachrichtigungseinstellungen.",
@@ -10724,14 +10682,6 @@
       "mention": "Der Kommentar enthielt die erforderliche Erwähnung nicht.",
       "conclusion": "Das Workflow-Ergebnis passte nicht.",
       "not_branch": "Der Push löschte einen Branch oder war kein Branch-Push."
-    },
-    "approvalMode": {
-      "label": "Werkzeugfreigaben",
-      "hint": "Inbox-Meldungen sind enthalten. Vorgeschriebene Agenten- und Plattformfreigaben gelten weiterhin.",
-      "automatic": "Zulässige Werkzeuge automatisch ausführen",
-      "manual": "Vor Aktionen fragen",
-      "custom": "Freigaben je Werkzeug wählen",
-      "existing": "Aktuelle Freigaben beibehalten"
     },
     "chatModeLabel": "Unterhaltungen",
     "chatMode": {
@@ -10760,29 +10710,69 @@
       "awaiting_approval": "{held, select, yes {Ein vorheriger Run wartet auf Freigabe. Bis zur Entscheidung startet kein neuer Run.} other {Ein vorheriger Run wartet auf Freigabe.}}",
       "awaiting_answer": "{held, select, yes {Ein vorheriger Run wartet auf eine Antwort. Bis dahin startet kein neuer Run.} other {Ein vorheriger Run wartet auf eine Antwort.}}",
       "budget_exhausted": "Das Budget dieses Monats ist aufgebraucht. Sie läuft am Monatsersten wieder.",
-      "actions_need_approval": "{count, plural, =1 {1 Aktion hat keine dauerhafte Zustimmung und erfordert bei Verwendung eine Genehmigung.} other {# Aktionen haben keine dauerhafte Zustimmung und erfordern bei Verwendung eine Genehmigung.}}",
+      "actions_need_approval": "{count, plural, =1 {1 Tool fragt vor der Ausführung nach, daher wartet ein Run, der es nutzt, auf eine Genehmigung.} other {# Tools fragen vor der Ausführung nach, daher wartet ein Run, der sie nutzt, auf eine Genehmigung.}}",
       "readiness_checking": "Es wird geprüft, ob diese Routine ausgeführt werden kann…",
-      "readiness_unavailable": "Die Ausführbarkeit konnte nicht geprüft werden. Jetzt ausführen prüft weiterhin die Berechtigungen."
+      "readiness_unavailable": "Die Ausführbarkeit konnte nicht geprüft werden. Jetzt ausführen prüft weiterhin die Berechtigungen.",
+      "trust_not_allowed": "Sie vertraut ihrem Agenten, was ihr Ersteller oder die Organisation nicht mehr erlaubt. Prüfen Sie ihren Zugriff erneut."
     },
-    "toolSettings": {
-      "title": "Werkzeuge der Routine",
-      "description": "Standardmäßig gelten die Einstellungen des Agenten. Für diese Routine können Sie vor einem Werkzeug fragen lassen oder es ausschalten. Erforderliche Genehmigungen gelten weiterhin; delegierte Agenten behalten ihre Einstellungen.",
-      "legacyMode": "Beim Speichern gelten die Genehmigungsregeln des Agenten. Bisherige dauerhafte Genehmigungen dieser Routine werden entfernt.",
-      "agentAsks": "Agent erfordert Genehmigung",
-      "agentFree": "Agent erlaubt automatische Nutzung",
-      "follow": "Agent folgen",
-      "ask": "Jedes Mal fragen",
+    "access": {
+      "label": "Routinezugriff",
+      "title": "{named, select, yes {Routinezugriff: {name}} other {Routinezugriff}}",
+      "description": "Legen Sie fest, was diese Routine tun darf, ohne Sie zu fragen, und prüfen Sie, worauf sie zugreifen kann.",
+      "retry": "Erneut versuchen",
+      "stale": "Die Routine, die Quellen ihres Agenten oder ihre Tools haben sich während Ihrer Prüfung geändert. Prüfen Sie den aktuellen Stand und speichern Sie erneut.",
+      "tabTools": "Tools",
+      "tabSources": "Quellen",
+      "banner": {
+        "setup": "Diese Routine wurde noch nicht geprüft. Legen Sie fest, was sie tun darf, und speichern Sie, um sie zu aktivieren.",
+        "sources": "Die Tools oder Quellen des Agenten haben sich seit der letzten Prüfung geändert. Prüfen Sie sie und speichern Sie, bevor die Routine wieder läuft.",
+        "routine_changed": "Die Routine hat sich seit der letzten Prüfung geändert, etwa ihr Prompt, als wer sie läuft oder wohin sie liefert. Prüfen Sie ihren Zugriff und speichern Sie, bevor sie wieder läuft.",
+        "platform_identity": "Der MCP-Server der Plattform verlangt, dass diese Routine als ihr Ersteller handelt. Aktivieren Sie in den Einstellungen der Routine die Ausführung als Sie.",
+        "unavailable": "Einige Quellen dieser Routine sind nicht verfügbar: {names}. Prüfen Sie die Verbindungen des Agenten und speichern Sie die Prüfung erneut.",
+        "requiredUnavailable": "Diese Routine braucht Quellen, die nicht verfügbar sind: {names}. Stellen Sie sie vor dem Speichern wieder her.",
+        "trustNotAllowed": "{reason, select, permission {Sie dürfen nicht mehr über Freigaben entscheiden, daher kann diese Routine ihrem Agenten nicht mehr vertrauen.} organization {Ihre Organisation erlaubt Routinen nicht mehr, ihrem Agenten zu vertrauen.} event {Eine durch ein Ereignis gestartete Routine kann ihrem Agenten nicht vertrauen.} other {Nur Sie selbst, in der Konsole angemeldet, können diese Routine ihrem Agenten vertrauen lassen.}} Speichern Sie ihre Prüfung, damit sie wieder läuft.",
+        "allowBlocked": "{reason, select, permission {Sie dürfen nicht über Freigaben entscheiden, daher fragen Tools, die etwas ändern, zuerst nach.} organization {Ihre Organisation hat dauerhafte Freigaben deaktiviert, daher fragen Tools, die etwas ändern, zuerst nach.} other {Nur Sie selbst, in der Konsole angemeldet, können Tools ohne Nachfrage laufen lassen.}}"
+      },
+      "openApprovalSettings": "Genehmigungseinstellungen öffnen",
+      "inspectAgent": "Verbindungen des Agenten prüfen",
+      "search": "Tools suchen",
+      "setAllCurrent": "Alle festlegen: {choice, select, agent {Wie der Agent} ask {Bei allem nachfragen} allow {Frei ausführen, wo erlaubt} other {Benutzerdefiniert}}",
+      "setAllAgent": "Wie der Agent",
+      "setAllAsk": "Bei allem nachfragen",
+      "setAllAllow": "Frei ausführen, wo erlaubt",
+      "unlisted": "Prüfen Sie diese Verbindungen, um ihre Tools aufzulisten: {names}.",
+      "noTools": "Diese Agent-Version gibt der Routine keine Tools.",
+      "noMatches": "Keine Tools entsprechen Ihrer Suche.",
+      "capabilities": "Capabilities",
+      "personalAccount": "{name} · Ihr Konto",
+      "organizationAccount": "{name} · Organisationskonto",
+      "allow": "Frei ausführen",
+      "ask": "Zuerst fragen",
       "off": "Aus",
-      "search": "Werkzeug suchen",
-      "reset": "Agent für alle Werkzeuge folgen",
-      "empty": "Diese Routine hat keine konfigurierbaren Werkzeuge.",
-      "noMatches": "Keine Werkzeuge entsprechen dieser Suche.",
-      "personalAccount": "Persönliches Konto · {name}",
-      "organizationAccount": "Organisationskonto · {name}",
-      "unavailable": "Prüfen Sie diese Verbindungen, um ihre Werkzeuge zu sehen: {names}.",
-      "unavailableSettings": "Einschränkungen nicht verfügbarer Werkzeuge",
-      "unavailableSettingsBody": "Diese gespeicherten Einschränkungen bleiben erhalten, auch wenn ein Werkzeug derzeit nicht angeboten wird. Entfernen Sie eine Einschränkung ausdrücklich, um sie aufzuheben.",
-      "removeRestriction": "Einschränkung für {name} entfernen"
+      "reads": "Liest",
+      "changes": "Ändert",
+      "new": "Neu",
+      "locked": "Fragt immer (vom Agenten verlangt)",
+      "allowRefused": "{reason, select, permission {Erfordert die Berechtigung, über Freigaben zu entscheiden.} organization {Ihre Organisation hat dauerhafte Freigaben deaktiviert.} other {Nur Sie selbst, in der Konsole angemeldet, können Tools ohne Nachfrage laufen lassen.}}",
+      "delegates": "Delegierte Agenten",
+      "delegatesHint": "Tools, die in den Agenten, an die dieser delegiert, etwas ändern.",
+      "noSources": "Diese Routine greift auf keine Quellen zu.",
+      "kindCount": "{name} ({count})",
+      "unavailableMark": "Nicht verfügbar",
+      "requiredMark": "Nicht verfügbar, erforderlich",
+      "dangerZone": "Gefahrenbereich",
+      "trust": "Dem Agenten vertrauen",
+      "trustWarning": "Künftige Tools und Quellen des Agenten, auch Organisationskonten, die andere später verbinden, werden ohne Rückfrage bei Ihnen genutzt. Ihre persönlichen Konten müssen weiterhin geprüft werden, und Sie werden benachrichtigt, wenn der Zugriff wächst. Tools auf „Zuerst fragen“ oder „Aus“ behalten ihre Einstellung.",
+      "trustRefused": "{reason, select, permission {Zum Einschalten brauchen Sie die Berechtigung, über Freigaben zu entscheiden.} organization {Ihre Organisation erlaubt Routinen nicht, ihrem Agenten zu vertrauen.} event {Eine durch ein Ereignis gestartete Routine kann ihrem Agenten nicht vertrauen.} other {Nur Sie selbst, in der Konsole angemeldet, können dies einschalten.}}",
+      "trustSetting": "Freigabe-Einstellungen öffnen",
+      "trustConfirmTitle": "Dem Agenten vertrauen?",
+      "trustConfirmDescription": "Diese Routine nutzt alles, was ihr Agent später hinzubekommt, ohne Sie zu fragen, auch Organisationskonten, die andere verbinden. Ihre persönlichen Konten müssen weiterhin geprüft werden, und Sie werden benachrichtigt, wenn ihr Zugriff wächst.",
+      "summary": "{allow} frei, {ask} mit Nachfrage, {off} aus",
+      "save": "Änderungen speichern",
+      "saveAndEnable": "Speichern und aktivieren",
+      "trustsAgent": "Vertraut dem Agenten",
+      "kind": "{kind, select, capability {Capabilities} skill {Skills} context {Kontextdateien} knowledge {Wissensdatenbanken} table {Tabellen} delegate {Delegierte Agenten} remote_agent {Entfernte Agenten} platform {Plattform} mcp_account {MCP-Konten} chat_connection {Chat-Verbindungen} phone {Telefon} terminal_account {Terminal-Konten} terminal_credential {Terminal-Zugangsdaten} event_source {Ereignisquelle} other {Sonstige}}",
+      "unnamed": "Nicht mehr verfügbar"
     }
   },
   "portals": {
@@ -11474,7 +11464,8 @@
         "securityEvent": "In einer Minute kamen mehr Sicherheitsereignisse an, als dieser Posteingang einzeln auflistet. Jedes davon steht im Audit-Log.",
         "configurationChanged": "Die Einstellungen des Deployments wurden in einer Minute öfter geändert, als dieser Posteingang einzeln auflistet. Jede Änderung steht im Audit-Log.",
         "backgroundTaskPaused": "In einer Minute wurden mehr Arten von Hintergrundjobs pausiert, als dieser Posteingang einzeln auflistet. Jede steht auf der Seite Hintergrundjobs."
-      }
+      },
+      "routineAccessExpanded": "{named, select, yes {{routine}} other {Ihre Routine}} vertraut ihrem Agenten und erreicht jetzt auch: {sources}"
     },
     "needsAttention": "Aufmerksamkeit erforderlich"
   },

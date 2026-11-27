@@ -83,6 +83,15 @@ describe("wordedSummary", () => {
     expect(say({ wording: "routine_blocked", routine_detail: "brand_new" })).toBeNull();
   });
 
+  it("words a routine whose trusted agent now reaches more", () => {
+    expect(
+      say({ wording: "routine_access_expanded", routine_name: "Digest", sources: "Drive, Jira" }),
+    ).toBe("Digest trusts its agent and now also reaches: Drive, Jira");
+    expect(say({ wording: "routine_access_expanded", sources: "Drive" }, polish)).toBe(
+      "Twoja rutyna ufa swojemu agentowi i teraz sięga także do: Drive",
+    );
+  });
+
   it("words requests, suggestions, briefings and sharing", () => {
     expect(
       say({
@@ -297,6 +306,7 @@ describe("every locale", () => {
   const rows: Record<string, string>[] = [
     { wording: "routine_blocked", routine_detail: "trigger_auto_stopped", failures: "2" },
     { wording: "routine_budget_paused", routine_kind: "watch", limit: "5", spent: "5" },
+    { wording: "routine_access_expanded", sources: "Drive" },
     { wording: "suggestions_ready", count: "3" },
     { wording: "briefing", count: "1" },
     { wording: "sync_failed", collection_name: "", error: "x" },

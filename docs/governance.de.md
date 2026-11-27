@@ -1,5 +1,5 @@
 ---
-source_sha: "822050191fb7"
+source_sha: "536a2da0708d"
 ---
 
 # Governance { #governance }
@@ -15,9 +15,9 @@ nach einem Zeitplan oder auf ein eingehendes Ereignis hin ausführt — ein
 GitHub-Issue, eine eingehende E-Mail (siehe [Konzepte](concepts.md#trigger)).
 
 Er nutzt dieselbe Kostenerfassung, Bestätigungswarteschlange und Prüfungsspur.
-Die [Richtlinie für unbeaufsichtigte Aktionen](#routine-action-consent) verschärft,
-welche Aufrufe eine Bestätigung brauchen; Werkzeugeinstellungen der Routine
-erhalten oder verschärfen die Regeln des Agenten.
+Die [Zugriffsprüfung einer Routine](#routine-access) legt fest, welche Aufrufe
+eine Bestätigung brauchen: Eine Routine kann ein Tool fragen lassen oder abschalten,
+aber nie eine Bestätigung aufheben, die ihr Agent verlangt.
 
 Unbeaufsichtigte Arbeit bestimmt auch den Umgang mit einer **Ablehnung**:
 
@@ -98,7 +98,7 @@ Prüfe nach der Migration `0270_mcp_authorization_generation.py` die Quellen bes
 
 Routinenläufe behalten die für diese Ausführung zugelassenen MCP-Konten und Werkzeugaliase. Fortgesetzte Aufrufe verwenden dieselben Aliase: Umbenennen oder ein anderes Standardkonto leiten eine bestehende Freigabe nicht um. Delegierte bleiben innerhalb der zugelassenen Konten. Vor Aufrufen werden Kontoinhaber, Adresse, Autorisierungsgeneration und Werkzeuglisten erneut geprüft; neue oder geänderte Konten werden vor dem Lesen der Zugangsdaten ausgefiltert.
 
-Eine angehaltene Routine ohne diesen Zulassungsstand kann MCP-Aufrufe verwalteter Konten nicht fortsetzen. Starte nach Prüfung des Zugriffs einen neuen Lauf. Die Vorgaben interaktiver Agenten und ausdrückliche Bestätigungsrichtlinien bleiben unverändert; kontospezifische Freigabeausnahmen für Routinen sind von dieser Quellenprüfung getrennt.
+Eine angehaltene Routine ohne diesen Zulassungsstand kann MCP-Aufrufe verwalteter Konten nicht fortsetzen. Starte nach Prüfung des Zugriffs einen neuen Lauf. Die Vorgaben interaktiver Agenten und ausdrückliche Bestätigungsrichtlinien bleiben unverändert; die Einstellung einer Routine für die Tools eines Kontos gehört zur selben [Zugriffsprüfung](#routine-access).
 
 Die Versionsauswahl folgt entweder der standardmäßig veröffentlichten Version oder legt eine unveränderliche Version fest. Eine Veröffentlichung verschiebt diese Festlegung nicht. Entfernen Sie sie, um wieder der Standardversion zu folgen. Eine benannte Umgebung und eine festgelegte Version schließen sich aus; aktuelle Zugriffsrechte, Budgets und Freigaben gelten weiterhin.
 
@@ -106,11 +106,11 @@ Im Routineformular können Sie das Ende festlegen oder entfernen. Das Datum verw
 
 Eine Routine prüft vor jedem Werkzeug ihren Ersteller, aktive Mitgliedschaft, Rolle und Ausführungsrechte erneut, auch bei Delegationen und nach einer Freigabe. Pausieren, Löschen, Ablauf, Widerruf persönlicher Zustimmung oder Änderungen dieser Berechtigung verhindern weitere Werkzeugaufrufe. Bereits an externe Dienste gesendete Effekte werden dadurch nicht zurückgerufen. Migration `0260_routine_run_origin` bewahrt den Ursprung beim Löschen; ältere geparkte Zeitpläne mit verlorenem Ursprung werden abgelehnt, statt die Rechte der freigebenden Person zu übernehmen.
 
-Der integrierte AgenticOS-MCP-Server erfordert **Als ich ausführen**, auch wenn ein veröffentlichter Delegat ihn einbindet. Ohne eine personenbezogene Identität lehnen die Quellenprüfung und das Erstellen der Routine diese Konfiguration mit einer konkreten Erklärung ab. Aktivieren Sie die Option oder entfernen Sie die Plattformbindung aus dem Agenten und seinen Delegaten. Die Plattform übernimmt niemals automatisch die Identität des Erstellers.
+Der integrierte AgenticOS-MCP-Server erfordert **Als ich ausführen**, auch wenn ein veröffentlichter Delegat ihn einbindet. Ohne eine personenbezogene Identität lehnen die Zugriffsprüfung und das Erstellen der Routine diese Konfiguration mit einer konkreten Erklärung ab. Aktivieren Sie die Option oder entfernen Sie die Plattformbindung aus dem Agenten und seinen Delegaten. Die Plattform übernimmt niemals automatisch die Identität des Erstellers.
 
 Der Routinenverlauf zeigt auch blockierte oder fehlgeschlagene Versuche vor dem Erstellen eines Agentenlaufs. Jeder enthält Zeitpunkt, Phase und einen Reparaturhinweis. Es entstehen keine Modellkosten; Prompts, Anbieterfehler und Zugangsdaten werden nie gespeichert. Die Einträge bleiben bis zum Löschen der Routine oder Organisation erhalten, unabhängig von der Benachrichtigungszustellung. Der Worker-Job fire-trigger speichert ein separates blockiertes oder fehlgeschlagenes Ergebnis. Ein abgeschlossener Warteschlangenjob bedeutet nicht, dass ein Agent erfolgreich lief.
 
-Die Routinenliste zeigt außerdem schon vor der nächsten Aktivierung, ob sie laufen würde. Jede Routine stellt die Prüfungen, die ein Auslösen macht, im Namen ihres Erstellers und ohne Nebenwirkungen: die aktive Mitgliedschaft des Erstellers und seine Ausführungsberechtigung für den Agent, eine ausführbare Version, die Quellenprüfung, das Enddatum, das Monatsbudget, einen vorherigen Run, der auf Freigabe oder eine Antwort wartet, und Aktionen ohne dauerhafte Zustimmung.
+Die Routinenliste zeigt außerdem schon vor der nächsten Aktivierung, ob sie laufen würde. Jede Routine stellt die Prüfungen, die ein Auslösen macht, im Namen ihres Erstellers und ohne Nebenwirkungen: die aktive Mitgliedschaft des Erstellers und seine Ausführungsberechtigung für den Agent, eine ausführbare Version, die Zugriffsprüfung, ob eine Routine, die ihrem Agent vertraut, das noch darf, das Enddatum, das Monatsbudget, einen vorherigen Run, der auf Freigabe oder eine Antwort wartet, und die Tools, bei denen die Routine nachfragt.
 
 Eine Routine, die keinen Run starten würde, ist rot umrandet; eine mit Aktionen, die bei Verwendung eine Freigabe benötigen, ist bernsteinfarben; eine pausierte Routine ist ausgegraut und zeigt weiterhin, woran das Fortsetzen scheitern würde. Jede Zeile nennt den Grund und bietet dem Ersteller die passende Abhilfe. Während einer Prüfung oder bei fehlendem Ergebnis erscheint ein neutraler Hinweis statt einer vermeintlichen Bereitschaft. Eine fehlgeschlagene Prüfung lässt sich wiederholen; Jetzt ausführen prüft die Zulassung weiterhin selbst.
 
@@ -877,40 +877,104 @@ oder wird die Aufgabe entfernt, werden ihre offenen Budgetfälle erledigt und
 ausstehende Zustellungen storniert. Ein geändertes Limit erlaubt eine neue
 Meldung bei dessen Erreichen; ein stummgeschalteter Fall bleibt im Monat stumm.
 
-### Werkzeuge der Routine { #routine-action-consent }
+### Routinezugriff { #routine-access }
 
-Neue Routinen laufen als ihr Ersteller mit dessen aktuellen Berechtigungen. Standardmäßig laufen zulässige Werkzeuge automatisch nach den Genehmigungsregeln des Agenten (`action_mode=agent`); Ausführungen werden in einem gemeinsamen, schreibgeschützten Chat gesammelt. Ein eigener bearbeitbarer Chat je Ausführung bleibt wählbar. Identität, Gesprächsverlauf und Werkzeugfreigaben sind unabhängige Einstellungen.
+Eine Routine hat eine **Zugriffsprüfung**: die Quellen, die sie erreichen darf, als
+Obergrenze, und eine Einstellung für jedes Tool ihres Agents. Der Ersteller öffnet sie
+als **Routine access** über den Schild in der Zeile der Routine, über einen Blocker
+oder während der Einrichtung. Zuerst öffnet sich der Tab **Tools**. Der Tab **Sources**
+listet die geprüften Quellen nach Art auf - Capabilities, Skills, Wissensdatenbanken,
+Tabellen, Konten - und markiert eine nicht verfügbare Quelle in ihrer Zeile mit einem
+Link zur Behebung. Ein Banner nennt den wichtigsten Grund für eine nötige Prüfung, und
+ein Blocker öffnet den Tab, den er betrifft.
 
-**Werkzeuge der Routine** gruppiert Fähigkeiten, AgenticOS-Werkzeuge und konkrete MCP-Konten. Eine Suche und folgende Einstellungen stehen zur Verfügung:
+Jedes Tool steht auf **Ohne Rückfrage**, **Erst fragen** oder **Off**. Die Zeilen sind
+nach Capability, Konto und Plattform gruppiert und als Lesen oder Ändern gekennzeichnet.
+**Set all** bietet **As the agent**, **Ask for everything** und **Run freely where
+allowed**. Für einen Aufruf gilt:
 
-| Einstellung | Wirkung in dieser Routine |
-|---|---|
-| **Agent folgen** | Die Genehmigungsregeln des Agenten gelten weiter. Eine erforderliche Genehmigung bleibt erforderlich. |
-| **Jedes Mal fragen** | Fügt vor jeder Nutzung eine Genehmigung hinzu, auch beim Lesen. Die Option erscheint, wenn der Agent nicht bereits fragt. |
-| **Aus** | Verhindert die Nutzung dieses Werkzeugs durch die Routine. Es bedeutet nicht, Genehmigungen zu überspringen. |
+1. **Off** verbirgt das Tool vor dem Modell und lehnt den Aufruf ab, falls er trotzdem
+   erfolgt.
+2. Eine Bestätigung, die der Agent, ein MCP-Binding oder die Plattform verlangt, fragt
+   immer. Ein Schloss kennzeichnet diese Tools: Eine Routine hebt nie eine Bestätigung
+   auf, die ihr Agent, eine Verbindung oder die Plattform verlangt, und **Ohne
+   Rückfrage** wird nur angenommen, wo der Agent das Tool ohne Rückfrage laufen lässt.
+3. **Erst fragen** parkt den Aufruf zur Bestätigung.
+4. **Ohne Rückfrage** führt ein lesendes Tool aus. Ein Tool, das etwas ändert, läuft
+   ohne Rückfrage, und der Freigabeeintrag nennt den Ersteller als Zustimmenden
+   (`decided_via = "standing"`). Dafür muss der Ersteller zum Zeitpunkt des Aufrufs
+   `approvals:decide` haben und die Organisation `chat_may_waive_approvals` erlauben;
+   fehlt eines davon, fragt der Aufruf.
+5. Ein Tool, das etwas ändert und keine Einstellung hat, weil es nach der Prüfung
+   hinzukam, fragt.
 
-Diese Einstellungen schränken den Agenten nur ein. Explizite Anforderungen des Agenten oder einer MCP-Verbindung sowie obligatorische Plattform- und native Genehmigungen bleiben wirksam. Delegierte Agenten behalten ihre eigenen Regeln; Einstellungen des übergeordneten Agenten erlauben keine Aktionen eines Delegierten. Vom Anbieter ausgeführte Werkzeuge fehlen, wenn die Plattform diese Einschränkungen nicht durchsetzen kann. Der Codemodus bleibt für Routinen deaktiviert.
+**Delegate agents** ist eine weitere Zeile für die Delegaten als Ganzes: Ihre Tools,
+die etwas ändern, fragen, außer die Zeile steht auf **Ohne Rückfrage**; das braucht
+dieselbe Berechtigung und Organisationseinstellung. Delegaten werden nicht Tool für Tool
+eingestellt. Schreibzugriffe auf AgenticOS Virtual Tables laufen innerhalb ihrer
+aktuellen Tabellen- und Operationsfreigaben; eine ausdrückliche Bestätigungsrichtlinie
+des Agents gilt weiterhin für sie. Der Codemodus bleibt für Routinenläufe deaktiviert.
 
-Nur der als er selbst angemeldete Ersteller kann diese Einschränkungen ändern. API-Schlüssel, andere Administratoren, Identitätsübernahme, Agenten oder eine als Ersteller laufende Routine dürfen diese Prüfung nicht vornehmen. Zusätzliche Einschränkungen benötigen weder `approvals:decide` noch den Organisationsschalter für Genehmigungsverzicht: Sie gewähren keine neue Befugnis.
+Die Einstellung eines MCP-Tools nennt die konkrete Verbindung und den eigenen Toolnamen
+des Servers. Das Senden von Mails zu erlauben, erlaubt daher weder Löschen noch
+Schreiben auf einem anderen Konto. Persönliche Konten werden nur angeboten, wenn die
+Routine als ihr Ersteller handelt. Ein Plattform-Tool wird allein benannt: Die Routine
+erreicht die Plattform nur als ihr Ersteller. Die Toolliste stammt aus dem gespeicherten
+Katalog jeder Verbindung; ein Konto mit unbekannter Liste wird genannt und braucht eine
+Verbindungsprüfung, bevor seine Tools angezeigt werden können.
 
-Speichern ersetzt die Werkzeugbeschränkungen der Routine, mit höchstens 1.000 Einträgen. **Agent für alle Werkzeuge folgen** entfernt diese Abweichungen, nicht die Regeln des Agenten. Einschränkungen nicht verfügbarer Werkzeuge bleiben bis zur ausdrücklichen Entfernung gespeichert. Das erneute Verbinden eines MCP-Kontos entfernt seine Werkzeugbeschränkungen nicht stillschweigend.
+Das Erstellen einer Routine prüft ihren Zugriff sofort. Der Modus ist `reviewed`; jedes
+Tool, das der Ersteller ohne Rückfrage laufen lassen darf, steht auf **Ohne Rückfrage** -
+jedes lesende Tool und jedes ändernde Tool, wenn der Ersteller die obigen Berechtigungen
+in einer Konsolensitzung hat - und alles andere auf **Erst fragen**, Delegaten
+eingeschlossen. `approvals:decide` haben Owner, Admin und Operator. Ein Builder kann also
+Routinen erstellen, deren ändernde Tools fragen, ebenso eine Routine, die über einen
+Schlüssel oder von einem Agent erstellt wird. **Review access before enabling** speichert
+die Routine stattdessen pausiert und öffnet die Prüfung. Das Routineformular hat keine
+eigene Einstellung für Tool-Bestätigungen mehr.
 
-!!! warning "Speichern einer älteren Routine entfernt dauerhafte Genehmigungen"
-    Der Dialog warnt vor dem Speichern: Die Routine übernimmt die Genehmigungsregeln des Agenten und entfernt atomar alle bisherigen dauerhaften Aktionsfreigaben. Gespeicherte ältere Richtlinien gelten bis zum Speichern dieser Prüfung; **Agent folgen** erhält keine frühere Ausnahme.
+Nur der Ersteller der Routine selbst liest und speichert ihre Prüfung: in einer
+Konsolensitzung oder mit einem von ihm ausgestellten Schlüssel mit dem Scope
+`personal:consent`. Das genügt für **Erst fragen**, **Off** und **Ohne Rückfrage** bei
+einem lesenden Tool. **Ohne Rückfrage** bei einem ändernden Tool, **Ohne Rückfrage** für
+Delegaten und **Trust the agent** brauchen zusätzlich eine Konsolensitzung. Ein Agent,
+eine Sitzung mit Identitätsübernahme und ein Administrator, der für einen anderen
+Eigentümer handelt, werden abgelehnt.
 
-**Geprüfte Quellen** zeigt Fähigkeiten, Skills, Wissensbasen, Tabellen und Konten nach Art und Name. Jede Art ist auf eine Anzahl eingeklappt; fehlende Quellen sind gekennzeichnet. Werkzeugbeschränkungen umgehen weder Quellenprüfung noch aktuelle Ressourcenzugriffe oder den genehmigten Quellen- und Verhaltensrahmen.
+Das Speichern nennt die Prüfung, die die Person gesehen hat: Haben sich die Quellen, die
+Tools oder die Routine seitdem geändert, wird es abgelehnt, und der Dialog lädt die
+aktuelle Prüfung. Ein Tool, das beim Speichern fehlt, fragt. Eine gespeicherte Einstellung für ein Tool,
+das gerade nicht angeboten wird, etwa auf einem Konto mit unbekannter Liste, bleibt
+unverändert. Speichern aktiviert keine
+pausierte Routine und wird als `routine.access_reviewed` mit dem Modus und der Anzahl der
+Tools je Auswahl protokolliert.
 
-Schreibzugriffe auf AgenticOS Virtual Tables verwenden weiterhin aktuelle Tabellen- und Operationsrechte. Eine Routinenbeschränkung kann eine zusätzliche Entscheidung verlangen; eine ausdrückliche Genehmigungsrichtlinie des Agenten gilt immer.
+Jeder zugelassene Run behält die Prüfung, unter der er startete; ein geparkter Run kann
+keine spätere Prüfung übernehmen. Mitgliedschaft, Berechtigungen, Organisationsrichtlinie
+und die Prüfung werden vor jedem Tool erneut geprüft. Jeder Aufruf, der mit Zustimmung
+des Erstellers ohne Rückfrage läuft, schreibt trotzdem einen genehmigten Eintrag mit
+seinen Argumenten.
 
-**Ältere dauerhafte Genehmigungen.** Gespeicherte ältere Routinen und die Kompatibilitäts-API können Richtlinien mit `manual`, `per_tool` oder ohne Aktionsmodus enthalten. Diese unterscheiden sich von den neuen Einschränkungen. Eine ältere Ausnahme erfordert den Ersteller, `approvals:decide` und `chat_may_waive_approvals`; explizit erforderliche Genehmigungen sind nicht ausnehmbar. Änderungen nur an Name oder Rhythmus erhalten die Zustimmung, Änderungen an Arbeit oder Ziel machen sie ungültig.
+**Trust the agent** steht in der Gefahrenzone des Dialogs. Eine vertrauende Routine
+(`trust_agent`) nutzt die aktuellen Quellen und Tools des Agents ohne neue Prüfung;
+**Erst fragen** und **Off** gelten weiter, andere Tools folgen den Einstellungen des
+Agents, Delegaten eingeschlossen. Die Zeile der Routine zeigt das Abzeichen **Trusts
+agent**. Angeboten wird das nur für einen Zeitplan, nicht für eine Ereignisroutine, deren
+Eingabe von außen kommt, einem Ersteller mit `approvals:decide`, in einer Organisation,
+die **Routines may trust their agent** (`routines_may_trust_agent`) eingeschaltet hat.
+Dieser Schalter steht neben dem Bestätigungsverzicht unter **Budget and approvals**, ist
+standardmäßig aus und wird von jemandem mit `approvals:decide` geändert; protokolliert
+als `organization.routine_trust_changed`.
 
-Eine ältere Ausnahme bindet geprüfte veröffentlichte Version, Routinenkonfiguration und stabile Aktionsidentität. Eine MCP-Ausnahme benennt zusätzlich Konto, Endpoint-Hash und Autorisierungsgeneration. Sie erlaubt weder eine andere Aktion noch ein anderes Konto. Persönliche Konten sind nur beim Handeln als Ersteller verfügbar; Zustimmung lässt sich auch ohne verfügbare gespeicherte Werkzeugliste widerrufen.
-
-Jede Ausführung behält ihre beim Start zugelassenen Zustimmungs-IDs. Spätere Zustimmung entsperrt keine bereits wartende Ausführung; Widerrufen und erneutes Erteilen erzeugt eine neue Identität. Mitgliedschaft, Rechte, Organisationsrichtlinie und Zustimmung werden vor jedem Werkzeug geprüft. Jeder freigestellte Aufruf hat einen Audit-Eintrag mit zustimmender Person und Argumenten. Delegierte übernehmen keine Ausnahme des übergeordneten Agenten.
-
-Ältere Zustimmung bindet auch Revisionen von Skills, Skill-Ressourcen, Kontextdateien und Projektanweisungen. Jede Bearbeitung macht sie ungültig, selbst nach Wiederherstellung des alten Texts. Ausnahmen ohne diesen Fingerabdruck bleiben nur für Agenten ohne solche veränderlichen Quellen gültig. Das Speichern neuer Werkzeugbeschränkungen entfernt ältere Ausnahmen, statt sie zu erneuern.
-
-`0267_routine_action_consents.py` legte keine Ausnahmen für bestehende Routinen an. Diese Genehmigungsschranke für unbeaufsichtigte Arbeit erfordert ein gemeinsames Upgrade von API und Workern nach dem Leeren alter Worker. Ein Downgrade entfernt gespeicherte Ausnahmen, aber weder Genehmigungsprotokolle noch bereits ausgeführte Effekte.
+Eine vertrauende Routine prüft die persönlichen Ressourcen des Erstellers weiterhin:
+seine persönlichen MCP-Konten, Terminal-Konten und den Plattformserver, der als er
+handelt. Ein persönliches Konto oder Tool außerhalb der Obergrenze bleibt bis zur Prüfung
+aus dem Run ausgeschlossen; ein neues Terminal-Konto oder ein neu hinzugefügtes
+Plattform-Binding blockiert die Routine. Wachsen Organisationsquellen über die
+Obergrenze hinaus, protokolliert der nächste Run `routine.access_expanded`,
+benachrichtigt den Ersteller und verschiebt die Obergrenze. Gilt die Berechtigung, die
+Organisationseinstellung oder der Zeitplan nicht mehr, wird die Routine blockiert
+(`trust_not_allowed`), bis sie erneut geprüft wird.
 
 ### Antworten fortgesetzter Routinen { #resumed-routine-answers }
 
@@ -2692,17 +2756,29 @@ Die Liste zeigt automatische Pause und Fehlerzahl. Höchstens 50 Beobachtungen p
 
 ## Geprüfte Routinequellen { #routine-sources }
 
-Neue Routinen genehmigen automatisch die anfänglich verfügbare Konfiguration des veröffentlichten Agenten innerhalb der aktuellen Erstellerberechtigungen. Sichere Quellenentfernungen und reine Modell- oder Anzeigeänderungen des Hauptagenten benötigen keine Prüfung. Neue Quellen, Konten oder Werkzeuge, geänderte Anweisungen oder Variablen sowie Änderungen an Capabilities, tatsächlich verwendeten Skills, Kontext oder delegiertem Verhalten erfordern vor einer weiteren Ausführung die Zugriffsprüfung des Eigentümers. Eine Veröffentlichung des gemeinsamen Agenten erweitert allein keine dauerhafte Befugnis einer Person. Fehlende optionale MCP-Konten blockieren keine unabhängige Arbeit; erforderliche Ereigniseingänge, Identität, Ressourcenzugriffe, Budgets und verbindliche Freigaben gelten weiter.
+Die [Zugriffsprüfung](#routine-access) einer Routine hält die Quellen, die sie erreichen darf, als Obergrenze fest. Im Modus `reviewed`, dem Standard, wird die Routine mit **Review access** blockiert, und kein Run startet, wenn:
 
-Eine ausgeschaltete Capability und das, was nur sie erreicht - Skills bei ausgeschalteter **Skills**, Kontextdateien bei ausgeschalteter **Context**, Sammlungen bei ausgeschalteter **Knowledge**, Delegierte und Remote-Agenten bei ausgeschalteter **Subagents** -, sind keine Quellen: Kein Run erreicht sie. Die Prüfung führt sie deshalb nicht auf, eine gelöschte blockiert die Routine nicht, und die Bearbeitung eines solchen Skills oder einer solchen Kontextdatei erfordert keine neue Zustimmung. Das Einschalten der Capability ist eine neue Quelle und wird geprüft.
+- eine Quelle über die Obergrenze hinausgeht: ein neues Konto, ein neues MCP-Tool, eine neue Capability, ein neuer oder geänderter Skill oder eine neue oder geänderte Kontextdatei, ein neuer Delegat oder Remote-Agent;
+- sich ein Capability- oder MCP-Server-Binding in etwas anderem als seinen Bestätigungseinstellungen ändert: seine Konfiguration, die Namen oder Beschreibungen seiner Tools, die erlaubten Tools;
+- sich der Geltungsbereich der Routine (Ausführen als, Umgebung, Versionsfixierung, Ereignisquelle, Zustellung) oder ihr Prompt ändert;
+- ein MCP-Konto als anderes Konto neu verbunden wird;
+- eine Quelle, die die Routine braucht, nicht verfügbar ist: die Ereignisquelle, der Plattformserver ohne **Als ich ausführen** oder eine Terminal-Anmeldung.
+
+Entfernte Quellen, MCP-Tools, Capabilities oder Bindings gehen durch, ebenso eine Änderung der Anweisungen, des Modells oder anderer Felder des Agents, die nichts erreichen. Die Prüfung wird innerhalb ihrer Obergrenze aktualisiert. Ein als dasselbe Konto neu verbundenes MCP-Konto geht ebenfalls durch: Die Konto-E-Mail der Verbindung muss bekannt und unverändert sein, sonst gilt es als anderes Konto. Eine nicht verfügbare optionale Quelle blockiert die Routine nicht; der Run läuft ohne sie. Eine Veröffentlichung des gemeinsamen Agents erweitert allein keine dauerhafte Befugnis einer Person. Erforderliche Ereigniseingänge, Identität, Ressourcenzugriffe, Budgets und verbindliche Freigaben gelten weiter.
+
+Auch eine strengere oder lockerere Änderung der Bestätigungseinstellungen eines Bindings geht durch: Das Freigabe-Gate setzt sie bei jedem Aufruf durch, und eine Routine gibt nie eine Freigabe frei, daher gewähren sie nichts Neues zu prüfen. Eine vor dieser Regel gespeicherte Prüfung blockiert bei einer solchen Änderung einmal, bis sie erneut gespeichert wird.
+
+Eine ausgeschaltete Capability und das, was nur sie erreicht - Skills bei ausgeschalteter **Skills**, Kontextdateien bei ausgeschalteter **Context**, Sammlungen bei ausgeschalteter **Knowledge**, Delegierte und Remote-Agenten bei ausgeschalteter **Subagents** -, sind keine Quellen: Kein Run erreicht sie. Die Prüfung führt sie deshalb nicht auf, eine gelöschte blockiert die Routine nicht, und die Bearbeitung eines solchen Skills oder einer solchen Kontextdatei erfordert keine neue Prüfung. Das Einschalten der Capability ist eine neue Quelle und wird geprüft.
 
 Eine geänderte fixierte Delegatenversion erfordert eine Prüfung, auch bei einer reinen Modelländerung dieses Delegaten.
 
-Der Eigentümer kann stattdessen `restricted` wählen. Dieser Modus fixiert die geprüfte Quellenkonfiguration, konkrete MCP-Konten, Autorisierungsgenerationen und bekannte Werkzeugnamen. Die Prüfung umfasst fixierte Delegaten, Wissen, Skills, Kontext, Capabilities und entfernte A2A-Registrierungen. Neue Quellen oder geänderte Kontoautorisierung erfordern eine erneute Prüfung. Bestehende Richtlinien ohne Modus bleiben eingeschränkt; ein Upgrade erweitert sie nicht stillschweigend.
+Eine Routine, die [ihrem Agent vertraut](#routine-access), folgt stattdessen den Organisationsquellen des Agents, meldet deren Wachstum und prüft weiterhin die persönlichen Konten, Terminal-Konten und die Plattformidentität des Erstellers. Die Regeln zu Geltungsbereich und Prompt gelten auch für sie.
 
-Jede zugelassene Ausführung behält ihren eigenen Quellen- und Kontenstand. Ein geparkter Lauf kann kein späteres Konto, keine neue Autorisierung und keine spätere Prüfung übernehmen. Quelleninhaberschaft, Widerruf und Werkzeug-Positivlisten werden vor Aufrufen erneut geprüft. Fehlende optionale Werkzeuge werden gemeldet und nicht als erfolgreiche Arbeit behandelt. Der Eigentümer kann den Modus einer bestehenden Routine ausdrücklich über die durch Prüftoken geschützten Zugriffseinstellungen ändern.
+Jede zugelassene Ausführung behält ihren eigenen Quellen- und Kontenstand. Ein geparkter Lauf kann kein späteres Konto, keine neue Autorisierung und keine spätere Prüfung übernehmen. Quelleninhaberschaft, Widerruf und Werkzeug-Positivlisten werden vor Aufrufen erneut geprüft. Fehlende optionale Werkzeuge werden gemeldet und nicht als erfolgreiche Arbeit behandelt.
 
-Migration `0276_routine_sources.py` erteilt bestehenden Routinen keine Zustimmung. Alte Worker abarbeiten lassen, API und Worker gemeinsam aktualisieren und alte Routinen vor dem Ausführen ausdrücklich prüfen. Nur der Eigentümer in der Konsole kann die Zustimmung ersetzen; API-Schlüssel, Identitätsübernahmen und unbeaufsichtigte Agenten dürfen dies nicht.
+Die Migration `0375_routine_access_review.py` wandelt jede bestehende Routine an Ort und Stelle um, sodass keine Befugnis gewinnt und keine stehen bleibt. Eine Routine, die ihre Tools so ausführte, wie der Agent es erlaubt (**Zulässige Werkzeuge automatisch ausführen** oder keine Bestätigungswahl unter **Agent folgen**), tut das weiterhin, Delegaten eingeschlossen und ohne Berechtigungsprüfung, bis ihr Ersteller die Prüfung das nächste Mal speichert; danach gelten die obigen Regeln. Pro-Tool-Zustimmungen, die an die geprüfte Version gebunden sind, werden zu **Ohne Rückfrage**; **Vor Aktionen fragen** behält keine. Geparkte Runs werden umgewandelt, damit sie fortgesetzt werden können.
+
+Eine umgewandelte Prüfung erkennt eine Prompt-Änderung erst, wenn sie erneut gespeichert wird. Ein Downgrade stellt die alten Spalten wieder her: Routinen, die wie vom Agent erlaubt liefen, kehren dazu zurück, und jede andere Routine fragt wieder vor ihren ändernden Tools.
 
 Routinen mit Budget verwenden einen gemeinsamen Nebenläufigkeitsschlüssel der Warteschlange, damit gleichzeitige Ereignisse nicht mehrere Modellaufrufe gegen denselben abgeschlossenen Ausgabenstand zulassen. Speicherextraktion läuft ebenfalls nacheinander pro Wartungsrolle einer Organisation. Jeder Auftrag prüft das aktuelle Budget erneut; ein bereits zugelassener Aufruf darf noch über die Grenze hinaus enden.
 

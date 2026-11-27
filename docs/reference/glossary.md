@@ -64,6 +64,8 @@ rename.
 | Group | A department or team that agents, skills and knowledge are shared with | `group` |
 | Lead | A group member who manages who else is in it | `is_lead` |
 | Approval | A tool call waiting for a person to allow it | `approval` |
+| Routine access | What a routine may reach and, per tool, Run freely, Ask first or Off | `GET`/`PUT /agents/{id}/triggers/{trigger_id}/access` |
+| Trust the agent | A schedule that follows its agent's sources without a new review | `mode: trust_agent`, `routines_may_trust_agent` |
 | Budget | A spending limit that stops runs when it is reached | `budget` |
 | Guardrails | Checks that redact or block what flows through a run | `guardrails` |
 | Vault | Where keys and tokens are stored, sealed and never shown again | `secret` |

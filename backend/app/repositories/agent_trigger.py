@@ -378,7 +378,6 @@ async def create(
     time_zone: str | None = None,
     result_mode: str = "report",
     chat_mode: str = "shared",
-    action_mode: str | None = None,
     answer_to: str = "run_log",
     delivery_conversation_id: UUID | None = None,
     ends_at: datetime | None = None,
@@ -423,7 +422,6 @@ async def create(
         time_zone=time_zone,
         result_mode=result_mode,
         chat_mode=chat_mode,
-        action_mode=action_mode,
         answer_to=answer_to,
         delivery_conversation_id=delivery_conversation_id,
         ends_at=ends_at,
@@ -668,7 +666,7 @@ async def revoke_member_authority(
             AgentTrigger.organization_id == organization_id,
             AgentTrigger.created_by_user_id == user_id,
         )
-        .values(is_active=False, approved_sources=None, action_consents=[])
+        .values(is_active=False, approved_sources=None)
     )
     await db.flush()
 

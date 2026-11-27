@@ -4,11 +4,12 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 
-import { ActionConsentsDialog } from "@/components/triggers/action-consents-dialog";
+import { RoutineAccessDialog } from "@/components/triggers/routine-access-dialog";
 import { useMcpConnections } from "./use-mcp-connections";
 import { useOrgMcpConnections } from "./use-org-mcp-connections";
 import { useAuthStore } from "@/stores/auth-store";
 import { apiClient } from "@/lib/api-client";
+import { routineAccessFixture } from "@/test-utils/routine-access";
 import type { Trigger } from "@/types/triggers";
 
 vi.mock("@/lib/api-client", async () => {
@@ -64,7 +65,7 @@ function ReviewFlow({ scope }: { scope: "personal" | "organization" }) {
       {checked && <p>Connection checked</p>}
       <button onClick={() => setReviewing(true)}>Review again</button>
       {reviewing && (
-        <ActionConsentsDialog
+        <RoutineAccessDialog
           trigger={trigger}
           onClose={() => setReviewing(false)}
           onSaved={async () => {}}
@@ -73,6 +74,9 @@ function ReviewFlow({ scope }: { scope: "personal" | "organization" }) {
     </>
   );
 }
+
+const UNAVAILABLE =
+  "This routine needs sources that are unavailable: notion. Restore them before saving.";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -87,21 +91,14 @@ it.each([
 ] as const)("reopens the current review after a %s probe (healthy: %s)", async (scope, healthy) => {
   let repaired = false;
   vi.mocked(apiClient.get).mockImplementation(async (path) => {
-    if (path.endsWith("/sources"))
-      return {
+    if (path.endsWith("/access"))
+      return routineAccessFixture({
         current: false,
-        review_token: repaired ? "new-sources" : "old-sources",
-        version_id: "v1",
-        resources: [],
-        accounts: [],
+        review_reason: "setup",
+        review_token: repaired ? "new" : "old",
         unavailable_sources: repaired ? [] : ["notion"],
-      };
-    if (path.endsWith("/tools"))
-      return {
-        unavailable_settings: [],
-        items: [],
-        unavailable_sources: repaired ? [] : ["notion"],
-      };
+        required_unavailable_sources: repaired ? [] : ["notion"],
+      });
     if (path.endsWith("mcp-connections")) return { items: [], total: 0 };
     throw new Error(`Unexpected GET ${path}`);
   });
@@ -119,8 +116,8 @@ it.each([
       <ReviewFlow scope={scope} />
     </QueryClientProvider>,
   );
-  await screen.findByText("Reconnect or inspect these sources first: notion");
-  expect(screen.getByRole("button", { name: "Enable routine" })).toBeDisabled();
+  await screen.findByText(UNAVAILABLE);
+  expect(screen.getByRole("button", { name: "Save and enable" })).toBeDisabled();
   await userEvent.click(screen.getByRole("button", { name: "Finish later" }));
   await userEvent.click(screen.getByRole("button", { name: "Check connection" }));
   await screen.findByText("Connection checked");
@@ -128,21 +125,18 @@ it.each([
     scope === "personal" ? "/me/mcp-connections/c1/test" : "/mcp-connections/c1/test",
   );
   await userEvent.click(screen.getByRole("button", { name: "Review again" }));
-  await waitFor(() => {
+  await waitFor(() =>
     expect(
-      vi.mocked(apiClient.get).mock.calls.filter(([path]) => path.endsWith("/sources")),
-    ).toHaveLength(2);
-    expect(
-      vi.mocked(apiClient.get).mock.calls.filter(([path]) => path.endsWith("/tools")),
-    ).toHaveLength(2);
-  });
-  const enable = screen.getByRole("button", { name: "Enable routine" });
+      vi.mocked(apiClient.get).mock.calls.filter(([path]) => path.endsWith("/access")),
+    ).toHaveLength(2),
+  );
+  const enable = screen.getByRole("button", { name: "Save and enable" });
   if (healthy) {
     await waitFor(() => expect(enable).toBeEnabled());
-    expect(screen.queryByText("Reconnect or inspect these sources first: notion")).toBeNull();
+    expect(screen.queryByText(UNAVAILABLE)).toBeNull();
   } else {
     expect(enable).toBeDisabled();
-    expect(screen.getByText("Reconnect or inspect these sources first: notion")).toBeVisible();
+    expect(screen.getByText(UNAVAILABLE)).toBeVisible();
   }
   expect(apiClient.put).not.toHaveBeenCalled();
 });

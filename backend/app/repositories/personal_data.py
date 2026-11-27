@@ -1697,8 +1697,6 @@ async def routine_source_export_size(db: AsyncSession, user_id: UUID) -> int:
     size = await db.scalar(
         select(
             func.coalesce(func.sum(func.length(cast(AgentTrigger.approved_sources, Text))), 0)
-            + func.coalesce(func.sum(func.length(cast(AgentTrigger.action_consents, Text))), 0)
-            + func.coalesce(func.sum(func.length(cast(AgentTrigger.tool_settings, Text))), 0)
             + func.count(AgentTrigger.id) * 1024
         ).where(AgentTrigger.created_by_user_id == user_id)
     )
@@ -1710,7 +1708,7 @@ async def purge_routine_authority(db: AsyncSession, user_id: UUID) -> None:
     await db.execute(
         sql_update(AgentTrigger)
         .where(AgentTrigger.created_by_user_id == user_id)
-        .values(approved_sources=None, action_consents=[], tool_settings=[])
+        .values(approved_sources=None)
     )
     await db.execute(
         sql_update(AgentRun).where(AgentRun.user_id == user_id).values(routine_policy=None)

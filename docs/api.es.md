@@ -1,5 +1,5 @@
 ---
-source_sha: "ce4c6fc377c9"
+source_sha: "7a2eda9a464f"
 ---
 
 # La API HTTP { #the-http-api }
@@ -79,13 +79,15 @@ Aprobar rutinas y watches personales requiere el scope explícito `personal:cons
 **El trabajo que actúa como tú también lo configuras con una clave que emitiste
 tú.** Una clave que creaste, o el token de un cliente MCP que autorizaste, puede
 crear y cambiar tus propias [rutinas](triggers.md) que actúan como tú
-(`runs_as_creator`) y tus [watches](console.md), revisar las fuentes de una rutina
+(`runs_as_creator`) y tus [watches](console.md), revisar el acceso de una rutina
 y publicar un agente sin retirar el consentimiento de las rutinas que actúan como
-tú. La ejecución de esa rutina sigue sujeta a su política de fuentes elegida, sus permisos vigentes y su
+tú. La ejecución de esa rutina sigue sujeta a su revisión de acceso, sus permisos vigentes y su
 presupuesto. No puede hacerlo la credencial de ejecución de un agente fuera de tu
 chat privado, ni un administrador que te suplante.
 
-En rutinas, `source_mode=follow_agent` automatiza la configuración inicial dentro de la autoridad del creador; no autoriza ampliaciones posteriores de fuentes o comportamiento. El propietario puede consentir explícitamente la configuración actual mediante el endpoint de fuentes protegido por un token de revisión. Los metadatos separan `required_unavailable_sources` de las ausencias MCP opcionales de `unavailable_sources`. Una política antigua de seguimiento sin prueba de comportamiento requiere revisión; las políticas restringidas existentes conservan sus reglas.
+Crear una rutina revisa su acceso dentro de la autoridad del creador; no autoriza el crecimiento posterior de sus fuentes. `GET /agents/{agent_id}/triggers/{trigger_id}/access` devuelve la [revisión de acceso](governance.md#routine-access) de la rutina: sus fuentes, el ajuste de cada herramienta y un `review_token`. Un `PUT` a la misma ruta con ese token guarda una nueva, y se rechaza con 409 si las fuentes, las herramientas o la rutina cambiaron desde entonces.
+
+Una clave que emitiste con `personal:consent` puede fijar `ask`, `off` y `allow` en lecturas. `allow` en una herramienta que cambia algo, `delegates: allow` y `mode: trust_agent` exigen una sesión de consola, así que una rutina creada con una clave empieza con esas herramientas en preguntar. La revisión separa `required_unavailable_sources` de las ausencias MCP opcionales de `unavailable_sources`.
 
 Las conversaciones también son públicas: `GET /api/v1/conversations` lista los
 chats del emisor (`runs:view`), y `POST /api/v1/conversations` con `title` y

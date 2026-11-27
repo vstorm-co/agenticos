@@ -204,7 +204,7 @@ export { useReleaseUpdate } from "./use-release-update";
 
 export { useCurrentRelease } from "./use-current-release";
 
-export { useRoutineActions } from "./use-routine-actions";
+export { useRoutineAccess } from "./use-routine-access";
 
 export { useNotificationRoutes } from "./use-notification-routes";
 

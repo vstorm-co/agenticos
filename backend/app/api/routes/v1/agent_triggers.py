@@ -43,10 +43,8 @@ from app.schemas.portal import (
     PortalTargetList,
     PortalTargetRead,
 )
-from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
+from app.schemas.routine_access import RoutineAccessReview, RoutineAccessUpdate
 from app.schemas.routine_readiness import TriggerReadinessList, TriggerReadinessRequest
-from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
-from app.schemas.routine_tools import RoutineToolOptions, RoutineToolSettings
 from app.schemas.trigger_template import TriggerTemplateList, TriggerTemplateRead
 from app.services import trigger_templates
 
@@ -278,77 +276,43 @@ async def delete_trigger(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get(
-    "/{agent_id}/triggers/{trigger_id}/action-consents", response_model=RoutineActionOptions
-)
-async def routine_action_options(
+@router.get("/{agent_id}/triggers/{trigger_id}/access", response_model=RoutineAccessReview)
+async def routine_access(
     agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
 ) -> Any:
-    """Review the published routine's actions and version-bound standing consent."""
-    return await service.action_options(ctx, agent_id, trigger_id)
+    """The routine's access review: the sources it may reach and a setting for each tool.
 
-
-@router.put(
-    "/{agent_id}/triggers/{trigger_id}/action-consents", response_model=RoutineActionOptions
-)
-async def replace_routine_action_consents(
-    agent_id: UUID, trigger_id: UUID, data: RoutineActions, ctx: Auth, service: AgentTriggerSvc
-) -> Any:
-    """Replace the owner's explicit action exceptions, or revoke them with an empty list.
-
-    Console session only: an API key or an agent cannot grant standing consent.
-    Agent- and connection-required approvals remain required.
+    Lists every tool the routine's agent version gives it, reads included, with
+    the agent's own setting, the routine's reviewed setting and what the caller
+    may choose. Console session of the routine's creator only.
     """
-    return await service.set_action_consents(ctx, agent_id, trigger_id, data)
+    return await service.access(ctx, agent_id, trigger_id)
 
 
-@router.get("/{agent_id}/triggers/{trigger_id}/tools", response_model=RoutineToolOptions)
-async def routine_tool_options(
-    agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
-) -> Any:
-    """Every tool the routine's agent version gives it, with the agent's and the routine's setting.
-
-    The agent decides which tools run freely and which ask first; the routine's
-    owner can only narrow that, per tool, to `ask` or `off`.
-    """
-    return await service.tool_options(ctx, agent_id, trigger_id)
-
-
-@router.put("/{agent_id}/triggers/{trigger_id}/tools", response_model=RoutineToolOptions)
-async def replace_routine_tool_settings(
+@router.put("/{agent_id}/triggers/{trigger_id}/access", response_model=RoutineAccessReview)
+async def replace_routine_access(
     agent_id: UUID,
     trigger_id: UUID,
-    data: RoutineToolSettings,
+    data: RoutineAccessUpdate,
     ctx: Auth,
     service: AgentTriggerSvc,
 ) -> Any:
-    """Replace the routine's tool narrowing; an empty list follows the agent.
+    """Save the routine's access review, replacing the previous one.
 
-    Console session of the routine's owner only. Saving moves the routine to the
-    agent's own approval settings and clears its standing action consent, which
-    a narrowing makes redundant.
+    Send the `review_token` from GET: a changed source, tool or routine is
+    refused with 409 rather than reviewed unseen. A tool left out asks.
+
+    - `allow` runs a tool without asking only where the agent lets it run freely;
+      on a tool that changes something it needs `approvals:decide` and the
+      organization's standing consent setting.
+    - `mode: trust_agent` follows the agent's future access without a new review.
+      It needs `approvals:decide`, the organization's `routines_may_trust_agent`
+      and a schedule routine; the creator's personal accounts are still reviewed.
+
+    Console session of the routine's creator only. Saving does not enable a
+    paused routine.
     """
-    return await service.set_tool_settings(ctx, agent_id, trigger_id, data)
-
-
-@router.get("/{agent_id}/triggers/{trigger_id}/sources", response_model=RoutineSourceReview)
-async def routine_source_options(
-    agent_id: UUID, trigger_id: UUID, ctx: Auth, service: AgentTriggerSvc
-) -> Any:
-    """Review the exact published sources and physical accounts of a routine."""
-    return await service.source_options(ctx, agent_id, trigger_id)
-
-
-@router.put("/{agent_id}/triggers/{trigger_id}/sources", response_model=RoutineSourceReview)
-async def replace_routine_sources(
-    agent_id: UUID,
-    trigger_id: UUID,
-    data: RoutineSourceConsent,
-    ctx: Auth,
-    service: AgentTriggerSvc,
-) -> Any:
-    """Accept a freshly reviewed source ceiling. Only the console owner may consent."""
-    return await service.set_source_consents(ctx, agent_id, trigger_id, data)
+    return await service.set_access(ctx, agent_id, trigger_id, data)
 
 
 @router.get(

@@ -113,11 +113,11 @@ async def test_always_ask_floor_cannot_be_released_by_a_default_exemption_or_nev
     ("approval", "own", "expected"),
     [("writes", "default", True), ("all", "default", False), ("writes", "required", False)],
 )
-def test_routine_platform_consent_uses_the_same_default_write_policy(
+def test_a_routine_may_allow_a_platform_write_only_where_the_default_write_policy_lets_it_run(
     approval: McpApproval, own: ApprovalMode, expected: bool
 ) -> None:
     from app.agents.spec import AgentSpec, PlatformMcpServerRef
-    from app.services.routine_actions import platform_action_options
+    from app.services.routine_access import platform_tool_options
 
     spec = AgentSpec(
         name="Tasks",
@@ -131,9 +131,11 @@ def test_routine_platform_consent_uses_the_same_default_write_policy(
             )
         ],
     )
-    options = {tool.tool_id: tool for tool in platform_action_options(spec, as_creator=True)}
-    assert options["create_task"].waivable is expected
-    assert options["invite_member"].waivable is False
+    options = {tool.tool_id: tool for tool in platform_tool_options(spec, as_creator=True)}
+    assert options["create_task"].effect is True
+    assert (options["create_task"].agent == "free") is expected
+    assert options["invite_member"].agent == "ask"
+    assert platform_tool_options(spec, as_creator=False) == []
 
 
 def test_catalog_keeps_default_free_operations_marked_as_real_writes() -> None:

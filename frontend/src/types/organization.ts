@@ -134,6 +134,12 @@ export interface Organization {
    * take it is `approvals:decide`, which is a different question.
    */
   chat_may_waive_approvals: boolean;
+  /**
+   * Whether a routine's creator may let it trust its agent: follow the agent's
+   * future access without a new review. Who may then choose it is
+   * `approvals:decide`, and only for a schedule. Absent on older servers: off.
+   */
+  routines_may_trust_agent?: boolean;
   /** Absent on older servers: public viewers show the footer by default. */
   public_agenticos_attribution?: boolean;
   /** Whether a page's data may reach anonymous visitors of its public link or embeds. */

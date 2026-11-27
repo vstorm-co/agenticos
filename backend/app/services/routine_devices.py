@@ -16,7 +16,7 @@ from app.repositories import agent_trigger_repo, session_repo
 from app.repositories import routine_device_wait as device_wait_repo
 from app.schemas.local_target import LocalTarget, RoutineLocalScope
 from app.services import device_hub
-from app.services.routine_actions import activation_intent
+from app.services.routine_sources import activation_intent
 
 
 class RoutineDeviceOffline(device_hub.DeviceUnavailable):

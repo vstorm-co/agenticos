@@ -11,8 +11,8 @@ or on an incoming event — a GitHub issue, an inbound email (see
 [Concepts](concepts.md#trigger)).
 
 It uses the same spending ledger, approval queue and audit trail. The
-[unattended action policy](#routine-action-consent) tightens which calls need
-approval; routine tool settings retain or tighten the agent's rules.
+[routine access review](#routine-access) sets which calls need approval: a
+routine can make a tool ask or turn it off, never release an approval its agent requires.
 
 Unattended work also has defined outcomes for a **refusal**:
 
@@ -92,13 +92,13 @@ After migration `0270_mcp_authorization_generation.py`, review existing watches'
 
 Routine runs retain the MCP accounts and tool aliases admitted for that execution. Resuming a call reuses those aliases: renaming an account or choosing a different default does not redirect an existing approval. Delegates remain within the admitted accounts. Current account ownership, endpoint, authorization generation and tool allowlists are checked again before calls; new or changed accounts are filtered before credentials are resolved.
 
-A parked routine without this admission state cannot continue managed-account MCP calls. Start a new run after reviewing its access. Ordinary interactive agent defaults and explicit approval policies are unchanged; account-specific routine approval exceptions are still separate from this source check.
+A parked routine without this admission state cannot continue managed-account MCP calls. Start a new run after reviewing its access. Ordinary interactive agent defaults and explicit approval policies are unchanged; a routine's setting for each account's tools belongs to the same [access review](#routine-access).
 
-The built-in AgenticOS platform MCP server requires **Run as me**, including when a published delegate binds it. Without a person-backed identity, source review and routine creation refuse this configuration with an explicit explanation. Turn on Run as me or remove the platform binding from the agent and its delegates. The platform never borrows the creator’s identity automatically.
+The built-in AgenticOS platform MCP server requires **Run as me**, including when a published delegate binds it. Without a person-backed identity, the access review and routine creation refuse this configuration with an explicit explanation. Turn on Run as me or remove the platform binding from the agent and its delegates. The platform never borrows the creator’s identity automatically.
 
 Routine history also lists blocked or failed attempts that ended before an agent run existed. Each shows its time, stage and a repair direction. They incur no model charges and never contain prompts, provider errors or credentials. Records remain until their routine or organization is deleted. Notification delivery failure does not remove this history. The fire-trigger worker job records a separate blocked or failed outcome; completing the queue job does not imply an agent ran successfully.
 
-The routine list also says, before the next activation, whether it would run. Each routine asks the checks a fire makes, evaluated as its creator and without side effects: the creator's active membership and run grant on the agent, a runnable version, the source review, the end date, the monthly budget, a previous run parked on an approval or an answer, and the actions that lack standing consent.
+The routine list also says, before the next activation, whether it would run. Each routine asks the checks a fire makes, evaluated as its creator and without side effects: the creator's active membership and run grant on the agent, a runnable version, the access review, whether a routine that trusts its agent may still do so, the end date, the monthly budget, a previous run parked on an approval or an answer, and the tools the routine makes ask.
 
 A routine that would not start a run is outlined red; one with actions requiring approval if used is amber; a paused routine is greyed out and still says what resuming would meet. Each line names the reason, and its creator gets the control that fixes it. While a check is pending or unavailable, a neutral message says so instead of implying the routine is ready. A failed check offers Retry; Run now still performs its own admission checks.
 
@@ -771,40 +771,91 @@ next activation has budget again, or the responsibility is removed, its open
 budget cases resolve and pending sends are cancelled. Changing the configured
 limit allows a new breach notice; a muted case stays muted for that month.
 
-### Routine tools { #routine-action-consent }
+### Routine access { #routine-access }
 
-New routines run as their creator, with that person's current permissions. Creation defaults to eligible tools running automatically under the agent's approval rules (`action_mode=agent`), with runs collected in one shared, read-only chat. A separate editable chat per run remains available. Identity, conversation history and tool approval are independent settings.
+A routine has one **access review**: the sources it may reach, as a ceiling, and a
+setting for each of its agent's tools. Its creator opens it as **Routine access** from
+the shield on the routine's row, from a blocker or during setup. The **Tools** tab opens
+first. The **Sources** tab lists the reviewed sources by kind - capabilities, skills,
+knowledge bases, tables, accounts - and marks an unavailable source on its row with a
+link to fix it. One banner names the most important reason a review is needed, and a
+blocker opens the tab it concerns.
 
-**Routine tools** groups capabilities, AgenticOS tools and concrete MCP accounts, with search and these choices:
+Each tool is **Run freely**, **Ask first** or **Off**. Rows are grouped by capability,
+account and platform and labelled as a read or a change. **Set all** offers **As the
+agent**, **Ask for everything** and **Run freely where allowed**. For one call:
 
-| Setting | Effect in this routine |
-|---|---|
-| **Follow agent** | Keep the agent's approval rules. A tool requiring approval still requires it. |
-| **Ask every time** | Add approval before using this tool, including reads. This choice is offered when the agent does not already ask. |
-| **Off** | Prevent the routine from using this tool. It does not mean skipping approval. |
+1. **Off** hides the tool from the model and refuses the call if it is made anyway.
+2. An approval the agent, an MCP binding or the platform requires always asks. A lock
+   marks those tools: a routine never releases an approval its agent, a connection or
+   the platform requires, and **Run freely** is accepted only where the agent lets the
+   tool run without asking.
+3. **Ask first** parks the call for approval.
+4. **Run freely** on a read runs it. On a tool that changes something it runs without
+   asking, and the approval record names the creator as having consented
+   (`decided_via = "standing"`). This needs the creator to hold `approvals:decide` and
+   the organization's `chat_may_waive_approvals` when the call is made; if either is
+   missing, the call asks.
+5. A tool that changes something and has no setting, because it is new since the
+   review, asks.
 
-These settings only restrict the agent. Explicit agent or MCP requirements and mandatory platform or native approvals remain enforced. Delegated agents keep their own rules; a parent's settings do not authorize a delegate's actions. Provider-executed tools are excluded when the platform cannot enforce these restrictions. Code mode remains disabled for routine runs.
+**Delegate agents** is one more row, for the delegates as a whole: their tools that
+change something ask unless it is **Run freely**, which needs the same permission and
+organization setting. Delegates are not configured tool by tool. Writes to AgenticOS
+Virtual Tables run within their live table and operation grants; an explicit agent
+approval policy still applies to them. Code mode remains disabled for routine runs.
 
-The routine's creator can change these restrictions while signed in as themselves. An API key, another administrator, impersonation, an agent or a routine acting as its creator cannot make this review. Adding restrictions does not require `approvals:decide` or the organization's approval-waiver switch: it grants no new authority.
+An MCP tool's setting names the concrete connection and the server's own tool name, so
+allowing mail to be sent does not allow deletion, or writes on another account. Personal
+accounts are offered only when the routine acts as its creator. A platform tool is named
+by itself: the routine reaches the platform only as its creator. The tool list comes from
+each connection's recorded catalog; an account whose list is unknown is named, and needs
+a connection check before its tools can be shown.
 
-Saving replaces the routine's tool restrictions, with at most 1,000 entries. **Follow agent for all tools** clears these overrides, not the agent's rules. Restrictions on unavailable tools remain saved until explicitly removed. Reconnecting an MCP account does not silently remove restrictions on that connection's tools.
+Creating a routine reviews its access at once. The mode is `reviewed`; every tool the
+creator may let run freely is **Run freely** - every read, and every tool that changes
+something when the creator holds the permissions above in a console session - and
+everything else is **Ask first**, delegates included. `approvals:decide` belongs to
+Owner, Admin and Operator, so a Builder can create routines whose tools that change
+something ask, and so does a routine created through a key or by an agent. **Review
+access before enabling** saves the routine paused and opens the review instead. The
+routine form has no separate tool-approval setting.
 
-!!! warning "Saving an older routine removes its standing approvals"
-    The dialog warns before saving: the routine switches to the agent's approval rules and all previous standing action approvals are removed atomically. Stored legacy policies remain effective until this review is saved; selecting **Follow agent** does not preserve an old waiver.
+Only the routine's creator in person reads and saves its review: in a console session,
+or with a key they issued with the `personal:consent` scope. That is enough for **Ask
+first**, **Off** and **Run freely** on a read. **Run freely** on a tool that changes
+something, **Run freely** for delegates and **Trust the agent** also need a console
+session. An agent, an impersonated session and an administrator acting for another
+owner are refused.
 
-The **Reviewed sources** panel lists capabilities, skills, knowledge bases, tables and accounts by kind and name. Each kind is folded to a count; unavailable sources are identified. Tool restrictions do not bypass source review, current resource grants or the approved source and behavior ceiling.
+The save names the review the person saw: if the sources, the tools or the
+routine changed since, it is refused and the dialog loads the current review. A tool the
+save leaves out asks. A saved setting for a tool not offered at the time, such as one on
+an account whose list is unknown, is kept as it was. Saving does not enable a paused routine, and it is audited as
+`routine.access_reviewed` with the mode and the number of tools set to each choice.
 
-AgenticOS Virtual Tables writes still use live table and operation grants. A routine restriction may require an additional decision, while an explicit agent approval policy always applies.
+Each admitted run keeps the review it started under; a parked run cannot borrow a later
+review. Membership, permissions, organization policy and the review are checked again
+before each tool. Every call that runs freely on the creator's consent still writes an
+approved row with its arguments.
 
-**Legacy standing approvals.** Older stored routines and the compatibility API can contain `manual`, `per_tool` or unspecified action policies. These are distinct from the new restriction controls. Granting a legacy exception requires the creator, `approvals:decide` and `chat_may_waive_approvals`; explicit required approvals cannot be waived. Changing only title or cadence retains consent, while changing work or destination invalidates it.
+**Trust the agent** is in the dialog's danger zone. A trusting routine (`trust_agent`)
+uses the agent's current sources and tools without a new review; **Ask first** and
+**Off** still apply, and other tools follow the agent's own settings, delegates
+included. The routine row shows a **Trusts agent** badge. It is offered only for a
+schedule, not an event routine whose input comes from outside, to a creator holding
+`approvals:decide`, in an organization that has turned on **Routines may trust their
+agent** (`routines_may_trust_agent`). That switch sits beside the approval waiver under
+**Budget and approvals**, is off by default and is changed by someone holding
+`approvals:decide`, audited as `organization.routine_trust_changed`.
 
-A legacy exception binds the reviewed published version, routine configuration and stable action identity. An MCP exception also names the concrete account, endpoint hash and authorization generation. It never authorizes another action or account. Personal accounts are available only when acting as the creator; consent can be revoked even when the recorded tool inventory is unavailable.
-
-Each run retains its admitted consent IDs. Adding consent cannot release an already parked run; revoking and regranting creates a new identity. Current membership, permissions, organization policy and consent are checked at each tool. Each waived call has an approval audit row naming the consenting person and arguments. A parent's waiver is not lent to delegates.
-
-Legacy consent also binds revisions of skills, skill resources, context files and project instructions. Editing any invalidates it, even if old text is restored. Exceptions without this fingerprint remain valid only for agents without these mutable sources. Saving the new tool restrictions clears these legacy exceptions rather than renewing them.
-
-`0267_routine_action_consents.py` created no exceptions for existing routines. Its unattended approval gate requires upgrading API and workers together after draining old workers. Downgrade removes stored exceptions, but not approval audit rows or effects already performed.
+A trusting routine still reviews the creator's personal resources: their personal MCP
+accounts, terminal accounts and the platform server acting as them. A personal account
+or tool outside the ceiling is left out of the run until reviewed; a new terminal account
+or a newly added platform binding blocks the routine. When organization sources grow
+beyond the ceiling, the next run records `routine.access_expanded`, notifies the creator
+and moves the ceiling. If the permission, the organization setting or the schedule stops
+holding, the routine blocks (`trust_not_allowed`) until it is reviewed again.
 
 ### Resumed routine answers { #resumed-routine-answers }
 
@@ -2395,17 +2446,29 @@ The list shows when a routine was paused automatically and its failure count. He
 
 ## Reviewed routine sources { #routine-sources }
 
-New routines automatically admit the selected published agent's initial available configuration within the creator's current permissions. Safe source removals and changes limited to the root agent’s model or display metadata can follow without review. New sources, accounts or tools, changed instructions or variables, and changed capability, effective skill, context or delegated behavior require the owner's access review before another execution. Publishing a shared agent alone cannot expand a person's standing authority. Missing optional MCP accounts do not block unrelated work; required event inputs, identity, resource grants, budgets and mandatory approvals remain enforced.
+A routine's [access review](#routine-access) records the sources it may reach as a ceiling. In `reviewed` mode, the default, the routine is blocked with **Review access**, and no run starts, when:
 
-A capability switched off, and what only it reaches - skills while **Skills** is off, context files while **Context** is off, collections while **Knowledge** is off, delegates and remote agents while **Subagents** is off - are not sources: no run reaches them, so the review does not list them, one that is gone does not block the routine, and editing such a skill or context file needs no new consent. Switching the capability on is a new source and is reviewed.
+- a source goes beyond the ceiling: a new account, a new MCP tool, a new capability, a new or changed skill or context file, a new delegate or remote agent;
+- a capability or MCP server binding changes in anything but its approval settings: its configuration, its tool names or descriptions, the tools it allows;
+- the routine's scope (run-as, environment, version pin, event source, delivery) or its prompt changes;
+- an MCP account is reconnected as a different account;
+- a source the routine requires is unavailable: the event source, the platform server without **Run as me**, or a terminal credential.
+
+Removed sources, MCP tools, capabilities or bindings pass, and so does a change to the agent's instructions, model or other fields that reach nothing. The review refreshes within its ceiling. An MCP account reconnected as the same account passes too: the connection's account email must be known and unchanged, otherwise it counts as a different account. An optional source that is unavailable does not block the routine; the run goes without it. Publishing a shared agent alone cannot expand a person's standing authority. Required event inputs, identity, resource grants, budgets and mandatory approvals remain enforced.
+
+A change to a binding's approval settings passes too, stricter or looser: the approval gate enforces them on every call and a routine can never release one, so they grant nothing to review. A review saved before this rule blocks on such a change once, until it is saved again.
+
+A capability switched off, and what only it reaches - skills while **Skills** is off, context files while **Context** is off, collections while **Knowledge** is off, delegates and remote agents while **Subagents** is off - are not sources: no run reaches them, so the review does not list them, one that is gone does not block the routine, and editing such a skill or context file needs no new review. Switching the capability on is a new source and is reviewed.
 
 Changing a pinned delegate version requires review, including a model-only publication of that delegate.
 
-The owner may instead select `restricted`, which freezes the reviewed source configuration, exact MCP accounts, credential generations and known tool names. Its review includes pinned delegates, knowledge, skills, context, capabilities and remote A2A registrations. New sources or changed account authorization require another review. Existing policies without a mode remain restricted; upgrading does not silently broaden them.
+A routine that [trusts its agent](#routine-access) follows the agent's organization sources instead, reports their growth and still reviews the creator's personal accounts, terminal accounts and platform identity. The scope and prompt rules above apply to it too.
 
-Every admitted execution retains its own source and account snapshot. A parked run cannot borrow a later account, authorization or review. Source ownership, revocation and tool allowlists are checked again before calls. Missing optional tools are reported rather than treated as successful work. The owner can explicitly switch an existing routine's mode through its token-bound access settings.
+Every admitted execution retains its own source and account snapshot. A parked run cannot borrow a later account, authorization or review. Source ownership, revocation and tool allowlists are checked again before calls. Missing optional tools are reported rather than treated as successful work.
 
-Migration `0276_routine_sources.py` leaves existing routines without consent. Drain old workers, update API and workers together, then explicitly review legacy routines before running them. Only the console owner may replace a review; API keys, impersonation and unattended agents cannot do so.
+Migration `0375_routine_access_review.py` converts every existing routine in place, so none gains authority and none stops. A routine that ran its tools as the agent allows (**Run eligible tools automatically**, or no approval choice under **Follow agent**) keeps doing so, delegates included, without the permission check, until its creator next saves the review; then the rules above apply. Per-tool consents bound to the reviewed version become **Run freely**; **Ask before actions** keeps none. Parked runs are converted so they can resume.
+
+A converted review does not detect a prompt change until it is saved again. Downgrading restores the old columns: routines that ran as the agent allows return to that, and every other routine asks again before its tools that change something.
 
 Budgeted routine fires share a queue concurrency key, so simultaneous events cannot all admit a model call against the same completed-spend balance. Memory extraction likewise serializes per organization’s maintenance role. Each admitted job rechecks the current budget; a single admitted call can still finish across the ceiling.
 

@@ -2,7 +2,6 @@
 
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
 
 import pytest
 from pydantic_ai.tools import ToolDefinition
@@ -11,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.capabilities.skills._loader import SKILL_LOAD_KIND
 from app.agents.spec import AgentSpec, CapabilityBindingSpec
 from app.services.routine_authority import RoutineAuthority
+from tests.test_routine_action_policy import routine
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -27,14 +27,7 @@ pytestmark = [pytest.mark.anyio, pytest.mark.security]
 async def test_only_the_owned_loader_is_a_read(name, kind, enabled, required):
     from collections.abc import AsyncIterator
 
-    authority = RoutineAuthority(
-        routine_id=uuid4(),
-        organization_id=uuid4(),
-        user_id=uuid4(),
-        root_agent_id=uuid4(),
-        role="owner",
-        acts_as_creator=True,
-    )
+    authority, trigger = routine()
     db = AsyncMock(spec=AsyncSession)
 
     @asynccontextmanager
@@ -48,6 +41,10 @@ async def test_only_the_owned_loader_is_a_read(name, kind, enabled, required):
     with (
         patch("app.services.routine_authority.get_db_context", context),
         patch.object(RoutineAuthority, "check_in", AsyncMock()) as check,
+        patch(
+            "app.services.routine_authority.agent_trigger_repo.get",
+            AsyncMock(return_value=trigger),
+        ),
     ):
         result = await authority.action_policy(
             authority.root_agent_id, spec, ToolDefinition(name=name, tool_kind=kind)
@@ -68,14 +65,7 @@ async def test_a_real_native_skill_load_finishes_unattended_but_explicit_gating_
     from app.agents.deps import AgentDeps
     from tests.test_read_skill_loader import _read_then_finish, _skill
 
-    authority = RoutineAuthority(
-        routine_id=uuid4(),
-        organization_id=uuid4(),
-        user_id=uuid4(),
-        root_agent_id=uuid4(),
-        role="owner",
-        acts_as_creator=True,
-    )
+    authority, trigger = routine()
     spec = AgentSpec(name="Scheduled assistant", capabilities=[CapabilityBindingSpec(id="skills")])
     db = AsyncMock(spec=AsyncSession)
 
@@ -89,6 +79,10 @@ async def test_a_real_native_skill_load_finishes_unattended_but_explicit_gating_
     with (
         patch("app.services.routine_authority.get_db_context", context),
         patch.object(RoutineAuthority, "check_in", AsyncMock()),
+        patch(
+            "app.services.routine_authority.agent_trigger_repo.get",
+            AsyncMock(return_value=trigger),
+        ),
     ):
         plain = Agent(
             FunctionModel(_read_then_finish),

@@ -1,5 +1,5 @@
 ---
-source_sha: "79536bb10996"
+source_sha: "843d4fbc5f0b"
 ---
 
 # Seguridad { #security }
@@ -282,6 +282,37 @@ que lo que puede hacer está acotado por controles que la página no puede cambi
 - **La página se entera de poco.** El estado de un run, el texto de la respuesta, la respuesta
   estructurada sin referencias a archivos y la primera línea de un error, de 200 caracteres como
   máximo, solo para un run que esa página inició para esa persona.
+
+## Una rutina que actúa sin supervisión { #unattended-routines }
+
+Una rutina se ejecuta con la autoridad de su creador, pero su agent puede publicarlo
+otra persona. Si la rutina siguiera sin más al agent, quien puede publicarlo ampliaría
+lo que se ejecuta con las credenciales y los permisos del creador sin que este lo viera:
+un confused deputy (suplente confundido). La [revisión de acceso](governance.md#routine-access)
+lo acota:
+
+- **El crecimiento espera al creador.** Por defecto, una rutina se bloquea cuando su
+  agent gana una fuente, una cuenta, una herramienta MCP, una capability, un skill, un
+  archivo de contexto o un delegado, o cambia una vinculación, hasta que el creador la
+  revisa. Las eliminaciones y los cambios de instrucciones o de modelo pasan, porque no
+  alcanzan nada nuevo.
+- **Una rutina nunca libera una aprobación.** Puede hacer que una herramienta pregunte o
+  desactivarla. Solo deja ejecutar sin preguntar una herramienta que cambia algo con el
+  consentimiento de un creador que tiene `approvals:decide`, en una organización que
+  permite el consentimiento permanente, comprobado de nuevo en cada llamada y registrado
+  como una fila aprobada.
+- **Confiar en el agent es una excepción deliberada.** Un creador que de todos modos
+  podría aprobar las llamadas puede dejar que un horario siga a su agent, en una
+  organización que lo haya activado. Las rutinas de eventos no pueden: su entrada llega
+  de fuera, así que un remitente podría dirigir una rutina cuyas herramientas nadie
+  revisó. Las cuentas personales, las cuentas de terminal y la identidad de plataforma
+  del creador se siguen revisando, y el crecimiento de las fuentes de la organización se
+  audita y se comunica al creador.
+- **La persona, no su clave, amplía la autoridad.** Un agent o una sesión suplantada no
+  pueden guardar una revisión. Una clave que el creador emitió con `personal:consent`
+  puede hacer que las herramientas pregunten, desactivarlas o dejar que las lecturas se
+  ejecuten; dejar que los cambios se ejecuten libremente o confiar en el agent exige la
+  sesión de consola del creador.
 
 ## Matriz de controles { #controls-matrix }
 

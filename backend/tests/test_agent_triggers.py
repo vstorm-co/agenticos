@@ -123,10 +123,21 @@ def _service(agent: MagicMock | None = None) -> AgentTriggerService:
     )
     service._polled_source_current = AsyncMock(return_value=True)
     service.sources = MagicMock()
-    service.sources.initial = AsyncMock(return_value=_source_policy())
-    service.sources.current = AsyncMock(return_value=(_source_policy(), False))
+    from app.services.routine_sources import Admission
+
+    service.sources.current = AsyncMock(return_value=Admission(_source_policy()))
     service.sources.require_current = AsyncMock(return_value=_source_policy())
     return service
+
+
+@pytest.fixture(autouse=True)
+def access_initial(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    """A new routine's access review, as `RoutineAccessService.initial` would capture it."""
+    from app.services import agent_trigger
+
+    initial = AsyncMock(return_value=_source_policy())
+    monkeypatch.setattr(agent_trigger.RoutineAccessService, "initial", initial)
+    return initial
 
 
 def _source_policy():
@@ -5460,13 +5471,15 @@ async def test_invalid_or_null_routine_result_policy_is_refused(mode):
 
 
 @pytest.mark.parametrize("reason", ["sources", "platform_identity"])
-async def test_unavailable_sources_save_a_paused_routine_without_losing_its_schedule(reason):
+async def test_unavailable_sources_save_a_paused_routine_without_losing_its_schedule(
+    reason, access_initial
+):
     from app.services.routine_sources import PlatformRoutineIdentityRequired, RoutineSourcesRequired
 
     agent = _agent()
     service = _service(agent)
     refusal = RoutineSourcesRequired if reason == "sources" else PlatformRoutineIdentityRequired
-    service.sources.initial.side_effect = refusal(details={"unavailable_sources": ["notion"]})
+    access_initial.side_effect = refusal(details={"unavailable_sources": ["notion"]})
     trigger = _trigger(agent_id=agent.id)
     service._run_log = AsyncMock()
     with (
@@ -5479,7 +5492,6 @@ async def test_unavailable_sources_save_a_paused_routine_without_losing_its_sche
     assert result is trigger and trigger.is_active is False
     assert trigger.approved_sources == {
         "pending_review": True,
-        "mode": "follow_agent",
         "unavailable_sources": ["notion"],
         "reason": refusal.code,
     }
@@ -5600,11 +5612,23 @@ async def test_explicit_setup_review_stays_pending_even_when_initial_sources_are
             _ctx(), agent.id, _interval().model_copy(update={"review_before_activation": True})
         )
     assert created.is_active is False
-    assert created.approved_sources == {
-        "pending_review": True,
-        "mode": "follow_agent",
-        "unavailable_sources": [],
-    }
+    assert created.approved_sources == {"pending_review": True, "unavailable_sources": []}
+
+
+async def test_a_new_routine_stores_the_review_captured_as_it_is_created(access_initial):
+    agent = _agent()
+    service = _service(agent)
+    trigger = _trigger(agent_id=agent.id)
+    service._run_log = AsyncMock()
+    with (
+        patch(
+            "app.services.agent_trigger.agent_trigger_repo.create", AsyncMock(return_value=trigger)
+        ),
+        patch("app.services.agent_trigger.record_audit", AsyncMock()),
+    ):
+        created = await service.create(_ctx(), agent.id, _interval())
+    assert created.approved_sources == access_initial.return_value.model_dump(mode="json")
+    assert access_initial.await_args.args == (_ctx(), trigger)
 
 
 class TestReusableSourceRoutine:
@@ -5862,7 +5886,7 @@ async def test_routine_source_edit_retires_consent_only_when_the_source_changes(
     assert trigger.approved_sources == (
         prior_review
         if same_source or pending
-        else {"pending_review": True, "mode": "restricted", "unavailable_sources": []}
+        else {"pending_review": True, "unavailable_sources": []}
     )
 
 
@@ -5933,20 +5957,19 @@ def test_source_edits_end_another_members_creator_consent():
 
 
 @pytest.mark.security
-def test_source_edits_change_the_action_consent_fingerprint():
-    from app.services.routine_actions import action_intent
+def test_source_edits_change_the_reviewed_intent():
+    from app.services.routine_sources import routine_intent
 
     trigger = _event_trigger()
-    original = action_intent(trigger)
+    original = routine_intent(trigger)
     trigger.source_id = uuid.uuid4()
-    assert action_intent(trigger) != original
+    assert routine_intent(trigger) != original
 
 
 @pytest.mark.parametrize("failure", ["paused_source", "lost_source_access"])
 async def test_a_waited_source_refusal_settles_its_activation_before_model_execution(failure):
     from app.schemas.local_target import LocalTarget
-    from app.services.routine_actions import activation_intent
-    from app.services.routine_sources import RoutineSourcesRequired
+    from app.services.routine_sources import RoutineSourcesRequired, activation_intent
 
     source_id = uuid.uuid4()
     target = LocalTarget(
@@ -6208,11 +6231,14 @@ async def test_failed_fire_releases_its_lease_after_rollback_in_an_independent_t
 
 
 @pytest.mark.security
-def test_new_routines_default_to_the_creator_but_keep_per_tool_approval_independent():
-    data = _interval()
-    assert data.runs_as_creator is True
-    assert data.action_mode is None
-    assert data.model_copy(update={"action_mode": "per_tool"}).runs_as_creator is True
+def test_new_routines_default_to_the_creator_and_no_longer_take_an_approval_mode():
+    assert _interval().runs_as_creator is True
+    # Access is reviewed through `/access`; the routine itself carries no mode.
+    for removed in ("action_mode", "source_mode"):
+        assert removed not in TriggerCreate.model_fields
+        assert removed not in TriggerUpdate.model_fields
+    assert "action_mode" not in TriggerRead.model_fields
+    assert TriggerRead.model_fields["access_mode"].default is None
 
 
 async def test_lease_renewal_error_propagates_after_independent_cleanup(monkeypatch):
@@ -6247,26 +6273,6 @@ async def test_lease_renewal_error_propagates_after_independent_cleanup(monkeypa
     repo.clear_fire_marker.assert_awaited_once_with(
         cleanup, trigger_id=trigger.id, claimed_at=ticket
     )
-
-
-@pytest.mark.parametrize("caller", ["other", "background", "impersonated"])
-async def test_only_owner_in_person_may_change_the_routine_action_mode(caller):
-    trigger = _trigger(action_mode="per_tool")
-    service = _service()
-    service._owned = AsyncMock(return_value=trigger)
-    ctx = _ctx()
-    if caller == "other":
-        ctx = replace(ctx, user_id=uuid.uuid4())
-    if caller == "background":
-        ctx = replace(ctx, routine_id=uuid.uuid4())
-    with (
-        patch(
-            "app.services.agent_trigger.current_impersonator",
-            return_value=uuid.uuid4() if caller == "impersonated" else None,
-        ),
-        pytest.raises(AuthorizationError, match=r"creator.*approval policy"),
-    ):
-        await service.update(ctx, trigger.agent_id, trigger.id, TriggerUpdate(action_mode="agent"))
 
 
 async def test_delivery_does_not_apply_a_result_mode_changed_after_admission():

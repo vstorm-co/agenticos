@@ -120,15 +120,15 @@ async def _world(db: AsyncSession) -> World:
         "agent",
     ],
 )
-@pytest.mark.parametrize("mode", ["follow_agent", "restricted"])
+@pytest.mark.parametrize("mode", ["behavior", "legacy"])
 async def test_current_authority_can_revoke_a_previously_admitted_tool(
     db: AsyncSession,
     change: str,
     mode: str,
 ) -> None:
     world = await _world(db)
-    if mode == "follow_agent":
-        from app.services.routine_sources import RoutineSourceService
+    if mode == "behavior":
+        from app.services.routine_access import RoutineAccessService
 
         version = AgentVersion(
             id=world.trigger.approved_sources["version_id"],
@@ -141,9 +141,7 @@ async def test_current_authority_can_revoke_a_previously_admitted_tool(
         await db.flush()
         world.agent.current_version_id = version.id
         world.agent.status = "published"
-        policy = await RoutineSourceService(db).initial(
-            world.ctx, world.trigger, mode="follow_agent"
-        )
+        policy = await RoutineAccessService(db).initial(world.ctx, world.trigger)
         world.trigger.approved_sources = policy.model_dump(mode="json")
         world.ctx = replace(world.ctx, routine_source_policy_id=policy.id)
     await db.flush()
@@ -297,7 +295,7 @@ async def test_a_nonpersonal_schedule_resumes_without_borrowing_creator_authorit
         await RoutineAuthority.capture(db, approver, agent_id=world.agent.id, run=run)
 
 
-@pytest.mark.parametrize("field", ["acts_as_creator", "action_mode"])
+@pytest.mark.parametrize("field", ["acts_as_creator", "chat_mode"])
 async def test_an_invalid_recorded_routine_authority_is_refused(
     db: AsyncSession, field: str
 ) -> None:
@@ -660,7 +658,6 @@ async def test_leaving_and_rejoining_cannot_restore_routine_waivers(db: AsyncSes
     from app.services.member import end_membership
 
     world = await _world(db)
-    world.trigger.action_consents = [{"tool_name": "send_mail"}]
     world.trigger.approved_sources = {"old_membership": True}
     world.trigger.is_active = True
     await db.flush()
@@ -673,7 +670,6 @@ async def test_leaving_and_rejoining_cannot_restore_routine_waivers(db: AsyncSes
     await db.flush()
     await db.refresh(world.trigger)
     assert not world.trigger.is_active
-    assert world.trigger.action_consents == []
     assert world.trigger.approved_sources is None
 
 
@@ -685,7 +681,7 @@ async def test_leaving_and_rejoining_cannot_restore_routine_waivers(db: AsyncSes
         "local_type",
         "local_length",
         "local_chars",
-        "consents",
+        "tool_settings",
         "watch_sources",
     ],
 )
@@ -713,8 +709,11 @@ async def test_resumed_routine_refuses_corrupt_or_removed_original_authority(
         policy["local_target_hash"] = "a"
     elif change == "local_chars":
         policy["local_target_hash"] = "z" * 64
-    elif change == "consents":
-        policy["action_consents"] = [{"invalid": True}]
+    elif change == "tool_settings":
+        policy["approved_sources"] = {
+            **world.trigger.approved_sources,
+            "tools": [{"capability_id": "sandbox", "tool_id": "execute", "setting": "maybe"}],
+        }
     elif change == "watch_sources":
         from app.db.models.watch import Watch
 
@@ -782,3 +781,39 @@ async def test_current_trigger_snapshot_rejects_stale_review_or_corrupt_local_ta
     await db.flush()
     with pytest.raises(AuthorizationError):
         await authority._trigger_in(db)
+
+
+async def test_a_resumed_run_meets_the_accounts_its_snapshot_recorded(db: AsyncSession) -> None:
+    """A parked run resumes against its own recorded account identities; an
+    unreadable record refuses rather than falling back to the current review."""
+    world = await _world(db)
+
+    async def resume(**policy: object) -> RoutineAuthority | None:
+        run = await agent_run_repo.create_run(
+            db,
+            organization_id=world.organization.id,
+            agent_id=world.agent.id,
+            agent_version_id=None,
+            user_id=world.user.id,
+            conversation_id=None,
+            surface="schedule",
+            model_label=None,
+            started_at=datetime.now(UTC),
+            trigger_id=world.trigger.id,
+            routine_policy={"approved_sources": world.trigger.approved_sources, **policy},
+        )
+        approver = replace(world.ctx, user_id=world.owner.id, role="owner", routine_id=None)
+        return await RoutineAuthority.capture(db, approver, agent_id=world.agent.id, run=run)
+
+    recorded = {
+        str(uuid4()): {
+            "endpoint_hash": "a" * 64,
+            "authorization_generation": str(uuid4()),
+            "tool_prefix": "work",
+        }
+    }
+    authority = await resume(mcp_sources=recorded)
+    assert authority is not None and authority.mcp_sources is not None
+    assert {str(key) for key in authority.mcp_sources} == set(recorded)
+    with pytest.raises(AuthorizationError):
+        await resume(mcp_sources={"not-a-uuid": {}})

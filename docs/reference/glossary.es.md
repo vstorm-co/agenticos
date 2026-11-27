@@ -1,5 +1,5 @@
 ---
-source_sha: "75480de53aad"
+source_sha: "a45a8fd04d44"
 ---
 
 # Glosario { #glossary }
@@ -69,6 +69,8 @@ tal como se ven en pantalla.
 | Group | Un departamento o equipo con el que se comparten agents, skills y conocimiento | `group` |
 | Lead | Un miembro del grupo que decide quién más está en él | `is_lead` |
 | Approval | Una llamada a herramienta que espera a que una persona la permita | `approval` |
+| Routine access | Lo que una rutina puede alcanzar y, por herramienta, Run freely, Ask first u Off | `GET`/`PUT /agents/{id}/triggers/{trigger_id}/access` |
+| Trust the agent | Un horario que sigue las fuentes de su agent sin una nueva revisión | `mode: trust_agent`, `routines_may_trust_agent` |
 | Budget | Un límite de gasto que detiene los runs al alcanzarse | `budget` |
 | Guardrails | Comprobaciones que redactan o bloquean lo que pasa por un run | `guardrails` |
 | Vault | Donde se guardan claves y tokens, sellados y nunca más mostrados | `secret` |

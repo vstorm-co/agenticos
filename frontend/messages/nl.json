@@ -6074,8 +6074,8 @@
         "body": "Naast notities leggen agents feiten, voorkeuren en beslissingen vast, met waar elk vandaan kwam. Corrigeer er een in je eigen woorden, vanaf een datum, en de oude versie blijft in de geschiedenis; of haal ze uit gebruik."
       },
       "routine-access": {
-        "title": "Toegang van een routine bekijken",
-        "body": "Gebruik het schild bij je routine om de bronaccounts en resources ervan te bekijken, en kies dan apart eventuele vaste uitzonderingen voor acties."
+        "title": "Toegang van de routine",
+        "body": "Gebruik het schild bij je routine om te kiezen welke tools vrij draaien, eerst vragen of uit staan, en om de bronnen te bekijken die ze bereikt."
       },
       "project-tracking": {
         "title": "Houd je project op koers",
@@ -10086,7 +10086,13 @@
         }
       },
       "starterAgentMissing": "Deze rol doet nu niets: de AgenticOS-starteragent waaronder hij is vastgelegd, ontbreekt, is niet gepubliceerd of is hernoemd. Publiceer hem opnieuw onder de handle agenticos."
-    }
+    },
+    "routineTrust": "Routines mogen hun agent vertrouwen",
+    "routineTrustDescription": "Of een routine toekomstige tools en bronnen van haar agent mag gebruiken zonder dat haar maker ze opnieuw controleert.",
+    "routineTrustHint": "Als dit aan staat, kan iemand die over goedkeuringen mag beslissen een geplande routine haar agent laten volgen: organisatieaccounts, tools en bronnen die de agent later krijgt, worden zonder nieuwe controle gebruikt. Persoonlijke accounts moeten nog steeds gecontroleerd worden, en de maker krijgt een melding als de toegang groeit. Standaard uit.",
+    "routineTrustAllowed": "Routines mogen hun agent nu vertrouwen",
+    "routineTrustForbidden": "Routines mogen hun agent niet meer vertrouwen",
+    "routineTrustFailed": "Kon niet wijzigen of routines hun agent mogen vertrouwen"
   },
   "theme": {
     "darkMode": "Donkere modus",
@@ -10347,8 +10353,6 @@
     "lookPosition": "Look {current} van {total}"
   },
   "triggers": {
-    "setupReviewTitle": "Toegang van de routine controleren",
-    "enableRoutine": "Routine inschakelen",
     "finishLater": "Later afronden",
     "stopWaitingRun": "Wachtende run stoppen",
     "deliveryUnavailable": "Laatste antwoord niet beschikbaar in de chat",
@@ -10653,57 +10657,11 @@
     "endsAtLabel": "Eindigt op (apparaattijd)",
     "endsAtHint": "Laat leeg om te draaien tot hij wordt gestopt. Deze tijd gebruikt {zone}, los van de tijdzone van de planning.",
     "endsAtInvalid": "Kies een geldige tijd in de toekomst, of maak het veld leeg om het einde te verwijderen.",
-    "actionConsents": {
-      "personalAccount": "{name} · je account",
-      "organizationAccount": "{name} · organisatieaccount",
-      "title": "Toestemming voor acties",
-      "description": "Acties van routines vragen standaard om goedkeuring. Sta alleen de vermelde acties toe om te draaien zonder te vragen. De toestemming geldt voor deze gepubliceerde versie en configuratie van de routine; goedkeuringen die de agent vereist, blijven gelden. Elke MCP-actie geldt alleen voor het genoemde account.",
-      "retry": "Opnieuw proberen",
-      "empty": "Deze versie heeft hier geen geschikte acties om toe te staan.",
-      "revokeAll": "Alles intrekken",
-      "save": "Toestemming opslaan",
-      "search": "Acties zoeken",
-      "selectGroup": "Geschikte acties in {name} kiezen",
-      "noMatches": "Geen acties gevonden.",
-      "changed": {
-        "version": "De gepubliceerde versie van de agent is veranderd. Bekijk de acties ervan opnieuw.",
-        "intent": "Het werk of de bestemming van de routine is veranderd. Bekijk de acties ervan opnieuw.",
-        "instructions": "De instructies van de skill, de context of het project zijn veranderd. Bekijk de acties ervan opnieuw.",
-        "actions": "Sommige eerder gekozen acties zijn niet beschikbaar, vereisen goedkeuring of hebben een andere accountautorisatie. Ze worden niet opnieuw gekozen."
-      },
-      "capabilitiesSection": "Capabilities",
-      "groupCount": "{selected} van {total}",
-      "useAgent": "De instellingen van de agent gebruiken",
-      "useAgentHint": "Kiest precies de acties die deze agent in een chat al zonder te vragen uitvoert, en vervangt de huidige selectie. Toestemming hier kan alleen beperken wat de instellingen van de agent toestaan, nooit verruimen: een actie waarvoor de agent vooraf vraagt, wordt niet aangeboden. Er wordt niets opgeslagen tot je Toestemming opslaan kiest.",
-      "allowHeading": "Deze acties laten draaien zonder om goedkeuring te vragen",
-      "alwaysAsks": "Vraagt altijd: vereist door de agent of het platform"
-    },
     "sourceConsents": {
-      "title": "Bronnen",
-      "description": "Kies of deze routine de agent volgt of een gecontroleerde momentopname houdt. Goedkeuringsregels worden apart ingesteld.",
-      "retry": "Opnieuw proberen",
-      "current": "De gecontroleerde bronnen zijn actueel.",
-      "changed": "De maker van de routine moet gewijzigde toegang of gedrag bekijken vóór de volgende run.",
-      "unavailable": "Koppel deze bronnen eerst opnieuw of bekijk ze: {names}",
-      "accept": "Deze bronnen goedkeuren",
-      "inspectAgent": "De koppelingen van de agent bekijken",
-      "kind": "{kind, select, capability {Capabilities} skill {Skills} context {Contextbestanden} knowledge {Kennisbanken} table {Tabellen} delegate {Gedelegeerde agents} remote_agent {Externe agents} platform {Platform} mcp_account {MCP-accounts} chat_connection {Chatkoppelingen} phone {Telefoon} terminal_account {Terminalaccounts} terminal_credential {Inloggegevens voor de terminal} event_source {Gebeurtenisbron} other {Overig}}",
-      "kindCount": "{name} ({count})",
-      "unnamed": "Niet meer beschikbaar",
-      "modeLabel": "Toegangsmodus",
-      "followAgent": "De agent volgen",
-      "restricted": "Gecontroleerde momentopname",
-      "followHint": "Begint met de huidige toegang en het huidige gedrag van de gepubliceerde agent. Latere uitbreidingen van de toegang of gedragswijzigingen moeten door de maker van de routine worden bekeken. Rechten van de agent, verplichte goedkeuringen en lokale toekenningen blijven gelden.",
-      "restrictedHint": "Behoud deze gecontroleerde set bronnen. Wijzigingen aan de bronnen van de agent vereisen een nieuwe controle.",
-      "followCurrent": "Deze routine volgt de agent binnen diens goedgekeurde toegang en gedrag.",
-      "selectionPending": "Sla op om deze toegangsmodus toe te passen.",
-      "followUnavailable": "Niet-beschikbare bronnen: {names}. De agent volgen koppelt ze niet opnieuw en omzeilt geen vereiste rechten.",
-      "saveMode": "Toegangsmodus opslaan",
       "reviewBeforeActivation": "Toegang bekijken vóór het inschakelen",
-      "reviewBeforeActivationHint": "Optioneel: gepauzeerd opslaan, een momentopname van de bronnen van de agent bekijken, en dan de routine inschakelen.",
+      "reviewBeforeActivationHint": "Optioneel: gepauzeerd opslaan, kiezen wat de routine mag doen en bereiken, en haar dan inschakelen.",
       "runsAsYou": "Draait namens jou. Je rechten en verplichte goedkeuringen blijven gelden.",
-      "agentIdentity": "Gebruikt de eigen toegang van de agent. Toegang tot persoonlijke accounts staat uit.",
-      "requiredUnavailable": "Vereiste bronnen niet beschikbaar: {names}. Herstel de toegang voordat je deze routine opslaat of inschakelt."
+      "agentIdentity": "Gebruikt de eigen toegang van de agent. Toegang tot persoonlijke accounts staat uit."
     },
     "advancedOptions": "Geavanceerde opties",
     "advancedOptionsHint": "Standaard: huidige gepubliceerde versie, standaardbescherming tegen fouten en je meldingsvoorkeuren.",
@@ -10726,14 +10684,6 @@
       "mention": "De opmerking bevatte niet de vereiste vermelding.",
       "conclusion": "De uitkomst van de workflow kwam niet overeen.",
       "not_branch": "De push verwijderde een branch of was geen branch-push."
-    },
-    "approvalMode": {
-      "label": "Goedkeuringen voor tools",
-      "hint": "Rapporteren in de Inbox is inbegrepen. Verplichte goedkeuringen van agent en platform gelden altijd.",
-      "automatic": "Geschikte tools automatisch uitvoeren",
-      "manual": "Vragen vóór acties",
-      "custom": "Rechten per tool kiezen",
-      "existing": "Huidige rechten behouden"
     },
     "chatModeLabel": "Gesprekken",
     "chatMode": {
@@ -10762,32 +10712,72 @@
       "awaiting_approval": "{held, select, yes {Een vorige run wacht op goedkeuring. Er start geen nieuwe run totdat daarover is beslist.} other {Een vorige run wacht op goedkeuring.}}",
       "awaiting_answer": "{held, select, yes {Een vorige run wacht op een antwoord. Er start geen nieuwe run totdat dat antwoord er is.} other {Een vorige run wacht op een antwoord.}}",
       "budget_exhausted": "Het budget voor deze maand is opgebruikt. De routine wordt weer uitgevoerd vanaf de eerste dag van de maand.",
-      "actions_need_approval": "{count, plural, =1 {1 actie heeft geen doorlopende toestemming en vraagt bij gebruik om goedkeuring.} other {# acties hebben geen doorlopende toestemming en vragen bij gebruik om goedkeuring.}}",
+      "actions_need_approval": "{count, plural, =1 {1 tool vraagt eerst, dus een run die hem gebruikt wacht op goedkeuring.} other {# tools vragen eerst, dus een run die ze gebruikt wacht op goedkeuring.}}",
       "readiness_checking": "Controleren of deze routine kan worden uitgevoerd…",
-      "readiness_unavailable": "Er kon niet worden gecontroleerd of deze routine kan worden uitgevoerd. Nu uitvoeren controleert de rechten nog steeds."
+      "readiness_unavailable": "Er kon niet worden gecontroleerd of deze routine kan worden uitgevoerd. Nu uitvoeren controleert de rechten nog steeds.",
+      "trust_not_allowed": "Ze vertrouwt haar agent, wat haar maker of de organisatie niet meer toestaat. Controleer haar toegang opnieuw."
     },
     "deliveryPending": "Laatste antwoord wordt naar de chat verstuurd",
-    "toolSettings": {
-      "title": "Routinetools",
-      "description": "Tools volgen standaard de agent. Laat voor deze routine toestemming vragen of schakel een tool uit. Verplichte goedkeuringen blijven gelden; gedelegeerde agents houden hun eigen instellingen.",
-      "legacyMode": "Opslaan past de goedkeuringsregels van de agent toe en verwijdert de eerdere doorlopende toestemmingen van deze routine.",
-      "agentAsks": "Agent vereist goedkeuring",
-      "agentFree": "Agent staat automatisch gebruik toe",
-      "follow": "Agent volgen",
-      "ask": "Elke keer vragen",
+    "createdDescriptionShared": "Deze routine gebruikt de bestaande URL en inloggegevens van de gebeurtenisbron. Je hoeft bij de provider geen extra webhook te registreren.",
+    "access": {
+      "label": "Toegang van de routine",
+      "title": "{named, select, yes {Toegang van de routine: {name}} other {Toegang van de routine}}",
+      "description": "Kies wat deze routine mag doen zonder het jou te vragen, en bekijk waar ze bij kan.",
+      "retry": "Opnieuw proberen",
+      "stale": "De routine, de bronnen van haar agent of haar tools zijn gewijzigd terwijl je aan het controleren was. Bekijk de huidige stand en sla opnieuw op.",
+      "tabTools": "Tools",
+      "tabSources": "Bronnen",
+      "banner": {
+        "setup": "Deze routine is nog niet gecontroleerd. Kies wat ze mag doen en sla op om haar in te schakelen.",
+        "sources": "De tools of bronnen van de agent zijn sinds de laatste controle gewijzigd. Bekijk ze en sla op voordat de routine weer draait.",
+        "routine_changed": "De routine is sinds de laatste controle gewijzigd, bijvoorbeeld haar prompt, namens wie ze draait of waar ze levert. Bekijk haar toegang en sla op voordat ze weer draait.",
+        "platform_identity": "De MCP-server van het platform vereist dat deze routine namens haar maker handelt. Zet in de instellingen van de routine uitvoeren namens jou aan.",
+        "unavailable": "Sommige bronnen van deze routine zijn niet beschikbaar: {names}. Controleer de koppelingen van de agent en sla de controle daarna opnieuw op.",
+        "requiredUnavailable": "Deze routine heeft bronnen nodig die niet beschikbaar zijn: {names}. Herstel ze voordat je opslaat.",
+        "trustNotAllowed": "{reason, select, permission {Je mag niet meer over goedkeuringen beslissen, dus deze routine kan haar agent niet meer vertrouwen.} organization {Je organisatie staat niet meer toe dat routines hun agent vertrouwen.} event {Een routine die door een gebeurtenis start, kan haar agent niet vertrouwen.} other {Alleen jij, aangemeld in de console, kunt deze routine haar agent laten vertrouwen.}} Sla haar controle op om haar weer te laten draaien.",
+        "allowBlocked": "{reason, select, permission {Je mag niet over goedkeuringen beslissen, dus tools die iets wijzigen vragen eerst.} organization {Je organisatie heeft vaste toestemming uitgeschakeld, dus tools die iets wijzigen vragen eerst.} other {Alleen jij, aangemeld in de console, kunt tools laten draaien zonder te vragen.}}"
+      },
+      "openApprovalSettings": "Goedkeuringsinstellingen openen",
+      "inspectAgent": "De koppelingen van de agent bekijken",
+      "search": "Tools zoeken",
+      "setAllCurrent": "Alles instellen: {choice, select, agent {Zoals de agent} ask {Overal om vragen} allow {Vrij uitvoeren waar toegestaan} other {Aangepast}}",
+      "setAllAgent": "Zoals de agent",
+      "setAllAsk": "Overal om vragen",
+      "setAllAllow": "Vrij uitvoeren waar toegestaan",
+      "unlisted": "Controleer deze koppelingen om hun tools te tonen: {names}.",
+      "noTools": "Deze agentversie geeft de routine geen tools.",
+      "noMatches": "Geen tools komen overeen met je zoekopdracht.",
+      "capabilities": "Capabilities",
+      "personalAccount": "{name} · je account",
+      "organizationAccount": "{name} · organisatieaccount",
+      "allow": "Vrij uitvoeren",
+      "ask": "Eerst vragen",
       "off": "Uit",
-      "search": "Zoek een tool",
-      "reset": "Agent voor alle tools volgen",
-      "empty": "Deze routine heeft geen configureerbare tools.",
-      "noMatches": "Geen tools gevonden voor deze zoekopdracht.",
-      "personalAccount": "Persoonlijk account · {name}",
-      "organizationAccount": "Organisatieaccount · {name}",
-      "unavailable": "Controleer deze verbindingen om hun tools te zien: {names}.",
-      "unavailableSettings": "Beperkingen voor niet-beschikbare tools",
-      "unavailableSettingsBody": "Deze opgeslagen beperkingen blijven behouden, ook als een tool momenteel niet beschikbaar is. Verwijder een beperking expliciet om deze op te heffen.",
-      "removeRestriction": "Beperking voor {name} verwijderen"
-    },
-    "createdDescriptionShared": "Deze routine gebruikt de bestaande URL en inloggegevens van de gebeurtenisbron. Je hoeft bij de provider geen extra webhook te registreren."
+      "reads": "Leest",
+      "changes": "Wijzigt",
+      "new": "Nieuw",
+      "locked": "Vraagt altijd (de agent vereist het)",
+      "allowRefused": "{reason, select, permission {Vereist toestemming om over goedkeuringen te beslissen.} organization {Je organisatie heeft vaste toestemming uitgeschakeld.} other {Alleen jij, aangemeld in de console, kunt tools laten draaien zonder te vragen.}}",
+      "delegates": "Gedelegeerde agents",
+      "delegatesHint": "Tools die iets wijzigen in de agents waaraan deze agent werk delegeert.",
+      "noSources": "Deze routine gebruikt geen bronnen.",
+      "kindCount": "{name} ({count})",
+      "unavailableMark": "Niet beschikbaar",
+      "requiredMark": "Niet beschikbaar, vereist",
+      "dangerZone": "Gevarenzone",
+      "trust": "De agent vertrouwen",
+      "trustWarning": "Toekomstige tools en bronnen van de agent, ook organisatieaccounts die anderen later koppelen, worden gebruikt zonder het jou te vragen. Je persoonlijke accounts moeten nog steeds gecontroleerd worden, en je krijgt een melding als de toegang groeit. Tools op Eerst vragen of Uit houden hun instelling.",
+      "trustRefused": "{reason, select, permission {Om dit aan te zetten heb je toestemming nodig om over goedkeuringen te beslissen.} organization {Je organisatie staat niet toe dat routines hun agent vertrouwen.} event {Een routine die door een gebeurtenis start, kan haar agent niet vertrouwen.} other {Alleen jij, aangemeld in de console, kunt dit aanzetten.}}",
+      "trustSetting": "Goedkeuringsinstellingen openen",
+      "trustConfirmTitle": "De agent vertrouwen?",
+      "trustConfirmDescription": "Deze routine gebruikt alles wat haar agent later krijgt zonder het jou te vragen, ook organisatieaccounts die anderen koppelen. Je persoonlijke accounts moeten nog steeds gecontroleerd worden, en je krijgt een melding als haar toegang groeit.",
+      "summary": "{allow} vrij, {ask} eerst vragen, {off} uit",
+      "save": "Wijzigingen opslaan",
+      "saveAndEnable": "Opslaan en inschakelen",
+      "trustsAgent": "Vertrouwt agent",
+      "kind": "{kind, select, capability {Capabilities} skill {Skills} context {Contextbestanden} knowledge {Kennisbanken} table {Tabellen} delegate {Gedelegeerde agents} remote_agent {Externe agents} platform {Platform} mcp_account {MCP-accounts} chat_connection {Chatkoppelingen} phone {Telefoon} terminal_account {Terminalaccounts} terminal_credential {Inloggegevens voor de terminal} event_source {Gebeurtenisbron} other {Overig}}",
+      "unnamed": "Niet meer beschikbaar"
+    }
   },
   "portals": {
     "backToServices": "Terug naar services",
@@ -11672,7 +11662,8 @@
         "securityEvent": "Er kwamen in één minuut meer beveiligingsgebeurtenissen binnen dan deze inbox afzonderlijk toont. Ze staan allemaal in het auditlog.",
         "configurationChanged": "De instellingen van de installatie zijn in één minuut vaker gewijzigd dan deze inbox afzonderlijk toont. Elke wijziging staat in het auditlog.",
         "backgroundTaskPaused": "Er zijn in één minuut meer soorten achtergrondtaken gepauzeerd dan deze inbox afzonderlijk toont. Ze staan allemaal op de pagina Achtergrondtaken."
-      }
+      },
+      "routineAccessExpanded": "{named, select, yes {{routine}} other {Je routine}} vertrouwt haar agent en bereikt nu ook: {sources}"
     },
     "needsAttention": "Vraagt aandacht"
   },
