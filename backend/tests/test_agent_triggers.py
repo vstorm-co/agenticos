@@ -35,6 +35,7 @@ from app.core.exceptions import (
 from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.schemas.agent_trigger import TriggerAttemptRead, TriggerCreate, TriggerRead, TriggerUpdate
+from app.schemas.routine_notifications import ROUTINE_RESULT_INSTRUCTIONS
 from app.services.agent_trigger import (
     AgentTriggerService,
     EventFireDecision,
@@ -6062,7 +6063,13 @@ class TestReusableSourceRoutine:
         assert use_source.await_args.args[1] == source_id
         message = runner.return_value.execute.await_args.args[2]
         assert message.startswith("Review {{issue.title}}\n\n")
-        assert message.endswith("<event_content>\nclipped context\n</event_content>")
+        assert "<event_content>\nclipped context\n</event_content>" in message
+        if result_mode == "inbox":
+            # The inbox result mode appends the publishing instructions after
+            # the fenced event context; the fence is inside, not at the end.
+            assert message.endswith(ROUTINE_RESULT_INSTRUCTIONS)
+        else:
+            assert message.endswith("<event_content>\nclipped context\n</event_content>")
         assert runner.return_value.execute.await_args.kwargs["public_origin"] is True
 
     @pytest.mark.security
