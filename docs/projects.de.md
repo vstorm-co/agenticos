@@ -2,7 +2,7 @@
 title: Projekte
 seo_title: Projekte - gemeinsame Dateien und Anweisungen
 description: Ein Projekt gibt laufender Arbeit einen Container mit Dateien und eine Reihe von Anweisungen, die jeder Chat darin teilt, egal welcher Agent antwortet.
-source_sha: "c596c00e8a9e"
+source_sha: "48e3c1ed260d"
 ---
 
 # Projekte { #projects }
@@ -213,6 +213,9 @@ zu gespeicherten Dateien gilt zusätzlich das Größenlimit der Plattform.
 **Dateien und Codeausführung im Projekt** erklärt Speicherung, gemeinsame Nutzung
 und Ausführung. Gespeicherte Dateien haben keine Shell; Kontext und Ausführung
 bleiben wie oben beschrieben getrennt.
+
+Beim Öffnen eines neuen beibehaltenen Projekt-Desktops startet eine neue GUI-Sitzung, damit ihre Programme den neuen Projektpfad verwenden. Speichern Sie Ihre Arbeit vor End: Erneutes Öffnen stellt die Fenster der beendeten Sitzung nicht wieder her. Workspace-Container und Projektdateien bleiben erhalten. Das Ausblenden der Ansicht oder erneutes Verbinden verändert die aktuelle GUI nicht.
+
 
 ## Dateien { #files }
 

@@ -201,6 +201,9 @@ stored files also has to fit the platform's stored-workspace size limit.
 execution environment beside the selector. Stored files have no shell; project
 context and execution remain separate as described above.
 
+Opening a fresh retained Project desktop starts a fresh GUI session so its launchers use the new Project path. Save your work before End: reopening does not restore the ended session's windows. The workspace container and Project files stay intact. Merely hiding the view or reconnecting keeps the current GUI unchanged.
+
+
 ## Files
 
 In chat **Files**, choose an origin when both project files and an independent agent

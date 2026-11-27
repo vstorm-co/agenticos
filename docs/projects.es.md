@@ -2,7 +2,7 @@
 title: Proyectos
 seo_title: Proyectos - archivos e instrucciones compartidos
 description: Un proyecto da al trabajo en curso un contenedor de archivos y unas instrucciones que comparte cada chat iniciado en él, responda el agent que responda.
-source_sha: "c596c00e8a9e"
+source_sha: "48e3c1ed260d"
 ---
 
 # Proyectos { #projects }
@@ -212,6 +212,9 @@ archivos almacenados también debe respetar el límite de tamaño de la platafor
 La explicación junto al selector describe almacenamiento, uso compartido y ejecución.
 Los archivos almacenados no tienen shell; contexto y ejecución siguen separados
 como se describe arriba.
+
+Al abrir un nuevo escritorio de proyecto conservado se inicia una nueva sesión gráfica para que sus programas utilicen la nueva ruta del proyecto. Guarda el trabajo antes de End: volver a abrir no restaura las ventanas de la sesión finalizada. El contenedor del espacio de trabajo y los archivos del proyecto permanecen intactos. Ocultar la vista o reconectarse mantiene la sesión gráfica actual.
+
 
 ## Archivos { #files }
 

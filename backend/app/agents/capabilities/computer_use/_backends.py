@@ -526,7 +526,7 @@ def open_local_desktop(workspace: Workspace) -> LocalComputer:
     return LocalComputer(backend.session_id)
 
 
-def _desktop_start(width: int, height: int) -> str:
+def _desktop_start(width: int, height: int, *, reset_session: bool = False) -> str:
     """The script that starts the sandbox's display and desktop, unless they already run.
 
     Run on every run's first use rather than once per sandbox: a sandbox that
@@ -541,7 +541,16 @@ def _desktop_start(width: int, height: int) -> str:
     when one crashes, so a session still running is left to do that.
     """
     display = f"xdpyinfo -display {DISPLAY} >/dev/null 2>&1"
-    return (
+    reset = (
+        "if pgrep -x xfce4-session >/dev/null; then\n"
+        "pkill -TERM -x xfce4-session || exit 1\n"
+        "for _ in $(seq 100); do pgrep -x xfce4-session >/dev/null || break; sleep 0.1; done\n"
+        "if pgrep -x xfce4-session >/dev/null; then exit 1; fi\n"
+        "fi\n"
+        if reset_session
+        else ""
+    )
+    return reset + (
         f"{display} && pgrep -x xfce4-session >/dev/null && exit 0\n"
         f"for tool in Xvfb xdpyinfo startxfce4 xdotool scrot; do command -v $tool >/dev/null || exit {NO_DESKTOP}; done\n"
         f"if ! {display}; then\n"
@@ -646,8 +655,14 @@ class SandboxComputer:
         )
 
 
-async def open_sandbox_desktop(workspace: Workspace, *, width: int, height: int) -> SandboxComputer:
+async def open_sandbox_desktop(
+    workspace: Workspace, *, width: int, height: int, reset_session: bool = False
+) -> SandboxComputer:
     """The desktop in the run's sandbox, started if it is not running.
+
+    A fresh owned Project admission resets only the GUI session while its caller
+    holds the physical driver lease. Otherwise launchers inherit the revoked
+    Project directory from the previous admission. Reattaching never resets it.
 
     Raises:
         ComputerError: The run has no sandbox that runs commands, its runtime has
@@ -660,7 +675,9 @@ async def open_sandbox_desktop(workspace: Workspace, *, width: int, height: int)
             "commands. Add the Sandbox capability on a sandbox connection."
         )
     try:
-        result = await workspace.run(_desktop_start(width, height), shell=True, timeout=90)  # noqa: S604
+        result = await workspace.run(  # noqa: S604 - static desktop lifecycle script
+            _desktop_start(width, height, reset_session=reset_session), shell=True, timeout=90
+        )
     except (WorkspaceError, OSError) as exc:
         logger.warning("sandbox desktop could not start: %s", type(exc).__name__)
         raise ComputerError("The sandbox could not be reached to start its desktop.") from exc

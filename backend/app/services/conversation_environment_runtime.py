@@ -377,7 +377,10 @@ async def _provision_desktop(
             )
             started = True
             await open_sandbox_desktop(
-                desktop_workspace, width=config.screen_width, height=config.screen_height
+                desktop_workspace,
+                width=config.screen_width,
+                height=config.screen_height,
+                reset_session=lease_id is not None,
             )
             ref = opened.workspace.ref
             if ref is None or (initial is not None and ref != initial):

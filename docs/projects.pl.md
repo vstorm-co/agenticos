@@ -2,7 +2,7 @@
 title: Projekty
 seo_title: Projekty - wspólne pliki i instrukcje czatów
 description: Projekt daje bieżącej pracy jeden kontener plików i jeden zestaw instrukcji, wspólne dla każdego czatu w nim, niezależnie od tego, który agent odpowiada.
-source_sha: "c596c00e8a9e"
+source_sha: "48e3c1ed260d"
 ---
 
 # Projekty { #projects }
@@ -203,6 +203,9 @@ do samych plików musi też zmieścić się w limicie dokumentu przechowywanego 
 Opis **Jak działają pliki i uruchamianie kodu w projekcie** objaśnia przechowywanie,
 współdzielenie i środowisko. Same pliki nie mają powłoki; kontekst i wykonanie są
 rozdzielone zgodnie z opisem wyżej.
+
+Otwarcie nowego zachowanego pulpitu projektu uruchamia nową sesję GUI, aby jej programy korzystały z nowej ścieżki projektu. Zapisz pracę przed End: ponowne otwarcie nie przywraca okien zakończonej sesji. Kontener obszaru roboczego i pliki projektu pozostają nienaruszone. Samo ukrycie widoku lub ponowne połączenie zachowuje bieżący pulpit.
+
 
 ## Pliki { #files }
 
