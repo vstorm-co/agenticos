@@ -1168,7 +1168,8 @@
     "observationSave": "Teilnahmeeinstellungen speichern",
     "connectionSettings": "Verbindungseinstellungen · {provider} · {endpoint}",
     "customEndpoint": "Eigener Endpunkt",
-    "noMatchingModels": "Keine passenden Modelle."
+    "noMatchingModels": "Keine passenden Modelle.",
+    "testedSpecUnread": "Die Version, die dieser Run getestet hat, konnte nicht gelesen werden. {reason}"
   },
   "auth": {
     "agreeToTerms": "Mit dem Anlegen eines Kontos stimmen Sie unseren <terms>AGB</terms> und der <privacy>Datenschutzerklärung</privacy> zu.",
@@ -4453,6 +4454,7 @@
       "outboxWaiting": "{count, plural, =1 {1 Nachricht wartet auf den Versand} other {# Nachrichten warten auf den Versand}}",
       "unreachable": "Der Server ist nicht erreichbar. Angezeigt wird die auf diesem Gerät um {time} gespeicherte Kopie."
     },
+    "staleRead": "Ein Teil dieser Seite wird nicht mehr aktualisiert und ist möglicherweise veraltet. {reason}",
     "install": {
       "offer": "Installieren Sie AgenticOS als App: eigenes Fenster, Benachrichtigungen und ein Symbol auf dem Startbildschirm.",
       "iosHint": "Um AgenticOS zu installieren, tippen Sie auf Teilen und dann auf Zum Home-Bildschirm.",
@@ -9823,7 +9825,8 @@
         "unscorable": "Nicht geprüft: nichts kann seine Fragen bewerten. Richte die Bewertung in ihrem Dataset ein.",
         "all_evidence": "Nicht geprüft: jede Frage stammt aus den Unterhaltungen, aus denen diese Änderung gelernt hat.",
         "cancelled": "Nicht geprüft: die Prüfung wurde vor dem Ende angehalten.",
-        "own_not_asked": "Nicht geprüft: seine eigenen Fragen wurden nicht gestellt, nachdem die des Skills ihn schlechter zeigten."
+        "own_not_asked": "Nicht geprüft: seine eigenen Fragen wurden nicht gestellt, nachdem die des Skills ihn schlechter zeigten.",
+        "too_few_questions": "Nicht geprüft: Er hat zu wenige Testfragen, um die Änderung zu bestätigen."
       },
       "verdict": {
         "passed": "Kein Agent wurde schlechter, mindestens einer besser.",
@@ -9850,6 +9853,7 @@
       "nobody": "Keiner dieser Agents lässt sich prüfen, die Prüfung würde also nichts messen. Füge Testfragen hinzu, damit sie es kann, oder mach ohne Prüfung weiter und bestätige, dass niemand geprüft wurde.",
       "startUnchecked": "Ohne Prüfung weiter",
       "noReaders": "Kein Agent liest diese Linie, also gibt es niemanden zu prüfen. Weitermachen übernimmt die Änderung sofort.",
+      "stoppedUpdating": "Diese Prüfung wird nicht mehr aktualisiert und ist möglicherweise veraltet. {reason}",
       "proposalGoneTitle": "Diese Aktualisierung wartet nicht mehr",
       "proposalGoneDescription": "Sie wurde in einer anderen Sitzung angewendet, verworfen oder ersetzt. Die Liste wurde aktualisiert.",
       "backToChanges": "Zurück zu Aktualisierungen"
@@ -15407,7 +15411,7 @@
       "criterionCoverage": "Gilt für {count} von {total} Fällen",
       "noteForTag": "für Fälle mit Tag {tag}",
       "noteAddedToTags": "Die Notiz ist jetzt ein Bewerterkriterium für Fälle mit den Tags {tags}.",
-      "maskedConversation": "Aus einer Unterhaltung, die Sie nicht öffnen können",
+      "maskedConversation": "Quelle nicht verfügbar oder Herkunft ungeprüft",
       "countsAsPassed": "Zählt als bestanden.",
       "countsAsFailed": "Zählt als fehlgeschlagen.",
       "reviewEffect": {
@@ -15475,7 +15479,7 @@
     "versionChange": "v{number} · {count, plural, =1 {1 Fall} other {# Fälle}} {change, select, add {hinzugefügt} edit {bearbeitet} remove {entfernt} import {importiert} generate {aus Entwürfen angenommen} other {geändert}}",
     "importFile": "CSV- oder JSONL-Datei zum Importieren wählen",
     "importTitle": "Fälle importieren",
-    "importBody": "Eine CSV- oder JSONL-Datei bis 10 MB, in UTF-8, mit einem Fall pro Zeile. Nur input ist Pflicht, und eine leere Zelle lässt ein Feld leer. Die Datei wird zur nächsten Version des Datasets; wird eine Zeile abgelehnt, wird nichts importiert.",
+    "importBody": "Eine CSV- oder JSONL-Datei bis {megabytes, number} MB, in UTF-8, mit einem Fall pro Zeile. Nur input ist Pflicht, und eine leere Zelle lässt ein Feld leer. Die Datei wird zur nächsten Version des Datasets; wird eine Zeile abgelehnt, wird nichts importiert.",
     "importColumn": {
       "input": "Die Nachricht, mit der der Agent getestet wird.",
       "history": "Die Turns davor, als JSON-Liste aus Rolle und Inhalt.",
@@ -15673,6 +15677,7 @@
     "editCase": "Bearbeiten",
     "evals": "Evals",
     "linkedCaseGone": "Der Fall aus diesem Link ist nicht in der neuesten Version des Datasets.",
+    "linkedCaseUnread": "Der Fall aus diesem Link konnte nicht gelesen werden. {reason}",
     "argKey": "Aufruf {number}, Argument {arg}: Name",
     "argValue": "Aufruf {number}, Argument {arg}: Wert",
     "removeArg": "Argument {arg} von Aufruf {number} entfernen",
@@ -15696,7 +15701,7 @@
     "newDatasetHere": "Sie haben noch kein Dataset, dem Sie etwas hinzufügen können, daher legt diese Antwort eines an, sichtbar für die ganze Organisation.",
     "newDatasetFromActivity": "Antworten aus Aktivität",
     "backToDataset": "Zurück zu {name}",
-    "maskedConversation": "Aus einer Unterhaltung, die Sie nicht öffnen können",
+    "maskedConversation": "Quelle nicht verfügbar oder Herkunft ungeprüft",
     "privateConversationWarning": "Diese Unterhaltung ist privat und gehört {name}. Ihr Text wird für Leser dieses Datasets sichtbar, die Runs lesen dürfen.",
     "anotherMember": "einem anderen Mitglied",
     "checkingSource": "Privatsphäre der Quelle wird geprüft…",
@@ -16729,6 +16734,7 @@
     "evidence": {
       "none": "Keine Belege, die sich prüfen ließen.",
       "dropped": "{count, plural, =1 {1 zitierter Beleg wurde} other {# zitierte Belege wurden}} in den Runs nicht gefunden und weggelassen.",
+      "hidden": "{count, plural, =1 {1 zitierter Beleg stammt von einem Agent, den Sie nicht sehen können, und wird nicht angezeigt.} other {# zitierte Belege stammen von Agents, die Sie nicht sehen können, und werden nicht angezeigt.}}",
       "conversation": "Gespräch {number}",
       "testQuestion": "Testfrage {number}",
       "aConversation": "ein Gespräch"
@@ -17117,6 +17123,7 @@
     "causedBreak": "Durch diese Änderung verschlechtert: {question}",
     "causedFix": "Durch diese Änderung behoben: {question}",
     "openCheck": "Vollständige Prüfung öffnen",
+    "changedMore": "{count, plural, =1 {1 weitere geänderte Antwort steht in der Prüfung.} other {# weitere geänderte Antworten stehen in der Prüfung.}}",
     "permission": "Zum Verbessern benötigen Sie Bearbeitungszugriff auf diesen Agenten und Leserechte für Runs.",
     "retryRead": "Erneut laden",
     "stepsLabel": "Verbesserungsschritte",
@@ -17140,6 +17147,7 @@
       "noneBetter": "{count, plural, =0 {Kein Versuch wurde gemessen, daher ist offen, ob {agent} besser wurde.} one {Der Versuch hat {agent} nicht verbessert.} other {Keiner der # Versuche hat {agent} verbessert.}}",
       "worse": "Versuch {number} hat es verschlechtert: {broken, plural, one {# Frage funktioniert nicht mehr} other {# Fragen funktionieren nicht mehr}}.",
       "topics": "{count, plural, one {# Thema fehlt} other {# Themen fehlen}} in der Wissensbasis.",
+      "topicsUnread": "Nicht jedes Thema aus dieser Sitzung konnte gelesen werden. Die Liste unten sagt, welche und warum.",
       "limit": "{max, plural, one {Das war der einzige Versuch dieser Sitzung.} other {Damit sind alle # Versuche dieser Sitzung aufgebraucht.}}",
       "hint": {
         "no_change": "Zwei Versuche hintereinander haben nichts geändert, ein weiterer hilft also wahrscheinlich nicht.",
@@ -17372,8 +17380,11 @@
     "resultAgent": "Im Agent: {fixed} neu behoben, {broken} neu verschlechtert.",
     "resultAgentUnknown": "Im Agent: noch kein gemessenes Ergebnis.",
     "resultKnowledge": "In der Wissensdatenbank: {count, plural, =0 {fehlt nichts} one {fehlt # Thema} other {fehlen # Themen}}{added, plural, =0 {} one {, # inzwischen hinzugefügt} other {, # inzwischen hinzugefügt}}.",
+    "resultKnowledgeUnread": "In der Wissensbasis: Was fehlt, konnte nicht gelesen werden.",
     "acceptKnowledge": "{missing, plural, =0 {In der Wissensdatenbank: nichts hinzuzufügen} one {# Thema fehlt noch in der Wissensdatenbank} other {# Themen fehlen noch in der Wissensdatenbank}}{missing, plural, =0 {} other {{ready, plural, =0 {: Entwerfen Sie die, die Sie brauchen} other {: # entworfen und bereit zum Hinzufügen}}{stale, plural, =0 {} other {, # mit veraltetem Entwurf}}}}",
     "noKnowledgeDocuments": "In der Wissensdatenbank fehlt nichts.",
+    "topicsSkipped": "{count, plural, =1 {1 Thema aus dieser Sitzung konnte nicht gelesen werden: Es wurde entfernt, oder Sie können es nicht sehen.} other {# Themen aus dieser Sitzung konnten nicht gelesen werden: Sie wurden entfernt, oder Sie können sie nicht sehen.}}",
+    "topicsMore": "{count, plural, =1 {1 weiteres Thema aus dieser Sitzung steht in den <link>Wissenslücken des Agents</link>.} other {# weitere Themen aus dieser Sitzung stehen in den <link>Wissenslücken des Agents</link>.}}",
     "reviewAndAdd": "Prüfen und hinzufügen",
     "notNow": "Nicht jetzt",
     "acceptAgent": "Im Agent: {version, plural, =0 {die neue Version} other {Version #}} behebt {fixed, plural, one {# Frage} other {# Fragen}}, verschlechtert {broken}{costKnown, select, yes {, kostet {cost} pro Antwort} other {}}. Getestet mit {total, plural, one {# Frage} other {# Fragen}}, davon {heldOut} nicht zum Schreiben der Änderungen verwendet.",
@@ -17638,6 +17649,8 @@
     "startDescription": "Schlagen Sie Verbesserungen anhand von Feedback und Testfällen vor. Prüfen Sie jeden Schritt, bevor Änderungen übernommen werden.",
     "startDataset": "Dataset",
     "startDatasetHint": "Wählen Sie die Fälle zur Prüfung der Antworten dieses Agents.",
+    "linkedDatasetUnusable": "Das Dataset aus dem Link kann nicht verwendet werden: Es wurde entfernt, oder Sie dürfen es nicht ausführen. {usual, select, yes {Stattdessen wird das übliche verwendet.} other {Wählen Sie unten ein anderes.}}",
+    "linkedDatasetUnread": "Das Dataset aus dem Link konnte nicht gelesen werden, daher ist noch nichts bepreist. {reason}",
     "analysisEstimate": "Geschätzte Analysekosten",
     "guidance": {
       "title": "Dataset-Hinweise für den Helfer",
@@ -17646,6 +17659,7 @@
       "changedOn": "{who, select, named {Zuletzt geändert von {name} am {date}.} former {Zuletzt geändert von einem ehemaligen Mitglied am {date}.} other {Zuletzt geändert am {date}.}}"
     },
     "startCostHint": "Zuerst kommt die Analyse. Jeder weitere Versuch wird separat geschätzt, etwa {cost}, innerhalb des Sitzungslimits.",
+    "measuredOn": "Gemessen mit {name}.",
     "comparisonInvalid": "Diese Ergebnisse sind nicht vergleichbar. Prüfe die einzelnen Antworten, ohne Unterschiede als Verbesserungen oder Regressionen zu werten.",
     "skills": {
       "title": "Gehört zu einem Skill",
@@ -18580,7 +18594,8 @@
         "all_evidence": "Nicht geprüft: Jede Frage stammt aus den Unterhaltungen, aus denen die Änderung gelernt hat.",
         "cancelled": "Nicht geprüft: Die Prüfung wurde angehalten, bevor ihre Runs fertig waren.",
         "own_not_asked": "Nicht geprüft: Seine eigenen Fragen blieben ungestellt, und jetzt entscheiden sie über ihn.",
-        "too_few_questions": "Zu wenige Testfragen, um die Änderung zu bestätigen. Geprüfte Fragen: {heldOut}."
+        "too_few_questions": "Zu wenige Testfragen, um die Änderung zu bestätigen. Geprüfte Fragen: {heldOut}.",
+        "unfinished": "Seine eigenen Fragen wurden nicht fertig. Die Fragen des Skills bestätigten keine Regression, was allein nicht zeigt, dass die Änderung für ihn sicher ist."
       },
       "skillSetOnly": "Nur auf den eigenen Fragen des Skills geprüft: Er hatte keine eigenen, bei denen er den Skill geladen hat.",
       "stage": {
@@ -18687,7 +18702,7 @@
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Kein Agent dieser Linie kann geprüft werden.} =1 {Es wird auf 1 Agent geprüft: {names}.} other {Es wird auf # Agents geprüft: {names}.}}",
-      "unchecked": "{name} kann nicht geprüft werden: {reason, select, no_questions {keine Testfragen, bei denen er den Skill geladen hat} no_access {Sie dürfen ihn nicht ausführen} no_budget {sein Budget ist aufgebraucht} no_published_version {keine veröffentlichte Version} inconclusive {sein Run konnte nicht jede Antwort bewerten} other {die Prüfung ist fehlgeschlagen}}.",
+      "unchecked": "{name} kann nicht geprüft werden: {reason, select, no_questions {keine Testfragen, bei denen er den Skill geladen hat} no_access {Sie dürfen ihn nicht ausführen} no_budget {sein Budget ist aufgebraucht} no_published_version {keine veröffentlichte Version} inconclusive {sein Run konnte nicht jede Antwort bewerten} failed {die Prüfung ist fehlgeschlagen} unscorable {nichts kann seine Fragen bewerten} all_evidence {jede Frage stammt aus den Gesprächen, aus denen diese Änderung gelernt wurde} cancelled {die Prüfung wurde vor dem Ende gestoppt} own_not_asked {seine eigenen Fragen wurden nicht gestellt} too_few_questions {er hat zu wenige Testfragen, um die Änderung zu bestätigen} other {die Prüfung konnte ihn nicht messen}}.",
       "hidden": "{count, plural, =1 {1 weiterer Agent, den Sie nicht sehen, nutzt diese Linie.} other {# weitere Agents, die Sie nicht sehen, nutzen diese Linie.}}",
       "thorough": "Die Beschreibung hat sich geändert, und sie entscheidet, wann Agents den Skill öffnen, deshalb werden auch die eigenen Fragen jedes Agents gestellt."
     },
@@ -18720,6 +18735,17 @@
       "part": "Teil {number}",
       "unchangedLines": "{count, plural, =1 {1 Zeile, die keine Seite geändert hat} other {# Zeilen, die keine Seite geändert hat}}",
       "files": "Dateien",
+      "file": {
+        "side": "{side, select, base {Gemeinsamer Ausgangspunkt} fork {Fork} other {Main}}: {size}",
+        "absent": "{side, select, base {Gemeinsamer Ausgangspunkt} fork {Fork} other {Main}}: keine solche Datei",
+        "show": "Änderungen anzeigen",
+        "hide": "Änderungen ausblenden",
+        "compare": "{side, select, fork {Was der Fork geändert hat} other {Was main geändert hat}}",
+        "tooLarge": "Zu groß, um hier verglichen zu werden. Laden Sie jede Seite herunter, um sie zu lesen.",
+        "notText": "Kein Text, daher hier nicht vergleichbar. Laden Sie jede Seite herunter, um sie zu lesen.",
+        "download": "{side, select, base {Ausgangspunkt herunterladen} fork {Version des Forks herunterladen} other {Version von main herunterladen}}",
+        "readFailed": "Die Datei konnte nicht gelesen werden. {reason}"
+      },
       "state": {
         "same": "Unverändert",
         "fork": "Vom Fork",

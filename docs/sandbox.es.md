@@ -1,5 +1,5 @@
 ---
-source_sha: "164e156b21c9"
+source_sha: "4810cee98986"
 ---
 
 # La sandbox { #the-sandbox }
@@ -74,6 +74,8 @@ sandboxd y su puente privado auxiliar. Puede usarse una URL HTTPS accesible del 
 nombres internos de Compose como `api` no están disponibles en el puente aislado.
 `host.docker.internal:<puerto>` exige un API ligado a una interfaz accesible desde
 Docker; un puerto publicado solo en loopback de producción no basta.
+
+En Compose, añade `-f docker-compose.project-filesystem.yml` después de los archivos base y proxy al activar montajes en vivo. `scripts/deploy.sh` genera la misma configuración fuera del checkout cuando ambas opciones están configuradas, conserva la reversión a versiones anteriores y rechaza la configuración parcial. Solo sandboxd recibe un puente de salida separado; se mantienen la red privada de datos, el aislamiento de agentes y la ausencia de puertos publicados del supervisor.
 
 La función permanece desactivada hasta configurarla. Los clientes no eligen rutas
 del host, imágenes ni direcciones del gateway. El auxiliar no publica puertos; el

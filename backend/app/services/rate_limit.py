@@ -426,10 +426,11 @@ async def one_in_flight(
 
 @asynccontextmanager
 async def eval_computation(ctx: AuthContext) -> AsyncGenerator[None]:
-    """Shared admission for comparisons and eval-backed verdict writes.
+    """Shared admission for comparisons and eval-backed verdict writes and grades.
 
-    The caller checks the operation's own permissions first: comparison readers
-    need runs:view, while a dataset editor may hold only an explicit edit grant.
+    The caller checks the operation's own permissions first: every caller holds
+    runs:view, and an eval-backed write also holds the dataset's own permission
+    and access to the agent that answered.
     """
     async with one_in_flight(
         "eval_comparison",

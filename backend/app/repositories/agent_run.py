@@ -1429,6 +1429,22 @@ async def agents_of_runs(
     return {row.id: row.agent_id for row in result.all()}
 
 
+async def eval_answers(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> set[UUID]:
+    """Those of these runs that answered an eval case."""
+    if not run_ids:
+        return set()
+    result = await db.execute(
+        select(AgentRun.id).where(
+            AgentRun.id.in_(list(run_ids)),
+            AgentRun.organization_id == organization_id,
+            AgentRun.surface == RunSurface.EVAL.value,
+        )
+    )
+    return set(result.scalars().all())
+
+
 async def conversations_of_runs(
     db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
 ) -> list[UUID]:

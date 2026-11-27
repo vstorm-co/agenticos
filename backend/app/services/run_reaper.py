@@ -22,6 +22,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.db.models.eval_run import EvalRun
 from app.repositories import agent_run_repo, authoring_repo, eval_run_repo
 from app.services.change_feed import ChangeEvent, run_event
 from app.services.notifications import NotificationService
@@ -135,7 +136,7 @@ class RunReaperService:
         )
         attempts = await eval_run_repo.close_orphaned_attempts(self.db, ended_before=idle_since)
         for run in runs:
-            await NotificationService(self.db).eval_run_finished(run)
+            await self._closed_eval(run)
         return len(runs) + attempts
 
     async def settle_lost_eval(self, eval_run_id: UUID, *, organization_id: UUID, why: str) -> None:
@@ -162,8 +163,16 @@ class RunReaperService:
         if closed:
             run = await eval_run_repo.get(self.db, eval_run_id, organization_id=organization_id)
             if run is not None:
-                await NotificationService(self.db).eval_run_finished(run)
+                await self._closed_eval(run)
             logger.warning("eval_run_job_lost", extra={"eval_run_id": str(eval_run_id), "why": why})
+
+    async def _closed_eval(self, run: EvalRun) -> None:
+        """Tell whoever started an eval run that it ended, and move on the skill check it
+        was a stage of: its worker, which would have, did not close it."""
+        from app.services.skill_check import SkillCheckService
+
+        await NotificationService(self.db).eval_run_finished(run)
+        await SkillCheckService(self.db).after_run(run.organization_id, run.id)
 
     async def settle_lost_authoring(
         self, request_id: UUID, *, organization_id: UUID, why: str

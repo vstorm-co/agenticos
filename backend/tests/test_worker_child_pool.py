@@ -89,7 +89,8 @@ async def test_a_job_that_raises_reports_the_error_and_the_child_lives_on(pool: 
     outcome = await _run(pool, "test-fail", {"text": "disk full"})
     assert isinstance(outcome, Failed)
     assert outcome.permanent is False
-    assert "RuntimeError: disk full" in outcome.error
+    assert outcome.error.startswith("RuntimeError: its message is in the worker's log")
+    assert "disk full" not in outcome.error
     assert await _run(pool, "test-ok") == Succeeded()
 
 

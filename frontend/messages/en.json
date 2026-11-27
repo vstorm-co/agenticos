@@ -1168,7 +1168,8 @@
     "observationSave": "Save participation settings",
     "connectionSettings": "Connection settings · {provider} · {endpoint}",
     "customEndpoint": "Custom endpoint",
-    "noMatchingModels": "No matching models."
+    "noMatchingModels": "No matching models.",
+    "testedSpecUnread": "The version this run tested could not be read. {reason}"
   },
   "auth": {
     "agreeToTerms": "By creating an account, you agree to our <terms>Terms</terms> and <privacy>Privacy Policy</privacy>.",
@@ -4453,6 +4454,7 @@
       "outboxWaiting": "{count, plural, =1 {1 message waiting to send} other {# messages waiting to send}}",
       "unreachable": "Can't reach the server. Showing what was saved on this device at {time}."
     },
+    "staleRead": "Part of this page stopped updating and may be out of date. {reason}",
     "install": {
       "offer": "Install AgenticOS as an app: its own window, notifications and a home-screen icon.",
       "iosHint": "To install AgenticOS, tap Share, then Add to Home Screen.",
@@ -9944,7 +9946,8 @@
         "unscorable": "Not checked: nothing can grade its questions. Set up grading on their dataset.",
         "all_evidence": "Not checked: every question came from the conversations this change was learned from.",
         "cancelled": "Not checked: the check was stopped before it finished.",
-        "own_not_asked": "Not checked: its own questions were not asked once the skill's showed it worse."
+        "own_not_asked": "Not checked: its own questions were not asked once the skill's showed it worse.",
+        "too_few_questions": "Not checked: it has too few test questions to verify the change."
       },
       "verdict": {
         "passed": "No agent got worse and at least one got better.",
@@ -9971,6 +9974,7 @@
       "nobody": "None of these agents can be checked, so the check would measure nothing. Add test questions so it can, or go on without a check and confirm that nobody was checked.",
       "startUnchecked": "Go on without a check",
       "noReaders": "No agent reads this line, so there is nobody to check. Going on applies the change at once.",
+      "stoppedUpdating": "This check stopped updating and may be out of date. {reason}",
       "proposalGoneTitle": "This update is no longer pending",
       "proposalGoneDescription": "It was applied, discarded or replaced in another session. The list has been refreshed.",
       "backToChanges": "Back to updates"
@@ -15721,7 +15725,7 @@
       "criterionCoverage": "Applies to {count} of {total} cases",
       "noteForTag": "for cases tagged {tag}",
       "noteAddedToTags": "The note is now a judge criterion for cases tagged {tags}.",
-      "maskedConversation": "From a conversation you cannot open",
+      "maskedConversation": "Source unavailable or origin unverified",
       "countsAsPassed": "Counts as passed.",
       "countsAsFailed": "Counts as failed.",
       "reviewEffect": {
@@ -15789,7 +15793,7 @@
     "versionChange": "v{number} · {change, select, add {added} edit {edited} remove {removed} import {imported} generate {accepted from drafts} other {changed}} {count, plural, =1 {1 case} other {# cases}}",
     "importFile": "Choose a CSV or JSONL file to import",
     "importTitle": "Import cases",
-    "importBody": "A CSV or JSONL file of up to 10 MB, in UTF-8, with one case per row or line. Only input is required, and an empty cell leaves a field empty. The file becomes the dataset's next version; if one row is refused, nothing is imported.",
+    "importBody": "A CSV or JSONL file of up to {megabytes, number} MB, in UTF-8, with one case per row or line. Only input is required, and an empty cell leaves a field empty. The file becomes the dataset's next version; if one row is refused, nothing is imported.",
     "importColumn": {
       "input": "The message the agent is tested on.",
       "history": "The turns before it, as a JSON list of role and content.",
@@ -15987,6 +15991,7 @@
     "editCase": "Edit",
     "evals": "Evals",
     "linkedCaseGone": "The case this link names is not in the newest version of the dataset.",
+    "linkedCaseUnread": "The case this link names could not be read. {reason}",
     "argKey": "Call {number}, argument {arg}: name",
     "argValue": "Call {number}, argument {arg}: value",
     "removeArg": "Remove argument {arg} of call {number}",
@@ -16010,7 +16015,7 @@
     "newDatasetHere": "You have no dataset to add to yet, so this answer starts one, visible to the whole organization.",
     "newDatasetFromActivity": "Answers from Activity",
     "backToDataset": "Back to {name}",
-    "maskedConversation": "From a conversation you cannot open",
+    "maskedConversation": "Source unavailable or origin unverified",
     "privateConversationWarning": "This conversation is private to {name}. Its text will be visible to readers of this dataset who can read runs.",
     "anotherMember": "another member",
     "checkingSource": "Checking source privacy…",
@@ -17043,6 +17048,7 @@
     "evidence": {
       "none": "No evidence that could be checked.",
       "dropped": "{count, plural, =1 {1 cited item} other {# cited items}} could not be found in the runs and {count, plural, =1 {was} other {were}} left out.",
+      "hidden": "{count, plural, =1 {1 cited item is from an agent you cannot see and is not shown.} other {# cited items are from agents you cannot see and are not shown.}}",
       "conversation": "conversation {number}",
       "testQuestion": "test question {number}",
       "aConversation": "a conversation"
@@ -17431,6 +17437,7 @@
     "causedBreak": "Newly broken by this change: {question}",
     "causedFix": "Fixed by this change: {question}",
     "openCheck": "Open the full check",
+    "changedMore": "{count, plural, =1 {1 more changed answer is in the check.} other {# more changed answers are in the check.}}",
     "permission": "Editing this agent and viewing runs are required to improve it.",
     "retryRead": "Try reading again",
     "stepsLabel": "Improvement steps",
@@ -17454,6 +17461,7 @@
       "noneBetter": "{count, plural, =0 {No attempt was measured, so nothing shows whether {agent} got better.} one {The attempt did not make {agent} better.} other {None of the # attempts made {agent} better.}}",
       "worse": "Attempt {number} made it worse: {broken, plural, one {# question broke} other {# questions broke}}.",
       "topics": "{count, plural, one {# topic is} other {# topics are}} missing from the knowledge base.",
+      "topicsUnread": "Not every topic this session found could be read. The list below says which and why.",
       "limit": "{max, plural, one {That was the one attempt this session allows.} other {That used all # attempts this session allows.}}",
       "hint": {
         "no_change": "Two attempts in a row changed nothing, so another one probably won't help.",
@@ -17686,8 +17694,11 @@
     "resultAgent": "In the agent: {fixed, plural, one {# question newly fixed} other {# questions newly fixed}}, {broken} newly broken.",
     "resultAgentUnknown": "In the agent: no measured result yet.",
     "resultKnowledge": "In the knowledge base: {count, plural, =0 {nothing missing} one {# topic missing} other {# topics missing}}{added, plural, =0 {} one {, # added since} other {, # added since}}.",
+    "resultKnowledgeUnread": "In the knowledge base: what is missing could not be read.",
     "acceptKnowledge": "{missing, plural, =0 {In the knowledge base: nothing to add} one {# topic is still missing from the knowledge base} other {# topics are still missing from the knowledge base}}{missing, plural, =0 {} other {{ready, plural, =0 {: draft the ones you want} other {: # drafted, ready to add}}{stale, plural, =0 {} other {, # with an outdated draft}}}}",
     "noKnowledgeDocuments": "Nothing is missing from the knowledge base.",
+    "topicsSkipped": "{count, plural, =1 {1 topic this session found could not be read: it was removed, or you cannot see it.} other {# topics this session found could not be read: they were removed, or you cannot see them.}}",
+    "topicsMore": "{count, plural, =1 {1 more topic this session found is listed in the <link>agent's knowledge gaps</link>.} other {# more topics this session found are listed in the <link>agent's knowledge gaps</link>.}}",
     "reviewAndAdd": "Review and add",
     "notNow": "Not now",
     "acceptAgent": "In the agent: {version, plural, =0 {the new version} other {version #}} will fix {fixed, plural, one {# question} other {# questions}}, break {broken}{costKnown, select, yes {, cost {cost} per answer} other {}}. Tested on {total, plural, one {# question} other {# questions}}, {heldOut} of them not used to write the changes.",
@@ -17952,6 +17963,8 @@
     "startDescription": "Use feedback and test cases to propose improvements. Review each step before applying changes.",
     "startDataset": "Dataset",
     "startDatasetHint": "Choose the cases used to check this agent’s answers.",
+    "linkedDatasetUnusable": "The dataset in the link cannot be used: it was removed, or you may not run it. {usual, select, yes {The usual one is used instead.} other {Choose one below.}}",
+    "linkedDatasetUnread": "The dataset in the link could not be read, so nothing is priced yet. {reason}",
     "analysisEstimate": "Estimated analysis cost",
     "guidance": {
       "title": "Dataset guidance for the helper",
@@ -17960,6 +17973,7 @@
       "changedOn": "{who, select, named {Last changed by {name} on {date}.} former {Last changed by a former member on {date}.} other {Last changed on {date}.}}"
     },
     "startCostHint": "Analysis comes first. Each later attempt is estimated separately, around {cost}, within the session limit.",
+    "measuredOn": "Measured on {name}.",
     "comparisonInvalid": "These results cannot be compared. Review the individual answers without treating differences as fixes or regressions.",
     "skills": {
       "title": "Belongs to a skill",
@@ -18894,7 +18908,8 @@
         "all_evidence": "Not checked: every question came from the conversations the change was learned from.",
         "cancelled": "Not checked: the check was stopped before its runs finished.",
         "own_not_asked": "Not checked: its own questions were left unasked, and they now decide it.",
-        "too_few_questions": "Not enough test questions to verify the change. {heldOut} questions were checked."
+        "too_few_questions": "Not enough test questions to verify the change. {heldOut} questions were checked.",
+        "unfinished": "Its own questions did not finish. The skill's questions did not confirm a regression, which alone does not show the change is safe for it."
       },
       "skillSetOnly": "Checked only on the skill's own questions: it had none of its own where it loaded the skill.",
       "stage": {
@@ -19001,7 +19016,7 @@
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {No agent on this line can be checked.} =1 {It will be checked on 1 agent: {names}.} other {It will be checked on # agents: {names}.}}",
-      "unchecked": "{name} cannot be checked: {reason, select, no_questions {it has no test questions where it loaded the skill} no_access {you may not run it} no_budget {its budget is spent} no_published_version {it has no published version} inconclusive {its run could not grade every answer} other {its check failed}}.",
+      "unchecked": "{name} cannot be checked: {reason, select, no_questions {it has no test questions where it loaded the skill} no_access {you may not run it} no_budget {its budget is spent} no_published_version {it has no published version} inconclusive {its run could not grade every answer} failed {its check failed} unscorable {nothing can grade its questions} all_evidence {every question came from the conversations this change was learned from} cancelled {the check was stopped before it finished} own_not_asked {its own questions were not asked} too_few_questions {it has too few test questions to verify the change} other {the check could not measure it}}.",
       "hidden": "{count, plural, =1 {1 more agent you can't see uses this line.} other {# more agents you can't see use this line.}}",
       "thorough": "The description changed, which decides when agents open the skill, so every agent's own questions are asked too."
     },
@@ -19034,6 +19049,17 @@
       "part": "Part {number}",
       "unchangedLines": "{count, plural, =1 {1 line neither side changed} other {# lines neither side changed}}",
       "files": "Files",
+      "file": {
+        "side": "{side, select, base {Where both started} fork {Fork} other {Main}}: {size}",
+        "absent": "{side, select, base {Where both started} fork {Fork} other {Main}}: no such file",
+        "show": "Show what changed",
+        "hide": "Hide what changed",
+        "compare": "{side, select, fork {What the fork changed} other {What main changed}}",
+        "tooLarge": "Too large to compare here. Download each side to read it.",
+        "notText": "Not text, so it cannot be compared here. Download each side to read it.",
+        "download": "{side, select, base {Download where both started} fork {Download the fork's} other {Download main's}}",
+        "readFailed": "The file could not be read. {reason}"
+      },
       "state": {
         "same": "Unchanged",
         "fork": "From the fork",

@@ -104,7 +104,7 @@ async def recent_eval_runs(
 
 @router.get("/eval-runs/{eval_run_id}", response_model=EvalRunRead, dependencies=[ASSISTANT])
 async def get_eval_run(eval_run_id: UUID, service: EvalRunSvc, ctx: Auth) -> Any:
-    return await service.get(ctx, eval_run_id)
+    return await service.get(ctx, eval_run_id, admission="refuse")
 
 
 @router.get("/eval-runs/{eval_run_id}/arms/{arm_id}/spec", response_model=AgentSpec)

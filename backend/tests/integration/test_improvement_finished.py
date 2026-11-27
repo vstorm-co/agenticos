@@ -12,7 +12,7 @@ from uuid import uuid4
 import pytest
 
 from app.core.exceptions import AuthorizationError, ConcurrentChangeError, NotFoundError
-from app.core.permissions import OrgRoleName
+from app.core.permissions import OrgRoleName, Perm
 from app.db.models.improvement import ImprovementIteration, ImprovementRun
 from app.schemas.improvement import (
     AttributionConsent,
@@ -26,6 +26,7 @@ from app.schemas.improvement import (
     SelectionConsent,
     TopicDeferral,
 )
+from app.services.authoring import AuthoringService
 from app.services.improvement_pipeline import ImprovementPipelineService
 from tests.integration.test_authoring import _environment as _environment
 from tests.integration.test_eval_suites import _member
@@ -141,6 +142,24 @@ async def test_the_changes_a_session_measured_read_as_they_were_decided(db):
         chosen.included_hunk_ids or [change.id for change in changes]
     )
     assert {change.status for change in changes} == {"accepted"}
+
+
+@pytest.mark.security
+async def test_a_sessions_changes_are_read_only_by_a_reader_of_its_dataset(db):
+    ctx, agent, ready = await _ready_proposal(db)
+    service, builder = ImprovementPipelineService(db), AuthoringService(db)
+    without = frozenset(perm for perm in Perm if not perm.value.startswith("datasets:"))
+    narrow = replace(ctx, key_scopes=without)
+    reader = replace(ctx, key_scopes=without | {Perm.DATASETS_VIEW})
+
+    for attempt in (None, ready.iterations[0].number):
+        with pytest.raises(AuthorizationError, match="dataset you cannot read"):
+            await service.changes(narrow, agent.id, ready.id, attempt=attempt)
+    with pytest.raises(AuthorizationError, match="dataset you cannot read"):
+        await builder.for_agent(narrow, agent.id)
+
+    assert await service.changes(reader, agent.id, ready.id, attempt=ready.iterations[0].number)
+    assert (await builder.for_agent(reader, agent.id)).latest is not None
 
 
 async def test_every_change_an_attempt_proposed_reads_without_a_chosen_round(db):

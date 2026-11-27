@@ -226,7 +226,8 @@ async def test_a_failing_job_is_retried_and_left_dead_with_its_error(
         job = await _until_status(sessions, job_id, "dead")
     assert job.attempts == 2
     assert job.last_error is not None
-    assert job.last_error.startswith("RuntimeError: the provider said no")
+    assert job.last_error.startswith("RuntimeError: its message is in the worker's log")
+    assert "the provider said no" not in job.last_error
 
 
 async def test_a_parse_that_eats_memory_dies_twice_and_stops_while_other_work_flows(
@@ -264,7 +265,7 @@ async def test_an_end_is_settled_once_while_the_rescuer_reads_it_as_owed(
         await _until_status(sessions, job_id, "dead")
         await asyncio.sleep(2.0)
     (ending,) = [end for end in ENDED if end[0] == SYSTEM_TASKS["fail"].kind]
-    assert "RuntimeError: no" in ending[1]
+    assert "RuntimeError: its message is in the worker's log" in ending[1]
     async with sessions() as db:
         settled = await db.scalar(
             select(BackgroundJob.settled_at).where(BackgroundJob.id == job_id)

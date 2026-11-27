@@ -1,5 +1,5 @@
 ---
-source_sha: "e885d6a41f7e"
+source_sha: "f2aed7ebed0e"
 ---
 
 # Wdrożenie na serwer { #deploy-to-a-server }
@@ -636,6 +636,8 @@ Przyjmuje **commit**, a nie branch, więc tym, co jest wdrożone, jest to, co zo
 zrecenzowane, a nie to, dokąd `main` przesunął się od tamtej pory - a tym, co
 działa, jest bajt w bajt to, co zbudowało CI, na hoście, który nigdy nie potrzebuje
 łańcucha narzędzi.
+
+Po pobraniu obrazów i przygotowaniu runtime’ów skrypt zatrzymuje API i worker bieżącego stosu Compose przed migracjami. Stare procesy nie zapisują wtedy danych według poprzednich reguł prywatności. Nieudane zatrzymanie przerywa wdrożenie przed migracją. Skrypt sprawdza stan usług przed zgłoszeniem sukcesu. Przy wielu hostach osobno zatrzymaj pozostałe repliki API i workerów.
 
 !!! warning "Skopiuj go na host, a potem uruchom — nie wpychaj go do `bash -s`"
 

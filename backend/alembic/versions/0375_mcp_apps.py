@@ -11,8 +11,8 @@ whole result and the connection to read the page from. Not the page itself - a
 page is the server's to serve (and can be megabytes), so it is read again on
 every load. Null on every existing row, which is a call with no page.
 
-Revision ID: 0374_mcp_apps
-Revises: 0373_project_filesystem_mounts
+Revision ID: 0375_mcp_apps
+Revises: 0374_case_from_conversation
 Create Date: 2026-11-26 21:00:00.000000
 
 """
@@ -25,8 +25,8 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "0374_mcp_apps"
-down_revision: str | None = "0373_project_filesystem_mounts"
+revision: str = "0375_mcp_apps"
+down_revision: str | None = "0374_case_from_conversation"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
