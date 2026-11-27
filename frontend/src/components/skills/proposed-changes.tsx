@@ -154,6 +154,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
     selectedFile === null ? (current.data?.content ?? "") : (originalFile.data?.content ?? "");
   const comparing = selectedFile === null ? current : originalFile;
   const skillId = change.skill_id;
+  const quotesCredential = Boolean(change.contains_credential);
 
   return (
     <div className="grid gap-3 px-5 py-4 @3xl:grid-cols-[minmax(0,1fr)_auto] @3xl:items-center">
@@ -192,6 +193,11 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
             >
               {t("readConversationCameFrom")}
             </a>
+          )}
+          {quotesCredential && (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              {t("reviewUpdates.quotesCredential")}
+            </p>
           )}
         </div>
       </div>
@@ -359,13 +365,18 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
                 </Tabs>
               </div>
             </div>
+            {quotesCredential && (
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                {t("reviewUpdates.quotesCredential")}
+              </p>
+            )}
             <DialogFooter className="border-t pt-4 max-sm:flex-row max-sm:items-center">
               {skillId !== null && (
                 <Button
                   variant="outline"
                   className="max-sm:min-w-0 max-sm:flex-1 max-sm:px-2 max-sm:text-xs"
                   aria-label={t("reviewUpdates.testOptional")}
-                  disabled={disabled}
+                  disabled={disabled || quotesCredential}
                   onClick={() => {
                     setOpen(false);
                     setChecking(true);
@@ -377,7 +388,7 @@ function ChangeRow({ change, disabled, onApply, onDiscard }: ChangeRowProps) {
               )}
               <Button
                 className="max-sm:min-w-0 max-sm:flex-1 max-sm:px-2 max-sm:text-xs"
-                disabled={disabled}
+                disabled={disabled || quotesCredential}
                 onClick={async () => {
                   try {
                     await onApply();

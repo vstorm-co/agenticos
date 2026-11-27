@@ -259,3 +259,20 @@ it("shows a reworded change with the wording that was measured", () => {
   expect(view.container).toHaveTextContent("My wording.");
   expect(view.container).not.toHaveTextContent("Helper text.");
 });
+it("leaves out a change that quotes a credential and blocks testing while it is chosen", async () => {
+  render(<Form hunks={[hunk({ id: "h1", contains_credential: true }), hunk({ id: "h2" })]} />);
+  expect(screen.getByText(/quotes a credential, so it can't be tested or applied/)).toBeVisible();
+  expect(
+    screen.getByText("A chosen change quotes a credential. Leave it out to test the others."),
+  ).toBeVisible();
+  const estimate = screen.getByRole("button", { name: "Estimate checking selected changes" });
+  expect(estimate).toBeDisabled();
+
+  const first = screen.getByRole("checkbox", { name: "Include change 1 in the test" });
+  await userEvent.click(first);
+
+  expect(first).not.toBeChecked();
+  expect(first).toBeDisabled();
+  expect(screen.queryByText(/A chosen change quotes a credential/)).not.toBeInTheDocument();
+  expect(estimate).toBeEnabled();
+});

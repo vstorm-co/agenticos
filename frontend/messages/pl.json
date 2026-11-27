@@ -8873,7 +8873,8 @@
       "testOptional": "Przetestuj przed zastosowaniem (opcjonalnie)",
       "hiddenAgents": "{count, plural, one {# inny agent} few {# innych agentów} many {# innych agentów} other {# innego agenta}}",
       "testOptionalShort": "Test (opcjonalnie)",
-      "compareShort": "Zmiany"
+      "compareShort": "Zmiany",
+      "quotesCredential": "Ta zmiana cytuje poświadczenie, więc nie można jej zastosować ani przetestować. Odrzuć ją i wprowadź zmianę ręcznie."
     }
   },
   "settings": {
@@ -16741,7 +16742,8 @@
       "dismissAll": "Odrzuć wszystkie",
       "verifyReport": "Co asystent sądzi o Twoich zmianach",
       "skillCreated": "Utworzono skill {name} i dodano go do wersji roboczej",
-      "working": "Czytam runy…"
+      "working": "Czytam runy…",
+      "checkQuotesCredential": "Jedna z sugestii cytuje poświadczenie, więc tych sugestii nie można sprawdzić. Usuń poświadczenie w edycji, jeśli się da, albo odrzuć tę sugestię."
     },
     "suggestion": {
       "tool": "Narzędzie {tool}",
@@ -16758,7 +16760,10 @@
       "accept": "Przyjmij",
       "edit": "Edytuj",
       "dismiss": "Odrzuć",
-      "undo": "Cofnij"
+      "undo": "Cofnij",
+      "quotesCredential": "Ta sugestia cytuje poświadczenie, więc nie można jej przyjąć w tej postaci. Usuń poświadczenie w edycji albo ją odrzuć.",
+      "quotesCredentialDismiss": "Ta sugestia cytuje poświadczenie, więc nie można jej przyjąć. Odrzuć ją i wprowadź zmianę ręcznie.",
+      "quotesCredentialHeld": "Ta sugestia cytuje poświadczenie, więc nie można jej przyjąć."
     },
     "field": {
       "editLabel": "Twoja wartość",
@@ -16916,7 +16921,8 @@
       "liveHint": "Zastosowanie działa od razu: każdy agent, który czyta plik, przeczyta nową treść przy następnym runie.",
       "expects": "Oczekiwany efekt: {effect}",
       "applied": "Zastosowano zmianę w {name}",
-      "discarded": "Odrzucono zmianę w {name}"
+      "discarded": "Odrzucono zmianę w {name}",
+      "quotesCredential": "Ta zmiana cytuje poświadczenie, więc nie można jej zastosować ani sprawdzić. Odrzuć ją i wprowadź zmianę ręcznie."
     },
     "describe": {
       "open": "Utwórz z {name}"
@@ -17819,7 +17825,9 @@
       "invalid": "Test nie pozwala wiarygodnie porównać wersji. Sprawdź go przed wyciągnięciem wniosków.",
       "noExamples": "Nie ma zmienionych odpowiedzi do pokazania. Otwórz pełny test, aby zobaczyć wszystkie pytania."
     },
-    "permissionRuns": "Odczyt sesji Improve wymaga runs:view, którego ta rola nie ma. Poproś właściciela organizacji o dostęp."
+    "permissionRuns": "Odczyt sesji Improve wymaga runs:view, którego ta rola nie ma. Poproś właściciela organizacji o dostęp.",
+    "changeQuotesCredential": "Ta zmiana cytuje poświadczenie, więc nie można jej przetestować ani zastosować. Pomiń ją.",
+    "selectionQuotesCredential": "Jedna z wybranych zmian cytuje poświadczenie. Pomiń ją, żeby przetestować pozostałe."
   },
   "unsaved": {
     "title": "Masz niezapisane zmiany",

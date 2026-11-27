@@ -286,6 +286,8 @@ export interface Hunk {
   /** Pending: still fits the draft. Accepted: Undo still can. */
   applies: boolean;
   decided_at: string | null;
+  /** The text Accept would write quotes a credential: shown redacted, and Accept is refused. */
+  contains_credential?: boolean;
 }
 
 export interface SuggestionBatch {
@@ -359,6 +361,8 @@ export interface ContextChange {
   decided_at: string | null;
   /** The file changed since the proposal was written; Apply refuses it. */
   stale: boolean;
+  /** The proposed text quotes a credential: shown redacted, and Apply and Check refuse it. */
+  contains_credential?: boolean;
   rationale: string;
   evidence: EvidenceItem[];
   evidence_dropped: number;
