@@ -12,6 +12,8 @@ The question is less which software is better and more what you want to own when
 
 Maintained by the AgenticOS team at Vstorm. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Wonderful scope: its public AI OS, deployment, agents, gateway and safety pages and funding announcement, not a negotiated contract or tested account.
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | Wonderful | AgenticOS |
@@ -20,7 +22,7 @@ Maintained by the AgenticOS team at Vstorm. Sources checked 21 October 2026. Age
 | Source | Proprietary; export of agents and configuration through its UI or API | Apache-2.0; the whole platform is readable and forkable |
 | Where it runs | Multi-tenant SaaS, single-tenant, your cloud, or air-gapped on-premises | Your infrastructure, with Docker Compose |
 | Pricing | Not published; sales-led | No licence fee; models, infrastructure and any agreed services |
-| Channels | Voice, chat, email, documents and other channels | Web chat with voice calls, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Channels | Voice, chat, email, documents and other channels | Web chat with voice calls, widget, hosted page, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, email, iMessage, telephone calls |
 | Models | Routed per task by the platform | Your choice from 28 providers, set per model profile |
 | Governance | AI Gateway with budget caps per team and audit logs | Budgets per agent and per organization, approvals and a tamper-evident audit log |
 | Compliance claims | SOC 2 Type II, ISO 27001:2022, PCI DSS, GDPR, EU AI Act aligned | Your controls on your infrastructure; see [security](../security.md) |
@@ -48,7 +50,7 @@ Wonderful's certifications cover its own service. With AgenticOS you inspect the
 ## When Wonderful is the better fit
 
 - You want a vendor to own delivery end to end, across many markets and languages.
-- Customer-facing voice agents on the phone are the main use case. AgenticOS takes [voice calls](../voice.md) in the browser only, and has no phone, WhatsApp or SMS channel.
+- Customer-facing voice agents on the phone, delivered and tuned by the vendor, are the main use case. AgenticOS takes [telephone calls](../voice.md#telephone-calls) through your own Twilio number and has an SMS channel, but no WhatsApp channel and no deployment team of its own.
 - You need a vendor's own certifications, such as SOC 2 Type II and PCI DSS, rather than your own controls.
 
 ## Questions for the delivery agreement
@@ -79,7 +81,7 @@ Yes. It runs with Docker Compose on your own host. With a local model, the whole
 
 ### Does AgenticOS support voice or WhatsApp agents?
 
-Voice, in part: since 1.10.0 a member or a visitor can [call an agent](../voice.md) from web chat, the widget or a hosted page, and voice notes sent to a channel bot are transcribed. There is no phone line, WhatsApp or SMS channel yet.
+Voice, in part: since 1.10.0 a member or a visitor can [call an agent](../voice.md) from web chat, the widget or a hosted page, and voice notes sent to a channel bot are transcribed. A Twilio number can also take [telephone calls](../voice.md#telephone-calls) for a published voice embed and texts through the [SMS](../channels.md#sms) channel. There is no WhatsApp channel yet.
 
 ### What happens if we stop working with Vstorm?
 

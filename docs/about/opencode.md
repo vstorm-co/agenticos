@@ -10,6 +10,8 @@ OpenCode is an open-source coding agent under the MIT licence. It runs in a term
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. OpenCode scope: its documentation at opencode.ai, including the OpenCode 2 Console pages under `/v2/`, and the `anomalyco/opencode` repository at v1.19.3, the 1.x line, not a tested enterprise rollout.
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | OpenCode | AgenticOS |
@@ -68,7 +70,7 @@ Yes. OpenCode is MIT and AgenticOS is Apache-2.0, and both can use local models.
 
 ### Can AgenticOS agents be shared with people who do not code?
 
-Yes. They answer through a widget, a hosted page, Slack, Telegram, Mattermost or the HTTP API, with nothing to install.
+Yes. They answer through a widget, a hosted page, Slack, Microsoft Teams, Telegram, Mattermost, email or the HTTP API, with nothing to install.
 
 ### Can OpenCode help build AgenticOS capabilities?
 

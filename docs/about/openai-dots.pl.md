@@ -2,7 +2,7 @@
 title: "AgenticOS vs OpenAI dots"
 seo_title: "AgenticOS vs OpenAI dots: alternatywa, którą hostujesz sam"
 description: "OpenAI dots to agenci w ChatGPT, każdy z komputerem w chmurze. Porównaj z AgenticOS: twoje serwery, dowolny model i reguły egzekwowane w kodzie."
-source_sha: "f49d22528b05"
+source_sha: "f68a7dcff72d"
 ---
 
 # AgenticOS vs OpenAI dots { #agenticos-vs-openai-dots }
@@ -13,6 +13,8 @@ Jeśli twoja firma już żyje w ChatGPT, a twój plan i region obejmują dots, t
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres dots: ogłoszenie OpenAI z 29 września 2026, FAQ w centrum pomocy i relacje prasowe, a nie przetestowane konto.
 
+Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
+
 ## W skrócie { #at-a-glance }
 
 | Obszar | OpenAI dots | AgenticOS |
@@ -22,7 +24,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 | Kod źródłowy | Zamknięty | Apache-2.0 |
 | Modele | Tylko OpenAI | 28 providerów, w tym modele lokalne |
 | Narzędzia | Ponad 4000 podłączonych aplikacji, przeglądarka i komputer dla każdego dota | Ponad 4700 serwerów MCP w galerii, przeglądarka, sandbox do kodu, twoje własne capabilities |
-| Kanały | ChatGPT, Slack, Microsoft Teams; SMS zapowiedziany | Czat w przeglądarce, widget, strona hostowana, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Kanały | ChatGPT, Slack, Microsoft Teams; SMS zapowiedziany | Czat w przeglądarce, widget, strona hostowana, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, e-mail, iMessage, połączenia telefoniczne |
 | Reguły | Własne reguły: zezwól, zablokuj albo wymagaj zgody; ryzykowne akcje ocenia model | Zgody sprawdzane przez platformę, zanim narzędzie się uruchomi; listy dozwolonych narzędzi |
 | Kontrola wydatków | W cenie planu | Miesięczny budżet per agent i per organizacja, sprawdzany przed każdym zapytaniem do modelu |
 | Dostępność | Plany Pro i Business Premium; Pro na starcie niedostępny w EOG, Szwajcarii i Wielkiej Brytanii | Wszędzie, gdzie go wdrożysz |
@@ -55,7 +57,7 @@ Każdy run w AgenticOS trafia do [Activity](../governance.md#audit) z krokami, k
 
 ### Czy AgenticOS to alternatywa dla OpenAI dots? { #is-agenticos-an-alternative-to-openai-dots }
 
-Tak, jeśli chcesz agentów działających bez przerwy, których hostujesz sam. Agenci AgenticOS mają narzędzia, przeglądarkę, sandbox do kodu i rutyny, działają na twojej infrastrukturze z dowolnym modelem i odpowiadają w czacie w przeglądarce, Slacku, Telegramie, Mattermost i przez API.
+Tak, jeśli chcesz agentów działających bez przerwy, których hostujesz sam. Agenci AgenticOS mają narzędzia, przeglądarkę, sandbox do kodu i rutyny, działają na twojej infrastrukturze z dowolnym modelem i odpowiadają w czacie w przeglądarce, Slacku, Microsoft Teams, Telegramie, Mattermost, SMS-ach, e-mailu i przez API.
 
 ### Czy AgenticOS może pracować, gdy nikt nie pisze? { #can-agenticos-work-while-nobody-is-chatting }
 

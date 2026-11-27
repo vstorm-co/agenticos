@@ -10,7 +10,7 @@ Both products self-host and both do document retrieval, so the difference is els
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Dify scope: the public repository at 1.17.1, its licence, documentation and pricing page, not a tested cloud plan or a pinned deployment.
 
-AgenticOS feature statements refreshed on 2 November 2026 against v1.35.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
 
 ## At a glance
 
@@ -24,7 +24,7 @@ AgenticOS feature statements refreshed on 2 November 2026 against v1.35.0. The v
 | Audit | Enterprise | Tamper-evident audit log with CSV and JSONL export |
 | Spend control | Provider billing, or Cloud message credits | A monthly budget per agent and per organization, checked before each model request |
 | Human approval | A Human Input node in a workflow | Approval per capability and per tool, and an approval policy per MCP connection (none, writes or all); the run parks until someone decides |
-| Surfaces | Web app, embed, API, MCP server; Slack through a plugin | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Surfaces | Web app, embed, API, MCP server; Slack through a plugin | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, email, iMessage, telephone calls |
 | Kubernetes | Community Helm charts; official high availability is Enterprise | [Maintained Helm chart](../kubernetes.md) for API, worker and console with external data services; OpenShift unvalidated |
 
 ## Where AgenticOS goes further

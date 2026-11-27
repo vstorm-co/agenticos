@@ -12,6 +12,8 @@ If your company runs on Microsoft 365 and wants to inventory and police agents i
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Agent 365 scope: Microsoft's general availability around 1 May 2026 as reported by the press, not a tested tenant. For building agents in Microsoft's stack, see [AgenticOS vs Copilot Studio](copilot-studio.md).
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | Microsoft Agent 365 | AgenticOS |
@@ -42,7 +44,7 @@ AgenticOS is Apache-2.0. An auditor can read how a rule is enforced, and an engi
 
 - Your company standardises on Microsoft 365, and your agents are built in Copilot Studio or Microsoft's products.
 - You need one inventory of agents across Microsoft tools with Purview's policies.
-- Microsoft Teams is your main channel today; AgenticOS has no Teams channel yet.
+- Your agents must be governed inside Microsoft 365 with Entra and Purview. AgenticOS answers in [Microsoft Teams](../channels.md#microsoft-teams), but governs its agents in its own console and audit log.
 
 ## Frequently asked questions
 

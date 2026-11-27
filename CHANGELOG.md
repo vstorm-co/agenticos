@@ -27,6 +27,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Set flat USD token prices per model profile in the console and API, including cache rates and explicit free usage. Fallbacks and delegates use their own profile prices; keyless usage reaches budgets and reports. Existing recorded costs remain unchanged.
 
+### Changed
+
+- Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
+
 ### Fixed
 
 - Prevent model editors from changing raw request routing or credentials on custom-priced profiles without budget authority. Keep omitted token usage partially priced, including streams and nested calls, and stop further capped requests while retaining known cost subtotals.
