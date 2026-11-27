@@ -513,6 +513,18 @@ class RunPlan:
 
 
 @dataclass(frozen=True)
+class RunPrices:
+    """What the estimate priced one answer of each side at, by its position, and one grading.
+
+    A reused side's first answers are free, but it is priced for the reruns it
+    may be asked.
+    """
+
+    answers: tuple[Decimal, ...]
+    grade: Decimal
+
+
+@dataclass(frozen=True)
 class Incomparable:
     """Why two sides cannot be compared: the code a client translates, and the sentence."""
 
@@ -1655,11 +1667,18 @@ class EvalRunService:
         `held_out` is how many cases a measured run keeps aside: only those are
         asked again, so only those count towards its rerun ceiling.
         """
+        return (await self._priced(ctx, plan, held_out=held_out))[0]
+
+    async def _priced(
+        self, ctx: AuthContext, plan: RunPlan, *, held_out: int | None = None
+    ) -> tuple[EvalRunEstimate, RunPrices]:
+        """The estimate, and the prices it set for one answer of each side and one grading."""
         cases = len(plan.cases)
         asked_again = (
             cases if held_out is None or plan.purpose is EvalRunPurpose.STABILITY else held_out
         )
         arms: list[ArmEstimate] = []
+        answers: list[Decimal] = []
         arms_usd = Decimal(0)
         rerun_per_case = Decimal(0)
         for arm in plan.arms:
@@ -1671,6 +1690,7 @@ class EvalRunService:
                 requests=_requests(arm.spec),
             )
             per_case += await self._projected_input_cost(ctx, arm)
+            answers.append(per_case)
             # A reused arm's first answers are free, but a case that flips is
             # asked of it again in this run.
             rerun_per_case += per_case
@@ -1741,7 +1761,7 @@ class EvalRunService:
 
         agent_left = await self._agent_left(ctx, plan)
         org_left = await self._org_left(ctx)
-        return EvalRunEstimate(
+        estimate = EvalRunEstimate(
             cases=cases,
             dataset_version=plan.dataset_version.number,
             arms=arms,
@@ -1767,6 +1787,7 @@ class EvalRunService:
             ungraded_cases=plan.ungraded,
             missing_baseline_version=plan.missing_baseline,
         )
+        return estimate, RunPrices(answers=tuple(answers), grade=judge_per_case)
 
     async def _agent_left(self, ctx: AuthContext, plan: RunPlan) -> Decimal | None:
         """What the agent has left this month under the cap its runs are held to.
@@ -1871,10 +1892,8 @@ class EvalRunService:
                     )
                 }
             )
-        estimate = self._knowledge_cost(
-            await self._estimate(ctx, plan, held_out=_held_out_count(proposal_check)),
-            proposal_check,
-        )
+        priced, prices = await self._priced(ctx, plan, held_out=_held_out_count(proposal_check))
+        estimate = self._knowledge_cost(priced, proposal_check)
         proposal_check = self._priced_check(proposal_check, estimate)
         if request.quoted_usd is not None and estimate.at_most_usd > request.quoted_usd:
             raise ConcurrentChangeError(
@@ -1921,6 +1940,7 @@ class EvalRunService:
                 (price for price in (request.quoted_usd, hold_usd) if price is not None),
                 default=None,
             ),
+            grade_usd=prices.grade,
             excluded_case_ids=plan.excluded_case_ids,
             suite_check=None if suite is None else suite.model_dump(mode="json"),
             proposal_check=(
@@ -1946,6 +1966,7 @@ class EvalRunService:
                 model_profile_id=arm.model_profile_id,
                 model_label=arm.model_label,
                 reused_from_arm_id=arm.cached[0].id if arm.cached else None,
+                answer_usd=prices.answers[position],
             )
             for position, arm in enumerate(plan.arms)
         ]

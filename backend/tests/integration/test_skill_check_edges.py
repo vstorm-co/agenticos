@@ -547,7 +547,7 @@ class TestRunning:
         monkeypatch.setattr(
             eval_run_repo,
             "spending",
-            AsyncMock(return_value=eval_run_repo.Spending(spent, 0, 0, 4)),
+            AsyncMock(return_value=eval_run_repo.Spending(spent, Decimal(0), None)),
         )
 
         evals.finish_all()

@@ -19,10 +19,10 @@ settle flipped, are rerun, and the run ends.
 
 A run started at a price - a person's accepted quote, an eval suite's ceiling, a
 skill check's accepted most - starts no work that would take it past that price:
-not the next answer, not a judge's grading of an answer that has already reached
-it, not the reruns. It ends `budget_exceeded` instead, keeping what it answered
-and graded; answers already under way finish, so what it spent can pass the price
-by what they cost.
+not the next answer, not a judge's grading, not the reruns, each priced as its
+estimate set it and counted with what its answers under way reserve. It ends
+`budget_exceeded` instead, keeping what it answered and graded; answers already
+under way finish, so what it spent can pass the price by what they cost.
 """
 
 import asyncio
@@ -109,7 +109,7 @@ _FULL_BACKOFF_SECONDS = 2.0
 _STARTER_GONE = "Whoever started this eval is no longer a member."
 _NO_LONGER_RUNS = "Whoever started this eval may no longer run its agent or its dataset."
 _BUDGET_STOP = "A case ran into the agent's or the organization's budget."
-_UNGRADED_AT_QUOTE = "Not graded: the run had reached the price it was started at."
+_UNGRADED_AT_QUOTE = "Not graded: grading it would take the run past the price it was started at."
 
 
 def _at_quote(quoted_usd: Decimal) -> str:
@@ -118,15 +118,6 @@ def _at_quote(quoted_usd: Decimal) -> str:
         "that would go past it. Answers already under way are kept, and can take what it "
         "spent past that price by what they cost."
     )
-
-
-def _would_pass(
-    quoted_usd: Decimal, run: EvalRun, spending: eval_run_repo.Spending, *, answers: int
-) -> bool:
-    """Whether `answers` more, each priced at the run's estimate per first answer and its
-    grading, would take what the run spent past `quoted_usd`."""
-    share = run.estimate_usd / max(1, spending.first_attempts)
-    return spending.spent_usd + answers * share > quoted_usd
 
 
 _JSON = TypeAdapter(JsonValue)
@@ -515,10 +506,10 @@ class EvalRunWorker:
     async def _quote_reached(self, db: AsyncSession) -> Decimal | None:
         """The price the run was started at, when its next answer would take it past it.
 
-        Every answer under way is counted at its share of the estimate, as the next
-        is, since none has written what it spent yet; the organization's claim lock,
-        taken first, keeps two drainers of the run from both counting one short. An
-        answer dearer than its share still finishes - this stops the next one.
+        What it spent, what its answers under way reserve and the next answer with
+        its grading, each at its arm's price, are added under the organization's
+        claim lock, so two drainers of the run cannot both count one short. An
+        answer dearer than its price still finishes - this stops the next one.
         """
         org = self.organization_id
         run = await eval_run_repo.get(db, self.eval_run_id, organization_id=org)
@@ -526,8 +517,9 @@ class EvalRunWorker:
             return None
         await hold_subject(db, LockScope.EVAL_CASES_PER_ORGANIZATION, org)
         spending = await eval_run_repo.spending(db, run.id, organization_id=org)
-        if spending.pending and _would_pass(
-            run.quoted_usd, run, spending, answers=spending.running + 1
+        if (
+            spending.next_usd is not None
+            and spending.spent_usd + spending.reserved_usd + spending.next_usd > run.quoted_usd
         ):
             return run.quoted_usd
         return None
@@ -700,7 +692,7 @@ class EvalRunWorker:
                 db, run_id=agent_run.id, organization_id=org
             )
             rows = trajectory(calls, intercepted)
-            if await self._graded_past_quote(db, run, agent_run):
+            if await self._graded_past_quote(db, run):
                 if await self._erased_meanwhile(db, asked, {agent_run.id}):
                     await self._fail(
                         db,
@@ -821,19 +813,22 @@ class EvalRunWorker:
             )
             return False
 
-    async def _graded_past_quote(self, db: AsyncSession, run: EvalRun, agent_run: AgentRun) -> bool:
-        """Whether this answer has taken the run past its price, so a judge must not grade it.
+    async def _graded_past_quote(self, db: AsyncSession, run: EvalRun) -> bool:
+        """Whether grading this answer with a judge would take the run past its price.
 
-        Grading with checks alone costs nothing and still runs. What earlier tries of an
-        attempt asked again spent stays on the attempt, so it is in the run's spend already.
+        Its answer, at what it spent, and its grading are reserved with every other
+        answer under way, whose spend is counted once its run ended; the claim lock
+        keeps two answers ending together from both counting the other short.
+        Grading with checks alone costs nothing and still runs.
         """
         if run.quoted_usd is None:
             return False
         scoring = DatasetScoring.model_validate(run.scoring)
         if not (scoring.judge.enabled or scoring.reference.enabled):
             return False
+        await hold_subject(db, LockScope.EVAL_CASES_PER_ORGANIZATION, self.organization_id)
         spending = await eval_run_repo.spending(db, run.id, organization_id=self.organization_id)
-        return spending.spent_usd + agent_run.cost_usd > run.quoted_usd
+        return spending.spent_usd + spending.reserved_usd > run.quoted_usd
 
     async def _erased_meanwhile(
         self,
@@ -1226,7 +1221,12 @@ class EvalRunWorker:
             ]
             if new and run.quoted_usd is not None:
                 spending = await eval_run_repo.spending(db, run.id, organization_id=org)
-                if _would_pass(run.quoted_usd, run, spending, answers=len(new)):
+                prices = {arm.id: arm.answer_usd or Decimal(0) for arm in arms}
+                grade = run.grade_usd or Decimal(0)
+                asked = sum(
+                    (prices.get(case.arm_id, Decimal(0)) + grade for case in new), Decimal(0)
+                )
+                if spending.spent_usd + spending.reserved_usd + asked > run.quoted_usd:
                     await self._stop_for_budget(db, quoted_usd=run.quoted_usd)
                     return False
             await eval_run_repo.add_cases(db, organization_id=org, cases=new)

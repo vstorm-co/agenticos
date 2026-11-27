@@ -699,19 +699,20 @@ async def count_by_status(
 
 
 class Spending(NamedTuple):
-    """What a run has spent on the attempts it finished, and what it has under way."""
+    """What a run has spent, what it has under way, and what its next answer is priced at."""
 
     spent_usd: Decimal
-    running: int
-    pending: int
-    first_attempts: int
+    reserved_usd: Decimal
+    next_usd: Decimal | None
 
 
 async def spending(db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID) -> Spending:
-    """What a run has spent so far, counted as its read counts it.
+    """What a run has spent so far, counted as its read counts it, and what it has reserved.
 
-    The attempts' answers and the judge runs that graded them; an attempt still
-    running has written neither yet, so it is counted in `running` instead.
+    `spent_usd` is its attempts' answers and the judge runs that graded them. A
+    running attempt has written neither yet: it reserves its arm's price per
+    answer, or what its answer has spent once that is more, and a grading. The
+    next pending attempt, in the order they are claimed, is priced the same way.
     """
     of_run = (
         EvalRunCase.eval_run_id == eval_run_id,
@@ -737,19 +738,45 @@ async def spending(db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID
             AgentRun.organization_id == organization_id, AgentRun.id.in_(judge_runs)
         )
     )
-    counts = await db.execute(
-        select(
-            func.count().filter(EvalRunCase.status == CaseAttemptStatus.RUNNING.value),
-            func.count().filter(EvalRunCase.status == CaseAttemptStatus.PENDING.value),
-            func.count().filter(EvalRunCase.attempt == 0),
-        ).where(*of_run)
+    grade = func.coalesce(EvalRun.grade_usd, 0)
+    priced = (
+        select(EvalRunCase)
+        .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
+        .join(EvalRun, EvalRun.id == EvalRunCase.eval_run_id)
+        .where(*of_run)
     )
-    running, pending, firsts = counts.one()
+    reserved = await db.scalar(
+        priced.outerjoin(
+            AgentRun,
+            and_(
+                AgentRun.id == EvalRunCase.agent_run_id,
+                AgentRun.organization_id == organization_id,
+            ),
+        )
+        .where(EvalRunCase.status == CaseAttemptStatus.RUNNING.value)
+        .with_only_columns(
+            func.coalesce(
+                func.sum(
+                    func.greatest(
+                        func.coalesce(EvalRunArm.answer_usd, 0),
+                        func.coalesce(AgentRun.cost_usd, 0),
+                    )
+                    + grade
+                ),
+                0,
+            )
+        )
+    )
+    upcoming = await db.scalar(
+        priced.where(EvalRunCase.status == CaseAttemptStatus.PENDING.value)
+        .order_by(EvalRunCase.attempt, EvalRunCase.position, EvalRunCase.arm_id)
+        .limit(1)
+        .with_only_columns(func.coalesce(EvalRunArm.answer_usd, 0) + grade)
+    )
     return Spending(
         spent_usd=Decimal(answers or 0) + Decimal(judged or 0),
-        running=int(running),
-        pending=int(pending),
-        first_attempts=int(firsts),
+        reserved_usd=Decimal(reserved or 0),
+        next_usd=None if upcoming is None else Decimal(upcoming),
     )
 
 
