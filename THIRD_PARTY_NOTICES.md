@@ -87,7 +87,7 @@ names no author is in the evidence column below.
 | click | 8.5.1 | BSD-3-Clause | https://github.com/pallets/click/ | License-Expression |
 | cohere | 7.3.2 | MIT | https://github.com/cohere-ai/cohere-python | License field |
 | connectrpc | 0.12.1 | Apache-2.0 | https://github.com/connectrpc/connect-py | License-Expression |
-| croniter | 6.2.4 | MIT | https://github.com/pallets-eco/croniter | License-Expression |
+| croniter | 7.0.0 | MIT | https://github.com/pallets-eco/croniter | License-Expression |
 | cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause | https://github.com/pyca/cryptography/ | License-Expression |
 | cyclopts | 5.5.2 | Apache-2.0 | https://github.com/BrianPugh/cyclopts | License-Expression |
 | daytona | 0.234.0 | Apache-2.0 | https://pypi.org/project/daytona/0.234.0/ | License field |

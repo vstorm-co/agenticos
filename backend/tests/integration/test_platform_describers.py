@@ -69,12 +69,19 @@ async def test_accepting_holds_the_session_to_the_attempt_the_card_named(
     ctx, agent, ready = await _ready_proposal(db)
     chosen = next(item for item in ready.iterations if item.id == ready.best_iteration_id)
 
+    assert chosen.candidate_spec_hash is not None
+    assert chosen.result_hash is not None
     with pytest.raises(ConcurrentChangeError):
         await ImprovementPipelineService(db).finish(
             ctx,
             agent.id,
             ready.id,
-            ImprovementFinish(confirmed=True, attempt=chosen.number + 1),
+            ImprovementFinish(
+                confirmed=True,
+                attempt=chosen.number + 1,
+                candidate_spec_hash=chosen.candidate_spec_hash,
+                result_hash=chosen.result_hash,
+            ),
         )
 
 

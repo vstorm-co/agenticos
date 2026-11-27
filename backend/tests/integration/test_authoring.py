@@ -323,10 +323,13 @@ class QuotingImprover(Improver):
 
     def _answer(self, prompt: str) -> dict[str, Any]:
         answer = super()._answer(prompt)
-        said = re.search(r"^Reader comment: (.+)$", prompt, flags=re.MULTILINE)
-        if said and "instructions" in answer:
+        _, marker, comment = prompt.partition("Reader comment:\n")
+        if marker and "instructions" in answer:
+            bar, _, fenced = comment.partition("\n")
+            said, closing, _ = fenced.partition(f"\n{bar}\n")
+            assert closing, "The evidence comment must have a complete Markdown fence"
             run_id = _RUN.findall(prompt)[0]
-            answer["instructions"][0]["evidence"] = [{"run_id": run_id, "quote": said.group(1)}]
+            answer["instructions"][0]["evidence"] = [{"run_id": run_id, "quote": said}]
         return answer
 
 
