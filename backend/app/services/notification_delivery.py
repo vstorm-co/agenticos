@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import AppException
-from app.core.permissions import ROLE_PERMS, AuthContext, Perm
+from app.core.permissions import AuthContext
 from app.db.models.notification import (
     CHAT_NOTIFICATION_CHANNELS,
     NOTIFICATION_OUTER_RETENTION_DAYS,
@@ -73,14 +73,6 @@ CLAIM_LEASE = timedelta(minutes=2)
 # cancelled here, well before the lease would let another worker reclaim the
 # row, rather than left to hold its claim to the lease's edge.
 SEND_TIMEOUT_SECONDS = 30
-
-# The roles holding `approvals:decide`, derived from the catalog rather than
-# listed, so a role gaining or losing the permission cannot leave the render
-# choice behind (the same reasoning `notifications.py` used to state for its
-# own copy of this, before this became the only place it is computed).
-_DECIDING_ROLES = frozenset(
-    role for role, perms in ROLE_PERMS.items() if Perm.APPROVALS_DECIDE in perms
-)
 
 # The event types with a bespoke template, mapped to it. `approval_requested`
 # is chosen dynamically in `_render` instead (Decision 3); every other event
@@ -292,7 +284,6 @@ class NotificationDeliveryService:
             notification,
             ctx=ctx,
             recipient=recipient,
-            role=role,
             own_call=await self._center.answers_own_call(ctx, notification),
         )
         # Resolved now, not frozen at write time with the rest of
@@ -426,7 +417,6 @@ class NotificationDeliveryService:
         *,
         ctx: AuthContext,
         recipient: User,
-        role: str | None,
         own_call: bool,
     ) -> tuple[EmailKey, dict[str, Any]]:
         """What re-derives at send time is the *gate*, never the whole
@@ -458,7 +448,6 @@ class NotificationDeliveryService:
             context.pop(APPROVABLE_CALLS, None)
             decides = (
                 recipient.is_app_admin
-                or role in _DECIDING_ROLES
                 or own_call
                 or may_follow_decision_link(ctx, stored_starter_id(context.get("run_user_id")))
             )

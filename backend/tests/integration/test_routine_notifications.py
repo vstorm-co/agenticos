@@ -291,7 +291,7 @@ async def test_monthly_routine_budget_notices_share_one_case_and_honor_delivery_
     deliveries = list(await db.scalars(select(NotificationDelivery)))
     assert (len(deliveries) == 1) is email
     key, context = NotificationDeliveryService(db)._render(
-        note, ctx=_owner_ctx(user, org), recipient=user, role="owner", own_call=False
+        note, ctx=_owner_ctx(user, org), recipient=user, own_call=False
     )
     assert key is EmailKey.NOTIFICATION
     assert context["summary"] == note.summary
@@ -319,7 +319,7 @@ async def test_budget_alerts_without_routine_pause_metadata_keep_the_existing_re
     )
     assert note.outcome_id is None
     key, _ = NotificationDeliveryService(db)._render(
-        note, ctx=_owner_ctx(user, org), recipient=user, role="owner", own_call=False
+        note, ctx=_owner_ctx(user, org), recipient=user, own_call=False
     )
     assert key is EmailKey.BUDGET_EXCEEDED
 

@@ -1509,7 +1509,6 @@ class NotificationCenterService:
             # that person.
             if (
                 may_follow_decision_link(ctx, stored_starter_id(context.get("run_user_id")))
-                or ctx.has(Perm.APPROVALS_DECIDE)
                 or await self.answers_own_call(ctx, notification)
             ):
                 return _Gate(visible=True)

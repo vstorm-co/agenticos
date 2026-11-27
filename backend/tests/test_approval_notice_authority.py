@@ -15,6 +15,7 @@ import pytest
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent_run import AgentRun, RunSurface
 from app.db.models.notification import Notification, NotificationEventType
+from app.db.models.user import User
 from app.services.approval_authority import (
     may_decide_approval,
     may_follow_decision_link,
@@ -149,7 +150,14 @@ class TestTheEmailLink:
     def _key(self, ctx: AuthContext, run_user_id: str | None) -> tuple[EmailKey, dict]:
         notification = _notification(run_user_id)
         notification.render_context["approvals_url"] = "https://app.example/runs?tab=approvals"
-        return NotificationDeliveryService(MagicMock())._render(notification, ctx=ctx)
+        # These notifications carry no approvable call, so the reader is never
+        # answering their own platform call here.
+        recipient = User(
+            id=ctx.user_id, email="reader@example.invalid", is_app_admin=ctx.is_app_admin
+        )
+        return NotificationDeliveryService(MagicMock())._render(
+            notification, ctx=ctx, recipient=recipient, own_call=False
+        )
 
     def test_the_starter_gets_the_decide_email(self):
         key, context = self._key(_ctx("member"), str(_STARTER))
