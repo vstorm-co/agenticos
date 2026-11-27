@@ -180,7 +180,9 @@ async def test_skills_reach_a_call_as_toolless_leaves_with_their_file_tool():
             name="refunds",
             description="How refunds work",
             content="Step 1",
-            resources=[SimpleNamespace(name="tpl.md", description="t", content="x")],
+            resources=[
+                SimpleNamespace(name="tpl.md", description="t", content="x", encoding="utf8")
+            ],
         )
     ]
     adapted = voice_skills(Skills(skills=stored))

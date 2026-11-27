@@ -796,7 +796,14 @@ CALLS.extend(
             (
                 "POST",
                 f"/skills/{KB}/resources",
-                {"json": {"name": "example.md", "content": "Example", "description": None}},
+                {
+                    "json": {
+                        "name": "example.md",
+                        "content": "Example",
+                        "description": None,
+                        "encoding": "utf8",
+                    }
+                },
             ),
         ),
         (
