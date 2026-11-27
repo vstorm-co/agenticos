@@ -178,9 +178,7 @@ export function CommandPalette() {
   const kbItems = showKnowledge ? (kbs.data?.slice(0, MAX_ENTITIES) ?? []) : [];
   const conversationItems = showChat ? (conversations.data?.items ?? []) : [];
   const failedQueries = [
-    ...(showProjects
-      ? [{ isError: projects.error !== null, refetch: projects.refetch }]
-      : []),
+    ...(showProjects ? [{ isError: projects.error !== null, refetch: projects.refetch }] : []),
     ...(showAgents ? [agents] : []),
     ...(showKnowledge ? [kbs] : []),
     ...(showChat ? [conversations] : []),

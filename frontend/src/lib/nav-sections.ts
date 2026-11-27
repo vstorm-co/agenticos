@@ -340,7 +340,8 @@ export function presentedNavigation(
       return {
         ...group,
         items,
-        collapsible: Boolean(group.collapsible) && (items.length === group.items.length || items.length > 1),
+        collapsible:
+          Boolean(group.collapsible) && (items.length === group.items.length || items.length > 1),
       };
     })
     .filter((group) => group.items.length > 0);
