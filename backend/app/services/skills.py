@@ -8,9 +8,10 @@ read is the skills *capability*.
 
 import logging
 from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, TypedDict
 from uuid import UUID
 
 from pydantic import StringConstraints, TypeAdapter
@@ -29,6 +30,7 @@ from app.core.exceptions import (
     NotFoundError,
 )
 from app.core.excerpt import excerpt
+from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
@@ -44,7 +46,7 @@ from app.repositories import (
     skill_usage_repo,
     skill_version_repo,
 )
-from app.repositories.skill import SkillSort
+from app.repositories.skill import SkillKey, SkillSort
 from app.schemas.agent_run import RunSkillUseRead
 from app.schemas.console_catalogs import catalog_intersection
 from app.schemas.skill import (
@@ -52,10 +54,13 @@ from app.schemas.skill import (
     GalleryInstallResult,
     GallerySkillPreview,
     GallerySkillRead,
+    SkillArrangement,
     SkillGallery,
     SkillList,
     SkillRead,
     SkillResourceUpdate,
+    SkillSection,
+    SkillSections,
     SkillSummary,
     SkillUpdate,
     skill_name_refusal,
@@ -66,7 +71,7 @@ from app.schemas.skill_usage import (
     SkillUsageRead,
     SkillUsageVersion,
 )
-from app.services import skill_library
+from app.services import skill_library, skill_sections
 from app.services.access import (
     AGENT,
     SKILL,
@@ -77,12 +82,14 @@ from app.services.access import (
 )
 from app.services.console_catalogs import ConsoleCatalogService
 from app.services.resource_usage import (
+    SkillBindings,
     agents_serving_skills,
     agents_using,
     agents_using_skill,
     groups_sharing,
     in_use_by,
     shared_with_group,
+    skill_bindings,
 )
 from app.services.sharing import SharingService
 from app.services.skill_versions import SkillVersionService
@@ -102,6 +109,9 @@ SUGGESTED_CATEGORIES: tuple[str, ...] = catalog.load(
 # it cannot read is not a smaller feature - it is a file the agent is told
 # about and then cannot use.
 MAX_RESOURCE_BYTES = 512 * 1024
+
+MAX_SECTION_CARDS = 240
+"""The most cards one arranged listing carries across all its sections."""
 
 SKILL_BODY_CHARS = 4000
 """How much of one skill's body an agent's improver reads."""
@@ -131,9 +141,37 @@ def _summary(
         file_count=len(skill.resources),
         version=skill.version,
         built_in=skill.name in bundled_names,
+        gallery_industry=skill_library.gallery_industries().get(skill.name),
         architect=skill.name in architect_names,
         excerpt=excerpt(skill.content),
     )
+
+
+def _bundled_names() -> frozenset[str]:
+    """Every name the deployment ships, from the bundled library and from the gallery."""
+    return frozenset(entry.name for entry in skill_library.library()) | frozenset(
+        skill_library.gallery_industries()
+    )
+
+
+class _ListingScope(TypedDict):
+    """The caller's reach, as `skill_repo.list_visible` and `list_visible_keys` take it."""
+
+    organization_id: UUID
+    user_id: UUID
+    see_all: bool
+    shared_ids: list[UUID]
+    shared_with_me: bool
+    only_ids: Sequence[UUID] | None
+
+
+@dataclass(frozen=True, slots=True)
+class _Arranged:
+    """A filtered listing sorted into sections, and the agents read on the way, if any."""
+
+    keys: list[SkillKey]
+    sections: list[skill_sections.Section]
+    bindings: SkillBindings | None
 
 
 def _clean_resource_path(raw: str) -> str:
@@ -333,6 +371,7 @@ class SkillService:
         search: str | None = None,
         categories: Sequence[str] | None = None,
         group_id: UUID | None = None,
+        section_ids: Sequence[UUID] | None = None,
         sort: SkillSort = "name",
         skip: int = 0,
         limit: int = 50,
@@ -345,7 +384,34 @@ class SkillService:
         :func:`resolve_access` would admit one row at a time. `shared_with_me`
         narrows to what was deliberately shared with the caller - org-visible
         or explicitly granted, and not their own. `group_id` narrows to the
-        skills shared with one group.
+        skills shared with one group, and `section_ids` to one section of an
+        arranged listing, which was itself drawn from that narrowed set.
+        """
+        scope = await self._listing_scope(
+            ctx, shared_with_me=shared_with_me, group_id=group_id, section_ids=section_ids
+        )
+        return await skill_repo.list_visible(
+            self.db,
+            **scope,
+            search=search,
+            categories=categories,
+            sort=sort,
+            skip=skip,
+            limit=limit,
+        )
+
+    async def _listing_scope(
+        self,
+        ctx: AuthContext,
+        *,
+        shared_with_me: bool,
+        group_id: UUID | None,
+        section_ids: Sequence[UUID] | None = None,
+    ) -> _ListingScope:
+        """Who the listing is for, as the repository's predicate takes it.
+
+        One place for the flat page, the arranged sections and a section's own
+        pages, so the three can never disagree about which rows a caller sees.
         """
         # `None` is `visible_resource_ids` saying the role already reaches every
         # skill, which is exactly what `see_all` tells the query - so both come
@@ -366,19 +432,17 @@ class SkillService:
                 subject_user_id=ctx.subject_id,
                 resource_type=SKILL.key,
             )
-        return await skill_repo.list_visible(
-            self.db,
+        return _ListingScope(
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
             see_all=shared is None,
             shared_ids=grant_ids,
             shared_with_me=shared_with_me,
-            only_ids=await shared_with_group(self.db, ctx, resource_type=SKILL, group_id=group_id),
-            search=search,
-            categories=categories,
-            sort=sort,
-            skip=skip,
-            limit=limit,
+            only_ids=(
+                section_ids
+                if section_ids is not None
+                else await shared_with_group(self.db, ctx, resource_type=SKILL, group_id=group_id)
+            ),
         )
 
     async def list_readable(
@@ -389,6 +453,7 @@ class SkillService:
         search: str | None = None,
         categories: Sequence[str] | None = None,
         group_id: UUID | None = None,
+        section: str | None = None,
         sort: SkillSort = "name",
         skip: int = 0,
         limit: int = 50,
@@ -397,14 +462,17 @@ class SkillService:
 
         Three things that are not the page itself travel with it. `total` is the
         count before paging, which a pager needs and a page cannot supply.
-        `categories` is the whole organization's rather than the page's - a
-        filter chip that vanished with the page it filtered would strand
+        `categories` covers every skill the caller may see rather than the page -
+        a filter chip that vanished with the page it filtered would strand
         whoever pressed it. `suggested_categories` is the shipped list, for an
         organization that has not invented its own yet.
 
-        `categories` stays the organization's under `shared_with_me` too: the
+        `categories` stays that whole visible set under `shared_with_me` too: the
         chips describe what can be filtered to, and narrowing them to the
         shared subset would make the filter disappear as soon as it was used.
+
+        `section` pages through one section of :meth:`list_sections` - same
+        filters, same order - so a section's "show all" is an ordinary page.
 
         The listing used to top itself up, copying in any bundled skill the
         organization did not have. That made a deleted one come back on the
@@ -414,56 +482,231 @@ class SkillService:
         re-runs that deliberately; the gallery is where a skill is chosen. None
         of those needs a page that quietly writes rows while it reads.
         """
+        section_ids = None
+        arranged = None
+        if section is not None:
+            arrangement = skill_sections.arrangement_of(section)
+            if arrangement is None:
+                raise refused_field(
+                    "section",
+                    "Name a section the arranged listing returned, such as 'unused' or "
+                    "'origin:org'",
+                )
+            arranged = await self._arrange(
+                ctx,
+                arrangement,
+                shared_with_me=shared_with_me,
+                search=search,
+                categories=categories,
+                group_id=group_id,
+                sort=sort,
+            )
+            section_ids = next(
+                (found.skill_ids for found in arranged.sections if found.key == section), []
+            )
         items, total = await self.list_skills(
             ctx,
             shared_with_me=shared_with_me,
             search=search,
             categories=categories,
             group_id=group_id,
+            section_ids=section_ids,
             sort=sort,
             skip=skip,
             limit=limit,
         )
-        bundled_names = frozenset(entry.name for entry in skill_library.library()) | frozenset(
-            skill.name for industry in skill_library.gallery() for skill in industry.skills
-        )
-        architect_names = skill_library.architect_names()
-        used = await agents_serving_skills(self.db, ctx, skill_ids=[skill.id for skill in items])
-        drafted = await agents_using(
-            self.db, ctx, field="skill_ids", resource_ids=[skill.id for skill in items]
-        )
-        groups = await groups_sharing(
-            self.db, ctx, resource_type=SKILL, resource_ids=[skill.id for skill in items]
-        )
-        editable = await accessible_ids(self.db, ctx, items, Perm.SKILLS_EDIT, resource_type=SKILL)
-        forks = await skill_version_repo.count_active_forks(
-            self.db, organization_id=ctx.organization_id, skill_ids=[skill.id for skill in items]
-        )
         return SkillList(
-            items=[
-                _summary(skill, bundled_names, architect_names).model_copy(
-                    update={
-                        "used_by": used[skill.id],
-                        "drafted_by": [
-                            agent
-                            for agent in drafted[skill.id]
-                            if agent.id not in {serving.id for serving in used[skill.id]}
-                        ],
-                        "shared_groups": groups[skill.id],
-                        "can_edit": skill.id in editable,
-                        "forks": forks[skill.id],
-                    }
-                )
-                for skill in items
-            ],
+            items=await self._summaries(
+                ctx,
+                items,
+                bindings=None
+                if arranged is None
+                else await self._card_bindings(ctx, arranged, [item.id for item in items]),
+            ),
             total=total,
             categories=await self.list_categories(ctx),
             suggested_categories=list(SUGGESTED_CATEGORIES),
         )
 
+    async def list_sections(
+        self,
+        ctx: AuthContext,
+        arrange: SkillArrangement,
+        *,
+        shared_with_me: bool = False,
+        search: str | None = None,
+        categories: Sequence[str] | None = None,
+        group_id: UUID | None = None,
+        sort: SkillSort = "name",
+        per_section: int = 12,
+    ) -> SkillSections:
+        """The skills this caller may see, arranged into sections, each with its first cards.
+
+        Counted over the whole filtered set rather than a page of it, so a
+        section's count is the number its "show all" will page through. The
+        number of queries does not grow with the number of sections: one reads
+        the light columns of every visible skill, one batch reads the agents,
+        and one batch builds the cards every section shows.
+
+        The cards are bounded in all, not only per section: past
+        `MAX_SECTION_CARDS` a section keeps its count and its "show all" and
+        carries no cards, so a library spread over many shelves cannot make one
+        request load every skill it has.
+        """
+        arranged = await self._arrange(
+            ctx,
+            arrange,
+            shared_with_me=shared_with_me,
+            search=search,
+            categories=categories,
+            group_id=group_id,
+            sort=sort,
+        )
+        budget = MAX_SECTION_CARDS
+        cards: dict[str, list[UUID]] = {}
+        for section in arranged.sections:
+            cards[section.key] = section.skill_ids[: min(per_section, budget)]
+            budget -= len(cards[section.key])
+        shown = list(dict.fromkeys(skill_id for ids in cards.values() for skill_id in ids))
+        rows = await skill_repo.get_many(self.db, shown, organization_id=ctx.organization_id)
+        summaries = {
+            summary.id: summary
+            for summary in await self._summaries(
+                ctx,
+                [rows[skill_id] for skill_id in shown if skill_id in rows],
+                bindings=await self._card_bindings(ctx, arranged, shown),
+            )
+        }
+        return SkillSections(
+            arrange=arrange,
+            sections=[
+                SkillSection(
+                    key=section.key,
+                    kind=section.kind,
+                    count=len(section.skill_ids),
+                    agent=section.agent,
+                    industry=section.industry,
+                    category=section.category,
+                    items=[
+                        summaries[skill_id]
+                        for skill_id in cards[section.key]
+                        if skill_id in summaries
+                    ],
+                )
+                for section in arranged.sections
+            ],
+            total=len(arranged.keys),
+            categories=await self.list_categories(ctx),
+            suggested_categories=list(SUGGESTED_CATEGORIES),
+        )
+
+    async def _arrange(
+        self,
+        ctx: AuthContext,
+        arrange: SkillArrangement,
+        *,
+        shared_with_me: bool,
+        search: str | None,
+        categories: Sequence[str] | None,
+        group_id: UUID | None,
+        sort: SkillSort,
+    ) -> _Arranged:
+        """Every skill the filtered listing would page through, sorted into sections.
+
+        Only an arrangement by agent reads the agents of the whole library, and
+        then as id sets; the others read them later for the cards they show.
+        """
+        scope = await self._listing_scope(ctx, shared_with_me=shared_with_me, group_id=group_id)
+        keys = await skill_repo.list_visible_keys(
+            self.db, **scope, search=search, categories=categories, sort=sort
+        )
+        if arrange == "origin":
+            sections = skill_sections.by_origin(
+                keys,
+                bundled_names=_bundled_names(),
+                gallery_industries=skill_library.gallery_industries(),
+            )
+            return _Arranged(keys=keys, sections=sections, bindings=None)
+        if arrange == "category":
+            sections = skill_sections.by_category(keys, suggested=SUGGESTED_CATEGORIES)
+            return _Arranged(keys=keys, sections=sections, bindings=None)
+        bindings = await skill_bindings(self.db, ctx, skill_ids=[key.id for key in keys])
+        sections = skill_sections.by_agent(
+            keys, serving=bindings.serving, drafting=bindings.drafting, agents=bindings.agents
+        )
+        return _Arranged(keys=keys, sections=sections, bindings=bindings)
+
+    async def _card_bindings(
+        self, ctx: AuthContext, arranged: _Arranged, card_ids: Sequence[UUID]
+    ) -> SkillBindings:
+        """The agents behind the cards an arranged listing shows.
+
+        Those the arrangement already read, or else read for these cards alone, so
+        a card says the same "used by" and "drafted by" whatever the arrangement
+        and the agents named stay bounded by the cards. Every served version and
+        live draft of the organization is still parsed once either way.
+        """
+        if arranged.bindings is not None:
+            return arranged.bindings
+        return await skill_bindings(self.db, ctx, skill_ids=card_ids)
+
+    async def _summaries(
+        self,
+        ctx: AuthContext,
+        skills: Sequence[Skill],
+        *,
+        bindings: SkillBindings | None = None,
+    ) -> list[SkillSummary]:
+        """Skills as cards: their agents, departments, forks and whether the caller may edit.
+
+        The arranged listing hands over `bindings`, whose agents count a draft's
+        inline specialists, and names agents only for the cards it shows; the
+        plain listing reads its page's agents here, in one batch.
+        """
+        ids = [skill.id for skill in skills]
+        if bindings is None:
+            used = await agents_serving_skills(self.db, ctx, skill_ids=ids)
+            drafted = await agents_using(self.db, ctx, field="skill_ids", resource_ids=ids)
+        else:
+            used = {skill_id: bindings.used_by(skill_id) for skill_id in ids}
+            drafted = {skill_id: bindings.drafted_by(skill_id) for skill_id in ids}
+        groups = await groups_sharing(self.db, ctx, resource_type=SKILL, resource_ids=ids)
+        editable = await accessible_ids(self.db, ctx, skills, Perm.SKILLS_EDIT, resource_type=SKILL)
+        forks = await skill_version_repo.count_active_forks(
+            self.db, organization_id=ctx.organization_id, skill_ids=ids
+        )
+        bundled_names = _bundled_names()
+        architect_names = skill_library.architect_names()
+        return [
+            _summary(skill, bundled_names, architect_names).model_copy(
+                update={
+                    "used_by": used[skill.id],
+                    "drafted_by": [
+                        agent
+                        for agent in drafted[skill.id]
+                        if agent.id not in {serving.id for serving in used[skill.id]}
+                    ],
+                    "shared_groups": groups[skill.id],
+                    "can_edit": skill.id in editable,
+                    "forks": forks[skill.id],
+                }
+            )
+            for skill in skills
+        ]
+
     async def list_categories(self, ctx: AuthContext) -> list[str]:
-        """Every distinct category in this organization, for the listing's filter."""
-        return await skill_repo.list_categories(self.db, organization_id=ctx.organization_id)
+        """Every distinct category among the skills this caller may see, for the listing's filter.
+
+        Scoped like the listing itself, so a chip never names a shelf whose
+        skills the caller cannot open - and never leads to an empty page. One
+        choice per shelf: spellings differing only in letter case are one shelf,
+        which the filter matches in any case.
+        """
+        scope = await self._listing_scope(ctx, shared_with_me=False, group_id=None)
+        return skill_sections.fold_categories(
+            await skill_repo.list_categories(self.db, **scope),
+            SUGGESTED_CATEGORIES,
+        )
 
     async def resolve_for_agent(
         self,

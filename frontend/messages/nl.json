@@ -5709,6 +5709,10 @@
         "title": "Per afdeling",
         "body": "Beperk de lijst tot wat één groep kreeg. Een groep bepaalt wie iets bereikt, dus zo wordt de lijst ook gegroepeerd."
       },
+      "skills-arrange": {
+        "title": "De bibliotheek ordenen",
+        "body": "Bekijk skills per agent die ze gebruikt, per herkomst of per categorie. Ordenen verandert niets aan wie een skill kan zien."
+      },
       "context-groups": {
         "title": "Per afdeling",
         "body": "Beperk de lijst tot wat één groep kreeg. Een groep bepaalt wie iets bereikt, dus zo wordt de lijst ook gegroepeerd."
@@ -8522,6 +8526,13 @@
     },
     "skills": {
       "allCategories": "Alle categorieën",
+      "arrange": {
+        "agent": "Per agent",
+        "origin": "Per herkomst",
+        "category": "Per categorie",
+        "none": "Geen secties"
+      },
+      "arrangeBy": "Ordenen op",
       "askAdministratorAccessSkills": "Vraag een beheerder om toegang tot skills.",
       "categoryCount": "{count, plural, =1 {1 categorie} other {# categorieën}}",
       "clearFilter": "Filter wissen",
@@ -8536,6 +8547,17 @@
       "nobodyHasWrittenSkill": "Nog niemand heeft een skill voor deze organisatie geschreven.",
       "recentlyUpdated": "Recent bijgewerkt",
       "searchSkills": "Skills zoeken…",
+      "section": {
+        "drafted": "Alleen in concept",
+        "unused": "Niet gebruikt door een agent die je ziet",
+        "org": "Organisatie",
+        "private": "Privé",
+        "platform": "Ingebouwd · Platform",
+        "gallery": "Ingebouwd · {industry}",
+        "uncategorized": "Zonder categorie"
+      },
+      "showAll": "{count, plural, =1 {1 tonen} other {Alle # tonen}}",
+      "showFewer": "Minder tonen",
       "skillCount": "{count, plural, =1 {1 skill} other {# skills}}",
       "skillKnowHowWritten": "Een skill is knowhow die één keer wordt opgeschreven en gedeeld door elke agent die hem nodig heeft - hoe terugbetalingen worden afgehandeld, wat de huisstijl is. Bewerk hem hier en elke gekoppelde agent gebruikt vanaf zijn volgende run de nieuwe versie.",
       "skills": "Skills",

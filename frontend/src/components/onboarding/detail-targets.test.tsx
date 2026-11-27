@@ -73,7 +73,7 @@ describe("useDetailTargets", () => {
       client.setQueryData(
         qk.skills.list({
           search: "",
-          category: "",
+          categories: [],
           sort: "name",
           skip: 0,
           limit: PAGE_SIZE,

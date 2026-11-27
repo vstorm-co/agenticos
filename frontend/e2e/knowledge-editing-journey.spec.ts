@@ -61,7 +61,9 @@ test("context editing keeps changes through close, failed save and reopen", asyn
 
 test("a skill resource keeps a refused edit and saves before switching files", async ({ page }) => {
   const name = `skill-journey-${Date.now().toString(36)}`;
-  await page.goto("/skills");
+  // The plain grid, so the new skill's card is found by name without opening
+  // the section it would be arranged into.
+  await page.goto("/skills?arrange=none");
   await page.getByRole("button", { name: "New skill", exact: true }).first().click();
   const create = page.getByRole("dialog");
   await create.getByLabel("Name", { exact: true }).fill(name);

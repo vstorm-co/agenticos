@@ -78,6 +78,17 @@ async def drafts_mentioning(db: AsyncSession, needle: str, *, organization_id: U
     return list(result.scalars().all())
 
 
+async def list_live(db: AsyncSession, *, organization_id: UUID) -> list[Agent]:
+    """Every agent of the organization that is not archived, drafts and all."""
+    result = await db.execute(
+        select(Agent).where(
+            Agent.organization_id == organization_id,
+            Agent.status != AgentStatus.ARCHIVED.value,
+        )
+    )
+    return list(result.scalars().all())
+
+
 async def existing_ids_locked(
     db: AsyncSession, agent_ids: Collection[UUID], *, organization_id: UUID
 ) -> set[UUID]:

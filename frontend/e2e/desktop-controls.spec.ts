@@ -143,7 +143,7 @@ test.describe("desktop pointer controls", () => {
       for (const [path, api] of [
         ["/agents", "/api/agents"],
         ["/projects", "/api/projects"],
-        ["/skills", "/api/skills"],
+        ["/skills", "/api/skills/sections"],
         ["/context", "/api/context"],
         ["/rag", "/api/kb"],
         ["/documents", "/api/sandbox-workspaces/files"],
