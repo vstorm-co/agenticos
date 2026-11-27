@@ -37,6 +37,7 @@ way that chat's file and shell tools are, so it needs no address and no token.
 
 import base64
 import logging
+import shlex
 import struct
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -50,7 +51,7 @@ import httpx
 from pydantic import TypeAdapter, ValidationError
 from pydantic_ai.workspaces import SupportsCommands, Workspace, WorkspaceError
 
-from app.agents.capabilities.computer_use import _desktop_apps
+from app.agents.capabilities.computer_use import _desktop_apps, _desktop_session
 from app.agents.capabilities.computer_use._actions import (
     AnyAction,
     Click,
@@ -248,6 +249,7 @@ def xdotool(action: NativeAction) -> list[str] | None:
 
 
 _DESKTOP_APPS = Path(_desktop_apps.__file__).read_text()
+_DESKTOP_SESSION = Path(_desktop_session.__file__).read_text() + f"\nretire({DISPLAY!r})\n"
 """`_desktop_apps`' source, which a sandbox runs with `python3 -c`: one lookup for every Linux desktop."""
 
 _APPS: TypeAdapter[list[App]] = TypeAdapter(list[App])
@@ -542,11 +544,7 @@ def _desktop_start(width: int, height: int, *, reset_session: bool = False) -> s
     """
     display = f"xdpyinfo -display {DISPLAY} >/dev/null 2>&1"
     reset = (
-        "if pgrep -x xfce4-session >/dev/null; then\n"
-        "pkill -TERM -x xfce4-session || exit 1\n"
-        "for _ in $(seq 100); do pgrep -x xfce4-session >/dev/null || break; sleep 0.1; done\n"
-        "if pgrep -x xfce4-session >/dev/null; then exit 1; fi\n"
-        "fi\n"
+        f"python3 -c {shlex.quote(_DESKTOP_SESSION)} || exit 1\nif {display}; then exit 1; fi\n"
         if reset_session
         else ""
     )

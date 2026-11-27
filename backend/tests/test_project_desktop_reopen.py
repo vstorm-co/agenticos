@@ -34,14 +34,18 @@ def test_gui_startup_replaces_only_explicitly_retired_session(
     if live:
         session.touch()
     inherited.write_text("old")
+    display_state = tmp_path / "display"
+    display_state.touch()
     harness = r"""
 pgrep() { test -f "$SESSION"; }
-pkill() {
+python3() {
     test "$STOP" != fail || return 1
-    test "$STOP" = stuck || rm "$SESSION"
+    test "$STOP" = stuck || /bin/rm -f "$SESSION" "$DISPLAY_STATE"
+    test "$STOP" != stuck
 }
-xdpyinfo() { return 0; }
-Xvfb() { return 0; }
+xdpyinfo() { test -f "$DISPLAY_STATE"; }
+Xvfb() { touch "$DISPLAY_STATE"; }
+rm() { return 0; }
 xdotool() { return 0; }
 scrot() { return 0; }
 sleep() { /bin/sleep 0.01; }
@@ -57,6 +61,7 @@ startxfce4() { printf %s "$PROJECT_DIR" > "$INHERITED"; touch "$SESSION"; }
             **os.environ,
             "SESSION": str(session),
             "INHERITED": str(inherited),
+            "DISPLAY_STATE": str(display_state),
             "STOP": stop,
             "PROJECT_DIR": "new",
         },

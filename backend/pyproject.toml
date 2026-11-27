@@ -416,7 +416,7 @@ line-length = 100
 # These run on the runner's own `python3` (3.12), before any toolchain is
 # installed - CI's first job, and the dependency-graph submission - so they keep
 # to syntax that interpreter parses.
-per-file-target-version = { "../deploy/updater/*.py" = "py312", "../scripts/ci_changed_scope.py" = "py312", "../scripts/dependency_snapshot.py" = "py312" }
+per-file-target-version = { "app/agents/capabilities/computer_use/_desktop_session.py" = "py312", "../deploy/updater/*.py" = "py312", "../scripts/ci_changed_scope.py" = "py312", "../scripts/dependency_snapshot.py" = "py312" }
 
 [tool.ruff.lint]
 # Dotless i is a distinct Turkish letter used in localized messages.
@@ -799,6 +799,7 @@ include = [
     "app/services/project_filesystem_gateway.py",
     "app/services/project_filesystem_runtime.py",
     "app/services/sandbox_workspace.py",
+    "app/agents/capabilities/computer_use/_desktop_session.py",
     "app/schemas/conversation_environment.py",
     "app/repositories/conversation_environment.py",
     "app/services/conversation_environment_policy.py",
@@ -1808,6 +1809,7 @@ include = [
     "app/services/project_filesystem_gateway.py",
     "app/services/project_filesystem_runtime.py",
     "app/services/sandbox_workspace.py",
+    "app/agents/capabilities/computer_use/_desktop_session.py",
     "app/schemas/conversation_environment.py",
     "app/repositories/conversation_environment.py",
     "app/services/conversation_environment_policy.py",
