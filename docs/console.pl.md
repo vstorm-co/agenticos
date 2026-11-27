@@ -1,5 +1,5 @@
 ---
-source_sha: "f6da4a88723a"
+source_sha: "475e74d4c418"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -1350,6 +1350,8 @@ Nagłówek Chatów oferuje **Ostatnią aktywność (płaską listę)**. Łączy 
 
 ## Żywa przeglądarka i pulpit { #live-environments }
 
+Pasek Browser ma jedną ikonę sterowania z podpowiedzią i stanem wciśnięcia. Sam podgląd nie dodaje widocznej etykiety statusu. Kompaktowe linki odwiedzonych stron zawijają się razem przy lewej krawędzi, a composer trzyma Workspace obok agenta zamiast rozsuwać te kontrolki na cały wiersz.
+
 We własnym prywatnym czacie **Workspace** otwiera ostatni dostępny panel jednym kliknięciem. Jeśli wcześniej nic nie wybrano, otwiera działający Browser lub Desktop, a w przeciwnym razie Files. Browser i Desktop są dostępne, gdy wybrany opublikowany agent ma daną capability, a Ty możesz go uruchamiać. Pusty czat projektu można najpierw utworzyć bez wiadomości i bez modelu. Otwarcie panelu nie tworzy środowiska; uruchamia je jawne **Open environment**. Sparowane lokalne urządzenia zachowują dotychczasowe sterowanie.
 
 Browser ma też wiersz rzeczywiście otwartych stron, oddzielny od widoków Workspace. Wybór strony zachowuje jej formularze i stan JavaScript. Lista zawiera do ośmiu żywych, zarejestrowanych kart należących do tej rozmowy; linki z historii i obce konteksty przeglądarki nie stają się zakładkami. Metadane stron odświeżają się w istniejącym strumieniu w ciągu pięciu sekund. Przełączenie bezczynnej strony nie wymaga Take over; sterowanie agenta lub dzierżawa wejścia innej osoby blokuje wybór. Obraz czeka na świeżą klatkę wybranej strony przed pokazaniem pikseli i przyjęciem komend.
@@ -1369,6 +1371,6 @@ Delegaci zachowują własne widoki aktywności przeglądarki i pulpitu. Delegat 
 
 ## Kontrolki w wąskim czacie i na telefonie { #narrow-chat-controls }
 
-W wąskim czacie pływający przycisk **Chat controls** nad rozmową zawiera model, tryb zatwierdzania, użycie kontekstu i lokalne narzędzia. Pole wiadomości zachowuje załączniki, agenta, Workspace i Wyślij w jednym wierszu; szerszy czat zachowuje dolne kontrolki. Biblioteka modeli na telefonie umieszcza wybór dostawcy nad listą modeli, zostawiając pełną szerokość na ich nazwy.
+Na telefonie pływający przycisk **Chat controls** nad rozmową zawiera model, tryb zatwierdzania, użycie kontekstu i lokalne narzędzia. Pole wiadomości zachowuje załączniki, agenta, Workspace i Wyślij w jednym wierszu; szerszy czat zachowuje dolne kontrolki. Biblioteka modeli na telefonie umieszcza wybór dostawcy nad listą modeli, zostawiając pełną szerokość na ich nazwy.
 
 Na telefonie układy i dostosowanie dashboardu przechodzą do **Więcej akcji strony**. Wyszukiwanie w tabeli dzieli wiersz z kompaktowymi przyciskami filtrowania, sortowania i ustawień widoku; **Grupuj według** jest w ustawieniach widoku. Onboarding ma krótkie etykiety mobilne z pełnymi nazwami dostępnymi dla czytników ekranu. Modal śledzenia projektu zostawia miejsce wokół pól z fokusem, aby ich obrys pozostawał widoczny.

@@ -328,30 +328,17 @@
   display: none;
 }
 @container chat (max-width: 820px) {
-  .chat-floating-controls {
-    display: block;
-    position: absolute;
-    inset-block-start: 0.5rem;
-    inset-inline-end: 0.75rem;
-    z-index: 30;
-  }
-  .chat-layout [data-chat-actions] {
-    display: none;
-  }
-  .chat-layout .chat-input-send > span.contents {
-    display: none;
-  }
   .chat-layout .chat-input-actions {
     display: flex;
     min-block-size: 44px;
   }
   .chat-layout .chat-input-selection {
-    flex: 1 1 0;
+    flex: 0 1 auto;
     min-inline-size: 44px;
   }
   .chat-layout .chat-input-selection [data-tour="chat-agent-picker"] {
     min-inline-size: 44px;
-    flex: 1 1 0;
+    flex: 0 1 auto;
     max-inline-size: 15rem;
   }
   .chat-layout .chat-input-selection [data-chat-files] {
@@ -363,12 +350,31 @@
 }
 @media (min-width: 768px) {
   @container chat (max-width: 820px) {
+    .chat-layout [data-chat-model] {
+      min-inline-size: 44px;
+      max-inline-size: 44px;
+      gap: 2px;
+      padding-inline: 6px;
+    }
+    .chat-layout [data-chat-model] .chat-model-caption {
+      display: none;
+    }
     .chat-layout [data-transcript] {
       padding-block-start: 4rem;
     }
   }
 }
 @media (max-width: 767px) {
+  .chat-floating-controls {
+    display: block;
+    position: absolute;
+    inset-block-start: 0.5rem;
+    z-index: 30;
+  }
+  .chat-layout [data-chat-actions],
+  .chat-layout .chat-input-send > span.contents {
+    display: none;
+  }
   .chat-layout .chat-input-form[data-editing] {
     display: block;
   }
@@ -376,7 +382,7 @@
     display: flex;
   }
   .chat-layout .chat-input-form[data-editing] .chat-input-selection {
-    flex: 1 1 0;
+    flex: 0 1 auto;
   }
   .chat-floating-controls {
     inset-inline-start: 4rem;

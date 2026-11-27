@@ -115,6 +115,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep Workspace beside the agent in narrow composers, group compact visited-page links without full-width grid gaps, and replace Browser control labels with one accessible icon.
+
 - Count a single answer in the singular throughout the skill Improve Understand summary, in every console language (#3483).
 
 - Count inline specialists in a skill card’s Drafted by list and in knowledge base and Context Used by lists, subject to the same agent visibility rules (#3288, #3298).

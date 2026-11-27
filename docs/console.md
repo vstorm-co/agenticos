@@ -1326,6 +1326,8 @@ The Chats header offers **Most recent first (flat list)**. It combines project a
 
 ## Live browser and desktop { #live-environments }
 
+The Browser toolbar uses one input-control icon with a tooltip and pressed state. Passive viewing has no visible status label. Compact visited-page links wrap together at the left edge, and the composer keeps Workspace beside the agent rather than spreading those controls across the row.
+
 In your own private chat, **Workspace** opens the last available pane with one click. Without an earlier selection it opens a live Browser or Desktop, otherwise Files. Browser and Desktop are available when the selected published agent enables that capability and you can run it. An empty project chat can first be created without sending a message or starting a model. Opening the panel never provisions an environment; **Open environment** explicitly starts one. Paired local-device flows keep their existing controls.
 
 Browser also has a row of actual open pages, separate from the Workspace views. Select a page to keep its existing form and JavaScript state. The list contains only live registered targets owned by this conversation, with at most eight entries; historical links and foreign browser contexts never become tabs. Page metadata updates on the existing stream, within five seconds. Switching an idle page does not require Take over; agent control or another person’s input lease prevents selection. The screen waits for a fresh frame from the selected page before showing pixels or accepting input.
@@ -1345,6 +1347,6 @@ Delegates keep their own browser and desktop activity views. A delegate using th
 
 ## Narrow chat and page controls { #narrow-chat-controls }
 
-On a narrow chat, the floating **Chat controls** button above the transcript holds the model, permission mode, context usage and local tools. The composer keeps attachments, agent, Workspace and Send in one row; wider chats retain their bottom controls. The model library puts its provider selector above the model list on phones, leaving the full width for model names.
+On phones, the floating **Chat controls** button above the transcript holds the model, permission mode, context usage and local tools. The composer keeps attachments, agent, Workspace and Send in one row; wider chats retain their bottom controls. The model library puts its provider selector above the model list on phones, leaving the full width for model names.
 
 On phones, dashboard layouts and customization move into **More page actions**. Table search shares a row with compact filter, sort and view-settings buttons; **Group by** is inside view settings. Onboarding keeps short mobile action labels with their full accessible names. Project tracking dialogs leave space around focused fields so their focus outlines remain visible.

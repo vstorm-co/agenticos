@@ -1,5 +1,5 @@
 ---
-source_sha: "f6da4a88723a"
+source_sha: "475e74d4c418"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -1437,6 +1437,8 @@ Der Chats-Kopf bietet **Neueste Aktivität zuerst (flache Liste)**. Projektchats
 
 ## Live-Browser und Desktop { #live-environments }
 
+Die Browser-Leiste verwendet ein Symbol für die Eingabesteuerung mit Tooltip und gedrücktem Zustand. Reines Zuschauen zeigt keine sichtbare Statusbeschriftung. Kompakte Links besuchter Seiten stehen gemeinsam am linken Rand und brechen bei Bedarf um; im Composer bleibt Workspace direkt neben dem Agenten.
+
 Im eigenen privaten Chat öffnet **Workspace** mit einem Klick die zuletzt verfügbare Ansicht. Ohne vorherige Auswahl öffnet sich ein laufender Browser oder Desktop, andernfalls Files. Browser und Desktop sind verfügbar, wenn der ausgewählte veröffentlichte Agent die Capability aktiviert und Sie ihn ausführen dürfen. Ein leerer Projektchat lässt sich ohne Nachricht oder Modellaufruf erstellen. Das Öffnen des Panels stellt keine Umgebung bereit; erst **Open environment** startet sie ausdrücklich. Gekoppelte lokale Geräte behalten ihre bisherigen Bedienelemente.
 
 Browser zeigt zusätzlich eine Zeile tatsächlich geöffneter Seiten, getrennt von den Workspace-Ansichten. Die Auswahl bewahrt Formulare und JavaScript-Zustand der Seite. Die Liste enthält höchstens acht aktive registrierte Ziele dieses Gesprächs; historische Links und fremde Browserkontexte werden nicht zu Tabs. Metadaten werden über den bestehenden Stream innerhalb von fünf Sekunden aktualisiert. Eine ruhende Seite lässt sich ohne Take over wechseln; Agentensteuerung oder die Eingabelease einer anderen Person verhindern die Auswahl. Vor der Anzeige und Eingabe wartet der Bildschirm auf ein frisches Bild der ausgewählten Seite.
@@ -1456,6 +1458,6 @@ Delegierte behalten eigene Aktivitätsansichten für Browser und Desktop. Ein De
 
 ## Bedienelemente in schmalen Chats und auf Telefonen { #narrow-chat-controls }
 
-In einem schmalen Chat enthält die schwebende Schaltfläche **Chat controls** über dem Gespräch Modell, Freigabemodus, Kontextnutzung und lokale Werkzeuge. Anhänge, Agent, Workspace und Senden bleiben in einer Zeile; breite Chats behalten die unteren Bedienelemente. Auf Telefonen steht die Anbieterauswahl über der Modellliste, sodass die gesamte Breite für Modellnamen verfügbar bleibt.
+Auf Telefonen enthält die schwebende Schaltfläche **Chat controls** über dem Gespräch Modell, Freigabemodus, Kontextnutzung und lokale Werkzeuge. Anhänge, Agent, Workspace und Senden bleiben in einer Zeile; breite Chats behalten die unteren Bedienelemente. Auf Telefonen steht die Anbieterauswahl über der Modellliste, sodass die gesamte Breite für Modellnamen verfügbar bleibt.
 
 Auf Telefonen befinden sich Dashboard-Layouts und Anpassung unter **Weitere Seitenaktionen**. Die Tabellensuche teilt sich eine Zeile mit kompakten Schaltflächen für Filter, Sortierung und Ansichtseinstellungen; **Gruppieren nach** steht in den Ansichtseinstellungen. Onboarding-Aktionen verwenden kurze mobile Beschriftungen und behalten ihre vollständigen zugänglichen Namen. Projektverfolgungsdialoge lassen Platz um fokussierte Felder, damit deren Fokusrahmen sichtbar bleiben.

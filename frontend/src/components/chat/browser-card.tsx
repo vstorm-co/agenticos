@@ -47,12 +47,22 @@ export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
   const t = useTranslations("chat");
   const visits = turnBrowseVisits(calls, live);
   if (visits.length === 0) return null;
+  const hasInline = visits.some(
+    ({ browse }) =>
+      browse &&
+      !browse.navigable &&
+      !browse.nativeId &&
+      !(browse.environmentId && workspace?.environmentPanels.includes("desktop")),
+  );
   return (
     <div
       className={cn(
-        "grid w-full min-w-0 gap-2 py-1",
-        visits.length > 1 ? "md:grid-cols-2" : "max-w-3xl",
+        hasInline
+          ? "grid w-full min-w-0 gap-2 py-1"
+          : "flex min-w-0 flex-wrap items-center justify-start gap-2 py-1",
+        hasInline && (visits.length > 1 ? "md:grid-cols-2" : "max-w-3xl"),
       )}
+      data-browser-visits
     >
       {visits.map(({ id, call, browse }) =>
         browse ? (

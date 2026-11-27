@@ -657,16 +657,20 @@ it("allows an explicit retry after a takeover was refused", async () => {
   expect(screen.getByRole("button", { name: "Take over" })).toBeEnabled();
 });
 
-it("shows explicit control status and text actions without granting input to viewers", () => {
+it("keeps control status off the toolbar and uses accessible icon actions", () => {
   const live = control();
   const view = render(<BrowserWindow browse={browse()} control={live} controlState="none" />);
-  expect(screen.getByText("View only")).toBeVisible();
-  expect(screen.getByRole("button", { name: "Take over" })).toHaveTextContent("Take over");
+  expect(screen.getByText("View only")).toHaveClass("sr-only");
+  expect(screen.getByRole("button", { name: "Take over" })).toHaveTextContent(/^$/);
+  expect(screen.getByRole("button", { name: "Take over" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
   view.rerender(<BrowserWindow browse={browse()} control={null} controlState="agent" />);
-  expect(screen.getByText("Agent controls")).toBeVisible();
+  expect(screen.getByText("Agent controls")).toHaveClass("sr-only");
   expect(screen.queryByRole("button", { name: "Take over" })).toBeNull();
   view.rerender(<BrowserWindow browse={browse()} control={live} controlState="human" />);
-  expect(screen.getByText("Another viewer controls")).toBeVisible();
+  expect(screen.getByText("Another viewer controls")).toHaveClass("sr-only");
   view.rerender(
     <BrowserWindow
       browse={browse({ heldById: "u1", heldBy: "Ada" })}
@@ -674,8 +678,12 @@ it("shows explicit control status and text actions without granting input to vie
       controlState="human"
     />,
   );
-  expect(screen.getByText("You control")).toBeVisible();
-  expect(screen.getByRole("button", { name: "Hand it back" })).toHaveTextContent("Hand it back");
+  expect(screen.getByText("You control")).toHaveClass("sr-only");
+  expect(screen.getByRole("button", { name: "Hand it back" })).toHaveTextContent(/^$/);
+  expect(screen.getByRole("button", { name: "Hand it back" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 });
 
 it("never tries to resize a physical desktop screen", () => {

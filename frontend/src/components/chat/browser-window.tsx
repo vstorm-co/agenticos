@@ -382,12 +382,7 @@ export function BrowserWindow({
         />
       )}
       <div className="bg-muted/25 border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b p-1.5 @min-[640px]/browser-window:flex-nowrap">
-        <div
-          className={cn(
-            "flex min-w-0 flex-1 items-center",
-            showNavigation && "basis-full @min-[640px]/browser-window:basis-auto",
-          )}
-        >
+        <div className="flex min-w-0 flex-1 items-center">
           {showNavigation ? (
             <BrowserNavigation
               url={browse.url}
@@ -428,11 +423,8 @@ export function BrowserWindow({
             </div>
           )}
         </div>
-        <div className="ml-auto flex w-full shrink-0 items-center gap-2 @min-[640px]/browser-window:w-auto">
-          <span
-            role="status"
-            className="text-muted-foreground mr-auto min-w-0 text-xs @min-[640px]/browser-window:mr-0"
-          >
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <span role="status" className="sr-only">
             {controlLabel}
           </span>
           {browse.outcome && <OutcomeBadge outcome={browse.outcome} />}
@@ -448,10 +440,10 @@ export function BrowserWindow({
                   // take-over asks again rather than inheriting a tick.
                   setRemember(false);
                 }}
-                className="border-border bg-background text-foreground hover:bg-muted flex h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2 text-xs font-medium pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+                aria-pressed
+                className="bg-muted text-foreground hover:bg-muted/80 flex size-8 shrink-0 items-center justify-center rounded-lg pointer-coarse:size-11"
               >
                 <Undo2 className="size-4" aria-hidden />
-                <span>{tb("giveBack")}</span>
               </button>
             ) : hold.someoneElse || controlState === "human" ? null : (
               <button
@@ -459,11 +451,11 @@ export function BrowserWindow({
                 aria-label={hold.waiting ? tb("takingOver") : tb("takeOver")}
                 onClick={hold.takeOver}
                 disabled={hold.waiting}
-                title={tb("takeOverHint")}
-                className="border-border bg-background text-foreground hover:bg-muted flex h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2 text-xs font-medium disabled:opacity-60 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+                title={hold.waiting ? tb("takingOverShort") : tb("takeOverHint")}
+                aria-pressed={false}
+                className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-lg disabled:opacity-60 pointer-coarse:size-11"
               >
                 <Hand className="size-4" aria-hidden />
-                <span>{hold.waiting ? tb("takingOverShort") : tb("takeOver")}</span>
               </button>
             ))}
           {canComment && (

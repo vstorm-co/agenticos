@@ -1,5 +1,5 @@
 ---
-source_sha: "f6da4a88723a"
+source_sha: "475e74d4c418"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -1390,6 +1390,8 @@ La cabecera de Chats ofrece **Actividad más reciente (lista plana)**. Combina c
 
 ## Navegador y escritorio en vivo { #live-environments }
 
+La barra de Browser usa un icono de control con descripción emergente y estado pulsado. La visualización pasiva no añade una etiqueta de estado visible. Los enlaces compactos de páginas visitadas se agrupan a la izquierda y se ajustan en varias líneas; Workspace permanece junto al agente en el editor.
+
 En un chat privado propio, **Workspace** abre con un clic el último panel disponible. Sin selección previa, abre un Browser o Desktop activo y, en otro caso, Files. Browser y Desktop están disponibles cuando el agente publicado seleccionado habilita esa capability y puedes ejecutarlo. Puedes crear un chat de proyecto vacío sin mensaje ni llamada al modelo. Abrir el panel no crea un entorno; **Open environment** lo inicia explícitamente. Los dispositivos locales emparejados mantienen sus controles actuales.
 
 Browser incluye además una fila de páginas realmente abiertas, separada de las vistas de Workspace. Seleccionar una página conserva sus formularios y su estado de JavaScript. La lista contiene hasta ocho destinos registrados activos de esta conversación; los enlaces históricos y los contextos ajenos nunca se convierten en pestañas. Los metadatos se actualizan por el stream existente en cinco segundos. Cambiar una página inactiva no requiere Take over; el control del agente o la concesión de entrada de otra persona bloquean la selección. La pantalla espera una imagen nueva de la página seleccionada antes de mostrar píxeles o aceptar entradas.
@@ -1409,6 +1411,6 @@ Los delegados conservan sus propias vistas de actividad del navegador y escritor
 
 ## Controles en chats estrechos y teléfonos { #narrow-chat-controls }
 
-En un chat estrecho, el botón flotante **Chat controls** sobre la conversación contiene el modelo, el modo de aprobación, el uso del contexto y las herramientas locales. El editor conserva adjuntos, agente, Workspace y Enviar en una fila; los chats anchos mantienen sus controles inferiores. En teléfonos, la biblioteca coloca el selector de proveedor encima de la lista de modelos para dejar toda la anchura a sus nombres.
+En teléfonos, el botón flotante **Chat controls** sobre la conversación contiene el modelo, el modo de aprobación, el uso del contexto y las herramientas locales. El editor conserva adjuntos, agente, Workspace y Enviar en una fila; los chats anchos mantienen sus controles inferiores. En teléfonos, la biblioteca coloca el selector de proveedor encima de la lista de modelos para dejar toda la anchura a sus nombres.
 
 En teléfonos, los diseños y la personalización del dashboard pasan a **Más acciones de página**. La búsqueda de tablas comparte una fila con botones compactos de filtros, ordenación y ajustes de vista; **Agrupar por** está en los ajustes de vista. El onboarding usa etiquetas móviles breves y conserva sus nombres accesibles completos. Los diálogos de seguimiento del proyecto dejan espacio alrededor de los campos enfocados para que sus contornos permanezcan visibles.

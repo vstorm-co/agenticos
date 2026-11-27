@@ -515,3 +515,22 @@ function DesktopRouting() {
     </output>
   );
 }
+
+it("keeps compact page links together in a wrapping row", () => {
+  const { container } = render(
+    <BrowserCards
+      browses={[
+        browse({ navigable: true, tabId: "one", title: "One" }),
+        browse({ callId: "two", navigable: true, tabId: "two", title: "Two" }),
+      ]}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "One" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Two" })).toBeInTheDocument();
+  expect(container.querySelector("[data-browser-visits]")).toHaveClass(
+    "flex",
+    "flex-wrap",
+    "gap-2",
+  );
+  expect(container.querySelector("[data-browser-visits]")).not.toHaveClass("md:grid-cols-2");
+});

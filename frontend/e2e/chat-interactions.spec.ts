@@ -319,3 +319,40 @@ for (const theme of ["light", "dark"] as const) {
     ).toBeLessThanOrEqual(0);
   });
 }
+
+test("keeps desktop composer controls together when the chat column narrows", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/chat?answerer=agenticos");
+  const agent = page.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true });
+  await expect(agent).toBeVisible();
+  await page.locator(".chat-layout-content").evaluate((element) => {
+    if (!(element instanceof HTMLElement)) throw new Error("Expected the chat layout element");
+    element.style.maxWidth = "640px";
+  });
+  const composer = page.locator(".composer-box");
+  const workspace = composer.getByRole("button", { name: "Open workspace", exact: true });
+  await expect(composer.getByRole("button", { name: "Model", exact: true })).toBeVisible();
+  await expect(page.locator("[data-chat-floating-controls]")).toBeHidden();
+  await expect
+    .poll(async () => {
+      const a = await agent.boundingBox();
+      const w = await workspace.boundingBox();
+      return a && w ? w.x - (a.x + a.width) : -1;
+    })
+    .toBeGreaterThanOrEqual(0);
+  await expect
+    .poll(async () => {
+      const a = await agent.boundingBox();
+      const w = await workspace.boundingBox();
+      return a && w ? w.x - (a.x + a.width) : Infinity;
+    })
+    .toBeLessThanOrEqual(8);
+  const box = await composer.boundingBox();
+  if (!box) throw new Error("Expected the narrow composer");
+  for (const control of await composer.getByRole("button").all()) {
+    if (!(await control.isVisible())) continue;
+    const item = await control.boundingBox();
+    expect(item?.x).toBeGreaterThanOrEqual(box.x);
+    expect((item?.x ?? 0) + (item?.width ?? 0)).toBeLessThanOrEqual(box.x + box.width);
+  }
+});
