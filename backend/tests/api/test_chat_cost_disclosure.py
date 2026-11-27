@@ -92,6 +92,11 @@ async def test_chat_responses_obey_the_readers_policy(
             deps.get_auth_context: lambda: ctx,
             deps.get_db_session: lambda: AsyncMock(),
             deps.get_conversation_service: lambda: service,
+            # The messages route also reads moved-thread stubs through the
+            # room context service; no threads moved in this fixture.
+            deps.get_room_thread_context_read_service: lambda: AsyncMock(
+                moved_stubs=AsyncMock(return_value=[])
+            ),
             deps.get_parked_run_service: lambda: parked,
             deps.get_agent_runner_service: lambda: AsyncMock(),
         }
