@@ -16311,6 +16311,7 @@
         "executed": "uruchomione",
         "replayed": "z nagrania",
         "blocked": "nie wykonane (zapisałoby dane)",
+        "blockedReason": "{reason, select, external {nie wykonane (sięgnęłoby poza wdrożenie)} needs_approval {nie wykonane (wymaga zatwierdzenia)} other {nie wykonane (zapisałoby dane)}}",
         "divergent": "brak w nagraniu"
       },
       "scorer": {

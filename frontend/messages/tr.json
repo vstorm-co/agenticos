@@ -18829,6 +18829,7 @@
         "executed": "çalıştı",
         "replayed": "kayıttan",
         "blocked": "çalıştırılmadı (veri yazacaktı)",
+        "blockedReason": "{reason, select, external {çalıştırılmadı (dışarıya ulaşacaktı)} needs_approval {çalıştırılmadı (onay gerekiyor)} other {çalıştırılmadı (veri yazacaktı)}}",
         "divergent": "kayıtta yok"
       },
       "scorer": {

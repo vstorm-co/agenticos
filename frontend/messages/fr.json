@@ -16073,6 +16073,7 @@
         "executed": "exécuté",
         "replayed": "d’après l’enregistrement",
         "blocked": "non exécuté (aurait écrit des données)",
+        "blockedReason": "{reason, select, external {non exécuté (aurait atteint l’extérieur)} needs_approval {non exécuté (exige une approbation)} other {non exécuté (aurait écrit des données)}}",
         "divergent": "absent de l’enregistrement"
       },
       "scorer": {

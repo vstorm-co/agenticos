@@ -16538,6 +16538,7 @@
         "executed": "ran",
         "replayed": "from recording",
         "blocked": "not executed (would have written data)",
+        "blockedReason": "{reason, select, external {not executed (would have reached outside)} needs_approval {not executed (needs approval)} other {not executed (would have written data)}}",
         "divergent": "not in recording"
       },
       "scorer": {

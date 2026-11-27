@@ -34,7 +34,11 @@ function Call({ call }: { call: EvalCall }) {
   const t = useTranslations("evals.case");
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs">
-      <Badge variant={CALL_TONE[call.outcome]}>{t(`call.${call.outcome}`)}</Badge>
+      <Badge variant={CALL_TONE[call.outcome]}>
+        {call.outcome === "blocked" && call.reason
+          ? t("call.blockedReason", { reason: call.reason })
+          : t(`call.${call.outcome}`)}
+      </Badge>
       <code className="break-all">
         {call.tool}({JSON.stringify(call.args)})
       </code>

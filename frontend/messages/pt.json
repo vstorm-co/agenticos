@@ -16422,6 +16422,7 @@
         "executed": "executada",
         "replayed": "da gravação",
         "blocked": "não executada (teria gravado dados)",
+        "blockedReason": "{reason, select, external {não executada (teria alcançado o exterior)} needs_approval {não executada (exige aprovação)} other {não executada (teria gravado dados)}}",
         "divergent": "não está na gravação"
       },
       "scorer": {

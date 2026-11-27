@@ -962,6 +962,7 @@ describe("CaseDetail", () => {
       />,
     );
 
+    expect(screen.getByText("not executed (would have reached outside)")).toBeInTheDocument();
     const script = screen.getByText('run_code({"code":"await lookup()"})').closest("li")!;
     expect(within(script).getByText('lookup({"q":"returns"})')).toBeInTheDocument();
     expect(within(script).getByText('web_fetch({"url":"u"})')).toBeInTheDocument();

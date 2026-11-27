@@ -16224,6 +16224,7 @@
         "executed": "ausgeführt",
         "replayed": "aus Aufzeichnung",
         "blocked": "nicht ausgeführt (hätte Daten geschrieben)",
+        "blockedReason": "{reason, select, external {nicht ausgeführt (hätte nach außen gegriffen)} needs_approval {nicht ausgeführt (braucht eine Freigabe)} other {nicht ausgeführt (hätte Daten geschrieben)}}",
         "divergent": "nicht in der Aufzeichnung"
       },
       "scorer": {

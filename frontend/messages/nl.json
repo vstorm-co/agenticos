@@ -16422,6 +16422,7 @@
         "executed": "uitgevoerd",
         "replayed": "uit opname",
         "blocked": "niet uitgevoerd (zou gegevens hebben geschreven)",
+        "blockedReason": "{reason, select, external {niet uitgevoerd (zou naar buiten hebben gereikt)} needs_approval {niet uitgevoerd (vereist goedkeuring)} other {niet uitgevoerd (zou gegevens hebben geschreven)}}",
         "divergent": "niet in opname"
       },
       "scorer": {
