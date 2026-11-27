@@ -102,6 +102,7 @@ export function StartBudget({
               aria-invalid={!valid}
               aria-describedby={error ? `${hintId} ${errorId}` : hintId}
               onValueChange={choose}
+              onInvalidValueChange={choose}
             />
           </div>
           <input
@@ -114,10 +115,10 @@ export function StartBudget({
             )}
             step={1}
             value={valid && reporting !== null ? Math.round(reporting) : 0}
-            disabled={pending || parsed === null}
-            aria-label={t("budgetSlider")}
+            disabled={pending || parsed === null || !money.available}
+            aria-label={t("budgetSlider", { currency: money.currency ?? "—" })}
             aria-valuetext={formatted}
-            onChange={(event) => chooseReporting(event.target.value)}
+            onChange={(event) => chooseReporting(String(Math.round(Number(event.target.value))))}
           />
           <div className={styles.presets}>
             {[25, 100, 500].map((amount) => (
@@ -125,7 +126,7 @@ export function StartBudget({
                 key={amount}
                 variant={reporting === amount ? "secondary" : "outline"}
                 aria-pressed={reporting === amount}
-                disabled={pending}
+                disabled={pending || !money.available}
                 onClick={() => chooseReporting(String(amount))}
               >
                 {money.formatAmount(amount, locale, 0)}

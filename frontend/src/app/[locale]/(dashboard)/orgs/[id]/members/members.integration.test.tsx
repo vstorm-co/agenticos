@@ -504,7 +504,7 @@ describe("organization settings tabs", () => {
     await userEvent.click(expand);
     expect(nightly).toBeChecked();
     expect(nightly).toBeVisible();
-    expect(limit).toHaveValue(5);
+    expect(limit).toHaveValue("5");
     expect(limit).toBeVisible();
   });
 

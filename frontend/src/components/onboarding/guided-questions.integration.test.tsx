@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
+import { CurrencyProvider } from "@/components/providers/currency-provider";
+import type { CurrencyContext } from "@/lib/currency-api";
 import type { Organization } from "@/types";
 import { Perm, type Permission } from "@/types/permissions";
 import { StartDeployment } from "./start-deployment";
@@ -26,6 +28,10 @@ const env = vi.hoisted(() => ({
   loading: false,
   permissions: new Set<Permission>(),
   permissionsFailed: false,
+  currency: null as CurrencyContext | null,
+}));
+vi.mock("@/hooks/use-currencies", () => ({
+  useCurrencies: () => ({ data: env.currency }),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
@@ -91,6 +97,7 @@ beforeEach(() => {
   env.failed = false;
   env.loading = false;
   env.permissionsFailed = false;
+  env.currency = null;
   env.permissions = new Set();
   env.save.mockResolvedValue({});
   env.budget.mockResolvedValue(org);
@@ -208,11 +215,13 @@ it("changes a budget by preset and slider but saves only on Continue", async () 
   expect(env.budget).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "$100" }));
   fireEvent.change(screen.getByRole("slider"), { target: { value: "350" } });
-  expect(screen.getByRole("spinbutton", { name: "Monthly budget in US dollars" })).toHaveValue(350);
+  expect(screen.getByRole("textbox", { name: "Budget (USD)" })).toHaveValue("350");
   expect(screen.getByRole("slider")).toHaveValue("350");
   expect(env.budget).not.toHaveBeenCalled();
   await proceed();
-  expect(env.budget).toHaveBeenCalledWith("company", 350);
+  expect(env.budget).toHaveBeenCalledWith("company", "350", {
+    monthly_budget_usd: { amount: "350", currency: "USD" },
+  });
   expect(env.next).toHaveBeenCalledOnce();
 });
 it("preserves an existing decimal cap without an unnecessary write", async () => {
@@ -237,7 +246,7 @@ it("keeps the slider above zero and supports no ceiling", async () => {
   expect(screen.getByRole("slider")).toHaveValue("1");
   await userEvent.click(screen.getByRole("button", { name: "No limit" }));
   await proceed();
-  expect(env.budget).toHaveBeenCalledWith("company", null);
+  expect(env.budget).toHaveBeenCalledWith("company", null, undefined);
 });
 it("never offers a budget or approval change without its effective permission", async () => {
   env.permissions.add(Perm.orgSettings);
@@ -363,7 +372,9 @@ it("selects and saves a budget in whole dollars", async () => {
   expect(slider).toHaveValue("354");
   expect(slider).toHaveAttribute("aria-valuetext", "$354");
   await proceed();
-  expect(env.budget).toHaveBeenCalledWith("company", 354);
+  expect(env.budget).toHaveBeenCalledWith("company", "354", {
+    monthly_budget_usd: { amount: "354", currency: "USD" },
+  });
 });
 
 it("still leaves the step when its settings could not be read", async () => {
@@ -442,20 +453,75 @@ it("does not offer the organization profile editor to a budget-only operator", a
 
 it("accepts a precise monthly cap through its labelled input without writing on mount", async () => {
   render(<StartBudget org={org} onContinue={env.next} />);
-  const field = screen.getByRole("spinbutton", { name: "Monthly budget in US dollars" });
+  const field = screen.getByRole("textbox", { name: "Budget (USD)" });
   expect(env.budget).not.toHaveBeenCalled();
   fireEvent.change(field, { target: { value: "1250.12" } });
-  expect(field).toHaveValue(1250.12);
+  expect(field).toHaveValue("1250.12");
   await proceed();
-  expect(env.budget).toHaveBeenCalledWith("company", 1250.12);
+  expect(env.budget).toHaveBeenCalledWith("company", "1250.12", {
+    monthly_budget_usd: { amount: "1250.12", currency: "USD" },
+  });
 });
 it("keeps an invalid budget editable with a linked error and no save", async () => {
   render(<StartBudget org={org} onContinue={env.next} />);
-  const field = screen.getByRole("spinbutton", { name: "Monthly budget in US dollars" });
+  const field = screen.getByRole("textbox", { name: "Budget (USD)" });
   fireEvent.change(field, { target: { value: "-2" } });
+  expect(field).toHaveValue("-2");
   await proceed();
   expect(field).toHaveAttribute("aria-invalid", "true");
-  expect(field.getAttribute("aria-describedby")).toContain(screen.getByRole("alert").id);
+  expect(screen.getByText("Choose a positive amount, or no limit.")).toHaveAttribute(
+    "role",
+    "alert",
+  );
+  expect(field.getAttribute("aria-describedby")).toContain(
+    screen.getByText("Choose a positive amount, or no limit.").id,
+  );
   expect(env.budget).not.toHaveBeenCalled();
   expect(env.next).not.toHaveBeenCalled();
+});
+
+it("labels and saves whole slider units in the frozen reporting currency", async () => {
+  env.currency = {
+    currency: "PLN",
+    default_currency: "PLN",
+    inherited: true,
+    reporting_units_per_usd: "4",
+    rates: { USD: "1", PLN: "9" },
+  };
+  render(
+    <CurrencyProvider>
+      <StartBudget org={{ ...org, monthly_budget_usd: "100" }} onContinue={env.next} />
+    </CurrencyProvider>,
+  );
+  const slider = screen.getByRole("slider", { name: "Monthly budget slider (PLN)" });
+  const input = screen.getByRole("textbox", { name: "Budget (PLN)" });
+  expect(input).toHaveValue("400");
+  expect(env.budget).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: /100/ }));
+  expect(input).toHaveValue("100");
+  fireEvent.change(slider, { target: { value: "354.4" } });
+  expect(slider).toHaveValue("354");
+  expect(input).toHaveValue("354");
+  expect(env.budget).not.toHaveBeenCalled();
+  await proceed();
+  expect(env.budget).toHaveBeenCalledWith("company", "88.5", {
+    monthly_budget_usd: { amount: "354", currency: "PLN" },
+  });
+});
+
+it("holds currency-dependent choices until the reporting quote is available", async () => {
+  render(
+    <CurrencyProvider>
+      <StartBudget org={{ ...org, monthly_budget_usd: "100" }} onContinue={env.next} />
+    </CurrencyProvider>,
+  );
+  expect(screen.getByRole("textbox", { name: "Budget (—)" })).toBeDisabled();
+  expect(screen.getByRole("slider")).toBeDisabled();
+  for (const preset of screen.getAllByRole("button", { name: "—" })) {
+    expect(preset).toBeDisabled();
+  }
+  expect(env.budget).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Keep current settings" }));
+  expect(env.budget).not.toHaveBeenCalled();
+  expect(env.next).toHaveBeenCalledOnce();
 });

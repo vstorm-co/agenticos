@@ -578,7 +578,7 @@ describe("OrgProactivity", () => {
     render(<OrgProactivity org={org(ON)} />);
     await userEvent.clear(screen.getByLabelText("Limit per person (USD a month)"));
     await userEvent.click(screen.getAllByRole("button", { name: "Save" })[0]!);
-    expect(screen.getByText("Enter an amount in dollars, 0 or more.")).toBeVisible();
+    expect(screen.getByText("Enter a non-negative amount.")).toBeVisible();
 
     await userEvent.type(screen.getByLabelText("Limit per person (USD a month)"), "1");
     await userEvent.click(screen.getByRole("switch", { name: "Daily briefing & suggestions" }));
