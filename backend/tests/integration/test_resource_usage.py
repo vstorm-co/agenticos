@@ -12,6 +12,7 @@ from app.db.models.agent import Agent, AgentStatus
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
+from app.repositories.agent import BoundResourceField
 from app.services.resource_usage import (
     agents_drafting_skills,
     agents_serving_skills,
@@ -42,15 +43,17 @@ async def _organization(db: AsyncSession) -> tuple[Organization, AuthContext]:
     )
 
 
-def _spec(name: str, skill_ids: list[uuid.UUID], *, specialist: bool) -> dict[str, Any]:
-    """A draft binding `skill_ids` - the agent's own, or through an inline specialist."""
+def _spec(
+    name: str, ids: list[uuid.UUID], *, specialist: bool, field: BoundResourceField = "skill_ids"
+) -> dict[str, Any]:
+    """A draft binding `ids` under `field` - the agent's own, or through an inline specialist."""
     if not specialist:
-        return AgentSpec(name=name, skill_ids=skill_ids).model_dump(mode="json")
+        return AgentSpec.model_validate({"name": name, field: ids}).model_dump(mode="json")
     billing = {
         "name": "billing",
         "description": "Bills.",
         "instructions": "Bill.",
-        "skill_ids": [str(skill_id) for skill_id in skill_ids],
+        field: [str(resource_id) for resource_id in ids],
     }
     return AgentSpec.model_validate(
         {"name": name, "capabilities": [{"id": "subagents", "config": {"inline": [billing]}}]}
@@ -66,8 +69,9 @@ async def _agent(
     visibility: Visibility = Visibility.ORG,
     status: AgentStatus = AgentStatus.DRAFT,
     specialist: bool = False,
+    field: BoundResourceField = "skill_ids",
 ) -> Agent:
-    spec = _spec(name, skill_ids or [], specialist=specialist)
+    spec = _spec(name, skill_ids or [], specialist=specialist, field=field)
     agent = Agent(
         id=uuid.uuid4(),
         organization_id=ctx.organization_id,
@@ -227,3 +231,63 @@ async def test_a_private_agents_specialist_is_not_named_to_somebody_who_cannot_s
     drafted = await agents_drafting_skills(db, as_member, skill_ids=[refunds])
 
     assert [agent.name for agent in drafted[refunds]] == ["Shared"]
+
+
+@pytest.mark.parametrize("field", ["collection_ids", "context_ids"])
+async def test_a_card_names_a_draft_whose_inline_specialist_binds_it(
+    db: AsyncSession, field: BoundResourceField
+) -> None:
+    _, owner = await _organization(db)
+    handbook, unused = uuid.uuid4(), uuid.uuid4()
+    await _agent(db, owner, "Support", skill_ids=[handbook], specialist=True, field=field)
+    await _agent(db, owner, "Billing", skill_ids=[handbook], field=field)
+    both = await _agent(db, owner, "Both", skill_ids=[handbook], specialist=True, field=field)
+    both.draft_spec = {**both.draft_spec, field: [str(handbook)]}
+    await db.flush()
+
+    used = await agents_using(db, owner, field=field, resource_ids=[handbook, unused])
+
+    assert [agent.name for agent in used[handbook]] == ["Billing", "Both", "Support"]
+    assert used[unused] == []
+
+
+@pytest.mark.parametrize("field", ["collection_ids", "context_ids"])
+async def test_a_specialist_binding_is_named_only_where_the_caller_may_see_it(
+    db: AsyncSession, field: BoundResourceField
+) -> None:
+    organization, owner = await _organization(db)
+    _, theirs = await _organization(db)
+    member = await _person(db)
+    db.add(OrganizationMember(organization_id=organization.id, user_id=member.id, role="member"))
+    await db.flush()
+    as_member = AuthContext(user_id=member.id, organization_id=organization.id, role="member")
+    handbook = uuid.uuid4()
+    await _agent(db, owner, "Shared", skill_ids=[handbook], specialist=True, field=field)
+    await _agent(
+        db,
+        owner,
+        "Private",
+        skill_ids=[handbook],
+        visibility=Visibility.PRIVATE,
+        specialist=True,
+        field=field,
+    )
+    await _agent(
+        db,
+        owner,
+        "Retired",
+        skill_ids=[handbook],
+        status=AgentStatus.ARCHIVED,
+        specialist=True,
+        field=field,
+    )
+    await _agent(db, theirs, "Theirs", skill_ids=[handbook], specialist=True, field=field)
+    talker = await _agent(db, owner, "Talker")
+    talker.draft_spec = AgentSpec(name="Talker", instructions=f"Never read {handbook}.").model_dump(
+        mode="json"
+    )
+    await db.flush()
+
+    used = await agents_using(db, as_member, field=field, resource_ids=[handbook])
+
+    assert [agent.name for agent in used[handbook]] == ["Shared"]

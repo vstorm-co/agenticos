@@ -21,6 +21,7 @@ from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import Agent, AgentStatus
 from app.repositories import agent_environment_repo, agent_repo, group_repo, resource_grant_repo
 from app.repositories.agent import BoundResourceField
+from app.schemas.eval_suite import DependencyKind
 from app.schemas.resource_usage import AgentUsage
 from app.services.access import AGENT, ResourceType, accessible_ids
 
@@ -34,13 +35,33 @@ async def agents_using(
 ) -> dict[UUID, list[AgentUsage]]:
     """For each resource, the agents binding it that the caller may see.
 
-    Narrowed to what `agents:view` reaches, so a skill's card never names a
-    private agent its reader could not open. Every requested id is a key.
+    A draft binds a resource itself or through an inline specialist it defines. Only
+    drafts naming one of these ids are parsed for their specialists, which keeps a
+    page's cost to its own cards. Narrowed to what `agents:view` reaches, so a card
+    never names a private agent its reader could not open. Every requested id is a
+    key, each list in name order.
     """
     found = await agent_repo.binding_resources(
         db, organization_id=ctx.organization_id, field=field, resource_ids=resource_ids
     )
+    wanted = frozenset(found)
+    kind = _KIND_OF_FIELD[field]
+    for agent in await agent_repo.drafts_mentioning(
+        db, [str(resource_id) for resource_id in wanted], organization_id=ctx.organization_id
+    ):
+        for resource_id in _bound(agent.draft_spec, kind) & wanted:
+            if all(listed.id != agent.id for listed in found[resource_id]):
+                found[resource_id].append(agent)
+    for agents in found.values():
+        agents.sort(key=lambda agent: agent.name)
     return await _visible_usage(db, ctx, found)
+
+
+_KIND_OF_FIELD: dict[BoundResourceField, DependencyKind] = {
+    "skill_ids": "skill",
+    "collection_ids": "knowledge_base",
+    "context_ids": "context",
+}
 
 
 async def agents_using_mcp(
@@ -260,10 +281,16 @@ async def skill_bindings(
 
 
 def _bound_skills(spec: dict[str, Any]) -> set[UUID]:
+    return _bound(spec, "skill")
+
+
+def _bound(spec: dict[str, Any], kind: DependencyKind) -> set[UUID]:
+    """What a stored spec binds of one kind, its specialists included; nothing if it
+    does not parse."""
     from app.services.eval_suite import bound_ids
 
     try:
-        return bound_ids(AgentSpec.model_validate(spec), "skill")
+        return bound_ids(AgentSpec.model_validate(spec), kind)
     except ValidationError:
         return set()
 
