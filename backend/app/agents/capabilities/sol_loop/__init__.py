@@ -47,6 +47,7 @@ class SolLoopReviewerConfig(BaseModel):
             "The model profile this reviewer reviews on - its primary model only, "
             "never a fallback. Point it at your Sol model."
         ),
+        json_schema_extra={"x-resource": "model_profile"},
     )
 
 

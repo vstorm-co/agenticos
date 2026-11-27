@@ -155,7 +155,11 @@ class WebBrowserConfig(BaseModel):
             "Saved browser logins or contact profiles this agent may request in your private "
             "console chat. Each fill requires a live destination confirmation."
         ),
-        json_schema_extra={"x-visible-when": {"field": "connection", "equals": ["built_in"]}},
+        json_schema_extra={
+            "x-visible-when": {"field": "connection", "equals": ["built_in"]},
+            # Each id names a vault secret holding one saved browser login.
+            "x-resource": "secret",
+        },
     )
     max_steps: int = Field(
         title="Steps per call at most",
