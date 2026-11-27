@@ -523,6 +523,47 @@ class TestRunning:
         assert read.status is CheckStatus.RUNNING
         assert {row.state for row in read.agents} == {AgentState.RUNNING}
 
+    @pytest.mark.security
+    async def test_each_stage_is_held_to_what_is_left_of_the_agents_accepted_most(
+        self, db, monkeypatch
+    ):
+        """The second stage gets what the first left of the price accepted for the agent,
+        and a stage stopped at its price ends the agent rather than waiting out the day."""
+        lab = await _lab(db)
+        evals = FakeEvals()
+        evals.install(monkeypatch)
+        service = SkillCheckService(db)
+        check = await service.start(
+            lab.ctx, lab.skill.id, SkillCheckStart(candidate=NEW, mode="thorough")
+        )
+        org = lab.ctx.organization_id
+        rows = {
+            row.agent_id: row
+            for row in await skill_check_repo.list_agents(db, [check.id], organization_id=org)
+        }
+        first = dict(zip([agent for agent, _ in evals.started], evals.held, strict=True))
+        assert first[lab.a.id] == rows[lab.a.id].at_most_usd
+        spent = Decimal("0.05")
+        monkeypatch.setattr(
+            eval_run_repo,
+            "spending",
+            AsyncMock(return_value=eval_run_repo.Spending(spent, 0, 0, 4)),
+        )
+
+        evals.finish_all()
+        await service.advance(check.id, org)
+
+        a = await db.get(SkillCheckAgent, rows[lab.a.id].id)
+        assert a is not None and a.dataset_run_id is not None
+        second = evals.held[list(evals.runs).index(a.dataset_run_id)]
+        assert second == a.at_most_usd - spent
+        evals.runs[a.dataset_run_id].status = EvalRunStatus.BUDGET_EXCEEDED.value
+        await service.advance(check.id, org)
+
+        read = await service.read(lab.ctx, lab.skill.id, check.id)
+        stopped = next(row for row in read.agents if row.agent.name == "A")
+        assert (stopped.state, stopped.unknown_reason) == ("unknown", "failed")
+
     async def test_a_starter_who_may_no_longer_act_leaves_the_rest_unknown(self, db, monkeypatch):
         lab = await _lab(db)
         FakeEvals().install(monkeypatch)
