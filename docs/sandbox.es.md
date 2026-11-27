@@ -1,5 +1,5 @@
 ---
-source_sha: "febed1aea968"
+source_sha: "4810cee98986"
 ---
 
 # La sandbox { #the-sandbox }
@@ -55,6 +55,42 @@ con el token que hay en `SANDBOXD_TOKEN`. Los demás backends de sandbox -las
 conexiones `daytona` y `e2b`, y `state`- son servicios alojados y un documento en
 Postgres, y ninguno implica nada de lo anterior; tampoco el ordenador propio de la
 persona (ver [Más allá de sandboxd](#beyond-sandboxd)).
+
+### Archivos del proyecto en vivo en el sandbox del agente { #live-project-files-in-the-agent-sandbox }
+
+Un host sandboxd 0.2.40 configurado para ello expone los archivos del proyecto
+elegido dentro del contenedor privado del agente de conversación/ejecución en
+`/project/<UUID de concesión inmutable>`. Conserva imagen, paquetes y workspace
+propios. Cada comando recibe `PROJECT_DIR`; las rutas relativas siguen usando su
+workspace normal. El gateway autenticado sirve los datos en vivo, incluidos
+proyectos almacenados en la base de datos, sin copiarlos al agente. El ejecutor
+explícito del proyecto sigue siendo una opción separada.
+
+El operador activa juntos `SANDBOXD_FILESYSTEM_GATEWAY_URL` y
+`SANDBOXD_FILESYSTEM_EXPORT_IMAGE`, con contenedores retenidos y raíz de workspace
+duradera. La imagen del exportador tiene la misma versión fijada de sandboxd que el
+SDK. La URL termina en `/api/v1/project-filesystem` y debe ser accesible desde
+sandboxd y su puente privado auxiliar. Puede usarse una URL HTTPS accesible del API;
+nombres internos de Compose como `api` no están disponibles en el puente aislado.
+`host.docker.internal:<puerto>` exige un API ligado a una interfaz accesible desde
+Docker; un puerto publicado solo en loopback de producción no basta.
+
+En Compose, añade `-f docker-compose.project-filesystem.yml` después de los archivos base y proxy al activar montajes en vivo. `scripts/deploy.sh` genera la misma configuración fuera del checkout cuando ambas opciones están configuradas, conserva la reversión a versiones anteriores y rechaza la configuración parcial. Solo sandboxd recibe un puente de salida separado; se mantienen la red privada de datos, el aislamiento de agentes y la ausencia de puertos publicados del supervisor.
+
+La función permanece desactivada hasta configurarla. Los clientes no eligen rutas
+del host, imágenes ni direcciones del gateway. El auxiliar no publica puertos; el
+agente no entra en su puente ni recibe FUSE o privilegios adicionales de montaje.
+Sesiones antiguas sin montaje requieren recuperación explícita conservando sus
+archivos. Scopes y proveedores incompatibles rechazan comandos del proyecto en vez
+de usar otros archivos. Reiniciar el auxiliar invalida handles NFS y detiene al
+agente hasta recuperar explícitamente el sistema de archivos; no crea un reemplazo
+vacío.
+
+El almacenamiento nativo necesita atributos extendidos duraderos y enlaces duros
+atómicos; son compatibles el almacenamiento Linux verificado y el proveedor state
+en base de datos. Los bind mounts de macOS pueden rechazar los requisitos nativos.
+No se admiten enlaces simbólicos ni cambios de propietario. [Proyectos](projects.md#what-an-agent-gets-in-a-project)
+describe el acceso por concesión y el ejecutor explícito opcional del proyecto.
 
 ### El servicio y el backend cambian juntos { #the-service-and-the-backend-move-together }
 
@@ -824,4 +860,4 @@ sesión que limpiar.
 
 El backend `state` incluye archivos y directorios vacíos en el límite de almacenamiento, también al fusionar cambios simultáneos. Si los documentos aceptados por separado no caben juntos, el documento compartido no cambia y el estado posterior se confirma como copia de recuperación en **Documents**. La ejecución registra un error con el identificador de la copia; una modificación del proyecto devuelve un conflicto en lugar de éxito. Las copias de proyectos requieren permisos de visualización y uso. Una clave foránea elimina la copia junto con su origen, incluso durante una eliminación de datos simultánea. Reducir el límite por debajo del tamaño de un documento existente permite seguir reduciendo ese documento.
 
-Las instrucciones de workbench explican que los comandos usan POSIX `/bin/sh`, no Bash. Por ejemplo, `mkdir -p sources inbox notes` crea tres carpetas; esta shell no expande `{sources,inbox,notes}`. Los archivos del proyecto pertenecen a `/workspace`; el directorio personal (`~`) queda fuera de los archivos compartidos. Cada comando inicia un proceso nuevo: las variables y los cambios de directorio no pasan a la siguiente llamada. Se indica al agente que revise los fallos y verifique los archivos antes de anunciar el éxito.
+Las instrucciones de workbench explican que los comandos usan POSIX `/bin/sh`, no Bash. Por ejemplo, `mkdir -p sources inbox notes` crea tres carpetas; esta shell no expande `{sources,inbox,notes}`. El ejecutor activo conserva su carpeta de trabajo. Con acceso en vivo, `PROJECT_DIR` apunta a `/project/<UUID de concesión>`; usa esa ruta para archivos compartidos. El directorio personal (`~`) queda fuera. Cada comando inicia un proceso nuevo: las variables y los cambios de directorio no pasan a la siguiente llamada. Se indica al agente que revise los fallos y verifique los archivos antes de anunciar el éxito.

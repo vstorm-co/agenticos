@@ -8,6 +8,7 @@ import { Button } from "@/components/ui";
 import { useContextAuthoring } from "@/hooks/use-authoring";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Perm } from "@/types/permissions";
+import { RequestFailure } from "./failure-words";
 import { ImproveDialog } from "./improve-dialog";
 
 /**
@@ -67,9 +68,7 @@ function ImproveButton({
         {working ? labels.working : labels.improve}
       </Button>
       {assistant.latest?.status === "failed" && (
-        <p role="alert" className="text-destructive-ink text-xs">
-          {assistant.latest.error}
-        </p>
+        <RequestFailure request={assistant.latest} className="text-destructive-ink text-xs" />
       )}
       {assistant.latest?.status === "completed" && assistant.latest.report?.no_change && (
         <p className="text-muted-foreground text-xs">{t("noChange")}</p>

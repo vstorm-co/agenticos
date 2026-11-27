@@ -1,5 +1,5 @@
 ---
-source_sha: "48eead872cf1"
+source_sha: "617b957f6b31"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -128,6 +128,7 @@ contabilidad. El modo de código mantiene esas paradas al cruzar el límite del 
 | `knowledge` | Búsqueda de conocimiento | knowledge | `search_documents` | `knowledge:read` | — | tal cual |
 | `skills` | Skills | knowledge | `read_skill_resource` | `knowledge:read` | — | adaptada |
 | `context` | Contexto | knowledge | `list_context`, `read_context` | — | — | tal cual |
+| `projects` | Projects | knowledge | `search_projects`, `select_project_context`, `list_project_files`, `read_project_file`, `write_project_file` | `projects:read`, `projects:write` | — | as-is |
 | `memory_files` | Memoria | knowledge | `list_memory`, `read_memory`, `write_memory`, `edit_memory`, `delete_memory`, `remember`, `recall`, `correct_memory`, `share_memory` | — | — | tal cual |
 | `conversation_search` | Conversaciones anteriores | knowledge | `search_conversations`, `read_conversation` | `conversations:read` | — | tal cual |
 | `workflows` | Workflows | automation | `list_workflows`, `run_workflow`, `get_workflow_run` | `workflows:run` | — | tal cual |
@@ -136,7 +137,7 @@ contabilidad. El modo de código mantiene esas paradas al cruzar el límite del 
 | `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` | delegada |
 | `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | para un daemon | delegada |
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — | tal cual |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace` | `sandbox:execute` | para Daytona | delegada |
+| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace`, `select_execution_target` | `sandbox:execute` | para Daytona | delegada |
 | `mirage` | Terminal virtual | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | por carpeta, con el extra `mirage` | delegada |
 | `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual` | — | — | tal cual |
@@ -224,15 +225,27 @@ y que un eval retiene y registra:
 
 | id | Herramientas que escriben |
 | --- | --- |
-| `artifacts` | `publish_artifact` |
+| `artifacts` | `publish_artifact`, `export_artifact`, `share_artifact` |
 | `ask_user` | `ask_user_question` |
-| `browser_use` | `browse_web`, `browser_open`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `background_tasks` | `start_background_task`, `list_background_tasks`, `stop_background_task` |
+| `browser_use` | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `channel_actions` | `react_to_chat_message`, `send_chat_message` |
 | `coding_agent` | `run_coding_agent` |
+| `computer_use` | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` |
+| `drafts` | `write_draft` |
+| `external_acp` | `run_acp_agent`, `inspect_acp_agent` |
+| `follow_ups` | `suggest_next_steps`, `propose_setup` |
 | `image_generation` | `generate_image` |
-| `memory_files` | `write_memory`, `edit_memory`, `delete_memory` |
-| `memory_mem0` | `remember` |
-| `sandbox` | `write_file`, `edit_file`, `execute`, `select_project_workspace` |
+| `memory_files` | `write_memory`, `edit_memory`, `delete_memory`, `remember`, `correct_memory`, `share_memory` |
+| `mirage` | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` |
+| `monitor` | `start_monitor`, `list_monitors`, `stop_monitor` |
+| `phone_calls` | `get_phone_contact_policy`, `list_phone_transfer_contacts`, `call_me`, `transfer_phone_call`, `end_phone_call` |
+| `projects` | `write_project_file`, `transfer_project_file` |
+| `sandbox` | `write_file`, `edit_file`, `execute` |
+| `text_to_speech` | `generate_speech` |
+| `video_generation` | `generate_video` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
+| `workflows` | `run_workflow` |
 
 Todas las demás herramientas de arriba solo leen. Delegar cuenta como leer: las
 herramientas propias de un delegado se rigen por sus propias declaraciones.
@@ -1222,9 +1235,27 @@ que el tiempo y la memoria son los únicos límites que merece la pena fijar.
     no debería necesitar a un operador ni un redespliegue, y los topes están
     acotados en vez de ser abiertos.
 
+## Proyectos { #projects }
+
+`search_projects`, `select_project_context`, `list_project_files`, `read_project_file`
+y `write_project_file` usan proyectos accesibles al miembro actual. La capability
+declara `projects:read` y `projects:write`; la ejecución vuelve a comprobar el scope de escritura. Solo `write_project_file`
+modifica contenido y no se concede ejecución shell.
+
+Seleccionar no inicia un entorno, dura una ejecución e informa del ejecutor separado.
+Funciona para remitentes vinculados en canales privados, no para salas de audiencia
+sin verificar. Límites: 100 entradas y archivos UTF-8 de 256 KB. Se rechazan rutas
+reservadas, enlaces fuera del proyecto y cambios desde la lectura.
+[Proyectos](../projects.md) explica ejecutores y orígenes de archivos.
+
 ## Sandbox { #files-shell }
 
-`select_project_workspace` selecciona un proyecto accesible para los tools de archivos y shell hasta terminar el run. Sin identificador de proyecto, restaura el workspace original. Una continuación tras una aprobación conserva la selección; el siguiente turno empieza en el workspace original. La conversación permanece en su hilo. Cada operación vuelve a comprobar el acceso; las rutinas siguen limitadas a su fuente de proyecto revisada. Las evaluaciones aisladas no pueden seleccionar proyectos persistentes.
+`select_project_workspace` es el selector antiguo de contexto de archivos; no cambia
+el ejecutor. `select_execution_target` elige explícitamente `agent` o `project`, sin
+copiar ni montar archivos. El proyecto necesita un backend ejecutable y herramientas
+shell Sandbox activadas. Se mantienen aprobaciones, acceso actual, fuentes revisadas
+de rutinas y aislamiento. Las continuaciones conservan la selección; el siguiente
+turno normal no.
 
 `ls`, `read_file`, `glob`, `grep` — _lectura._
 `write_file`, `edit_file`, `execute` — _escritura y ejecución._
@@ -3047,7 +3078,7 @@ los selecciona y los parametriza en lugar de llevar una guarda en Python.
 
 | Configuración | Valor por defecto |  |
 | --- | --- | --- |
-| `redact_secrets_*` | `false` | limpia claves de API, tokens, JWT y bloques PEM |
+| `redact_secrets_*` | `false` | limpia claves de API, tokens, JWT, bloques PEM, contraseñas en direcciones, claves en query strings y formularios y cabeceras de autorización Basic y Bearer |
 | `redact_pii_*` | `false` | limpia correos, números de teléfono (válidos en su plan de numeración), IBAN (mod-97), tarjetas (Luhn) y el SSN de EE. UU. |
 | `blocked_keywords_*` | `""` | términos separados por comas o saltos de línea; una coincidencia termina el run |
 | `phone_regions` | `"US, GB, DE, PL"` | códigos ISO 3166, separados por comas o saltos de línea, cuyos formatos nacionales de teléfono lee la censura de PII, como mucho 16 |
@@ -3448,6 +3479,8 @@ comprobados cuando se ensambla el agent:
 | `web:fetch` | `web_fetch` |
 | `web:browse` | `browser_use` |
 | `code:execute` | `code_execution` |
+| `projects:read` | `projects` |
+| `projects:write` | `projects` |
 | `sandbox:execute` | `sandbox` |
 | `agents:delegate` | `subagents` |
 | `tables:read` | `virtual_tables` y cada [nodo de workflow para tablas](workflow-nodes.md#virtual-tables) |

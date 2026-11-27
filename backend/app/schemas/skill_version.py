@@ -301,12 +301,30 @@ class ReturnToMain(BaseSchema):
     )
 
 
+ReturnRefusal = Literal[
+    "agent_not_found",
+    "workflow_agent",
+    "architect_admin_only",
+    "system_agent_admin_only",
+    "via_specialist",
+    "not_bound",
+    "binding_problems",
+    "system_agent_parts",
+    "does_not_publish",
+]
+"""Why an agent stayed on the fork, as a code a client can translate."""
+
+
 class ReturnedAgent(BaseSchema):
     agent: AgentUsage
     published: bool = Field(description="A new agent version went live; otherwise only its draft")
     agent_version: int | None = None
     refused: str | None = Field(
-        default=None, description="Why it stayed on the fork; it was not moved"
+        default=None,
+        description="Why it stayed on the fork, as an English sentence; it was not moved",
+    )
+    refused_code: ReturnRefusal | None = Field(
+        default=None, description="`refused` as a code, for a client to put in its own words"
     )
 
 

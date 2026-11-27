@@ -15,6 +15,7 @@ import {
 } from "./use-workflows";
 import * as api from "@/lib/workflows/workflows-api";
 import { ApiError } from "@/lib/api-error";
+import { qk } from "@/lib/query-keys";
 import type { WorkflowGraph, WorkflowVersionRead } from "@/lib/workflows/types";
 
 vi.mock("@/lib/workflows/workflows-api", () => ({
@@ -51,7 +52,7 @@ function spyWrapper() {
   const wrap = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  return { wrap, invalidateQueries };
+  return { wrap, invalidateQueries, client };
 }
 
 /** The `queryKey`s a spied `invalidateQueries` was asked to invalidate, in call order. */
@@ -331,10 +332,15 @@ describe("useWorkflow", () => {
     expect(keys).not.toContainEqual(["workflows"]);
   });
 
-  it("invalidates only this workflow's detail and the list on publish", async () => {
+  it("refreshes this workflow’s live URLs and subscriber usage on publish", async () => {
     vi.mocked(api.getWorkflow).mockResolvedValue({ id: "wf-1" } as never);
     vi.mocked(api.publishWorkflow).mockResolvedValue({ id: "v1", version: 2 } as never);
-    const { wrap, invalidateQueries } = spyWrapper();
+    const { wrap, invalidateQueries, client } = spyWrapper();
+    const exposure = qk.workflows.exposure("wf-1");
+    const allExposures = [...exposure, "all"];
+    const usage = qk.eventSources.usage("previous-source");
+    const otherExposure = qk.workflows.exposure("wf-2");
+    for (const key of [exposure, allExposures, usage, otherExposure]) client.setQueryData(key, []);
     const { result } = renderHook(() => useWorkflow("wf-1"), { wrapper: wrap });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     invalidateQueries.mockClear();
@@ -347,6 +353,10 @@ describe("useWorkflow", () => {
     expect(keys).toContainEqual(["workflows", "wf-1"]);
     expect(keys).toContainEqual(["workflows", "list"]);
     expect(keys).not.toContainEqual(["workflows"]);
+    for (const key of [exposure, allExposures, usage]) {
+      expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    }
+    expect(client.getQueryState(otherExposure)?.isInvalidated).toBe(false);
   });
 
   it("restores a version, writes the returned draft into the cache and refreshes the list", async () => {

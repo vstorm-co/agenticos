@@ -153,7 +153,7 @@ describe("the workflows list", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Import" }));
 
-    expect(await screen.findByText("Import a workflow")).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Import workflow" })).toBeVisible();
   });
 
   it("hides both creation controls from a caller who may only view", async () => {

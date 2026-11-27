@@ -64,6 +64,7 @@ import { useOrgStore } from "@/stores/org-store";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { DatasetCase, DatasetCaseContent } from "@/types/datasets";
 import { Perm } from "@/types/permissions";
+import { FULLSCREEN_SAFE_PADDED } from "@/lib/safe-area";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -266,6 +267,7 @@ export default function DatasetPage({ params }: PageProps) {
         className={cn(
           "flex min-h-0 min-w-0 flex-1 flex-col",
           expanded && "bg-background fixed inset-0 z-40 overflow-y-auto p-4 sm:p-6",
+          expanded && FULLSCREEN_SAFE_PADDED,
         )}
       >
         <Tabs
@@ -345,6 +347,7 @@ export default function DatasetPage({ params }: PageProps) {
                         <CasesToolbar
                           datasetId={id}
                           disabled={!editable}
+                          importMaxBytes={dataset.import_max_bytes}
                           onAdd={() => setEditing({ draft: EMPTY_DRAFT, item: null })}
                           onImport={(file) => cases.importFile.mutateAsync(file)}
                           onGenerate={() => setGenerating(true)}
@@ -353,11 +356,22 @@ export default function DatasetPage({ params }: PageProps) {
                   </div>
                 }
               >
-                {linkedCase.error && (
+                {linkedCase.error instanceof ApiError && linkedCase.error.status === 404 ? (
                   <p role="alert" className="text-muted-foreground mb-3 text-sm">
                     {t("linkedCaseGone")}
                   </p>
-                )}
+                ) : linkedCase.error ? (
+                  <div role="alert" className="mb-3 flex flex-wrap items-center gap-2">
+                    <p className="text-destructive min-w-0 flex-1 text-sm">
+                      {t("linkedCaseUnread", {
+                        reason: getErrorMessage(linkedCase.error, tErrors),
+                      })}
+                    </p>
+                    <Button size="sm" variant="outline" onClick={() => void linkedCase.refetch()}>
+                      {tc("retry")}
+                    </Button>
+                  </div>
+                ) : null}
                 {cases.isLoading ? (
                   <CasesTable cases={[]} loading onOpen={openCase} />
                 ) : cases.error ? (
@@ -368,6 +382,7 @@ export default function DatasetPage({ params }: PageProps) {
                 ) : cases.cases.length === 0 ? (
                   <EmptyCases
                     datasetId={id}
+                    importMaxBytes={dataset.import_max_bytes}
                     onAddCase={
                       editable ? () => setEditing({ draft: EMPTY_DRAFT, item: null }) : undefined
                     }

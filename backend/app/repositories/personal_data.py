@@ -32,6 +32,7 @@ from sqlalchemy import (
     literal,
     or_,
     select,
+    tuple_,
     update,
 )
 from sqlalchemy import case as sa_case
@@ -64,6 +65,11 @@ from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dataset import DatasetCase
 from app.db.models.eval_run import EvalRun, EvalRunCase
+from app.db.models.improvement import (
+    ImprovementIteration,
+    ImprovementRun,
+    ImprovementSearchVariant,
+)
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.knowledge_gap import (
     DraftAuthor,
@@ -1084,6 +1090,74 @@ async def comments_of(db: AsyncSession, user_id: UUID) -> dict[UUID, list[str]]:
     return dict(comments)
 
 
+async def clear_search_variant_text(db: AsyncSession, revision_ids: list[UUID]) -> int:
+    """Clear what Improve searches wrote over the datasets these case revisions are in.
+
+    A search writes each variant's instructions and rationale from its dataset's
+    training questions and reference answers, and records no case a variant drew
+    on, so every variant of every session on a dataset that held one of these
+    revisions loses its text. Its scores and counts stay, and a variant left
+    without text is never adopted.
+
+    Returns:
+        How many variants were cleared.
+    """
+    if not revision_ids:
+        return 0
+    datasets = select(DatasetCase.dataset_id, DatasetCase.organization_id).where(
+        DatasetCase.id.in_(revision_ids)
+    )
+    sessions = select(ImprovementRun.id).where(
+        tuple_(ImprovementRun.dataset_id, ImprovementRun.organization_id).in_(datasets)
+    )
+    attempts = select(ImprovementIteration.id).where(ImprovementIteration.run_id.in_(sessions))
+    result = await db.execute(
+        sql_update(ImprovementSearchVariant)
+        .where(
+            ImprovementSearchVariant.iteration_id.in_(attempts),
+            or_(
+                ImprovementSearchVariant.instructions != "",
+                ImprovementSearchVariant.rationale != "",
+            ),
+        )
+        .values(instructions="", rationale="")
+        .returning(ImprovementSearchVariant.id)
+    )
+    cleared = len(result.scalars().all())
+    await db.flush()
+    return cleared
+
+
+async def clear_attempt_notes_of(db: AsyncSession, user_id: UUID) -> int:
+    """Clear the notes on the attempts of Improve sessions this person started or last continued.
+
+    A note is what the person who asked for an attempt told its helper, and it
+    records no author, so every note of a session they started or took the
+    latest step of goes.
+
+    Returns:
+        How many attempts lost their note.
+    """
+    sessions = select(ImprovementRun.id).where(
+        or_(
+            ImprovementRun.created_by_user_id == user_id,
+            ImprovementRun.actor_user_id == user_id,
+        )
+    )
+    result = await db.execute(
+        sql_update(ImprovementIteration)
+        .where(
+            ImprovementIteration.run_id.in_(sessions),
+            ImprovementIteration.note.is_not(None),
+        )
+        .values(note=None)
+        .returning(ImprovementIteration.id)
+    )
+    cleared = len(result.scalars().all())
+    await db.flush()
+    return cleared
+
+
 async def clear_case_notes_of(
     db: AsyncSession, user_id: UUID, *, comments: dict[UUID, list[str]]
 ) -> int:
@@ -1624,6 +1698,7 @@ async def routine_source_export_size(db: AsyncSession, user_id: UUID) -> int:
         select(
             func.coalesce(func.sum(func.length(cast(AgentTrigger.approved_sources, Text))), 0)
             + func.coalesce(func.sum(func.length(cast(AgentTrigger.action_consents, Text))), 0)
+            + func.coalesce(func.sum(func.length(cast(AgentTrigger.tool_settings, Text))), 0)
             + func.count(AgentTrigger.id) * 1024
         ).where(AgentTrigger.created_by_user_id == user_id)
     )
@@ -1635,7 +1710,7 @@ async def purge_routine_authority(db: AsyncSession, user_id: UUID) -> None:
     await db.execute(
         sql_update(AgentTrigger)
         .where(AgentTrigger.created_by_user_id == user_id)
-        .values(approved_sources=None, action_consents=[])
+        .values(approved_sources=None, action_consents=[], tool_settings=[])
     )
     await db.execute(
         sql_update(AgentRun).where(AgentRun.user_id == user_id).values(routine_policy=None)

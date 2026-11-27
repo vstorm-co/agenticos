@@ -123,6 +123,8 @@ Raise both upload allowances when raising
 the largest upload setting. See [Nginx deployment](deploy.md#option-b-nginx).
 The Compose files run uvicorn without its own body limit.
 
+Portable ZIP uploads have a separate 512 MiB allowance on both hosts. The console streams `/api/portability/{id}/upload` to the API without buffering the archive in Next.js. Transfer control requests allow 4 MiB, and text import requests allow 25 MiB for JSON string framing while the decoded document still has a 4 MiB limit. Keep these scoped locations when replacing the proxy configuration.
+
 ## Authentication
 
 ### JWT
@@ -160,6 +162,12 @@ ciphertext is therefore useless outside the tenant it was sealed for.
 
 Production validation: `API_KEY` cannot use the default value in
 `ENVIRONMENT=production`.
+
+Local account admission is controlled in **Admin → Deployment → Access &
+accounts**, independently of the provider-button filter. See
+[Provider-only sign-in](deployment.md#provider-only-sign-in) for the policy,
+its API enforcement and the `AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED` operator
+recovery override.
 
 ### OAuth2 (Google)
 
@@ -220,7 +228,7 @@ Two buttons on the frontend, configured there:
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `OAUTH_PROVIDERS` | `google` | Add `oidc` to show the SSO button; set it to `oidc` alone for SSO only. `ldap` adds the directory form and `kerberos` the Windows sign-in button, below |
+| `OAUTH_PROVIDERS` | `google,oidc,ldap,kerberos` | Display order/filter for configured backend providers. Empty hides provider buttons. Local passwords are controlled separately in Admin → Deployment → Access & accounts. |
 | `OIDC_DISPLAY_NAME` | `SSO` | What the button calls the provider: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (empty) | `google`, `github` or `microsoft` - the marks the sign-in page already ships. Anything else draws a plain key |
 
@@ -892,6 +900,8 @@ The test cases evals run over. See [Datasets](datasets.md).
 | Variable | Default | Description |
 | --- | --- | --- |
 | `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Case revisions one organization's datasets may store together. Every case added and every edit is a revision, kept for the versions that hold it; a version stores only what it changed, so a dataset of 10,000 cases edited 500 times stores 10,500, not 5 million. An add or an edit past the limit is refused, naming how many are stored; removing a case stores nothing and is always allowed, and deleting datasets nobody needs frees their revisions. The name is older than this meaning: it counted every case of every version until versions stopped copying their cases. The limit is approximate: each change is checked on its own, so changes made at the same moment to different datasets can pass it by a little. It protects storage; it is not a bill |
+| `DATASET_IMPORT_MAX_BYTES` | `10485760` | The largest file one dataset import reads (10 MB). A larger upload is read only one byte past the limit and refused as too large, naming the file; split it into several imports |
+| `DATASET_IMPORT_MAX_ROWS` | `10000` | The rows one dataset import may hold. The file is read row by row and refused at the first row past the limit, so a file of many tiny rows costs no more than one at the limit. The dataset's own ceiling of 10,000 cases still applies to what an import adds |
 
 **With `ARTIFACT_ORIGIN` empty, the frontend's `PUBLIC_API_URL` must equal the
 backend's `PUBLIC_BASE_URL` exactly, path included.** The backend then signs
@@ -1321,7 +1331,7 @@ whole API should carry a ceiling is a separate decision, not this one.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | A hosted page's config, **per page** — and its logo, on a counter of its own. A workflow's [form](workflows.md#from-a-form) is read on a counter of this size per form. See below |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Answers one workflow [form](workflows.md#from-a-form) takes, **per form**: each one is a run its publisher pays for, and the console's server forwards them all, so an address would count nobody |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Deliveries one workflow [webhook](workflows.md) or GitHub trigger takes, **per webhook**, counted once the signature has verified and the delivery would start a run, so strangers and skipped deliveries spend nothing of it: each one is a run |
-| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Requests one address may send the workflow webhook and GitHub trigger addresses in a minute, whatever they carry, counted before anything is read. Wide, because senders such as GitHub deliver for many hooks from a few addresses |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Requests per minute from one IP address across workflow webhooks, workflow GitHub triggers and reusable event source URLs. The limit applies before the request body is read. The default accommodates providers such as GitHub that deliver many hooks from a few addresses |
 | `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Unique workflow email recipients per issuer, across keys and organizations; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Unique workflow email recipients per organization; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Unique workflow email recipients across the deployment; [email.send](reference/workflow-nodes.md#email-send) |

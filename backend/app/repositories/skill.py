@@ -11,7 +11,7 @@ from uuid import UUID
 
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import raiseload, selectinload
 
 from app.db.models.resource_grant import Visibility
 from app.db.models.skill import Skill, SkillResource
@@ -24,6 +24,16 @@ SkillSort = Literal["name", "updated"]
 async def get(db: AsyncSession, skill_id: UUID, *, organization_id: UUID) -> Skill | None:
     result = await db.execute(
         select(Skill).where(Skill.id == skill_id, Skill.organization_id == organization_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_metadata(db: AsyncSession, skill_id: UUID, *, organization_id: UUID) -> Skill | None:
+    """Resolve identity, ownership and the main body without loading every file."""
+    result = await db.execute(
+        select(Skill)
+        .where(Skill.id == skill_id, Skill.organization_id == organization_id)
+        .options(raiseload(Skill.resources))
     )
     return result.scalar_one_or_none()
 
@@ -309,11 +319,27 @@ async def list_names(db: AsyncSession, *, organization_id: UUID) -> set[str]:
     return set(result.scalars().all())
 
 
-async def ids_by_name(db: AsyncSession, *, organization_id: UUID) -> dict[str, UUID]:
-    """Every skill in one organization, by its name, which is unique there."""
-    result = await db.execute(
-        select(Skill.name, Skill.id).where(Skill.organization_id == organization_id)
-    )
+async def ids_by_name(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    user_id: UUID,
+    see_all: bool,
+    shared_ids: Sequence[UUID],
+) -> dict[str, UUID]:
+    """Visible skill identities for installed gallery markers, never another person's private copy."""
+    statement = select(Skill.name, Skill.id).where(Skill.organization_id == organization_id)
+    if not see_all:
+        statement = statement.where(
+            visible_to_caller(
+                Skill.owner_user_id,
+                Skill.visibility,
+                Skill.id,
+                user_id=user_id,
+                shared_ids=shared_ids,
+            )
+        )
+    result = await db.execute(statement)
     return dict(result.tuples().all())
 
 

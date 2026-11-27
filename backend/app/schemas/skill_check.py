@@ -85,6 +85,17 @@ class SkillUpdateCheck(BaseSchema):
         default=CheckMode.QUICK,
         description="As for a change; a newer description is always checked thoroughly",
     )
+    base_version_id: UUID | None = Field(
+        default=None,
+        description="The estimate's `base_version`; a start that would check another "
+        "version is refused, and omitted it is not checked",
+    )
+    quoted_usd: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="The estimate's `at_most_usd` the person agreed to; a start that would "
+        "now cost more is refused, and omitted it is not checked",
+    )
 
 
 class AgentRef(BaseSchema):
@@ -114,7 +125,7 @@ class StageCounts(BaseSchema):
 
 class CheckStage(BaseSchema):
     kind: StageKind
-    dataset_id: UUID
+    dataset_id: UUID | None = Field(description="Null for a dataset the reader may not see")
     dataset_name: str | None = Field(description="Null for a dataset the reader may not see")
     cases: int = Field(
         description=(
@@ -123,7 +134,11 @@ class CheckStage(BaseSchema):
         )
     )
     eval_run_id: UUID | None = Field(
-        default=None, description="The eval run that asked them, once the stage started"
+        default=None,
+        description=(
+            "The eval run that asked them, once the stage started; null for a dataset the "
+            "reader may not see"
+        ),
     )
     counts: StageCounts | None = Field(
         default=None,
@@ -198,7 +213,8 @@ class SkillCheckRead(SkillCheckEstimate):
         "agent with `PUT .../agents/{agent_id}/binding`, never by applying it"
     )
     agent_id: UUID | None = Field(
-        default=None, description="The pinned agent an update is checked on"
+        default=None,
+        description="The pinned agent an update is checked on; null for one the reader may not see",
     )
     candidate_version_id: UUID | None = Field(
         default=None, description="The main version that update would move it to"

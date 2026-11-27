@@ -21,6 +21,7 @@
  * reveals entries rather than briefly offering ones about to disappear.
  */
 
+import { useConsolePresentation } from "@/components/settings/console-experience-provider";
 import { useEffect, useRef } from "react";
 import { scrollWithin } from "@/lib/scroll-within";
 import Link, { useLinkStatus } from "next/link";
@@ -42,7 +43,13 @@ import { useWaitingChatQuestions } from "@/hooks/use-waiting-chat-questions";
 import { usePermissions } from "@/hooks/use-permissions";
 import { cn } from "@/lib/utils";
 import { useSidebarStore } from "@/stores";
-import { NAV_GROUPS, isActive, type NavGroup, type NavItem } from "@/lib/nav-sections";
+import {
+  NAV_GROUPS,
+  presentedNavigation,
+  isActive,
+  type NavGroup,
+  type NavItem,
+} from "@/lib/nav-sections";
 
 export { NAV_GROUPS, isActive, navSectionFor, type NavDomain } from "@/lib/nav-sections";
 
@@ -142,10 +149,24 @@ export function SidebarNav({
   const { can } = usePermissions();
   const t = useTranslations("nav");
 
-  const groups = NAV_GROUPS.map((group) => ({
-    ...group,
-    items: group.items.filter((item) => !item.permission || can(item.permission)),
-  })).filter((group) => !group.switcherOnly && !group.adminOnly && group.items.length > 0);
+  const { navigation, problem, retry } = useConsolePresentation();
+  const experience = useTranslations("consoleExperience.presentation");
+  const common = useTranslations("common");
+  if (problem)
+    return (
+      <div role="alert" className="space-y-2 px-3 py-4 text-sm">
+        <p>{experience("loadError")}</p>
+        <button type="button" className="text-primary underline underline-offset-4" onClick={retry}>
+          {common("retry")}
+        </button>
+      </div>
+    );
+  const groups = presentedNavigation(NAV_GROUPS, navigation)
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.permission || can(item.permission)),
+    }))
+    .filter((group) => !group.switcherOnly && !group.adminOnly && group.items.length > 0);
 
   return (
     <nav

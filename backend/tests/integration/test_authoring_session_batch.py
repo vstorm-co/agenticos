@@ -70,6 +70,7 @@ async def test_a_session_stopped_while_proposing_records_no_batch(db):
     request = await authoring_repo.get_request(db, request_id, organization_id=ctx.organization_id)
     assert request is not None
     assert (request.status, request.error) == ("failed", "The improvement session stopped.")
+    assert request.error_code == "session_stopped"
     assert await _batches(db, request_id) == 0
 
 

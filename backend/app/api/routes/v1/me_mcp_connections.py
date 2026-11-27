@@ -11,7 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.agents.mcp_oauth import OAuthError
-from app.api.deps import CurrentUser, McpConnectionSvc, OptionalCurrentUser, key_needs
+from app.api.deps import Auth, CurrentUser, McpConnectionSvc, OptionalCurrentUser, key_needs
 from app.api.public_api import PUBLIC
 from app.core.exceptions import NotFoundError
 from app.core.permissions import Perm
@@ -88,27 +88,26 @@ async def delete_mcp_connection(
 
 
 @router.post("/probe", response_model=McpSignInProbeResult)
-async def probe_mcp_sign_in(
-    data: McpSignInProbe, service: McpConnectionSvc, user: CurrentUser
-) -> Any:
+async def probe_mcp_sign_in(data: McpSignInProbe, service: McpConnectionSvc, ctx: Auth) -> Any:
     """Whether a server added by its address supports OAuth sign-in (#2073).
 
     Runs the discovery a sign-in would, registering nothing. A server that answers
     with no OAuth metadata is `sign_in: false` - a token or no credential, then.
     """
-    return await service.probe_sign_in(data.url)
+    return await service.probe_sign_in(data.url, ctx)
 
 
 @router.post("/oauth/start", response_model=McpOAuthStartResult)
 async def start_mcp_oauth(
     data: McpOAuthStart,
     service: McpConnectionSvc,
-    user: CurrentUser,
+    ctx: Auth,
 ) -> Any:
     """Begin the OAuth flow; returns the provider consent URL to redirect to."""
     try:
         authorization_url = await service.oauth_start(
-            user_id=user.id,
+            user_id=ctx.subject_id,
+            ctx=ctx,
             name=data.name,
             url=data.url,
             catalog_key=data.catalog_key,

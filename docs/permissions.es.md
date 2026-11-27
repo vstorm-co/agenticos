@@ -1,5 +1,5 @@
 ---
-source_sha: "9a33f1c990a8"
+source_sha: "5d54063f1700"
 ---
 
 # Permisos { #permissions }
@@ -105,6 +105,15 @@ Los permisos **globales** son binarios y valen para toda la organización:
 El scope explícito `mcp:personal:use` permite que las ejecuciones externas por API u OAuth usen las conexiones MCP personales del emisor de la credencial. Selecciónelo en **Custom** y confirme la delegación; ningún ajuste predefinido, incluido **Full access**, lo contiene, y las credenciales existentes conservan solo el acceso de la organización. No concede memoria personal, búsqueda de conversaciones ni consentimiento para rutinas. Las reanudaciones tras una aprobación conservan el propietario y la credencial originales; antes de invocar herramientas personales se comprueban de nuevo las cuentas conectadas, los scopes actuales de la clave y el acceso al agente principal y a los subagentes seleccionados automáticamente.
 
 Aprobar rutinas y watches personales requiere el scope explícito `personal:consent`, seleccionado en **Custom** al emitir una clave o autorizar un cliente MCP. Se excluye de todos los preajustes, incluido **Full access**. La confirmación permite a la credencial aprobar rutinas y watches persistentes que usan tus conexiones y datos personales; los scopes habituales `agents:run` y `runs:view` no lo permiten. Las claves y autorizaciones MCP existentes no obtienen consentimiento personal automáticamente.
+
+`approvals:decide` responde a la cola de aprobaciones de la organización. La
+excepción es una llamada de la plataforma que pregunta siempre - el Architect
+aceptando una mejora o publicando un agent: se ejecuta con la autoridad de
+plataforma de la persona para la que actúa su run, así que solo esa persona, con su
+propia sesión, puede aprobarla, y no necesita ningún permiso para ello. Cualquier
+otra persona con `approvals:decide` puede rechazarla, y ni una clave de API ni una
+sesión mediante suplantación pueden aprobarla. La cola indica en esa llamada quién
+puede aprobarla.
 
 `promotions:override` promociona una versión a un
 [entorno que guardan sus suites de evals](environments.md#guarding-a-promotion-with-evals)

@@ -29,7 +29,7 @@ from pydantic_ai.messages import (
 from sqlalchemy import null, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import ROLE_PERMS, AuthContext, OrgRoleName, Perm
 from app.db.models.agent import Agent
 from app.db.models.agent_exposure import AgentExposure
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus, RunSurface, ToolApproval
@@ -129,6 +129,18 @@ async def _approval(db, org: Organization, run: AgentRun, **overrides) -> ToolAp
 
 def _ctx(org: Organization, user: User) -> AuthContext:
     return AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER)
+
+
+def _approver(org: Organization, user: User, role: str) -> AuthContext:
+    """`user` deciding the queue: their role's reach, plus `approvals:decide`.
+
+    A queue approver who reads no runs is what the fact-hiding rules are about,
+    and no built-in role decides approvals without reading every run.
+    """
+    held = frozenset(ROLE_PERMS[OrgRoleName(role)]) | {Perm.APPROVALS_DECIDE}
+    return AuthContext(
+        user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER, key_scopes=held
+    )
 
 
 def _waiting_question_state(agent: Agent, question_id: str = "ask") -> PausedRunState:
@@ -1330,7 +1342,7 @@ class TestWhatAQueueReaderMaySeeOfAFact:
         assert not row.content_hidden
 
     async def _decide_as(self, db: AsyncSession, org, user: User, role: str, *, approved: bool):
-        ctx = AuthContext(user_id=user.id, organization_id=org.id, role=role)
+        ctx = _approver(org, user, role)
         [row], _ = await ApprovalService(db).list_approvals(ctx)
         with patch("app.services.approvals.spawn_after_commit") as spawn:
             spawn.side_effect = lambda _, coroutine, **kwargs: coroutine.close()
@@ -1368,12 +1380,8 @@ class TestWhatAQueueReaderMaySeeOfAFact:
         [run] = (await db.scalars(select(AgentRun).where(AgentRun.organization_id == org.id))).all()
         runner = AgentRunnerService(db)
 
-        [hidden] = await runner.parked_calls(
-            AuthContext(user_id=reader.id, organization_id=org.id, role=OrgRoleName.MEMBER), run
-        )
-        [shown] = await runner.parked_calls(
-            AuthContext(user_id=asker.id, organization_id=org.id, role=OrgRoleName.MEMBER), run
-        )
+        [hidden] = await runner.parked_calls(_approver(org, reader, OrgRoleName.MEMBER), run)
+        [shown] = await runner.parked_calls(_approver(org, asker, OrgRoleName.MEMBER), run)
 
         assert hidden.content_hidden and hidden.context == {"audience": "organization"}
         assert not shown.content_hidden

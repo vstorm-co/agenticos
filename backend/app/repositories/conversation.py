@@ -972,7 +972,7 @@ async def get_conversations_by_user(
         query = query.where(condition)
     orders = [] if favourites_first_for is None else [favourited_by(favourites_first_for).desc()]
     orders.append(_ordering(_sort_columns(), sort_by, sort_dir))
-    query = query.order_by(*orders).offset(skip).limit(limit)
+    query = query.order_by(*orders, Conversation.id.asc()).offset(skip).limit(limit)
     result = await db.execute(query)
     return list(result.scalars().all())
 

@@ -275,13 +275,35 @@ class SearchSettings(TypedDict):
     patience: int
 
 
+class PartialAnswer(TypedDict):
+    """One question a variant was asked and graded on, before its unit ran out of time."""
+
+    share: float
+    failed: list[str]
+    counted: bool
+
+
+class PartialScore(TypedDict):
+    """The answers one variant was scored on so far, for the unit that finishes it.
+
+    Bound to the variant's text and to how it is graded: a different text or grading
+    makes these answers say nothing about it, and they are asked again.
+    """
+
+    variant_id: str
+    text_hash: str
+    scoring_hash: str
+    answers: dict[str, PartialAnswer]
+
+
 class SearchProgress(TypedDict, total=False):
     """Where a search attempt is: its settings, what it spent and what it found.
 
     `spent_before_usd` is the session's spend when the search began, so the
     search's own cost is the session's spend now less it. `best_before` is the
     best score a round of proposals started from, and `stale_generations` counts
-    the rounds in a row that found nothing better.
+    the rounds in a row that found nothing better. `proposal_attempts` counts the
+    times the current round of proposals was claimed without an answer recorded.
     """
 
     settings: SearchSettings
@@ -292,11 +314,13 @@ class SearchProgress(TypedDict, total=False):
     generation: int
     closed_generation: int
     stale_generations: int
+    proposal_attempts: int
     seed_score: float | None
     best_before: float | None
     cost_usd: str
     stop_reason: str | None
     chosen_variant_id: str | None
+    partial: PartialScore | None
 
 
 class ImprovementRun(Base):
@@ -361,6 +385,9 @@ class ImprovementRun(Base):
     base_draft_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     dataset_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     dataset_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    # The dataset's held-out share when the session started: every attempt draws with
+    # it, so a change to the dataset's setting cannot move what the session measures.
+    holdout_share: Mapped[Decimal] = mapped_column(Numeric(4, 3), nullable=False)
     suite_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     scoring_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     chat_evidence_run_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
@@ -392,6 +419,9 @@ class ImprovementRun(Base):
     )
     stop_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    """`error` as a code from `ImprovementFailure`; null on a session failed before codes."""
+    error_params: Mapped[dict[str, int] | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -579,7 +609,10 @@ class ImprovementSearchVariant(Base):
     """One variant of an agent's instructions a search attempt tried on training questions.
 
     Holds the variant's text and its score - the share of required checks its
-    answers passed - never a question's or an answer's text.
+    answers passed - never a question's or an answer's text. The text and its
+    rationale are written from the dataset's training questions and reference
+    answers, so they can repeat what a case holds: erasing a person whose words
+    are in that dataset empties both and keeps the score.
     """
 
     __tablename__ = "improvement_search_variants"

@@ -1429,6 +1429,22 @@ async def agents_of_runs(
     return {row.id: row.agent_id for row in result.all()}
 
 
+async def eval_answers(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> set[UUID]:
+    """Those of these runs that answered an eval case."""
+    if not run_ids:
+        return set()
+    result = await db.execute(
+        select(AgentRun.id).where(
+            AgentRun.id.in_(list(run_ids)),
+            AgentRun.organization_id == organization_id,
+            AgentRun.surface == RunSurface.EVAL.value,
+        )
+    )
+    return set(result.scalars().all())
+
+
 async def conversations_of_runs(
     db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
 ) -> list[UUID]:
@@ -2784,6 +2800,11 @@ class ApprovalRow:
     """Set by the service when this reader may not see what the call quotes."""
     always_asks: bool = False
     """Only a person's answer to this call could let it run, so nobody may approve it unread."""
+    may_approve: bool = False
+    """Set by the service: whether an approval from this reader would be accepted."""
+    acts_for_user_id: UUID | None = None
+    """Whose authority the run carries: who started it, or the binding's publisher for
+    a run a chat account asked. Decides who may approve; never shown."""
 
 
 @dataclass(frozen=True)
@@ -2931,6 +2952,7 @@ async def list_approvals(
             note=approval.note,
             created_at=approval.created_at,
             always_asks=approval.always_asks,
+            acts_for_user_id=run_user_id,
             parked_in_chat=bool(parked_in_chat),
             asked_in_chat=(
                 ChatAsker(
@@ -3445,3 +3467,13 @@ async def run_id_for_routine_activation(
         )
         .limit(1)
     )
+
+
+async def record_workspace_origins(
+    db: AsyncSession, *, run: AgentRun, origins: Sequence[dict[str, str]]
+) -> None:
+    """Merge actual opened workspace references across approval continuations."""
+    kept = {entry["workspace_id"]: entry for entry in run.workspace_origins or []}
+    kept.update({entry["workspace_id"]: entry for entry in origins})
+    run.workspace_origins = list(kept.values())
+    await db.flush()

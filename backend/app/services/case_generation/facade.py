@@ -15,7 +15,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.spec import AgentSpec
-from app.agents.system_agents import CASE_GENERATOR, steps
+from app.agents.system_agents import CASE_GENERATOR, steps, with_dataset_guidance
 from app.core.audit import record_audit
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, Perm
@@ -161,9 +161,7 @@ class CaseGenerationService:
             helper = helper.model_copy(
                 update={"model_profile_id": (await self.sources._spec(ctx, agent)).model_profile_id}
             )
-        return helper.model_copy(
-            update={"instructions": helper.instructions or CASE_GENERATOR.instructions}
-        )
+        return helper
 
     async def _price(
         self,
@@ -183,7 +181,7 @@ class CaseGenerationService:
         if profile is None:
             return None
         cost = estimate_cost(
-            prompt + (helper.instructions or ""),
+            prompt + with_dataset_guidance(CASE_GENERATOR.instructions, helper.instructions),
             count,
             model_name=profile.model,
             provider=profile.provider,

@@ -27,7 +27,9 @@ class AwaitReplyConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     provider: MailProvider = Field(title="Mailbox provider")
-    connection_id: UUID = Field(title="Connected organization mailbox")
+    connection_id: UUID = Field(
+        title="Connected organization mailbox", json_schema_extra={"x-resource": "mcp_connection"}
+    )
     mailbox: EmailStr | None = Field(default=None, title="Shared Outlook mailbox")
     poll_seconds: int = Field(default=300, ge=60, le=3600, title="Check every (seconds)")
 

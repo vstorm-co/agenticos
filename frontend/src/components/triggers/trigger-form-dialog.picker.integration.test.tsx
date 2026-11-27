@@ -47,8 +47,8 @@ function serve() {
         accounts: [],
         unavailable_sources: [],
       };
-    if (path.endsWith("/action-consents"))
-      return { can_waive: true, review_token: "actions", items: [] };
+    if (path.endsWith("/tools"))
+      return { items: [], unavailable_settings: [], unavailable_sources: [] };
     if (path === "/me/permissions") return { permissions: [] };
     if (path === "/agents") {
       return {
@@ -68,6 +68,7 @@ function serve() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useAuthStore.setState({ sessionOwnerId: "creator" });
   useAgentSelectionStore.getState().setDefault(null);
   serve();
 });
@@ -195,17 +196,19 @@ it("creates paused and saves reviewed sources and actions before enabling", asyn
         accounts: [],
         unavailable_sources: [],
       };
-    if (path.endsWith("/action-consents"))
+    if (path.endsWith("/tools"))
       return {
-        can_waive: true,
-        review_token: "exact-actions",
+        unavailable_settings: [],
+        unavailable_sources: [],
         items: [
           {
             capability_id: "sandbox",
             tool_id: "execute",
             name: "execute",
-            consented: false,
-            waivable: true,
+            capability_name: "Sandbox",
+            effect: false,
+            agent: "free",
+            setting: null,
           },
         ],
       };
@@ -227,7 +230,7 @@ it("creates paused and saves reviewed sources and actions before enabling", asyn
           accounts: [],
           unavailable_sources: [],
         }
-      : { can_waive: true, review_token: "exact-actions", items: [] },
+      : { items: [], unavailable_settings: [], unavailable_sources: [] },
   );
   vi.mocked(apiClient.patch).mockResolvedValue({
     id: "new",
@@ -249,15 +252,15 @@ it("creates paused and saves reviewed sources and actions before enabling", asyn
     "/agents/a1/triggers",
     expect.objectContaining({ is_active: false }),
   );
-  await user.click(await dialog.findByRole("checkbox", { name: "execute" }));
+  await user.click(await dialog.findByRole("combobox", { name: /execute/ }));
+  await user.click(screen.getByRole("option", { name: "Ask every time" }));
   await user.click(dialog.getByRole("button", { name: "Enable routine" }));
   expect(apiClient.put).toHaveBeenNthCalledWith(1, "/agents/a1/triggers/new/sources", {
     review_token: "exact-sources",
     mode: "restricted",
   });
-  expect(apiClient.put).toHaveBeenNthCalledWith(2, "/agents/a1/triggers/new/action-consents", {
-    actions: [{ capability_id: "sandbox", tool_id: "execute" }],
-    review_token: "exact-actions",
+  expect(apiClient.put).toHaveBeenNthCalledWith(2, "/agents/a1/triggers/new/tools", {
+    settings: [{ capability_id: "sandbox", tool_id: "execute", setting: "ask" }],
   });
   expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/triggers/new", { is_active: true });
   expect(closed).toHaveBeenCalledWith(false);

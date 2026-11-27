@@ -390,6 +390,29 @@ class TestReadingWhatAnInheritedCallReturned:
 
 
 class TestWritingTheTranscript:
+    @pytest.mark.parametrize("answer", ["done", ""])
+    async def test_api_corrections_stay_between_the_calls_that_surrounded_them(
+        self, conversations, answer
+    ):
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt="go",
+            answer=answer,
+            steers={"earlier-segment": ["urgent"], "one": ["use EUR", "not USD"]},
+            tool_calls=[
+                RecordedToolCall(tool_call_id=call, tool_name="lookup", args={})
+                for call in ("one", "two")
+            ],
+        )
+        saved = conversations.create_message.await_args_list[-1].kwargs
+        assert saved["parts"] == [
+            {"type": "steer", "text": "urgent"},
+            {"type": "tool", "tool_call_id": "one"},
+            {"type": "steer", "text": "use EUR"},
+            {"type": "steer", "text": "not USD"},
+            {"type": "tool", "tool_call_id": "two"},
+        ] + ([{"type": "text", "text": answer}] if answer else [])
+
     @pytest.fixture(autouse=True)
     def steps(self):
         # This class verifies persistence, not a paid post-commit model call.

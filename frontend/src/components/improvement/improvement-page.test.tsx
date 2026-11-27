@@ -38,6 +38,9 @@ const state = vi.hoisted(() => ({
   sessionRefetch: vi.fn(),
   edit: true,
   runs: true,
+  permissionsLoaded: true,
+  permissionsError: null as Error | null,
+  permissionsRefetch: vi.fn(),
   publish: true,
   session: null as Improvement | null,
   hunks: [] as Hunk[],
@@ -72,7 +75,14 @@ vi.mock("@/hooks/use-agents", () => ({
     agent: { id: "a1", name: "Refund desk", can_edit: state.edit, can_publish: state.publish },
   }),
 }));
-vi.mock("@/hooks/use-permissions", () => ({ usePermissions: () => ({ can: () => state.runs }) }));
+vi.mock("@/hooks/use-permissions", () => ({
+  usePermissions: () => ({
+    can: () => state.runs,
+    isLoaded: state.permissionsLoaded,
+    error: state.permissionsError,
+    refetch: state.permissionsRefetch,
+  }),
+}));
 vi.mock("@/hooks/use-authoring", () => ({
   useAgentAuthoring: () => ({
     authoring: { batch: { id: "b1", hunks: state.hunks } },
@@ -109,6 +119,13 @@ vi.mock("./knowledge-drafts", async (actual) => ({
 }));
 vi.mock("@/hooks/use-knowledge-gaps", () => ({
   useKnowledgeGaps: () => ({ topics: state.topics, error: null }),
+  useKnowledgeGapTopics: (ids: string[]) => ({
+    topics: state.topics.filter((topic) => ids.includes(topic.id)),
+    skipped: 0,
+    error: null,
+    isLoading: false,
+    refetch: vi.fn(),
+  }),
 }));
 vi.mock("@/components/knowledge-gaps/knowledge-gap-draft-status", () => ({
   KnowledgeGapDraftStatus: () => null,
@@ -146,6 +163,8 @@ beforeEach(() => {
   state.authoringError = null;
   state.edit = true;
   state.runs = true;
+  state.permissionsLoaded = true;
+  state.permissionsError = null;
   state.publish = true;
   state.hunks = [];
   state.topics = [];
@@ -748,6 +767,34 @@ it("keeps a provider failure and recorded round visible without a selected best 
   expect(screen.getByText("Attempt 1 of 3")).toBeInTheDocument();
 });
 
+it("words a failed step by its code and keeps the refusal's own sentence", () => {
+  state.session!.status = "failed";
+  state.session!.stage = "evaluating";
+  state.session!.error = "The provider could not complete this check";
+  state.session!.error_code = "run_failed";
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  const details = screen.getByText("Technical details").closest("details");
+  expect(details).toHaveTextContent(
+    "A run this step needed failed, or its model provider did not answer.",
+  );
+  expect(screen.getByText("The provider could not complete this check")).toHaveAttribute(
+    "lang",
+    "en",
+  );
+});
+
+it("words a stop for want of data with its count, not the server's sentence", () => {
+  state.session!.status = "stopped";
+  state.session!.stop_reason = "no_data";
+  state.session!.error = "Two more are needed";
+  state.session!.error_code = "too_few_held_out";
+  state.session!.error_params = { missing: 2 };
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  const details = screen.getByText("Technical details").closest("details");
+  expect(details).toHaveTextContent("Add 2 more held-out test questions to measure a change.");
+  expect(details).not.toHaveTextContent("Two more are needed");
+});
+
 it("says how many more questions a session needs, in words rather than the server's message", () => {
   state.session!.status = "stopped";
   state.session!.stop_reason = "no_data";
@@ -794,11 +841,36 @@ it("tells someone who may not publish why, and still lets them keep a draft", as
 it("refuses with a reason and a way back to the agent", () => {
   state.runs = false;
   render(<ImprovementPage agentId="a1" sessionId="s1" />);
-  expect(screen.getByRole("alert")).toHaveTextContent(/viewing runs are required/);
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Reading an Improve session needs runs:view, which this role does not hold.",
+  );
   expect(screen.getByRole("link", { name: "Open the agent" })).toHaveAttribute(
     "href",
     "/agents/a1",
   );
+});
+it("waits for the permission set before refusing", () => {
+  state.runs = false;
+  state.permissionsLoaded = false;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+  expect(screen.queryByText(/viewing runs are required/)).not.toBeInTheDocument();
+});
+it("says the permission read failed instead of refusing, and reads it again", async () => {
+  state.runs = false;
+  state.permissionsLoaded = false;
+  state.permissionsError = new Error("permissions unavailable");
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.getByRole("alert")).toHaveTextContent("permissions unavailable");
+  expect(screen.queryByText(/viewing runs are required/)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Try reading again" }));
+  expect(state.permissionsRefetch).toHaveBeenCalled();
+});
+it("keeps a granted permission while the set is read again", () => {
+  state.permissionsLoaded = false;
+  render(<ImprovementPage agentId="a1" sessionId="s1" />);
+  expect(screen.queryByRole("status", { name: "Loading" })).not.toBeInTheDocument();
+  expect(screen.queryByText(/viewing runs are required/)).not.toBeInTheDocument();
 });
 it("announces why a step failed, and lists attempts that were never tested", async () => {
   state.session!.status = "failed";

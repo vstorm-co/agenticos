@@ -11,6 +11,7 @@ import { Badge, Button, Card, CardContent, Progress } from "@/components/ui";
 import { ROUTES } from "@/lib/constants";
 import { formatDateTime } from "@/lib/utils";
 import type { EvalComparison, EvalRun, EvalRunArm } from "@/types/eval-runs";
+import { InvalidReason } from "./invalid-reason";
 import { SuiteCheckVerdict } from "./suite-check-verdict";
 import { EvalStatusBadge } from "./eval-status-badge";
 import { ResultOverview } from "./result-overview";
@@ -42,6 +43,7 @@ export function VerdictHeader({
   run,
   candidate,
   canPublish,
+  canEdit,
   canEditDataset,
   comparison,
   onCancel,
@@ -57,6 +59,8 @@ export function VerdictHeader({
   candidate: EvalRunArm | undefined;
   /** Whether the caller may publish this agent - the role's publish and an edit on it. */
   canPublish: boolean;
+  /** Whether the caller may edit this agent, which reading a tested draft's spec takes. */
+  canEdit: boolean;
   canEditDataset: boolean;
   comparison: EvalComparison | undefined;
   onCancel?: () => void;
@@ -250,9 +254,12 @@ export function VerdictHeader({
                     </Button>
                   </p>
                 )}
-                {comparison?.invalid_reason &&
+                {comparison &&
                   !(stage && comparison.invalid_reason_code === "too_few_held_out") && (
-                    <p className="text-muted-foreground text-sm">{comparison.invalid_reason}</p>
+                    <InvalidReason
+                      comparison={comparison}
+                      className="text-muted-foreground text-sm"
+                    />
                   )}
                 {comparison !== undefined && comparison.changed > 0 && (
                   <p className="text-muted-foreground text-sm">
@@ -340,7 +347,8 @@ export function VerdictHeader({
               )}
               {baseline !== null &&
                 baseline.version_number !== null &&
-                candidate.version_number !== baseline.version_number && (
+                candidate.version_number !== baseline.version_number &&
+                (candidate.version_number !== null || canEdit) && (
                   <Button size="sm" variant="outline" asChild>
                     <Link
                       href={`${ROUTES.AGENTS}/${agentId}?tab=history&from=${baseline.version_number}&${

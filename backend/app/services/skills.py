@@ -48,6 +48,7 @@ from app.repositories import (
 )
 from app.repositories.skill import SkillKey, SkillSort
 from app.schemas.agent_run import RunSkillUseRead
+from app.schemas.console_catalogs import catalog_intersection
 from app.schemas.skill import (
     GalleryIndustryRead,
     GalleryInstallResult,
@@ -79,6 +80,7 @@ from app.services.access import (
     resolve_access,
     visible_resource_ids,
 )
+from app.services.console_catalogs import ConsoleCatalogService
 from app.services.resource_usage import (
     SkillBindings,
     agents_drafting_skills,
@@ -1337,7 +1339,8 @@ class SkillService:
         lands, so a renamed folder in a later release must not offer a second
         copy of a skill somebody is already editing.
         """
-        ids = await skill_repo.ids_by_name(self.db, organization_id=ctx.organization_id)
+        ids = await self._gallery_installed(ctx)
+        allowed = await self._gallery_keys(ctx, ids)
         return SkillGallery(
             industries=[
                 GalleryIndustryRead(
@@ -1352,9 +1355,11 @@ class SkillService:
                             installed_id=ids.get(entry.name),
                         )
                         for entry in industry.skills
+                        if allowed is None or entry.key in allowed
                     ],
                 )
                 for industry in skill_library.gallery()
+                if allowed is None or any(entry.key in allowed for entry in industry.skills)
             ]
         )
 
@@ -1384,14 +1389,39 @@ class SkillService:
             if use.skill_id in visible
         ]
 
-    async def gallery_preview(self, key: str) -> GallerySkillPreview:
+    async def _gallery_installed(self, ctx: AuthContext) -> dict[str, UUID]:
+        shared = await visible_resource_ids(
+            self.db, ctx, resource_type=SKILL, perm=Perm.SKILLS_VIEW
+        )
+        return await skill_repo.ids_by_name(
+            self.db,
+            organization_id=ctx.organization_id,
+            user_id=ctx.subject_id,
+            see_all=shared is None,
+            shared_ids=shared or [],
+        )
+
+    async def _gallery_keys(
+        self, ctx: AuthContext, installed: Mapping[str, UUID]
+    ) -> frozenset[str] | None:
+        policies = await ConsoleCatalogService(self.db).policies(ctx, "skill_gallery")
+        available = {
+            entry.key
+            for industry in skill_library.gallery()
+            for entry in industry.skills
+            if entry.name in installed
+        }
+        return catalog_intersection(policies, available=available)
+
+    async def gallery_preview(self, ctx: AuthContext, key: str) -> GallerySkillPreview:
         """One gallery skill's body and files, read before it is installed.
 
         Raises:
             NotFoundError: No gallery skill has that key.
         """
+        allowed = await self._gallery_keys(ctx, await self._gallery_installed(ctx))
         entry = skill_library.gallery_get(key)
-        if entry is None:
+        if entry is None or (allowed is not None and key not in allowed):
             raise NotFoundError(message="No gallery skill has that key", details={"key": key})
         return GallerySkillPreview(
             key=entry.key,
@@ -1415,6 +1445,7 @@ class SkillService:
         `skipped` and an unrecognised key is `unknown` - and a request that
         installs nothing is still a 200 describing why.
         """
+        allowed = await self._gallery_keys(ctx, await self._gallery_installed(ctx))
         names = set(await skill_repo.list_names(self.db, organization_id=ctx.organization_id))
         installed: list[str] = []
         skipped: list[str] = []
@@ -1422,7 +1453,7 @@ class SkillService:
 
         for key in dict.fromkeys(keys):
             entry = skill_library.gallery_get(key)
-            if entry is None:
+            if entry is None or (allowed is not None and key not in allowed):
                 unknown.append(key)
                 continue
             if entry.name in names:

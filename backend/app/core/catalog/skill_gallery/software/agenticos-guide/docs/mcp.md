@@ -214,7 +214,11 @@ provider prompt caching, so fewer tool schemas alone do not establish lower cost
 For an external server, `approval: none` lets calls run, `writes` asks before tools
 without `readOnlyHint: true`, and `all` also asks before reads. The server supplies
 that hint; use `all` when you do not trust its classification. An external MCP
-client, such as Claude Code, applies its own confirmation settings.
+client, such as Claude Code, applies its own confirmation settings. AgenticOS's own
+server marks `destructiveHint: true` on every call that always asks a person inside
+AgenticOS, on every task or table-record write that may start agent work, and on
+every delete, discard, end or publish, and its instructions tell
+the client to confirm those with its person first.
 
 The platform binding enforces at least `writes`. Its trusted defaults let authorized
 reads, draft preparation, ordinary task and table-record changes, empty knowledge
@@ -1254,7 +1258,7 @@ Connection checks update discovered tools and status. `test_my_connection` there
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` and `roles:manage` |
 | `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (the caller's own; a key needs `agents:run` for `test_my_connection`) |
-| `list_improvements`, `get_improvement` | read access to the agent; the session's knowledge topics also need `runs:view`, as does listing every open session without naming an agent |
+| `list_improvements`, `get_improvement` | `runs:view`, and read access to the agent |
 | `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | edit access to the agent and `runs:view`; starting also `datasets:run`, publishing `agents:publish` |
 | `list_datasets` | `datasets:view` |
 | `get_eval_run` | `runs:view` |
@@ -1550,3 +1554,12 @@ APNs private-key entry and binary logo/favicon uploads return secure console
 handoffs. Secret values and image bytes stay out of model context. Environment-owned
 settings remain read-only. Console branding fetched through the frontend cache
 can take up to five minutes to reflect a direct MCP change.
+
+
+## Shared MCP OAuth clients
+
+For an OAuth MCP server without dynamic client registration, an administrator can add an organization-visible **MCP OAuth client** in Vault (`mcp_oauth_client`, purpose `custom`). Store the exact MCP server URL, client ID and optional client secret. Only one organization-visible client is allowed per server. URL identity retains the endpoint path and normalizes the host, default port and trailing slash; credentials, query strings and fragments are not accepted.
+
+When a member chooses OAuth without entering a client ID, the connection uses this client only if the server offers no registration endpoint. An explicitly entered client takes precedence; dynamic registration remains unchanged. The availability probe returns only a boolean, never client credentials. If none is configured, the connection explains that an administrator must add one in Vault.
+
+Each resulting personal grant remains sealed to its user and bound to the issuing organization, current membership and exact secret generation. Rotating, deleting or making the shared client private requires reconnection, even when an access token has not expired. A grant issued through one organization's client cannot be used in another organization.

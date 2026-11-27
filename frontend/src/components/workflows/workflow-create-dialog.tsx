@@ -46,6 +46,7 @@ import {
   WEBHOOK_TRIGGER,
   WORKFLOW_CALL_TRIGGER,
   WORKFLOW_FAILED_TRIGGER,
+  initialNodeConfig,
 } from "@/lib/workflows/triggers";
 
 /** The ways a new workflow can start, in the order a builder reaches for them. */
@@ -75,7 +76,7 @@ export function startingGraph(definitionId: string): WorkflowGraph {
         id,
         definition_id: definitionId,
         definition_version: 1,
-        config: {},
+        config: initialNodeConfig(definitionId),
         layout: { x: 0, y: 0 },
       },
     ],

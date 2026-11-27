@@ -1168,7 +1168,8 @@
     "appWide": "App-breed",
     "appWideNotForAgents": "App-brede kennisbanken kunnen niet door agents worden gebruikt. Vink de kennisbank uit om deze te verwijderen.",
     "otherOrganization": "Andere organisatie",
-    "otherOrganizationNotForAgents": "Deze kennisbank hoort bij een andere organisatie. Agents hier kunnen deze niet gebruiken. Vink de kennisbank uit om deze te verwijderen."
+    "otherOrganizationNotForAgents": "Deze kennisbank hoort bij een andere organisatie. Agents hier kunnen deze niet gebruiken. Vink de kennisbank uit om deze te verwijderen.",
+    "testedSpecUnread": "De versie die deze run testte, kon niet worden gelezen. {reason}"
   },
   "auth": {
     "agreeToTerms": "Door een account aan te maken, ga je akkoord met onze <terms>Voorwaarden</terms> en ons <privacy>Privacybeleid</privacy>.",
@@ -1179,7 +1180,6 @@
     "confirmPassword": "Wachtwoord bevestigen",
     "continueWithGithub": "Doorgaan met GitHub",
     "continueWithGoogle": "Doorgaan met Google",
-    "googleNotConfigured": "Inloggen met Google is niet geconfigureerd voor deze installatie.",
     "continueWithProvider": "Doorgaan met {provider}",
     "continueWithMicrosoft": "Doorgaan met Microsoft",
     "createHeading": "Een account aanmaken",
@@ -1276,7 +1276,10 @@
     "directorySignIn": "Inloggen met {provider}",
     "directoryUsername": "{provider}-gebruikersnaam",
     "useEmailInstead": "In plaats daarvan e-mail en wachtwoord gebruiken",
-    "nativeLogoutFailed": "Uitgelogd, maar de app kon de lokale toegang niet wissen."
+    "nativeLogoutFailed": "Uitgelogd, maar de app kon de lokale toegang niet wissen.",
+    "providerSignInOnly": "Meld u aan via de identiteitsprovider van uw organisatie. Lokale wachtwoorden en aanmeldlinks per e-mail zijn uitgeschakeld.",
+    "providerSignInUnavailable": "Er is geen identiteitsprovider beschikbaar. Neem contact op met uw beheerder.",
+    "chooseSignInMethod": "Een andere aanmeldmethode kiezen"
   },
   "billing": {
     "description": "Beheer je abonnement voor {org}.",
@@ -1495,7 +1498,24 @@
         "approve_all": "Alles goedkeuren",
         "ask_all": "Altijd vragen"
       },
-      "afterFirstMessage": "Beschikbaar na het eerste bericht."
+      "afterFirstMessage": "Beschikbaar na het eerste bericht.",
+      "projectExecution": {
+        "title": "Projectbestanden",
+        "hint": "Gedeelde bestanden blijven in het project. De agent behoudt zijn tools en kan zo nodig de projectsandbox gebruiken.",
+        "filesOnly": "Gedeelde projectbestanden zijn beschikbaar zonder opdrachten uit te voeren.",
+        "projectFilesOnly": "Gedeelde bestanden blijven in het project. Dit project heeft geen opdrachtomgeving; de agent behoudt zijn tools.",
+        "local": "Projectbestanden blijven gedeeld. Opdrachten gebruiken nog steeds de toegestane map op deze computer.",
+        "loading": "Project van deze chat controleren…",
+        "unavailable": "Het project kon niet worden gecontroleerd. Probeer opnieuw om de huidige workspace te zien.",
+        "advanced": "Geavanceerd opdrachtdoel",
+        "commandTarget": "Opdrachtdoel",
+        "automatic": "Automatisch — de agent kiest",
+        "agent": "Alleen agentworkspace",
+        "project": "Alleen projectsandbox",
+        "overrideHint": "Optioneel: stel het opdrachtdoel voor deze chat vast. Automatisch begint in de eigen omgeving van de agent.",
+        "noProject": "De agent gebruikt zijn ingestelde workspace. Vraag hem zo nodig een project te gebruiken.",
+        "workspace": "Agentworkspace"
+      }
     },
     "conversationArchived": "Dit gesprek is gearchiveerd",
     "conversationDeleted": "Gesprek verwijderd",
@@ -1605,7 +1625,16 @@
       "readNoticeBody": "Probeer het opnieuw om de bestandsverbinding te controleren. Je kunt dit gesprek blijven gebruiken.",
       "connectionSettings": "Sandboxkoppelingen",
       "technicalDetails": "Technische details",
-      "zipFailed": "De map kon niet worden gedownload."
+      "zipFailed": "De map kon niet worden gedownload.",
+      "fileLocation": "Bestandslocatie",
+      "chooseLocation": "Kies een bestandslocatie",
+      "agentLocation": "Agentbestanden · {name}",
+      "projectLocation": "Projectbestanden · {name}",
+      "locationUnavailable": "Deze bestandslocatie is niet meer beschikbaar. Kies een andere locatie.",
+      "locationsTruncated": "Sommige bestandslocaties ontbreken in deze lijst.",
+      "filesTruncated": "Deze bestandslijst is onvolledig.",
+      "loading": "Bestanden laden…",
+      "retry": "Opnieuw proberen"
     },
     "generateShareLink": "Deellink aanmaken",
     "helpful": "Nuttig",
@@ -1813,7 +1842,9 @@
       "retryShared": "Gedeelde gesprekken opnieuw proberen",
       "searchFailed": "Kon de gesprekken niet doorzoeken.",
       "searchMatches": "{count, plural, one {# overeenkomend bericht} other {# overeenkomende berichten}}",
-      "searchKeys": "↑ ↓ om te navigeren · Enter om te openen · Esc om te sluiten"
+      "searchKeys": "↑ ↓ om te navigeren · Enter om te openen · Esc om te sluiten",
+      "flatView": "Meest recente activiteit (platte lijst)",
+      "groupedView": "Chats groeperen per project"
     },
     "skipComment": "Opmerking overslaan",
     "sourceCount": "{count, plural, =1 {1 bron} other {# bronnen}}",
@@ -2165,7 +2196,18 @@
       "runAcpAgent": "Externe ACP-agent",
       "runningAcpAgent": "Externe ACP-agent",
       "inspectAcpAgent": "ACP-modelkeuzes lezen",
-      "readingAcpModels": "ACP-modelkeuzes lezen"
+      "readingAcpModels": "ACP-modelkeuzes lezen",
+      "approveAcceptImprovement": "Poging {attempt} voor {agent} accepteren ({verdict, select, better {beter} criteria_better {beter op criteria} no_change {geen verandering} criteria_worse {slechter op criteria} regression {slechter} inconclusive {onbeslist} other {niet gemeten}}) {publish, select, yes {en publiceren als v{version}} other {als concept}}",
+      "approvePublishAgent": "{agent} publiceren als v{version}",
+      "approveChangeSkillVersion": "{state, select, main {{agent} naar de hoofdlijn van {skill} zetten} pinned {{agent} vastzetten op {skill} v{version}} other {{agent} naar een fork van {skill} zetten}}",
+      "approveAcceptSkillImprovement": "{outcome, select, apply {De verbeterde skill {skill} toepassen} apply_and_pin {De verbeterde skill {skill} toepassen en de agents vastzetten die hij zou schaden} fork_for_helped {Een fork van {skill} maken voor de agents die hij hielp} catch_up {De fork van {skill} bijwerken met main} other {De fork van {skill} terugzetten naar main}}",
+      "approveStartEvalRun": "{agent} testen op de dataset {dataset} v{version}",
+      "selectingProjectContext": "Projectcontext kiezen…",
+      "selectedProjectContext": "Projectcontext gekozen",
+      "selectingExecutionTarget": "Uitvoerdoel kiezen…",
+      "selectedExecutionTarget": "Uitvoerdoel gekozen",
+      "transferringProjectFile": "Projectbestand overdragen…",
+      "transferredProjectFile": "Projectbestand overgedragen"
     },
     "turnWasStopped": "gestopt",
     "unfavourite": "Uit favorieten verwijderen",
@@ -2732,7 +2774,10 @@
     "queuedPaused": "Wachtrij gepauzeerd",
     "resumeQueue": "Wachtrij hervatten",
     "routineHistoryReadOnly": "Dit is een alleen-lezen routinegeschiedenis. Fork een antwoord om verder te gaan in een nieuwe chat.",
-    "routineContinueChat": "Verder in een nieuwe chat"
+    "routineContinueChat": "Verder in een nieuwe chat",
+    "approvalOthersWait": "Je antwoord geldt alleen voor je eigen platformaanroepen. De andere wachten op iemand die over goedkeuringen mag beslissen.",
+    "approvalNeedsItsPerson": "Alleen de persoon voor wie deze run handelt, kan dit goedkeuren. Je kunt het afwijzen.",
+    "approvalNeedsItsAdminPerson": "Alleen de persoon namens wie deze run werkt, aangemeld als applicatiebeheerder, kan dit goedkeuren. Je kunt het afwijzen."
   },
   "approvalFeedback": {
     "savedApproval": "Al goedgekeurd: {action}",
@@ -3666,6 +3711,13 @@
       "background-tasks": {
         "title": "Achtergrondonderwerpen",
         "description": "Je gedelegeerde werk en de resultaten ervan"
+      },
+      "event-sources": {
+        "title": "Gebeurtenisbronnen",
+        "description": "Bekijk hoeveel webhookbronnen actief of gepauzeerd zijn.",
+        "empty": "Nog geen gebeurtenisbronnen",
+        "active": "Actief",
+        "paused": "Gepauzeerd"
       }
     },
     "edit": {
@@ -4338,7 +4390,8 @@
     "citedFileGone": "Dit bestand staat niet meer in de kennisbank - het is verwijderd of vervangen nadat het werd geciteerd.",
     "embeddingEndpoint": "Endpoint",
     "embeddingEndpointHint": "Laat leeg voor de globale OpenRouter-API, of vul een regionale URL in zoals https://eu.openrouter.ai/api/v1. EU-routering vereist een geschikt OpenRouter-abonnement; ZDR wordt apart ingesteld op OpenRouter.",
-    "noConnectorsAvailable": "Er zijn geen bronconnectors beschikbaar. Een beheerder kan een connector inschakelen voor deze installatie."
+    "noConnectorsAvailable": "Er zijn geen bronconnectors beschikbaar. Een beheerder kan een connector inschakelen voor deze installatie.",
+    "parsedSnapshotOnly": "Geïmporteerde verwerkte tekst. Het oorspronkelijke bestand was niet opgenomen."
   },
   "knowledgeBases": {
     "active": "Actief",
@@ -4368,7 +4421,8 @@
     "title": "Kennisbanken",
     "updated": "Kennisbank bijgewerkt",
     "uploadFailed": "Upload mislukt",
-    "uploaded": "{name} geüpload"
+    "uploaded": "{name} geüpload",
+    "documentIndexingQueued": "Documentindexering in de wachtrij geplaatst"
   },
   "layout": {
     "breadcrumb": "Kruimelpad",
@@ -4396,6 +4450,7 @@
       "outboxWaiting": "{count, plural, =1 {1 bericht wacht om te worden verstuurd} other {# berichten wachten om te worden verstuurd}}",
       "unreachable": "Kan de server niet bereiken. Je ziet wat op {time} op dit apparaat is opgeslagen."
     },
+    "staleRead": "Een deel van deze pagina wordt niet meer bijgewerkt en is mogelijk verouderd. {reason}",
     "install": {
       "offer": "Installeer AgenticOS als app: een eigen venster, meldingen en een pictogram op je beginscherm.",
       "iosHint": "Tik op Deel en dan op Zet op beginscherm om AgenticOS te installeren.",
@@ -4852,7 +4907,8 @@
     "monitoring": "Monitoring",
     "backgroundWork": "Achtergrondwerk",
     "developerAccess": "API en MCP",
-    "subscriptions": "Abonnementen"
+    "subscriptions": "Abonnementen",
+    "eventSources": "Gebeurtenisbronnen"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -4937,6 +4993,10 @@
       "skill-improvement-session": {
         "title": "Deze sessie doorlopen",
         "body": "Bekijk de stappen, het resultaat van elke agent, en wat je met de wijziging mag doen."
+      },
+      "create-event-source": {
+        "title": "Nieuwe bron maken",
+        "body": "Ontvang geauthenticeerde gebeurtenissen één keer en deel ze met routines en workflows."
       }
     },
     "steps": {
@@ -5687,7 +5747,7 @@
       },
       "project-tabs": {
         "title": "Chats, bestanden en instructies",
-        "body": "Start een chat in het project, voeg bestanden en mappen toe waarin de agents werken, en stel in wat elke agent hier te horen krijgt. In de desktop-app kun je ook een lokale map koppelen zonder de bestanden te uploaden."
+        "body": "Groepeer bestaande agents, workflows, apps en tabellen onder Bronnen. Chats opent eerst; Bestanden en Instructies bevatten de gedeelde werkruimte van projectchats."
       },
       "chat-visual": {
         "title": "Tekeningen",
@@ -6224,6 +6284,66 @@
       "channels-binding": {
         "title": "Kies wie antwoordt",
         "body": "Koppel een agent aan een bot of maak de koppeling los. Een bot antwoordt als één agent. De omgeving, pauzestand en zoekinstellingen blijven op het tabblad Beschikbaarheid van de agent."
+      },
+      "deployment-password-sign-in": {
+        "title": "Aanmeldmethoden",
+        "body": "Vereis de ingestelde identiteitsprovider of sta lokale wachtwoorden en aanmeldlinks per e-mail toe. Alleen de beheerder kan dit beleid wijzigen."
+      },
+      "deployment-chat-costs": {
+        "title": "Chatkosten",
+        "body": "Sta organisaties toe kosten in de chat te tonen. Uitschakelen verbergt ze voor iedereen."
+      },
+      "organization-chat-costs": {
+        "title": "Chatkosten",
+        "body": "Kies wie de kosten van antwoorden, delegaties en gesprekken ziet. Boekhouding, budgets en toegang tot Activity en dashboard blijven ongewijzigd."
+      },
+      "personal-chat-costs": {
+        "title": "Chatkosten",
+        "body": "Verberg kosten in je eigen chats. Beperkingen van je organisatie of deployment blijven gelden."
+      },
+      "deployment-console-navigation": {
+        "title": "Beschikbaarheid van de console",
+        "body": "Kies navigatie en optionele productsuggesties voor organisaties. Rechten op resources blijven ongewijzigd."
+      },
+      "organization-console-navigation": {
+        "title": "Console per rol",
+        "body": "Kies de zichtbare navigatie voor elke ingebouwde rol. Dit wijzigt de weergave, nooit toegangsrechten."
+      },
+      "organization-console-notices": {
+        "title": "Productsuggesties",
+        "body": "Kies optionele suggesties voor deze organisatie. Beschikbaarheids- en beveiligingsmeldingen blijven ongewijzigd."
+      },
+      "personal-console-navigation": {
+        "title": "Mijn navigatie",
+        "body": "Behoud de onderdelen die je gebruikt. Beperkingen van organisatie en deployment blijven gelden."
+      },
+      "personal-console-notices": {
+        "title": "Productsuggesties",
+        "body": "Behoud nuttige suggesties. Beperkingen van organisatie en deployment blijven gelden."
+      },
+      "personal-console-catalogs": {
+        "title": "Catalogi",
+        "body": "Kies welke galerijen je wilt bekijken. De grenzen van de organisatie en installatie blijven gelden."
+      },
+      "event-sources-header": {
+        "title": "Gebeurtenisbronnen",
+        "body": "Ontvang geauthenticeerde gebeurtenissen één keer en deel ze met routines en workflows."
+      },
+      "event-sources-create": {
+        "title": "Nieuwe bron maken",
+        "body": "Stel de afzender handmatig zo in dat deze JSON via POST naar de bron-URL stuurt."
+      },
+      "flow-event-source-create": {
+        "title": "Nieuwe bron maken",
+        "body": "Stel de afzender handmatig zo in dat deze JSON via POST naar de bron-URL stuurt."
+      },
+      "workflow-python-actions": {
+        "title": "Tools aanroepen vanuit Python",
+        "body": "Kies Python met acties om MCP-tools aan te roepen, tabellen te gebruiken of kennis te doorzoeken. Geef elke actie een functienaam en voeg de aanroep toe via het menu onder de editor. Elke aanroep heeft eigen goedkeuringen en een eigen uitvoeringsrecord."
+      },
+      "project-resources": {
+        "title": "Houd gerelateerde bronnen bij elkaar",
+        "body": "Koppel bestaande agents, workflows, Apps en tabellen zonder hun rechten te wijzigen. Open ze hier of kies een gekoppelde workflow als ingang van het project."
       }
     },
     "chooseLanguage": "Taal",
@@ -6479,7 +6599,7 @@
         },
         "webhook": {
           "name": "Webhook",
-          "description": "Een ondertekende HTTP-levering vanuit een ander systeem start een run."
+          "description": "Een geauthenticeerde gebeurtenis start een run. Kies of maak een gebeurtenisbron in de editor."
         },
         "schedule": {
           "name": "Planning",
@@ -6868,7 +6988,9 @@
       "runQuestionsFailed": "De vragen konden niet worden geladen.",
       "runQuestionsRetry": "Opnieuw proberen",
       "startRunSchema": "Verwacht invoerschema",
-      "nameRequired": "Vul een naam in voor deze workflow."
+      "nameRequired": "Vul een naam in voor deze workflow.",
+      "triggerSourceCredentials": "Inloggegevens beheren bij Gebeurtenisbronnen",
+      "runPythonCall": "Aanroep {index}: {name}"
     },
     "retention": {
       "title": "Bewaring van gegevens",
@@ -7159,7 +7281,11 @@
       "noMembers": "Geen leden",
       "membersTruncated": "De eerste {shown} van {total} leden worden getoond",
       "serviceMapTiles": "Kaarttegels",
-      "serviceMapTilesDetail": "Waar kaarten in visuals hun achtergrond vandaan halen"
+      "serviceMapTilesDetail": "Waar kaarten in visuals hun achtergrond vandaan halen",
+      "passwordSignInTitle": "Aanmeldmethoden",
+      "passwordSignInHint": "Lokale aanmelding omvat wachtwoorden, registratie, wachtwoordherstel en aanmeldlinks per e-mail. Configureer een identiteitsprovider voordat u dit uitschakelt.",
+      "passwordSignInEnabled": "Lokale aanmelding toestaan",
+      "passwordSignInForced": "De herstelinstelling van de beheerder schakelt lokale aanmelding momenteel in."
     },
     "agentDetail": {
       "perMonth": "${amount} per maand"
@@ -7204,7 +7330,6 @@
       "duplicate": "Dupliceren",
       "eachPublishFreezesSpec": "Elke publicatie bevriest een spec. Runs leggen de versie vast, dus wat een agent vorige dinsdag deed, blijft na een dozijn bewerkingen te verklaren. Herstellen publiceert een nieuwe versie die van de oude is gekopieerd - de tijdlijn toont dat er werd teruggedraaid in plaats van te doen alsof de slechte versie nooit bestond.",
       "environments": "Omgevingen",
-      "exportYaml": "YAML exporteren",
       "filterByStatus": "Filteren op status",
       "filterByCategory": "Filteren op categorie",
       "filterByTag": "Filteren op tag",
@@ -7651,7 +7776,12 @@
       "indexingInProgress": "{count, plural, =1 {1 document wordt geïndexeerd} other {# documenten worden geïndexeerd}}",
       "indexingComplete": "Indexeren voltooid",
       "indexingFailed": "{count, plural, =1 {1 document mislukt} other {# documenten mislukt}}",
-      "moreUploads": "{count, plural, one {Nog # bestand in de uploadwachtrij} other {Nog # bestanden in de uploadwachtrij}}"
+      "moreUploads": "{count, plural, one {Nog # bestand in de uploadwachtrij} other {Nog # bestanden in de uploadwachtrij}}",
+      "indexDocument": "Indexeren",
+      "retryDocument": "Opnieuw",
+      "indexDocumentNamed": "{name} indexeren",
+      "retryDocumentNamed": "{name} opnieuw proberen",
+      "indexDocumentHint": "Gebruikt de instellingen van deze kennisbank en kan providerkosten veroorzaken."
     },
     "mcp-servers": {
       "catalogCompiledIntoBackend": "De catalogus is in de backend ingebouwd, en niemand heeft een eigen server toegevoegd. Een lege lijst hier betekent dat deze installatie er geen meelevert.",
@@ -8020,6 +8150,7 @@
       "askedFor": "Voor {email}",
       "contentHidden": "Wat deze aanroep uit zijn run citeert, wordt alleen getoond aan mensen die die run kunnen zien.",
       "approveNeedsTheRun": "Alleen iemand die de run kan zien, kan dit goedkeuren. Je kunt het afwijzen.",
+      "approveNeedsItsPerson": "Alleen de persoon voor wie deze run handelt, kan dit goedkeuren. Je kunt het afwijzen.",
       "account": "Account: {account}",
       "openTheRun": "De run openen",
       "decidedByWhom": "door {email}",
@@ -8033,6 +8164,7 @@
       "actionInService": "{action} in {service}",
       "approvalDetails": "Details",
       "approvalNoArguments": "Zonder argumenten.",
+      "approvalQuotedPrice": "Opgegeven schatting: {price}",
       "cache": {
         "title": "Promptcache",
         "description": "Verzoeken waarvan de gecachete prompt niet werd teruggelezen. Bij een gewijzigde prefix - tools in een andere volgorde, een tijdstempel in de instructies - werd het volledige invoertarief gefactureerd; bij een verlopen cache was de bewaartermijn van de providercache verstreken.",
@@ -8148,7 +8280,8 @@
       "inputTokenCacheRead": "Gelezen uit cache",
       "inputTokenCacheWrite": "Geschreven naar cache",
       "inputTokenHint": "Totalen over de vastgelegde modelverzoeken. Cachetokens zitten in de invoer, ze worden er niet bij opgeteld.",
-      "systemRoleChannelDecision": "Beslissing over deelname aan een kanaal (systeem)"
+      "systemRoleChannelDecision": "Beslissing over deelname aan een kanaal (systeem)",
+      "approveNeedsItsAdminPerson": "Alleen de persoon namens wie deze run werkt, aangemeld als applicatiebeheerder, kan dit goedkeuren. Je kunt het afwijzen."
     },
     "sandboxes": {
       "noAccess": "Geen toegang tot sandboxkoppelingen",
@@ -8992,7 +9125,8 @@
     "done": "Klaar",
     "error": "Mislukt",
     "processing": "Verwerken",
-    "running": "Bezig"
+    "running": "Bezig",
+    "stored": "Opgeslagen · niet geïndexeerd"
   },
   "sandboxes": {
     "activityLogUnreadable": "Dat activiteitenlog kon niet worden gelezen",
@@ -9290,14 +9424,14 @@
     "share": "Delen",
     "sharingUpdated": "Delen bijgewerkt",
     "visibilityOrg": "Iedereen in de organisatie",
-    "visibilityOrgReaches": "Iedereen in de organisatie die überhaupt {resource, select, agent {agents} skill {skills} collection {collecties} artifact {apps} dataset {datasets} context {contextbestanden} mcp_connection {MCP-servers} project {projecten} workflow {workflows} other {geheimen}} kan bekijken.",
+    "visibilityOrgReaches": "Iedereen in de organisatie die überhaupt {resource, select, agent {agents} skill {skills} collection {collecties} artifact {apps} dataset {datasets} context {contextbestanden} mcp_connection {MCP-servers} project {projecten} workflow {workflows} event_source {gebeurtenisbronnen} other {geheimen}} kan bekijken.",
     "visibilityPrivate": "Alleen mensen met toegang",
-    "visibilityPrivateReaches": "Alleen de personen hierboven. Niemand anders ziet {resource, select, agent {deze agent} skill {deze skill} collection {deze collectie} artifact {deze app} dataset {deze dataset} context {dit contextbestand} mcp_connection {deze MCP-server} project {dit project} other {dit geheim}} in het overzicht. Als er nog geen eigenaar is, word jij de eigenaar.",
+    "visibilityPrivateReaches": "Alleen de personen hierboven. Niemand anders ziet {resource, select, agent {deze agent} skill {deze skill} collection {deze collectie} artifact {deze app} dataset {deze dataset} context {dit contextbestand} mcp_connection {deze MCP-server} project {dit project} event_source {deze gebeurtenisbron} other {dit geheim}} in het overzicht. Als er nog geen eigenaar is, word jij de eigenaar.",
     "visibilityTeam": "Team (niet meer aangeboden)",
     "visibilityTeamReaches": "Iedereen wiens rol tot {resource, select, agent {agents} skill {skills} collection {collecties} artifact {apps} dataset {datasets} context {contextbestanden} mcp_connection {MCP-servers} project {projecten} workflow {workflows} other {geheimen}} van het team reikt. Deze organisatie heeft geen teams - kies een van de twee hierboven.",
     "visibilityUpdated": "Zichtbaarheid bijgewerkt",
     "workflowPrivateReaches": "De eigenaar, de personen en groepen hierboven, en rollen die toegang hebben tot alle workflows. Rollen die beperkt zijn tot gedeelde workflows, kunnen toegang verliezen als je hem privé maakt.",
-    "workflowRuntimeNote": "Delen bepaalt ook de toegang tot eerdere runs. Het pauzeert geen planningen en schakelt geen webhooks uit.",
+    "workflowRuntimeNote": "Wie van jou toegang krijgt tot de runs van de workflow, kan de geleverde gebeurtenisgegevens zien, ook in eerdere runs. Door de workflow te delen geef je geen toegang tot de gebeurtenisbron, pauzeer je geen planningen en schakel je geen webhooks uit.",
     "groupsHeading": "Groepen",
     "membersHeading": "Leden",
     "groupSubject": "Groep",
@@ -9306,7 +9440,8 @@
     "owner": "Eigenaar",
     "shareNamed": "{name} delen",
     "requestSent": "Verzoek verstuurd naar {name}",
-    "requestSentNobody": "Verzoek verstuurd. Niemand kan het nog goedkeuren."
+    "requestSentNobody": "Verzoek verstuurd. Niemand kan het nog goedkeuren.",
+    "eventSourceRuntimeNote": "Met ‘Kan gebruiken’ kun je ook de ongefilterde gegevens van de bron ontvangen."
   },
   "skills": {
     "addFile": "Bestand toevoegen",
@@ -9711,7 +9846,8 @@
         "unscorable": "Niet gecontroleerd: de vragen hebben geen beoordelingsmethode. Stel een beoordeling in op hun dataset.",
         "all_evidence": "Niet gecontroleerd: elke vraag kwam uit de gesprekken waaruit deze wijziging werd geleerd.",
         "cancelled": "Niet gecontroleerd: de controle werd gestopt voordat ze klaar was.",
-        "own_not_asked": "Niet gecontroleerd: zijn eigen vragen werden niet gesteld nadat uit de vragen van de skill bleek dat hij slechter werd."
+        "own_not_asked": "Niet gecontroleerd: zijn eigen vragen werden niet gesteld nadat uit de vragen van de skill bleek dat hij slechter werd.",
+        "too_few_questions": "Niet gecontroleerd: hij heeft te weinig testvragen om de wijziging te bevestigen."
       },
       "verdict": {
         "passed": "Geen agent werd slechter en minstens één werd beter.",
@@ -9738,6 +9874,7 @@
       "nobody": "Geen van deze agents kan worden gecontroleerd, dus de controle zou niets meten. Voeg testvragen toe zodat dat wel kan, of ga verder zonder controle en bevestig dat niemand is gecontroleerd.",
       "startUnchecked": "Verder zonder controle",
       "noReaders": "Geen agent leest deze lijn, dus er is niemand om te controleren. Doorgaan past de wijziging meteen toe.",
+      "stoppedUpdating": "Deze controle wordt niet meer bijgewerkt en is mogelijk verouderd. {reason}",
       "proposalGoneTitle": "Deze update staat niet meer open",
       "proposalGoneDescription": "Deze update is in een andere sessie toegepast, verworpen of vervangen. De lijst is vernieuwd.",
       "backToChanges": "Terug naar updates"
@@ -10058,6 +10195,7 @@
     }
   },
   "vault": {
+    "webhookCredentials": "Webhook-inloggegevens",
     "access": "Toegang",
     "actions": "Acties",
     "addKeyNamed": "Een sleutel toevoegen: {name}",
@@ -10538,23 +10676,17 @@
     "endsAtHint": "Laat leeg om te draaien tot hij wordt gestopt. Deze tijd gebruikt {zone}, los van de tijdzone van de planning.",
     "endsAtInvalid": "Kies een geldige tijd in de toekomst, of maak het veld leeg om het einde te verwijderen.",
     "actionConsents": {
-      "checkConnections": "Controleer deze koppelingen om hun acties te bekijken: {names}.",
       "personalAccount": "{name} · je account",
       "organizationAccount": "{name} · organisatieaccount",
       "title": "Toestemming voor acties",
       "description": "Acties van routines vragen standaard om goedkeuring. Sta alleen de vermelde acties toe om te draaien zonder te vragen. De toestemming geldt voor deze gepubliceerde versie en configuratie van de routine; goedkeuringen die de agent vereist, blijven gelden. Elke MCP-actie geldt alleen voor het genoemde account.",
       "retry": "Opnieuw proberen",
-      "notAllowedPermission": "Je hebt niet het recht om over goedkeuringen te beslissen, dus je kunt deze routine geen vaste toestemming geven. Vraag het aan een beheerder van de organisatie. Je kunt nog wel alle toestemming intrekken.",
-      "notAllowedOrganization": "Je organisatie heeft vaste toestemming uitgeschakeld, dus deze routine kan goedkeuringen niet overslaan. Het kan worden ingeschakeld onder Budget en goedkeuringen. Je kunt nog wel alle toestemming intrekken.",
-      "openApprovalSettings": "Goedkeuringsinstellingen openen",
       "empty": "Deze versie heeft hier geen geschikte acties om toe te staan.",
       "revokeAll": "Alles intrekken",
       "save": "Toestemming opslaan",
       "search": "Acties zoeken",
       "selectGroup": "Geschikte acties in {name} kiezen",
       "noMatches": "Geen acties gevonden.",
-      "reselectPrevious": "Eerder bekeken acties opnieuw kiezen",
-      "tooMany": "{count} acties gekozen; de limiet is {limit}. Deselecteer acties voordat je opslaat.",
       "changed": {
         "version": "De gepubliceerde versie van de agent is veranderd. Bekijk de acties ervan opnieuw.",
         "intent": "Het werk of de bestemming van de routine is veranderd. Bekijk de acties ervan opnieuw.",
@@ -10566,8 +10698,7 @@
       "useAgent": "De instellingen van de agent gebruiken",
       "useAgentHint": "Kiest precies de acties die deze agent in een chat al zonder te vragen uitvoert, en vervangt de huidige selectie. Toestemming hier kan alleen beperken wat de instellingen van de agent toestaan, nooit verruimen: een actie waarvoor de agent vooraf vraagt, wordt niet aangeboden. Er wordt niets opgeslagen tot je Toestemming opslaan kiest.",
       "allowHeading": "Deze acties laten draaien zonder om goedkeuring te vragen",
-      "alwaysAsks": "Vraagt altijd: vereist door de agent of het platform",
-      "alwaysAsk": "{count, plural, =1 {1 actie vraagt altijd om goedkeuring, zoals de agent of koppeling vereist. Runs die deze actie gebruiken wachten op een persoon, ongeacht wat je hier kiest.} other {# acties vragen altijd om goedkeuring, zoals de agent of koppeling vereist. Runs die deze acties gebruiken wachten op een persoon, ongeacht wat je hier kiest.}}"
+      "alwaysAsks": "Vraagt altijd: vereist door de agent of het platform"
     },
     "sourceConsents": {
       "title": "Bronnen",
@@ -10657,7 +10788,28 @@
       "readiness_checking": "Controleren of deze routine kan worden uitgevoerd…",
       "readiness_unavailable": "Er kon niet worden gecontroleerd of deze routine kan worden uitgevoerd. Nu uitvoeren controleert de rechten nog steeds."
     },
-    "deliveryPending": "Laatste antwoord wordt naar de chat verstuurd"
+    "deliveryPending": "Laatste antwoord wordt naar de chat verstuurd",
+    "toolSettings": {
+      "title": "Routinetools",
+      "description": "Tools volgen standaard de agent. Laat voor deze routine toestemming vragen of schakel een tool uit. Verplichte goedkeuringen blijven gelden; gedelegeerde agents houden hun eigen instellingen.",
+      "legacyMode": "Opslaan past de goedkeuringsregels van de agent toe en verwijdert de eerdere doorlopende toestemmingen van deze routine.",
+      "agentAsks": "Agent vereist goedkeuring",
+      "agentFree": "Agent staat automatisch gebruik toe",
+      "follow": "Agent volgen",
+      "ask": "Elke keer vragen",
+      "off": "Uit",
+      "search": "Zoek een tool",
+      "reset": "Agent voor alle tools volgen",
+      "empty": "Deze routine heeft geen configureerbare tools.",
+      "noMatches": "Geen tools gevonden voor deze zoekopdracht.",
+      "personalAccount": "Persoonlijk account · {name}",
+      "organizationAccount": "Organisatieaccount · {name}",
+      "unavailable": "Controleer deze verbindingen om hun tools te zien: {names}.",
+      "unavailableSettings": "Beperkingen voor niet-beschikbare tools",
+      "unavailableSettingsBody": "Deze opgeslagen beperkingen blijven behouden, ook als een tool momenteel niet beschikbaar is. Verwijder een beperking expliciet om deze op te heffen.",
+      "removeRestriction": "Beperking voor {name} verwijderen"
+    },
+    "createdDescriptionShared": "Deze routine gebruikt de bestaande URL en inloggegevens van de gebeurtenisbron. Je hoeft bij de provider geen extra webhook te registreren."
   },
   "portals": {
     "backToServices": "Terug naar services",
@@ -11547,6 +11699,7 @@
     "needsAttention": "Vraagt aandacht"
   },
   "workflows": {
+    "pickerWebhookCredentials": "Webhook-inloggegevens",
     "created": "Workflow aangemaakt",
     "duplicated": "Workflow gedupliceerd",
     "publishedVersion": "Versie {version} gepubliceerd",
@@ -12395,8 +12548,32 @@
     },
     "stepEditorView": "Stapweergave",
     "stepEditorSettings": "Stapinstellingen",
-    "problemTableSchemaChanged": "Deze tabel is veranderd sinds de stap werd ingesteld: een kolom die hij leest, is verwijderd of van type veranderd. Werk hem bij naar het huidige schema en controleer welke stappen deze stap lezen.",
-    "problemTableDependenciesChanged": "Verwijder of vervang gewijzigde filter-, sorteer- en waardekoppelingen in deze stap voordat je het tabelschema ervan bijwerkt."
+    "problemTableSchemaChanged": "Het tabelschema is gewijzigd. Controleer de kolomnamen, typen en waarden die deze stap gebruikt voordat je de tabelverwijzing bijwerkt.",
+    "problemTableDependenciesChanged": "Verwijder of vervang gewijzigde filter-, sorteer- en waardekoppelingen in deze stap voordat je het tabelschema ervan bijwerkt.",
+    "webhookSourceAudience": "Wie de runs van deze workflow kan bekijken, kan de gegevens zien die de gebeurtenisbron heeft geleverd. Als je de workflow later deelt, geldt dat ook voor eerdere runs. Een run bekijken geeft geen toegang tot de bron.",
+    "pythonActions": "Beschikbare functies",
+    "pythonActionsHint": "Koppel een actie één keer en roep de functie daarna in je script aan met benoemde argumenten.",
+    "pythonInputGuide": "Invoer · Lees gekoppelde waarden uit args: {keys}",
+    "pythonInputUnbound": "nog geen invoervelden gekoppeld",
+    "pythonFunctionsGuide": "Functies · Roep {names} aan met benoemde argumenten.",
+    "pythonFunctionsEmpty": "Functies · Voeg hieronder een actie toe om de functie in je script te gebruiken.",
+    "pythonOutputGuide": "Uitvoer · De laatste expressie wordt het resultaat van deze stap.",
+    "pythonExampleGuide": "Deze stap schrijven",
+    "pythonCallGuide": "Gebruik args voor invoerwaarden en roep gekoppelde functies op naam aan. Een functie geeft het resultaat van de actie terug; eindig met de waarde voor de volgende stap.",
+    "pythonExamplePlaceholders": "Vervang elke ... door een invoerwaarde of letterlijke waarde. Een functie toevoegen of het script bewerken voert geen actie uit.",
+    "pythonActionsEmpty": "Nog geen acties gekoppeld. Kies een actie, geef deze een Python-naam en voeg de aanroep in het script in. Je kunt ook met args rekenen zonder een actie aan te roepen.",
+    "pythonActionsDiscover": "Voeg een stap Python met acties toe om MCP-tools aan te roepen, tabellen te gebruiken of kennis te doorzoeken. Geef elke actie een functienaam.",
+    "pythonSelectAction": "Selecteer een actie",
+    "pythonInsertCall": "Functieaanroep invoegen",
+    "pythonInvalidName": "Gebruik een unieke Python-naam die geen sleutelwoord of ingebouwde naam is.",
+    "pythonFunctionName": "Naam van de Python-functie",
+    "pythonBindAction": "Actie koppelen",
+    "pythonActionUnavailable": "Actie niet beschikbaar",
+    "pythonRemoveAction": "{name} verwijderen",
+    "pythonToolArguments": "Schema van toolargumenten",
+    "pythonRequiredConfigArgs": "Geef {fields} bij elke aanroep op of stel hieronder een standaardwaarde in.",
+    "pythonOverrideFields": "Optioneel te overschrijven: {fields}. Laat deze argumenten weg om de ingestelde waarden te gebruiken.",
+    "pythonResultFields": "Resultaatvelden: {fields}"
   },
   "artifacts": {
     "title": "Apps",
@@ -13927,6 +14104,14 @@
       "example2": "Een benoemde sessie voortzetten met een andere taak",
       "needs": "De desktop-app, een geregistreerd en ingelogd ACP-programma, en een goedgekeurde map met volledige toegang.",
       "never": "Draait met de toegang van je lokale account. Geen beperking tot alleen lezen en geen doorgifte van platformtools. Zet Menselijke goedkeuring op Altijd vragen om elke taak goed te keuren."
+    },
+    "projects": {
+      "name": "Projecten",
+      "does": "Vindt toegankelijke projecten, kiest hun referentiecontext en leest of wijzigt gedeelde tekstbestanden.",
+      "example1": "Zoek project Atlas en vat de briefing samen",
+      "example2": "Werk het afgesproken projectrapport bij zonder opdrachten uit te voeren",
+      "needs": "Actuele toegang tot het project en de bestanden. Opdrachten vereisen apart Sandbox en een beschikbare uitvoeromgeving.",
+      "never": "Context kiezen verplaatst de chat niet, koppelt geen bestanden aan de agentwerkruimte en staat geen opdrachten toe. Toegang en goedkeuringen blijven gelden."
     }
   },
   "capabilityCategories": {
@@ -14919,7 +15104,27 @@
       "scopeHint": "Het project hergebruikt één takenbord. De toegang volgt het project; mensen en agents zijn gekoppelde records, en het veld voor de volgende stap regelt de overdracht.",
       "openTracker": "Trackeragent"
     },
-    "initialSetup": "Instructies en standaarden"
+    "initialSetup": "Instructies en standaarden",
+    "newChatIn": "Nieuwe chat in {name}",
+    "resources": {
+      "title": "Bronnen",
+      "search": "Bronnen zoeken",
+      "add": "Bestaande bronnen toevoegen",
+      "hint": "Bronnen behouden hun eigen rechten. Een koppeling verwijderen verwijdert de bron niet.",
+      "empty": "Geen gekoppelde bronnen",
+      "agent": "Agent",
+      "workflow": "Workflow",
+      "app": "App",
+      "table": "Tabel",
+      "main": "Hoofdworkflow",
+      "unsetMain": "Hoofdworkflow wissen",
+      "setMain": "Instellen als hoofdworkflow",
+      "remove": "{name} uit project verwijderen",
+      "kind": "Brontype",
+      "addSelected": "Selectie toevoegen ({count})",
+      "filterHint": "Kies een project om deze catalogus te filteren.",
+      "noMatches": "Geen overeenkomende resources."
+    }
   },
   "voiceGlow": {
     "title": "Spraakgloed",
@@ -15420,7 +15625,7 @@
       "criterionCoverage": "Geldt voor {count} van {total} testgevallen",
       "noteForTag": "voor testgevallen met tag {tag}",
       "noteAddedToTags": "De notitie is nu een criterium van de beoordelaar voor testgevallen met tags {tags}.",
-      "maskedConversation": "Uit een gesprek dat je niet kunt openen",
+      "maskedConversation": "Bron niet beschikbaar of herkomst niet geverifieerd",
       "countsAsPassed": "Telt als geslaagd.",
       "countsAsFailed": "Telt als mislukt.",
       "reviewEffect": {
@@ -15488,7 +15693,7 @@
     "versionChange": "v{number} · {change, select, add {toegevoegd} edit {bewerkt} remove {verwijderd} import {geïmporteerd} generate {geaccepteerd uit concepten} other {gewijzigd}}: {count, plural, =1 {1 testgeval} other {# testgevallen}}",
     "importFile": "Kies een CSV- of JSONL-bestand om te importeren",
     "importTitle": "Testgevallen importeren",
-    "importBody": "Een CSV- of JSONL-bestand van hoogstens 10 MB, in UTF-8, met één testgeval per rij of regel. Alleen input is verplicht, en een lege cel laat een veld leeg. Het bestand wordt de volgende versie van de dataset; als één rij wordt geweigerd, wordt er niets geïmporteerd.",
+    "importBody": "Een CSV- of JSONL-bestand van hoogstens {megabytes, number} MB, in UTF-8, met één testgeval per rij of regel. Alleen input is verplicht, en een lege cel laat een veld leeg. Het bestand wordt de volgende versie van de dataset; als één rij wordt geweigerd, wordt er niets geïmporteerd.",
     "importColumn": {
       "input": "Het bericht waarop de agent wordt getest.",
       "history": "De beurten ervoor, als JSON-lijst met role en content.",
@@ -15686,6 +15891,7 @@
     "editCase": "Bewerken",
     "evals": "Evals",
     "linkedCaseGone": "Het testgeval dat deze link noemt, staat niet in de nieuwste versie van de dataset.",
+    "linkedCaseUnread": "Het testgeval dat deze link noemt, kon niet worden gelezen. {reason}",
     "argKey": "Aanroep {number}, argument {arg}: naam",
     "argValue": "Aanroep {number}, argument {arg}: waarde",
     "removeArg": "Argument {arg} van aanroep {number} verwijderen",
@@ -15709,7 +15915,7 @@
     "newDatasetHere": "Je hebt nog geen dataset om aan toe te voegen, dus met dit antwoord begin je er een, zichtbaar voor de hele organisatie.",
     "newDatasetFromActivity": "Antwoorden uit Activiteit",
     "backToDataset": "Terug naar {name}",
-    "maskedConversation": "Uit een gesprek dat je niet kunt openen",
+    "maskedConversation": "Bron niet beschikbaar of herkomst niet geverifieerd",
     "privateConversationWarning": "Dit gesprek is privé voor {name}. De tekst ervan wordt zichtbaar voor lezers van deze dataset die runs kunnen lezen.",
     "anotherMember": "een ander lid",
     "checkingSource": "Privacy van de bron controleren…",
@@ -15802,6 +16008,9 @@
       "number": "Nummer"
     },
     "helpers": {
+      "guidance": "Richtlijnen voor deze dataset",
+      "guidanceHint": "Worden onder de platformregels voor deze helper toegevoegd. De regels gelden altijd; richtlijnen kunnen ze niet wijzigen of verwijderen.",
+      "platformRules": "Platformregels (alleen-lezen)",
       "generatorTitle": "Testgevallen genereren",
       "generatorDescription": "Kies het model en de instructies waarmee testgevallen voor deze dataset worden opgesteld. Gegenereerde testgevallen wachten op je goedkeuring.",
       "improverTitle": "Agents verbeteren",
@@ -16053,6 +16262,16 @@
     "cancelRun": "Stoppen",
     "progress": "Beantwoorde testgevallen",
     "comparisonFailed": "Het oordeel kon niet worden gelezen.",
+    "invalidReason": {
+      "knowledge_not_retrieved": "Zoeken gaf het concept niet terug voor elke bevestigde verbetering.",
+      "too_few_held_out": "{missing, plural, =1 {Voeg nog 1 apart gehouden testvraag toe om een wijziging te meten.} other {Voeg nog # apart gehouden testvragen toe om een wijziging te meten.}}",
+      "scoring_changed": "De twee runs zijn met verschillende beoordelingsinstellingen beoordeeld.",
+      "judge_changed_mid_run": "De beoordelaar veranderde terwijl de testgevallen van deze run werden beoordeeld, dus de beoordelingen zijn niet vergelijkbaar. Voer hem opnieuw uit.",
+      "judge_instructions_changed": "De instructies van de beoordelaar verschillen tussen de twee kanten, dus de beoordelingen zijn niet vergelijkbaar. Voer de basislijn opnieuw uit om beide op dezelfde manier te beoordelen.",
+      "judge_differs": "De twee kanten zijn beoordeeld door een andere beoordelaar, een ander model of andere beoordelingscriteria.",
+      "knowledge_draft_changed": "Het kennisconcept is gewijzigd of verwijderd. Controleer het opnieuw.",
+      "held_out_ungraded": "Apart gehouden vragen zijn nog niet beoordeeld of onvolledig."
+    },
     "compareArm": "Dit model vergelijken",
     "draft": "Concept",
     "proposed": "Voorgestelde wijzigingen",
@@ -16729,6 +16948,7 @@
     "evidence": {
       "none": "Geen bewijs dat kon worden gecontroleerd.",
       "dropped": "{count, plural, =1 {1 geciteerd item} other {# geciteerde items}} {count, plural, =1 {is niet gevonden in de runs en is weggelaten} other {zijn niet gevonden in de runs en zijn weggelaten}}.",
+      "hidden": "{count, plural, =1 {1 geciteerd item komt van een agent die je niet kunt zien en wordt niet getoond.} other {# geciteerde items komen van agents die je niet kunt zien en worden niet getoond.}}",
       "conversation": "gesprek {number}",
       "testQuestion": "testvraag {number}",
       "aConversation": "een gesprek"
@@ -16934,7 +17154,8 @@
       "view": "Weergave van de wijziging",
       "unified": "Samengevoegd",
       "split": "Naast elkaar",
-      "showUnchanged": "{count, plural, one {# ongewijzigde regel tonen} other {# ongewijzigde regels tonen}}"
+      "showUnchanged": "{count, plural, one {# ongewijzigde regel tonen} other {# ongewijzigde regels tonen}}",
+      "hidden": "Deze wijziging bevat tekens die niets tekenen of de tekst herschikken. Elk staat uitgeschreven met zijn code."
     },
     "instructionsEditor": {
       "current": "Huidige instructies",
@@ -17116,6 +17337,7 @@
     "causedBreak": "Nieuw verslechterd door deze wijziging: {question}",
     "causedFix": "Hersteld door deze wijziging: {question}",
     "openCheck": "De volledige controle openen",
+    "changedMore": "{count, plural, =1 {Nog 1 gewijzigd antwoord staat in de controle.} other {Nog # gewijzigde antwoorden staan in de controle.}}",
     "permission": "Om deze agent te verbeteren, moet je hem kunnen bewerken en runs kunnen bekijken.",
     "retryRead": "Opnieuw proberen te lezen",
     "stepsLabel": "Verbeterstappen",
@@ -17139,6 +17361,7 @@
       "noneBetter": "{count, plural, =0 {Er werd geen poging gemeten, dus het is niet bekend of {agent} beter werd.} one {De poging maakte {agent} niet beter.} other {Geen van de # pogingen maakte {agent} beter.}}",
       "worse": "Poging {number} maakte het slechter: {broken, plural, one {# vraag verslechterde} other {# vragen verslechterden}}.",
       "topics": "{count, plural, one {# onderwerp ontbreekt} other {# onderwerpen ontbreken}} in de kennisbank.",
+      "topicsUnread": "Niet elk onderwerp dat deze sessie vond, kon worden gelezen. De lijst hieronder zegt welke en waarom.",
       "limit": "{max, plural, one {Dat was de enige poging die deze sessie toelaat.} other {Daarmee zijn alle # pogingen gebruikt die deze sessie toelaat.}}",
       "hint": {
         "no_change": "Twee pogingen na elkaar veranderden niets, dus nog een helpt waarschijnlijk niet.",
@@ -17371,8 +17594,11 @@
     "resultAgent": "In de agent: {fixed, plural, one {# vraag nieuw hersteld} other {# vragen nieuw hersteld}}, {broken} nieuw verslechterd.",
     "resultAgentUnknown": "In de agent: nog geen gemeten resultaat.",
     "resultKnowledge": "In de kennisbank: {count, plural, =0 {er ontbreekt niets} one {# onderwerp ontbreekt} other {# onderwerpen ontbreken}}{added, plural, =0 {} one {, # sindsdien toegevoegd} other {, # sindsdien toegevoegd}}.",
+    "resultKnowledgeUnread": "In de kennisbank: wat ontbreekt, kon niet worden gelezen.",
     "acceptKnowledge": "{missing, plural, =0 {In de kennisbank: niets toe te voegen} one {# onderwerp ontbreekt nog in de kennisbank} other {# onderwerpen ontbreken nog in de kennisbank}}{missing, plural, =0 {} other {{ready, plural, =0 {: maak een concept van de onderwerpen die je wilt} other {: # als concept klaar om toe te voegen}}{stale, plural, =0 {} other {, # met een verouderd concept}}}}",
     "noKnowledgeDocuments": "Er ontbreekt niets in de kennisbank.",
+    "topicsSkipped": "{count, plural, =1 {1 onderwerp dat deze sessie vond, kon niet worden gelezen: het is verwijderd, of je kunt het niet zien.} other {# onderwerpen die deze sessie vond, konden niet worden gelezen: ze zijn verwijderd, of je kunt ze niet zien.}}",
+    "topicsMore": "{count, plural, =1 {Nog 1 onderwerp dat deze sessie vond, staat bij de <link>kennislacunes van de agent</link>.} other {Nog # onderwerpen die deze sessie vond, staan bij de <link>kennislacunes van de agent</link>.}}",
     "reviewAndAdd": "Reviewen en toevoegen",
     "notNow": "Niet nu",
     "acceptAgent": "In de agent: {version, plural, =0 {de nieuwe versie} other {versie #}} herstelt {fixed, plural, one {het antwoord op # vraag} other {de antwoorden op # vragen}} en verslechtert er {broken}{costKnown, select, yes {, tegen {cost} per antwoord} other {}}. Getest op {total, plural, one {# vraag} other {# vragen}}, waarvan {heldOut} apart zijn gehouden bij het schrijven van de wijzigingen.",
@@ -17637,8 +17863,17 @@
     "startDescription": "Gebruik feedback en testgevallen om verbeteringen voor te stellen. Review elke stap voordat je wijzigingen toepast.",
     "startDataset": "Dataset",
     "startDatasetHint": "Kies de testgevallen waarmee de antwoorden van deze agent worden gecontroleerd.",
+    "linkedDatasetUnusable": "De dataset uit de link kan niet worden gebruikt: hij is verwijderd, of je mag hem niet uitvoeren. {usual, select, yes {In plaats daarvan wordt de gebruikelijke gebruikt.} other {Kies hieronder een andere.}}",
+    "linkedDatasetUnread": "De dataset uit de link kon niet worden gelezen, dus er is nog niets geprijsd. {reason}",
     "analysisEstimate": "Geschatte kosten van de analyse",
+    "guidance": {
+      "title": "Datasetrichtlijnen voor de helper",
+      "hint": "De helper leest ze onder de platformregels, die altijd gelden. Iemand die deze dataset bewerkt, heeft ze geschreven.",
+      "changed": "{who, select, named {Laatst gewijzigd door {name}.} former {Laatst gewijzigd door een voormalig lid.} other {}}",
+      "changedOn": "{who, select, named {Laatst gewijzigd door {name} op {date}.} former {Laatst gewijzigd door een voormalig lid op {date}.} other {Laatst gewijzigd op {date}.}}"
+    },
     "startCostHint": "De analyse komt eerst. Elke latere poging wordt apart geschat, rond {cost}, binnen de sessielimiet.",
+    "measuredOn": "Gemeten op {name}.",
     "comparisonInvalid": "Deze resultaten kunnen niet worden vergeleken. Review de afzonderlijke antwoorden zonder verschillen als verbeteringen of regressies te beschouwen.",
     "skills": {
       "title": "Hoort bij een skill",
@@ -17716,7 +17951,8 @@
       "exactChange": "De exacte formulering vergelijken",
       "invalid": "De test kon de versies niet betrouwbaar vergelijken. Review de test voordat je conclusies trekt.",
       "noExamples": "Er zijn geen veranderde antwoorden om te tonen. Open de volledige test om elke vraag te zien."
-    }
+    },
+    "permissionRuns": "Een Improve-sessie lezen vereist runs:view, en die heeft deze rol niet. Vraag een eigenaar van de organisatie om toegang."
   },
   "unsaved": {
     "title": "Je hebt niet-opgeslagen wijzigingen",
@@ -18516,6 +18752,20 @@
       "position": "{current} van {total}",
       "continue": "Doorgaan",
       "finish": "Doorgaan met instellen"
+    },
+    "configurationGuide": {
+      "title": "Optionele instellingen ontdekken",
+      "hint": "Je kunt de installatie nu afronden en later naar deze opties terugkeren. Een link openen verandert geen instellingen.",
+      "preferencesTitle": "Maak de console persoonlijk",
+      "preferencesBody": "Kies zijbalkitems, catalogusontdekking, zichtbare chatkosten en producttips binnen de grenzen van je organisatie.",
+      "projectsTitle": "Houd werk samen in projecten",
+      "projectsBody": "Deel bestanden, instructies en gekoppelde bronnen tussen chats. Agents behouden hun eigen tools; een optionele projectsandbox voert gedeelde builds uit.",
+      "transferTitle": "Agents exporteren en importeren",
+      "transferBody": "Kies welke Skills, Context en kennisinhoud meegaan. Controleer afhankelijkheden voor het importeren; accountgeheimen en zoekindexen worden niet overgedragen.",
+      "workflowTitle": "Workflows met Python-acties bouwen",
+      "workflowBody": "Koppel tools aan benoemde functies en roep ze aan vanuit Python. Elke actie behoudt de eigen rechten, goedkeuringen en het uitvoeringslogboek.",
+      "organizationTitle": "Organisatiestandaarden instellen",
+      "organizationBody": "Configureer navigatie, catalogi, dashboard en meldingen per rol en bepaal de zichtbaarheid van kosten. Leden kunnen toegestane opties persoonlijk aanpassen."
     }
   },
   "skillImprovement": {
@@ -18558,7 +18808,8 @@
         "all_evidence": "Niet gecontroleerd: elke vraag kwam uit de gesprekken waaruit de wijziging werd geleerd.",
         "cancelled": "Niet gecontroleerd: de controle werd gestopt voordat de runs klaar waren.",
         "own_not_asked": "Niet gecontroleerd: zijn eigen vragen werden niet gesteld, en die bepalen nu het oordeel.",
-        "too_few_questions": "Niet genoeg testvragen om de wijziging te verifiëren. Aantal gecontroleerde vragen: {heldOut}."
+        "too_few_questions": "Niet genoeg testvragen om de wijziging te verifiëren. Aantal gecontroleerde vragen: {heldOut}.",
+        "unfinished": "Zijn eigen vragen zijn niet afgerond. De vragen van de skill bevestigden geen regressie, wat op zich niet laat zien dat de wijziging voor hem veilig is."
       },
       "skillSetOnly": "Alleen gecontroleerd op de eigen vragen van de skill: hij had er zelf geen waar hij de skill laadde.",
       "stage": {
@@ -18665,7 +18916,7 @@
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Geen enkele agent op deze lijn kan worden gecontroleerd.} =1 {Ze wordt gecontroleerd op 1 agent: {names}.} other {Ze wordt gecontroleerd op # agents: {names}.}}",
-      "unchecked": "{name} kan niet worden gecontroleerd: {reason, select, no_questions {hij heeft geen testvragen waar hij de skill laadde} no_access {je mag hem niet uitvoeren} no_budget {zijn budget is op} no_published_version {hij heeft geen gepubliceerde versie} inconclusive {zijn run kon niet elk antwoord beoordelen} other {zijn controle is mislukt}}.",
+      "unchecked": "{name} kan niet worden gecontroleerd: {reason, select, no_questions {hij heeft geen testvragen waar hij de skill laadde} no_access {je mag hem niet uitvoeren} no_budget {zijn budget is op} no_published_version {hij heeft geen gepubliceerde versie} inconclusive {zijn run kon niet elk antwoord beoordelen} failed {zijn controle is mislukt} unscorable {niets kan zijn vragen beoordelen} all_evidence {elke vraag komt uit de gesprekken waaruit deze wijziging is geleerd} cancelled {de controle is gestopt voordat die klaar was} own_not_asked {zijn eigen vragen zijn niet gesteld} too_few_questions {hij heeft te weinig testvragen om de wijziging te bevestigen} other {de controle kon hem niet meten}}.",
       "hidden": "{count, plural, =1 {Nog 1 agent die je niet kunt zien, gebruikt deze lijn.} other {Nog # agents die je niet kunt zien, gebruiken deze lijn.}}",
       "thorough": "De beschrijving is gewijzigd, en die bepaalt wanneer agents de skill openen, dus ook de eigen vragen van elke agent worden gesteld."
     },
@@ -18698,6 +18949,17 @@
       "part": "Deel {number}",
       "unchangedLines": "{count, plural, =1 {1 regel die geen van beide kanten wijzigde} other {# regels die geen van beide kanten wijzigde}}",
       "files": "Bestanden",
+      "file": {
+        "side": "{side, select, base {Gemeenschappelijk startpunt} fork {Fork} other {Main}}: {size}",
+        "absent": "{side, select, base {Gemeenschappelijk startpunt} fork {Fork} other {Main}}: geen bestand",
+        "show": "Toon wat er veranderd is",
+        "hide": "Verberg wat er veranderd is",
+        "compare": "{side, select, fork {Wat de fork veranderde} other {Wat main veranderde}}",
+        "tooLarge": "Te groot om hier te vergelijken. Download elke kant om hem te lezen.",
+        "notText": "Geen tekst, dus hier niet te vergelijken. Download elke kant om hem te lezen.",
+        "download": "{side, select, base {Download het startpunt} fork {Download de versie van de fork} other {Download de versie van main}}",
+        "readFailed": "Het bestand kon niet worden gelezen. {reason}"
+      },
       "state": {
         "same": "Ongewijzigd",
         "fork": "Uit de fork",
@@ -18775,6 +19037,17 @@
       "live": "Naar main verplaatst en gepubliceerd: {names}.",
       "drafts": "{count, plural, =1 {Naar main verplaatst in zijn concept, dat wacht op publicatie: {names}.} other {Naar main verplaatst in hun concepten, die wachten op publicatie: {names}.}}",
       "refused": "{name} blijft op de fork: {reason}",
+      "refusal": {
+        "agent_not_found": "je mag hem niet wijzigen, of hij bestaat niet meer",
+        "workflow_agent": "hij is ingesteld in zijn workflowstap",
+        "architect_admin_only": "alleen een beheerder kan de AI Architect wijzigen",
+        "system_agent_admin_only": "het is een systeemagent, die alleen een beheerder kan wijzigen",
+        "via_specialist": "hij gebruikt de skill alleen via een specialist, die je wijzigt in de Builder van de agent",
+        "not_bound": "hij gebruikt de skill niet",
+        "binding_problems": "de skill kan niet zo aan hem worden gekoppeld",
+        "system_agent_parts": "een systeemagent kan dit niet bevatten",
+        "does_not_publish": "hij kan nog niet worden gepubliceerd"
+      },
       "hidden": "{count, plural, =1 {1 agent die je niet kunt zien, bleef zoals hij was.} other {# agents die je niet kunt zien, bleven zoals ze waren.}}",
       "archived": "Niemand leest de fork nog, dus hij werd gearchiveerd.",
       "remaining": "{count, plural, =0 {De fork bleef zoals hij was.} =1 {1 agent leest de fork nog, dus hij werd niet gearchiveerd.} other {# agents lezen de fork nog, dus hij werd niet gearchiveerd.}}"
@@ -19184,7 +19457,7 @@
       },
       "trigger_webhook": {
         "name": "Webhook",
-        "description": "Een ondertekende HTTP-levering komt aan op het eigen adres van deze workflow."
+        "description": "Een geauthenticeerde JSON-gebeurtenis komt binnen bij een herbruikbare bron of op het adres van deze workflow."
       },
       "trigger_workflow_call": {
         "name": "Aangeroepen door een workflow",
@@ -19201,6 +19474,10 @@
       "workflow_run": {
         "name": "Een workflow uitvoeren",
         "description": "Voer een andere workflow uit als stap, en geef door wat die antwoordt."
+      },
+      "code_python_actions": {
+        "name": "Python met acties",
+        "description": "Schrijf Python-code die de aan namen gekoppelde workflowacties aanroept."
       }
     },
     "port": {
@@ -21622,6 +21899,41 @@
             "title": "Invoer"
           }
         }
+      },
+      "trigger_webhook": {
+        "config": {
+          "require_source": {
+            "title": "Bron verplicht stellen",
+            "description": "Kies voor een nieuw concept in de editor een herbruikbare bron voordat je het publiceert"
+          },
+          "source_id": {
+            "title": "Bron-ID",
+            "description": "De herbruikbare gebeurtenisbron waarop deze workflow zich bij publicatie abonneert"
+          }
+        }
+      },
+      "code_python_actions": {
+        "config": {
+          "code": {
+            "title": "Code",
+            "description": "Lees de gebonden waarden als `args`; de laatste expressie is het resultaat."
+          },
+          "timeout_seconds": {
+            "title": "Time-out in seconden"
+          },
+          "max_memory_mb": {
+            "title": "Max. geheugen in MB"
+          },
+          "actions": {
+            "title": "Acties",
+            "description": "Python-functienamen en de versies van de workflowacties die ze aanroepen."
+          }
+        },
+        "input": {
+          "args": {
+            "title": "Argumenten"
+          }
+        }
       }
     }
   },
@@ -21696,7 +22008,87 @@
     "maintenanceEnd": "Gepland einde van het onderhoud",
     "maintenanceEndHint": "Optioneel. Tijd in {zone}, opgeslagen in UTC. Alleen ter informatie; een beheerder moet het onderhoud beëindigen.",
     "maintenanceEndInformational": "Dit is een schatting. De toegang keert terug wanneer een beheerder het onderhoud beëindigt.",
-    "invalidTime": "Kies een geldige lokale datum en tijd."
+    "invalidTime": "Kies een geldige lokale datum en tijd.",
+    "costs": {
+      "title": "Chatkosten",
+      "audience": "Wie ziet kosten in de chat",
+      "everyone": "Iedereen",
+      "spend_privileged": "Personen met toegang tot uitgaven",
+      "nobody": "Niemand in de chat",
+      "organizationHint": "Kies wie de kosten van antwoorden, delegaties en gesprekken ziet. Boekhouding, budgets en toegang tot Activity en dashboard blijven ongewijzigd.",
+      "personalLabel": "Kosten in mijn chats tonen",
+      "personalHint": "Verberg kosten in je eigen chats. Beperkingen van je organisatie of deployment blijven gelden.",
+      "restricted": "Je organisatie of deployment verbergt chatkosten voor dit account.",
+      "deploymentHint": "Sta organisaties toe kosten in de chat te tonen. Uitschakelen verbergt ze voor iedereen.",
+      "available": "Kosten in de chat toestaan"
+    },
+    "presentation": {
+      "organizationTitle": "Console per rol",
+      "organizationHint": "Kies de zichtbare navigatie voor elke ingebouwde rol. Dit wijzigt de weergave, nooit toegangsrechten.",
+      "personalTitle": "Mijn navigatie",
+      "personalHint": "Behoud de onderdelen die je gebruikt. Beperkingen van organisatie en deployment blijven gelden.",
+      "deploymentTitle": "Beschikbaarheid van de console",
+      "deploymentHint": "Kies navigatie en optionele productsuggesties voor organisaties. Rechten op resources blijven ongewijzigd.",
+      "navigationHint": "Verborgen pagina’s blijven met de juiste rechten via hun URL bereikbaar. Accountinstellingen en wisselen van organisatie blijven beschikbaar.",
+      "simple": "Eenvoudige assistent",
+      "inheritNavigation": "Overgenomen navigatie gebruiken",
+      "role": "Rol",
+      "preview": "Navigatievoorbeeld",
+      "previewRole": "Voorbeeld als {role}",
+      "previewHint": "Alleen navigatie, gefilterd op deze rol en je eigen rechten. Er wordt niemand nagebootst en er worden geen privégegevens geladen.",
+      "saveBeforeRole": "Sla wijzigingen op of verwerp ze voordat je een andere rol kiest.",
+      "noticesTitle": "Productsuggesties",
+      "noticesHint": "Kies optionele suggesties voor deze organisatie. Beschikbaarheids- en beveiligingsmeldingen blijven ongewijzigd.",
+      "personalNoticesHint": "Behoud nuttige suggesties. Beperkingen van organisatie en deployment blijven gelden.",
+      "desktop_install_prompt": "Uitnodiging voor de desktop-app",
+      "desktop_install_promptHint": "Stel installatie van de desktop-app voor. Bestaande installaties en lokale afwijzingen blijven ongewijzigd.",
+      "product_notices": "Productnieuws",
+      "product_noticesHint": "Automatische release-informatie en suggesties voor mobiele installatie. Service- en beveiligingsmeldingen blijven verschijnen.",
+      "restricted": "Je organisatie of deployment beperkt deze optie.",
+      "discard": "Wijzigingen verwerpen",
+      "roles": {
+        "owner": "Eigenaar",
+        "admin": "Beheerder",
+        "builder": "Bouwer",
+        "operator": "Operator",
+        "member": "Lid",
+        "viewer": "Lezer"
+      },
+      "loadError": "Consolevoorkeuren konden niet worden geladen.",
+      "customizeNavigation": "Zijbalk aanpassen"
+    },
+    "catalogs": {
+      "personalTitle": "Catalogi",
+      "personalHint": "Kies welke galerijen je wilt bekijken. De grenzen van de organisatie en installatie blijven gelden.",
+      "mcp_gallery": "MCP-galerij",
+      "skill_gallery": "Skill-galerij",
+      "hint": "Cataloguskeuzes wijzigen geen toolrechten of bestaande verbindingen. Persoonlijke keuzes kunnen de overgenomen grenzen alleen beperken.",
+      "inherit": "Overgenomen catalogus gebruiken",
+      "all": "Alle beschikbare items",
+      "mcp_galleryAvailable": "Alleen servers die de organisatie heeft verbonden",
+      "skill_galleryAvailable": "Alleen zichtbare geïnstalleerde Skills",
+      "allowList": "Items kiezen",
+      "selected": "{count, plural, =1 {1 item geselecteerd} other {# items geselecteerd}}",
+      "remove": "{name} verwijderen",
+      "empty": "Geen overeenkomende items",
+      "discard": "Wijzigingen verwerpen",
+      "previous": "Vorige",
+      "emptySelection": "Een lege selectie biedt geen galerij-items aan.",
+      "managerHint": "Deze rol beheert de catalogus. Organisatiegrenzen gelden voor rollen zonder catalogusbeheer; installatie- en persoonlijke grenzen blijven gelden.",
+      "limit": "Kies maximaal {count, plural, one {# item} other {# items}} of alle beschikbare items."
+    },
+    "dashboard": {
+      "title": "Standaarddashboard",
+      "hint": "De standaardindeling van deze rol wordt de startpagina. Persoonlijk opgeslagen indelingen gaan voor. Widgets blijven de rechten van iedere lezer volgen.",
+      "arrange": "Mijn dashboard indelen en opslaan",
+      "privateFilters": "Verwijder persoons- en agentfilters voordat je deze indeling als organisatiestandaard deelt.",
+      "copy": "Mijn opgeslagen indeling kopiëren",
+      "inherit": "Standaarddashboard gebruiken",
+      "standard": "Geen rolstandaard: de normale startpagina wordt gebruikt.",
+      "preview": "Alleen een voorbeeld van de indeling. Gegevens en rechten worden bij het openen per persoon bepaald.",
+      "empty": "Deze rolstandaard bevat bewust geen kaarten.",
+      "discard": "Wijzigingen verwerpen"
+    }
   },
   "modelSources": {
     "subscriptions": "Je abonnementen",
@@ -21747,5 +22139,235 @@
     "inProgress": "Bezig",
     "unknown": "Niet beschikbaar",
     "otherStep": "Configuratie"
+  },
+  "portability": {
+    "exportTitle": "Agent exporteren",
+    "exportDescription": "Kies de agentdefinitie en gekoppelde inhoud om mee te nemen.",
+    "secretsHint": "Vault-geheimen en deelinstellingen blijven hier. Verbind OAuth opnieuw en configureer URL-parameters en aangepaste headers op de bestemming.",
+    "loading": "Afhankelijkheden laden…",
+    "includedContent": "Opgenomen inhoud",
+    "rootDefinition": "Agentdefinitie · verplicht",
+    "referenceOnly": "Alleen verwijzing · opnieuw verbinden of kiezen bij import",
+    "format": "Bestandsformaat",
+    "close": "Sluiten",
+    "downloading": "Download voorbereiden…",
+    "download": "Downloaden",
+    "importComplete": "Import voltooid",
+    "importCompleteHint": "Uw privéconcepten zijn klaar om te controleren. Er is niets gepubliceerd of uitgevoerd.",
+    "importTitle": "Agent importeren",
+    "mappingHint": "Kies wat u wilt maken, hergebruiken of overslaan. Bestaande bronnen worden nooit overschreven.",
+    "importDescription": "Upload een AgenticOS-ZIP-bundel, YAML- of JSON-configuratie, of plak hieronder een configuratie.",
+    "fileTooLarge": "Configuratiebestanden mogen niet groter zijn dan 4 MiB.",
+    "readError": "Het bestand kon niet worden gelezen. Kies het opnieuw.",
+    "importCounts": "Gemaakt: {created} · hergebruikt: {reused} · overgeslagen: {skipped}",
+    "skippedHint": "Overgeslagen koppelingen zijn verwijderd. Controleer het concept voordat u publiceert.",
+    "actionFor": "Actie voor {name}",
+    "reuse": "Bestaande bron gebruiken",
+    "skip": "Deze bron overslaan",
+    "newName": "Naam van de nieuwe kopie",
+    "skipHint": "Koppelingen naar deze bron worden uit het geïmporteerde concept verwijderd.",
+    "chooseFile": "Kies een ZIP-, YAML- of JSON-bestand",
+    "pasteConfiguration": "Of plak de configuratie",
+    "openDraft": "Concept openen",
+    "back": "Terug",
+    "working": "Bezig…",
+    "importDrafts": "Privéconcepten importeren",
+    "review": "Afhankelijkheden controleren",
+    "operationError": "De bewerking kon niet worden voltooid. Probeer het opnieuw.",
+    "createCopy": "Kopie maken",
+    "missingRoot": "Het importantwoord bevat geen nieuw concept. Vernieuw de lijst voordat je het opnieuw probeert.",
+    "destinationResource": "Doelresource",
+    "searchDestinations": "Resources zoeken",
+    "chooseDestination": "Kies een resource",
+    "selectedDestination": "Geselecteerde resource",
+    "noDestinations": "Geen overeenkomende resources.",
+    "previousDestinations": "Vorige resources",
+    "nextDestinations": "Volgende resources",
+    "chooseExistingOwner": "Kies eerst een bestaande doelagent of Skill om de versie of fork te selecteren.",
+    "zipFormat": "ZIP · inclusief bestanden",
+    "transferWorking": "De overdracht wordt op de achtergrond voorbereid…",
+    "transferFailed": "De overdracht is mislukt. Controleer de configuratie en start een nieuwe overdracht.",
+    "zipTooLarge": "ZIP-bundels mogen niet groter zijn dan 512 MiB.",
+    "noTransferSelected": "Geen overdracht geselecteerd",
+    "noReviewedTransfer": "Geen gecontroleerde overdracht geselecteerd",
+    "exportWorkflowTitle": "Workflow exporteren",
+    "exportWorkflowDescription": "Kies de workflowdefinitie en gekoppelde inhoud.",
+    "workflowRootDefinition": "Workflowdefinitie · verplicht",
+    "importWorkflowTitle": "Workflow importeren",
+    "omittedBefore": "Te verwijderen koppelingen: {count}.",
+    "omittedAfter": "Verwijderde koppelingen: {count}.",
+    "reviewBeforePublish": "Controleer het concept en koppel ontbrekende bronnen opnieuw vóór publicatie.",
+    "affectedBindings": "Getroffen koppelingen tonen",
+    "publishedVersionHint": "Kies een bestaande gepubliceerde versie van de geselecteerde doelagent. Gedelegeerden worden nooit automatisch gepubliceerd.",
+    "reselectZip": "De upload is onderbroken. Kies de oorspronkelijke ZIP opnieuw om deze volledig te uploaden.",
+    "layerDefinition": "Definitie",
+    "layerSkillFiles": "Skill-bestanden",
+    "layerContext": "Contextinhoud",
+    "layerOriginals": "Originele documenten",
+    "layerParsedText": "Momentopnamen van verwerkte tekst",
+    "unavailableLayer": "Inhoudslaag niet beschikbaar",
+    "fileLayersZip": "Kies ZIP om bestanden en verwerkte tekst toe te voegen.",
+    "indexExcluded": "Zoekindexen en vectoren worden niet meegenomen. Geïmporteerde documenten blijven opgeslagen totdat verwerking expliciet wordt gestart.",
+    "importLegacy": "Ouder workflowbestand importeren",
+    "exportLegacy": "Ouder workflowbestand exporteren",
+    "startNewTransfer": "Nieuwe overdracht starten",
+    "unsupportedMapping": "Deze bron heeft geen importadapter. Sla de koppeling over en stel deze in de doeleditor in.",
+    "searchResources": "Inbegrepen resources zoeken",
+    "noResources": "Geen overeenkomende resources.",
+    "groups": {
+      "root": "Vereiste definitie",
+      "agents": "Agents",
+      "workflows": "Workflows",
+      "skills": "Skills",
+      "context": "Context",
+      "knowledge": "Kennisbanken",
+      "connections": "Modellen en verbindingen",
+      "other": "Overige resources"
+    }
+  },
+  "stepFailure": {
+    "technicalDetails": "Technische details",
+    "step": {
+      "system_agent_not_seeded": "Een systeem-agent die deze stap nodig heeft, kon niet worden ingesteld.",
+      "system_agent_missing": "Een systeem-agent die deze stap nodig heeft, of de versie die ervoor is gekozen, bestaat niet meer. Kies een andere.",
+      "system_agent_unpublished": "Een systeem-agent die deze stap nodig heeft, heeft geen gepubliceerde versie. Kies een model en publiceer hem.",
+      "system_agent_archived": "Een systeem-agent die deze stap nodig heeft, is gearchiveerd. Zet hem terug om hem weer te gebruiken.",
+      "system_agent_no_access": "Wie dit heeft gestart, mag een systeem-agent die deze stap nodig heeft niet uitvoeren. Vraag er toegang toe.",
+      "system_agent_no_model": "Een systeem-agent die deze stap nodig heeft, kan zijn model niet bereiken.",
+      "system_agent_failed": "Een systeem-agent die deze stap nodig heeft, gaf geen bruikbaar antwoord. Zijn run staat in Activiteit.",
+      "only_anonymised": "Elk geval van de dataset is geanonimiseerd toen de persoon van wie het kwam werd gewist. Herschrijf of verwijder die gevallen eerst.",
+      "all_evidence": "Elk geval van de dataset komt uit de gesprekken waaruit deze wijziging is afgeleid, dus geen enkel geval kan haar meten. Voeg gevallen uit andere gesprekken toe of kies een andere dataset.",
+      "no_scorer": "Niets in de beoordeling van de dataset kan een geval beslissen. Voeg een controle of een verwachte toolaanroep toe, of schakel de beoordelaar in.",
+      "no_reruns": "Een run die tegen een basislijn wordt gemeten, heeft minstens één herhaling nodig, en deze installatie staat op geen.",
+      "evidence_too_large": "Het bewijs van het voorstel is te groot om de test ervan veilig te isoleren. Vraag een nieuw voorstel aan.",
+      "budget": "Het budget was op voordat deze stap klaar was.",
+      "not_found": "Iets wat deze stap nodig heeft, bestaat niet meer of is niet meer zichtbaar.",
+      "not_allowed": "Wie dit heeft gestart, mag deze stap niet meer uitvoeren.",
+      "changed": "Iets wat deze stap las, is veranderd terwijl de stap liep. Probeer het opnieuw.",
+      "run_failed": "Een run die deze stap nodig had, is mislukt, of de modelprovider antwoordde niet.",
+      "refused": "Deze stap is geweigerd.",
+      "failed": "Deze stap is op de server mislukt."
+    },
+    "session": {
+      "too_few_held_out": "{missing, plural, one {Voeg nog # apart gehouden testvraag toe om een wijziging te meten.} other {Voeg nog # apart gehouden testvragen toe om een wijziging te meten.}}",
+      "no_evidence": "Er zijn nog geen beoordeelde chat-runs of mislukkingen op trainingsvragen.",
+      "search_too_few_training": "{minimum, plural, one {Een zoektocht heeft voor deze poging minstens # trainingsvraag nodig.} other {Een zoektocht heeft voor deze poging minstens # trainingsvragen nodig.}}"
+    },
+    "request": {
+      "no_runs_view": "Wie dit heeft gestart, mag geen runs meer lezen.",
+      "evidence_erased": "Een bewijsbron is gewist terwijl de assistent werkte. Begin opnieuw met actueel bewijs.",
+      "no_edit_agent": "Wie dit heeft gestart, mag de agent niet meer bewerken.",
+      "agent_gone": "De agent bestaat niet meer.",
+      "no_published_version": "De agent heeft geen gepubliceerde versie om mee te vergelijken.",
+      "skill_gone": "De skill bestaat niet meer.",
+      "no_edit_skill": "Wie dit heeft gestart, mag de skill niet meer bewerken.",
+      "session_moved_on": "De verbetersessie is verdergegaan.",
+      "conflicts_unanswered": "De assistent heeft niet elk conflict beantwoord; los ze op bij Wijzigingen.",
+      "session_stopped": "De verbetersessie is gestopt.",
+      "context_gone": "Het contextbestand bestaat niet meer.",
+      "no_edit_context": "Wie dit heeft gestart, mag het contextbestand niet meer bewerken.",
+      "unknown_skill_use": "Van geen enkele run in deze periode is bekend dat hij de skill heeft gebruikt. {runs, plural, one {# negatief beoordeelde of mislukte run is van voordat gebruik werd vastgelegd, dus of hij de skill gebruikte, is onbekend.} other {# negatief beoordeelde of mislukte runs zijn van voordat gebruik werd vastgelegd, dus of ze hem gebruikten, is onbekend.}}",
+      "no_evidence": "Nog niets om van te leren: geen enkele run in deze periode is beoordeeld of mislukt. Verruim de periode, of kom terug als er antwoorden zijn beoordeeld.",
+      "key_revoked": "De API-sleutel waarmee dit is gestart, is ingetrokken of bestaat niet meer, dus het is gestopt.",
+      "not_a_member": "Wie dit heeft gestart, is geen lid meer.",
+      "unexpected": "De assistent is onverwacht gestopt. Probeer het opnieuw.",
+      "stalled": "De assistent is gestopt zonder af te ronden. Probeer het opnieuw.",
+      "withdrawn": "Het verzoek is geannuleerd voordat het begon. Probeer het opnieuw."
+    }
+  },
+  "eventSources": {
+    "vaultBasicHelp": "Gebruikersnaam en wachtwoord voor het controleren van inkomende webhookverzoeken. Deze gegevens worden nooit naar een externe URL verzonden.",
+    "vaultCredentialHelp": "Kies inloggegevens van de organisatie uit de Vault. De bron gebruikt de actuele waarde, ook na rotatie.",
+    "manageSources": "Gebeurtenisbronnen beheren",
+    "title": "Gebeurtenisbronnen",
+    "description": "Ontvang geauthenticeerde gebeurtenissen één keer en deel ze met routines en workflows.",
+    "name": "Naam",
+    "provider": "Provider",
+    "providers": {
+      "webhook": "Aangepaste webhook",
+      "github": "GitHub",
+      "linear": "Linear",
+      "hubspot": "HubSpot",
+      "zendesk": "Zendesk"
+    },
+    "authentication": "Authenticatie",
+    "auth": {
+      "hmac": "Aangepaste HMAC (SHA-256)",
+      "basic": "Basic Auth",
+      "api_key": "API-sleutel",
+      "standard_webhooks": "Standard Webhooks"
+    },
+    "username": "Gebruikersnaam",
+    "password": "Wachtwoord",
+    "secret": "Geheim",
+    "manualSetup": "Stel de afzender handmatig zo in dat deze JSON via POST naar de bron-URL stuurt.",
+    "visibility": "Zichtbaarheid",
+    "private": "Privé",
+    "organization": "Organisatie",
+    "deliveryHeader": "Header voor de afleverings-ID (optioneel)",
+    "deliveryHelp": "Gebeurtenis-ID’s van de provider worden automatisch herkend. Zonder gebeurtenis-ID kunnen herhaalde pogingen extra runs starten.",
+    "cancel": "Annuleren",
+    "save": "Opslaan",
+    "create": "Bron maken",
+    "header": "Headernaam",
+    "prefix": "Voorvoegsel voor de handtekening of sleutel (optioneel)",
+    "encoding": "Codering van de handtekening",
+    "legacy": "Oud formaat voor ondertekening met tijdstempel gebruiken",
+    "standardHelp": "Symmetrische v1-handtekeningen over de ID, het tijdstempel en de berichtinhoud. Het tijdstempel mag maximaal vijf minuten afwijken.",
+    "selectSource": "Gebeurtenisbron",
+    "dedicated": "Eigen endpoint (synchroon antwoord)",
+    "chooseSource": "Selecteer een bestaande bron",
+    "paused": "Gepauzeerd",
+    "active": "Actief",
+    "liveUrl": "URL van het live-endpoint",
+    "revealOnce": "Kopieer dit geheim nu. Het wordt niet opnieuw getoond.",
+    "createNew": "Nieuwe bron maken",
+    "loadError": "De gebeurtenisbronnen konden niet worden geladen.",
+    "retry": "Opnieuw proberen",
+    "liveWarning": "Luister twee minuten op deze live-URL. Actieve abonnees blijven normaal werken. Voorbeelden zijn tijdelijk en vervallen na tien minuten. Een voorbeeld is niet verplicht.",
+    "noUse": "Je hebt toestemming nodig om de bron te gebruiken om gebeurtenissen te kunnen vastleggen.",
+    "captureError": "Het gebeurtenisvoorbeeld kon niet worden vastgelegd. Liveleveringen worden nog steeds verwerkt.",
+    "expired": "De luistertijd is verstreken. Begin opnieuw met luisteren zodra de afzender klaar is.",
+    "caught": "Gebeurtenis vastgelegd. Het voorbeeld is klaar voor gebruik.",
+    "listen": "Naar gebeurtenis luisteren",
+    "listenTo": "Luisteren naar {name}",
+    "sourceUnavailable": "Huidige bron (niet beschikbaar)",
+    "listening": "Wachten op een geauthenticeerde gebeurtenis…",
+    "pasteExample": "Of plak een JSON-voorbeeld",
+    "exampleJson": "Voorbeeld van een JSON-object",
+    "invalidJson": "Voer een geldig JSON-object in.",
+    "sampleTooLarge": "Dit voorbeeld overschrijdt de limiet van {limit} bytes voor de editor.",
+    "useExample": "Voorbeeld gebruiken",
+    "noView": "Je hebt geen toestemming om gebeurtenisbronnen te bekijken.",
+    "empty": "Nog geen gebeurtenisbronnen. Maak een bron om gebeurtenissen te ontvangen voor routines en workflows.",
+    "edit": "Bewerken",
+    "done": "Klaar",
+    "pause": "Bron pauzeren",
+    "resume": "Bron hervatten",
+    "pauseHelp": "Als je deze bron pauzeert, stopt de levering van nieuwe gebeurtenissen. Je kunt ook elke abonnee afzonderlijk pauzeren.",
+    "replaceCredentials": "Inloggegevens vervangen",
+    "status": "Status",
+    "subscribers": "Abonnees",
+    "actions": "Acties",
+    "usageError": "De abonnees konden niet worden geladen.",
+    "usage": "{count, plural, =0 {Geen abonnees} =1 {1 abonnee} other {# abonnees}}",
+    "routine": "Routine",
+    "workflow": "Workflow",
+    "delete": "Bron verwijderen",
+    "confirmDelete": "Verwijdering bevestigen",
+    "deleteBlocked": "Koppel de abonnees los voordat je deze bron verwijdert.",
+    "sourceRoutine": "Routine maken vanuit een gebeurtenisbron",
+    "privateRoutine": "Privéroutine",
+    "privateWorkflow": "Privéworkflow",
+    "filters": {
+      "event_types": "Gebeurtenistypen",
+      "actions": "Acties",
+      "subscription_types": "Abonnementstypen",
+      "property_names": "Namen van eigenschappen",
+      "help": "Scheid waarden met komma’s. Laat een filter leeg om alle waarden toe te staan."
+    },
+    "eventPreset": "Gebeurtenissen voor deze routine",
+    "currentFilters": "Huidige of standaardfilters",
+    "presetError": "De voorinstellingen voor gebeurtenissen konden niet worden geladen."
   }
 }
