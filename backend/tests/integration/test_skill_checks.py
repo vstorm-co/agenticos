@@ -125,6 +125,8 @@ class FakeEvals:
     dataset; one asking named questions compares those."""
     started: list[tuple[uuid.UUID, Any]] = field(default_factory=list)
     served: list[Any] = field(default_factory=list)
+    held: list[Decimal | None] = field(default_factory=list)
+    """The price each started run was held to, in the order they started."""
 
     def install(self, monkeypatch: pytest.MonkeyPatch) -> None:
         fake = self
@@ -150,7 +152,7 @@ class FakeEvals:
                 org_remaining_usd=fake.org_left,
             )
 
-        async def start(_self, ctx, agent_id, request, *, candidate_skills=None, **_):
+        async def start(_self, ctx, agent_id, request, *, candidate_skills=None, **kwargs):
             if agent_id in fake.refuse_start:
                 raise BadRequestError(message="Cannot start", details=fake.start_refusal)
             dataset = await dataset_repo.get(
@@ -190,6 +192,7 @@ class FakeEvals:
             )
             fake.started.append((agent_id, request))
             fake.served.append(candidate_skills)
+            fake.held.append(kwargs.get("hold_usd"))
             return SimpleNamespace(id=run_id)
 
         async def compare(_self, _ctx, run_id, *, holdout_minimum=True, **_):

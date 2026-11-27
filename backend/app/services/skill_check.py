@@ -137,7 +137,12 @@ STALE_AFTER = timedelta(hours=24)
 TEST_SET_FROM_EVIDENCE = 12
 """How many recent answers a skill's first test questions are made from."""
 
-_SETTLED_RUNS = (EvalRunStatus.COMPLETED, EvalRunStatus.CANCELLED, EvalRunStatus.FAILED)
+_SETTLED_RUNS = (
+    EvalRunStatus.COMPLETED,
+    EvalRunStatus.CANCELLED,
+    EvalRunStatus.FAILED,
+    EvalRunStatus.BUDGET_EXCEEDED,
+)
 _AWAITING_LIMIT = 20
 """How many open checks "Waiting for you" lists; it shows the newest few."""
 
@@ -965,8 +970,21 @@ class SkillCheckService:
     async def _run_stage(
         self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent, stage: Stage
     ) -> None:
-        """Start one stage of one agent; an agent whose run cannot start is unknown."""
+        """Start one stage of one agent; an agent whose run cannot start is unknown.
+
+        The stage's run is held to what is left of the agent's accepted most once
+        its earlier stage's run is paid for.
+        """
         assert row.agent_version is not None, "only a published agent is run"
+        spent = (
+            Decimal(0)
+            if row.skill_set_run_id is None
+            else (
+                await eval_run_repo.spending(
+                    self.db, row.skill_set_run_id, organization_id=ctx.organization_id
+                )
+            ).spent_usd
+        )
         try:
             run = await self.evals.start(
                 ctx,
@@ -985,6 +1003,7 @@ class SkillCheckService:
                     suggestions=1,
                     skill_check_id=check.id,
                 ),
+                hold_usd=max(row.at_most_usd - spent, Decimal(0)),
             )
         except AppException as refused:
             logger.info(

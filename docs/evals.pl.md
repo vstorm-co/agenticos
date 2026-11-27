@@ -1,5 +1,5 @@
 ---
-source_sha: "f31d1e7d7b11"
+source_sha: "8e8db1435b59"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -185,14 +185,32 @@ rachunku dostawcy. Sprawdzenia aktualizacji skilla, szkice wiedzy i strażnicy
 bramki promocji przyjmują `quoted_usd` tak samo, a `GET .../gate/estimate` wycenia
 strażników, których uruchomiłby run bramki.
 
+Run zachowuje tę cenę razem z tym, na ile wycena oszacowała jedną odpowiedź
+każdej strony i jedną ocenę, a jego worker trzyma go jej przez cały czas
+działania. Przed każdą odpowiedzią dodaje to, co run wydał, to, co rezerwują
+odpowiedzi już trwające (cenę ich strony albo to, co wydały, jeśli więcej, oraz
+ocenę), i następną odpowiedź, i nie zaczyna żadnej, która wyprowadziłaby run
+ponad cenę. Sędzia nie ocenia odpowiedzi, gdy ocena by ją przekroczyła, a
+potwierdzające powtórzenia, które by ją przekroczyły, nie trafiają do kolejki.
+
+Run zestawu trzyma się tak samo progu zestawu, a etap sprawdzenia skilla tego,
+co poprzedni etap zostawił z zaakceptowanej kwoty maksymalnej agenta.
+
+Zatrzymany tak run kończy się jako `budget_exceeded` i zachowuje to, na co
+odpowiedział i co ocenił. Jego błąd podaje cenę, a test uruchomiony ręcznie mówi
+osobie, która go uruchomiła, że zatrzymał się na zaakceptowanej cenie, a nie na
+budżecie. Cena nie jest twardym limitem pojedynczego żądania: odpowiedzi już
+trwające kończą się, więc wydatek runu może przekroczyć cenę o ich koszt.
+
 Szkic wiedzy w kolejce zachowuje uzgodnioną wycenę. Worker sprawdza ją ponownie
 przed pobieraniem danych lub pracą modelu i odmawia przy cenie wyższej albo
 nieznanej. Istniejący klienci i zadania bez wyceny zachowują wcześniejsze działanie.
 
 Próg szacowanego wydatku zestawu także obejmuje powtórzenia i obie strony
 porównania. Pierwszy szacunek publikacji uwzględnia istniejącą wersję jako
-baseline następnej publikacji, nawet gdy jest tylko jedna wersja. Ten próg
-wyłącznie decyduje o starcie; nie zatrzymuje trwającej ewaluacji. Każdy dodatni
+baseline następnej publikacji, nawet gdy jest tylko jedna wersja. Run zachowuje
+ten próg jako swoją cenę i trzyma się go w trakcie działania, tak jak run z
+wyceną. Każdy dodatni
 wzrost kosztu zaliczonego przypadku lub opóźnienia od zera przekracza każdy
 limit procentowy.
 
@@ -341,8 +359,9 @@ Każda próba kończy się na jeden z czterech sposobów (`state` w próbie):
   provider odrzucił żądanie - co od razu oblewa suitę, nawet gdy ponowne próby
   tego przypadku przejdą;
 - **niekompletna**, gdy provider zawiódł mimo ponowień (błąd 5xx, 408 albo 429,
-  albo brak odpowiedzi), oceniający rzucił wyjątek, run anulowano albo skończył
-  się budżet, albo próby wyszły na remis;
+  albo brak odpowiedzi), oceniający rzucił wyjątek, run anulowano, skończył się
+  budżet albo run doszedł do ceny, z którą go uruchomiono, albo próby wyszły na
+  remis;
 - ocenianie bez wymaganego mechanizmu, który może rozstrzygnąć choć jeden przypadek: dodaj regułę, oczekiwane narzędzie albo kryteria;
 
 Żaden z dwóch ostatnich stanów nie jest zaliczeniem; podsumowanie liczy je

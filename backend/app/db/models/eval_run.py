@@ -186,6 +186,12 @@ class EvalRun(Base):
     rerun_ceiling_usd: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, default=Decimal(0)
     )
+    # The price the run was started at - a person's accepted quote, an eval suite's
+    # ceiling, a skill check's accepted most - which its worker starts no work past.
+    quoted_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
+    # What the estimate priced one judge's grading at, which the worker reserves
+    # for every answer it grades while the run is held to `quoted_usd`.
+    grade_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     # Cases taken from the evidence of the proposal being checked are left out; listed
     # so a smaller sample says why.
     excluded_case_ids: Mapped[list[uuid.UUID]] = mapped_column(
@@ -290,6 +296,9 @@ class EvalRunArm(Base):
         ForeignKey("eval_run_arms.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # What the estimate priced one answer of this arm at - a reused arm's for the
+    # reruns it may be asked - which the worker reserves for each of its answers.
+    answer_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     # `{skill_id: {description, content}}` served instead of the stored bodies, so a
     # skill change is measured with the agent unchanged.
     skill_bodies: Mapped[dict[str, Any] | None] = mapped_column(

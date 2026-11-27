@@ -55,6 +55,7 @@ from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.eval_run import EvalRun, EvalRunArm, EvalRunCase, EvalRunPurpose, EvalRunStatus
 from app.db.models.improvement import ImprovementVerdict
 from app.db.models.intercepted_tool_call import InterceptedToolCall
+from app.db.models.notification import Notification
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.run_manifest import RunManifest
@@ -210,7 +211,8 @@ class Model:
     failure does; `manifest` records what the model was handed, as a real run does.
     `before(call)` runs first, as a person acting mid-run would. `breaks` is a
     question only `on` (a version number) answers wrong, so a baseline asked it
-    again in the same run passes as it did before.
+    again in the same run passes as it did before. `cost(prompt)` is what a run
+    spent, a cent unless the test says otherwise.
     """
 
     def __init__(
@@ -227,8 +229,10 @@ class Model:
         error: str | None = None,
         breaks: str | None = None,
         on: int = 7,
+        cost: Any = lambda prompt: Decimal("0.01"),
     ) -> None:
         self.db = db
+        self.cost = cost
         self.answer = answer
         self.breaks = breaks
         self.on = on
@@ -262,7 +266,7 @@ class Model:
             status=self.status(call),
             error=self.error,
             model_label="gpt-test",
-            cost_usd=Decimal("0.01"),
+            cost_usd=self.cost(prompt),
             input_tokens=100,
             output_tokens=20,
             started_at=started,
@@ -529,6 +533,275 @@ async def test_a_case_that_runs_out_of_budget_stops_the_run(db) -> None:
     assert states[2] == "incomplete"
     # The cases left unanswered still count, so progress reads 3 of 5.
     assert (read.attempts_done, read.attempts_total) == (3, 5)
+
+
+async def _quoted(
+    db: AsyncSession, ctx: AuthContext, agent: Agent, request: EvalRunRequest
+) -> tuple[EvalRunRead, Decimal]:
+    """A run started at the price its estimate asked a person to accept."""
+    service = EvalRunService(db)
+    estimate = await service.estimate(ctx, agent.id, request)
+    started = await service.start(
+        ctx,
+        agent.id,
+        request.model_copy(
+            update={
+                "dataset_version": estimate.dataset_version,
+                "quoted_usd": estimate.at_most_usd,
+            }
+        ),
+    )
+    return started, estimate.at_most_usd
+
+
+@pytest.mark.security
+async def test_a_run_starts_no_answer_that_would_take_it_past_its_accepted_price(db) -> None:
+    """An answer dearer than its share finishes; the next one is not started."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=6)
+    started, quoted = await _quoted(db, ctx, agent, EvalRunRequest(dataset_id=dataset.id))
+    # $0.05 a case, six first answers and two reruns of each at most.
+    assert quoted == Decimal("0.90")
+    dear = Decimal("1.00")
+
+    model = Model(db, cost=lambda prompt: dear if prompt == "Question 1" else Decimal("0.01"))
+    await _run_to_end(db, model, started.id, ctx)
+
+    service = EvalRunService(db)
+    read = await service.get(ctx, started.id)
+    assert [call["prompt"] for call in model.calls] == ["Question 0", "Question 1"]
+    assert read.status == "budget_exceeded"
+    assert read.error is not None
+    assert "price accepted for this run ($0.90)" in read.error
+    assert "budget" not in read.error
+    # What it spent passed the price only by the answer that was under way.
+    assert read.cost_usd == Decimal("1.01")
+    assert read.cost_usd <= quoted + dear
+    assert (read.attempts_done, read.attempts_total) == (2, 6)
+    run = await db.get(EvalRun, started.id)
+    assert run is not None and run.quoted_usd == quoted
+    # The dear answer was graded with checks, which cost nothing.
+    states = [case.attempts[0].state for case in (await service.cases(ctx, started.id)).items]
+    assert states[:2] == ["passed", "passed"]
+
+    notices = list(await db.scalars(select(Notification)))
+    assert [notice.event_type for notice in notices] == ["eval_run_finished"]
+    assert notices[0].summary == "Your test stopped at the price you accepted."
+    assert notices[0].render_context["status"] == "budget_exceeded"
+    assert notices[0].render_context["reason"] == "quote"
+
+
+async def test_a_run_started_without_a_price_answers_every_case_whatever_they_cost(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=6)
+    service = EvalRunService(db)
+    started = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id))
+
+    model = Model(
+        db, cost=lambda prompt: Decimal("1.00") if prompt == "Question 1" else Decimal("0.01")
+    )
+    await _run_to_end(db, model, started.id, ctx)
+
+    read = await service.get(ctx, started.id)
+    assert len(model.calls) == 6
+    assert (read.status, read.error) == ("completed", None)
+    run = await db.get(EvalRun, started.id)
+    assert run is not None and run.quoted_usd is None
+
+
+async def _judged(db: AsyncSession, ctx: AuthContext, *, cases: int) -> Dataset:
+    await _assist(db, ctx, on=True)
+    dataset = await _dataset(db, ctx, cases=cases)
+    dataset.scoring = {
+        "judge": {"enabled": True, "criteria": [{"name": "Tone", "description": "Polite"}]}
+    }
+    await db.flush()
+    return dataset
+
+
+def _ungraded(attempt: EvalRunCase | None) -> None:
+    """An answer kept without the judge's grading, which would have passed the price."""
+    assert attempt is not None
+    assert (attempt.status, attempt.fault, attempt.case_score_id) == (
+        "failed",
+        "infrastructure",
+        None,
+    )
+    assert attempt.answer == _PASS
+    assert attempt.error == (
+        "Not graded: grading it would take the run past the price it was started at."
+    )
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    "dear",
+    [
+        Decimal("1.30"),
+        # Leaves the run under its price, but not by the judge's five cents.
+        Decimal("1.16"),
+    ],
+)
+async def test_a_judge_does_not_grade_an_answer_when_grading_would_pass_the_price(
+    db, dear: Decimal
+) -> None:
+    """The answer is kept ungraded, and nothing else starts."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _judged(db, ctx, cases=4)
+    started, quoted = await _quoted(db, ctx, agent, EvalRunRequest(dataset_id=dataset.id))
+    # Five cents an answer and five a grading: four of each, and two reruns of each at most.
+    assert quoted == Decimal("1.20")
+    run = await db.get(EvalRun, started.id)
+    assert run is not None and run.grade_usd == Decimal("0.05")
+
+    model = Model(db, cost=lambda prompt: dear if prompt == "Question 1" else Decimal("0.01"))
+    graded = AsyncMock(wraps=ScoringService.score_case)
+
+    async def score_case(service, *args, **kwargs):
+        return await graded(service, *args, **kwargs)
+
+    with patch.object(ScoringService, "score_case", new=score_case):
+        await _run_to_end(db, model, started.id, ctx)
+
+    read = await EvalRunService(db).get(ctx, started.id)
+    asked = [call["prompt"] for call in model.calls if call["prompt"].startswith("Question")]
+    assert asked == ["Question 0", "Question 1"]
+    assert graded.await_count == 1
+    assert read.status == "budget_exceeded"
+    _ungraded(
+        await db.scalar(
+            select(EvalRunCase).where(
+                EvalRunCase.eval_run_id == started.id, EvalRunCase.position == 1
+            )
+        )
+    )
+    assert read.cost_usd <= quoted + dear
+
+
+@pytest.mark.security
+async def test_a_grading_counts_an_answer_that_ended_beside_it(db) -> None:
+    """Another drainer's answer that ended dear while this one ran has not written what
+    it spent yet; its run has, and the judge is not started past the price."""
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _judged(db, ctx, cases=2)
+    started, quoted = await _quoted(db, ctx, agent, EvalRunRequest(dataset_id=dataset.id))
+    assert quoted == Decimal("0.60")
+    beside = await db.scalar(
+        select(EvalRunCase).where(EvalRunCase.eval_run_id == started.id, EvalRunCase.position == 1)
+    )
+    assert beside is not None
+    now = datetime.now(UTC)
+    answered = AgentRun(
+        organization_id=ctx.organization_id,
+        agent_id=agent.id,
+        user_id=ctx.user_id,
+        surface=RunSurface.EVAL.value,
+        status="running",
+        model_label="gpt-test",
+        cost_usd=Decimal("0.01"),
+        started_at=now,
+    )
+    db.add(answered)
+    await db.flush()
+    beside.status, beside.agent_run_id, beside.started_at = "running", answered.id, now
+    await db.flush()
+
+    async def ends_dear(call: int) -> None:
+        answered.status, answered.cost_usd, answered.ended_at = "completed", quoted, now
+        await db.flush()
+
+    model = Model(db, before=ends_dear)
+    graded = AsyncMock(wraps=ScoringService.score_case)
+
+    async def score_case(service, *args, **kwargs):
+        return await graded(service, *args, **kwargs)
+
+    with patch.object(ScoringService, "score_case", new=score_case):
+        await _run_to_end(db, model, started.id, ctx)
+
+    assert graded.await_count == 0
+    _ungraded(
+        await db.scalar(
+            select(EvalRunCase).where(
+                EvalRunCase.eval_run_id == started.id, EvalRunCase.position == 0
+            )
+        )
+    )
+    run = await db.get(EvalRun, started.id)
+    assert run is not None and run.status == "budget_exceeded"
+
+
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("last", "asked", "status"),
+    [
+        # The last first answer leaves two cents, less than the flipped case's four reruns.
+        (Decimal("0.15"), 4, "budget_exceeded"),
+        (Decimal("0.01"), 8, "completed"),
+    ],
+)
+async def test_a_run_queues_only_the_reruns_its_accepted_price_still_holds(
+    db, last: Decimal, asked: int, status: str
+) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _dataset(db, ctx, cases=4)
+    service = EvalRunService(db)
+    v6 = await service.start(ctx, agent.id, EvalRunRequest(dataset_id=dataset.id, version=6))
+    await _run_to_end(db, Model(db), v6.id, ctx)
+    v7, quoted = await _quoted(db, ctx, agent, EvalRunRequest(dataset_id=dataset.id))
+    # Priced from v6's cent a case: four first answers, and two reruns on each side at most.
+    assert quoted == Decimal("0.20")
+    # The reused baseline answers nothing first, but is priced for the reruns it may be asked.
+    priced = await eval_run_repo.list_arms(db, [v7.id], organization_id=ctx.organization_id)
+    assert {arm.role: arm.answer_usd for arm in priced} == {
+        "candidate": Decimal("0.01"),
+        "baseline": Decimal("0.01"),
+    }
+
+    model = Model(
+        db,
+        breaks="Question 0",
+        cost=lambda prompt: last if prompt == "Question 3" else Decimal("0.01"),
+    )
+    await _run_to_end(db, model, v7.id, ctx)
+
+    read = await service.get(ctx, v7.id)
+    assert (len(model.calls), read.status) == (asked, status)
+    reruns = await db.scalar(
+        select(func.count())
+        .select_from(EvalRunCase)
+        .where(EvalRunCase.eval_run_id == v7.id, EvalRunCase.attempt > 0)
+    )
+    assert reruns == asked - 4
+    assert read.cost_usd <= quoted
+    if status == "budget_exceeded":
+        assert read.error is not None and "price accepted for this run" in read.error
+
+
+@pytest.mark.security
+async def test_an_answer_past_the_price_to_a_case_anonymised_meanwhile_is_not_kept(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    dataset = await _judged(db, ctx, cases=1)
+    started, quoted = await _quoted(db, ctx, agent, EvalRunRequest(dataset_id=dataset.id))
+
+    async def erase(call: int) -> None:
+        await _anonymise(db, dataset, 1)
+
+    model = Model(db, before=erase, cost=lambda prompt: quoted + Decimal("0.01"))
+    await _run_to_end(db, model, started.id, ctx)
+
+    [attempt] = await eval_run_repo.list_cases(db, started.id, organization_id=ctx.organization_id)
+    assert attempt.status == "failed"
+    assert (attempt.answer, attempt.calls, attempt.case_score_id) == (None, [], None)
+    assert "anonymised" in (attempt.error or "")
+    run = await db.get(EvalRun, started.id)
+    assert run is not None and run.status == "budget_exceeded"
 
 
 async def test_a_case_that_passed_on_v6_and_fails_on_v7_is_a_confirmed_regression(db) -> None:

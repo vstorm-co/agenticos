@@ -11854,7 +11854,8 @@
         "completed": "Twój test się zakończył.",
         "failed": "Twojego testu nie udało się dokończyć.",
         "cancelled": "Twój test został anulowany.",
-        "budget_exceeded": "Twój test zatrzymał się na budżecie."
+        "budget_exceeded": "Twój test zatrzymał się na budżecie.",
+        "quote": "Twój test zatrzymał się na zaakceptowanej cenie."
       },
       "questions": {
         "ready": "Pytania testowe są napisane i czekają na Twój przegląd.",

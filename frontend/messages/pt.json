@@ -11572,7 +11572,8 @@
         "completed": "Seu teste foi concluído.",
         "failed": "Seu teste não pôde ser concluído.",
         "cancelled": "Seu teste foi cancelado.",
-        "budget_exceeded": "Seu teste parou ao atingir o orçamento."
+        "budget_exceeded": "Seu teste parou ao atingir o orçamento.",
+        "quote": "Seu teste parou ao atingir o preço que você aceitou."
       },
       "questions": {
         "ready": "Suas perguntas de teste foram escritas e aguardam sua revisão.",

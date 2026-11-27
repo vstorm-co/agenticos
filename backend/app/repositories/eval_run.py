@@ -2,14 +2,17 @@
 
 from collections.abc import Collection, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any, NamedTuple
 from uuid import UUID
 
 from sqlalchemy import String, and_, cast, column, exists, func, not_, or_, select, true, update
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.locks import LockScope, hold_subject
+from app.db.models.agent_run import AgentRun
 from app.db.models.authoring import HunkStatus, SpecProposalBatch, SpecProposalHunk
 from app.db.models.background_job import BackgroundJob
 from app.db.models.case_score import CaseScore
@@ -693,6 +696,88 @@ async def count_by_status(
         .group_by(EvalRunCase.status)
     )
     return {status: int(count) for status, count in result.all()}
+
+
+class Spending(NamedTuple):
+    """What a run has spent, what it has under way, and what its next answer is priced at."""
+
+    spent_usd: Decimal
+    reserved_usd: Decimal
+    next_usd: Decimal | None
+
+
+async def spending(db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID) -> Spending:
+    """What a run has spent so far, counted as its read counts it, and what it has reserved.
+
+    `spent_usd` is its attempts' answers and the judge runs that graded them. A
+    running attempt has written neither yet: it reserves its arm's price per
+    answer, or what its answer has spent once that is more, and a grading. The
+    next pending attempt, in the order they are claimed, is priced the same way.
+    """
+    of_run = (
+        EvalRunCase.eval_run_id == eval_run_id,
+        EvalRunCase.organization_id == organization_id,
+    )
+    answers = await db.scalar(
+        select(func.coalesce(func.sum(EvalRunCase.cost_usd), 0)).where(*of_run)
+    )
+    result = (
+        func.jsonb_array_elements(CaseScore.results)
+        .table_valued(column("value", JSONB))
+        .render_derived(name="result")
+    )
+    judge_runs = (
+        select(cast(result.c.value["judge_run_id"].astext, PG_UUID(as_uuid=True)))
+        .select_from(EvalRunCase)
+        .join(CaseScore, CaseScore.id == EvalRunCase.case_score_id)
+        .join(result, true())
+        .where(*of_run, CaseScore.organization_id == organization_id)
+    )
+    judged = await db.scalar(
+        select(func.coalesce(func.sum(AgentRun.cost_usd), 0)).where(
+            AgentRun.organization_id == organization_id, AgentRun.id.in_(judge_runs)
+        )
+    )
+    grade = func.coalesce(EvalRun.grade_usd, 0)
+    priced = (
+        select(EvalRunCase)
+        .join(EvalRunArm, EvalRunArm.id == EvalRunCase.arm_id)
+        .join(EvalRun, EvalRun.id == EvalRunCase.eval_run_id)
+        .where(*of_run)
+    )
+    reserved = await db.scalar(
+        priced.outerjoin(
+            AgentRun,
+            and_(
+                AgentRun.id == EvalRunCase.agent_run_id,
+                AgentRun.organization_id == organization_id,
+            ),
+        )
+        .where(EvalRunCase.status == CaseAttemptStatus.RUNNING.value)
+        .with_only_columns(
+            func.coalesce(
+                func.sum(
+                    func.greatest(
+                        func.coalesce(EvalRunArm.answer_usd, 0),
+                        func.coalesce(AgentRun.cost_usd, 0),
+                    )
+                    + grade
+                ),
+                0,
+            )
+        )
+    )
+    upcoming = await db.scalar(
+        priced.where(EvalRunCase.status == CaseAttemptStatus.PENDING.value)
+        .order_by(EvalRunCase.attempt, EvalRunCase.position, EvalRunCase.arm_id)
+        .limit(1)
+        .with_only_columns(func.coalesce(EvalRunArm.answer_usd, 0) + grade)
+    )
+    return Spending(
+        spent_usd=Decimal(answers or 0) + Decimal(judged or 0),
+        reserved_usd=Decimal(reserved or 0),
+        next_usd=None if upcoming is None else Decimal(upcoming),
+    )
 
 
 async def skip_pending(db: AsyncSession, eval_run_id: UUID, *, organization_id: UUID) -> int:

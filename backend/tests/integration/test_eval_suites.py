@@ -1757,6 +1757,8 @@ async def test_after_an_incomparable_result_a_pair_runs_only_within_the_suites_c
     *_, third = await _results(db, suite.id)
     assert third.status == "passed" and third.eval_run_id is not None
     run = await service.evals.get(ctx, third.eval_run_id)
+    stored = await db.get(EvalRun, third.eval_run_id)
+    assert stored is not None and stored.quoted_usd == Decimal(ceiling)
     told = [n for n in await _notifications(db, ctx.user_id) if "Not compared" in n.summary]
     if paired:
         assert (run.paired, third.reason, told) == (True, None, [])
@@ -1946,6 +1948,28 @@ async def test_suite_cap_includes_confirming_reruns(db) -> None:
         await service.run_now(ctx, agent.id, suite.id)
     assert refused.value.details["reason"] == "over_cost_cap"
     assert not await _results(db, suite.id)
+
+
+@pytest.mark.security
+async def test_a_suite_run_by_hand_is_held_to_the_suites_ceiling_while_it_runs(db) -> None:
+    ctx = await _owner(db)
+    agent, _ = await _agent(db, ctx)
+    capped = await _dataset(db, ctx)
+    uncapped = await _dataset(db, ctx)
+    service = EvalSuiteService(db)
+    with_ceiling = await service.create(
+        ctx, agent.id, _suite_data(capped, max_run_usd=Decimal("5"))
+    )
+    without = await service.create(ctx, agent.id, _suite_data(uncapped))
+
+    held = await service.run_now(ctx, agent.id, with_ceiling.id)
+    free = await service.run_now(ctx, agent.id, without.id)
+
+    assert held.eval_run_id is not None and free.eval_run_id is not None
+    run = await db.get(EvalRun, held.eval_run_id)
+    assert run is not None and run.quoted_usd == Decimal("5")
+    run = await db.get(EvalRun, free.eval_run_id)
+    assert run is not None and run.quoted_usd is None
 
 
 async def test_first_suite_estimate_includes_the_only_published_version(db) -> None:
