@@ -28,15 +28,17 @@ export function useRoomIdentity() {
       mounted.current = false;
     };
   }, []);
-  const current = useCallback(
+  // The identity alone, without the mount: a request in flight outlives the
+  // component that started it when the view re-renders underneath it.
+  const sameIdentity = useCallback(
     () =>
-      mounted.current &&
       useAuthStore.getState().user?.id === accountId &&
       useOrgStore.getState().activeOrgId === organizationId &&
       sameTenant(tenant),
     [accountId, organizationId, sameTenant, tenant],
   );
-  return { accountId, organizationId, tenant, current };
+  const current = useCallback(() => mounted.current && sameIdentity(), [sameIdentity]);
+  return { accountId, organizationId, tenant, current, sameIdentity };
 }
 
 export function useRoomRequests(conversationId: string | null) {
@@ -153,7 +155,7 @@ export function useRoomActions(conversationId: string | null) {
 }
 
 export function useCreateTeamRoom() {
-  const { accountId, organizationId, tenant, current } = useRoomIdentity();
+  const { accountId, organizationId, tenant, current, sameIdentity } = useRoomIdentity();
   const queryClient = useQueryClient();
   // Creation must start after selection settles: otherwise null -> default
   // invalidates its own successful response before the caller can open the room.
@@ -163,16 +165,21 @@ export function useCreateTeamRoom() {
       if (!isReady || !current()) return null;
       try {
         const conversation = await createTeamRoom(projectId, title);
-        if (!current()) return null;
+        // The room already exists: only the identity changing mid-flight drops
+        // it. The button that started the creation may have unmounted while
+        // the request was in flight - the chats list settling to empty takes
+        // the header's button with it - and that alone must not orphan the
+        // room the reader just asked for.
+        if (!sameIdentity()) return null;
         void queryClient.invalidateQueries({ queryKey: qk.conversations.all() });
         void queryClient.invalidateQueries({ queryKey: qk.projects.all() });
         return conversation;
       } catch (error) {
-        if (!current()) return null;
+        if (!sameIdentity()) return null;
         throw error;
       }
     },
-    [isReady, current, queryClient],
+    [isReady, current, sameIdentity, queryClient],
   );
   return { create, isReady };
 }
