@@ -1900,12 +1900,14 @@ async def test_an_integrity_failure_other_than_a_taken_name_is_not_called_a_conf
     service = EvalSuiteService(db)
     suite = await service.create(ctx, agent.id, _suite_data(dataset))
     # Past the schema's own bound, so the table's CHECK is what refuses it.
-    negative = {"max_run_usd": Decimal("-1")}
+    outside_schema = {"max_run_usd": Decimal("0")}
 
     with pytest.raises(IntegrityError, match="ck_eval_suite_max_run_usd"):
-        await service.create(ctx, agent.id, _suite_data(dataset).model_copy(update=negative))
+        await service.create(ctx, agent.id, _suite_data(dataset).model_copy(update=outside_schema))
     with pytest.raises(IntegrityError, match="ck_eval_suite_max_run_usd"):
-        await service.update(ctx, agent.id, suite.id, EvalSuiteUpdate().model_copy(update=negative))
+        await service.update(
+            ctx, agent.id, suite.id, EvalSuiteUpdate().model_copy(update=outside_schema)
+        )
 
     assert [read.id for read in (await service.list_for_agent(ctx, agent.id)).items] == [suite.id]
     assert (await service.get(ctx, agent.id, suite.id)).max_run_usd is None

@@ -72,11 +72,14 @@ const ORG_MEMBERS = [
  * Answer every request the page makes, as a caller holding `role`, in an
  * organization of `inOrg` (everybody, unless a test narrows it).
  */
-function serve(role: string, inOrg?: string[]) {
+function serve(role: string, inOrg?: string[], managesBudget = false) {
+  const granted = permissionsOf(role);
+  if (managesBudget)
+    granted.permissions = [...granted.permissions, { permission: "budgets:manage", scope: "all" }];
   const orgMembers = ORG_MEMBERS.filter((row) => !inOrg || inOrg.includes(row.user_id));
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
     if (url === "/roles/catalog") return Promise.resolve(ROLE_CATALOG);
-    if (url.startsWith("/me/permissions")) return Promise.resolve(permissionsOf(role));
+    if (url.startsWith("/me/permissions")) return Promise.resolve(granted);
     if (url === "/orgs")
       return Promise.resolve({ items: [{ id: "org-1", name: "Acme" }], total: 1 });
     if (url === "/orgs/org-1/groups")
@@ -192,7 +195,6 @@ describe("the groups page", () => {
         name: "Legal",
         description: null,
         icon: null,
-        monthly_budget_usd: null,
       }),
     );
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -217,7 +219,6 @@ describe("the groups page", () => {
       name: "Finance",
       description: "Money people",
       icon: null,
-      monthly_budget_usd: null,
     });
     // Typing again clears it, since the name it was about is gone.
     await userEvent.type(screen.getByLabelText("Name"), "!");
@@ -254,7 +255,6 @@ describe("the groups page", () => {
         name: "Money",
         description: null,
         icon: null,
-        monthly_budget_usd: null,
       }),
     );
   });
@@ -467,7 +467,7 @@ it("searches department descriptions and clears an unmatched query", async () =>
 });
 
 it("reveals the budget field when the server refuses that hidden option", async () => {
-  serve("admin");
+  serve("admin", undefined, true);
   vi.mocked(apiClient.post).mockRejectedValue(
     new ApiError(422, "Budget refused", {
       error: {

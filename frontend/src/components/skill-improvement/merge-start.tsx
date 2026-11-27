@@ -35,7 +35,6 @@ export function MergeStart({
 }) {
   const monetary = useMonetaryInputs();
   const money = useMoney();
-  const tm = useTranslations("currencies");
   const t = useTranslations("skillImprovement.mergeStart");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
@@ -103,9 +102,7 @@ export function MergeStart({
       )}
       <p className="text-sm">{t("price", { cost: money.cost(quote.total_usd, locale) })}</p>
       <div className="max-w-xs space-y-1.5">
-        <Label htmlFor="skill-merge-limit">
-          {tm("budgetLabel", { currency: money.currency ?? "—" })}
-        </Label>
+        <Label htmlFor="skill-merge-limit">{t("limit", { currency: money.currency ?? "—" })}</Label>
         <MonetaryInput
           id="skill-merge-limit"
           monetary={monetary}

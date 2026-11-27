@@ -64,8 +64,13 @@ const QUALITY = {
 };
 
 /** The test catalog's roles, plus `runs:view` where a test reads spend. */
-function serve(role: string, { seesSpend = false, groupsFailed = false } = {}) {
+function serve(
+  role: string,
+  { seesSpend = false, groupsFailed = false, managesBudget = false } = {},
+) {
   const granted = permissionsOf(role);
+  if (managesBudget)
+    granted.permissions = [...granted.permissions, { permission: "budgets:manage", scope: "all" }];
   if (seesSpend)
     granted.permissions = [...granted.permissions, { permission: "runs:view", scope: "all" }];
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
@@ -166,19 +171,18 @@ describe("the groups page", () => {
         name: "Legal",
         description: null,
         icon: "scale",
-        monthly_budget_usd: null,
       }),
     );
   });
 
   it("caps a department's month, and lifts the cap when the box is emptied (#2072)", async () => {
-    serve("owner");
+    serve("owner", { managesBudget: true });
     vi.mocked(apiClient.patch).mockResolvedValue(FINANCE);
     await mount(<GroupPage params={Promise.resolve({ id: "g-fin" })} />);
 
     await userEvent.click(await screen.findByRole("button", { name: "Edit group" }));
     const budget = screen.getByLabelText("Monthly budget (USD)");
-    expect(budget).toHaveValue(50);
+    expect(budget).toHaveValue("50");
     await userEvent.clear(budget);
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() =>
@@ -195,7 +199,10 @@ describe("the groups page", () => {
     await waitFor(() =>
       expect(apiClient.patch).toHaveBeenLastCalledWith(
         "/orgs/org-1/groups/g-fin",
-        expect.objectContaining({ monthly_budget_usd: 80 }),
+        expect.objectContaining({
+          monthly_budget_usd: "80",
+          monetary_inputs: { monthly_budget_usd: { amount: "80", currency: "USD" } },
+        }),
       ),
     );
   });

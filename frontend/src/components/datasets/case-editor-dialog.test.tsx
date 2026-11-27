@@ -206,7 +206,7 @@ describe("CaseEditorDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
     await userEvent.click(screen.getByRole("combobox", { name: "Check 2: type" }));
     await userEvent.click(screen.getByRole("option", { name: "Costs at most (USD)" }));
-    await userEvent.type(screen.getByLabelText("Check 2: what it checks"), "0.05");
+    await userEvent.type(screen.getByLabelText("Check 2: what it checks (USD)"), "0.05");
     await openSection("Additional checks");
     await openSection("Additional checks");
     await userEvent.click(screen.getByRole("button", { name: "Add a check" }));
@@ -232,7 +232,11 @@ describe("CaseEditorDialog", () => {
         expected_tool_calls: [{ tool: "search_kb", args: { q: "kettle", limit: 5 } }],
         checks: [
           { type: "contains", value: "30 days" },
-          { type: "max_cost_usd", value: 0.05 },
+          {
+            type: "max_cost_usd",
+            value: 0.05,
+            monetary_input: { amount: "0.05", currency: "USD" },
+          },
           { type: "judge", criterion: "Polite" },
         ],
       }),

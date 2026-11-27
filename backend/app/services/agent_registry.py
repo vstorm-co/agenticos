@@ -3933,12 +3933,20 @@ class AgentRegistryService:
         suggestions stay open, because the draft they were made for was not frozen.
         """
         agent = await self.get(ctx, agent_id, perm=Perm.AGENTS_PUBLISH, for_update=True)
-        previous = AgentSpec.model_validate(agent.draft_spec)
+        previous_draft = AgentSpec.model_validate(agent.draft_spec)
+        previous_published: AgentSpec | None = None
+        if agent.current_version_id is not None:
+            published = await agent_repo.get_version(
+                self.db, agent.current_version_id, organization_id=ctx.organization_id
+            )
+            if published is None:
+                raise NotFoundError(message="The agent's published version is missing")
+            previous_published = AgentSpec.model_validate(published.spec)
         spec = await MonetaryService(self.db).agent_budget(
-            ctx.organization_id, spec, previous=previous
+            ctx.organization_id, spec, previous=previous_published, preserve_terms=True
         )
         draft = await MonetaryService(self.db).agent_budget(
-            ctx.organization_id, draft, previous=previous
+            ctx.organization_id, draft, previous=previous_draft
         )
         await self.validate_spec(ctx, spec, agent_id=agent.id)
         return await self._freeze(ctx, agent, spec, note=note, draft=draft)

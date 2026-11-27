@@ -255,7 +255,7 @@ it("takes a limit written the reader's way, and starts once without offering to 
   const limit = await screen.findByLabelText("Session spending limit (USD)");
   expect(limit).toHaveValue("0.24");
   await userEvent.clear(limit);
-  await userEvent.type(limit, "0,5");
+  await userEvent.type(limit, "0.5");
   const start = screen.getByRole("button", { name: "Start improving" });
   await userEvent.click(start);
   expect(state.start).toHaveBeenCalledWith(expect.objectContaining({ budget_usd: "0.5" }));
@@ -621,14 +621,14 @@ it("prices nothing and starts nothing while the search budget is empty", async (
   await screen.findByLabelText("Search budget (USD)");
   const calls = state.estimate.mock.calls.length;
 
-  await user.clear(screen.getByLabelText("Search budget (USD)"));
+  await user.clear(screen.getByLabelText("Session spending limit (USD)"));
 
   expect(state.estimate).toHaveBeenCalledTimes(calls);
   expect(screen.getByRole("button", { name: "Start improving" })).toBeDisabled();
-  await user.type(screen.getByLabelText("Search budget (USD)"), "1");
+  await user.type(screen.getByLabelText("Session spending limit (USD)"), "1");
   await user.click(screen.getByRole("radio", { name: /Step by step/ }));
   await user.click(screen.getByRole("radio", { name: /Search variants/ }));
-  expect(screen.getByLabelText("Search budget (USD)")).toHaveValue("1");
+  expect(screen.getByLabelText("Session spending limit (USD)")).toHaveValue("1");
 });
 
 it("shows the dataset's guidance for the helper, and who changed it, before the start", async () => {

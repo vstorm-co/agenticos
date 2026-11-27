@@ -57,6 +57,8 @@ def _fields(schema: dict[str, Any], *, nested: bool) -> dict[str, dict[str, Any]
 
     def walk(target: dict[str, Any], path: list[str]) -> None:
         for name, prop in (target.get("properties") or {}).items():
+            if prop.get("x-internal") is True:
+                continue
             at = [*path, name]
             copy = {key: _icu(prop[src]) for src, key in _COPY_KEYS if src in prop}
             # A code field's example is code: the same in every language, so not copy.

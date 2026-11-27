@@ -191,7 +191,8 @@ vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: [], total: 0 }),
 }));
 
-vi.mock("@/stores", () => ({
+vi.mock("@/stores", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/stores")>()),
   useAgentSelectionStore: (select: (state: { select: () => void }) => unknown) =>
     select({ select: vi.fn() }),
   useConversationStore: (select: (state: { reset: () => void }) => unknown) =>
@@ -316,7 +317,7 @@ describe("discarding an agent draft", () => {
     await mount();
     expect(screen.getByText("Draft differs from agent v7")).toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Limits" }));
-    const monthly = screen.getByRole("spinbutton", { name: "Monthly (USD)" });
+    const monthly = screen.getByRole("textbox", { name: "Monthly (USD)" });
     fireEvent.change(monthly, { target: { value: "42" } });
 
     await user.click(screen.getByRole("button", { name: "More actions" }));
@@ -333,7 +334,7 @@ describe("discarding an agent draft", () => {
       expected_version_id: "latest",
     });
     expect(await screen.findByText("Up to date with agent v7")).toBeInTheDocument();
-    expect(monthly).toHaveValue(null);
+    expect(monthly).toHaveValue("");
     expect(screen.queryByRole("dialog", { name: "Discard unpublished changes?" })).toBeNull();
     expect(saveDraft).not.toHaveBeenCalled();
   });
@@ -361,9 +362,14 @@ describe("discarding an agent draft", () => {
       store.set({ ...INITIAL });
     });
     await user.click(screen.getByRole("tab", { name: "Limits" }));
-    const monthly = screen.getByRole("spinbutton", { name: "Monthly (USD)" });
+    const monthly = screen.getByRole("textbox", { name: "Monthly (USD)" });
     fireEvent.change(monthly, { target: { value: "25" } });
-    await waitFor(() => expect(store.get()?.budget).toEqual({ monthly_usd: 25 }));
+    await waitFor(() =>
+      expect(store.get()?.budget).toEqual({
+        monthly_usd: 25,
+        monetary_inputs: { monthly_usd: { amount: "25", currency: "USD" } },
+      }),
+    );
     fireEvent.change(monthly, { target: { value: "" } });
     await waitFor(() => expect(store.get()?.budget).toBeNull());
   });
@@ -395,7 +401,7 @@ describe("discarding an agent draft", () => {
     await user.click(within(confirm).getByRole("button", { name: "Discard draft" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("saving is paused");
-    expect(screen.getByRole("spinbutton", { name: "Monthly (USD)" })).toHaveValue(25);
+    expect(screen.getByRole("textbox", { name: "Monthly (USD)" })).toHaveValue("25");
     expect(store.get()?.description).toBe("Unpublished edits");
     expect(screen.queryByRole("dialog", { name: "Discard unpublished changes?" })).toBeNull();
     expect(saveDraft).not.toHaveBeenCalled();
@@ -462,10 +468,15 @@ describe("canonical draft acknowledgements", () => {
       });
       await mount();
       await userEvent.click(screen.getByRole("tab", { name: "Limits" }));
-      const monthly = screen.getByRole("spinbutton", { name: "Monthly (USD)" });
+      const monthly = screen.getByRole("textbox", { name: "Monthly (USD)" });
 
       fireEvent.change(monthly, { target: { value: "25" } });
-      await waitFor(() => expect(store.get()?.budget).toEqual({ monthly_usd: 25 }));
+      await waitFor(() =>
+        expect(store.get()?.budget).toEqual({
+          monthly_usd: 25,
+          monetary_inputs: { monthly_usd: { amount: "25", currency: "USD" } },
+        }),
+      );
       fireEvent.change(monthly, { target: { value: "" } });
 
       await waitFor(() => expect(saveDraft).toHaveBeenCalledTimes(2));

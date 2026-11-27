@@ -55,7 +55,6 @@ it("a rename without budget authority preserves the existing original limit term
       name: "Research team",
       description: null,
       icon: null,
-      monetary_inputs: {},
     },
   });
 });

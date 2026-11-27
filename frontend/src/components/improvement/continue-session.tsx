@@ -76,7 +76,6 @@ export function ContinueSession({
 }) {
   const monetary = useMonetaryInputs();
   const money = useMoney();
-  const tm = useTranslations("currencies");
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
@@ -183,7 +182,7 @@ export function ContinueSession({
             </div>
           )}
           <Label htmlFor="continuation-budget">
-            {tm("budgetLabel", { currency: money.currency ?? "—" })}
+            {t("budget", { currency: money.currency ?? "—" })}
           </Label>
           <MonetaryInput
             id="continuation-budget"
@@ -222,9 +221,10 @@ export function ContinueSession({
                 disabled={!quote.affordable || actions.continueSession.isPending}
                 onClick={() =>
                   void act(async () => {
+                    const payload = monetary.payload({});
                     await actions.continueSession.mutateAsync({
                       ...quote,
-                      body: monetary.payload({}),
+                      ...(Object.keys(payload).length ? { body: payload } : {}),
                       ...(attempt && note.trim() ? { note: note.trim() } : {}),
                     });
                     setQuoted(null);

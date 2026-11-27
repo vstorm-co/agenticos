@@ -11850,7 +11850,7 @@
     "emailAddress": "E-posta adresi",
     "emptyMeansUnlimited": "Boş bırakılırsa sınır olmaz.",
     "emptyNoLimit": "Sınır olmaması için boş bırakın.",
-    "enterAmountDollarsLeave": "Dolar cinsinden bir tutar girin veya sınır koymamak için boş bırakın.",
+    "enterAmountDollarsLeave": "Geçerli bir tutar girin veya sınır belirlememek için boş bırakın.",
     "howManyPeople": "Kaç kişi",
     "inviteEmailed": "{email} adresine e-posta gönderildi. Ulaşmazsa aşağıdaki bağlantı sizin kopyanızdır.",
     "inviteLinkLabel": "Davet bağlantısı",
@@ -12013,7 +12013,7 @@
       "save": "Kaydet",
       "saved": "Arka plan ayarları kaydedildi",
       "off": "Arka plan özellikleri kapalı",
-      "invalid": "Dolar cinsinden 0 veya daha büyük bir tutar girin.",
+      "invalid": "Negatif olmayan bir tutar girin.",
       "welcome": "Sohbet uygulamalarındaki karşılama mesajı",
       "welcomeHint": "Yeni üyeye Slack, Teams ve Mattermost botlarınızdan doğrudan mesaj gönderilir.",
       "welcomeText": "Mesaj",
@@ -17744,7 +17744,7 @@
     "estimating": "Süre ve maliyet tahmin ediliyor…",
     "sessionQuote": "{answers, plural, one {# seçili kaynak örneğini} other {# seçili kaynak örneğini}} sıralamak için en fazla {cost} (tahmini). Sonraki her deneme yaklaşık {minutes, plural, one {# dakika} other {# dakika}} sürer ve yaklaşık {perRound} tutar; başlamadan önce yeniden fiyatlandırılır. {limit} sınırı tüm oturum içindir.",
     "evidence": "Geri bildirim alan {count, plural, one {# yanıta} other {# yanıta}} dayanır.",
-    "budget": "Oturum harcama limiti (USD)",
+    "budget": "Oturum harcama sınırı ({currency})",
     "start": "İyileştirmeye başla",
     "working": "Hâlâ çalışılıyor…",
     "loading": "Sonuç yükleniyor…",
@@ -18341,7 +18341,7 @@
       "search": "Varyant ara",
       "searchHint": "Yardımcı, talimatların birçok sürümünü yazar ve her birini eğitim sorularında puanlar. En iyisi Değişiklikler adımına gelir ve ardından diğer denemeler gibi kontrol edilir.",
       "tooFew": "Arama için en az {needed} eğitim sorusu gerekir; bu dataset'te {count, plural, =0 {hiç yok} =1 {1 tane var} other {# tane var}}. Soru ekleyin veya adım adım iyileştirin.",
-      "budget": "Arama budget'ı (USD)",
+      "budget": "Arama bütçesi ({currency})",
       "budgetHint": "Arama, sonraki varyantı sığmayacağı anda durur. Budget'ı en fazla puanlamakta olduğu tek varyant kadar aşabilir.",
       "gradingModel": "Varyantları puanlayan model",
       "datasetJudge": "Dataset'in hakem modeli",
@@ -19724,7 +19724,7 @@
       "continue": "Devam et",
       "hidden": "{count, plural, =1 {Göremediğiniz 1 agent daha bu sürüm hattını kullanıyor.} other {Göremediğiniz # agent daha bu sürüm hattını kullanıyor.}}",
       "price": "İlk öneriye kadar en fazla {cost} (tahmini); sonraki her deneme yaklaşık {perRound}, en fazla {rounds, plural, =1 {1 deneme} other {# deneme}}. {limit} limiti tüm oturum için geçerlidir.",
-      "limit": "Tüm oturum için harcama limiti (USD)",
+      "limit": "Tüm oturum için harcama sınırı ({currency})",
       "limitHint": "İlk öneri ve yapabileceği her deneme için doldurulmuştur. Daha erken durması için düşürün; oturum, limiti aşacak bir adımdan önce durur.",
       "belowEstimate": "Limit, oturumun ilk öneriye kadarki maliyeti olan {cost} tutarının altında. Limiti en az bu tutara yükseltin.",
       "unaffordable": "Kuruluşun budget'ı bunu karşılamıyor.",
@@ -19849,7 +19849,7 @@
       "agents": "{count, plural, =0 {Görebildiğiniz hiçbir agent bu sürüm hattını okumuyor.} =1 {Sonucu 1 agent kontrol eder.} other {Sonucu # agent kontrol eder.}}",
       "hidden": "{count, plural, =1 {Göremediğiniz 1 agent daha bu sürüm hattını okuyor.} other {Göremediğiniz # agent daha bu sürüm hattını okuyor.}}",
       "price": "Çakışmaların metinlerini önermenin maliyeti yaklaşık {cost}. Kontrol, Değişiklikler adımında fiyatlandırılır.",
-      "limit": "Oturum için harcama limiti (USD)",
+      "limit": "Oturum için harcama sınırı ({currency})",
       "limitHint": "Kontrol fiyatlandırıldığında Değişiklikler adımında limiti yükseltebilirsiniz.",
       "unaffordable": "Kuruluşun budget'ı bunu karşılamıyor.",
       "start": {
@@ -20059,6 +20059,7 @@
     }
   },
   "phone": {
-    "daily_budget_usd": "Günlük telefon bütçesi ({currency})"
+    "daily_budget_usd": "Günlük telefon bütçesi ({currency})",
+    "price_per_minute_usd": "Bölüm ve dakika başına temkinli ücret"
   }
 }

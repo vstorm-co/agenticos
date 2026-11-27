@@ -230,7 +230,7 @@ async def test_cost_capped_nodes_keep_original_terms_without_touching_other_conf
     changed_cap = await service.node_config(
         uuid4(), {**stored, "max_cost_usd": "0.5"}, previous=stored
     )
-    assert changed_cap["monetary_terms"]["max_cost_usd"]["currency"] == "USD"
+    assert "monetary_terms" not in changed_cap
     removed = await service.node_config(uuid4(), {**stored, "max_cost_usd": None}, previous=stored)
     assert "monetary_terms" not in removed
 
@@ -298,9 +298,7 @@ async def test_cost_criteria_are_currency_aware_thresholds_and_preserve_legacy_l
         0
     ].monetary_term == old_terms
     changed = CeilingCheck(type="max_cost_usd", value=0.5)
-    assert (await service.checks(uuid4(), [changed], previous=stored))[
-        0
-    ].monetary_term.currency == "USD"
+    assert (await service.checks(uuid4(), [changed], previous=stored))[0].monetary_term is None
     legacy = [CeilingCheck(type="max_cost_usd", value=0.25)]
     assert (await service.checks(uuid4(), legacy, previous=legacy))[0].monetary_term is None
     with pytest.raises(BadRequestError, match="Original criterion"):
@@ -522,8 +520,7 @@ async def test_changing_the_criterion_family_does_not_inherit_another_origin() -
     )
     new = old.model_copy(update={"family": "customer_total"})
     result = await MonetaryService(AsyncMock()).checks(uuid4(), [new], previous=[old])
-    assert result[0].monetary_term is not None
-    assert result[0].monetary_term.currency == "USD"
+    assert result[0].monetary_term is None
 
 
 @pytest.mark.parametrize("value", ["25.000001", "99999999999999999999999999999999.999999"])
@@ -557,3 +554,40 @@ def test_routine_budget_write_schemas_refuse_rounding_and_overflow_before_storag
     ]:
         with pytest.raises(ValidationError):
             schema.model_validate({**fields, "monthly_budget_usd": value})
+
+
+async def test_originless_usd_json_caps_and_checks_retain_their_legacy_shape() -> None:
+    from app.schemas.scoring import CeilingCheck
+
+    service = MonetaryService(AsyncMock())
+    node = {"max_cost_usd": "0.25", "prompt": "Unchanged"}
+    assert await service.node_config(uuid4(), node) == node
+    check = CeilingCheck(type="max_cost_usd", value=0.25)
+    assert (await service.checks(uuid4(), [check]))[0] == check
+    with pytest.raises(BadRequestError, match="finite"):
+        await service.checks(uuid4(), [CeilingCheck(type="max_cost_usd", value=float("inf"))])
+
+
+async def test_negative_legacy_usd_cannot_bypass_limit_validation() -> None:
+    with pytest.raises(BadRequestError, match="non-negative accounting limit"):
+        await MonetaryService(AsyncMock()).terms(
+            uuid4(), values={"budget_usd": Decimal("-1")}, inputs={}
+        )
+
+
+def test_budget_history_rejects_unknown_field_names_before_service_access() -> None:
+    with pytest.raises(ValidationError) as refused:
+        BudgetSpec.model_validate(
+            {
+                "monthly_usd": 20,
+                "monetary_terms": {
+                    "unknown_limit": {
+                        "amount": "20",
+                        "currency": "USD",
+                        "units_per_usd": "1",
+                        "cost_usd": "20",
+                    }
+                },
+            }
+        )
+    assert refused.value.errors()[0]["type"] == "literal_error"

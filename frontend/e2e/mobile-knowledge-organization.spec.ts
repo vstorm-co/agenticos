@@ -216,7 +216,7 @@ test("phone organization forms save identity, budget, voice and retention", asyn
   await leave();
   await expect(page).toHaveURL(/\/orgs$/);
   await page.goto(`${path}?tab=governance`);
-  const budget = page.getByRole("spinbutton", { name: "Limit (USD)", exact: true });
+  const budget = page.getByRole("textbox", { name: "Limit (USD)", exact: true });
   await budget.fill("75.5");
   await page.getByRole("tab", { name: "AI & services", exact: true }).click();
   await page.getByRole("button", { name: "Speech to text", exact: true }).click();

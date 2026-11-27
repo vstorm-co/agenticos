@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { CurrencyProvider } from "@/components/providers/currency-provider";
 import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
 import type { CurrencyContext } from "@/lib/currency-api";
+import * as intl from "next-intl";
 import { useOrgStore } from "@/stores";
 import { MonetaryInput } from "./monetary-input";
 
@@ -91,7 +92,7 @@ it("an explicit currency change keeps accounting USD and clears stale draft decl
   view.rerender(form());
   expect(screen.getByLabelText("Budget")).toHaveValue("45");
   await userEvent.click(screen.getByText("Save"));
-  expect(save).toHaveBeenCalledWith({ budget_usd: "50", monetary_inputs: {} });
+  expect(save).toHaveBeenCalledWith({ budget_usd: "50" });
 });
 it("a missing reporting quote disables entry instead of assuming one-to-one USD", () => {
   context = { ...context!, reporting_units_per_usd: null };
@@ -109,7 +110,7 @@ it("discard restores the canonical amount and clears native invalidity and decla
   expect(input).toHaveValue("100");
   expect(input).toBeValid();
   await userEvent.click(screen.getByText("Save"));
-  expect(save).toHaveBeenCalledWith({ budget_usd: "25", monetary_inputs: {} });
+  expect(save).toHaveBeenCalledWith({ budget_usd: "25" });
 });
 it("checks a USD boundary in the visible currency and refuses the original write", async () => {
   render(
@@ -131,5 +132,20 @@ it("changing organization clears original declarations even with the same report
   fireEvent.change(screen.getByLabelText("Budget"), { target: { value: "200" } });
   act(() => useOrgStore.setState({ activeOrgId: "org-b" }));
   await userEvent.click(screen.getByText("Save"));
-  expect(save).toHaveBeenCalledWith({ budget_usd: "50", monetary_inputs: {} });
+  expect(save).toHaveBeenCalledWith({ budget_usd: "50" });
+});
+
+afterEach(() => vi.restoreAllMocks());
+it("uses the reader's locale in the rendered monetary control", async () => {
+  vi.spyOn(intl, "useLocale").mockReturnValue("pl");
+  render(form());
+  const input = screen.getByLabelText("Budget");
+  await userEvent.clear(input);
+  await userEvent.type(input, "100,5");
+  expect(input).toHaveValue("100,5");
+  await userEvent.click(screen.getByText("Save"));
+  expect(save).toHaveBeenCalledWith({
+    budget_usd: "25.125",
+    monetary_inputs: { budget_usd: { amount: "100.5", currency: "PLN" } },
+  });
 });

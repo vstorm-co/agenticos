@@ -46,7 +46,6 @@ import type { Improvement, ImprovementEstimate, ImprovementMode } from "@/types/
 export function StartSession({ agentId, onClose }: { agentId: string; onClose: () => void }) {
   const monetary = useMonetaryInputs();
   const money = useMoney();
-  const tm = useTranslations("currencies");
   const t = useTranslations("improvement");
   const tc = useTranslations("common");
   const tr = useTranslations("authoring.improve");
@@ -317,7 +316,9 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground text-xs">{t("budget")}</dt>
+                <dt className="text-muted-foreground text-xs">
+                  {t("budget", { currency: money.currency ?? "—" })}
+                </dt>
                 <dd className="mt-1 text-lg font-semibold tabular-nums">
                   {Number.isFinite(Number(limit)) && Number(limit) > 0
                     ? money.cost(limit, locale)
@@ -375,7 +376,7 @@ export function StartSession({ agentId, onClose }: { agentId: string; onClose: (
                   </p>
                   <div className="space-y-1.5">
                     <Label htmlFor="improvement-budget">
-                      {tm("budgetLabel", { currency: money.currency ?? "—" })}
+                      {t("budget", { currency: money.currency ?? "—" })}
                     </Label>
                     <MonetaryInput
                       id="improvement-budget"

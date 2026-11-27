@@ -77,6 +77,7 @@ describe("MergeStart", () => {
 
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/forks/f1/catch-up", {
       budget_usd: "2",
+      monetary_inputs: { budget_usd: { amount: "2", currency: "USD" } },
     });
     expect(push).toHaveBeenCalledWith("/skills/k1/improve/s9");
   });
@@ -98,7 +99,7 @@ describe("MergeStart", () => {
     });
     await userEvent.click(screen.getByRole("button", { name: "Start the move" }));
     expect(apiClient.post).toHaveBeenLastCalledWith("/skills/k1/forks/f1/to-main", {
-      budget_usd: "0.00",
+      budget_usd: "0",
     });
   });
 

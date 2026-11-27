@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { canonicalUsd, compareUsd } from "@/lib/money";
 
 import { MonetaryInput } from "@/components/money/monetary-input";
 import { useMoney } from "@/components/providers/currency-provider";
@@ -39,6 +40,8 @@ export function BudgetField({
         field="monthly_budget_usd"
         value={value}
         onValueChange={onChange}
+        onInvalidValueChange={onChange}
+        positive
         placeholder={t("budgetPlaceholder")}
       />
     </FormField>
@@ -46,17 +49,16 @@ export function BudgetField({
 }
 
 /** Whether `parsed` raises or removes the cap `stored`; no cap stored means any cap tightens. */
-export function raisesBudget(parsed: number | null | undefined, stored: number | null): boolean {
+export function raisesBudget(parsed: string | null | undefined, stored: string | null): boolean {
   if (stored === null || parsed === undefined) return false;
-  return parsed === null || parsed > stored;
+  return parsed === null || compareUsd(parsed, stored) === 1;
 }
 
 /** Blank explicitly clears a cap; malformed or nonpositive input is refused. */
-export function parseBudget(value: string): number | null | undefined {
+export function parseBudget(value: string): string | null | undefined {
   const text = value.trim();
   if (text === "") return null;
-  const parsed = Number(text);
-  return /^(?:\d+\.?\d*|\.\d+)$/.test(text) && Number.isFinite(parsed) && parsed > 0
-    ? parsed
+  return /^(?:\d+\.?\d*|\.\d+)$/.test(text) && compareUsd(text, "0") === 1
+    ? canonicalUsd(text)
     : undefined;
 }

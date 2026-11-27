@@ -38,7 +38,6 @@ export function SkillStart({
 }) {
   const monetary = useMonetaryInputs();
   const money = useMoney();
-  const tm = useTranslations("currencies");
   const t = useTranslations("skillImprovement.start");
   const setup = useTranslations("improvementSetup");
   const tErrors = useTranslations("errors");
@@ -151,7 +150,7 @@ export function SkillStart({
           </p>
           <div className="max-w-xs space-y-1.5">
             <Label htmlFor="skill-improvement-limit">
-              {tm("budgetLabel", { currency: money.currency ?? "—" })}
+              {t("limit", { currency: money.currency ?? "—" })}
             </Label>
             <MonetaryInput
               id="skill-improvement-limit"

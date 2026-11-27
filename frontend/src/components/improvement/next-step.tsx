@@ -56,7 +56,7 @@ export function NextStep({
 }) {
   const monetary = useMonetaryInputs();
   const money = useMoney();
-  const tm = useTranslations("currencies");
+  const tLimit = useTranslations("improvement");
   const t = useTranslations("improvement.nextUp");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
@@ -124,7 +124,11 @@ export function NextStep({
   async function start(value: ContinuationEstimate) {
     setSaid(null);
     try {
-      await actions.continueSession.mutateAsync({ ...value, body: monetary.payload(body ?? {}) });
+      const payload = monetary.payload(body ?? {});
+      await actions.continueSession.mutateAsync({
+        ...value,
+        ...(Object.keys(payload).length ? { body: payload } : {}),
+      });
       setMoved(null);
       setStuck(false);
       onStarted();
@@ -171,7 +175,7 @@ export function NextStep({
         <div className="max-w-sm space-y-2">
           <p className="text-sm">{t("overLimit")}</p>
           <Label htmlFor="next-step-budget">
-            {tm("budgetLabel", { currency: money.currency ?? "—" })}
+            {tLimit("budget", { currency: money.currency ?? "—" })}
           </Label>
           <div className="flex gap-2">
             <MonetaryInput

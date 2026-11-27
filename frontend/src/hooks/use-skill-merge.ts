@@ -24,7 +24,7 @@ export function useSkillMergeStart(skillId: string, forkId: string, kind: MergeK
   const estimate = useMutation({ mutationFn: () => estimateSkillMerge(skillId, forkId, kind) });
   const start = useMutation({
     mutationFn: (
-      value: string | { budget_usd: string; monetary_inputs: Record<string, CurrencyAmount> },
+      value: string | { budget_usd: string; monetary_inputs?: Record<string, CurrencyAmount> },
     ) =>
       typeof value === "string"
         ? startSkillMerge(skillId, forkId, kind, value)

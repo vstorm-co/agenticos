@@ -220,7 +220,8 @@ vi.mock("@/hooks/use-context", () => ({
   useContextFiles: () => ({ files: page.files, total: page.files.length }),
 }));
 
-vi.mock("@/stores", () => ({
+vi.mock("@/stores", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/stores")>()),
   useAgentSelectionStore: (select: (state: { select: () => void }) => unknown) =>
     select({ select: vi.fn() }),
   useConversationStore: (select: (state: { reset: () => void }) => unknown) =>

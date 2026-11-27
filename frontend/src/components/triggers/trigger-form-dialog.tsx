@@ -1,6 +1,7 @@
 "use client";
 
 import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
+import { canonicalUsd } from "@/lib/money";
 
 import { LiveSample } from "@/components/event-sources/live-sample";
 import { SourceSelector } from "@/components/event-sources/source-selector";
@@ -317,7 +318,7 @@ export function TriggerFormDialog({
     limitsLocked &&
     raisesBudget(
       parsedBudget,
-      trigger?.monthly_budget_usd != null ? Number(trigger.monthly_budget_usd) : null,
+      trigger?.monthly_budget_usd != null ? canonicalUsd(trigger.monthly_budget_usd) : null,
     );
   const budgetLimit = budgetRaised ? undefined : parsedBudget;
 
@@ -724,7 +725,7 @@ export function TriggerFormDialog({
           patch.notification_channels = notificationChannels;
         const limit = parseBudget(budget);
         const stored =
-          trigger.monthly_budget_usd != null ? Number(trigger.monthly_budget_usd) : null;
+          trigger.monthly_budget_usd != null ? canonicalUsd(trigger.monthly_budget_usd) : null;
         if (limit !== undefined && (limit !== stored || monetary.has("monthly_budget_usd")))
           patch.monthly_budget_usd = budget.trim() || null;
         // A schedule's cadence, only when a cadence control was actually touched.

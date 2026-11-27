@@ -31,7 +31,7 @@ export function CheckAgain({
 }) {
   const monetary = useMonetaryInputs();
   const money = useMoney();
-  const tm = useTranslations("currencies");
+  const tLimit = useTranslations("improvement");
   const t = useTranslations("skillImprovement.checkAgain");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
@@ -99,7 +99,7 @@ export function CheckAgain({
         <div className="max-w-sm space-y-2">
           <p className="text-sm">{t("overLimit")}</p>
           <Label htmlFor="check-again-budget">
-            {tm("budgetLabel", { currency: money.currency ?? "—" })}
+            {tLimit("budget", { currency: money.currency ?? "—" })}
           </Label>
           <div className="flex gap-2">
             <MonetaryInput

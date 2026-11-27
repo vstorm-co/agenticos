@@ -37,7 +37,6 @@ export function StartMode({
   onGradingModelChange: (id: string | null) => void;
 }) {
   const money = useMoney();
-  const tm = useTranslations("currencies");
   const t = useTranslations("improvement.startSearch");
   const { profiles, profilesStatus } = useModelProviders();
   const tooFew = trainQuestions !== null && trainQuestions < MIN_SEARCH_QUESTIONS;
@@ -90,7 +89,7 @@ export function StartMode({
         <div className="space-y-4 rounded-lg border p-3">
           <div className="space-y-1.5">
             <Label htmlFor="improvement-search-budget">
-              {tm("budgetLabel", { currency: money.currency ?? "—" })}
+              {t("budget", { currency: money.currency ?? "—" })}
             </Label>
             <MonetaryInput
               id="improvement-search-budget"

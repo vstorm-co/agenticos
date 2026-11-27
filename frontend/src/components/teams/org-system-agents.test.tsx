@@ -160,7 +160,6 @@ describe("OrgSystemAgents", () => {
     expect(state.setProactivity).toHaveBeenCalledWith("o1", {
       proactive_enabled: true,
       proactive_model_profile_id: "model-2",
-      monetary_inputs: {},
     });
     expect(state.mutateAsync).not.toHaveBeenCalled();
   });
@@ -333,7 +332,6 @@ describe("OrgSystemAgents", () => {
         enabled: false,
         model_profile_id: "model-1",
         monthly_budget_usd: null,
-        monetary_inputs: {},
       },
     });
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("savedOff"));

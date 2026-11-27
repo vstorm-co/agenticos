@@ -16,7 +16,7 @@ export interface MonetaryInputs {
   payload<T extends object>(
     value: T,
     activeFields?: readonly string[],
-  ): T & { monetary_inputs: Record<string, CurrencyAmount> };
+  ): T & { monetary_inputs?: Record<string, CurrencyAmount> };
 }
 
 /** Explicit declarations belong to this form, never to a global currency store. */
@@ -63,7 +63,7 @@ export function useMonetaryInputs(identity: string = ""): MonetaryInputs {
       for (const [field, entry] of selected) {
         if (entry.input !== null) inputs[field] = entry.input;
       }
-      return { ...value, monetary_inputs: inputs };
+      return Object.keys(inputs).length ? { ...value, monetary_inputs: inputs } : { ...value };
     },
   };
 }

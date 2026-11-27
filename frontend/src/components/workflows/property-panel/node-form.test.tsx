@@ -2101,3 +2101,26 @@ it("explains the input contract of a workflow called by another workflow", () =>
   renderForm({ definition: makeDefinition({ id: "trigger.workflow_call" }) });
   expect(screen.getByText(/Another workflow's Run a workflow step starts this one/)).toBeVisible();
 });
+
+it("keeps monetary transport descriptors out of the rendered config controls", () => {
+  renderForm({
+    definition: makeDefinition({
+      id: "test.currency",
+      config_schema: {
+        type: "object",
+        properties: {
+          prompt: { type: "string", title: "Task instructions" },
+          monetary_inputs: { type: "object", title: "Monetary Inputs", "x-internal": true },
+          monetary_terms: { type: "object", title: "Monetary Terms", "x-internal": true },
+        },
+        required: ["prompt", "monetary_inputs"],
+      },
+    }),
+    config: { prompt: "Read the project", monetary_terms: { max_cost_usd: { currency: "PLN" } } },
+  });
+  expect(screen.getByLabelText(/Task instructions/)).toHaveValue("Read the project");
+  expect(screen.queryByText("Monetary Inputs")).toBeNull();
+  expect(screen.queryByText("Monetary Terms")).toBeNull();
+  expect(screen.queryByLabelText("Monetary Inputs")).toBeNull();
+  expect(screen.queryByLabelText("Monetary Terms")).toBeNull();
+});

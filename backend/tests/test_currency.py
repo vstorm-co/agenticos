@@ -342,3 +342,14 @@ def test_custom_token_price_arithmetic_does_not_use_the_process_decimal_precisio
     rate = Decimal("123456.123456789012345678901234")
     pricing = TokenPricing(input=rate, output=0)
     assert pricing.cost(RequestUsage(input_tokens=1_000_000)) == rate
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        RequestUsage(input_tokens=-1),
+        RequestUsage(input_tokens=1, cache_read_tokens=2),
+    ],
+)
+def test_inconsistent_token_measurements_never_become_a_reported_cost(usage: RequestUsage) -> None:
+    assert TokenPricing(input=1, output=1).cost(usage) is None

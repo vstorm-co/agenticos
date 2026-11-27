@@ -29,7 +29,7 @@ export function useSkillImprovements(skillId: string, origin: SkillImprovementOr
   const estimate = useMutation({ mutationFn: () => estimateSkillImprovement(skillId, origin) });
   const start = useMutation({
     mutationFn: (
-      value: string | { budget_usd: string; monetary_inputs: Record<string, CurrencyAmount> },
+      value: string | { budget_usd: string; monetary_inputs?: Record<string, CurrencyAmount> },
     ) =>
       typeof value === "string"
         ? startSkillImprovement(skillId, origin, value)

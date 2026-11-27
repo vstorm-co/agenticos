@@ -538,7 +538,8 @@ describe("TriggersPanel", () => {
     await user.type(budget, "2");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
-      monthly_budget_usd: 2,
+      monthly_budget_usd: "2",
+      monetary_inputs: { monthly_budget_usd: { amount: "2", currency: "USD" } },
     });
   });
 

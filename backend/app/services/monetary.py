@@ -69,6 +69,11 @@ class MonetaryService:
                     f"{field_root}.{field}" if field_root else field,
                     "Enter a finite accounting limit",
                 )
+            if usd < 0:
+                raise refused_field(
+                    f"{field_root}.{field}" if field_root else field,
+                    "Enter a non-negative accounting limit",
+                )
             declared = inputs.get(field)
             if declared is None:
                 result[field] = MonetaryTerm(
@@ -127,23 +132,24 @@ class MonetaryService:
             return spec
         old = previous.budget if previous is not None else None
         retained = (
-            old.monetary_terms
-            if old is not None
-            else budget.monetary_terms
+            budget.monetary_terms
             if preserve_terms
+            else old.monetary_terms
+            if old is not None
             else {}
         )
+        keep_history = preserve_terms or old is None or old.monthly_usd == budget.monthly_usd
         current = budget.monthly_usd
         if current is not None and not Decimal(str(current)).is_finite():
             raise refused_field("budget.monthly_usd", "Enter a finite spending limit")
-        if not budget.monetary_inputs and retained and (old is None or old.monthly_usd == current):
+        if not budget.monetary_inputs and retained and keep_history:
             term = retained["monthly_usd"]
             if current is None or term.cost_usd != Decimal(str(current)):
                 raise BadRequestError(
                     message="The imported budget terms do not match its accounting limit"
                 )
             terms = {key: value.model_dump(mode="json") for key, value in retained.items()}
-        elif not budget.monetary_inputs and (old is None or old.monthly_usd == current):
+        elif not budget.monetary_inputs and keep_history:
             # Legacy USD specs need no serialized metadata merely for being read or copied.
             return spec.model_copy(
                 update={"budget": budget.model_copy(update={"monetary_terms": {}})}
@@ -225,7 +231,7 @@ class MonetaryService:
                         "max_cost_usd", "Original cap terms do not match the accounting limit"
                     )
                 retained[field] = term.model_dump(mode="json")
-        if not inputs and original is not None and original.get("max_cost_usd") == raw:
+        if not inputs:
             terms = retained
         else:
             terms = await self.terms(organization_id, values={"max_cost_usd": value}, inputs=inputs)
@@ -255,6 +261,8 @@ class MonetaryService:
             try:
                 priced = CHECK.validate_python(check.model_dump(by_alias=True))
                 assert isinstance(priced, CeilingCheck)
+                if not Decimal(str(priced.value)).is_finite():
+                    raise refused_field(f"checks.{index}.value", "Enter a finite accounting limit")
                 candidates = [
                     (position, CHECK.validate_python(candidate.model_dump(by_alias=True)))
                     for position, candidate in enumerate(unmatched)
@@ -295,11 +303,7 @@ class MonetaryService:
                         "Original criterion terms do not match its USD threshold",
                     )
                 term = retained
-            elif (
-                priced.monetary_input is None
-                and isinstance(old, CeilingCheck)
-                and old.value == priced.value
-            ):
+            elif priced.monetary_input is None:
                 term = None
             else:
                 terms = await self.terms(

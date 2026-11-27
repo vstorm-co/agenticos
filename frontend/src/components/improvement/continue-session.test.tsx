@@ -46,7 +46,7 @@ it("offers the limit in cents, and prices only the step a press starts", async (
   expect(screen.getByLabelText("Session spending limit (USD)")).toHaveValue("0.85");
   state.estimate.mockResolvedValue({ ...QUOTE, total_usd: "0.0034" });
   await userEvent.click(screen.getByRole("button", { name: "Estimate continuing the session" }));
-  expect(state.estimate).toHaveBeenCalledWith("0.85");
+  expect(state.estimate).toHaveBeenCalledWith("0.850000");
   expect(
     await screen.findByText(
       "Attempt 2 of 3: up to $0.0034 (estimate) to write the changes; testing them is priced at the next step.",
@@ -137,7 +137,7 @@ it("offers raising a budget before resuming a stopped check", async () => {
     />,
   );
   await userEvent.click(screen.getByRole("button", { name: "Raise the limit and continue" }));
-  expect(screen.getByLabelText("Session spending limit (USD)")).toHaveValue("1.00");
+  expect(screen.getByLabelText("Session spending limit (USD)")).toHaveValue("1");
 });
 it.each([
   [
