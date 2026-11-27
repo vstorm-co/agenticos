@@ -5,6 +5,7 @@ import {
   correctClaim,
   getMemoryClaimDetail,
   getMemoryInboxDecisions,
+  getMemoryInboxModelDecisions,
   getMemoryInboxRule,
   getMemoryObjectBackfill,
   getMemoryObjectMerges,
@@ -257,6 +258,7 @@ it("scopes merge candidates and mutations to the requested library and object", 
 it("pins the Inbox rule version and explicitly distinguishes a backfill resume from restart", () => {
   void getMemoryInboxRule();
   void getMemoryInboxDecisions(4);
+  void getMemoryInboxModelDecisions(4);
   void setMemoryInboxRule({
     version: 4,
     mode: "shadow",
@@ -269,7 +271,8 @@ it("pins the Inbox rule version and explicitly distinguishes a backfill resume f
   void runMemoryObjectBackfill(true);
   expect(apiClient.get).toHaveBeenNthCalledWith(1, "/memory/inbox-rule");
   expect(apiClient.get).toHaveBeenNthCalledWith(2, "/memory/inbox-rule/decisions?version=4");
-  expect(apiClient.get).toHaveBeenNthCalledWith(3, "/memory/object-backfill");
+  expect(apiClient.get).toHaveBeenNthCalledWith(3, "/memory/inbox-rule/shadow-model?version=4");
+  expect(apiClient.get).toHaveBeenNthCalledWith(4, "/memory/object-backfill");
   expect(apiClient.put).toHaveBeenCalledWith("/memory/inbox-rule", {
     expected_version: 4,
     mode: "shadow",
