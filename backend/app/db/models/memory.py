@@ -32,7 +32,18 @@ collapsed into a single value (#788).
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    true,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -95,7 +106,24 @@ class AgentMemoryFile(Base, TimestampMixin):
     silently refuses to work and never says why.
     """
 
+    object_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("memory_objects.id", ondelete="SET NULL"), index=True
+    )
+    auto_update: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
+    maintenance_source_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    maintenance_source_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("messages.id", ondelete="SET NULL")
+    )
+
     __table_args__ = (
+        UniqueConstraint("organization_id", "id", name="uq_agent_memory_files_org_id"),
+        Index(
+            "ix_agent_memory_files_auto_update",
+            "organization_id",
+            "agent_id",
+            "owner_key",
+            postgresql_where=auto_update.is_(true()) & deactivated_at.is_(None),
+        ),
         UniqueConstraint(
             "organization_id",
             "agent_id",
@@ -107,3 +135,39 @@ class AgentMemoryFile(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<AgentMemoryFile(agent={self.agent_id}, owner={self.owner_key}, name={self.name})>"
+
+
+class MemoryNoteRevision(Base):
+    """The previous body and the action that replaced it, owned through its live note."""
+
+    __tablename__ = "memory_note_revisions"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "note_id"],
+            ["agent_memory_files.organization_id", "agent_memory_files.id"],
+            name="fk_memory_note_revisions_note",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint(
+            "changed_by IN ('agent', 'person', 'maintenance', 'restore')",
+            name="memory_note_revision_changed_by",
+        ),
+        Index("ix_memory_note_revisions_order", "organization_id", "note_id", "replaced_at", "id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    note_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    changed_by: Mapped[str] = mapped_column(String(16), nullable=False)
+    replaced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    source_message_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("messages.id", ondelete="SET NULL")
+    )
+
+    def __repr__(self) -> str:
+        return f"<MemoryNoteRevision(note={self.note_id}, by={self.changed_by})>"

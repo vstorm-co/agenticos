@@ -7047,6 +7047,20 @@
           "other": "Herinnering"
         },
         "editNoteHint": "Corrigeer wat de agent over je onthoudt. Je bewerkingen worden apart vastgelegd van wat de agent oorspronkelijk schreef.",
+        "noteAutoUpdate": "Automatische updates",
+        "noteAutoUpdateHint": "Sta Memory Maintenance toe deze notitie bij te werken op basis van toekomstige privégesprekken. Eerdere versies blijven beschikbaar.",
+        "noteOpenObject": "Gekoppeld object openen",
+        "noteHistory": "Versiegeschiedenis",
+        "noteHistoryError": "Kan versies niet laden.",
+        "noteHistoryEmpty": "Deze notitie heeft geen eerdere versies.",
+        "noteRevisionAgent": "bewerking door de agent",
+        "noteRevisionPerson": "jouw bewerking",
+        "noteRevisionMaintenance": "automatische update",
+        "noteRevisionRestore": "herstel",
+        "noteRevisionLabel": "Vóór {origin} · {when}",
+        "noteRestoreVersion": "Deze versie herstellen",
+        "noteNewerVersions": "Nieuwere versies",
+        "noteOlderVersions": "Oudere versies",
         "noteDetails": "Details"
       }
     },

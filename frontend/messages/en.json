@@ -7163,6 +7163,20 @@
           "other": "Memory"
         },
         "editNoteHint": "Correct what the agent remembers about you. Your edits are recorded separately from the original agent write.",
+        "noteAutoUpdate": "Automatic updates",
+        "noteAutoUpdateHint": "Allow Memory Maintenance to update this note from future private conversations. Earlier versions remain available.",
+        "noteOpenObject": "Open linked object",
+        "noteHistory": "Version history",
+        "noteHistoryError": "Could not load versions.",
+        "noteHistoryEmpty": "This note has no earlier versions.",
+        "noteRevisionAgent": "agent edit",
+        "noteRevisionPerson": "your edit",
+        "noteRevisionMaintenance": "automatic update",
+        "noteRevisionRestore": "restore",
+        "noteRevisionLabel": "Before {origin} · {when}",
+        "noteRestoreVersion": "Restore this version",
+        "noteNewerVersions": "Newer versions",
+        "noteOlderVersions": "Older versions",
         "noteDetails": "Memory details"
       }
     },

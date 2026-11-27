@@ -153,19 +153,24 @@ class Replay:
                 )
                 archive_calls.update(call.tool_name for call in calls)
                 original_conversations.append(
-                    await maintain_session(db, self.starter, user_id, session)
+                    await maintain_session(db, self.starter, user_id, session, write_notes=True)
                 )
             luna_cost = await maintenance_cost(db, self.starter, user_id, query)
-            notes = await db.scalar(
-                select(func.count())
-                .select_from(AgentMemoryFile)
-                .where(
-                    AgentMemoryFile.organization_id == ctx.organization_id,
-                    AgentMemoryFile.agent_id == self.starter.agent_id,
-                    AgentMemoryFile.owner_key == person_owner_key(user_id),
-                    AgentMemoryFile.deactivated_at.is_(None),
+            maintained_notes, notes = (
+                await db.execute(
+                    select(
+                        func.count().filter(
+                            AgentMemoryFile.maintenance_source_message_id.is_not(None)
+                        ),
+                        func.count(),
+                    ).where(
+                        AgentMemoryFile.organization_id == ctx.organization_id,
+                        AgentMemoryFile.agent_id == self.starter.agent_id,
+                        AgentMemoryFile.owner_key == person_owner_key(user_id),
+                        AgentMemoryFile.deactivated_at.is_(None),
+                    )
                 )
-            )
+            ).one()
             maintenance_claims, claims = (
                 await db.execute(
                     select(
@@ -195,6 +200,7 @@ class Replay:
             "agent_input_tokens": self.usage.input_tokens - before_input,
             "agent_output_tokens": self.usage.output_tokens - before_output,
             "persisted_notes": notes,
+            "persisted_maintained_notes": maintained_notes,
             "persisted_claims": claims,
             "persisted_maintenance_claims": maintenance_claims,
             "persisted_agent_claims": claims - maintenance_claims,

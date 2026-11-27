@@ -21,7 +21,7 @@ SCOPES_PER_SWEEP = 200
 """How many changed scopes one sweep folds; the rest wait for the next."""
 
 
-async def extract_memory(payload: ExtractMemory) -> int:
+async def extract_memory(payload: ExtractMemory, *, write_notes: bool = True) -> int:
     """Read one finished chat for what is worth remembering. Returns how many claims it recorded."""
     async with get_db_context() as db:
         if payload.audience_user_id is not None:
@@ -33,8 +33,11 @@ async def extract_memory(payload: ExtractMemory) -> int:
                     user_id=payload.audience_user_id,
                     room_key=payload.audience_room_key,
                 ),
+                write_notes=write_notes,
             )
-        return await extraction.extract(db, payload.organization_id, payload.run_id)
+        return await extraction.extract(
+            db, payload.organization_id, payload.run_id, write_notes=write_notes
+        )
 
 
 async def consolidate_memory() -> int:

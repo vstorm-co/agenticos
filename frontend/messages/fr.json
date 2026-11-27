@@ -6931,6 +6931,20 @@
           "other": "Mémoire"
         },
         "editNoteHint": "Corrigez ce que l’agent retient à votre sujet. Vos modifications sont consignées séparément de l’écriture d’origine de l’agent.",
+        "noteAutoUpdate": "Mises à jour automatiques",
+        "noteAutoUpdateHint": "Autorisez Memory Maintenance à actualiser cette note à partir de futures conversations privées. Les versions précédentes restent disponibles.",
+        "noteOpenObject": "Ouvrir l’objet associé",
+        "noteHistory": "Historique des versions",
+        "noteHistoryError": "Impossible de charger les versions.",
+        "noteHistoryEmpty": "Cette note n’a pas de version antérieure.",
+        "noteRevisionAgent": "modification par l’agent",
+        "noteRevisionPerson": "votre modification",
+        "noteRevisionMaintenance": "mise à jour automatique",
+        "noteRevisionRestore": "restauration",
+        "noteRevisionLabel": "Avant {origin} · {when}",
+        "noteRestoreVersion": "Restaurer cette version",
+        "noteNewerVersions": "Versions plus récentes",
+        "noteOlderVersions": "Versions plus anciennes",
         "noteDetails": "Détails de la mémoire"
       }
     },

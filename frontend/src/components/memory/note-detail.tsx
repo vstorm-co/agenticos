@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { Download, EyeOff, RotateCcw, Trash2 } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
+import Link from "next/link";
 import { saveBlob } from "@/lib/file-access";
 import {
   Badge,
@@ -23,6 +24,7 @@ import { shareMemoryNote, type MemoryNote } from "@/lib/memory-api";
 import type { AgentUsage } from "@/types/agents";
 import { MemoryAgentAvatar } from "./memory-agent-avatar";
 import { MemoryPublication } from "./memory-publication";
+import { NoteMaintenance } from "./note-maintenance";
 
 export function NoteDetail({
   note,
@@ -47,7 +49,7 @@ export function NoteDetail({
   const files = useTranslations("files");
   const format = useFormatter();
   const unsavedId = useId();
-  const [original] = useState(note);
+  const [original, setOriginal] = useState(note);
   const [content, setContent] = useState(note.content);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -92,6 +94,13 @@ export function NoteDetail({
             {note.description && (
               <p className="text-muted-foreground text-sm">{note.description}</p>
             )}
+            {note.object_id && (
+              <Button variant="link" asChild disabled={busy || dirty} className="px-0">
+                <Link href={`/settings/memory?object=${note.object_id}`}>
+                  {view("noteOpenObject")}
+                </Link>
+              </Button>
+            )}
             <FileEditor
               name={note.name.endsWith(".md") ? note.name : `${note.name}.md`}
               label={note.name}
@@ -102,6 +111,12 @@ export function NoteDetail({
               }}
               initialMode="preview"
               className="h-[min(25rem,50dvh)]"
+            />
+            <NoteMaintenance
+              note={original}
+              disabled={busy || dirty}
+              onToggled={setOriginal}
+              onRestored={onClose}
             />
           </div>
           <DialogFooter className="flex-wrap sm:justify-between">

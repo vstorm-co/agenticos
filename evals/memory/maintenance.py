@@ -135,10 +135,18 @@ async def seed_user(db: AsyncSession, starter: Starter) -> UUID:
 
 
 async def maintain_session(
-    db: AsyncSession, starter: Starter, user_id: UUID, session: Session
+    db: AsyncSession,
+    starter: Starter,
+    user_id: UUID,
+    session: Session,
+    *,
+    write_notes: bool = False,
 ) -> UUID:
     conversation_id, run_id = await seed_session(db, starter, user_id, session)
-    await extract_memory(ExtractMemory(organization_id=starter.organization_id, run_id=run_id))
+    await extract_memory(
+        ExtractMemory(organization_id=starter.organization_id, run_id=run_id),
+        write_notes=write_notes,
+    )
     return conversation_id
 
 

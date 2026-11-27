@@ -16,6 +16,8 @@ export interface MemoryNote {
   agent_id: string;
   agent_name: string | null;
   name: string;
+  auto_update?: boolean;
+  object_id?: string | null;
   description: string | null;
   content: string;
   format: string;
@@ -48,6 +50,32 @@ export async function setNoteActive(id: string, active: boolean): Promise<Memory
 export async function editNoteContent(note: MemoryNote, content: string): Promise<MemoryNote> {
   return apiClient.patch<MemoryNote>(`${ROOT}/mine/${note.id}/content`, {
     content,
+    expected_updated_at: note.updated_at,
+  });
+}
+
+export interface NoteRevision {
+  id: string;
+  content: string;
+  changed_by: "agent" | "person" | "maintenance" | "restore";
+  replaced_at: string;
+}
+
+export function getNoteRevisions(id: string, skip: number) {
+  return apiClient.get<{ items: NoteRevision[]; total: number }>(
+    `${ROOT}/mine/${id}/revisions?skip=${skip}`,
+  );
+}
+
+export function setNoteAutoUpdate(note: MemoryNote, enabled: boolean) {
+  return apiClient.patch<MemoryNote>(`${ROOT}/mine/${note.id}/auto-update`, {
+    enabled,
+    expected_updated_at: note.updated_at,
+  });
+}
+
+export function restoreNoteRevision(note: MemoryNote, revision: string) {
+  return apiClient.post<MemoryNote>(`${ROOT}/mine/${note.id}/revisions/${revision}/restore`, {
     expected_updated_at: note.updated_at,
   });
 }

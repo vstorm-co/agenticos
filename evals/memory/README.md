@@ -15,11 +15,20 @@ comparison, run commands, the product tool path and GPT-5 cost estimates.
 | Planned work | Evidence in this PR | Open work |
 | --- | --- | --- |
 | Ledger correctness and timeline | The existing ledger preserves effective dates on publication, ranks before applying the limit, and supports `as_of` and `known_at`. The PostgreSQL replay covers headcount, retroactive correction, relevance after noise and history pagination. | Measure quality and latency on the frozen slices. |
-| Personal and organization memory | Settings → Memory offers personal and organization views, Memories and Notes, business objects, history, publication review and conflicts. A business project can exist independently of an AgenticOS workspace. Existing rows remain readable. | General alias suggestions, auditable object merge/split and bulk identity backfill. |
-| Agent tools and maintenance | `remember` handles explicit memory, `write_memory` keeps agents' notes, and maintenance extracts admissible claims from conversations. External observations use `memory.observe` inside Workflows. | Run the paired maintenance and full product paths on the frozen corpus. |
-| Gmail and CRM | Existing Gmail and signed webhook triggers admit observations to a common contract. The CRM fixture exercises that contract. There are PostgreSQL tests for chat/Gmail agreement, conflicts, retry, preview and revocation. | A direct native CRM-to-memory path, real provider runs and end-to-end lease-loss testing. Use the signed relay for the implemented CRM path. A dedicated memory-specific connector manager was removed in favor of Workflows. |
+| Personal and organization memory | Settings → Memory offers personal and organization views, Memories and Notes, business objects, history, publication review and conflicts. A business project can exist independently of an AgenticOS workspace. Existing rows remain readable. | General alias suggestions, auditable object merge/split and resumable identity backfill. |
+| Agent tools and maintenance | `remember` handles explicit memory, `write_memory` keeps agents' notes, and maintenance extracts admissible claims from conversations and can create or refresh a private working note. External observations use `memory.observe` inside Workflows. | Run the paired maintenance and full product paths on the frozen corpus. |
+| Gmail and CRM | Existing Gmail and signed webhook triggers admit observations to a common contract. The CRM fixture exercises that contract. There are PostgreSQL tests for chat/Gmail agreement, conflicts, retry, preview and revocation. | A direct native CRM-to-memory path, real provider runs, a source operations view and end-to-end lease-loss testing. Use the signed relay for the implemented CRM path. A dedicated memory-specific connector manager was removed in favor of Workflows. |
 | Proactivity and Inbox | Workflows can route the action's typed result, including `changed`, through existing workflow steps. Replay checks the observation and its change signal. | Versioned decision policy, transactional and idempotent Inbox delivery, recipient authorization at delivery, correction cards and shadow results. The existing replay does not assert delivery to Inbox. |
 | Quality, scale and governance | The three TSV datasets, context packets and enterprise replay cover initial cases. This directory adds frozen comparison slices, paired metrics and a synthetic scale runner. | Published measurements, a frozen enterprise holdout with PL/EN pairs, concurrent tenant load, index rebuild and erasure after restore. An ontology or graph backend and decision models remain separate experiments. |
+
+Maintenance presents up to four complete, opted-in notes of up to 4,000 characters to its model alongside one
+finished private conversation, ranked by overlap with the user's recent words. An existing note changes only with the owner's
+opt-in, evidence after that opt-in, and the same revision it had before the model call. A newer correction,
+suppression or opt-out prevents the replacement. A late or replayed source cannot
+replace a note already updated from that source or a later one. Maintenance can
+create a new grounded private note without taking over a name in use. The agent can link a Note to an object in the same scope. Editors can
+browse the previous bodies and restore one. Restoring keeps the body it replaces.
+Organization Notes remain explicit publications of the reviewed version.
 
 See the [implementation plan](https://agenticos-memory-research.vstorm-3469.chatgpt.site/implementation.html),
 the [enterprise integration tests](../../backend/tests/integration/test_memory_enterprise.py),

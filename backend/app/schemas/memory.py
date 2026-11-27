@@ -49,6 +49,8 @@ class MemoryNoteRead(BaseSchema):
     id: UUID
     agent_id: UUID
     agent_name: str | None = None
+    object_id: UUID | None = None
+    auto_update: bool = False
     name: str
     description: str | None = None
     content: str
@@ -80,6 +82,34 @@ class MemoryNoteEdit(BaseSchema):
     model_config = ConfigDict(extra="forbid")
     content: str = Field(min_length=1, max_length=100_000)
     expected_updated_at: AwareDatetime | None
+
+
+MAX_AUTOMATIC_NOTE_CHARS = 4000
+
+
+class MemoryNoteAutoUpdate(BaseSchema):
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool
+    expected_updated_at: AwareDatetime | None
+
+
+class MemoryNoteRestore(BaseSchema):
+    model_config = ConfigDict(extra="forbid")
+    expected_updated_at: AwareDatetime | None
+
+
+class MemoryNoteRevisionRead(BaseSchema):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    content: str
+    changed_by: Literal["agent", "person", "maintenance", "restore"]
+    replaced_at: datetime
+
+
+class MemoryNoteRevisionList(BaseSchema):
+    items: list[MemoryNoteRevisionRead]
+    total: int
 
 
 MemoryValue = StrictStr | StrictInt | StrictBool

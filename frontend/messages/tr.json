@@ -2589,7 +2589,21 @@
       "restore": "Bu notu yeniden kullan",
       "delete": "Bu notu sil",
       "browser": {
-        "editNoteHint": "Agent’ın sizin hakkınızda hatırladıklarını düzeltin. Düzenlemeleriniz ilk agent kaydından ayrı tutulur."
+        "editNoteHint": "Agent’ın sizin hakkınızda hatırladıklarını düzeltin. Düzenlemeleriniz ilk agent kaydından ayrı tutulur.",
+        "noteAutoUpdate": "Otomatik güncellemeler",
+        "noteAutoUpdateHint": "Memory Maintenance aracının gelecekteki özel görüşmelerden yararlanarak bu notu güncellemesine izin verin. Önceki sürümlere erişebilirsiniz.",
+        "noteOpenObject": "Bağlı nesneyi aç",
+        "noteHistory": "Sürüm geçmişi",
+        "noteHistoryError": "Sürümler yüklenemedi.",
+        "noteHistoryEmpty": "Bu notun önceki sürümü yok.",
+        "noteRevisionAgent": "ajan düzenlemesi",
+        "noteRevisionPerson": "düzenlemeniz",
+        "noteRevisionMaintenance": "otomatik güncelleme",
+        "noteRevisionRestore": "geri yükleme",
+        "noteRevisionLabel": "{origin} öncesi · {when}",
+        "noteRestoreVersion": "Bu sürümü geri yükle",
+        "noteNewerVersions": "Daha yeni sürümler",
+        "noteOlderVersions": "Daha eski sürümler"
       }
     },
     "agentDetail": {

@@ -7047,6 +7047,20 @@
           "other": "Memória"
         },
         "editNoteHint": "Corrija o que o agente lembra sobre você. Suas edições são registradas separadamente da gravação original do agente.",
+        "noteAutoUpdate": "Atualizações automáticas",
+        "noteAutoUpdateHint": "Permita que o Memory Maintenance atualize esta nota com base em conversas privadas futuras. As versões anteriores continuam disponíveis.",
+        "noteOpenObject": "Abrir objeto associado",
+        "noteHistory": "Histórico de versões",
+        "noteHistoryError": "Não foi possível carregar as versões.",
+        "noteHistoryEmpty": "Esta nota não tem versões anteriores.",
+        "noteRevisionAgent": "edição do agente",
+        "noteRevisionPerson": "a sua edição",
+        "noteRevisionMaintenance": "atualização automática",
+        "noteRevisionRestore": "restauro",
+        "noteRevisionLabel": "Antes de {origin} · {when}",
+        "noteRestoreVersion": "Restaurar esta versão",
+        "noteNewerVersions": "Versões mais recentes",
+        "noteOlderVersions": "Versões mais antigas",
         "noteDetails": "Detalhes da memória"
       }
     },

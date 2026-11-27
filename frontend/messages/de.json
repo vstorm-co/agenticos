@@ -6435,6 +6435,20 @@
           "other": "Erinnerung"
         },
         "editNoteHint": "Korrigiere, was sich der Agent über dich merkt. Deine Änderungen werden getrennt vom ursprünglichen Agent-Eintrag protokolliert.",
+        "noteAutoUpdate": "Automatische Aktualisierungen",
+        "noteAutoUpdateHint": "Erlaube Memory Maintenance, diese Notiz anhand künftiger privater Unterhaltungen zu aktualisieren. Frühere Versionen bleiben verfügbar.",
+        "noteOpenObject": "Verknüpftes Objekt öffnen",
+        "noteHistory": "Versionsverlauf",
+        "noteHistoryError": "Versionen konnten nicht geladen werden.",
+        "noteHistoryEmpty": "Für diese Notiz gibt es keine früheren Versionen.",
+        "noteRevisionAgent": "Bearbeitung durch den Agenten",
+        "noteRevisionPerson": "deiner Bearbeitung",
+        "noteRevisionMaintenance": "automatischer Aktualisierung",
+        "noteRevisionRestore": "der Wiederherstellung",
+        "noteRevisionLabel": "Vor {origin} · {when}",
+        "noteRestoreVersion": "Diese Version wiederherstellen",
+        "noteNewerVersions": "Neuere Versionen",
+        "noteOlderVersions": "Ältere Versionen",
         "noteDetails": "Gedächtnisdetails"
       }
     },

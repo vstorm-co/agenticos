@@ -23,7 +23,8 @@ Use single-turn answers with the same evidence envelope and no tools in this con
 comparison. Each system keeps its own extraction prompt, storage, indexing and ranking.
 The AgenticOS replay creates one completed private chat run per historical session and invokes
 the production worker handler synchronously. This measures its extraction and persistence
-without queue wait. The claims are written at replay time, so the retrieval step reads
+without queue wait. This controlled arm disables narrative Notes and retrieves ledger claims.
+The claims are written at replay time, so the retrieval step reads
 current claims from a database containing only pre-question input. It gets source dates from
 the seeded conversations. Real historical `as_of` and retrospective `known_at` stay covered by
 the deterministic ledger and enterprise replay. Differences in the way production maintenance
@@ -44,7 +45,9 @@ Use both paths in each isolated case. Replay the earlier sessions in order. For 
 session, Sonnet receives the original dated transcript as data in a separate review
 call. Its production memory tools can save a useful note or handle an explicit
 remember/correct request in the source. Luna processes the original dated session
-through the maintenance handler and writes supported claims. The agent's synthetic
+through the maintenance handler and writes supported claims. It can also create
+or refresh a grounded private Note. Existing authored Notes require owner opt-in.
+The agent's synthetic
 review call is excluded from maintenance. The frozen history is independent of the
 held-out question and the gold answer.
 
@@ -68,9 +71,9 @@ controlled comparison. A comparison against the existing Mem0 arm is a system re
 under different workflows. The controlled pair remains the comparison under shared
 answer conditions.
 
-If adding maintainer-generated Notes later, use a separate experiment with source-linked
-drafts and compare against this run. Track wrong or stale handoffs, duplicate content,
-evidence coverage and when a person actually needs to review a draft.
+An authored replay covers opt-in, stale writes and restoring an earlier body. Public
+LongMemEval sessions carry no consent to toggle an existing note on the owner's behalf.
+The full replay reports notes with maintenance evidence separately in its usage log.
 
 ## Commands
 

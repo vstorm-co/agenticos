@@ -98,6 +98,8 @@ export const qk = {
     all: (orgId: string) => ["memory", orgId] as const,
     /** One page of what the agents in one organization have written about the caller. */
     mine: (orgId: string, skip: number, q = "") => ["memory", orgId, "mine", skip, q] as const,
+    noteRevisions: (orgId: string, noteId: string, skip: number) =>
+      ["memory", orgId, "note-revisions", noteId, skip] as const,
     /** The claims recorded about the caller; history adds what they replaced. */
     claims: (
       orgId: string,

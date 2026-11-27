@@ -58,6 +58,7 @@ from app.repositories import (
 from app.schemas.dataset import DatasetCaseContent, DatasetCaseRead
 from app.schemas.decision_episode import DecisionEpisode, ImproveCaseReview
 from app.schemas.memory import (
+    MAX_AUTOMATIC_NOTE_CHARS,
     MAX_CONFLICT_CANDIDATES,
     MemoryClaimCorrect,
     MemoryClaimDetail,
@@ -68,9 +69,13 @@ from app.schemas.memory import (
     MemoryConflictResolve,
     MemoryErasureResult,
     MemoryLibrary,
+    MemoryNoteAutoUpdate,
     MemoryNoteEdit,
     MemoryNoteList,
     MemoryNoteRead,
+    MemoryNoteRestore,
+    MemoryNoteRevisionList,
+    MemoryNoteRevisionRead,
     MemoryNoteShare,
     MemoryObjectKind,
     MemoryObjectPage,
@@ -303,7 +308,7 @@ class MemoryService:
     ) -> SharedMemoryNoteRead:
         target = await self._publication_target(ctx, data.group_id)
         await hold_subject(self.db, LockScope.PERSONAL_DATA_PER_USER, ctx.subject_id)
-        note = await self._own_note(ctx, note_id)
+        note = await self._own_note(ctx, note_id, for_update=True)
         if note.deactivated_at is not None or note.updated_at != data.expected_updated_at:
             raise ConflictError(message="The note changed. Open it again before sharing.")
         shared = await memory_claim.publish_note(
@@ -663,7 +668,9 @@ class MemoryService:
             raise AlreadyExistsError(
                 message="This note changed. Reopen it before saving your correction."
             )
-        await memory_repo.update(self.db, file=row, update_data={"content": data.content})
+        await memory_repo.replace_content(
+            self.db, file=row, content=data.content, changed_by="person"
+        )
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -673,6 +680,86 @@ class MemoryService:
             target_id=str(file_id),
             details={"agent_id": str(row.agent_id), "fields": ["content"]},
         )
+        names = await self._agent_names({row.agent_id})
+        return MemoryNoteRead.model_validate(row).model_copy(
+            update={"agent_name": names.get(row.agent_id)}
+        )
+
+    async def set_note_auto_update(
+        self, ctx: AuthContext, file_id: UUID, data: MemoryNoteAutoUpdate
+    ) -> MemoryNoteRead:
+        row = await self._own_note(ctx, file_id, for_update=True)
+        if row.updated_at != data.expected_updated_at:
+            raise ConflictError(
+                message="The note changed. Open it again before changing automatic updates."
+            )
+        if data.enabled and (
+            row.name.casefold() == INDEX_NAME.casefold()
+            or len(row.content) > MAX_AUTOMATIC_NOTE_CHARS
+        ):
+            raise ConflictError(
+                message="Automatic updates require a working note of at most 4000 characters."
+            )
+        if row.auto_update != data.enabled:
+            changes: dict[str, object] = {"auto_update": data.enabled}
+            if data.enabled:
+                # A job already queued before the owner's choice cannot use the new consent.
+                changes["maintenance_source_at"] = datetime.now(UTC)
+            await memory_repo.update(self.db, file=row, update_data=changes)
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.note.auto_update",
+            target_type="memory_file",
+            target_id=str(file_id),
+            details={"enabled": data.enabled},
+        )
+        return await self._note_read(row)
+
+    async def note_revisions(
+        self, ctx: AuthContext, file_id: UUID, *, skip: int, limit: int
+    ) -> MemoryNoteRevisionList:
+        await self._own_note(ctx, file_id)
+        rows, total = await memory_repo.note_revisions(
+            self.db,
+            organization_id=ctx.organization_id,
+            note_id=file_id,
+            skip=skip,
+            limit=limit,
+        )
+        return MemoryNoteRevisionList(
+            items=[MemoryNoteRevisionRead.model_validate(row) for row in rows], total=total
+        )
+
+    async def restore_note_revision(
+        self, ctx: AuthContext, file_id: UUID, revision_id: UUID, data: MemoryNoteRestore
+    ) -> MemoryNoteRead:
+        row = await self._own_note(ctx, file_id, for_update=True)
+        if row.updated_at != data.expected_updated_at:
+            raise ConflictError(
+                message="The note changed. Open it again before restoring a previous version."
+            )
+        revision = await memory_repo.note_revision(
+            self.db, organization_id=ctx.organization_id, note_id=file_id, revision_id=revision_id
+        )
+        if revision is None:
+            raise NotFoundError(message="Memory note revision not found")
+        await memory_repo.replace_content(
+            self.db, file=row, content=revision.content, changed_by="restore"
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.note.revision.restored",
+            target_type="memory_file",
+            target_id=str(file_id),
+            details={"revision_id": str(revision_id)},
+        )
+        return await self._note_read(row)
+
+    async def _note_read(self, row: AgentMemoryFile) -> MemoryNoteRead:
         names = await self._agent_names({row.agent_id})
         return MemoryNoteRead.model_validate(row).model_copy(
             update={"agent_name": names.get(row.agent_id)}
@@ -690,7 +777,7 @@ class MemoryService:
                 whether a note exists in somebody else's store is itself something
                 the caller may not learn.
         """
-        row = await self._own_note(ctx, file_id)
+        row = await self._own_note(ctx, file_id, for_update=True)
         await memory_repo.update(
             self.db,
             file=row,
@@ -716,7 +803,7 @@ class MemoryService:
 
     async def delete_note(self, ctx: AuthContext, file_id: UUID) -> None:
         """Delete one of the caller's own notes outright."""
-        row = await self._own_note(ctx, file_id)
+        row = await self._own_note(ctx, file_id, for_update=True)
         agent_id, name = row.agent_id, row.name
         await self._prune_index(row)
         await memory_repo.delete(self.db, row)
@@ -730,7 +817,9 @@ class MemoryService:
             details={"agent_id": str(agent_id), "name": name},
         )
 
-    async def _own_note(self, ctx: AuthContext, file_id: UUID) -> AgentMemoryFile:
+    async def _own_note(
+        self, ctx: AuthContext, file_id: UUID, *, for_update: bool = False
+    ) -> AgentMemoryFile:
         """One note, only if it is in the caller's own store.
 
         The owner is part of the lookup rather than checked afterwards - owning a
@@ -742,6 +831,7 @@ class MemoryService:
             organization_id=ctx.organization_id,
             owner_key=person_owner_key(ctx.subject_id),
             file_id=file_id,
+            for_update=for_update,
         )
         if row is None:
             raise NotFoundError(message="Memory note not found", details={"file_id": file_id})

@@ -38,9 +38,12 @@ from app.schemas.memory import (
     MemoryConflictResolve,
     MemoryErasureResult,
     MemoryLibrary,
+    MemoryNoteAutoUpdate,
     MemoryNoteEdit,
     MemoryNoteList,
     MemoryNoteRead,
+    MemoryNoteRestore,
+    MemoryNoteRevisionList,
     MemoryNoteShare,
     MemoryNoteUpdate,
     MemoryObjectKind,
@@ -183,6 +186,34 @@ async def set_my_note_active(
     living with a note and erasing everything.
     """
     return await service.set_active(ctx, file_id, active=data.active)
+
+
+@router.patch("/mine/{file_id}/auto-update", response_model=MemoryNoteRead)
+async def set_my_note_auto_update(
+    file_id: UUID, data: MemoryNoteAutoUpdate, service: MemorySvc, ctx: Auth
+) -> Any:
+    """Allow or stop maintenance updates for a note in the caller's own store."""
+    return await service.set_note_auto_update(ctx, file_id, data)
+
+
+@router.get("/mine/{file_id}/revisions", response_model=MemoryNoteRevisionList)
+async def list_my_note_revisions(
+    file_id: UUID,
+    service: MemorySvc,
+    ctx: Auth,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(5, ge=1, le=20),
+) -> Any:
+    """Read previous bodies of a note in the caller's own store."""
+    return await service.note_revisions(ctx, file_id, skip=skip, limit=limit)
+
+
+@router.post("/mine/{file_id}/revisions/{revision_id}/restore", response_model=MemoryNoteRead)
+async def restore_my_note_revision(
+    file_id: UUID, revision_id: UUID, data: MemoryNoteRestore, service: MemorySvc, ctx: Auth
+) -> Any:
+    """Restore an earlier body, preserving the one being replaced."""
+    return await service.restore_note_revision(ctx, file_id, revision_id, data)
 
 
 @router.patch("/mine/{file_id}/content", response_model=MemoryNoteRead)

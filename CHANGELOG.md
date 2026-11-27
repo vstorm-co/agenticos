@@ -25,6 +25,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Record verified Gmail or signed webhook observations in organization memory through published Workflows. Compose approvals and notifications using the existing steps.
 - Link matching Gmail and reviewed chat evidence on a shared business object, and resolve conflicting values in the organization memory library.
 - Choose a separate Memory maintenance model during bootstrap with `--memory-maintenance-model`.
+- Browse previous versions of personal Notes, restore a version, and let Memory Maintenance update individual opted-in notes from private conversations.
 
 ### Fixed
 

@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
+from pydantic import AwareDatetime
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
@@ -138,7 +139,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             for entry in entries
         )
 
-    async def read_memory(self, ctx: RunContext[AgentDeps], name: str) -> str:
+    async def read_memory(
+        self, ctx: RunContext[AgentDeps], name: str, include_revision: bool = False
+    ) -> str:
         """Read one note's body by its name.
 
         Use it when your index mentions a note that looks relevant to what you are
@@ -148,6 +151,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
 
         Args:
             name: The note's name, exactly as the index or `list_memory` gives it.
+            include_revision: Include the revision token when preparing to edit the note.
 
         Returns:
             The note's body, or - when nothing of that name exists - a retry naming
@@ -157,9 +161,21 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         if isinstance(scope, str):
             return scope
         organization_id, agent_id, owner_key = scope
-        content = await memory_store.read_file(
-            organization_id=organization_id, agent_id=agent_id, owner_key=owner_key, name=name
-        )
+        if include_revision:
+            snapshot = await memory_store.read_file_revision(
+                organization_id=organization_id,
+                agent_id=agent_id,
+                owner_key=owner_key,
+                name=name,
+            )
+            if snapshot is not None:
+                content, revision = snapshot
+                return f"Revision: {revision.isoformat()}\n\n{content}"
+            content = None
+        else:
+            content = await memory_store.read_file(
+                organization_id=organization_id, agent_id=agent_id, owner_key=owner_key, name=name
+            )
         if content is None:
             entries = await memory_store.list_files(
                 organization_id=organization_id, agent_id=agent_id, owner_key=owner_key
@@ -179,6 +195,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         content: str,
         description: str | None = None,
         kind: str = "note",
+        object_id: UUID | None = None,
     ) -> str:
         """Save a new note under a name, so a later conversation can find it.
 
@@ -192,6 +209,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             content: What to remember, as plain text or Markdown.
             description: The one line shown for it in `list_memory`.
             kind: A short category, e.g. `note`, `profile`, `preference`.
+            object_id: Optional business object ID from remember or recall in this same memory scope.
 
         Returns:
             A confirmation, or - when the name is already taken - a note to edit
@@ -220,25 +238,36 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 description=description,
                 kind=kind,
                 run_id=ctx.deps.run_id,
+                object_id=object_id,
             )
         except memory_store.ErasedDuringRun:
             return _ERASED
+        except memory_store.NoteObjectUnavailable:
+            return "That object is unavailable in this note's memory scope."
         if not created:
             return (
                 f"A note named {name!r} already exists. Use `edit_memory` to change it, "
                 "or choose a different name."
             )
-        return f"Saved note {name!r}."
+        linked = f" (object {object_id})" if object_id is not None else ""
+        return f"Saved note {name!r}{linked}."
 
-    async def edit_memory(self, ctx: RunContext[AgentDeps], name: str, content: str) -> str:
+    async def edit_memory(
+        self,
+        ctx: RunContext[AgentDeps],
+        name: str,
+        content: str,
+        expected_revision: AwareDatetime | None = None,
+    ) -> str:
         """Replace the body of a note you already saved.
 
-        Read the note first so you preserve existing useful details. To create or
+        Read the note with include_revision=true before updating it. To create or
         remove a note use `write_memory` or `delete_memory`.
 
         Args:
             name: The name of an existing note.
             content: The new body, which replaces the old one entirely.
+            expected_revision: The revision token returned by read_memory, to guard against concurrent edits.
 
         Returns:
             A confirmation, or a note that nothing of that name exists here, so
@@ -256,9 +285,14 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 name=name,
                 content=content,
                 run_id=ctx.deps.run_id,
+                expected_revision=expected_revision,
             )
         except memory_store.ErasedDuringRun:
             return _ERASED
+        except memory_store.NoteChangedDuringRead:
+            return steer(
+                ctx, "The note changed. Read it again with include_revision=true before editing."
+            )
         if not edited:
             return f"No note named {name!r} to edit. Use `write_memory` to save a new one."
         return f"Updated note {name!r}."

@@ -2355,6 +2355,20 @@
           "other": "Wspomnienie"
         },
         "editNoteHint": "Popraw to, co agent pamięta o Tobie. Twoje korekty są rejestrowane osobno od pierwotnego zapisu agenta.",
+        "noteAutoUpdate": "Automatyczne aktualizacje",
+        "noteAutoUpdateHint": "Zezwól Memory Maintenance na aktualizowanie tej notatki na podstawie przyszłych prywatnych rozmów. Poprzednie wersje pozostają dostępne.",
+        "noteOpenObject": "Otwórz powiązany obiekt",
+        "noteHistory": "Historia wersji",
+        "noteHistoryError": "Nie udało się załadować wersji.",
+        "noteHistoryEmpty": "Ta notatka nie ma wcześniejszych wersji.",
+        "noteRevisionAgent": "edycją agenta",
+        "noteRevisionPerson": "Twoją edycją",
+        "noteRevisionMaintenance": "automatyczną aktualizacją",
+        "noteRevisionRestore": "przywróceniem",
+        "noteRevisionLabel": "Przed {origin} · {when}",
+        "noteRestoreVersion": "Przywróć tę wersję",
+        "noteNewerVersions": "Nowsze wersje",
+        "noteOlderVersions": "Starsze wersje",
         "noteDetails": "Szczegóły pamięci"
       }
     },

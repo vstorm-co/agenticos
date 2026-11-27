@@ -386,3 +386,32 @@ async def test_shared_memory_conflict_route_forwards_reviewed_ids() -> None:
             assert response.json()["id"] == str(_CLAIM_ID)
     resolve.assert_awaited_once()
     assert resolve.await_args.args[2].candidate_ids == [_CLAIM_ID, NOTE]
+
+
+async def test_note_maintenance_and_history_use_the_same_private_note_routes() -> None:
+    from app.schemas.memory import MemoryNoteRevisionList
+
+    revision = uuid4()
+    consent = AsyncMock(return_value=_NOTE.model_copy(update={"auto_update": True}))
+    history = AsyncMock(return_value=MemoryNoteRevisionList(items=[], total=0))
+    restore = AsyncMock(return_value=_NOTE)
+    with (
+        patch("app.services.memory.MemoryService.set_note_auto_update", consent),
+        patch("app.services.memory.MemoryService.note_revisions", history),
+        patch("app.services.memory.MemoryService.restore_note_revision", restore),
+    ):
+        async with _client() as client:
+            enabled = await client.patch(
+                f"{ROOT}/mine/{NOTE}/auto-update",
+                json={"enabled": True, "expected_updated_at": None},
+            )
+            page = await client.get(f"{ROOT}/mine/{NOTE}/revisions?skip=5")
+            restored = await client.post(
+                f"{ROOT}/mine/{NOTE}/revisions/{revision}/restore",
+                json={"expected_updated_at": None},
+            )
+    assert enabled.status_code == 200 and enabled.json()["auto_update"]
+    assert page.json() == {"items": [], "total": 0}
+    assert history.await_args.kwargs == {"skip": 5, "limit": 5}
+    assert restored.status_code == 200
+    assert restore.await_args.args[1:3] == (NOTE, revision)
