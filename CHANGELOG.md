@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Fixed
+
+- Showing whether a change of model may be accepted no longer compares a measured check again on every read; it reads the check's kept verdict.
+
 ## [1.95.0] - 2026-11-26
 
 ### Fixed
