@@ -2404,65 +2404,58 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         pinned_version_id: UUID | None = None,
         result_mode: Literal["report", "inbox"] | None = None,
     ) -> dict[str, Any]:
-        """Make an agent run itself on a schedule - a Routine. Needs `agents:run` on it.
+        """Schedule recurring agent work as a Routine. Needs `agents:run` on it.
 
-        Omit `agent_id` to schedule yourself, the agent this run belongs to; pass one
-        only to schedule another agent. A key or an MCP client must pass it. A
-        delegate that omits it schedules the agent its credential was issued for,
-        the one that started the run. If scheduling yourself is refused as not
-        found, the person may not run you on a schedule; say so instead of
-        searching for another id.
+        Omit `agent_id` to schedule yourself, the agent this run belongs to.
+        Keys and outside MCP clients must pass it. A delegate's default is the
+        agent its credential names, which started the run. If scheduling yourself
+        returns not found, explain that scheduling is not permitted; do not seek
+        another identity.
 
-        The routine can publish actionable findings with publish_inbox_finding,
-        automatically available even without an AgenticOS MCP binding. Include
-        reporting instructions in the prompt. The final answer stays in the run
-        log or its explicitly selected destination; it is not parsed into Inbox
-        cards. result_mode is a legacy compatibility field. A monitoring Watch is
-        a read-only routine preset, not another task to create alongside this routine.
-        Give one cadence. `cron_expression` is a five-field crontab read in
-        `time_zone`, an IANA name such as `Europe/Warsaw`; left out, it is the
-        person's own zone from their account (UTC when they set none). Write the
-        local time as the person said it - 9:00 on weekdays is `0 9 * * 1-5` -
-        and the hour holds through daylight saving. `every_minutes` is a plain
-        interval. `prompt` is what the agent is asked each time, and that run
-        starts with none of this conversation - write it as a complete request:
-        what to do, from which sources, in which language, and what to produce.
-        For delivery to a messaging channel, first use list_chat_connections and
-        find_chat_channels, then agree the destination and whether this is the same
-        thread or a new top-level post. Include the verified bot_id, channel_id and
-        optional thread_id in the complete recurring prompt, instructing the agent
-        to send_chat_message after finishing the report. Set chat_mode="shared"
-        when only a read-only execution history is needed. If the
-        routine requires standing approval for sending, direct the person to its
-        access settings in /routines; never promise unattended delivery before that.
-        If those tools are absent, explain that the agent's chat-app binding needs
-        the corresponding actions enabled. Do not replace it with an unrelated MCP.
-        `runs_as_me` fires as the person creating it, with their memory and their
-        own connected accounts, as in their chat. By default chat_mode="shared"
-        appends every execution to one read-only history. chat_mode="per_run"
-        opens a private chat for each execution with its full transcript;
-        the creator may fork an answer to continue. Follow-up chat messages never
-        edit the routine. answer_to is a legacy destination compatibility field.
-        A per_run routine created from a private chat in a chat app (Telegram,
-        Slack, Mattermost, Teams, Discord, Matrix) also has the bot post each
-        answer to that chat while the person still has access; do not add
-        `notification_channels` to reach the same chat. `ends_at` is an ISO timestamp with its UTC offset;
-        set it for time-bounded requests. `monthly_budget_usd` is a decimal USD cap.
-        `pinned_version_id` keeps one published version; omitted, future fires
-        follow the published version. New routines follow the agent's current
-        initial configuration and your current permissions without a separate
-        setup review. Later source/account/tool additions or instruction, skill,
-        context or delegate behavior changes need the owner's access review;
-        publication alone never extends the creator's authority. An unconnected
-        optional MCP service is unavailable to that run;
-        it does not block unrelated web research or other available tools. The
-        agent's own approvals and mandatory platform/native gates still apply.
-        People may optionally freeze reviewed sources under /routines. Existing
-        reviewed routines retain that policy until their owner changes it.
-        If setup_required=true, the routine is PAUSED: report the exact blocker
-        and link /routines. Do not claim it will run or silently change shared
-        agent bindings, retry with other identities, or create duplicates.
-        The result names the routine and its next activation.
+        Give one cadence: five-field `cron_expression` in IANA `time_zone`, or
+        an `every_minutes` interval. An omitted zone uses the person's account
+        zone, falling back to UTC. Preserve the requested local hour through DST:
+        weekday 09:00 is `0 9 * * 1-5`. Each execution starts without this chat's
+        context. Write a complete prompt naming work, sources, language and output.
+
+        Actionable findings use publish_inbox_finding, available without an
+        AgenticOS MCP binding. Include reporting instructions in the prompt.
+        Final answers go to the run log or chosen destination, never parsed into
+        Inbox cards. result_mode and answer_to are legacy compatibility fields.
+        A Watch is a read-only routine preset; do not create both for one task.
+
+        For channel delivery, use list_chat_connections and find_chat_channels,
+        agree the destination and thread versus top-level post, then include the
+        verified bot_id, channel_id and optional thread_id in the recurring prompt
+        with instructions to send_chat_message after the report. If sending needs
+        standing approval, link /routines access settings before promising unattended
+        delivery. Missing tools require enabling the agent's corresponding chat-app
+        actions, not an unrelated MCP. Use chat_mode="shared" for read-only history.
+
+        `runs_as_me` uses the creator's memory and connected accounts, as in chat.
+        Default chat_mode="shared" appends runs to one read-only history;
+        "per_run" creates private chats with full transcripts that the creator may
+        fork. Follow-up messages never edit the routine. For per_run created in a
+        private Telegram, Slack, Mattermost, Teams, Discord or Matrix chat, the bot
+        also posts each answer there while access remains; do not duplicate this
+        with notification_channels. `ends_at` is an ISO timestamp with UTC offset
+        for bounded requests. `monthly_budget_usd` is a decimal USD cap.
+        `pinned_version_id` freezes a published version; otherwise fires follow
+        the currently published version.
+
+        New routines use the agent's current configuration and creator's current
+        permissions without setup review. Later source/account/tool additions or
+        instruction, skill, context or delegate behavior changes need the owner's
+        access review; publishing cannot extend authority. Unconnected optional MCP
+        services are unavailable but do not block unrelated research or tools.
+        Agent approvals and mandatory platform/native gates still apply. People
+        may freeze reviewed sources in /routines; existing reviewed routines keep
+        their policy until their owner changes it.
+
+        setup_required=true means PAUSED: report the exact blocker and link
+        /routines. Do not claim it will run, silently change shared bindings,
+        retry under other identities or create duplicates. The result names the
+        routine and next activation.
         """
         if agent_id is None:
             own = (await api.request("GET", "/me/permissions")).get("run_agent_id")

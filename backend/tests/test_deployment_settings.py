@@ -957,10 +957,15 @@ async def test_currency_settings_are_written_as_json_and_audited_without_rewriti
     )
     recorded = AsyncMock()
     monkeypatch.setattr(module, "record_audit", recorded)
+    organizations = AsyncMock(return_value=[])
+    monkeypatch.setattr(
+        "app.services.currency.organization_repo.inherited_reporting_quotes", organizations
+    )
     service = DeploymentSettingsService(mock_db_session)
     await service.update(
         actor_user_id=uuid4(), data=DeploymentSettingsUpdate(currency_settings=currencies)
     )
+    organizations.assert_awaited_once_with(mock_db_session)
     saved = repo.upsert.await_args.kwargs["update_data"]["currency_settings"]
     assert saved == {"default_currency": "PLN", "rates": {"USD": "1", "PLN": "4", "EUR": "0.9"}}
     assert "monthly_budget_usd" not in repo.upsert.await_args.kwargs["update_data"]

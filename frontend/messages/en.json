@@ -2861,7 +2861,7 @@
       "desktopTitle": "Desktop",
       "loadFailed": "Could not load the environment. Try again.",
       "loading": "Loading environment…",
-      "runLifetime": "This environment closes after the next agent run.",
+      "runLifetime": "Closes after an agent run that uses this environment.",
       "idleMinutes": "Retained for up to {minutes, plural, one {# minute} other {# minutes}} of inactivity.",
       "idleSeconds": "Retained for up to {seconds, plural, one {# second} other {# seconds}} of inactivity."
     }
@@ -22654,7 +22654,9 @@
     "amountPositive": "Enter an amount greater than zero.",
     "amountMaximum": "Enter at most {amount} {currency}.",
     "switchOrganizationHint": "Switch to this organization before editing its limits. Its permissions, spend and reporting quote must match.",
-    "switchOrganization": "Switch to this organization"
+    "switchOrganization": "Switch to this organization",
+    "criterionLimit": "Cost ≤ {amount}",
+    "criterionObserved": "Observed {amount}; limit {limit}."
   },
   "portability": {
     "exportTitle": "Export agent",

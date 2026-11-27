@@ -1,6 +1,6 @@
 """Resolve deployment defaults and tenant overrides without changing old money."""
 
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -74,3 +74,31 @@ class CurrencyService:
                 )
                 changed += 1
         return changed
+
+    async def reporting_quote(self, organization_id: UUID) -> ReportingQuote:
+        """Read the tenant's persisted reporting snapshot without consulting live rates."""
+        organization = await organization_repo.get_by_id(self.db, organization_id)
+        if organization is None:
+            raise NotFoundError(
+                message="Organization not found", details={"organization_id": organization_id}
+            )
+        return ReportingQuote.model_validate(organization.reporting_quote)
+
+    @staticmethod
+    def amount(quote: ReportingQuote, usd: Decimal | None) -> str:
+        """An English delivery amount; the console localizes the retained quote separately."""
+        if usd is None or not usd.is_finite() or quote.units_per_usd is None:
+            return f"{quote.currency} amount unavailable"
+        with localcontext() as context:
+            context.prec = 128
+            amount = usd * quote.units_per_usd
+            symbol = "$" if quote.currency == "USD" else f"{quote.currency} "
+            if amount and abs(amount) < Decimal("0.000000000001"):
+                comparison = "> -" if amount < 0 else "< "
+                return f"{comparison}{symbol}0.000000000001"
+            digits = (
+                min(12, max(4, 1 - amount.copy_abs().adjusted()))
+                if amount and abs(amount) < Decimal("0.01")
+                else 2
+            )
+            return f"{symbol}{amount:.{digits}f}"

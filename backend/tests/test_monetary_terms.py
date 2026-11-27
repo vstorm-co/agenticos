@@ -524,3 +524,36 @@ async def test_changing_the_criterion_family_does_not_inherit_another_origin() -
     result = await MonetaryService(AsyncMock()).checks(uuid4(), [new], previous=[old])
     assert result[0].monetary_term is not None
     assert result[0].monetary_term.currency == "USD"
+
+
+@pytest.mark.parametrize("value", ["25.000001", "99999999999999999999999999999999.999999"])
+def test_routine_budget_write_schemas_preserve_the_six_decimal_storage_contract(value: str) -> None:
+    from app.schemas.agent_trigger import TriggerCreate, TriggerUpdate
+
+    create = TriggerCreate(
+        prompt="Read the project",
+        schedule_kind="cron",
+        cron_expression="0 9 * * *",
+        monthly_budget_usd=value,
+    )
+    update = TriggerUpdate(monthly_budget_usd=value)
+    assert create.monthly_budget_usd == update.monthly_budget_usd == Decimal(value)
+
+
+@pytest.mark.parametrize(
+    "value", ["25.0000001", "100000000000000000000000000000000", "NaN", "Infinity"]
+)
+def test_routine_budget_write_schemas_refuse_rounding_and_overflow_before_storage(
+    value: str,
+) -> None:
+    from app.schemas.agent_trigger import TriggerCreate, TriggerUpdate
+
+    for schema, fields in [
+        (TriggerUpdate, {}),
+        (
+            TriggerCreate,
+            {"prompt": "Read the project", "schedule_kind": "cron", "cron_expression": "0 9 * * *"},
+        ),
+    ]:
+        with pytest.raises(ValidationError):
+            schema.model_validate({**fields, "monthly_budget_usd": value})

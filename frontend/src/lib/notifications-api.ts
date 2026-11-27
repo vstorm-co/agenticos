@@ -13,6 +13,7 @@
  */
 
 import type { NextStepBlocked } from "@/types/improvement";
+import type { ReportingQuote } from "./currency-api";
 import { apiClient } from "./api-client";
 
 /** A criterion an improvement attempt moved, as a notification names it. */
@@ -51,6 +52,7 @@ export interface Notification {
   params?: Record<string, string> | null;
   /** Versioned wording; legacy consoles ignore this and retain the stored summary. */
   wording_params?: Record<string, string> | null;
+  reporting_quote?: ReportingQuote | null;
 }
 
 export interface NotificationAgent {

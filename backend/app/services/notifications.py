@@ -59,6 +59,7 @@ from app.agents.capabilities.budget import BudgetScope
 from app.agents.spec import AgentSpec, AlertAudience, AlertSpec
 from app.core.background import spawn_after_commit
 from app.core.config import settings
+from app.core.currency import sum_usd
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus, ToolApproval
@@ -95,6 +96,7 @@ from app.schemas.eval_suite import EvalSuiteSummary, ThresholdReason
 from app.schemas.improvement import NextStepBlocked
 from app.schemas.notification import CriterionSources, MovedCriterion
 from app.services.channels.base import platform_name
+from app.services.currency import CurrencyService
 from app.services.notification_center import (
     APPROVABLE_BY,
     APPROVABLE_CALLS,
@@ -303,6 +305,15 @@ class NotificationService:
         if not recipients:
             return set()
 
+        quote = await CurrencyService(self.db).reporting_quote(run.organization_id)
+        budget_reason = (
+            f"{scope.value} budget exhausted "
+            f"({CurrencyService.amount(quote, spent_usd)} spent; "
+            f"{CurrencyService.amount(quote, limit_usd)} limit)."
+            if limit_usd is not None and spent_usd is not None
+            else reason
+        )
+        budget_summary = f"{agent.name} stopped: {budget_reason}"
         native_context: dict[str, str] = {}
         owner: UUID | None = None
         incident_reason: Literal["run", "check", "delivery"] = "run"
@@ -363,7 +374,7 @@ class NotificationService:
                         user_id=owner,
                         cause=cause,
                         observed_at=clock,
-                        summary=f"{agent.name} stopped: {reason}",
+                        summary=budget_summary,
                         run_id=run.id,
                     )
                     if occurrence is None:
@@ -384,11 +395,15 @@ class NotificationService:
         organization_name = organization.name if organization else "your organization"
         run_path = self._link(f"/agents/{agent.id}", run.organization_id)
         render_context = {
+            "reporting_quote": quote.model_dump(mode="json"),
             "agent_name": agent.name,
             **agent_face(agent),
             "org_name": organization_name,
-            "reason": reason,
+            "reason": budget_reason,
             "spent": f"{run.cost_usd:.2f}" if run.cost_usd is not None else "0.00",
+            "reported_spent": CurrencyService.amount(
+                quote, None if run.cost_is_partial else run.cost_usd
+            ),
             # The refusal's own numbers, which the console words in the reader's
             # language; `reason` above is the same sentence in English.
             **(
@@ -406,7 +421,7 @@ class NotificationService:
             recipients=list(recipients),
             event_type=NotificationEventType.BUDGET_EXCEEDED,
             occurrence_id=str(run.id),
-            summary=f"{agent.name} stopped: {reason}",
+            summary=budget_summary,
             context_url=run_path,
             render_context=render_context,
             organization_id=run.organization_id,
@@ -436,16 +451,18 @@ class NotificationService:
                 continue
             recipients = await self._department_audience(run.organization_id, [group.id])
             share = int(spent / group.monthly_budget_usd * 100)
+            quote = await CurrencyService(self.db).reporting_quote(run.organization_id)
             await self._center.write(
                 recipients=list(recipients),
                 event_type=NotificationEventType.BUDGET_WARNING,
                 occurrence_id=f"{group.id}:{month_start():%Y-%m}",
                 summary=(
                     f"{group.name} has used {share}% of its "
-                    f"${group.monthly_budget_usd:.2f} monthly budget."
+                    f"{CurrencyService.amount(quote, group.monthly_budget_usd)} monthly budget."
                 ),
                 context_url=self._link(f"/groups/{group.id}", run.organization_id),
                 render_context={
+                    "reporting_quote": quote.model_dump(mode="json"),
                     "group_name": group.name,
                     "spent": f"{spent:.2f}",
                     "limit": str(group.monthly_budget_usd),
@@ -768,18 +785,21 @@ class NotificationService:
         )
         cause = f"routine:{routine_kind}:{routine_id}:budget:{period_start.date().isoformat()}"
         path = self._link("/routines", organization_id)
+        quote = await CurrencyService(self.db).reporting_quote(organization_id)
         await self._center.write(
             recipients=list(recipients),
             event_type=NotificationEventType.BUDGET_EXCEEDED,
             occurrence_id=f"{cause}:{limit.normalize()}",
             summary=(
                 f"{name or 'Your routine'} is waiting: {budget_name} of "
-                f"${limit:.2f} is used up (${spent:.2f} spent). {remedy} "
+                f"{CurrencyService.amount(quote, limit)} is used up "
+                f"({CurrencyService.amount(quote, spent)} spent). {remedy} "
                 "or wait for the next month to resume."
             ),
             context_url=path,
             render_context={
                 "wording": "routine_budget_paused",
+                "reporting_quote": quote.model_dump(mode="json"),
                 **({"routine_name": name} if name else {}),
                 "routine_budget_paused": True,
                 "routine_origin_id": str(routine_id),
@@ -2207,7 +2227,10 @@ class NotificationService:
         last_day = (window_start - timedelta(microseconds=1)).date()
         report_period = f"{since.date().isoformat()}..{last_day.isoformat()}"
         dashboard_path = self._link(f"/dashboard?view=org&period={report_period}", organization_id)
+        quote = await CurrencyService(self.db).reporting_quote(organization_id)
         render_context = {
+            "reporting_quote": quote.model_dump(mode="json"),
+            "reported_total": CurrencyService.amount(quote, total),
             "wording": "usage_report",
             "period": "week" if period == "weekly" else "month",
             "org_name": organization_name,
@@ -2289,12 +2312,15 @@ class NotificationService:
         organization = await organization_repo.get_by_id(self.db, agent.organization_id)
         organization_name = organization.name if organization else "your organization"
         dashboard_path = self._link(f"/agents/{agent.id}", agent.organization_id)
+        quote = await CurrencyService(self.db).reporting_quote(agent.organization_id)
         render_context = {
+            "reporting_quote": quote.model_dump(mode="json"),
+            "reported_total": CurrencyService.amount(quote, sum_usd(row[2] for row in mine)),
             "wording": "agent_usage_report",
             "agent_name": agent.name,
             "period": "week" if period == "weekly" else "month",
             "org_name": organization_name,
-            "total": f"{sum((row[2] for row in mine), Decimal(0)):.2f}",
+            "total": f"{sum_usd(row[2] for row in mine):.2f}",
             "runs": str(sum(row[3] for row in mine)),
             "agents": agent.name,
             "dashboard_url": absolute_context_url(dashboard_path),

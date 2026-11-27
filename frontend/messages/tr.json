@@ -10819,7 +10819,7 @@
       "desktopTitle": "Masaüstü",
       "loadFailed": "Ortam yüklenemedi. Tekrar deneyin.",
       "loading": "Ortam yükleniyor…",
-      "runLifetime": "Bu ortam agentin sonraki run işleminden sonra kapanır.",
+      "runLifetime": "Bu ortamı kullanan bir agent run işleminden sonra kapanır.",
       "idleMinutes": "En fazla {minutes, plural, other {# dakika}} boşta kalma süresince korunur.",
       "idleSeconds": "En fazla {seconds, plural, other {# saniye}} boşta kalma süresince korunur."
     }
@@ -18930,7 +18930,9 @@
     "amountPositive": "Sıfırdan büyük bir tutar girin.",
     "amountMaximum": "En fazla {amount} {currency} girin.",
     "switchOrganizationHint": "Limitlerini değiştirmeden önce bu organizasyona geçin. İzinler, harcamalar ve raporlama kuru aynı organizasyona ait olmalıdır.",
-    "switchOrganization": "Bu organizasyona geç"
+    "switchOrganization": "Bu organizasyona geç",
+    "criterionLimit": "Maliyet ≤ {amount}",
+    "criterionObserved": "Ölçülen: {amount}; sınır: {limit}."
   },
   "evals": {
     "title": "Eval'ler",

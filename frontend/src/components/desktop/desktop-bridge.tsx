@@ -10,7 +10,7 @@ import { useDesktopSmoothScroll } from "@/hooks/use-desktop-smooth-scroll";
 import { notificationSummary } from "@/lib/notification-summary";
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import { useAssistantSignals } from "@/hooks/use-assistant-signals";
 import { useShellEvent } from "@/hooks/use-desktop";
@@ -68,6 +68,7 @@ export function DesktopBridge() {
 function Bridge({ shell }: { shell: ShellInfo }) {
   const t = useTranslations("desktop.notifications");
   const tNotifications = useTranslations("notifications");
+  const locale = useLocale();
   const tStop = useTranslations("improvement.stop");
   const router = useRouter();
   const { can } = usePermissions();
@@ -155,13 +156,13 @@ function Bridge({ shell }: { shell: ShellInfo }) {
         {
           kind: "inbox",
           title: row.agent?.name ?? t("inboxTitle"),
-          body: notificationSummary(row, tNotifications, tStop),
+          body: notificationSummary(row, tNotifications, tStop, locale),
           path: notificationPath(row),
         },
         row.event_type,
       ).catch((error: unknown) => reportShellFailure("could not notify", error));
     }
-  }, [inbox, t, tNotifications, tStop, sendNotice]);
+  }, [inbox, t, tNotifications, tStop, sendNotice, locale]);
 
   useShellEvent("desktop:question", (value) => {
     if (

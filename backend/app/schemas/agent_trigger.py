@@ -494,6 +494,8 @@ class TriggerCreate(MonetaryInputSchema):
     monthly_budget_usd: Decimal | None = Field(
         default=None,
         gt=0,
+        max_digits=38,
+        decimal_places=6,
         description=(
             "What this routine's runs may cost in a calendar month. Once spent its fires are "
             "skipped - it shows as paused for its budget - and it starts again on the first. "
@@ -779,6 +781,8 @@ class TriggerUpdate(MonetaryInputSchema):
     monthly_budget_usd: Decimal | None = Field(
         default=None,
         gt=0,
+        max_digits=38,
+        decimal_places=6,
         description="This routine's own monthly limit; null removes it",
     )
     action_mode: Literal["agent", "manual", "per_tool"] | None = None

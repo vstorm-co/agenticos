@@ -85,6 +85,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Count malformed ordinary tool arguments against the SDK retry budget, reset it after a successful call, and stop exhausted nested-agent retries before a code-mode script can execute later actions. Preserve controlled validation details without serializing skill loads.
 - The skills category filter no longer offers category names of skills the caller cannot see (#3282).
+- Keep estimates, workflow receipts and cost criteria in the organization’s
+  reporting currency. Budget and periodic usage notices retain their own quote
+  across delivery retries; legacy queued messages keep their USD amounts.
+
 - Keep a Stav bill with missing FX visibly unpriced instead of replacing it with a catalog estimate. Retain its original billed amount and currency, known cost subtotals and partial-usage safeguards.
 
 - Prevent model editors from changing raw request routing or credentials on custom-priced profiles without budget authority. Keep omitted token usage partially priced, including streams and nested calls, and stop further capped requests while retaining known cost subtotals.
@@ -138,6 +142,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Migration `0365_intercepted_call_external.py` adds the external-read isolation reason; `0367_tool_call_script_calls.py` adds retained nested calls on transcript rows. `0376_merge_script_calls.py` joins these branches without replaying the released holdout-share backfill. The merge is metadata-only: reverting it alone leaves the feature branches applied. Downgrading the script-call branch discards its retained nested recordings.
 - Migration `0376_skill_binary_resources` stores lossless resource encoding and versioned frontmatter, including queued Check candidates. Downgrade refuses preserved binary or metadata content instead of discarding it.
 - Display workflow statistics, dashboard spending, run history and conversation costs in the organization currency, independently of language. Show unknown amounts when a reporting rate is unavailable; preserve stored USD accounting and existing cap values.
+- Apply `0379_trigger_budget_precision.py` for routine monthly limits: six USD
+  fractional digits are retained. Additional fractional precision is refused
+  before storage; downgrade refuses limits that would round or overflow the
+  former four-decimal column.
 
 - Apply `0375_model_profile_pricing.py`, `0376_monetary_cost_capacity.py`, `0377_currency_settings.py` and `0378_currency_accounting_terms.py` before starting the API. Profiles retain automatic pricing by default. Monetary columns retain six fractional places; ingestion receipts retain twelve. Downgrade refuses amounts outside the former range or original non-USD limit terms that would be lost.
 

@@ -781,6 +781,7 @@ class TestTheListOfLiveReads:
     HELD_READS = frozenset(
         {
             "capability:artifacts.preview_artifact",
+            "capability:visuals.preview_visual",
             "capability:channel_actions.find_chat_channels",
             "capability:channel_actions.list_chat_connections",
             "capability:channel_actions.read_chat_messages",

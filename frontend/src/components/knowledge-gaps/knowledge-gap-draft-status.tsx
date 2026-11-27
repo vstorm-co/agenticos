@@ -1,9 +1,10 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { CircleAlert, History, Sparkles } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { usd } from "@/components/evals/format";
 import { Alert, AlertDescription, Badge, Button, Spinner } from "@/components/ui";
 import { useDraftKnowledgeGap, useKnowledgeGapDraftEstimate } from "@/hooks/use-knowledge-gaps";
 import type { KnowledgeGapTopic } from "@/types/knowledge-gaps";
@@ -101,7 +102,8 @@ function DraftButton({
 }) {
   const t = useTranslations("knowledgeGaps");
   const locale = useLocale();
-  const values = { known: cost ? "yes" : "no", cost: cost ? usd(cost, locale) : "" };
+  const money = useMoney();
+  const values = { known: cost ? "yes" : "no", cost: cost ? money.cost(cost, locale) : "" };
   return (
     <Button size="sm" variant="outline" disabled={disabled} onClick={onClick}>
       <Sparkles className="h-3.5 w-3.5" aria-hidden />

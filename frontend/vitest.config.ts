@@ -54,6 +54,7 @@ export default defineConfig({
       include: [
         "src/app/api/**",
         "src/lib/**",
+        "src/components/money/cost-criterion.tsx",
         "src/stores/**",
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",

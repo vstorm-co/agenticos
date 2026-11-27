@@ -1,5 +1,9 @@
 "use client";
 
+import { CostCriterionName, CostCriterionReason } from "@/components/money/cost-criterion";
+
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 
 import { MarkdownContent } from "@/components/chat/markdown-content";
@@ -15,7 +19,7 @@ import { reasonKeyOf } from "@/lib/scoring";
 import type { DatasetCaseContent } from "@/types/datasets";
 import type { CallOutcome, EvalAttempt, EvalCall, EvalRunArm } from "@/types/eval-runs";
 import { CheckSummary } from "./check-summary";
-import { percent, seconds, usd } from "./format";
+import { percent, seconds } from "./format";
 import { sideName, type SideCheck } from "./names";
 import { SCORER_TONE, VerdictBadge, VerdictIcon, type VerdictTone } from "./verdict-badge";
 
@@ -58,6 +62,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
   const t = useTranslations("evals.case");
   const tScoring = useTranslations("datasets.scoring");
   const locale = useLocale();
+  const money = useMoney();
   // An answer no scorer reached a verdict on is not graded, not merely undecided.
   const why = attempt.outcome === null ? (attempt.score?.unscored_reason ?? null) : null;
   const known = reasonKeyOf(why);
@@ -76,7 +81,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
             : t("notGraded", { reason: known ? tScoring(known) : why })}
         </VerdictBadge>
         <span className="text-muted-foreground text-xs tabular-nums">
-          {usd(attempt.cost_usd, locale)}
+          {money.cost(attempt.cost_usd, locale)}
         </span>
         <span className="text-muted-foreground text-xs tabular-nums">
           {seconds(attempt.latency_ms, locale)}
@@ -133,7 +138,7 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
                     <summary className="hover:bg-muted/40 flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 py-2">
                       <VerdictIcon tone={tone} />
                       <span className="text-foreground min-w-0 flex-1 font-semibold">
-                        {result.name}
+                        <CostCriterionName result={result} />
                       </span>
                       <VerdictBadge tone={tone}>{t(`scorer.${result.status}`)}</VerdictBadge>
                       {result.score !== null && (
@@ -147,7 +152,9 @@ function Attempt({ attempt }: { attempt: EvalAttempt }) {
                       />
                     </summary>
                     <div className="text-muted-foreground space-y-1 px-3 pb-3 text-xs">
-                      <p className="whitespace-pre-wrap">{result.reason}</p>
+                      <p className="whitespace-pre-wrap">
+                        <CostCriterionReason result={result} fallback={result.reason} />
+                      </p>
                       {result.rule && <p>{tScoring("rule", { rule: result.rule })}</p>}
                       <KnowledgeFindings findings={result.knowledge} />
                     </div>

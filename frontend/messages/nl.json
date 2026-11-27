@@ -2861,7 +2861,7 @@
       "desktopTitle": "Bureaublad",
       "loadFailed": "De omgeving kon niet worden geladen. Probeer het opnieuw.",
       "loading": "Omgeving laden…",
-      "runLifetime": "Deze omgeving sluit na de volgende run van de agent.",
+      "runLifetime": "Sluit na een run van de agent die deze omgeving gebruikt.",
       "idleMinutes": "Bewaard gedurende maximaal {minutes, plural, one {# minuut} other {# minuten}} inactiviteit.",
       "idleSeconds": "Bewaard gedurende maximaal {seconds, plural, one {# seconde} other {# seconden}} inactiviteit."
     }
@@ -22443,7 +22443,9 @@
     "amountPositive": "Voer een bedrag groter dan nul in.",
     "amountMaximum": "Voer maximaal {amount} {currency} in.",
     "switchOrganizationHint": "Schakel naar deze organisatie voordat u de limieten wijzigt. Rechten, uitgaven en rapportagekoers moeten bij dezelfde organisatie horen.",
-    "switchOrganization": "Naar deze organisatie schakelen"
+    "switchOrganization": "Naar deze organisatie schakelen",
+    "criterionLimit": "Kosten ≤ {amount}",
+    "criterionObserved": "Gemeten: {amount}; limiet: {limit}."
   },
   "portability": {
     "exportTitle": "Agent exporteren",

@@ -2861,7 +2861,7 @@
       "desktopTitle": "Ambiente de trabalho",
       "loadFailed": "Não foi possível carregar o ambiente. Tente novamente.",
       "loading": "Carregando ambiente…",
-      "runLifetime": "Este ambiente fecha após o próximo run do agente.",
+      "runLifetime": "Fecha após um run do agente que utiliza este ambiente.",
       "idleMinutes": "Mantido por até {minutes, plural, one {# minuto} other {# minutos}} de inatividade.",
       "idleSeconds": "Mantido por até {seconds, plural, one {# segundo} other {# segundos}} de inatividade."
     }
@@ -22440,10 +22440,12 @@
     "quoteHint": "Taxa dos relatórios: 1 USD = {rate} {currency}. Fica fixa até alterar a preferência de moeda; os novos custos dos modelos usam as taxas de preços atuais.",
     "spentOfLimit": "Gasto este mês: {spent} de {limit}.",
     "spentNoLimit": "Gasto este mês: {spent}. Sem limite.",
-    "amountPositive": "Introduza um valor superior a zero.",
+    "amountPositive": "Insira um valor superior a zero.",
     "amountMaximum": "Introduza no máximo {amount} {currency}.",
     "switchOrganizationHint": "Mude para esta organização antes de alterar os limites. As permissões, despesas e taxa dos relatórios devem pertencer à mesma organização.",
-    "switchOrganization": "Mudar para esta organização"
+    "switchOrganization": "Mudar para esta organização",
+    "criterionLimit": "Custo ≤ {amount}",
+    "criterionObserved": "Observado: {amount}; limite: {limit}."
   },
   "portability": {
     "exportTitle": "Exportar agente",

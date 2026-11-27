@@ -1,11 +1,13 @@
 "use client";
 
+import { averageUsd } from "@/lib/money";
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui";
-import { usd } from "@/components/evals/format";
 import { ReviewReevaluationNote } from "@/components/evals/review-reevaluation-note";
 import { IncomparableResult } from "./incomparable-result";
 import { ChangedAnswers } from "./changed-answers";
@@ -231,17 +233,20 @@ function HowMeasured({ runId }: { runId: string }) {
   );
 }
 
-function perAnswer(summary: { cost_usd: string; cases: number }, locale: string) {
-  return usd(String(Number(summary.cost_usd) / Math.max(1, summary.cases)), locale);
-}
-
 /** The cost per answer before and after, shown only when it moved. */
 function AnswerCost({ comparison }: { comparison: EvalComparison }) {
   const t = useTranslations("improvement");
   const locale = useLocale();
+  const money = useMoney();
   if (!comparison.baseline_summary) return null;
-  const before = perAnswer(comparison.baseline_summary, locale);
-  const after = perAnswer(comparison.candidate_summary, locale);
+  const before = money.cost(
+    averageUsd(comparison.baseline_summary.cost_usd, comparison.baseline_summary.cases),
+    locale,
+  );
+  const after = money.cost(
+    averageUsd(comparison.candidate_summary.cost_usd, comparison.candidate_summary.cases),
+    locale,
+  );
   if (before === after) return null;
   return <p className="text-muted-foreground text-sm">{t("answerCost", { before, after })}</p>;
 }
@@ -294,6 +299,7 @@ function WhichChangeHelped({
   const t = useTranslations("improvement.eachChange");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
+  const money = useMoney();
   const actions = useImprovement(subjectOf(session), session.id);
   const [quote, setQuote] = useState<AttributionEstimate | null>(null);
   const { mutateAsync: estimate } = actions.estimateAttribution;
@@ -316,7 +322,7 @@ function WhichChangeHelped({
     <section className="space-y-3">
       <h4 className="text-sm font-medium">{t("title")}</h4>
       <p className="text-sm">
-        {t("body", { count: quote.changes, cost: usd(quote.total_usd, locale) })}
+        {t("body", { count: quote.changes, cost: money.cost(quote.total_usd, locale) })}
       </p>
       {!quote.affordable && <p className="text-muted-foreground text-sm">{t("overLimit")}</p>}
       <Button
@@ -428,6 +434,7 @@ export function AttemptSummary({
 }) {
   const t = useTranslations("improvement");
   const locale = useLocale();
+  const money = useMoney();
   const detail = round.verdict_detail;
   const fixed = detail?.fixed;
   const broken = detail?.broken;
@@ -489,7 +496,7 @@ export function AttemptSummary({
           personChose(session) && <StateBadge tone="neutral">{t("attempt.chosen")}</StateBadge>
         ))}
       <span className="text-muted-foreground ml-auto">
-        {t("attempt.cost", { cost: usd(round.cost_usd, locale) })}
+        {t("attempt.cost", { cost: money.cost(round.cost_usd, locale) })}
       </span>
     </>
   );

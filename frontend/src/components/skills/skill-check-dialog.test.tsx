@@ -91,7 +91,7 @@ describe("SkillCheckDialog", () => {
     open();
 
     expect(held.estimate.mutate).toHaveBeenCalledWith({ fork_id: null, proposal_id: "p-1" });
-    expect(screen.getByText(/Most likely \$0.0800, at most \$0.2400\./)).toBeInTheDocument();
+    expect(screen.getByText(/Most likely \$0.08, at most \$0.24\./)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Start the check" }));
 
     expect(held.checkId).toBe("c-9");

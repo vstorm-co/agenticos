@@ -1,11 +1,12 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, Card, ListCard } from "@/components/ui";
 import { isClosed } from "@/lib/improvement-steps";
-import { usd } from "@/components/evals/format";
 import type { Improvement } from "@/types/improvement";
 import { AttemptChoice } from "./attempt-choice";
 import { GAINS, criteriaSentences } from "./criteria";
@@ -109,6 +110,7 @@ export function ResultAttempts({
 }) {
   const t = useTranslations("improvement");
   const locale = useLocale();
+  const money = useMoney();
   const host =
     session.iterations.find((round) => round.id === session.best_iteration_id) ??
     session.iterations.at(-1);
@@ -119,7 +121,7 @@ export function ResultAttempts({
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
             <h3 className="text-sm font-medium">{t("attemptsTitle")}</h3>
             <p className="text-muted-foreground text-xs">
-              {t("sessionTotal", { total: usd(session.spent_usd, locale) })}
+              {t("sessionTotal", { total: money.cost(session.spent_usd, locale) })}
             </p>
           </div>
           {session.iterations.map((round, index) => (

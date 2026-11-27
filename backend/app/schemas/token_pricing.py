@@ -1,7 +1,7 @@
 """Flat prices per million normalized tokens, independent of model identity."""
 
 from collections.abc import Mapping
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from typing import Annotated
 
 from pydantic import ConfigDict, Field
@@ -44,12 +44,14 @@ class TokenPricing(BaseSchema):
             return None
         read = self.input if self.cache_read is None else self.cache_read
         write = self.input if self.cache_write is None else self.cache_write
-        return (
-            ordinary * self.input
-            + usage.output_tokens * self.output
-            + usage.cache_read_tokens * read
-            + usage.cache_write_tokens * write
-        ) / 1_000_000
+        with localcontext() as context:
+            context.prec = 128
+            return (
+                ordinary * self.input
+                + usage.output_tokens * self.output
+                + usage.cache_read_tokens * read
+                + usage.cache_write_tokens * write
+            ) / 1_000_000
 
     def usd_cost(
         self, usage: RequestUsage | RunUsage, rates: Mapping[str, Decimal] | None = None

@@ -1,10 +1,11 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useState } from "react";
 import { FilePen, ListChecks, Target } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button, Checkbox } from "@/components/ui";
-import { usd } from "@/components/evals/format";
 import { useImprovement, useImprovementEvidence } from "@/hooks/use-improvements";
 import { subjectOf } from "@/lib/improvement-subject";
 import { getErrorMessage } from "@/lib/api-error";
@@ -33,6 +34,7 @@ export function ChangeSelection({
   const t = useTranslations("improvement");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
+  const money = useMoney();
   const actions = useImprovement(subjectOf(session), session.id);
   const { evidence } = useImprovementEvidence(subjectOf(session), { sessionId: session.id });
   const sources = Object.fromEntries((evidence?.items ?? []).map((item) => [item.run_id, item]));
@@ -152,7 +154,7 @@ export function ChangeSelection({
               <p className="text-sm">
                 {t("selectionQuote", {
                   count: quote.suggestions,
-                  cost: usd(quote.total_usd, locale),
+                  cost: money.cost(quote.total_usd, locale),
                 })}
               </p>
               <Button

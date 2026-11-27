@@ -2824,7 +2824,7 @@
       "desktopTitle": "Bureau",
       "loadFailed": "Impossible de charger l’environnement. Réessayez.",
       "loading": "Chargement de l’environnement…",
-      "runLifetime": "Cet environnement se ferme après le prochain run de l’agent.",
+      "runLifetime": "Se ferme après un run de l’agent qui utilise cet environnement.",
       "idleMinutes": "Conservé pendant au plus {minutes, plural, one {# minute} other {# minutes}} d’inactivité.",
       "idleSeconds": "Conservé pendant au plus {seconds, plural, one {# seconde} other {# secondes}} d’inactivité."
     }
@@ -22146,7 +22146,9 @@
     "amountPositive": "Saisissez un montant supérieur à zéro.",
     "amountMaximum": "Saisissez au maximum {amount} {currency}.",
     "switchOrganizationHint": "Passez à cette organisation avant de modifier ses plafonds. Les autorisations, dépenses et taux de rapport doivent correspondre à la même organisation.",
-    "switchOrganization": "Passer à cette organisation"
+    "switchOrganization": "Passer à cette organisation",
+    "criterionLimit": "Coût ≤ {amount}",
+    "criterionObserved": "Coût observé : {amount} ; plafond : {limit}."
   },
   "modelPricing": {
     "title": "Tarification",

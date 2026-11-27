@@ -1,6 +1,11 @@
 import { apiClient } from "@/lib/api-client";
 import type { Organization } from "@/types";
 
+export interface ReportingQuote {
+  currency: string;
+  units_per_usd: string | null;
+}
+
 export interface CurrencySettings {
   default_currency: string;
   rates: Record<string, string>;

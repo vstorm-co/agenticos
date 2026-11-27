@@ -46,6 +46,7 @@ from pydantic_ai.models import ModelRequestContext
 from pydantic_ai.usage import RequestUsage, RunUsage, UsageLimits
 
 from app.agents.model_resolver import otari_price_identity
+from app.core.currency import difference_usd, sum_usd
 from app.core.exceptions import BadRequestError
 from app.schemas.token_pricing import TokenPricing
 
@@ -390,7 +391,7 @@ class SpendLedger:
 
     @property
     def total_usd(self) -> Decimal:
-        return sum((entry.cost_usd for entry in self.entries), Decimal(0))
+        return sum_usd(entry.cost_usd for entry in self.entries)
 
     @property
     def input_tokens(self) -> int:
@@ -465,7 +466,7 @@ class SpendLedger:
         """
         mine = [entry for entry in self.entries if matches(entry)]
         return SpendShare(
-            cost_usd=sum((entry.cost_usd for entry in mine), Decimal(0)),
+            cost_usd=sum_usd(entry.cost_usd for entry in mine),
             input_tokens=sum(entry.input_tokens for entry in mine),
             output_tokens=sum(entry.output_tokens for entry in mine),
             cache_read_tokens=sum(entry.cache_read_tokens for entry in mine),
@@ -866,7 +867,7 @@ def usage_delta(before: UsageSnapshot, usage: RunUsage) -> RunUsage | None:
     profile_unpriced = after.profile_unpriced_requests - before.profile_unpriced_requests
     provider_unpriced = after.provider_unpriced_requests - before.provider_unpriced_requests
     cost = (
-        after.cost - (before.cost or Decimal(0))
+        difference_usd(after.cost, before.cost or Decimal(0))
         if after.cost is not None
         and (after.cost != before.cost or reported_requests > 0 or profile_priced > 0)
         else None
@@ -1049,8 +1050,8 @@ class BudgetGuard(AbstractCapability[Any]):
         async with self.run_state.check:
             run_total = self.ledger.total_usd
             for limit in self.limits:
-                spent = await self._baseline_for(limit) + run_total
-                if spent >= limit.limit_usd or spent + cost_usd > limit.limit_usd:
+                spent = sum_usd((await self._baseline_for(limit), run_total))
+                if spent >= limit.limit_usd or sum_usd((spent, cost_usd)) > limit.limit_usd:
                     return limit
         return None
 
@@ -1076,7 +1077,7 @@ class BudgetGuard(AbstractCapability[Any]):
             )
         limit = await self._first_exceeded()
         if limit is not None:
-            spent = await self._baseline_for(limit) + self.ledger.total_usd
+            spent = sum_usd((await self._baseline_for(limit), self.ledger.total_usd))
             raise BudgetExceeded(
                 limit_usd=limit.limit_usd,
                 spent_usd=spent,
@@ -1110,7 +1111,10 @@ class BudgetGuard(AbstractCapability[Any]):
         async with self.run_state.check:
             remaining: Decimal | None = None
             for limit in self.limits:
-                left = limit.limit_usd - (await self._baseline_for(limit) + self.ledger.total_usd)
+                left = difference_usd(
+                    limit.limit_usd,
+                    sum_usd((await self._baseline_for(limit), self.ledger.total_usd)),
+                )
                 remaining = left if remaining is None else min(remaining, left)
         return None if remaining is None else max(remaining, Decimal(0))
 

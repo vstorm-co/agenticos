@@ -48,6 +48,7 @@ def _org_row(*, name: str) -> Organization:
         is_personal=False,
         avatar_url=None,
         monthly_budget_usd=None,
+        monetary_terms={},
         proactive_limit_usd=Decimal("1"),
         # Set explicitly: a column default is applied on flush, and this row was
         # never flushed - so an unset boolean reaches the response schema as None
@@ -88,9 +89,15 @@ class TestOrganizationService:
         """No deployment ceiling, which is what an installation that never set
         one has. Creating an organization reads it now, and a mocked session
         answers a `MagicMock` rather than a row."""
-        with patch(
-            "app.services.organization.DeploymentSettingsService.limits",
-            new=AsyncMock(return_value=DeploymentLimits()),
+        with (
+            patch(
+                "app.services.organization.DeploymentSettingsService.limits",
+                new=AsyncMock(return_value=DeploymentLimits()),
+            ),
+            patch(
+                "app.services.currency.deployment_settings_repo.get",
+                new=AsyncMock(return_value=None),
+            ),
         ):
             yield
 
@@ -388,8 +395,7 @@ class TestOrganizationService:
 
     @pytest.mark.anyio
     async def test_delete_succeeds_for_owner(self, service, mock_db):
-        mock_org = MagicMock()
-        mock_org.is_personal = False
+        mock_org = _org_row(name="Acme")
         mock_membership = MagicMock()
         mock_membership.role = "owner"
 
@@ -418,10 +424,15 @@ class TestOrganizationService:
                 "app.services.sandbox_workspace.SandboxWorkspaceService.purge_personal_coding",
                 new=AsyncMock(return_value=0),
             ) as purge_coding,
+            patch(
+                "app.worker.tasks.teardown_tasks.queue_external_state_cleanup", new=AsyncMock()
+            ) as cleanup,
         ):
             await service.delete(uuid.uuid4(), uuid.uuid4())
 
         purge_coding.assert_awaited_once_with(organization_id=mock_org.id)
+        cleanup.assert_awaited_once()
+        assert cleanup.await_args.kwargs["organization_id"] == mock_org.id
 
     @pytest.mark.anyio
     async def test_update_requires_admin_or_owner(self, service, mock_db):

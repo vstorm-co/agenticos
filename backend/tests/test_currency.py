@@ -185,3 +185,160 @@ def test_an_invalid_stav_conversion_rate_never_becomes_a_bill(rate):
     usage = RequestUsage()
     _Capture(cost=Decimal(9), currency="EUR", exchange_rates={"EUR": rate}).apply(usage)
     assert usage.cost is None
+
+
+@pytest.mark.anyio
+async def test_notice_quote_reads_only_the_persisted_snapshot_not_current_pricing_rates() -> None:
+    from app.core.currency import ReportingQuote
+
+    organization_id = uuid4()
+    with (
+        patch(
+            "app.services.currency.organization_repo.get_by_id",
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    reporting_quote={"currency": "PLN", "units_per_usd": "4"}
+                )
+            ),
+        ),
+        patch("app.services.currency.deployment_settings_repo.get", new=AsyncMock()) as live_rates,
+    ):
+        quote = await CurrencyService(AsyncMock()).reporting_quote(organization_id)
+    assert quote == ReportingQuote(currency="PLN", units_per_usd="4")
+    live_rates.assert_not_awaited()
+    with (
+        patch(
+            "app.services.currency.organization_repo.get_by_id", new=AsyncMock(return_value=None)
+        ),
+        pytest.raises(NotFoundError),
+    ):
+        await CurrencyService(AsyncMock()).reporting_quote(organization_id)
+
+
+def test_notice_amounts_preserve_unknown_and_small_costs_without_binary_rounding() -> None:
+    from app.core.currency import ReportingQuote
+
+    quote = ReportingQuote(currency="PLN", units_per_usd="4")
+    assert CurrencyService.amount(quote, Decimal("25")) == "PLN 100.00"
+    assert (
+        CurrencyService.amount(quote, Decimal("9007199254740993.01")) == "PLN 36028797018963972.04"
+    )
+    assert CurrencyService.amount(quote, Decimal("0.00000025")) == "PLN 0.0000010"
+    assert CurrencyService.amount(ReportingQuote(), Decimal("1")) == "$1.00"
+    assert CurrencyService.amount(quote, None) == "PLN amount unavailable"
+    assert (
+        CurrencyService.amount(ReportingQuote(currency="PLN", units_per_usd=None), Decimal("1"))
+        == "PLN amount unavailable"
+    )
+
+
+def test_notice_tiny_costs_are_bounded_visibly_instead_of_rounded_to_free() -> None:
+    from app.core.currency import ReportingQuote
+
+    quote = ReportingQuote()
+    assert CurrencyService.amount(quote, Decimal("0.0000000000001")) == "< $0.000000000001"
+    assert CurrencyService.amount(quote, Decimal("-0.0000000000001")) == "> -$0.000000000001"
+    assert CurrencyService.amount(quote, Decimal("NaN")) == "USD amount unavailable"
+    assert CurrencyService.amount(quote, Decimal("0")) == "$0.00"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("explicit", [True, False])
+async def test_default_currency_reconciliation_never_requotes_an_unchanged_currency(
+    explicit: bool,
+) -> None:
+    rows = [
+        SimpleNamespace(reporting_quote={"currency": "USD", "units_per_usd": "1"}),
+        SimpleNamespace(reporting_quote={"currency": "PLN", "units_per_usd": "4"}),
+    ]
+    selected = CurrencySettings(default_currency="PLN", rates={"USD": "1", "PLN": "9"})
+    with (
+        patch(
+            "app.services.currency.organization_repo.inherited_reporting_quotes",
+            new=AsyncMock(return_value=rows),
+        ),
+        patch(
+            "app.services.currency.organization_repo.set_reporting_quote", new=AsyncMock()
+        ) as save,
+        patch.object(CurrencyService, "settings", new=AsyncMock(return_value=selected)) as lookup,
+    ):
+        db = AsyncMock()
+        changed = await CurrencyService(db).inherited_quotes(
+            **({"settings": selected} if explicit else {})
+        )
+    assert changed == 1
+    save.assert_awaited_once_with(db, rows[0], quote={"currency": "PLN", "units_per_usd": "9"})
+    assert rows[1].reporting_quote["units_per_usd"] == "4"
+    assert lookup.await_count == (0 if explicit else 1)
+
+
+@pytest.mark.anyio
+async def test_expanded_receipt_capacity_keeps_exact_ledger_totals_and_budget_boundaries() -> None:
+    from decimal import getcontext
+
+    from app.agents.capabilities.budget import BudgetExceeded, SpendEntry
+    from app.core.currency import difference_usd, sum_usd
+
+    precision = getcontext().prec
+    large = Decimal("90071992547409931234567890123456.000001")
+    assert sum_usd([large, Decimal("0.000001")]) == Decimal(
+        "90071992547409931234567890123456.000002"
+    )
+    assert difference_usd(large, Decimal("90071992547409931234567890123456")) == Decimal("0.000001")
+    ledger = SpendLedger(
+        entries=[
+            SpendEntry(
+                model_name="synthetic",
+                input_tokens=1,
+                output_tokens=0,
+                cost_usd=large,
+                priced=True,
+                delegation="agent",
+            )
+        ]
+    )
+    assert ledger.total_usd == ledger.share_of("agent").cost_usd == large
+    ledger = SpendLedger(
+        entries=[
+            SpendEntry(
+                model_name="synthetic",
+                input_tokens=1,
+                output_tokens=0,
+                cost_usd=Decimal("0.000001"),
+                priced=True,
+            )
+        ]
+    )
+    limit = Decimal("90071992547409931234567890123456.000003")
+    guard = BudgetGuard(
+        ledger=ledger,
+        limits=[
+            SpendLimit(
+                scope=BudgetScope.AGENT,
+                limit_usd=limit,
+                period_spend=AsyncMock(return_value=Decimal("90071992547409931234567890123456")),
+            )
+        ],
+    )
+    assert await guard.headroom() == Decimal("0.000002")
+    assert await guard.can_afford_next_request(Decimal("0.000002"))
+    assert not await guard.can_afford_next_request(Decimal("0.000003"))
+    ledger.entries.append(
+        SpendEntry(
+            model_name="synthetic",
+            input_tokens=1,
+            output_tokens=0,
+            cost_usd=Decimal("0.000002"),
+            priced=True,
+        )
+    )
+    with pytest.raises(BudgetExceeded) as refusal:
+        await guard.assert_within_budget()
+    assert refusal.value.spent_usd == limit
+    assert getcontext().prec == precision
+
+
+def test_custom_token_price_arithmetic_does_not_use_the_process_decimal_precision() -> None:
+    rate = Decimal("123456.123456789012345678901234")
+    pricing = TokenPricing(input=rate, output=0)
+    assert pricing.cost(RequestUsage(input_tokens=1_000_000)) == rate

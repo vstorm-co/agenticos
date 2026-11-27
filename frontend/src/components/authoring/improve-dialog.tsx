@@ -1,5 +1,7 @@
 "use client";
 
+import { useMoney } from "@/components/providers/currency-provider";
+
 import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { Sparkles, MessageSquare } from "lucide-react";
 import { EmptyState } from "@/components/states";
@@ -9,7 +11,6 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { ModelProfilePicker } from "@/components/agents/model-profile-picker";
 import { useModelProviders } from "@/hooks/use-model-providers";
-import { usd } from "@/components/evals/format";
 import {
   Button,
   Dialog,
@@ -47,6 +48,7 @@ export function ImproveDialog({
   const setup = useTranslations("improvementSetup");
   const tErrors = useTranslations("errors");
   const locale = useLocale();
+  const money = useMoney();
   const [modelId, setModelId] = useState<string | null>(null);
   const { profiles, profilesStatus } = useModelProviders();
   const [quote, setQuote] = useState<AuthoringEstimate | null>(null);
@@ -111,7 +113,7 @@ export function ImproveDialog({
                 runs: quote.runs,
                 ratedDown: quote.rated_down,
                 calls: quote.calls,
-                cost: usd(quote.estimate_usd, locale),
+                cost: money.cost(quote.estimate_usd, locale),
               })}
             </p>
           )}

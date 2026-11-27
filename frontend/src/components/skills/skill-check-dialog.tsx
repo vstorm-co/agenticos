@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import {
@@ -22,7 +22,7 @@ import { useSkillCheck, type SkillCheckBody } from "@/hooks/use-skill-check";
 import { ApiError, getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { DIALOG_FORM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
-import { formatCostUsd } from "@/lib/utils";
+import { useMoney } from "@/components/providers/currency-provider";
 import type { SkillCheck, SkillCheckEstimate } from "@/types/skill-checks";
 import { CheckDecision } from "./check-decision";
 import { CheckPlan, CheckProgress } from "./check-plan";
@@ -102,6 +102,8 @@ export function SkillCheckDialog({
   canDecide?: boolean;
 }) {
   const t = useTranslations("skills.check");
+  const money = useMoney();
+  const locale = useLocale();
   const tErrors = useTranslations("errors");
   const common = useTranslations("common");
   const [checkId, setCheckId] = useState<string | null>(resume ?? null);
@@ -231,8 +233,8 @@ export function SkillCheckDialog({
                 : unchecked || noReaders
                   ? null
                   : t("price", {
-                      expected: formatCostUsd(Number(plan.expected_usd)),
-                      most: formatCostUsd(Number(plan.at_most_usd)),
+                      expected: money.cost(plan.expected_usd, locale),
+                      most: money.cost(plan.at_most_usd, locale),
                     })}
             </p>
             <Button

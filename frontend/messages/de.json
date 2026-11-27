@@ -2861,7 +2861,7 @@
       "desktopTitle": "Desktop",
       "loadFailed": "Die Umgebung konnte nicht geladen werden. Versuche es erneut.",
       "loading": "Umgebung wird geladen…",
-      "runLifetime": "Diese Umgebung wird nach dem nächsten Agent-Run geschlossen.",
+      "runLifetime": "Wird nach einem Agent-Run geschlossen, der diese Umgebung verwendet.",
       "idleMinutes": "Bei Inaktivität bis zu {minutes, plural, one {# Minute} other {# Minuten}} verfügbar.",
       "idleSeconds": "Bei Inaktivität bis zu {seconds, plural, one {# Sekunde} other {# Sekunden}} verfügbar."
     }
@@ -22340,7 +22340,9 @@
     "amountPositive": "Geben Sie einen positiven Betrag ein.",
     "amountMaximum": "Geben Sie höchstens {amount} {currency} ein.",
     "switchOrganizationHint": "Wechseln Sie zu dieser Organisation, bevor Sie deren Limits ändern. Berechtigungen, Ausgaben und Berichtskurs müssen zur gleichen Organisation gehören.",
-    "switchOrganization": "Zu dieser Organisation wechseln"
+    "switchOrganization": "Zu dieser Organisation wechseln",
+    "criterionLimit": "Kosten ≤ {amount}",
+    "criterionObserved": "Gemessen: {amount}; Grenze: {limit}."
   },
   "portability": {
     "exportTitle": "Agent exportieren",

@@ -252,7 +252,11 @@ it("does not dismiss or submit End twice while its request is pending", async ()
 });
 
 it.each([
-  { session_lifetime: "run" as const, idle_seconds: 900, copy: "closes after the next agent run" },
+  {
+    session_lifetime: "run" as const,
+    idle_seconds: 900,
+    copy: "Closes after an agent run that uses this environment",
+  },
   { session_lifetime: "conversation" as const, idle_seconds: 75, copy: "75 seconds of inactivity" },
 ])("shows the effective $session_lifetime session policy", (policy) => {
   const environment = {
