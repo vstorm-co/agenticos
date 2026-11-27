@@ -227,6 +227,7 @@ class Plan:
     agents: list[Planned]
     org_remaining: Decimal | None
     proposal: SkillProposal | None
+    candidate_hash: str
     excluded: tuple[UUID, ...] = ()
     skill_set_case_ids: list[UUID] | None = None
     served: tuple[SkillBodyFile, ...] | None = None
@@ -316,15 +317,11 @@ class SkillCheckService:
             )
         return _proposal_candidate(proposal), proposal, proposal.fork_id
 
-    async def _served(
-        self, candidate: Candidate, base: SkillVersion
-    ) -> tuple[SkillBodyFile, ...] | None:
+    async def _served(self, candidate: Candidate, base: SkillVersion) -> tuple[SkillBodyFile, ...]:
         """The files a candidate is served with: the line's, with its own replacing or added.
 
         The same files applying it writes, so the check measures what would ship.
         """
-        if candidate.resources is None:
-            return None
         files = {
             name: SkillBodyFile(
                 name=name,
@@ -343,7 +340,7 @@ class SkillCheckService:
             )
         # A replaced file keeps its description, on main (`put_resources`) and on a fork
         # (`_apply_to_fork`) alike; only a merge's files bring their own.
-        for item in candidate.resources:
+        for item in candidate.resources or ():
             kept = files[item.name].description if item.name in files else None
             files[item.name] = SkillBodyFile(
                 name=item.name,
@@ -351,7 +348,7 @@ class SkillCheckService:
                 content=item.content,
                 encoding=item.encoding,
             )
-        names = {item.name for item in candidate.resources} if candidate.replaces else files
+        names = {item.name for item in candidate.resources or ()} if candidate.replaces else files
         return tuple(files[name] for name in sorted(names))
 
     async def _held_out(
@@ -408,8 +405,11 @@ class SkillCheckService:
         proposal: SkillProposal | None = None
         fork: SkillFork | None = None
         target: SkillVersion | None = None
+        proposal_hash: str | None = None
         if pinned is None:
             candidate, proposal, fork_id = await self._candidate(ctx, skill, data)
+            if proposal is not None:
+                proposal_hash = _proposal_digest(proposal)
             if files is not None:
                 candidate = replace(candidate, resources=files, replaces=True, described=True)
             fork, base = await self._line(ctx, skill, fork_id)
@@ -570,6 +570,7 @@ class SkillCheckService:
             agents=planned,
             org_remaining=org_remaining,
             proposal=proposal,
+            candidate_hash=proposal_hash if proposal_hash is not None else candidate.digest(),
             excluded=tuple(exclude_conversations),
             skill_set_case_ids=_kept(test_set, holdout or {}),
             served=served,
@@ -931,22 +932,28 @@ class SkillCheckService:
                 fork_id=None if plan.fork is None else plan.fork.id,
                 agent_id=plan.agent_id,
                 base_version_id=plan.base.id,
-                candidate_hash=plan.candidate.digest(),
+                candidate_hash=plan.candidate_hash,
                 mode=plan.mode.value,
                 source=source.value,
             )
             if running is not None:
                 return await self.read(ctx, skill_id, running.id)
         if plan.proposal is not None:
-            await skill_proposal_repo.lock(
+            locked = await skill_proposal_repo.lock(
                 self.db, plan.proposal.id, organization_id=ctx.organization_id
             )
+            if locked is None or locked.status != ProposalStatus.PENDING.value:
+                raise NotFoundError(message="No change to this skill is waiting")
+            if _proposal_digest(locked) != plan.candidate_hash:
+                raise ConcurrentChangeError(
+                    message="The proposal changed while its check was being planned. Check the current proposal again."
+                )
             for open_check in await skill_check_repo.open_for_proposal(
                 self.db, plan.proposal.id, organization_id=ctx.organization_id
             ):
                 # A finished check the line has moved past can no longer be decided, so
                 # it does not stand in the way of checking the change again.
-                if open_check.candidate_hash == plan.candidate.digest() and (
+                if open_check.candidate_hash == plan.candidate_hash and (
                     open_check.status == CheckStatus.RUNNING.value
                     or await self._drift(ctx, plan.skill, open_check) is None
                 ):
@@ -967,7 +974,7 @@ class SkillCheckService:
                 candidate_content=plan.candidate.content,
                 candidate_resources=_resources_json(plan.served),
                 candidate_manifest_metadata=plan.candidate.manifest_metadata,
-                candidate_hash=plan.candidate.digest(),
+                candidate_hash=plan.candidate_hash,
                 description_changed=plan.description_changed,
                 mode=plan.mode.value,
                 source=source.value,
@@ -1012,22 +1019,38 @@ class SkillCheckService:
         await self._settle(check, no_readers=not rows)
         return await self.read(ctx, skill_id, check.id)
 
+    async def _stage_body(self, check: SkillCheck) -> SkillBody:
+        """Freeze legacy missing file snapshots against their immutable recorded base.
+
+        Candidate hashes identify the submitted change, not this served-file snapshot;
+        resuming an older check must not rewrite its fingerprint or use newer live files.
+        """
+        candidate = _candidate_of(check)
+        if candidate.resources is None:
+            base = await skill_version_repo.get_version(
+                self.db,
+                check.base_version_id,
+                organization_id=check.organization_id,
+                skill_id=check.skill_id,
+            )
+            if base is None:
+                raise NotFoundError(message="The skill check's immutable base is unavailable")
+            candidate = replace(candidate, resources=await self._served(candidate, base))
+        return candidate.body(check.fork_id, over_pin=check.agent_id is not None)
+
     async def _run_stage(
         self, ctx: AuthContext, check: SkillCheck, row: SkillCheckAgent, stage: Stage
     ) -> None:
         """Start one stage of one agent; an agent whose run cannot start is unknown."""
         assert row.agent_version is not None, "only a published agent is run"
         try:
+            body = await self._stage_body(check)
             run = await self.evals.start(
                 ctx,
                 row.agent_id,
                 _request(stage, row.agent_version),
                 purpose=EvalRunPurpose.GATE,
-                candidate_skills={
-                    check.skill_id: _candidate_of(check).body(
-                        check.fork_id, over_pin=check.agent_id is not None
-                    )
-                },
+                candidate_skills={check.skill_id: body},
                 exclude_conversations=check.excluded_conversation_ids,
                 proposal_check=ProposalCheckRecord(
                     kind="skill",

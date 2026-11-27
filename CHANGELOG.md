@@ -50,6 +50,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Freeze complete skill files when queuing a Check, retain its immutable base on legacy resumes, and reject proposals changed while planning without rewriting submitted fingerprints. Preserve the migration constraint name on rollback.
+
 - Put workspace expand and close controls beside its tabs in every shared chat panel, preserve focus when closing, and keep tabs usable with touch or narrow layouts.
 
 - Keep Files contained in compact chats, retain listing position and folder folds behind the reader, and clear browser selection when switching conversations.

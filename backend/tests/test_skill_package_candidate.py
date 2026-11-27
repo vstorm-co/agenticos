@@ -165,3 +165,64 @@ def test_legacy_queued_check_does_not_inherit_new_live_frontmatter() -> None:
     metadata, body = split_frontmatter(render_body(live, resumed.body()))
     assert metadata == {"name": "template", "description": "Description"}
     assert body.strip() == "Old instructions"
+
+
+@pytest.mark.anyio
+async def test_empty_served_snapshot_does_not_inherit_later_live_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.db.models.skill_version import SkillVersion
+    from app.services.skill_check import SkillCheckService
+
+    service = SkillCheckService(MagicMock(spec=AsyncSession))
+    monkeypatch.setattr(service.versions, "files_of", AsyncMock(return_value={}))
+    assert (
+        await service._served(Candidate("Description", "Instructions"), SkillVersion(resources={}))
+        == ()
+    )
+    row = SkillCheck(
+        candidate_description="Description",
+        candidate_content="Instructions",
+        candidate_resources={},
+        candidate_manifest_metadata={},
+    )
+    body = await service._stage_body(row)
+    assert body.resources == ()
+
+
+@pytest.mark.anyio
+async def test_legacy_snapshot_without_its_authorized_base_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from unittest.mock import AsyncMock, MagicMock
+    from uuid import uuid4
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.core.exceptions import NotFoundError
+    from app.repositories import skill_version_repo
+    from app.services.skill_check import SkillCheckService
+
+    service = SkillCheckService(MagicMock(spec=AsyncSession))
+    get = AsyncMock(return_value=None)
+    monkeypatch.setattr(skill_version_repo, "get_version", get)
+    row = SkillCheck(
+        organization_id=uuid4(),
+        skill_id=uuid4(),
+        base_version_id=uuid4(),
+        candidate_description="Description",
+        candidate_content="Instructions",
+        candidate_resources=None,
+        candidate_hash="unchanged",
+    )
+    with pytest.raises(NotFoundError, match="immutable base"):
+        await service._stage_body(row)
+    get.assert_awaited_once_with(
+        service.db, row.base_version_id, organization_id=row.organization_id, skill_id=row.skill_id
+    )
+    assert row.candidate_resources is None
+    assert row.candidate_hash == "unchanged"

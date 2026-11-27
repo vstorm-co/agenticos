@@ -28,7 +28,7 @@ def upgrade() -> None:
         ),
     )
     op.create_check_constraint(
-        op.f("skill_checks_ck_skill_check_manifest_metadata"),
+        op.f("skill_checks_ck_skill_check_manifest_metadata_check"),
         "skill_checks",
         "candidate_manifest_metadata IS NULL OR jsonb_typeof(candidate_manifest_metadata) = 'object'",
     )
@@ -75,7 +75,7 @@ def downgrade() -> None:
             "those skills before downgrading; bytes and frontmatter cannot be discarded."
         )
     op.drop_constraint(
-        op.f("skill_checks_ck_skill_check_manifest_metadata"), "skill_checks", type_="check"
+        op.f("skill_checks_ck_skill_check_manifest_metadata_check"), "skill_checks", type_="check"
     )
     op.drop_column("skill_checks", "candidate_manifest_metadata")
     for table in ("skill_versions", "skills"):

@@ -226,9 +226,18 @@ async def test_queued_check_reload_retains_binary_encoding_and_frontmatter(
     skills = SkillService(db)
     await skills.update(lab.ctx, lab.skill.id, SkillUpdate(manifest_metadata={"license": "MIT"}))
     await skills.put_resources(lab.ctx, lab.skill.id, [("assets/template.xlsx", RAW)])
-    FakeEvals().install(monkeypatch)
-    check = await SkillCheckService(db).start(lab.ctx, lab.skill.id, SkillCheckStart(candidate=NEW))
+    fake = FakeEvals()
+    fake.install(monkeypatch)
+    service = SkillCheckService(db)
+    check = await service.start(
+        lab.ctx, lab.skill.id, SkillCheckStart(candidate=NEW, mode="thorough")
+    )
     check_id, skill_id = check.id, lab.skill.id
+    await skills.put_resources(
+        lab.ctx,
+        skill_id,
+        [("assets/template.xlsx", b"changed\0live"), ("assets/new.xlsx", b"new\0live")],
+    )
     db.expire_all()
     row = await skill_check_repo.get(db, check_id, organization_id=lab.ctx.organization_id)
     assert row is not None
@@ -237,5 +246,181 @@ async def test_queued_check_reload_retains_binary_encoding_and_frontmatter(
     assert resumed.resources is not None
     asset = next(item for item in resumed.resources if item.name == "assets/template.xlsx")
     assert decode_skill_file(asset.content, asset.encoding) == RAW
+    workspace = document_workspace(CappedStateBackend(max_bytes=1024 * 1024))
+    current = await skills.get(lab.ctx, skill_id)
+    await materialise(workspace, [current], {skill_id: resumed.body()})
+    assert (
+        await workspace.read_bytes(f"/workspace/skills/{current.name}/assets/template.xlsx") == RAW
+    )
+    assert {
+        entry.path for entry in await workspace.list_dir(f"/workspace/skills/{current.name}/assets")
+    } == {f"/workspace/skills/{current.name}/assets/template.xlsx"}
+    fake.served.clear()
+    fake.finish_all()
+    await service.advance(check_id, lab.ctx.organization_id)
+    assert fake.served
+    for served in fake.served:
+        body = served[skill_id]
+        assert body.resources == resumed.resources
     shown = await SkillCheckService(db).read(lab.ctx, skill_id, check_id)
     assert shown.candidate.manifest_metadata == {"license": "MIT"}
+
+
+async def test_legacy_null_check_files_use_immutable_base_before_next_eval_enqueue(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.repositories import skill_check_repo
+    from app.schemas.skill_check import SkillCheckStart
+    from app.services.skill_check import SkillCheckService
+    from tests.integration.test_skill_checks import NEW, FakeEvals, _lab
+
+    lab = await _lab(db)
+    skill_id = lab.skill.id
+    skills = SkillService(db)
+    await skills.put_resources(lab.ctx, skill_id, [("assets/template.xlsx", RAW)])
+    fake = FakeEvals()
+    fake.install(monkeypatch)
+    service = SkillCheckService(db)
+    check = await service.start(lab.ctx, skill_id, SkillCheckStart(candidate=NEW, mode="thorough"))
+    row = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
+    assert row is not None
+    original_hash = row.candidate_hash
+    row.candidate_resources = None
+    await db.flush()
+    await skills.put_resources(
+        lab.ctx,
+        skill_id,
+        [("assets/template.xlsx", b"changed\0live"), ("assets/new.xlsx", b"new\0live")],
+    )
+    fake.served.clear()
+    fake.finish_all()
+    await service.advance(check.id, lab.ctx.organization_id)
+    assert fake.served
+    current = await skills.get(lab.ctx, skill_id)
+    for served in fake.served:
+        workspace = document_workspace(CappedStateBackend(max_bytes=1024 * 1024))
+        body = served[skill_id]
+        assert body.resources is not None
+        await materialise(workspace, [current], {skill_id: body})
+        assert (
+            await workspace.read_bytes(f"/workspace/skills/{current.name}/assets/template.xlsx")
+            == RAW
+        )
+        assert {
+            entry.path
+            for entry in await workspace.list_dir(f"/workspace/skills/{current.name}/assets")
+        } == {f"/workspace/skills/{current.name}/assets/template.xlsx"}
+    await db.refresh(row)
+    assert row.candidate_hash == original_hash
+    assert row.candidate_resources is None
+
+
+async def test_proposal_check_decision_keeps_input_hash_and_inherited_metadata(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.repositories import skill_check_repo, skill_proposal_repo
+    from app.schemas.resource_usage import ProposalDecision
+    from app.schemas.skill_check import SkillCheckStart
+    from app.services.skill_check import SkillCheckService, _proposal_digest
+    from app.services.skill_proposal import SkillProposalService
+    from tests.integration.test_skill_checks import FakeEvals, Outcome, _lab, _run_to_end
+
+    lab = await _lab(db)
+    skill_id = lab.skill.id
+    skills = SkillService(db)
+    await skills.update(lab.ctx, skill_id, SkillUpdate(manifest_metadata={"license": "MIT"}))
+    await skills.put_resources(lab.ctx, skill_id, [("assets/template.xlsx", RAW)])
+    current = await skills.get(lab.ctx, skill_id)
+    proposal = await skill_proposal_repo.create(
+        db,
+        organization_id=lab.ctx.organization_id,
+        agent_id=lab.a.id,
+        skill_id=skill_id,
+        name=current.name,
+        description=current.description,
+        content="Updated instructions.",
+        resources={},
+        base_version=current.version,
+        base_version_id=current.latest_version_id,
+        conversation_id=None,
+        fork_id=None,
+    )
+    input_hash = _proposal_digest(proposal)
+    fake = FakeEvals()
+    fake.install(monkeypatch)
+    service = SkillCheckService(db)
+    check = await service.start(lab.ctx, skill_id, SkillCheckStart(proposal_id=proposal.id))
+    row = await skill_check_repo.get(db, check.id, organization_id=lab.ctx.organization_id)
+    assert row is not None
+    assert row.candidate_hash == input_hash
+    assert row.candidate_manifest_metadata == {"license": "MIT"}
+    fake.outcomes = {lab.a.id: Outcome(fixed=1)}
+    await _run_to_end(service, fake, lab, check.id)
+    decided = await SkillProposalService(db).apply(
+        lab.ctx, proposal.id, ProposalDecision(revision=proposal.revision, check_id=check.id)
+    )
+    assert decided.status == "applied"
+    current = await skills.get(lab.ctx, skill_id)
+    assert current.manifest_metadata == {"license": "MIT"}
+    asset = next(item for item in current.resources if item.name == "assets/template.xlsx")
+    assert decode_skill_file(asset.content, asset.encoding) == RAW
+    assert row.candidate_hash == input_hash
+
+
+@pytest.mark.parametrize("mutation", ["rewrite", "delete", "decide"])
+async def test_proposal_snapshot_refuses_rewrite_or_delete_before_locked_start(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    from sqlalchemy import delete, update
+
+    from app.core.exceptions import ConcurrentChangeError
+    from app.db.models.skill_check import SkillCheck
+    from app.db.models.skill_proposal import SkillProposal
+    from app.repositories import skill_proposal_repo
+    from app.schemas.skill_check import SkillCheckStart
+    from app.services.skill_check import SkillCheckService
+    from tests.integration.test_skill_checks import FakeEvals, _lab
+
+    lab = await _lab(db)
+    await SkillService(db).update(
+        lab.ctx, lab.skill.id, SkillUpdate(manifest_metadata={"license": "MIT"})
+    )
+    proposal = await skill_proposal_repo.create(
+        db,
+        organization_id=lab.ctx.organization_id,
+        agent_id=lab.a.id,
+        skill_id=lab.skill.id,
+        name=lab.skill.name,
+        description=lab.skill.description,
+        content="Original proposal",
+        resources={},
+        base_version=lab.skill.version,
+        base_version_id=lab.skill.latest_version_id,
+        conversation_id=None,
+        fork_id=None,
+    )
+    fake = FakeEvals()
+    fake.install(monkeypatch)
+    service = SkillCheckService(db)
+    plan = await service._plan(lab.ctx, lab.skill.id, SkillCheckStart(proposal_id=proposal.id))
+    captured_hash = plan.candidate_hash
+    if mutation == "delete":
+        statement = delete(SkillProposal).where(SkillProposal.id == proposal.id)
+    elif mutation == "rewrite":
+        statement = (
+            update(SkillProposal)
+            .where(SkillProposal.id == proposal.id)
+            .values(content="Rewritten proposal")
+        )
+    else:
+        statement = (
+            update(SkillProposal).where(SkillProposal.id == proposal.id).values(status="applied")
+        )
+    await db.execute(statement.execution_options(synchronize_session=False))
+    # The lock's populate_existing must observe a changed database row without
+    # changing the immutable plan's identity to that of the new proposal.
+    with pytest.raises(ConcurrentChangeError if mutation == "rewrite" else NotFoundError):
+        await service._start(lab.ctx, lab.skill.id, plan, source=None, narrowed=False)
+    assert plan.candidate_hash == captured_hash
+    assert fake.started == []
+    assert await db.scalar(select(func.count()).select_from(SkillCheck)) == 0
