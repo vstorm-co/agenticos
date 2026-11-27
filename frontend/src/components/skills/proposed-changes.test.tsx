@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -268,6 +268,20 @@ describe("ProposedChanges", () => {
     await userEvent.click(screen.getByRole("button", { name: "Test before applying (optional)" }));
     expect(screen.getByText("checking p-1 on fork-1")).toBeInTheDocument();
     expect(state.apply).not.toHaveBeenCalled();
+  });
+
+  it("will neither apply nor test a change quoting a credential, and says why", async () => {
+    state.changes = [change({ skill_id: "s-1", contains_credential: true })];
+    render(<ProposedChanges canEdit />);
+    expect(screen.getByText(/quotes a credential, so it can't be applied or tested/)).toBeVisible();
+    expect(screen.getByRole("button", { name: /Discard the change/ })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: /Show what changed/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/quotes a credential/)).toBeVisible();
+    expect(within(dialog).getByRole("button", { name: "Apply update" })).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Test before applying (optional)" }),
+    ).toBeDisabled();
   });
 
   it("keeps the review open when applying fails", async () => {

@@ -9876,7 +9876,8 @@
       "testOptional": "Testar antes de aplicar (opcional)",
       "hiddenAgents": "{count, plural, one {# outro agente} other {# outros agentes}}",
       "testOptionalShort": "Testar (opcional)",
-      "compareShort": "Mudanças"
+      "compareShort": "Mudanças",
+      "quotesCredential": "Esta alteração cita uma credencial, então não pode ser aplicada nem testada. Descarte-a e faça a alteração manualmente."
     }
   },
   "states": {
@@ -16852,7 +16853,8 @@
       "dismissAll": "Descartar todas",
       "verifyReport": "O que o assistente concluiu sobre suas edições",
       "skillCreated": "Skill {name} criada e adicionada ao rascunho",
-      "working": "Lendo as execuções…"
+      "working": "Lendo as execuções…",
+      "checkQuotesCredential": "Uma sugestão cita uma credencial, então estas sugestões não podem ser verificadas. Remova a credencial editando-a ou descarte-a."
     },
     "suggestion": {
       "tool": "Ferramenta {tool}",
@@ -16869,7 +16871,8 @@
       "accept": "Aceitar",
       "edit": "Editar",
       "dismiss": "Descartar",
-      "undo": "Desfazer"
+      "undo": "Desfazer",
+      "quotesCredential": "Esta sugestão cita uma credencial, então não pode ser aceita como está. Remova a credencial editando-a ou descarte a sugestão."
     },
     "field": {
       "editLabel": "Seu valor",
@@ -17027,7 +17030,8 @@
       "liveHint": "Aplicar tem efeito imediato: todos os agentes que leem o arquivo usarão o novo conteúdo na próxima execução.",
       "expects": "Esperado: {effect}",
       "applied": "Alteração aplicada em {name}",
-      "discarded": "Alteração descartada em {name}"
+      "discarded": "Alteração descartada em {name}",
+      "quotesCredential": "Esta alteração cita uma credencial, então não pode ser aplicada nem verificada. Descarte-a e faça a alteração manualmente."
     },
     "describe": {
       "open": "Criar com {name}"
@@ -17930,7 +17934,9 @@
       "invalid": "O teste não conseguiu comparar as versões de forma confiável. Revise o teste antes de tirar conclusões.",
       "noExamples": "Não há respostas alteradas para mostrar. Abra o teste completo para ver todas as perguntas."
     },
-    "permissionRuns": "Ler uma sessão do Improve requer runs:view, que esta função não tem. Peça acesso a um proprietário da organização."
+    "permissionRuns": "Ler uma sessão do Improve requer runs:view, que esta função não tem. Peça acesso a um proprietário da organização.",
+    "changeQuotesCredential": "Esta alteração cita uma credencial, então não pode ser testada nem aplicada. Deixe-a de fora.",
+    "selectionQuotesCredential": "Uma alteração escolhida cita uma credencial. Deixe-a de fora para testar as outras."
   },
   "unsaved": {
     "title": "Você tem alterações não salvas",

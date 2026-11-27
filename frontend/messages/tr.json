@@ -847,7 +847,8 @@
       "testOptional": "Uygulamadan önce test et (isteğe bağlı)",
       "hiddenAgents": "{count, plural, one {# diğer ajan} other {# diğer ajan}}",
       "testOptionalShort": "Test (isteğe bağlı)",
-      "compareShort": "Değişiklikler"
+      "compareShort": "Değişiklikler",
+      "quotesCredential": "Bu değişiklik bir kimlik bilgisi alıntılıyor, bu yüzden uygulanamaz veya test edilemez. Değişikliği reddedip elle yapın."
     },
     "check": {
       "proposalGoneTitle": "Bu güncelleme artık beklemede değil",
@@ -18133,7 +18134,9 @@
       "invalid": "Test sürümleri güvenilir biçimde karşılaştıramadı. Sonuç çıkarmadan önce testi inceleyin.",
       "noExamples": "Gösterilecek değişmiş yanıt yok. Tüm sorular için tam testi açın."
     },
-    "permissionRuns": "Bir Improve oturumunu okumak runs:view izni gerektirir; bu rolde bu izin yok. Erişim için bir kuruluş sahibinden isteyin."
+    "permissionRuns": "Bir Improve oturumunu okumak runs:view izni gerektirir; bu rolde bu izin yok. Erişim için bir kuruluş sahibinden isteyin.",
+    "changeQuotesCredential": "Bu değişiklik bir kimlik bilgisi alıntılıyor, bu yüzden test edilemez veya uygulanamaz. Onu dışarıda bırakın.",
+    "selectionQuotesCredential": "Seçilen değişikliklerden biri kimlik bilgisi alıntılıyor. Diğerlerini test etmek için onu dışarıda bırakın."
   },
   "personalModelKeys": {
     "copilot": {
@@ -18159,7 +18162,8 @@
       "dismissAll": "Tümünü reddet",
       "verifyReport": "Asistanın düzenlemeleriniz hakkındaki değerlendirmesi",
       "skillCreated": "{name} adlı skill oluşturuldu ve taslağa eklendi",
-      "working": "Run'lar okunuyor…"
+      "working": "Run'lar okunuyor…",
+      "checkQuotesCredential": "Önerilerden biri kimlik bilgisi alıntılıyor, bu yüzden bu öneriler kontrol edilemez. Düzenleyerek kimlik bilgisini çıkarın veya öneriyi reddedin."
     },
     "suggestion": {
       "tool": "{tool} tool'u",
@@ -18176,7 +18180,8 @@
       "accept": "Kabul et",
       "edit": "Düzenle",
       "dismiss": "Reddet",
-      "undo": "Geri al"
+      "undo": "Geri al",
+      "quotesCredential": "Bu öneri bir kimlik bilgisi alıntılıyor, bu yüzden olduğu gibi kabul edilemez. Düzenleyerek kimlik bilgisini çıkarın veya öneriyi reddedin."
     },
     "field": {
       "editLabel": "Değeriniz",
@@ -18334,7 +18339,8 @@
       "liveHint": "Uygulama hemen geçerli olur: dosyayı okuyan her agent, bir sonraki run'ında yeni içeriği okur.",
       "expects": "Beklenen: {effect}",
       "applied": "Değişiklik {name} öğesine uygulandı",
-      "discarded": "{name} için yapılan değişiklikten vazgeçildi"
+      "discarded": "{name} için yapılan değişiklikten vazgeçildi",
+      "quotesCredential": "Bu değişiklik bir kimlik bilgisi alıntılıyor, bu yüzden uygulanamaz veya kontrol edilemez. Değişikliği reddedip elle yapın."
     },
     "describe": {
       "open": "{name} ile oluştur"

@@ -9992,7 +9992,8 @@
       "testOptional": "Test before applying (optional)",
       "hiddenAgents": "{count, plural, one {# other agent} other {# other agents}}",
       "testOptionalShort": "Test (optional)",
-      "compareShort": "Changes"
+      "compareShort": "Changes",
+      "quotesCredential": "This change quotes a credential, so it can't be applied or tested. Discard it and make the change by hand."
     }
   },
   "states": {
@@ -16968,7 +16969,8 @@
       "dismissAll": "Dismiss all",
       "verifyReport": "What the assistant made of your edits",
       "skillCreated": "Skill {name} created and added to the draft",
-      "working": "Reading the runs…"
+      "working": "Reading the runs…",
+      "checkQuotesCredential": "A suggestion quotes a credential, so these suggestions can't be checked. Edit the credential out of it, or dismiss it."
     },
     "suggestion": {
       "tool": "Tool {tool}",
@@ -16985,7 +16987,8 @@
       "accept": "Accept",
       "edit": "Edit",
       "dismiss": "Dismiss",
-      "undo": "Undo"
+      "undo": "Undo",
+      "quotesCredential": "This suggestion quotes a credential, so it can't be accepted as written. Edit the credential out, or dismiss it."
     },
     "field": {
       "editLabel": "Your value",
@@ -17143,7 +17146,8 @@
       "liveHint": "Applying is live: every agent that reads the file reads the new body on its next run.",
       "expects": "Expected: {effect}",
       "applied": "Applied the change to {name}",
-      "discarded": "Discarded the change to {name}"
+      "discarded": "Discarded the change to {name}",
+      "quotesCredential": "This change quotes a credential, so it can't be applied or checked. Discard it and make the change by hand."
     },
     "describe": {
       "open": "Create with {name}"
@@ -18046,7 +18050,9 @@
       "invalid": "The test could not reliably compare the versions. Review the test before drawing conclusions.",
       "noExamples": "There are no changed answers to show. Open the full test to see every question."
     },
-    "permissionRuns": "Reading an Improve session needs runs:view, which this role does not hold. Ask an organization owner for access."
+    "permissionRuns": "Reading an Improve session needs runs:view, which this role does not hold. Ask an organization owner for access.",
+    "changeQuotesCredential": "This change quotes a credential, so it can't be tested or applied. Leave it out.",
+    "selectionQuotesCredential": "A chosen change quotes a credential. Leave it out to test the others."
   },
   "unsaved": {
     "title": "You have unsaved changes",

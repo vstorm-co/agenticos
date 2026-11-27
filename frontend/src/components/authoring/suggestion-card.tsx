@@ -133,6 +133,9 @@ export function SuggestionCard({
           dropped={hunk.evidence_dropped}
           hidden={hunk.evidence_hidden}
         />
+        {pending && hunk.contains_credential && (
+          <p className="text-sm text-amber-700 dark:text-amber-400">{t("quotesCredential")}</p>
+        )}
         {canEdit && (
           <div className="flex flex-wrap gap-2">
             {pending && editing !== null && (
@@ -159,7 +162,7 @@ export function SuggestionCard({
                 {hunk.applies && (
                   <Button
                     size="sm"
-                    disabled={busy || Boolean(hunk.blocked)}
+                    disabled={busy || Boolean(hunk.blocked) || Boolean(hunk.contains_credential)}
                     onClick={() => onDecide(accepting())}
                   >
                     {t("accept")}

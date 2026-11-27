@@ -35,6 +35,28 @@ describe("SuggestionCard", () => {
     ]);
   });
 
+  it("says why a suggestion quoting a credential cannot be accepted, and keeps Edit", async () => {
+    const onDecide = vi.fn();
+    render(
+      <SuggestionCard
+        hunk={hunk({ contains_credential: true })}
+        canEdit
+        busy={false}
+        onDecide={onDecide}
+      />,
+    );
+    expect(
+      screen.getByText(/quotes a credential, so it can't be accepted as written/),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const box = screen.getByRole("textbox", { name: "Your wording of the suggestion" });
+    await userEvent.clear(box);
+    await userEvent.type(box, "Thirty days.");
+    await userEvent.click(screen.getByRole("button", { name: "Save and accept" }));
+    expect(onDecide).toHaveBeenCalledWith({ action: "accept", text: "Thirty days." });
+  });
+
   it("can leave the edit without deciding", async () => {
     render(<SuggestionCard hunk={hunk()} canEdit busy={false} onDecide={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));
