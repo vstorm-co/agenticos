@@ -14421,11 +14421,11 @@
       },
       "session_lifetime": {
         "title": "Sessieduur",
-        "description": "Sluit in privéwebchat na elke run of behoud dezelfde liveomgeving tussen berichten. Andere kanalen behouden hun bestaande levensduur."
+        "description": "Sluit in privéwebchat de door de applicatie beheerde externe omgeving na een run die deze gebruikt, of behoud deze tussen berichten. Gekoppelde lokale apparaten en andere interfaces behouden hun bestaande sessiegedrag."
       },
       "session_idle_seconds": {
         "title": "Inactiviteitslimiet (seconden)",
-        "description": "Beëindig een bewaarde omgeving na deze inactiviteit, begrensd door het implementatiebeleid. Het paneel sluiten beëindigt haar niet."
+        "description": "Beëindig de door de applicatie beheerde externe webchatomgeving na deze inactiviteit, begrensd door het implementatiebeleid. Alleen meekijken verlengt de sessie niet; het paneel sluiten koppelt alleen de weergave los."
       }
     },
     "channel_tools": {
@@ -14959,11 +14959,11 @@
       },
       "session_lifetime": {
         "title": "Sessieduur",
-        "description": "Sluit in privéwebchat na elke run of behoud dezelfde liveomgeving tussen berichten. Andere kanalen behouden hun bestaande levensduur."
+        "description": "Sluit in privéwebchat de door de applicatie beheerde externe omgeving na een run die deze gebruikt, of behoud deze tussen berichten. Gekoppelde lokale apparaten en andere interfaces behouden hun bestaande sessiegedrag."
       },
       "session_idle_seconds": {
         "title": "Inactiviteitslimiet (seconden)",
-        "description": "Beëindig een bewaarde omgeving na deze inactiviteit, begrensd door het implementatiebeleid. Het paneel sluiten beëindigt haar niet."
+        "description": "Beëindig de door de applicatie beheerde externe webchatomgeving na deze inactiviteit, begrensd door het implementatiebeleid. Alleen meekijken verlengt de sessie niet; het paneel sluiten koppelt alleen de weergave los."
       }
     },
     "phone_calls": {

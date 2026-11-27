@@ -11058,11 +11058,11 @@
       },
       "session_lifetime": {
         "title": "Czas trwania sesji",
-        "description": "W prywatnym czacie webowym zamykaj środowisko po każdym runie lub zachowuj tę samą sesję między wiadomościami. Pozostałe kanały zachowują dotychczasowy cykl życia."
+        "description": "W prywatnym czacie webowym zamykaj zdalne środowisko zarządzane przez aplikację po zadaniu, które z niego korzysta, lub zachowuj je między wiadomościami. Sparowane urządzenia lokalne i pozostałe kanały zachowują dotychczasowe działanie sesji."
       },
       "session_idle_seconds": {
         "title": "Limit bezczynności (sekundy)",
-        "description": "Zakończ zachowane środowisko po tym czasie bezczynności, z uwzględnieniem limitu wdrożenia. Zamknięcie panelu nie kończy sesji."
+        "description": "Zakończ zdalne środowisko czatu zarządzane przez aplikację po tym czasie bezczynności, z uwzględnieniem limitu wdrożenia. Samo oglądanie nie przedłuża sesji; zamknięcie panelu tylko odłącza podgląd."
       }
     },
     "channel_tools": {
@@ -11596,11 +11596,11 @@
       },
       "session_lifetime": {
         "title": "Czas trwania sesji",
-        "description": "W prywatnym czacie webowym zamykaj środowisko po każdym runie lub zachowuj tę samą sesję między wiadomościami. Pozostałe kanały zachowują dotychczasowy cykl życia."
+        "description": "W prywatnym czacie webowym zamykaj zdalne środowisko zarządzane przez aplikację po zadaniu, które z niego korzysta, lub zachowuj je między wiadomościami. Sparowane urządzenia lokalne i pozostałe kanały zachowują dotychczasowe działanie sesji."
       },
       "session_idle_seconds": {
         "title": "Limit bezczynności (sekundy)",
-        "description": "Zakończ zachowane środowisko po tym czasie bezczynności, z uwzględnieniem limitu wdrożenia. Zamknięcie panelu nie kończy sesji."
+        "description": "Zakończ zdalne środowisko czatu zarządzane przez aplikację po tym czasie bezczynności, z uwzględnieniem limitu wdrożenia. Samo oglądanie nie przedłuża sesji; zamknięcie panelu tylko odłącza podgląd."
       }
     },
     "phone_calls": {

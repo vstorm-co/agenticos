@@ -5451,11 +5451,11 @@
       },
       "session_lifetime": {
         "title": "Oturum süresi",
-        "description": "Özel web sohbetinde her run sonrasında kapatın veya mesajlar arasında aynı canlı ortamı koruyun. Diğer kanallar mevcut yaşam döngüsünü korur."
+        "description": "Özel web sohbetinde uygulamanın yönettiği uzak ortamı, onu kullanan bir run sonrasında kapatın veya mesajlar arasında koruyun. Eşleştirilmiş yerel cihazlar ve diğer arayüzler mevcut oturum davranışını korur."
       },
       "session_idle_seconds": {
         "title": "Boşta kalma sınırı (saniye)",
-        "description": "Korunan ortamı bu süre sonunda dağıtım politikası sınırları içinde sonlandırın. Paneli kapatmak ortamı sonlandırmaz."
+        "description": "Uygulamanın yönettiği uzak web sohbeti ortamını, dağıtım politikası sınırları içinde bu hareketsizlik süresinden sonra sonlandırın. Yalnızca izlemek oturumu uzatmaz; paneli kapatmak sadece görüntüyü ayırır."
       }
     },
     "guardrails": {
@@ -6012,11 +6012,11 @@
       },
       "session_lifetime": {
         "title": "Oturum süresi",
-        "description": "Özel web sohbetinde her run sonrasında kapatın veya mesajlar arasında aynı canlı ortamı koruyun. Diğer kanallar mevcut yaşam döngüsünü korur."
+        "description": "Özel web sohbetinde uygulamanın yönettiği uzak ortamı, onu kullanan bir run sonrasında kapatın veya mesajlar arasında koruyun. Eşleştirilmiş yerel cihazlar ve diğer arayüzler mevcut oturum davranışını korur."
       },
       "session_idle_seconds": {
         "title": "Boşta kalma sınırı (saniye)",
-        "description": "Korunan ortamı bu süre sonunda dağıtım politikası sınırları içinde sonlandırın. Paneli kapatmak ortamı sonlandırmaz."
+        "description": "Uygulamanın yönettiği uzak web sohbeti ortamını, dağıtım politikası sınırları içinde bu hareketsizlik süresinden sonra sonlandırın. Yalnızca izlemek oturumu uzatmaz; paneli kapatmak sadece görüntüyü ayırır."
       }
     },
     "external_acp": {

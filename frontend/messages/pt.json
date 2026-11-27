@@ -14421,11 +14421,11 @@
       },
       "session_lifetime": {
         "title": "Duração da sessão",
-        "description": "No chat web privado, fechar após cada run ou manter o mesmo ambiente entre mensagens. Os outros canais mantêm a duração atual."
+        "description": "No chat web privado, fechar o ambiente remoto gerido pela aplicação após um run que o utilize, ou mantê-lo entre mensagens. Os dispositivos locais emparelhados e as outras interfaces mantêm o comportamento atual das sessões."
       },
       "session_idle_seconds": {
         "title": "Limite de inatividade (segundos)",
-        "description": "Encerrar o ambiente mantido após esta inatividade, limitado pela política da implantação. Fechar o painel não o encerra."
+        "description": "Encerrar o ambiente remoto de chat gerido pela aplicação após esta inatividade, limitado pela política da implantação. Apenas observar não prolonga a sessão; fechar o painel só desliga a visualização."
       }
     },
     "channel_tools": {
@@ -14959,11 +14959,11 @@
       },
       "session_lifetime": {
         "title": "Duração da sessão",
-        "description": "No chat web privado, fechar após cada run ou manter o mesmo ambiente entre mensagens. Os outros canais mantêm a duração atual."
+        "description": "No chat web privado, fechar o ambiente remoto gerido pela aplicação após um run que o utilize, ou mantê-lo entre mensagens. Os dispositivos locais emparelhados e as outras interfaces mantêm o comportamento atual das sessões."
       },
       "session_idle_seconds": {
         "title": "Limite de inatividade (segundos)",
-        "description": "Encerrar o ambiente mantido após esta inatividade, limitado pela política da implantação. Fechar o painel não o encerra."
+        "description": "Encerrar o ambiente remoto de chat gerido pela aplicação após esta inatividade, limitado pela política da implantação. Apenas observar não prolonga a sessão; fechar o painel só desliga a visualização."
       }
     },
     "phone_calls": {

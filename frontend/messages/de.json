@@ -14229,11 +14229,11 @@
       },
       "session_lifetime": {
         "title": "Sitzungsdauer",
-        "description": "Im privaten Webchat nach jedem Run schließen oder dieselbe Live-Umgebung zwischen Nachrichten behalten. Andere Kanäle behalten ihre bisherige Lebensdauer."
+        "description": "Im privaten Webchat die von der Anwendung verwaltete entfernte Umgebung nach einem Run schließen, der sie verwendet, oder zwischen Nachrichten behalten. Gekoppelte lokale Geräte und andere Oberflächen behalten ihr bisheriges Sitzungsverhalten."
       },
       "session_idle_seconds": {
         "title": "Inaktivitätslimit (Sekunden)",
-        "description": "Die beibehaltene Webchat-Umgebung nach dieser Inaktivität beenden, begrenzt durch die Bereitstellungsrichtlinie. Das Schließen des Panels beendet sie nicht."
+        "description": "Die von der Anwendung verwaltete entfernte Webchat-Umgebung nach dieser Inaktivität beenden, begrenzt durch die Bereitstellungsrichtlinie. Bloßes Zuschauen verlängert die Sitzung nicht; das Schließen des Panels trennt nur die Ansicht."
       }
     },
     "channel_tools": {
@@ -14767,11 +14767,11 @@
       },
       "session_lifetime": {
         "title": "Sitzungsdauer",
-        "description": "Im privaten Webchat nach jedem Run schließen oder dieselbe Live-Umgebung zwischen Nachrichten behalten. Andere Kanäle behalten ihre bisherige Lebensdauer."
+        "description": "Im privaten Webchat die von der Anwendung verwaltete entfernte Umgebung nach einem Run schließen, der sie verwendet, oder zwischen Nachrichten behalten. Gekoppelte lokale Geräte und andere Oberflächen behalten ihr bisheriges Sitzungsverhalten."
       },
       "session_idle_seconds": {
         "title": "Inaktivitätslimit (Sekunden)",
-        "description": "Die beibehaltene Webchat-Umgebung nach dieser Inaktivität beenden, begrenzt durch die Bereitstellungsrichtlinie. Das Schließen des Panels beendet sie nicht."
+        "description": "Die von der Anwendung verwaltete entfernte Webchat-Umgebung nach dieser Inaktivität beenden, begrenzt durch die Bereitstellungsrichtlinie. Bloßes Zuschauen verlängert die Sitzung nicht; das Schließen des Panels trennt nur die Ansicht."
       }
     },
     "phone_calls": {

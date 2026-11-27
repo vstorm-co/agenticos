@@ -14172,11 +14172,11 @@
       },
       "session_lifetime": {
         "title": "Durée de session",
-        "description": "Dans le chat web privé, fermer après chaque run ou conserver le même environnement entre les messages. Les autres canaux gardent leur durée actuelle."
+        "description": "Dans le chat web privé, fermer l’environnement distant géré par l’application après un run qui l’utilise, ou le conserver entre les messages. Les appareils locaux appairés et les autres interfaces gardent leur fonctionnement actuel."
       },
       "session_idle_seconds": {
         "title": "Délai d’inactivité (secondes)",
-        "description": "Terminer l’environnement conservé après cette inactivité, dans la limite du déploiement. Fermer le panneau ne le termine pas."
+        "description": "Terminer l’environnement distant du chat géré par l’application après cette inactivité, dans la limite du déploiement. Le simple visionnage ne prolonge pas la session ; fermer le panneau détache seulement la vue."
       }
     },
     "channel_tools": {
@@ -14710,11 +14710,11 @@
       },
       "session_lifetime": {
         "title": "Durée de session",
-        "description": "Dans le chat web privé, fermer après chaque run ou conserver le même environnement entre les messages. Les autres canaux gardent leur durée actuelle."
+        "description": "Dans le chat web privé, fermer l’environnement distant géré par l’application après un run qui l’utilise, ou le conserver entre les messages. Les appareils locaux appairés et les autres interfaces gardent leur fonctionnement actuel."
       },
       "session_idle_seconds": {
         "title": "Délai d’inactivité (secondes)",
-        "description": "Terminer l’environnement conservé après cette inactivité, dans la limite du déploiement. Fermer le panneau ne le termine pas."
+        "description": "Terminer l’environnement distant du chat géré par l’application après cette inactivité, dans la limite du déploiement. Le simple visionnage ne prolonge pas la session ; fermer le panneau détache seulement la vue."
       }
     },
     "phone_calls": {

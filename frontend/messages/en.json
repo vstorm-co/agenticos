@@ -14543,11 +14543,11 @@
       },
       "session_lifetime": {
         "title": "Session lifetime",
-        "description": "In private web chat, close after each run or keep the same live environment between turns. Other surfaces keep their existing lifetime."
+        "description": "In private web chat, close the app-owned remote environment after a run that uses it, or keep it between turns. Paired local devices and other surfaces keep their existing session behavior."
       },
       "session_idle_seconds": {
         "title": "Idle timeout (seconds)",
-        "description": "End a retained web-chat environment after this much inactivity, capped by deployment policy. Closing the panel does not end it."
+        "description": "End an app-owned remote web-chat environment after this much inactivity, capped by deployment policy. Passive viewing does not extend it; closing the panel only detaches its view."
       }
     },
     "channel_tools": {
@@ -15081,11 +15081,11 @@
       },
       "session_lifetime": {
         "title": "Session lifetime",
-        "description": "In private web chat, close after each run or keep the same live environment between turns. Other surfaces keep their existing lifetime."
+        "description": "In private web chat, close the app-owned remote environment after a run that uses it, or keep it between turns. Paired local devices and other surfaces keep their existing session behavior."
       },
       "session_idle_seconds": {
         "title": "Idle timeout (seconds)",
-        "description": "End a retained web-chat environment after this much inactivity, capped by deployment policy. Closing the panel does not end it."
+        "description": "End an app-owned remote web-chat environment after this much inactivity, capped by deployment policy. Passive viewing does not extend it; closing the panel only detaches its view."
       }
     },
     "phone_calls": {
