@@ -1,5 +1,5 @@
 ---
-source_sha: "b46700ad236c"
+source_sha: "83f682984d07"
 title: "AgenticOS vs Claude"
 seo_title: "AgenticOS vs Claude Team i Enterprise: agenci na własność"
 description: "Claude Team i Enterprise a AgenticOS: agenci self-hosted na Claude lub dowolnym modelu, budżety per agent, zatwierdzenia, logi audytu, bez opłaty za stanowisko."
@@ -13,6 +13,8 @@ To nie jest wybór albo-albo. AgenticOS może uruchamiać modele Claude przez An
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Claude: strony cennika, produktu i Help Center od Anthropic dotyczące planów Team i Enterprise, a nie przetestowane konto.
 
+Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
+
 ## W skrócie { #at-a-glance }
 
 | Obszar | Claude Team / Enterprise | AgenticOS |
@@ -22,8 +24,8 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 | Źródła | Własnościowe | Apache-2.0 |
 | Modele | Tylko Claude | 28 providerów, w tym Claude, oraz modele lokalne |
 | Co budujesz | Projects, skille i pluginy dla osób, które czatują | Opublikowanych agentów, każdy jako wersjonowany spec |
-| Kto korzysta | Pracownicy ze stanowiskiem | Pracownicy, klienci i systemy, na ośmiu powierzchniach |
-| Powierzchnie | Web, desktop, mobile, Chrome, Microsoft 365, Slack przez Claude Tag w becie | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Kto korzysta | Pracownicy ze stanowiskiem | Pracownicy, klienci i systemy, na kilkunastu powierzchniach |
+| Powierzchnie | Web, desktop, mobile, Chrome, Microsoft 365, Slack przez Claude Tag w becie | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, e-mail, iMessage, połączenia telefoniczne |
 | Kontrola wydatków | Limity wydatków organizacji i użytkownika | Budżet per agent i per organizacja, sprawdzany przed każdym żądaniem do modelu |
 | Zatwierdzenia | Działający użytkownik albo tryb automatyczny, jeśli organizacja na niego pozwala | Run czeka, aż zdecyduje osoba z `approvals:decide` |
 | Log audytowy | Enterprise; 180 dni zdarzeń w CSV | Każdy plan; wykrywa manipulacje, eksport do CSV albo JSONL |

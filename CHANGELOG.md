@@ -24,6 +24,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Price a promotion gate run before it starts with `GET /agents/{agent_id}/environments/{environment_id}/gate/estimate` or the `estimate_promotion_gate` tool.
 - Read the most an eval run may spend, reruns included, as `at_most_usd` on its estimate, with the `dataset_version` it priced. The console's Start eval agrees to that price and prices again if it changed.
 
+### Changed
+
+- Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
+
 ### Fixed
 
 - Send the run's own person the request for their own platform call, with a link to the conversation it was asked in, or to their Inbox when it was asked in none, for as long as that call waits, whatever audience the agent's approval alert names. The pending approval mail no longer names fixed roles.

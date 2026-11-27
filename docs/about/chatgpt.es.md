@@ -1,17 +1,19 @@
 ---
-source_sha: "88fad9bc6ae2"
+source_sha: "be478eed6376"
 title: "AgenticOS vs ChatGPT"
 seo_title: "AgenticOS vs ChatGPT Enterprise: alternativa autoalojada"
-description: "Compara ChatGPT Business, Enterprise y los workspace agents con AgenticOS: autoalojado, cualquier modelo, ocho superficies, budgets por agent y auditoría."
+description: "Compara ChatGPT Business, Enterprise y los workspace agents con AgenticOS: autoalojado, cualquier modelo, muchos canales, budgets por agent y auditoría."
 ---
 
 # AgenticOS vs ChatGPT { #agenticos-vs-chatgpt }
 
 ChatGPT Business y Enterprise dan a los empleados el asistente de OpenAI, y en 2026 añadieron los workspace agents: agents compartidos que se construyen en ChatGPT y se ejecutan en ChatGPT, en Slack, según una programación o desde un trigger de API. Son lo más parecido a AgenticOS que ofrece OpenAI. Las diferencias están en dónde se ejecutan, qué modelos usan y quién puede acceder a ellos.
 
-AgenticOS se ejecuta en tu infraestructura, usa el modelo que elijas y publica un mismo agent en ocho superficies. Entre ellas hay un widget para tu sitio web y una API que devuelve la respuesta.
+AgenticOS se ejecuta en tu infraestructura, usa el modelo que elijas y publica un mismo agent en más de una docena de superficies. Entre ellas hay un widget para tu sitio web y una API que devuelve la respuesta.
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de ChatGPT: las páginas de precios, de datos empresariales, del Help Center y para desarrolladores de OpenAI, no un workspace probado. Los workspace agents están en vista previa de investigación (research preview), así que comprueba su estado actual antes de decidir.
+
+Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
 
 ## De un vistazo { #at-a-glance }
 
@@ -21,7 +23,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026
 | Código | Propietario | Apache-2.0 |
 | Modelos | Solo OpenAI | 28 providers, OpenAI incluido, y modelos locales |
 | Construcción de agents | Workspace agents, en vista previa de investigación, con versiones y uso compartido | Agents publicados con versiones, entornos y exportación a YAML |
-| Superficies de un agent | ChatGPT, Slack, programaciones, un trigger de API | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Telegram, Mattermost, programaciones y triggers por eventos |
+| Superficies de un agent | ChatGPT, Slack, programaciones, un trigger de API | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, correo electrónico, iMessage, llamadas telefónicas, programaciones y triggers por eventos |
 | API | El trigger devuelve `202 Accepted` y un enlace a la conversación; consultar el estado del run está en beta, y la respuesta no se puede obtener | `POST /agents/{id}/run` devuelve el run y su respuesta |
 | Control del gasto | Bolsas de créditos y límites de exceso por workspace o grupo | Un budget por agent y por organización, comprobado antes de cada petición al modelo |
 | Identidad | SSO SAML en Business; SCIM, control de acceso basado en roles y gestión de claves en Enterprise | SSO OIDC, LDAP y Kerberos con mapeo de grupos, y concesiones por recurso, en todos los despliegues |
@@ -34,7 +36,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026
 
 La página para desarrolladores de OpenAI dice que el trigger de API de los workspace agents «devuelve 202 Accepted con un enlace a la conversación de ChatGPT», y que «la respuesta del agent no se puede obtener actualmente a través de la API». Consultar el estado de un run está en beta. Sus páginas no mencionan ninguna superficie de widget, Telegram o Mattermost para un agent.
 
-Un agent de AgenticOS responde con el resultado a través de la [API HTTP](../channels.md#the-public-api), transmite en streaming por un [WebSocket](../channels.md#the-raw-websocket) y se integra en tu sitio como [widget](../channels.md#the-website-widget). Una [página alojada](../channels.md#a-hosted-page) es un enlace para cualquiera. Los bots de [Slack, Telegram y Mattermost](../channels.md#slack) se ejecutan como la persona vinculada que hizo la pregunta.
+Un agent de AgenticOS responde con el resultado a través de la [API HTTP](../channels.md#the-public-api), transmite en streaming por un [WebSocket](../channels.md#the-raw-websocket) y se integra en tu sitio como [widget](../channels.md#the-website-widget). Una [página alojada](../channels.md#a-hosted-page) es un enlace para cualquiera. Los bots de [Slack](../channels.md#slack), [Microsoft Teams](../channels.md#microsoft-teams), Telegram, Mattermost, [Discord](../channels.md#discord) y [Matrix](../channels.md#matrix) se ejecutan como la persona vinculada que hizo la pregunta, y el mismo agent atiende [SMS](../channels.md#sms), [correo electrónico](../channels.md#email) y [llamadas telefónicas](../voice.md#telephone-calls).
 
 ### El modelo lo decides tú { #the-model-is-your-decision }
 
@@ -71,7 +73,7 @@ Construye el [agent documental compartido](../howto/first-document-agent.md) com
 
 ### ¿AgenticOS es una alternativa autoalojada a ChatGPT Enterprise? { #is-agenticos-a-self-hosted-alternative-to-chatgpt-enterprise }
 
-Para los agents que son propiedad de tu organización, sí. Se ejecuta en tu infraestructura, usa OpenAI o cualquier otro provider y publica cada agent en ocho superficies con su propio budget y su historial de runs. No sustituye a ChatGPT como asistente para cada empleado.
+Para los agents que son propiedad de tu organización, sí. Se ejecuta en tu infraestructura, usa OpenAI o cualquier otro provider y publica cada agent en más de una docena de superficies con su propio budget y su historial de runs. No sustituye a ChatGPT como asistente para cada empleado.
 
 ### ¿AgenticOS puede usar modelos de OpenAI? { #can-agenticos-use-openai-models }
 

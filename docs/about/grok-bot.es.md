@@ -1,12 +1,12 @@
 ---
 title: "AgenticOS vs Grok Bot"
 description: "Grok Bot y AgenticOS: compañeros de IA en la nube o tu propia plataforma. Compara despliegue, modelos, controles y operación."
-source_sha: "428f71a12837"
+source_sha: "f50b2ceabd60"
 ---
 
 # AgenticOS vs Grok Bot { #agenticos-vs-grok-bot }
 
-Fuentes revisadas el 2 de noviembre de 2026. AgenticOS v1.35.0. Documentación del proveedor; no se ha probado una cuenta Grok Bot.
+Fuentes revisadas el 2 de noviembre de 2026. AgenticOS v1.35.0; funciones actualizadas el 27 de noviembre de 2026 con v1.95.0. Documentación del proveedor; no se ha probado una cuenta Grok Bot.
 
 Grok Bot es un servicio gestionado de compañeros de IA de xAI. La documentación actual describe computadoras persistentes en la nube, apps conectadas, rutinas, aprobaciones y administración empresarial. La antigua afirmación de que no tiene auditoría está obsoleta: los logs de auditoría y la exportación OpenTelemetry se documentan como funciones Enterprise.
 
