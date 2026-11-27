@@ -5,7 +5,7 @@ description: "Grok Bot and AgenticOS: managed cloud teammates or a self-hosted A
 
 # AgenticOS vs Grok Bot
 
-Sources checked 2 November 2026. AgenticOS baseline v1.35.0. Vendor documentation only; no Grok Bot account was tested.
+Sources checked 2 November 2026. AgenticOS baseline v1.35.0; feature statements refreshed on 27 November 2026 against v1.95.0. Vendor documentation only; no Grok Bot account was tested.
 
 Grok Bot is a managed AI teammate service from xAI. Its current documentation describes persistent cloud computers, connected apps, routines, approvals and enterprise administration. Old claims that it has no audit log are obsolete: audit logs and OpenTelemetry export are documented as Enterprise-only.
 

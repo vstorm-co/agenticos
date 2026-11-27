@@ -1,5 +1,5 @@
 ---
-source_sha: "4079f387b7a5"
+source_sha: "a2e95d7f0d80"
 title: "AgenticOS vs Wonderful"
 seo_title: "AgenticOS vs Wonderful: plataforma de IA empresarial propia"
 description: "Compara el AI OS empresarial entregado de Wonderful con AgenticOS, plataforma de agents open source que posees y operas, con ayuda de implementación de Vstorm."
@@ -13,6 +13,8 @@ La cuestión no es tanto qué software es mejor como qué quieres poseer cuando 
 
 Mantenido por el equipo de AgenticOS en Vstorm. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Wonderful: sus páginas públicas de AI OS, despliegue, agents, gateway y seguridad, y su anuncio de financiación; no un contrato negociado ni una cuenta probada.
 
+Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
+
 ## De un vistazo { #at-a-glance }
 
 | Área | Wonderful | AgenticOS |
@@ -21,7 +23,7 @@ Mantenido por el equipo de AgenticOS en Vstorm. Fuentes revisadas el 21 de octub
 | Código fuente | Propietario; exportación de agents y configuración mediante su UI o su API | Apache-2.0; toda la plataforma se puede leer y bifurcar |
 | Dónde se ejecuta | SaaS multi-tenant, single-tenant, tu nube u on-premises aislado de la red | Tu infraestructura, con Docker Compose |
 | Precios | No publicados; a través del equipo comercial | Sin cuota de licencia; modelos, infraestructura y los servicios que se acuerden |
-| Canales | Voz, chat, correo electrónico, documentos y otros canales | Chat web con llamadas de voz, widget, página alojada, API HTTP, WebSocket, Slack, Telegram, Mattermost |
+| Canales | Voz, chat, correo electrónico, documentos y otros canales | Chat web con llamadas de voz, widget, página alojada, API HTTP, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, correo electrónico, iMessage, llamadas telefónicas |
 | Modelos | Enrutados por tarea por la plataforma | Tú eliges entre 28 providers, configurados por perfil de modelo |
 | Gobernanza | AI Gateway con límites de budget por equipo y registros de auditoría | Budgets por agent y por organización, aprobaciones y un registro de auditoría con detección de manipulaciones |
 | Declaraciones de cumplimiento | SOC 2 Type II, ISO 27001:2022, PCI DSS, RGPD, alineado con la EU AI Act | Tus controles en tu infraestructura; consulta [seguridad](../security.md) |
@@ -49,7 +51,7 @@ Las certificaciones de Wonderful cubren su propio servicio. Con AgenticOS inspec
 ## Cuándo encaja mejor Wonderful { #when-wonderful-is-the-better-fit }
 
 - Quieres que un proveedor se encargue de la entrega de principio a fin, en muchos mercados e idiomas.
-- Los agents de voz telefónicos de cara al cliente son el caso de uso principal. AgenticOS atiende [llamadas de voz](../voice.md) solo en el navegador y no tiene canal de teléfono, WhatsApp ni SMS.
+- Los agents de voz telefónicos de cara al cliente, entregados y ajustados por el proveedor, son el caso de uso principal. AgenticOS atiende [llamadas telefónicas](../voice.md#telephone-calls) a través de tu propio número de Twilio y tiene canal de SMS, pero no canal de WhatsApp ni equipo de despliegue propio.
 - Necesitas las certificaciones propias de un proveedor, como SOC 2 Type II y PCI DSS, en lugar de tus propios controles.
 
 ## Preguntas para el acuerdo de entrega { #questions-for-the-delivery-agreement }
@@ -80,7 +82,7 @@ Sí. Se ejecuta con Docker Compose en tu propio host. Con un modelo local, todo 
 
 ### ¿AgenticOS admite agents de voz o de WhatsApp? { #does-agenticos-support-voice-or-whatsapp-agents }
 
-La voz, en parte: desde 1.10.0 un miembro o un visitante puede [llamar a un agent](../voice.md) desde el chat web, el widget o una página alojada, y las notas de voz enviadas a un bot de canal se transcriben. Aún no hay línea telefónica, WhatsApp ni SMS.
+La voz, en parte: desde 1.10.0 un miembro o un visitante puede [llamar a un agent](../voice.md) desde el chat web, el widget o una página alojada, y las notas de voz enviadas a un bot de canal se transcriben. Un número de Twilio también puede atender [llamadas telefónicas](../voice.md#telephone-calls) para un embed de voz publicado y mensajes a través del canal de [SMS](../channels.md#sms). Aún no hay canal de WhatsApp.
 
 ### ¿Qué pasa si dejamos de trabajar con Vstorm? { #what-happens-if-we-stop-working-with-vstorm }
 
