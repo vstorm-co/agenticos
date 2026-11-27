@@ -130,8 +130,19 @@ async def _still_owned(payload: ConversationEnvironmentPayload, target: BrowserT
             return False
         if row.state == "starting":
             try:
-                return await service.claim(payload, row.provisioning_attempt) is not None
+                if await service.claim(payload, row.provisioning_attempt) is not None:
+                    return True
             except AppException:
+                return False
+            # Provisioning may commit READY while claim resolves project/agent
+            # authority. Validate that fresh state instead of ending its target.
+            row = await environments.for_worker(db, payload.environment_id)
+            if (
+                row is None
+                or row.organization_id != payload.organization_id
+                or row.revision != payload.revision
+                or row.state != "ready"
+            ):
                 return False
         if row.user_id is None or row.conversation_id is None:
             return False
