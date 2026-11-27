@@ -1,7 +1,8 @@
 """Issue sandbox-only transport credentials and short-lived Project directories.
 
-The binding identifies a sandbox, not a Project. Only an admitted run lease
-opens a Project directory, and the gateway reauthorizes it on every operation.
+The binding identifies a sandbox, not a Project. A separately owned run or
+environment lease opens a Project directory; the gateway reauthorizes each
+operation against that owner's current lifetime and authority.
 """
 
 import hashlib

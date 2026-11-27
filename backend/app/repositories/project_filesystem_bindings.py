@@ -1,4 +1,4 @@
-"""Tenant-scoped metadata for workspace mounts and their admitted run views."""
+"""Tenant-scoped metadata for workspace mounts and independently owned views."""
 
 from datetime import datetime
 from uuid import UUID

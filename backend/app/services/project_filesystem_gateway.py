@@ -1,4 +1,4 @@
-"""Authorize each live filesystem RPC against its original run and current Project."""
+"""Authorize each filesystem RPC against its live owner and current Project."""
 
 import errno
 from datetime import UTC, datetime
@@ -94,7 +94,7 @@ class ProjectFilesystemGateway:
             try:
                 await self.authorize(binding, lease)
             except AuthenticationError, AuthorizationError, ConcurrentChangeError, NotFoundError:
-                # Root listings expose only currently authorized run directories.
+                # Root listings expose only currently authorized owner directories.
                 continue
             entries.append(
                 FsEntry(
