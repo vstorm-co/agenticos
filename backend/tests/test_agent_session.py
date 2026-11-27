@@ -1249,9 +1249,11 @@ class TestATurnThatFinished:
                         "context": {"recipient": "Ops"},
                         "account": None,
                         "always_asks": False,
-                        # A member holds no `approvals:decide`: the card says who can.
-                        "may_decide": False,
-                        "may_approve": False,
+                        # A member holds `approvals:decide` at `OWN` for their
+                        # own runs (#225): the card offers the decision to the
+                        # run's own person.
+                        "may_decide": True,
+                        "may_approve": True,
                     }
                 ],
                 "review_configs": [{"tool_name": "send_email", "allow_edit": False}],
