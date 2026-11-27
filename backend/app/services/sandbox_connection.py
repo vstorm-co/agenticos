@@ -698,7 +698,13 @@ class SandboxConnectionService:
                 "This provider's runtime or template name is limited to 64 characters",
             )
 
-    async def resolve(self, ctx: AuthContext, connection_id: UUID | None) -> ResolvedConnection:
+    async def resolve(
+        self,
+        ctx: AuthContext,
+        connection_id: UUID | None,
+        *,
+        ensure_default: bool = True,
+    ) -> ResolvedConnection:
         """The connection an agent should use, with its credential unsealed.
 
         Args:
@@ -712,7 +718,7 @@ class SandboxConnectionService:
                 rotated away, a host retired - so each says which, rather than
                 failing as one generic error inside somebody's conversation.
         """
-        row = await self._row_for(ctx, connection_id)
+        row = await self._row_for(ctx, connection_id, ensure_default=ensure_default)
         if not row.is_active:
             raise BadRequestError(
                 message=(
@@ -762,12 +768,20 @@ class SandboxConnectionService:
             )
         return ResolvedConnection(row=row, token=secret.api_key.get_secret_value())
 
-    async def _row_for(self, ctx: AuthContext, connection_id: UUID | None) -> SandboxConnection:
+    async def _row_for(
+        self,
+        ctx: AuthContext,
+        connection_id: UUID | None,
+        *,
+        ensure_default: bool = True,
+    ) -> SandboxConnection:
         if connection_id is not None:
             return await self._named(ctx, connection_id)
         row = await sandbox_connection_repo.get_default(
             self.db, organization_id=ctx.organization_id
-        ) or await self.ensure_local_connection(ctx.organization_id)
+        )
+        if row is None and ensure_default:
+            row = await self.ensure_local_connection(ctx.organization_id)
         if row is None:
             raise BadRequestError(
                 message=(

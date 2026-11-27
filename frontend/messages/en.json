@@ -11673,6 +11673,14 @@
           "description": "Start a separate E2B desktop for this run. Select the organization's E2B key below; no Sandbox connection is needed.",
           "summary": "An isolated desktop hosted by E2B."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "This run"
+        },
+        "conversation": {
+          "label": "This conversation"
+        }
       }
     },
     "browser_use": {
@@ -11696,6 +11704,14 @@
           "label": "This computer (desktop app)",
           "summary": "A private browser on your paired computer.",
           "description": "Requires a paired desktop app and Local browser selected in this chat. Your personal browser session is not shared."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "This run"
+        },
+        "conversation": {
+          "label": "This conversation"
         }
       }
     },
@@ -14376,6 +14392,14 @@
       "prefer_native_browser": {
         "title": "Use the native local browser",
         "description": "Use an embedded native tab for local DOM browsing. Disable for isolated Chromium compatibility. Vision and language/time-zone overrides use Chromium."
+      },
+      "session_lifetime": {
+        "title": "Session lifetime",
+        "description": "In private web chat, close the app-owned remote environment after a run that uses it, or keep it between turns. Paired local devices and other surfaces keep their existing session behavior."
+      },
+      "session_idle_seconds": {
+        "title": "Idle timeout (seconds)",
+        "description": "End an app-owned remote web-chat environment after this much inactivity, capped by deployment policy. Passive viewing does not extend it; closing the panel only detaches its view."
       }
     },
     "channel_tools": {
@@ -14906,6 +14930,14 @@
       "preview": {
         "title": "Live preview",
         "description": "Show the desktop live in the chat while the agent works it."
+      },
+      "session_lifetime": {
+        "title": "Session lifetime",
+        "description": "In private web chat, close the app-owned remote environment after a run that uses it, or keep it between turns. Paired local devices and other surfaces keep their existing session behavior."
+      },
+      "session_idle_seconds": {
+        "title": "Idle timeout (seconds)",
+        "description": "End an app-owned remote web-chat environment after this much inactivity, capped by deployment policy. Passive viewing does not extend it; closing the panel only detaches its view."
       }
     },
     "phone_calls": {

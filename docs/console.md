@@ -1306,3 +1306,15 @@ When an agent asks a question, its card and the normal composer stay visible tog
 ## Flat recent chat list
 
 The Chats header offers **Most recent first (flat list)**. It combines project and ordinary chats in one list ordered by last activity, without project, unread or favourite headings. Favourites keep their stars but are not pinned above newer activity. Pagination uses this order on the server, so old favourites cannot displace recent chats from the first page. Existing agent, archive and API filters still apply. The choice is saved in this browser separately for each signed-in user; **Group chats by project** restores the default grouped view.
+
+## Live browser and desktop { #live-environments }
+
+In your own private chat, **Workspace** groups **Files**, **Browser** and **Desktop**. Browser and Desktop appear when the selected published agent enables that capability and you can run it. An empty project chat can first be created without sending a message or starting a model. **Open** then explicitly starts the selected environment; opening the menu alone starts nothing. Paired local-device flows keep their existing controls.
+
+The panel shows the environment's run or conversation lifetime and its effective idle timeout. Hiding the panel, switching tabs or disconnecting its stream only detaches that view. **End** asks for confirmation and releases the environment. A run-lifetime environment closes after an agent run that actually uses it; an unrelated turn does not close an unused manually opened environment.
+
+In conversation mode, the next eligible private web-chat turn adopts the same live browser target or desktop provider reference, including unsaved browser forms and JavaScript state. This is not a new browser populated with copied URLs or cookies. If the original resource expires or its owner is lost, the panel reports expiry rather than promising to restore it. One physical GUI driver holds control at a time; agent control blocks manual input until released. The selected agent/project execution target travels with reads, creation, End and streaming, so a changed selection never presents an old environment as the new target.
+
+See [session lifetimes](sandbox.md#conversation-environments) for configuration and failure behavior.
+
+Browser contexts are isolated per owner and conversation. A desktop follows its configured workspace or project scope: an agent-scoped or otherwise shared executor has a shared physical GUI. The driver lease serializes control; it does not make that shared desktop private. An owner-only menu protects who can attach this chat's view, not the screen content of a deliberately shared executor.

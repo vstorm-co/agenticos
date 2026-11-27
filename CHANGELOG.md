@@ -49,6 +49,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Apply `0376_conversation_environments.py` for the live-environment ownership and cleanup journals, and keep workers available for provisioning and cleanup. Browser contexts have a continuously attached egress guard and end if their owning API/worker process or transport is lost; restart reports honest expiry rather than replaying cookies or URLs. Idle retention defaults to a 900-second deployment ceiling (`CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS`) and four outstanding resources per person (`CONVERSATION_ENVIRONMENTS_PER_USER`), including known resources still awaiting cleanup. Desktop isolation follows its configured workspace/project scope; a shared executor still has a shared GUI, with serialized control. End environments and drain cleanup before downgrade.
+
 - Isolated eval and Improve runs now hold reads that leave the deployment, including web fetch, search and remote-agent calls. Use an approved test connection or a recorded result for those calls. Code-mode scripts still run, with each nested operation independently isolated.
 - Migration `0365_intercepted_call_external.py` adds the external-read isolation reason; `0367_tool_call_script_calls.py` adds retained nested calls on transcript rows. `0376_merge_script_calls.py` joins these branches without replaying the released holdout-share backfill. The merge is metadata-only: reverting it alone leaves the feature branches applied. Downgrading the script-call branch discards its retained nested recordings.
 
@@ -61,6 +63,8 @@ Two things are versioned separately from this file and worth knowing about:
 - A LiteParse collection now needs LibreOffice to read `.docx`. The backend image ships it; a host that runs the backend outside the image must install it.
 
 ### Added
+
+- Open Browser and Desktop from Workspace in an owned private chat without starting a model, then let the agent adopt the same live target or desktop. Browser use and Computer use can retain that environment between turns, with an explicit End action, visible idle limit and physical input leases. Existing stored bindings keep run lifetime; new console bindings explicitly choose conversation retention.
 
 - Record, grade and replay the calls a code-mode script actually made, including failures and approval resumptions. Retained call-count and byte limits remain explicit; an incomplete trajectory stays ungraded.
 

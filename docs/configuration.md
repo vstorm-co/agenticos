@@ -1686,3 +1686,14 @@ deployment other people reach.
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 
 Set `GITHUB_COPILOT_OAUTH_CLIENT_ID` (empty by default) to the deployment’s own GitHub OAuth App client ID and enable device flow in that app. Without it, personal Copilot sign-in is refused. This setting is separate from GitHub Models and GitHub connector credentials. GitHub authorization does not establish Copilot entitlement; the account-specific chat-model check must also pass. Expiring GitHub App grants and custom Enterprise gateways are not supported. See [Copilot accounts](models.md#github-copilot-accounts).
+
+## Private chat environments { #conversation-environment-limits }
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS` | `900` | Deployment ceiling for Browser use and Computer use idle retention, 60–86400 seconds. The panel shows the smaller of this ceiling and the capability's `session_idle_seconds`. |
+| `CONVERSATION_ENVIRONMENTS_PER_USER` | `4` | Outstanding environments per organization member, 1–100. Known remote resources still awaiting disposal count until cleanup succeeds. |
+
+Capability bindings choose `session_lifetime` (`run` or `conversation`). Existing bindings without these fields keep run lifetime; new console bindings explicitly choose conversation retention with 900 seconds. A manually opened run-lifetime environment ends after a run that actually uses it. Do not increase idle retention without considering the remote provider's resource cost. No model call is needed to open or view an environment.
+
+Keep the worker running for provisioning, expiry sweeps and durable cleanup. A browser's continuously attached API/worker owner enforces outbound-request policy; loss of that owner deliberately disposes its isolated context. A restart can therefore expire a browser even before its idle deadline, rather than restore an unguarded or copied session. See [browser and desktop lifetimes](sandbox.md#conversation-environments).

@@ -7,6 +7,7 @@ from app.api.routes.v1 import (
     api_keys,
     assistant,
     browse_live,
+    conversation_environments,
     change_events,
     device_hub,
     event_sources,
@@ -299,6 +300,7 @@ v1_router.include_router(workflow_run_socket.router, tags=["workflow-runs"])
 v1_router.include_router(change_events.router, tags=["change-events"])
 v1_router.include_router(device_hub.router, tags=["devices"])
 v1_router.include_router(browse_live.router, tags=["browse-live"])
+v1_router.include_router(conversation_environments.router, tags=["conversation-environments"])
 
 v1_router.include_router(rag.router, prefix="/rag", tags=["rag"])
 

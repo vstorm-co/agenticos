@@ -38,7 +38,7 @@ way that chat's file and shell tools are, so it needs no address and no token.
 import base64
 import logging
 import struct
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -138,6 +138,15 @@ class Computer(Protocol):
 
 
 ComputerFactory = Callable[[Workspace], Awaitable[Computer]]
+
+
+@dataclass(frozen=True)
+class ComputerFactoryDecorator:
+    """An app-owned lifetime/driver adapter around the capability backend."""
+
+    wrap: Callable[[ComputerFactory], ComputerFactory]
+
+
 """Opens the run's desktop; handed the run's workspace, which only the sandbox uses."""
 
 
@@ -194,14 +203,23 @@ def x11_keys(chord: str) -> str:
     return "+".join(_X11_KEYS.get(part.lower(), part) for part in parts)
 
 
+_PRIVATE_TEXT_ENV = "AGENTICOS_DESKTOP_INPUT_TEXT"
+_PRIVATE_TEXT_COMMAND = (
+    "import os,subprocess,sys; "
+    "payload=os.environ.pop('AGENTICOS_DESKTOP_INPUT_TEXT').encode('utf-8'); "
+    "result=subprocess.run(['xdotool','type','--clearmodifiers','--file','-'],input=payload,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); "
+    "sys.exit(result.returncode)"
+)
+
+
 def xdotool(action: NativeAction) -> list[str] | None:
     """The `xdotool` command that carries out an action on an X11 display.
 
     `None` for a wait, which is a sleep here rather than a process on the desktop,
     and for a launch, which `_desktop_apps` carries out.
 
-    An argv rather than a shell line, so typed text reaches `xdotool` as one
-    argument whatever it holds.
+    Fixed arguments rather than a shell line. Typed text is supplied separately
+    through the workspace environment and piped to xdotool, never audited argv.
     """
     match action:
         case Click():
@@ -222,7 +240,7 @@ def xdotool(action: NativeAction) -> list[str] | None:
                 *("click", "--repeat", str(action.amount), str(_SCROLL_BUTTONS[action.direction])),
             ]
         case TypeText():
-            return ["xdotool", "type", "--delay", "12", "--", action.text]
+            return ["python3", "-c", _PRIVATE_TEXT_COMMAND]
         case Key():
             return ["xdotool", "key", "--", x11_keys(action.keys)]
         case _:
@@ -556,16 +574,24 @@ class SandboxComputer:
         # One file per run's desktop: runs sharing a workspace share its `/tmp`.
         self._shot = f"/tmp/agenticos-screen-{uuid4().hex}.png"  # noqa: S108 - inside the sandbox
 
-    async def _run(self, argv: list[str], what: str) -> str:
+    async def _run(
+        self, argv: list[str], what: str, *, env: Mapping[str, str] | None = None
+    ) -> str:
         try:
-            result = await self._workspace.run(argv, env={"DISPLAY": DISPLAY}, timeout=60)
+            result = await self._workspace.run(
+                argv, env={"DISPLAY": DISPLAY, **(env or {})}, timeout=60
+            )
         except (WorkspaceError, OSError) as exc:
             logger.warning("sandbox desktop %s failed: %s", what, type(exc).__name__)
             raise ComputerError(
                 f"The sandbox could not {what}. It may be stopped or restarting."
             ) from exc
         if result.exit_code != 0:
-            said = (result.stderr or result.stdout).strip()[:200] or f"exit {result.exit_code}"
+            said = (
+                f"exit {result.exit_code}"
+                if env is not None and _PRIVATE_TEXT_ENV in env
+                else (result.stderr or result.stdout).strip()[:200] or f"exit {result.exit_code}"
+            )
             raise ComputerError(f"The desktop refused to {what}: {said}")
         return result.stdout
 
@@ -595,6 +621,8 @@ class SandboxComputer:
 
     async def perform(self, action: NativeAction) -> None:
         """Carry out one action with `xdotool` inside the sandbox."""
+        if isinstance(action, TypeText) and "\x00" in action.text:
+            raise ComputerError("Text input cannot contain a null character.")
         if isinstance(action, Launch):
             await self._run(
                 ["python3", "-c", _DESKTOP_APPS, "launch", action.app], f"open {action.app}"
@@ -605,7 +633,11 @@ class SandboxComputer:
             assert isinstance(action, Wait)
             await anyio.sleep(action.seconds)
             return
-        await self._run(argv, f"run the {action.action} action")
+        await self._run(
+            argv,
+            f"run the {action.action} action",
+            env={_PRIVATE_TEXT_ENV: action.text} if isinstance(action, TypeText) else None,
+        )
 
     async def apps(self) -> list[App]:
         """The sandbox's own list, read where its menu is."""

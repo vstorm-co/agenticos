@@ -38,6 +38,7 @@ from app.db.models.background_job import BackgroundJob
 from app.db.models.browser_sign_in import BrowserSignIn
 from app.db.models.channel_bot import ChannelBot
 from app.db.models.coding_account import CodingAccount
+from app.db.models.conversation_environment import ConversationEnvironment
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.diagnostics import DiagnosticsIdentity
 from app.db.models.event_source import EventSourceCredential
@@ -65,6 +66,10 @@ def _org_scope(
 
 def _person_scope(row: BrowserSignIn | CodingAccount | PersonalModelKey) -> VaultScope:
     return VaultScope.user(row.user_id)
+
+
+def _environment_scope(row: ConversationEnvironment) -> VaultScope:
+    return VaultScope.organization(row.vault_organization_id)
 
 
 def _deployment_scope(_row: DeploymentSettings | DiagnosticsIdentity) -> VaultScope:
@@ -97,6 +102,7 @@ class SealedTable:
         | EventSourceCredential
         | ProjectFilesystemBinding
         | BrowserSignIn
+        | ConversationEnvironment
         | CodingAccount
         | PersonalModelKey
         | DeploymentSettings
@@ -211,6 +217,13 @@ SEALED_TABLES: tuple[SealedTable, ...] = (
         columns=("ciphertext",),
         version_attr="secret_key_version",
         scope=_org_scope,
+    ),
+    SealedTable(
+        label="conversation_environments",
+        model=ConversationEnvironment,
+        columns=("resource_ciphertext",),
+        version_attr="resource_key_version",
+        scope=_environment_scope,
     ),
 )
 

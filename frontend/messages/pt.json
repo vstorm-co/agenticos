@@ -11557,6 +11557,14 @@
           "description": "Inicie um desktop E2B separado para esta execução. Selecione abaixo a chave E2B da organização; não é necessária uma conexão Sandbox.",
           "summary": "Um desktop isolado hospedado pela E2B."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Este run"
+        },
+        "conversation": {
+          "label": "Esta conversa"
+        }
       }
     },
     "browser_use": {
@@ -11580,6 +11588,14 @@
           "label": "Este computador (aplicativo desktop)",
           "summary": "Um navegador privado no seu computador pareado.",
           "description": "Requer o aplicativo desktop pareado e o Navegador local selecionado neste chat. Sua sessão pessoal do navegador não é compartilhada."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Este run"
+        },
+        "conversation": {
+          "label": "Esta conversa"
         }
       }
     },
@@ -14260,6 +14276,14 @@
       "prefer_native_browser": {
         "title": "Usar o navegador local nativo",
         "description": "Usa uma aba nativa incorporada para navegação local por DOM. Desative para compatibilidade com o Chromium isolado. A visão e as substituições de idioma e fuso horário usam o Chromium."
+      },
+      "session_lifetime": {
+        "title": "Duração da sessão",
+        "description": "No chat web privado, fechar o ambiente remoto gerido pela aplicação após um run que o utilize, ou mantê-lo entre mensagens. Os dispositivos locais emparelhados e as outras interfaces mantêm o comportamento atual das sessões."
+      },
+      "session_idle_seconds": {
+        "title": "Limite de inatividade (segundos)",
+        "description": "Encerrar o ambiente remoto de chat gerido pela aplicação após esta inatividade, limitado pela política da implantação. Apenas observar não prolonga a sessão; fechar o painel só desliga a visualização."
       }
     },
     "channel_tools": {
@@ -14790,6 +14814,14 @@
       "preview": {
         "title": "Pré-visualização ao vivo",
         "description": "Mostra a área de trabalho ao vivo no chat enquanto o agente a opera."
+      },
+      "session_lifetime": {
+        "title": "Duração da sessão",
+        "description": "No chat web privado, fechar o ambiente remoto gerido pela aplicação após um run que o utilize, ou mantê-lo entre mensagens. Os dispositivos locais emparelhados e as outras interfaces mantêm o comportamento atual das sessões."
+      },
+      "session_idle_seconds": {
+        "title": "Limite de inatividade (segundos)",
+        "description": "Encerrar o ambiente remoto de chat gerido pela aplicação após esta inatividade, limitado pela política da implantação. Apenas observar não prolonga a sessão; fechar o painel só desliga a visualização."
       }
     },
     "phone_calls": {

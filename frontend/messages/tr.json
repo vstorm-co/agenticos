@@ -5406,6 +5406,14 @@
       "prefer_native_browser": {
         "title": "Yerel browser'ı kullan",
         "description": "Yerel DOM browse için gömülü bir native sekme kullanır. İzole Chromium uyumluluğu için kapatın. Vision ve dil/saat dilimi geçersiz kılmaları Chromium kullanır."
+      },
+      "session_lifetime": {
+        "title": "Oturum süresi",
+        "description": "Özel web sohbetinde uygulamanın yönettiği uzak ortamı, onu kullanan bir run sonrasında kapatın veya mesajlar arasında koruyun. Eşleştirilmiş yerel cihazlar ve diğer arayüzler mevcut oturum davranışını korur."
+      },
+      "session_idle_seconds": {
+        "title": "Boşta kalma sınırı (saniye)",
+        "description": "Uygulamanın yönettiği uzak web sohbeti ortamını, dağıtım politikası sınırları içinde bu hareketsizlik süresinden sonra sonlandırın. Yalnızca izlemek oturumu uzatmaz; paneli kapatmak sadece görüntüyü ayırır."
       }
     },
     "guardrails": {
@@ -5959,6 +5967,14 @@
       "preview": {
         "title": "Canlı önizleme",
         "description": "Agent masaüstünde çalışırken görüntüyü chat'te canlı göster."
+      },
+      "session_lifetime": {
+        "title": "Oturum süresi",
+        "description": "Özel web sohbetinde uygulamanın yönettiği uzak ortamı, onu kullanan bir run sonrasında kapatın veya mesajlar arasında koruyun. Eşleştirilmiş yerel cihazlar ve diğer arayüzler mevcut oturum davranışını korur."
+      },
+      "session_idle_seconds": {
+        "title": "Boşta kalma sınırı (saniye)",
+        "description": "Uygulamanın yönettiği uzak web sohbeti ortamını, dağıtım politikası sınırları içinde bu hareketsizlik süresinden sonra sonlandırın. Yalnızca izlemek oturumu uzatmaz; paneli kapatmak sadece görüntüyü ayırır."
       }
     },
     "external_acp": {
@@ -13839,6 +13855,14 @@
           "description": "Bu run için ayrı bir E2B masaüstü başlatır. Aşağıdan kuruluşun E2B key’ini seçin; Sandbox bağlantısı gerekmez.",
           "summary": "E2B’nin barındırdığı yalıtılmış bir masaüstü."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Bu run"
+        },
+        "conversation": {
+          "label": "Bu konuşma"
+        }
       }
     },
     "browser_use": {
@@ -13862,6 +13886,14 @@
           "label": "Bu bilgisayar (masaüstü uygulaması)",
           "summary": "Eşleştirilmiş bilgisayarınızdaki özel browser.",
           "description": "Eşleştirilmiş masaüstü uygulaması ve bu sohbette Local browser seçili olmalıdır. Kişisel browser oturumunuz paylaşılmaz."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Bu run"
+        },
+        "conversation": {
+          "label": "Bu konuşma"
         }
       }
     },

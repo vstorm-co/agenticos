@@ -1,5 +1,5 @@
 ---
-source_sha: "85a0f6307a86"
+source_sha: "d39bfce0f681"
 ---
 
 # Konfiguracja { #configuration }
@@ -1717,3 +1717,14 @@ inni, ustaw własny `SUBSCRIPTION_GATEWAY_TOKEN` w `.env`.
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 
 Ustaw `GITHUB_COPILOT_OAUTH_CLIENT_ID` (domyślnie puste) na identyfikator własnej aplikacji OAuth wdrożenia i włącz w niej device flow. Bez niego osobiste logowanie Copilot jest odrzucane. To ustawienie jest odrębne od GitHub Models i poświadczeń konektora GitHub. Autoryzacja GitHub nie ustala uprawnień Copilot; musi przejść także sprawdzenie modeli czatu dla konta. Wygasające zgody GitHub App i własne bramy Enterprise nie są obsługiwane. Zobacz [konta Copilot](models.md#github-copilot-accounts).
+
+## Środowiska prywatnego czatu { #conversation-environment-limits }
+
+| Ustawienie | Domyślnie | Znaczenie |
+| --- | --- | --- |
+| `CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS` | `900` | Limit retencji bezczynności Browser use i Computer use: 60–86400 sekund. Panel pokazuje mniejszą wartość z tego limitu i `session_idle_seconds` capability. |
+| `CONVERSATION_ENVIRONMENTS_PER_USER` | `4` | Liczba środowisk członka organizacji: 1–100. Znane zdalne zasoby czekające na usunięcie liczą się aż do skutecznego sprzątania. |
+
+Bindingi wybierają `session_lifetime` (`run` lub `conversation`). Istniejące bindingi bez nowych pól zachowują czas życia run; nowe bindingi konsoli jawnie wybierają rozmowę i 900 sekund. Ręcznie otwarte środowisko run kończy się po runie, który faktycznie go użył. Zwiększając limit bezczynności, uwzględnij koszt zasobu u dostawcy. Otwarcie i oglądanie środowiska nie wymaga wywołania modelu.
+
+Worker musi działać dla provisioningu, kontroli wygasania i trwałego sprzątania. Stale podłączony właściciel przeglądarki w API/workerze egzekwuje politykę ruchu wychodzącego; utrata właściciela celowo usuwa izolowany kontekst. Restart może zatem zakończyć przeglądarkę przed upływem bezczynności, zamiast odtwarzać sesję bez ochrony lub kopiować jej stan. Zobacz [czas życia przeglądarki i pulpitu](sandbox.pl.md#conversation-environments).

@@ -1279,7 +1279,7 @@ class TestOnlyTheHolderDrives:
             kept.append(command)
             return None
 
-        monkeypatch.setattr(_loop, "_person_input", person_input)
+        monkeypatch.setattr(_loop, "person_input", person_input)
         own_click = BrowserCommand(type="click", x=2, y=2, by_user_id="u-ada")
         control = _Control(
             BrowserCommand(type="click", x=1, y=1, by_user_id="u-bob"),

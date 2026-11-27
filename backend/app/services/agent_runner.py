@@ -5801,6 +5801,43 @@ class AgentRunnerService:
             on_use = None
             computer_on_use = None
 
+        if (
+            surface is RunSurface.WEB
+            and conversation_id is not None
+            and version_id is not None
+            and audience.private
+            and audience_user_id == ctx.user_id
+            and ctx.user_id is not None
+            and ctx.api_key_id is None
+            and not ctx.subject_is_publisher_fallback
+            and not public_origin
+            and not impersonated
+            and current_impersonator() is None
+            and isolation is None
+            and not is_test
+            and voice is None
+            and routine is None
+            and not answer_only
+            and not organization_mcp_only
+        ):
+            from app.services.conversation_environment_agent import AgentEnvironment
+
+            def owned_environment(kind: Literal["browser", "desktop"]) -> AgentEnvironment:
+                return AgentEnvironment(
+                    ctx,
+                    conversation_id=conversation_id,
+                    agent_id=agent.id,
+                    version_id=version_id,
+                    run_id=run.id,
+                    target=project_execution_target or "agent",
+                    kind=kind,
+                )
+
+            if "local_browser_session" not in resources:
+                resources["conversation_browser"] = owned_environment("browser").browser()
+            if "local_computer_session" not in resources:
+                resources["conversation_desktop"] = owned_environment("desktop").desktop()
+
         built = build_agent(
             spoken_spec if voice is not None else spec,
             model_spec,

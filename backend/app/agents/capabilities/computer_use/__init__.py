@@ -11,7 +11,10 @@ from app.agents.capabilities._registry import (
     CapabilityToolInfo,
     register,
 )
-from app.agents.capabilities.computer_use._backends import check_daemon_url
+from app.agents.capabilities.computer_use._backends import (
+    ComputerFactoryDecorator,
+    check_daemon_url,
+)
 from app.agents.capabilities.computer_use._capability import ComputerUse
 from app.agents.capabilities.computer_use._toolset import ToolPolicy
 from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
@@ -98,6 +101,25 @@ class ComputerUseConfig(BaseModel):
         description="Show the desktop live in the chat while the agent works it.",
     )
 
+    session_lifetime: Literal["run", "conversation"] = Field(
+        default="run",
+        title="Session lifetime",
+        description="In private web chat, close the app-owned remote environment after a run that uses it, or keep it between turns. Paired local devices and other surfaces keep their existing session behavior.",
+        json_schema_extra={
+            "x-enum-labels": {"run": "This run", "conversation": "This conversation"}
+        },
+    )
+    session_idle_seconds: int = Field(
+        default=900,
+        ge=60,
+        le=86400,
+        title="Idle timeout (seconds)",
+        description="End an app-owned remote web-chat environment after this much inactivity, capped by deployment policy. Passive viewing does not extend it; closing the panel only detaches its view.",
+        json_schema_extra={
+            "x-visible-when": {"field": "session_lifetime", "equals": ["conversation"]}
+        },
+    )
+
     @model_validator(mode="after")
     def _a_call_fits_in_a_run(self) -> ComputerUseConfig:
         if self.max_actions_per_call > self.max_actions:
@@ -169,7 +191,13 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     config = ctx.config if isinstance(ctx.config, ComputerUseConfig) else ComputerUseConfig()
     token = ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else ""
     local_session = ctx.resources.get("local_computer_session")
+    decorator = ctx.resources.get("conversation_desktop")
     return ComputerUse(
+        factory_decorator=decorator
+        if isinstance(decorator, ComputerFactoryDecorator)
+        and not isinstance(local_session, UUID)
+        and config.desktop != "local"
+        else None,
         backend=config.desktop,
         local_session_id=local_session if isinstance(local_session, UUID) else None,
         daemon_url=config.daemon_url,

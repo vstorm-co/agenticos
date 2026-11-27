@@ -1215,6 +1215,8 @@ class Settings(BaseSettings):
     # internet, which is worse. So the operator names the hosts instead, exactly
     # like any spec-supplied address. Empty refuses browser automation outright.
     BROWSER_CDP_ALLOWED_HOSTS: list[str] = []
+    CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS: int = Field(default=900, ge=60, le=86400)
+    CONVERSATION_ENVIRONMENTS_PER_USER: int = Field(default=4, ge=1, le=100)
 
     # Hosts a virtual terminal (`mirage`) may mount by an address its author typed:
     # an SSH server, a Postgres or MongoDB DSN, an IMAP server, a self-hosted

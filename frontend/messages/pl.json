@@ -10907,6 +10907,14 @@
       "prefer_native_browser": {
         "title": "Używaj natywnej przeglądarki lokalnej",
         "description": "Używaj osadzonej natywnej karty do lokalnego przeglądania DOM. Wyłącz dla zgodności z izolowanym Chromium. Vision oraz zmiana języka lub strefy czasowej korzystają z Chromium."
+      },
+      "session_lifetime": {
+        "title": "Czas trwania sesji",
+        "description": "W prywatnym czacie webowym zamykaj zdalne środowisko zarządzane przez aplikację po zadaniu, które z niego korzysta, lub zachowuj je między wiadomościami. Sparowane urządzenia lokalne i pozostałe kanały zachowują dotychczasowe działanie sesji."
+      },
+      "session_idle_seconds": {
+        "title": "Limit bezczynności (sekundy)",
+        "description": "Zakończ zdalne środowisko czatu zarządzane przez aplikację po tym czasie bezczynności, z uwzględnieniem limitu wdrożenia. Samo oglądanie nie przedłuża sesji; zamknięcie panelu tylko odłącza podgląd."
       }
     },
     "channel_tools": {
@@ -11437,6 +11445,14 @@
       "preview": {
         "title": "Podgląd na żywo",
         "description": "Pokazuj pulpit na żywo w czacie, gdy agent na nim pracuje."
+      },
+      "session_lifetime": {
+        "title": "Czas trwania sesji",
+        "description": "W prywatnym czacie webowym zamykaj zdalne środowisko zarządzane przez aplikację po zadaniu, które z niego korzysta, lub zachowuj je między wiadomościami. Sparowane urządzenia lokalne i pozostałe kanały zachowują dotychczasowe działanie sesji."
+      },
+      "session_idle_seconds": {
+        "title": "Limit bezczynności (sekundy)",
+        "description": "Zakończ zdalne środowisko czatu zarządzane przez aplikację po tym czasie bezczynności, z uwzględnieniem limitu wdrożenia. Samo oglądanie nie przedłuża sesji; zamknięcie panelu tylko odłącza podgląd."
       }
     },
     "phone_calls": {
@@ -15335,6 +15351,14 @@
           "description": "Połącz się z komputerem, na którym działa computerd. Ustaw poniżej zatwierdzony adres i wybierz jego token dostępu.",
           "summary": "Twój komputer z uruchomionym computerd."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Ten run"
+        },
+        "conversation": {
+          "label": "Ta rozmowa"
+        }
       }
     },
     "browser_use": {
@@ -15358,6 +15382,14 @@
           "label": "Ten komputer (aplikacja desktopowa)",
           "summary": "Prywatna przeglądarka na Twoim komputerze.",
           "description": "Wymaga sparowanej aplikacji desktopowej i wybrania lokalnej przeglądarki w tym czacie. Nie udostępnia Twojej osobistej sesji przeglądarki."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Ten run"
+        },
+        "conversation": {
+          "label": "Ta rozmowa"
         }
       }
     },

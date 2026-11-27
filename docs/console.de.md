@@ -1,5 +1,5 @@
 ---
-source_sha: "7f1565c8ad05"
+source_sha: "491cb7e8bab2"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -1419,3 +1419,15 @@ Wenn ein Agent eine Frage stellt, bleiben seine Karte und der normale Editor gem
 ## Flache Liste der letzten Chats { #flat-recent-chat-list }
 
 Der Chats-Kopf bietet **Neueste Aktivität zuerst (flache Liste)**. Projektchats und gewöhnliche Chats erscheinen nach letzter Aktivität in einer Liste, ohne Überschriften für Projekte, ungelesene Chats oder Favoriten. Favoriten behalten ihre Sterne, werden aber nicht vor neueren Aktivitäten angeheftet. Die Paginierung verwendet diese Reihenfolge auf dem Server, sodass alte Favoriten aktuelle Chats nicht von der ersten Seite verdrängen. Bestehende Agenten-, Archiv- und API-Filter bleiben wirksam. Die Auswahl wird in diesem Browser für jeden angemeldeten Benutzer separat gespeichert; **Chats nach Projekt gruppieren** stellt die standardmäßige Gruppierung wieder her.
+
+## Live-Browser und Desktop { #live-environments }
+
+Im eigenen privaten Chat bündelt **Workspace** die Bereiche **Files**, **Browser** und **Desktop**. Browser und Desktop erscheinen, wenn der ausgewählte veröffentlichte Agent die Capability aktiviert hat und Sie ihn ausführen dürfen. Ein leerer Projektchat lässt sich ohne Nachricht und ohne Modellaufruf anlegen. **Open** startet die gewählte Umgebung ausdrücklich; das Öffnen des Menüs startet nichts. Gekoppelte lokale Geräte behalten ihre bisherigen Bedienelemente.
+
+Das Panel zeigt die Laufzeit pro Run oder Unterhaltung und das wirksame Leerlauflimit. Ausblenden, Tabwechsel und Trennen des Streams lösen nur diese Ansicht. **End** verlangt eine Bestätigung und gibt die Umgebung frei. Eine Umgebung mit Run-Laufzeit endet nach einem Agenten-Run, der sie tatsächlich verwendet; eine andere Nachricht beendet keine unbenutzte, manuell geöffnete Umgebung.
+
+Im Unterhaltungsmodus übernimmt der nächste berechtigte private Webchat-Turn dasselbe Live-Browserziel oder dieselbe Desktop-Referenz des Anbieters, einschließlich ungespeicherter Formulare und JavaScript-Zustand. Es wird kein neuer Browser mit kopierten URLs oder Cookies aufgebaut. Geht die ursprüngliche Ressource oder ihr Eigentümer verloren, meldet das Panel den Ablauf. Eine physische Oberfläche hat jeweils einen steuernden Akteur; während der Agent steuert, sind manuelle Eingaben gesperrt. Das gewählte Ausführungsziel Agent/Projekt wird bei Lesen, Start, End und Streaming mitgeführt; eine geänderte Auswahl zeigt die alte Umgebung nicht als neues Ziel.
+
+Konfiguration und Fehlerverhalten stehen unter [Sitzungslaufzeiten](sandbox.de.md#conversation-environments).
+
+Browserkontexte sind je Eigentümer und Unterhaltung isoliert. Ein Desktop folgt dagegen dem konfigurierten Workspace- oder Projektumfang: Ein agentenweiter oder sonst gemeinsam genutzter Executor besitzt eine gemeinsame physische Oberfläche. Die Steuerungslease serialisiert Eingaben und macht den Desktop nicht privat. Das Eigentümermenü schützt die Anbindung dieser Chatansicht, nicht den Bildschirminhalt eines bewusst gemeinsam genutzten Executors.

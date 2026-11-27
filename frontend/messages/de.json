@@ -11359,6 +11359,14 @@
           "description": "Mit einem Computer verbinden, auf dem computerd läuft. Unten seine genehmigte Adresse und den Zugriffstoken auswählen.",
           "summary": "Dein eigener Computer mit computerd."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Dieser Run"
+        },
+        "conversation": {
+          "label": "Dieses Gespräch"
+        }
       }
     },
     "browser_use": {
@@ -11382,6 +11390,14 @@
           "label": "Dieser Computer (Desktop-App)",
           "summary": "Ein privater Browser auf deinem Computer.",
           "description": "Erfordert eine gekoppelte Desktop-App und die Auswahl des lokalen Browsers in diesem Chat. Deine persönliche Browsersitzung wird nicht geteilt."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Dieser Run"
+        },
+        "conversation": {
+          "label": "Dieses Gespräch"
         }
       }
     },
@@ -14062,6 +14078,14 @@
       "prefer_native_browser": {
         "title": "Nativen lokalen Browser verwenden",
         "description": "Einen eingebetteten nativen Tab für lokales DOM-Browsing verwenden. Für isolierte Chromium-Kompatibilität deaktivieren. Vision sowie Sprach- und Zeitzonenüberschreibungen verwenden Chromium."
+      },
+      "session_lifetime": {
+        "title": "Sitzungsdauer",
+        "description": "Im privaten Webchat die von der Anwendung verwaltete entfernte Umgebung nach einem Run schließen, der sie verwendet, oder zwischen Nachrichten behalten. Gekoppelte lokale Geräte und andere Oberflächen behalten ihr bisheriges Sitzungsverhalten."
+      },
+      "session_idle_seconds": {
+        "title": "Inaktivitätslimit (Sekunden)",
+        "description": "Die von der Anwendung verwaltete entfernte Webchat-Umgebung nach dieser Inaktivität beenden, begrenzt durch die Bereitstellungsrichtlinie. Bloßes Zuschauen verlängert die Sitzung nicht; das Schließen des Panels trennt nur die Ansicht."
       }
     },
     "channel_tools": {
@@ -14592,6 +14616,14 @@
       "preview": {
         "title": "Live-Vorschau",
         "description": "Den Desktop live im Chat zeigen, während der Agent damit arbeitet."
+      },
+      "session_lifetime": {
+        "title": "Sitzungsdauer",
+        "description": "Im privaten Webchat die von der Anwendung verwaltete entfernte Umgebung nach einem Run schließen, der sie verwendet, oder zwischen Nachrichten behalten. Gekoppelte lokale Geräte und andere Oberflächen behalten ihr bisheriges Sitzungsverhalten."
+      },
+      "session_idle_seconds": {
+        "title": "Inaktivitätslimit (Sekunden)",
+        "description": "Die von der Anwendung verwaltete entfernte Webchat-Umgebung nach dieser Inaktivität beenden, begrenzt durch die Bereitstellungsrichtlinie. Bloßes Zuschauen verlängert die Sitzung nicht; das Schließen des Panels trennt nur die Ansicht."
       }
     },
     "phone_calls": {
