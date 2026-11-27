@@ -100,14 +100,19 @@ it("keeps a solid full-width sticky save surface while preserving guided insets"
   const header = screen
     .getByRole("heading", { name: "Deployment settings" })
     .closest('[data-slot="deployment-settings-header"]');
-  expect(header).toHaveClass("bg-background", "sticky", "top-0", "-mx-3");
+  expect(header).toHaveClass(
+    "bg-background",
+    "sticky",
+    "top-[calc(-1*var(--page-inset-top,0px))]",
+    "-mx-3",
+  );
   expect(header).not.toHaveClass("bg-background/95", "backdrop-blur-md", "rounded-xl");
   view.rerender(fixture({ guided: true }));
   expect(
     screen
       .getByRole("heading", { name: "Deployment settings" })
       .closest('[data-slot="deployment-settings-header"]'),
-  ).not.toHaveClass("-mx-3");
+  ).not.toHaveClass("-mx-3", "top-[calc(-1*var(--page-inset-top,0px))]");
 });
 
 it("uses the shared settings-card frame without hiding disabled form controls", () => {

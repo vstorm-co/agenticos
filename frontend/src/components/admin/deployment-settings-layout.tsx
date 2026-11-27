@@ -66,7 +66,7 @@ export function DeploymentSettingsLayout({
         data-slot="deployment-settings-header"
         className={cn(
           "bg-background border-border sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b py-3",
-          !guided && "-mx-3 px-3 sm:-mx-6 sm:px-6",
+          !guided && "top-[calc(-1*var(--page-inset-top,0px))] -mx-3 px-3 sm:-mx-6 sm:px-6",
         )}
       >
         <div className="min-w-0 flex-1 basis-full sm:basis-auto">
