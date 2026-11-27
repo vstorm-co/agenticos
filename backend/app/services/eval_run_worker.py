@@ -700,7 +700,7 @@ class EvalRunWorker:
                 db, run_id=agent_run.id, organization_id=org
             )
             rows = trajectory(calls, intercepted)
-            if await self._graded_past_quote(db, run, attempt, agent_run):
+            if await self._graded_past_quote(db, run, agent_run):
                 if await self._erased_meanwhile(db, asked, {agent_run.id}):
                     await self._fail(
                         db,
@@ -821,12 +821,11 @@ class EvalRunWorker:
             )
             return False
 
-    async def _graded_past_quote(
-        self, db: AsyncSession, run: EvalRun, attempt: EvalRunCase, agent_run: AgentRun
-    ) -> bool:
+    async def _graded_past_quote(self, db: AsyncSession, run: EvalRun, agent_run: AgentRun) -> bool:
         """Whether this answer has taken the run past its price, so a judge must not grade it.
 
-        Grading with checks alone costs nothing and still runs.
+        Grading with checks alone costs nothing and still runs. What earlier tries of an
+        attempt asked again spent stays on the attempt, so it is in the run's spend already.
         """
         if run.quoted_usd is None:
             return False
@@ -834,8 +833,7 @@ class EvalRunWorker:
         if not (scoring.judge.enabled or scoring.reference.enabled):
             return False
         spending = await eval_run_repo.spending(db, run.id, organization_id=self.organization_id)
-        answered = agent_run.cost_usd + (attempt.cost_usd or Decimal(0))
-        return spending.spent_usd + answered > run.quoted_usd
+        return spending.spent_usd + agent_run.cost_usd > run.quoted_usd
 
     async def _erased_meanwhile(
         self,
