@@ -228,9 +228,9 @@ class Plan:
     org_remaining: Decimal | None
     proposal: SkillProposal | None
     candidate_hash: str
+    served: tuple[SkillBodyFile, ...]
     excluded: tuple[UUID, ...] = ()
     skill_set_case_ids: list[UUID] | None = None
-    served: tuple[SkillBodyFile, ...] | None = None
     agent_id: UUID | None = None
     candidate_version_id: UUID | None = None
 
@@ -438,7 +438,7 @@ class SkillCheckService:
         else:
             user, base, target = await self._pinned(ctx, skill, pinned)
             candidate = await self._version_candidate(target)
-            users, served = [user], candidate.resources
+            users, served = [user], candidate.resources or ()
         if candidate.manifest_metadata is None:
             candidate = replace(candidate, manifest_metadata=base.manifest_metadata or {})
         changed = candidate.description != base.description
@@ -450,7 +450,7 @@ class SkillCheckService:
         size = rules.sample_size(
             await self._held_out(ctx, test_set, holdout or {}), minimum=MIN_HOLDOUT_CASES
         )
-        before = {} if served is None else await self.versions.files_of(base)
+        before = await self.versions.files_of(base)
         changed_words = rules.changed_words(
             "\n".join(
                 [
@@ -2845,10 +2845,8 @@ def _candidate_of(check: SkillCheck) -> Candidate:
 
 
 def _resources_json(
-    served: tuple[SkillBodyFile, ...] | None,
-) -> dict[str, dict[str, str | None]] | None:
-    if served is None:
-        return None
+    served: tuple[SkillBodyFile, ...],
+) -> dict[str, dict[str, str | None]]:
     return {
         item.name: {
             "description": item.description,

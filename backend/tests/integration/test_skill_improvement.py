@@ -3349,3 +3349,28 @@ class TestADecisionBesideAReview:
                         await task
 
         assert [call for call in fake.calls if call[0] == "apply"] == []
+
+
+@pytest.mark.security
+async def test_recheck_lower_consent_keeps_larger_budget_and_original_currency(
+    db: AsyncSession, evidence: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx = await _owner(db)
+    _, run = await _with_result(db, ctx, monkeypatch)
+    original_budget = run.budget_usd
+    original = {
+        "budget_usd": {
+            "amount": str(original_budget * 4),
+            "currency": "PLN",
+            "units_per_usd": "4",
+            "cost_usd": str(original_budget),
+        }
+    }
+    run.monetary_terms = original
+    await db.flush()
+    result = await _recheck(db, ctx, run, budget_usd=original_budget / 2)
+    await db.refresh(run)
+    assert result.budget_usd == original_budget
+    assert run.budget_usd == original_budget
+    assert run.monetary_terms == original
+    assert result.status == "running"
