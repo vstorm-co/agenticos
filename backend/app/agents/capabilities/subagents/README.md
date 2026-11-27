@@ -171,6 +171,16 @@ survives the park its own delegate caused, not only the run's own agent's
 that key when its `wrap_run` ends, and `build_delegation` re-seeds each level's fresh
 registry from the same key on resume.
 
+**A delegation that itself asks first is approved once.** When `task` is gated,
+the replay that continues a parked delegate reaches the parent's `task` call through
+the gate again, and its approval belonged to an earlier park - the resume's
+`decided` holds only the latest park's verdicts. `ApprovalChannel.continuing` names
+every `task` call the resume continues, nested ones included, and lets each through
+once with its replayed arguments: it already passed its gate, since its delegate ran.
+Without it the run parked on the delegation again, lost the delegate's place, and
+started the delegate over to ask for its tool again, for as long as somebody kept
+approving. `tests/test_gated_delegation_resume.py` drives it through every park.
+
 Everything in the stash is plain data, and that is a constraint rather than a
 preference: it outlives the tool call it was made in and is written to a JSONB
 column, while `request_approval` closes over a service holding the request's
