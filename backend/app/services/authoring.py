@@ -1113,6 +1113,8 @@ class AuthoringService:
         Showing the gate reads each check with `admission` `keep`, so it keeps the
         verdict a check has while another request compares; Accept compares as it
         needs, so it never rests on a verdict a person's decision has since changed.
+        A measured check's crashed and undecided held-out cases come from that kept
+        verdict, so showing the gate compares nothing the read has not kept.
         """
         evals = EvalRunService(self.db)
         wanted = spec_hash(combination, skills)
@@ -1134,19 +1136,21 @@ class AuthoringService:
             ran_model = True
             if candidate.spec_hash != wanted:
                 continue
-            summary = (
-                (await evals.compare(ctx, run.id, include_criteria=False)).candidate_summary
-                if run.proposal_check is not None and run.proposal_check.measurement is not None
-                else candidate.summary
-            )
-            if summary.crashed:
+            outcome = run.outcome
+            if run.proposal_check is not None and run.proposal_check.measurement is not None:
+                if outcome is None:
+                    return "inconclusive"
+                crashed, undecided = outcome.candidate_crashed, outcome.candidate_undecided
+            else:
+                summary = candidate.summary
+                crashed, undecided = summary.crashed, summary.incomplete + summary.ungraded
+            if crashed:
                 return "crashed"
-            if run.outcome is not None and (
-                run.outcome.regressions_confirmed or run.outcome.verdict in ("worse", "mixed")
+            if outcome is not None and (
+                outcome.regressions_confirmed or outcome.verdict in ("worse", "mixed")
             ):
                 return "regression"
-            undecided = summary.incomplete + summary.ungraded
-            if undecided or run.outcome is None or run.outcome.verdict in (None, "invalid"):
+            if undecided or outcome is None or outcome.verdict in (None, "invalid"):
                 return "inconclusive"
             return None
         return "check_outdated" if ran_model else "check_first"
