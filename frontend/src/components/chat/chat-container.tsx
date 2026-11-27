@@ -91,6 +91,7 @@ import { SecretRequestCard } from "./secret-request-card";
 import type {
   PendingApproval,
   AskUserQuestion,
+  ActionRequest,
   AskUserAnswer,
   Compaction,
   ChatCompactionStatus,
@@ -1642,7 +1643,7 @@ interface ChatUIProps {
   questionTarget?: { id: string; messageId: string | null; toolCallIds: string[] } | null;
   sentTurnSpacerRef: React.RefObject<HTMLDivElement | null>;
   pendingApproval?: PendingApproval | null;
-  onResumeDecisions?: (decisions: Decision[]) => void;
+  onResumeDecisions?: (decisions: Decision[], requests?: ActionRequest[]) => void;
   mayRememberApproval?: boolean;
   pendingQuestions?: AskUserQuestion[] | null;
   onAnswerQuestions?: (answers: AskUserAnswer[]) => void;

@@ -1719,6 +1719,7 @@ class ConversationService:
         archived_only: bool = False,
         sort_by: str = "updated_at",
         sort_dir: str = "desc",
+        favourites_first: bool = True,
         hide_api: bool = False,
         hide_channels: bool = False,
         project_id: UUID | None = None,
@@ -1794,6 +1795,8 @@ class ConversationService:
             archived_only=archived_only,
             sort_by=sort_by,
             sort_dir=sort_dir,
+            # Flat recency opts out before paging; a client-side reorder would
+            # still leave new chats behind old favourites on later pages.
             # Only where the list is the active one. A star survives archiving -
             # the thread is still one somebody cares about - but the band is the
             # active list's, and a band inside the archive would be a second
@@ -1804,7 +1807,9 @@ class ConversationService:
             # has open, and enough old archived favourites at the top of it would
             # push the selected row off the first page.
             favourites_first_for=(
-                None if archived_only or include_archived or user_id is None else user_id
+                None
+                if not favourites_first or archived_only or include_archived or user_id is None
+                else user_id
             ),
             participant_conversation_ids=participant_ids,
             visible_project_ids=project_ids,
@@ -2113,6 +2118,13 @@ class ConversationService:
                 origin="api",
             )
             return opened.id, None
+        await self.check_api_conversation(ctx, conversation_id)
+        return conversation_id, await self.model_history(
+            conversation_id, limit=API_HISTORY_MESSAGES
+        )
+
+    async def check_api_conversation(self, ctx: AuthContext, conversation_id: UUID) -> None:
+        """Authorize an API turn without reading the conversation's model history."""
         conversation = await self.get_conversation(
             conversation_id,
             organization_id=ctx.organization_id,
@@ -2130,9 +2142,6 @@ class ConversationService:
                 "conversation_id",
                 "Only a conversation opened over the API can be continued over the API",
             )
-        return conversation_id, await self.model_history(
-            conversation_id, limit=API_HISTORY_MESSAGES
-        )
 
     async def create_conversation(
         self,

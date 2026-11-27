@@ -20,7 +20,7 @@ from app.agents.capabilities.channel_tools._directory import ChannelDestination
 from app.core.audit import current_impersonator, set_impersonator
 from app.core.exceptions import BadRequestError, RunExecutionError
 from app.core.permissions import AuthContext, OrgRoleName
-from app.db.models.agent_run import RunStatus
+from app.db.models.agent_run import ApprovalStatus, RunStatus
 from app.services.agent_runner import RunSegment
 from app.services.channels.continuation import (
     ChatDelivery,
@@ -68,6 +68,16 @@ def _run(
 
 def _decider(role: str = OrgRoleName.OWNER) -> AuthContext:
     return AuthContext(user_id=DECIDER, organization_id=ORG, role=role)
+
+
+def _approved_platform_call() -> Any:
+    return MagicMock(
+        id=APPROVAL,
+        status=ApprovalStatus.APPROVED.value,
+        tool_id="agenticos_accept_improvement",
+        context={"platform_tool": "true"},
+        always_asks=True,
+    )
 
 
 def _segment() -> Any:
@@ -216,6 +226,16 @@ class TestContinuing:
             for r in caplog.records
         )
 
+    @pytest.mark.security
+    async def test_the_runs_person_continues_past_their_own_platform_call(self) -> None:
+        """A Member holds no approvals:decide, yet answered their own platform call."""
+        with _Patched(run=_run(user_id=DECIDER)) as p:
+            p.decider_context.return_value = _decider(OrgRoleName.MEMBER)
+            p.pending = [_approved_platform_call()]
+            await _continue()
+        p.resume.assert_awaited_once()
+        p.post_notice.assert_not_awaited()
+
     async def test_it_takes_the_chat_lock_before_it_claims_the_run(self) -> None:
         with _Patched() as p:
             await _continue()
@@ -356,6 +376,15 @@ class TestRefusing:
             await _continue()
         p.resume.assert_awaited_once()
         p.post_notice.assert_not_awaited()
+
+    @pytest.mark.security
+    async def test_somebody_else_is_refused_past_a_members_platform_call(self) -> None:
+        with _Patched(run=_run(user_id=uuid.uuid4())) as p:
+            p.decider_context.return_value = _decider(OrgRoleName.MEMBER)
+            p.pending = [_approved_platform_call()]
+            await _continue()
+        p.resume.assert_not_awaited()
+        assert p.post_notice.await_args.args[1][0].text == REFUSED_NOTICE
 
     async def test_a_room_that_definitely_refuses_the_asker_runs_nothing_and_is_refused(
         self,

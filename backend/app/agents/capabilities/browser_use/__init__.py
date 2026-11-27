@@ -155,7 +155,11 @@ class WebBrowserConfig(BaseModel):
             "Saved browser logins or contact profiles this agent may request in your private "
             "console chat. Each fill requires a live destination confirmation."
         ),
-        json_schema_extra={"x-visible-when": {"field": "connection", "equals": ["built_in"]}},
+        json_schema_extra={
+            "x-visible-when": {"field": "connection", "equals": ["built_in"]},
+            # Each id names a vault secret holding one saved browser login.
+            "x-resource": "secret",
+        },
     )
     max_steps: int = Field(
         title="Steps per call at most",
@@ -214,7 +218,11 @@ class WebBrowserConfig(BaseModel):
             "measure it, since a small model through a slow gateway is no faster. Empty "
             "uses the agent's model. The agent's own browser tools always use it."
         ),
-        json_schema_extra={"x-widget": "model-profile", "x-advanced": True},
+        json_schema_extra={
+            "x-widget": "model-profile",
+            "x-advanced": True,
+            "x-resource": "model_profile",
+        },
     )
     proxy_url: str = Field(
         title="Proxy address",

@@ -14,6 +14,7 @@ from app.api.deps import (
     AgentRunnerSvc,
     ApprovalSvc,
     Auth,
+    ChatCostVisibilitySvc,
     ConversationSvc,
     EvalRunSvc,
     ParkedRunSvc,
@@ -60,7 +61,7 @@ from app.schemas.agent_run import (
     RunTranscriptMessage,
     ToolConsentRead,
 )
-from app.schemas.conversation import MessageList
+from app.schemas.conversation import MessageList, MessageRead
 from app.schemas.run_manifest import RunManifestRead
 from app.services.approval_authority import may_decide_approval
 from app.services.approvals import withhold
@@ -417,6 +418,7 @@ async def get_conversation_transcript(
     conversation_id: UUID,
     conversations: ConversationSvc,
     ctx: Auth,
+    costs: ChatCostVisibilitySvc,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     for_model: bool = Query(
@@ -441,7 +443,12 @@ async def get_conversation_transcript(
         ctx=ctx,
         for_model=for_model,
     )
-    return MessageList(items=items, total=total, cost=cost)  # ty: ignore[invalid-argument-type]
+    return await costs.transcript(
+        ctx,
+        MessageList(
+            items=[MessageRead.model_validate(item) for item in items], total=total, cost=cost
+        ),
+    )
 
 
 @router.get("/runs/{run_id}/files/{file_id}", response_model=None)
@@ -522,7 +529,8 @@ async def get_parked_calls(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> 
     are offered here to be decided - and narrowed to what the caller may
     decide: a privileged decider reads any run's calls, anybody else only
     their own run's, from a signed-in session. A colleague's parked run reads
-    as a refusal, not as an empty list.
+    as a refusal, not as an empty list. Each row says whether the caller may
+    decide it (`may_decide`) and approve it (`may_approve`).
     """
     run = await service.get_run(ctx, run_id)
     if not may_decide_approval(ctx, run):
@@ -530,7 +538,7 @@ async def get_parked_calls(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> 
             message="Only the person who started this run, or somebody who may decide approvals, may read its parked calls",
             details={"run_id": str(run_id)},
         )
-    return await service.parked_calls(ctx, run)
+    return await service.parked_calls(ctx, run, for_decision=True)
 
 
 @router.post(
@@ -538,7 +546,13 @@ async def get_parked_calls(run_id: UUID, service: AgentRunnerSvc, ctx: Auth) -> 
     response_model=AgentRunResult,
     dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
 )
-async def resume_run(run_id: UUID, service: AgentRunnerSvc, parked: ParkedRunSvc, ctx: Auth) -> Any:
+async def resume_run(
+    run_id: UUID,
+    service: AgentRunnerSvc,
+    parked: ParkedRunSvc,
+    ctx: Auth,
+    costs: ChatCostVisibilitySvc,
+) -> Any:
     """Continue a run whose parked tool calls have all been decided.
 
     Separate from deciding on purpose: a decision is a click and should return
@@ -553,11 +567,16 @@ async def resume_run(run_id: UUID, service: AgentRunnerSvc, parked: ParkedRunSvc
     400 "This run is not waiting for approval", with the run's `status`. A key's
     decision continues nothing, and a person-started run is still not resumed
     with a key.
+
+    Needs `approvals:decide`, or to be the run's own person, signed in as
+    themselves, continuing it past their own platform call. Only that person may
+    continue a run past an approved platform call that always asks.
     """
     continued = await parked.resume(ctx, run_id)
-    return await run_result(
+    result = await run_result(
         service, ctx, continued.segment, continues_in_chat=continued.continues_in_chat
     )
+    return await costs.run_result(ctx, result)
 
 
 @router.get("/runs/{run_id}/can-stop", response_model=bool, openapi_extra=INTERNAL)
@@ -614,7 +633,12 @@ async def get_parked_questions(
 
 @router.post("/runs/{run_id}/answers", response_model=AgentRunResult)
 async def answer_run(
-    run_id: UUID, data: QuestionAnswers, service: AgentRunnerSvc, parked: ParkedRunSvc, ctx: Auth
+    run_id: UUID,
+    data: QuestionAnswers,
+    service: AgentRunnerSvc,
+    parked: ParkedRunSvc,
+    ctx: Auth,
+    costs: ChatCostVisibilitySvc,
 ) -> Any:
     """Answer the questions a run parked on, and continue it (#2064).
 
@@ -628,9 +652,10 @@ async def answer_run(
     under its current budget; this request does not run the model.
     """
     continued = await parked.answer(ctx, run_id, data.responses)
-    return await run_result(
+    result = await run_result(
         service, ctx, continued.segment, continues_in_chat=continued.continues_in_chat
     )
+    return await costs.run_result(ctx, result)
 
 
 @router.get("/runs/{run_id}/secret-requests", response_model=list[SecretRequestRead])
@@ -792,6 +817,12 @@ async def decide_approval(
     on an earlier call leaves the run waiting. The response says `continues_in_chat`
     for every person's decision on such a run, and a client must not resume the
     run itself then. A key's decision continues nothing.
+
+    Needs `approvals:decide`. A platform call that always asks - accepting an
+    improvement, publishing an agent - runs with its run's person's authority, so
+    only that person, signed in as themselves, may approve it, and they need no
+    permission beyond being that person. Anybody else holding `approvals:decide`
+    may reject it.
     """
     decided = await service.decide(
         ctx,

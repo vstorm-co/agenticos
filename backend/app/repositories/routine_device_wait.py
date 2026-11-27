@@ -33,6 +33,7 @@ async def park(
     intent_hash: str,
     event_context: str | None,
     event_payload: dict[str, Any] | None = None,
+    event_source_id: UUID | None = None,
 ) -> bool:
     """Keep the first scheduled activation and every distinct incoming event.
 
@@ -51,6 +52,7 @@ async def park(
             is_event=trigger.trigger_type == "event" and event_context is not None,
             event_context=event_context,
             event_payload=event_payload,
+            event_source_id=event_source_id,
         )
         .on_conflict_do_nothing()
         .returning(RoutineDeviceWait.id)
@@ -92,11 +94,15 @@ async def settle(
     activation_id: UUID,
     status: WaitStatus,
     reason: str | None = None,
+    trigger_id: UUID | None = None,
 ) -> bool:
     """The started marker commits with the run's admission, before the first model call."""
+    match = [RoutineDeviceWait.id == activation_id, RoutineDeviceWait.status == "waiting"]
+    if trigger_id is not None:
+        match.append(RoutineDeviceWait.trigger_id == trigger_id)
     result = await db.execute(
         update(RoutineDeviceWait)
-        .where(RoutineDeviceWait.id == activation_id, RoutineDeviceWait.status == "waiting")
+        .where(*match)
         .values(
             status=status,
             reason=reason,

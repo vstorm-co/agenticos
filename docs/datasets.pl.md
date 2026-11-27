@@ -1,5 +1,5 @@
 ---
-source_sha: "2971c06097fa"
+source_sha: "a4c2f48f28ee"
 title: "Datasety"
 description: "Datasety trzymają pytania, na których testujesz agenta: wersjonowane przypadki pisane ręcznie, importowane z CSV lub JSONL albo wzięte z ocenionej odpowiedzi."
 ---
@@ -22,6 +22,8 @@ zawiodła.
 **Przypadki**, **Wyniki** i **Ustawienia** współdzielą obszar z kontrolką pełnego ekranu. Przypadki zawierają dane wpisane i wygenerowane, Wyniki łączą testy agentów z przeglądem odpowiedzi, a Ustawienia zawierają ocenianie, generowanie i ulepszanie. Dodanie przypadku, import, generowanie i przejście do Aktywności znajdują się przy tabeli przypadków. Przypadek otwiera się w panelu bocznym, a Edytuj otwiera formularz. Najpierw są pytanie i odpowiedzi; narzędzia, reguły oraz etykiety mają rozwijane sekcje.
 
 Model i instrukcje oceniającego, generowania i ulepszania wybiera się w **Ustawieniach**. Zapisane modele mają kompaktowy selektor z wyszukiwaniem; **Dodaj model** otwiera formularz providera, modelu i klucza. Instrukcje korzystają z edytora Markdown. Pomocnicy są zdefiniowani w kodzie i nie wymagają tworzenia ani publikowania agenta. Zadanie w kolejce zachowuje konfigurację z chwili startu.
+
+Do generowania i ulepszania dataset dodaje własne wskazówki pod regułami platformy dla danego pomocnika. Reguły - pytania odłożone nie służą do nauki, tekst z runów to dane, w przypadku testowym nie ma danych osobowych - obowiązują zawsze, a wskazówki nie mogą ich zmienić ani usunąć. Edytor zawiera tylko wskazówki; reguły są obok, tylko do odczytu.
 
 ## Od nowego datasetu do wyników { #dataset-workflow }
 
@@ -136,13 +138,21 @@ względu na wielkość liter i odstępy - zatrzymuje się, żeby o tym powiedzie
 oba. Sprawdza to `POST /datasets/{id}/cases/twins`, z pytaniem w treści żądania,
 żeby nie trafiało do logów dostępu.
 
+Podczas aktualizacji istniejące wygenerowane rewizje bez zachowanego odwołania do dokumentu otrzymują tę samą ochronę prywatności. Nie można odróżnić usuniętego anonimowego czatu od przypadku wygenerowanego bez materiału źródłowego. Ochrona obejmuje historię oraz późniejsze rewizje zmieniające tylko metadane. Czytelnicy z `runs:view` zachowują pełną zapisaną treść; żadne przypadki nie są usuwane.
+
+Przypadki pochodzące wyłącznie ze znanego dokumentu, przypadki ręczne i importy pozostają bez zmian. Nowe przypadki z narzędzi agenta bez materiału z czatu nie są automatycznie ukrywane. Zamaskowane wiersze informują o niedostępnym lub niezweryfikowanym źródle, nie przypisują im pochodzenia z rozmowy.
+
+Zatrzymaj stare procesy API i workerów przed migracją `0374_case_from_conversation`, a następnie uruchom wyłącznie nowy kod. Stare procesy nie zachowują flagi prywatności. Zapisy z mieszanych wersji podczas tej aktualizacji nie są obsługiwane; zarządzany deployer zatrzymuje te procesy przed migracją.
+
 ### Z pliku { #import-and-export }
 
 **Import** czyta plik `.csv` albo `.jsonl` i dodaje wszystkie przypadki z niego
 jako jedną nową wersję. Import jest typu „wszystko albo nic”: jeśli jeden
 wiersz jest błędny, nie zostaje dodany żaden, a odmowa wymienia każdy błędny
-wiersz, żebyś mógł poprawić plik i spróbować ponownie. Plik ma najwyżej 10 MB,
-a dataset mieści najwyżej 10 000 przypadków. W konsoli **Import** najpierw
+wiersz, żebyś mógł poprawić plik i spróbować ponownie. Plik ma najwyżej 10 MB
+i 10 000 wierszy (`DATASET_IMPORT_MAX_BYTES`, `DATASET_IMPORT_MAX_ROWS`), a
+dataset mieści najwyżej 10 000 przypadków. Wartość zagnieżdżona zbyt głęboko,
+by ją odczytać, odrzuca swój wiersz. W konsoli **Import** najpierw
 wymienia kolumny i proponuje **Pobierz szablon** - plik CSV z każdą kolumną i
 jednym przypadkiem, który importuje się bez zmian; **Wybierz plik** otwiera
 wybór pliku.
@@ -324,6 +334,14 @@ które trafia do eksportu, także argumentów oczekiwanego wywołania narzędzia
 każdej drogi dodania przypadku. Wpis audytu dla zmiany zapisuje, ile wartości
 zredagowano, nigdy same wartości.
 
+Rozpoznaje klucze API i tokeny dostawców i usług, z którymi platforma
+współpracuje, JWT i klucze prywatne, hasło wpisane w adres
+(`postgres://user:password@host`), klucz albo hasło w query stringu lub treści
+formularza (`?api_key=`, `token=`, `password=`) oraz nagłówek `Authorization`
+typu Basic albo Bearer. Ten sam detektor czyści to, co czyta pomocnik
+ulepszania, to, co czyta klasyfikator luk w wiedzy, oraz wiadomości agenta,
+gdy jego guardrail redaguje sekrety.
+
 Generowanie redaguje też pytania i fragmenty przekazywane generatorowi, zanim
 trafią do modelu, i usuwa z pytań i komentarzy ludzi dane osobowe, które
 znajdują detektory - adresy e-mail, numery telefonów, kart i kont: przypadek
@@ -501,6 +519,11 @@ jego wcześniejsze tury i pytanie, odpowiedź wzorcową, gdy jest oceniana,
 kontrprzykład, każde wywołanie narzędzia wykonane przez agenta - z argumentami i
 informacją, czy izolowany run je zablokował - oraz odpowiedź.
 
+Każda z tych części jest w prompcie sędziego ogrodzona, więc jej tekst nie może
+zamknąć własnej sekcji i udawać słów samego promptu. Prompt kończy się zasadą,
+że ogrodzony tekst się ocenia, a nie wykonuje, i własne instrukcje datasetu nie
+mogą tej zasady zastąpić.
+
 Przypadek z kontrprzykładem jest zawsze oceniany także według wymaganego
 kryterium **counter-example**: odpowiedź nie może powtarzać znanej złej
 odpowiedzi, a sędzia ma zacytować to, co odróżnia od niej odpowiedź. Jest
@@ -550,6 +573,10 @@ odpowiedź od nowa, z konfiguracją, z którą była oceniona za pierwszym razem
 nie uruchamia się ponownie, a wynik zachowuje swój run ewaluacji i decyzję,
 którą ktoś na nim podjął; wynik, na którym każdy oceniacz wydał werdykt,
 zostaje bez zmian.
+
+Nowa ocena odpowiedzi runu ewaluacji, tak jak decyzja osoby, ponownie rozstrzyga
+porównanie tego runu oraz zbudowane na nim suity, sesje Improve i sprawdzenia
+skilli.
 
 Przyczyna, która nadal trwa - nieopublikowany sędzia -
 jest odrzucana tak, jak jest, podobnie jak sędzia runu ewaluacji opublikowany na
@@ -662,8 +689,10 @@ na jego stronie - obie zmiany dotyczą każdej odpowiedzi ocenianej później, w
 | Zmienić sposób oceniania datasetu | `datasets:edit` na nim |
 | Utworzyć dla niego sędziego | `datasets:edit` na nim oraz `agents:edit` |
 | Ocenić run względem niego | `datasets:run` na nim oraz `runs:view` |
+| Ocenić odpowiedź ponownie | `datasets:run` na nim oraz `runs:view`; dla odpowiedzi runu ewaluacji także dostęp do agenta, który odpowiedział |
 | Czytać jego wyniki | `datasets:view` na nim |
-| Wysłać wyniki do przeglądu, zapisać albo wycofać decyzję | `datasets:edit` na nim |
+| Wysłać wyniki do przeglądu | `datasets:edit` na nim |
+| Zapisać albo wycofać decyzję | `datasets:edit` na nim; dla odpowiedzi runu ewaluacji także `runs:view` i dostęp do agenta, który odpowiedział |
 
 Uzasadnienie napisane przez sędziego przechodzi przed zapisaniem przez tę samą
 redakcję poświadczeń co przypadek.
@@ -712,9 +741,15 @@ prywatnego datasetu jest czymś, czego nie może się dowiedzieć. Grant poszerz
 dostęp do jednego datasetu i nigdy nie zmienia roli. Jak łączą się zakresy i
 granty, opisuje strona [Uprawnienia](permissions.md).
 
-Tekst przypadku skopiowanego z rozmowy widzą tylko czytelnicy z `runs:view` lub dostępem do rozmowy źródłowej. Pozostali widzą metadane i placeholder, zarówno w najnowszej i historycznych wersjach, jak i eksportach CSV/JSONL. Brak źródła nie odsłania tekstu. Czytelnik nie może edytować ukrytej treści, a zmiana metadanych jej nie ujawnia. Ewaluacje nadal wykonują pełną zapisaną rewizję.
+Tekst przypadku skopiowanego z rozmowy widzą tylko czytelnicy z `runs:view` lub dostępem do rozmowy źródłowej. Pozostali widzą metadane i placeholder, zarówno w najnowszej i historycznych wersjach, jak i eksportach CSV/JSONL. Brak źródła nie odsłania tekstu, także w przypadku wygenerowanym z czatu. Sprawdzenie zduplikowanych pytań (`cases/twins`) nigdy nie dopasowuje ukrytego przypadku, a **Pokrycie kluczy** pomija etykiety kluczy, które mają tylko ukryte przypadki. Czytelnik nie może edytować ukrytej treści, a zmiana metadanych jej nie ujawnia. Ewaluacje nadal wykonują pełną zapisaną rewizję.
 
 Odpowiedzi, notatki recenzenta i dowody oceny w przeglądzie wymagają `runs:view` oraz dostępu do odpowiadającego agenta. Bez któregoś z nich pozostają wynik i status, ale tekst odpowiedzi, uzasadnienia, reguły i cytaty są usuwane. Przed dodaniem cudzej prywatnej rozmowy dialog wskazuje jej właściciela i ostrzega, że czytelnicy datasetu mogący odczytywać runy zobaczą jej tekst.
+
+Fragmenty baz wiedzy znalezione przez sędziego są usuwane razem z odpowiedzią. Czytający, który widzi odpowiedź, dostaje fragment tylko z bazy wiedzy, którą może czytać; zobacz [Runy ewaluacji](evals.md).
+
+Tekst napisany z przypadków datasetu podlega dostępowi do datasetu. Zmiany sesji Improve wymagają dostępu do odczytu jej datasetu. Run nie zapisuje, który dataset czytał, więc dwa odczyty wymagają dostępu do odczytu wszystkich datasetów: cytaty sesji skilla z odpowiedzi ewaluacji oraz, w zapisie runu, wiadomości wysłane do odpowiedzi ewaluacji, a także prompt i wiadomości agenta platformy, na przykład sędziego.
+
+Decyzja w sprawie odpowiedzi runu ewaluacji albo jej nowa ocena również wymaga `runs:view` i dostępu do odpowiadającego agenta, bo zmienia werdykty zbudowane na tym runie: czytający, który nie widzi odpowiedzi, nie dostaje żadnej z tych opcji, a API odrzuca je z `403`.
 
 Datasety nie są grupowane po dziale - lista nie ma filtra grupy ani plakietek
 działów - więc dział dostaje dostęp do datasetu przez grant na nim, jak przy

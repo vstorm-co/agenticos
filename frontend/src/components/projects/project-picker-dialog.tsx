@@ -37,11 +37,13 @@ export function ProjectPickerDialog({
   onOpenChange,
   selectedId,
   onPick,
+  includeReadOnly = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedId: string | null;
   onPick: (project: Project | null) => void;
+  includeReadOnly?: boolean;
 }) {
   const t = useTranslations("projects");
   const common = useTranslations("common");
@@ -50,7 +52,7 @@ export function ProjectPickerDialog({
   const search = useDebounced(query);
   // Asked when the dialog opens, not whenever a chat composer with a `+` renders.
   const { projects, isLoading, error, refetch } = useProjects({ search, limit: 50, enabled: open });
-  const usable = projects.filter((project) => project.can_use);
+  const usable = projects.filter((project) => includeReadOnly || project.can_use);
 
   const choose = (project: Project | null) => {
     onPick(project);
@@ -61,8 +63,12 @@ export function ProjectPickerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM)}>
         <DialogHeader className="min-w-0 shrink-0 pr-6">
-          <DialogTitle className="text-base font-medium break-words">{t("pickTitle")}</DialogTitle>
-          <DialogDescription>{t("pickHint")}</DialogDescription>
+          <DialogTitle className="text-base font-medium break-words">
+            {t(includeReadOnly ? "title" : "pickTitle")}
+          </DialogTitle>
+          <DialogDescription>
+            {t(includeReadOnly ? "resources.filterHint" : "pickHint")}
+          </DialogDescription>
         </DialogHeader>
         <SearchInput
           value={query}

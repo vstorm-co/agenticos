@@ -44,6 +44,7 @@ class CouncilMemberConfig(BaseModel):
     model_profile_id: UUID = Field(
         title="Model profile",
         description="The model profile this delegate reviews on - its primary model only, never a fallback",
+        json_schema_extra={"x-resource": "model_profile"},
     )
 
 

@@ -19,9 +19,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Conversation } from "@/types/conversation";
 import { ConversationSidebar } from "./conversation-sidebar";
 import { apiClient } from "@/lib/api-client";
+import { useChatListPreferencesStore } from "@/stores/chat-sidebar-store";
 import { toast } from "sonner";
 import * as invalidation from "@/lib/coalesced-invalidation";
 import {
+  useAuthStore,
   useAgentSelectionStore,
   useChatBandsStore,
   useChatListModeStore,
@@ -130,6 +132,11 @@ afterEach(() => vi.useRealTimers());
 
 beforeEach(() => {
   vi.clearAllMocks();
+  useAuthStore.setState({ user: null });
+  useChatListPreferencesStore.setState({ groupedByUser: {} });
+  // The mode persists in localStorage: a mode test that leaves "agents" behind
+  // would otherwise open every later test on the agents list.
+  useChatListModeStore.setState({ mode: "chats" });
   urlParams = new URLSearchParams();
   window.history.replaceState({}, "", "/chat");
   useConversationStore.getState().reset();
@@ -1441,5 +1448,57 @@ describe("the Chats | Agents toggle", () => {
     expect(
       within(list()).getByRole("button", { name: "Analyst", expanded: true }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("a user-scoped flat recent list", () => {
+  it("requests all project scopes without favourite pinning and draws one recency-ordered list", async () => {
+    useAuthStore.setState({
+      user: {
+        id: "reader",
+        email: "reader@example.com",
+        is_active: true,
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    });
+    serve([
+      { ...conversation("old", "Old starred", true), updated_at: "2026-07-01T12:00:00Z" },
+      {
+        ...conversation("project", "Recent project"),
+        project_id: "p1",
+        updated_at: "2026-07-03T12:00:00Z",
+      },
+      { ...conversation("middle", "Middle chat"), updated_at: "2026-07-02T12:00:00Z" },
+    ]);
+    const mounted = mount();
+    await userEvent.click(
+      within(list()).getByRole("button", { name: "Most recent first (flat list)" }),
+    );
+    await waitFor(() =>
+      expect(
+        listRequests().some(
+          (path) => path.includes("favourites_first=false") && !path.includes("project_scope="),
+        ),
+      ).toBe(true),
+    );
+    await within(list()).findByText("Recent project");
+    const titles = ["Old starred", "Recent project", "Middle chat"];
+    const order = Array.from(list().querySelectorAll("[data-conversation-layout]")).map((row) =>
+      titles.find((title) => row.textContent?.includes(title)),
+    );
+    expect(order).toEqual(["Recent project", "Middle chat", "Old starred"]);
+    expect(within(list()).queryByText("Favourites")).not.toBeInTheDocument();
+    expect(within(list()).getByRole("button", { name: "Group chats by project" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    mounted.unmount();
+    mount();
+    expect(within(list()).getByRole("button", { name: "Group chats by project" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await userEvent.click(within(list()).getByRole("button", { name: "Group chats by project" }));
+    expect(useChatListPreferencesStore.getState().groupedByUser.reader).toBe(true);
   });
 });

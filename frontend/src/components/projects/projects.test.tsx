@@ -10,6 +10,9 @@ import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import { ApiError } from "@/lib/api-error";
 import type { LocalTarget } from "@/lib/desktop/commands";
 import type { Project } from "@/types/projects";
+import { qk } from "@/lib/query-keys";
+import { useOrgStore } from "@/stores/org-store";
+import { Perm } from "@/types/permissions";
 import { CreateProjectDialog } from "./create-project-dialog";
 import { ProjectApps } from "./project-apps";
 import { ProjectCard } from "./project-card";
@@ -131,8 +134,21 @@ vi.mock("@/hooks/use-projects", () => ({
   useProjectChats: () => chats(),
 }));
 
-function wrap(node: ReactNode) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function wrap(node: ReactNode, availableSandbox = false) {
+  const client = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, ...(availableSandbox ? { staleTime: Infinity } : {}) },
+    },
+  });
+  if (availableSandbox) {
+    client.setQueryData(
+      qk.organizations.permissions(useOrgStore.getState().activeOrgId ?? "current"),
+      { permissions: [{ permission: Perm.connectionsView, scope: "org" }] },
+    );
+    client.setQueryData(qk.sandboxConnections.list(), [
+      { id: "host", name: "Build host", kind: "docker", is_active: true, is_default: true },
+    ]);
+  }
   return render(node, {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -280,6 +296,7 @@ describe("CreateProjectDialog", () => {
       description: "Q3",
       instructions: "Be brief.",
       default_agent_id: "a-1",
+      backend: "state",
       visibility: "private",
       group_ids: [],
       user_ids: [],
@@ -337,7 +354,7 @@ describe("CreateProjectDialog", () => {
 const KACPER = { user_id: "u-1", name: "Kacper", has_avatar: false, avatar_color: null };
 
 describe("ProjectChats", () => {
-  it("lists everybody's chats with whose each is, and starts a new one", () => {
+  it("lists everybody's chats without duplicating the page header's new-chat action", () => {
     chats.mockReturnValue({
       chats: [
         {
@@ -366,7 +383,7 @@ describe("ProjectChats", () => {
       isLoading: false,
       error: null,
     });
-    wrap(<ProjectChats project={aProject()} />);
+    const { container } = wrap(<ProjectChats project={aProject()} />);
     expect(screen.getByRole("link", { name: /Press release/ })).toHaveAttribute(
       "href",
       "/chat?id=c-1",
@@ -377,6 +394,17 @@ describe("ProjectChats", () => {
     expect(row).toHaveTextContent("Kacper");
     expect(screen.getByText("Untitled chat")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New team room" })).toBeInTheDocument();
+    // Exactly one team-room button in the document: a role query resolves to
+    // the first same-named button, so a hidden twin in the header would
+    // shadow the visible one.
+    expect(container.querySelectorAll('[data-tour="project-new-chat"]')).toHaveLength(1);
+    expect(screen.queryByText("2 chats")).not.toBeInTheDocument();
+    const table = screen.getByRole("table");
+    const frame = table.closest('[data-list-layout="panel"]');
+    expect(frame?.parentElement).toHaveClass("flex-1", "min-h-0");
+    expect(table.parentElement).not.toHaveClass("flex-1");
+
+    expect(screen.queryByRole("link", { name: /New chat/ })).not.toBeInTheDocument();
   });
 
   it("opens a chat from its row, sorts by any column and marks one unread", async () => {
@@ -525,8 +553,15 @@ describe("ProjectChats", () => {
   });
 
   it("invites a first chat, and says when the list failed", () => {
-    const { unmount } = wrap(<ProjectChats project={aProject()} />);
+    const { container, unmount } = wrap(<ProjectChats project={aProject()} />);
     expect(screen.getByText(/Start one/)).toBeInTheDocument();
+    // The team-room button must stay reachable before the first chat exists:
+    // the page header's New chat starts a one-to-one chat, not a team room.
+    expect(screen.getByRole("button", { name: "New team room" })).toBeInTheDocument();
+    // And it must be the only one: the header's twin stays in the document
+    // hidden when the list is empty, and a role query resolves to that hidden
+    // first twin instead of the visible one.
+    expect(container.querySelectorAll('[data-tour="project-new-chat"]')).toHaveLength(1);
     unmount();
 
     chats.mockReturnValue({ chats: [], total: 0, isLoading: false, error: new Error("down") });
@@ -536,8 +571,9 @@ describe("ProjectChats", () => {
 
   it("holds its place while loading", () => {
     chats.mockReturnValue({ chats: [], total: 0, isLoading: true, error: null });
-    wrap(<ProjectChats project={aProject()} />);
+    const { container } = wrap(<ProjectChats project={aProject()} />);
     expect(screen.queryByText(/Start one/)).not.toBeInTheDocument();
+    expect(container.querySelectorAll('[data-tour="project-new-chat"]')).toHaveLength(1);
   });
 });
 
@@ -899,12 +935,13 @@ it("offers the project editor and wires a rename to the project's mutation", asy
   );
 });
 
-it("can create a files-only project instead of silently choosing a container", async () => {
+it("defaults new projects to shared stored files without selecting a container", async () => {
   projects.create.mutateAsync.mockResolvedValue(aProject({ backend: "state" }));
-  wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />);
+  wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />, true);
+  expect(screen.getByRole("combobox", { name: "Project sandbox" })).toHaveTextContent(
+    "Stored files only",
+  );
   await userEvent.type(screen.getByLabelText("Name"), "Notes");
-  await userEvent.click(screen.getByRole("combobox", { name: "Project sandbox" }));
-  await userEvent.click(screen.getByRole("option", { name: "Stored files only" }));
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
   expect(projects.create.mutateAsync).toHaveBeenCalledWith(
     expect.objectContaining({ backend: "state", name: "Notes" }),
@@ -1008,5 +1045,25 @@ it("creates a project without asking for instructions, while keeping optional se
   await userEvent.click(screen.getByRole("button", { name: "Create" }));
   expect(projects.create.mutateAsync).toHaveBeenCalledWith(
     expect.objectContaining({ name: "A small project", instructions: "", visibility: "private" }),
+  );
+});
+
+it.each(["auto", "service"])("retains an explicit %s project sandbox selection", async (choice) => {
+  wrap(<CreateProjectDialog open onOpenChange={vi.fn()} onCreated={vi.fn()} />, true);
+  await userEvent.type(screen.getByLabelText("Name"), "Build");
+  await userEvent.click(screen.getByRole("combobox", { name: "Project sandbox" }));
+  await userEvent.click(
+    screen.getByRole("option", { name: choice === "auto" ? /Automatic/ : "Build host" }),
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Create" }));
+  expect(projects.create.mutateAsync).toHaveBeenCalledWith(
+    expect.objectContaining(
+      choice === "auto"
+        ? { backend: "auto" }
+        : { backend: "service", sandbox_connection_id: "host" },
+    ),
+  );
+  expect(screen.getByRole("combobox", { name: "Project sandbox" })).toHaveTextContent(
+    "Stored files only",
   );
 });

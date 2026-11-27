@@ -1,5 +1,5 @@
 ---
-source_sha: "487ca6eb3bb8"
+source_sha: "6117248cdc95"
 ---
 
 # Konfiguration { #configuration }
@@ -136,6 +136,8 @@ Upload-Limit. Siehe [Nginx-Deployment](deploy.md#option-b-nginx). Die
 Compose-Dateien starten uvicorn ohne separate Server-Grenze; die Middleware der
 Anwendung erzwingt weiterhin ihre Streaming-Grenze.
 
+Portable ZIP-Uploads haben auf beiden Hosts eine eigene Grenze von 512 MiB. Die Konsole streamt `/api/portability/{id}/upload` zur API, ohne das Archiv in Next.js zu puffern. Transfersteuerung erlaubt 4 MiB; Textimporte erlauben 25 MiB für die JSON-Zeichenkettenhülle, während das dekodierte Dokument auf 4 MiB begrenzt bleibt. Behalten Sie diese gezielten Locations beim Ersetzen der Proxy-Konfiguration bei.
+
 ## Authentifizierung { #authentication }
 
 ### JWT { #jwt }
@@ -174,6 +176,12 @@ für den er versiegelt wurde, nutzlos.
 
 Prüfung für die Produktion: `API_KEY` darf bei `ENVIRONMENT=production` nicht der
 Standardwert sein.
+
+Die lokale Kontoanmeldung wird unter **Admin → Bereitstellung → Zugriff und
+Konten** unabhängig vom Anbieterfilter gesteuert. Siehe
+[Anmeldung nur über den Anbieter](deployment.md#provider-only-sign-in) für die
+Richtlinie, ihre API-Durchsetzung und die Wiederherstellungsoption
+`AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED` des Betreibers.
 
 ### OAuth2 (Google) { #oauth2-google }
 
@@ -237,7 +245,7 @@ Zwei Knöpfe im Frontend, dort konfiguriert:
 
 | Variable | Standard | Beschreibung |
 | --- | --- | --- |
-| `OAUTH_PROVIDERS` | `google` | `oidc` ergänzen, um den SSO-Knopf zu zeigen; allein `oidc` heißt nur SSO. `ldap` ergänzt das Verzeichnisformular und `kerberos` den Knopf für die Windows-Anmeldung, siehe unten |
+| `OAUTH_PROVIDERS` | `google,oidc,ldap,kerberos` | Reihenfolge und Filter der im Backend konfigurierten Anbieter. Leer blendet die Schaltflächen aus. Lokale Passwörter werden separat unter Admin → Bereitstellung → Zugriff und Konten gesteuert. |
 | `OIDC_DISPLAY_NAME` | `SSO` | Wie der Knopf den Anbieter nennt: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (leer) | `google`, `github` oder `microsoft` — die Marken, die die Anmeldeseite ohnehin mitbringt. Alles andere zeichnet einen schlichten Schlüssel |
 
@@ -1003,6 +1011,8 @@ Die Testfälle, über die Evals laufen. Siehe [Datasets](datasets.md).
 | Variable | Standard | Beschreibung |
 | --- | --- | --- |
 | `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Wie viele Fallrevisionen die Datasets einer Organisation zusammen speichern dürfen. Jeder hinzugefügte Fall und jede Bearbeitung ist eine Revision, gespeichert für die Versionen, die sie enthalten; eine Version speichert nur, was sie geändert hat, ein Dataset mit 10.000 Fällen, 500-mal bearbeitet, speichert also 10.500, nicht 5 Millionen. Ein Hinzufügen oder Bearbeiten über das Limit wird abgelehnt und nennt, wie viele gespeichert sind; einen Fall zu entfernen speichert nichts und ist immer erlaubt, und das Löschen nicht mehr benötigter Datasets gibt ihre Revisionen frei. Der Name ist älter als diese Bedeutung: Er zählte jeden Fall jeder Version, solange Versionen ihre Fälle kopierten. Das Limit ist ungefähr: Jede Änderung wird für sich geprüft, daher können gleichzeitige Änderungen an verschiedenen Datasets es leicht überschreiten. Es schützt den Speicher und dient nicht der Abrechnung |
+| `DATASET_IMPORT_MAX_BYTES` | `10485760` | Die größte Datei, die ein Dataset-Import liest (10 MB). Eine größere Datei wird nur ein Byte über das Limit hinaus gelesen und als zu groß abgelehnt, mit dem Dateifeld benannt; teilen Sie sie auf mehrere Importe auf |
+| `DATASET_IMPORT_MAX_ROWS` | `10000` | Wie viele Zeilen ein Dataset-Import enthalten darf. Die Datei wird Zeile für Zeile gelesen und bei der ersten Zeile über dem Limit abgelehnt, sodass eine Datei mit vielen winzigen Zeilen nicht mehr kostet als eine am Limit. Die eigene Obergrenze eines Datasets von 10.000 Fällen gilt weiterhin für das, was ein Import hinzufügt |
 
 ## Agent-Workspaces { #agent-workspaces }
 
@@ -1466,7 +1476,7 @@ diese.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | Die Config einer Hosted Page, **je Seite** — und ihr Logo, auf einem eigenen Zähler. Das [Formular](workflows.md#from-a-form) eines Workflows wird auf einem Zähler dieser Größe je Formular gelesen. Siehe unten |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Antworten, die ein [Formular](workflows.md#from-a-form) eines Workflows annimmt, **je Formular**: jede ist ein Lauf, den sein Veröffentlicher bezahlt, und der Server der Konsole leitet sie alle weiter, sodass eine Adresse niemanden zählen würde |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Zustellungen, die ein [Webhook](workflows.md) eines Workflows oder ein GitHub-Trigger annimmt, **je Webhook**, gezählt, sobald die Signatur stimmt und die Zustellung einen Lauf starten würde, sodass Fremde und übersprungene Zustellungen nichts davon verbrauchen: jede ist ein Lauf |
-| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Anfragen, die eine Adresse in einer Minute an die Webhook- und GitHub-Trigger-Adressen von Workflows senden darf, egal was sie enthalten, gezählt, bevor irgendetwas gelesen wird. Weit gefasst, weil Absender wie GitHub für viele Hooks von wenigen Adressen aus zustellen |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Anfragen pro Minute von einer IP-Adresse, gemeinsam gezählt für Workflow-Webhooks, GitHub-Trigger von Workflows und URLs wiederverwendbarer Ereignisquellen. Das Limit greift vor dem Lesen des Anfrageinhalts. Der Standardwert berücksichtigt Anbieter wie GitHub, die viele Webhooks von wenigen Adressen aus zustellen |
 | `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Eindeutige Workflow-Mail-Empfänger je Aussteller, über Schlüssel und Organisationen; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Eindeutige Workflow-Mail-Empfänger je Organisation; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Eindeutige Workflow-Mail-Empfänger im gesamten Deployment; [email.send](reference/workflow-nodes.md#email-send) |

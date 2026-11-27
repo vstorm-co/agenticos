@@ -173,3 +173,33 @@ describe("toSecretPayload", () => {
     expect(toSecretPayload("api_key", { kind: "aws_credentials" }).kind).toBe("api_key");
   });
 });
+
+it("renders inbound Basic credentials from the Vault schema with clear field labels", () => {
+  render(
+    <SecretFields
+      info={{
+        kind: "webhook_credentials",
+        name: "Webhook credentials",
+        description: "",
+        json_schema: {
+          type: "object",
+          properties: {
+            kind: { const: "webhook_credentials", type: "string" },
+            username: { type: "string", title: "Username" },
+            password: { type: "string", title: "Password", format: "password" },
+          },
+          required: ["username", "password"],
+        },
+      }}
+      value={{}}
+      onChange={vi.fn()}
+      idPrefix="inbound"
+    />,
+  );
+  expect(screen.getByLabelText(/^Username/, { selector: "input" })).toBeVisible();
+  expect(screen.getByLabelText(/^Password/, { selector: "input" })).toHaveAttribute(
+    "type",
+    "password",
+  );
+  expect(screen.getByText(/never sent to an external URL/)).toBeVisible();
+});

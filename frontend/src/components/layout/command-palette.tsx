@@ -1,5 +1,7 @@
 "use client";
 
+import { useConsolePresentation } from "@/components/settings/console-experience-provider";
+import { presentedNavigation } from "@/lib/nav-sections";
 import { COMMAND_ITEM_FOCUS, MENU_ROW, SEARCH_FIELD_FOCUS } from "@/components/ui/control-styles";
 
 import {
@@ -13,7 +15,17 @@ import { useConsoleRouter as useRouter } from "@/hooks/use-console-router";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Command } from "cmdk";
-import { ArrowRight, BookOpen, Bot, Database, LogOut, Plus, Search, X } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  Bot,
+  Database,
+  FolderKanban,
+  LogOut,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
 import { ChatIcon as MessageSquare } from "@/components/icons/product-icons";
 import type { LucideIcon } from "lucide-react";
 
@@ -23,6 +35,8 @@ import { NAV_GROUPS } from "@/components/layout/app-sidebar";
 import { navItemVisible } from "@/lib/nav-sections";
 import type { PageTab } from "@/components/dashboard/page-tabs";
 import { useAuth } from "@/hooks";
+import { useProjects } from "@/hooks/use-projects";
+import { useDebounced } from "@/components/ui";
 import { usePermissions } from "@/hooks/use-permissions";
 import { usePublicConfig } from "@/components/public-config/public-config-provider";
 import { apiClient } from "@/lib/api-client";
@@ -65,6 +79,7 @@ interface ConversationItem {
 }
 
 export function CommandPalette() {
+  const { navigation } = useConsolePresentation();
   const router = useRouter();
   const t = useTranslations("nav");
   const common = useTranslations("common");
@@ -74,16 +89,23 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const admin = isAppAdmin(user);
-  const visibleGroups = NAV_GROUPS.filter((group) => !group.adminOnly || admin).map((group) => ({
-    ...group,
-    items: group.items.filter((item) => navItemVisible(item, can, hiddenNavigationItems, isLoaded)),
-  }));
+  // The role's allowed entries first, then the permission and hidden filters
+  // the sidebar applies: the palette is the other way into the same pages.
+  const visibleGroups = presentedNavigation(NAV_GROUPS, navigation)
+    .filter((group) => !group.adminOnly || admin)
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) =>
+        navItemVisible(item, can, hiddenNavigationItems, isLoaded),
+      ),
+    }));
   const visibleHrefs = new Set(
     visibleGroups.flatMap((group) => group.items.map((item) => item.href)),
   );
   const showAgents = visibleHrefs.has(ROUTES.AGENTS);
   const showKnowledge = visibleHrefs.has(ROUTES.RAG);
   const showChat = visibleHrefs.has(ROUTES.CHAT);
+  const showProjects = visibleHrefs.has(ROUTES.PROJECTS);
   const invoker = useRef<HTMLElement | null>(null);
   const openRef = useRef(false);
   const restoreTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -126,6 +148,12 @@ export function CommandPalette() {
   // every page, and a closed dialog has no business costing three requests per
   // navigation. The keys are the ones the pages themselves use, so a palette
   // opened after visiting /agents reads the cache instead of the network.
+  const projectSearch = useDebounced(search);
+  const projects = useProjects({
+    search: projectSearch,
+    limit: MAX_ENTITIES,
+    enabled: open && showProjects,
+  });
   const agents = useQuery({
     queryKey: qk.agents.list(),
     queryFn: () => apiClient.get<AgentList>("/agents"),
@@ -150,6 +178,7 @@ export function CommandPalette() {
   const kbItems = showKnowledge ? (kbs.data?.slice(0, MAX_ENTITIES) ?? []) : [];
   const conversationItems = showChat ? (conversations.data?.items ?? []) : [];
   const failedQueries = [
+    ...(showProjects ? [{ isError: projects.error !== null, refetch: projects.refetch }] : []),
     ...(showAgents ? [agents] : []),
     ...(showKnowledge ? [kbs] : []),
     ...(showChat ? [conversations] : []),
@@ -281,6 +310,18 @@ export function CommandPalette() {
           );
         })}
 
+        {showProjects && projects.projects.length > 0 && (
+          <Group heading={t("projects")}>
+            {projects.projects.map((project) => (
+              <PaletteItem
+                key={project.id}
+                icon={FolderKanban}
+                label={project.name}
+                onSelect={() => go(ROUTES.PROJECT_DETAIL(project.id))}
+              />
+            ))}
+          </Group>
+        )}
         {agentItems.length > 0 && (
           <Group heading={t("agents")}>
             {agentItems.map((agent) => (

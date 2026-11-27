@@ -416,6 +416,18 @@ describe("room creation readiness", () => {
     },
   );
 
+  it("keeps a creation whose owner unmounted while the request was in flight", async () => {
+    const pending = deferred<unknown>();
+    vi.mocked(apiClient.post).mockReturnValueOnce(pending.promise as never);
+    const { result, unmount } = renderHook(() => useCreateTeamRoom(), { wrapper });
+    const creating = result.current.create("project-a", "Our team");
+    // The chats list settling to empty unmounts the header's button mid-flight;
+    // the room already exists, and only an identity change drops it.
+    unmount();
+    pending.resolve({ id: "new-room", project_id: "project-a" });
+    await act(async () => expect(creating).resolves.toMatchObject({ id: "new-room" }));
+  });
+
   it("propagates a creation failure while the identity is still current", async () => {
     const failure = new ApiError(403, "Project access changed");
     vi.mocked(apiClient.post).mockRejectedValueOnce(failure);

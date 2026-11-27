@@ -39,6 +39,15 @@ from app.services.session import SessionService
 pytestmark = pytest.mark.anyio
 
 
+@pytest.fixture(autouse=True)
+def default_sign_in_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The password and magic-link routes read the deployment sign-in policy
+    # before anything else; a missing settings row means sign-in is enabled.
+    from app.repositories import deployment_settings_repo
+
+    monkeypatch.setattr(deployment_settings_repo, "get", AsyncMock(return_value=None))
+
+
 class MockUser:
     """Mock user for testing, with the MFA columns the routes read."""
 

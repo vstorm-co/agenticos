@@ -1,5 +1,5 @@
 ---
-source_sha: "204099b80100"
+source_sha: "2ecd493b8f55"
 ---
 
 # Workflows { #workflows }
@@ -64,14 +64,11 @@ Historia uruchomień domyślnie wypełnia dostępną przestrzeń strony, bez prz
 
 Paginacja historii uruchomień jest na dole panelu. Szczegóły runu mają zwarty pasek podsumowania, canvas wypełniającą obszar pracy oraz jeden panel boczny z krokami, wynikiem i dostępnymi plikami. Kliknięcie kroku otwiera jego zapisane dane. Import pliku i wklejanie JSON mają osobne zakładki; JSON ma pole kodu i formatowanie, które zgłasza błąd bez usuwania treści.
 
-**Export workflow** w menu **More** w nagłówku edytora eksportuje szkic jako plik
-`.workflow.json`. Plik nie zawiera żadnych identyfikatorów tego wdrożenia: każdy
-agent, tabela, sekret, członek, bot czy workflow wybrany w kroku zostaje pominięty
-i wymieniony, przypięte dane testowe też, podobnie jak workflow błędów. Nigdy nie
-zawiera wartości sekretu. **Import** na liście tworzy z takiego pliku nowy szkic,
-usuwa identyfikatory, które plik zrobiony ręcznie jeszcze zawiera, i wymienia
-każdy krok i pole do ponownego wybrania przed publikacją. Plik z krokiem, którego
-to wdrożenie nie ma, zostaje odrzucony i nic nie powstaje.
+**Eksportuj workflow** w menu **Więcej** otwiera pakiet z wyborem zasobów. Wybierz powiązane definicje, a w ZIP także oryginały dokumentów bazy wiedzy lub przetworzony tekst. **Importuj** na liście workflow pokazuje zależności przed utworzeniem prywatnych szkiców. Pomijane powiązania są widoczne przed importem i w jego wyniku; opublikowaną wersję delegata wybiera się dla agenta docelowego.
+
+**Eksportuj starszy plik workflow** zachowuje format `.workflow.json`: bez identyfikatorów zasobów, przypiętych wyników testów i workflow obsługi błędów. **Importuj starszy plik workflow** zachowuje dotychczasowy proces i listę zasobów do ponownego wyboru przed publikacją. Nieobsługiwane typy kroków są odrzucane bez utworzenia workflow.
+
+Karta przeglądarki może przywrócić transfer po odświeżeniu dla tej samej zalogowanej osoby i organizacji. Session storage przechowuje wyłącznie identyfikator operacji. Serwer ponownie sprawdza dostęp przed pokazaniem wyniku. Po przerwanym wysyłaniu trzeba ponownie wybrać oryginalny ZIP i przesłać go od początku; przeglądarka nie zapisuje pliku ani pozycji wysyłania. Wygasły lub niedostępny transfer można rozpocząć od nowa.
 
 ### Wyszukiwanie, nazywanie i wycofywanie workflow { #finding-naming-and-retiring-a-workflow }
 
@@ -1004,11 +1001,15 @@ podlinkować. **Runs** na liście workflow pokazuje przebiegi wszystkich workflo
 razem. Na stronie przebiegu kliknięcie kroku pokazuje jego **Input** i **Output** z
 tego przebiegu. Wiersze, które zapisał [szybki log](#quick-log) kroku, widać pod krokiem.
 
-**Retry from failed step** uruchamia nowy przebieg tej samej wersji
-z tym samym wejściem, w którym każdy krok, który się udał, przekazuje to, co
-przekazał wcześniej, więc działa tylko nieudany krok i to, do czego nie doszedł.
-Ukończone kroki ponownie wykorzystują potwierdzone wyniki. Pętla działa ponownie i używa kroków
-każdego elementu, które się udały. **Debug in editor** przypina do kroków wersji
+**Retry from failed step** uruchamia nowy przebieg tej samej wersji z tym samym
+wejściem, w którym każdy krok, który się udał, przekazuje to, co przekazał
+wcześniej, więc działa tylko nieudany krok i to, do czego nie doszedł. Ukończone
+kroki ponownie wykorzystują potwierdzone wyniki, w tym zakończone wywołania bloku
+Pythona, nie powtarzając ich zapisów. Pętla działa ponownie i używa kroków każdego
+elementu, które się udały. Krok Resume link generuje nowy adres: adres poprzedniego
+przebiegu nie może wznowić nowego.
+
+**Debug in editor** przypina do kroków wersji
 roboczej to, co każdy krok poza pętlą przekazał w tym przebiegu, więc przebieg
 testowy zaczyna od miejsca, w którym tamten był. Przez API ponawia `POST
 /api/v1/workflow-runs/{id}/retry`, a `GET /api/v1/workflow-runs` przyjmuje
@@ -1135,6 +1136,26 @@ ostatniego zdarzenia, które widział, i podejmuje dokładnie tam, gdzie przerwa
 Zdarzenia są zapisywane, zanim zostaną wysłane, więc nic nie ginie i nic nie
 uruchamia się dwa razy. Gniazdo ponownie sprawdza sesję i dostęp członka przed każdą
 ramką i każdym odczytem strumienia. Ramki opisuje [HTTP API](api.md#following-a-run-over-a-websocket).
+
+### Źródła webhooków wielokrotnego użytku { #reusable-webhook-sources }
+
+Selektor źródła prowadzi do zarządzania źródłami bez dodawania kolejnej domyślnej pozycji paska bocznego. Poświadczenia nowego źródła wybiera się lub tworzy w Vault: widoczny w organizacji `api_key` dla podpisów i tokenów albo `webhook_credentials` dla przychodzącego Basic Auth. Workflow zachowuje tylko powiązanie ze źródłem; rotacja poświadczeń pozostaje w Vault.
+
+Nowe kroki **Webhook** w edytorze workflow zaczynają od wyboru lub utworzenia źródła zdarzeń. Przed wybraniem źródła możesz zapisać wersję roboczą i przetestować ją za pomocą wklejonego JSON-a. Publikacja wymaga wybrania źródła lub jawnego wybrania **dedykowanego endpointu**. Wybierz dedykowany endpoint, gdy nadawca potrzebuje odpowiedzi synchronicznej. Istniejące dedykowane kroki zachowują ustawienia i adresy URL.
+
+W wyzwalaczu **Webhook** wybierz istniejące **Źródło zdarzeń** lub utwórz nowe. Publikacja subskrybuje konkretne wejście workflow; kolejne publikacje zachowują subskrypcję, gdy źródło i wejście się nie zmieniają. Poświadczenia pozostają w źródle, poza definicją workflow. Pozostałe rutyny i workflow otrzymują te same uwierzytelnione zdarzenia niezależnie. [Źródła zdarzeń](triggers.md#reusable-event-sources) opisują dostawców, uwierzytelnianie, uprawnienia, pauzowanie i retencję.
+
+Źródło, do którego nie masz już prawa używania, możesz zastąpić innym, którego wolno Ci używać. Aktywna subskrypcja zmienia się po publikacji. Przypięcie próbki zmienia wersję roboczą workflow i wymaga prawa do edycji.
+
+Każdy, kto ma wgląd w wykonania workflow, może zobaczyć w historii dostarczone dane, nawet jeśli źródło jest prywatne. Późniejsze udostępnienie workflow może ujawnić dane z wcześniejszych wykonań. Nie daje ono prawa do nasłuchiwania źródła na żywo.
+
+**Nasłuchuj zdarzenia** przechwytuje następne uwierzytelnione zdarzenie z aktywnego URL źródła. Okno trwa dwie minuty; tymczasowe przykłady pozostają przez dziesięć minut i podlegają limitowi przypięcia 64 KB. **Aktywni subskrybenci nadal się wykonują.** Przechwycenie nie tworzy dodatkowego wykonania ani nie zmienia dostaw. Można zamiast tego wkleić przykład JSON; zapis i publikacja nie wymagają próbki.
+
+Przykład wybranego wyzwalacza zachowuje `{body, delivery_id}`. Przypnij go i użyj dotychczasowych powiązań pól i testów kroków; kolejne węzły mogą bezpośrednio czytać JSON. Przy wielu wejściach wybierz jawnie właściwy węzeł Webhook do przechwycenia i przypięcia.
+
+Testowanie gałęzi ręcznej lub korzystanie z przypiętego przykładu JSON nie wymaga uprawnienia do używania źródła webhooka. Uprawnienie to jest potrzebne przy publikowaniu workflow subskrybującego źródło oraz przy nasłuchiwaniu zdarzeń na żywo.
+
+Wspólne źródło asynchronicznie potwierdza trwały odbiór. Publikacja odmawia, jeśli osiągalna gałąź takiego wejścia zawiera **Odpowiedz na webhook**. Użyj dedykowanego endpointu workflow, gdy nadawca potrzebuje synchronicznego statusu, nagłówków lub body tego węzła. URL, poświadczenia, wykrywanie duplikatów i zachowanie odpowiedzi dedykowanych endpointów pozostają bez zmian.
 
 ### Webhook albo harmonogram { #a-webhook-or-a-schedule }
 
@@ -1565,3 +1586,11 @@ Nową automatyzację można przekazać przez `prepare_workflow_draft`: jedna akc
 ### Szkice follow-upów { #follow-up-drafts }
 
 W konfiguracji oczekiwania na odpowiedź możesz też włączyć **Przygotuj szkic follow-upu po terminie**. Wybierz istniejący model i maksymalny koszt szkicu. Przy uruchomieniu workflow podaj kontekst do przygotowania treści. Agent działa tylko w gałęzi terminu po udanym sprawdzeniu skrzynki; zweryfikowana odpowiedź pomija szkic, a błąd skrzynki kończy sprawdzenie błędem. Agent nie ma narzędzi. Szkic zapisuje się w wyniku workflow, a powiadomienie prowadzi do niego. Przed wysyłką sprawdź aktualny wątek. Preset nie tworzy szkicu w Gmail/Outlook ani nie wysyła poczty.
+
+Pakiety zasobów obsługują też workflow jako zasób główny przez `/workflows/{id}/export-preview`, `/workflows/{id}/bundle-export` i endpointy bundle-import. Wybierz definicje do skopiowania, ponownego użycia lub pominięcia. Import tworzy prywatne, nieopublikowane szkice bez aktywacji wyzwalaczy. Powiązania przesłanych plików i przypięte wyniki uruchomień nie są przenoszone. Wynik importu podaje ścieżki pominiętych powiązań; publikacja nadal sprawdza brakujące zasoby. Delegaci wymagają jawnego wyboru istniejącej opublikowanej wersji należącej do wskazanego agenta. Workflow obsługi błędów musi wskazywać dostępną opublikowaną obsługę awarii; szkice nigdy nie są automatycznie publikowane. Cykle tworzenia zależności wymagają ponownego użycia istniejącego zasobu lub pominięcia powiązania.
+
+Powiązania wybranych kolumn tabel są pomijane do ręcznego wyboru na miejscu; powiązania całej tabeli używają wersji schematu docelowego.
+
+Powiązania akcji Pythona korzystają ze schematu zasobów wybranej akcji. Ponowne użycie zasobu docelowego zmienia razem ID tabeli i wersję schematu. Pominięcie zależności akcji usuwa całe jej powiązanie; przed publikacją sprawdź kod Pythona. Eksport z wyborem konkretnych kolumn tabeli jest odrzucany: wyczyść wybór przed eksportem i wybierz kolumny ponownie w miejscu docelowym.
+
+Subskrypcje współdzielonych źródeł zdarzeń nie są przenoszone w pakiecie workflow. Eksport i import usuwają identyfikator źródła, pokazują ścieżkę pominiętego powiązania i pozostawiają krok webhook wymagający źródła. Przed publikacją wybierz ponownie dostępne źródło w prywatnym szkicu; import nie włącza osobnego endpointu jako zastępstwa.

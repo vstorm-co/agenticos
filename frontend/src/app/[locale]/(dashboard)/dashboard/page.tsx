@@ -23,6 +23,7 @@ import { ViewSwitcher } from "@/components/dashboard/view-switcher";
 import { WIDGET_COMPONENTS } from "@/components/dashboard/widgets";
 import { MySummaryWidget } from "@/components/dashboard/widgets/my-summary";
 import { Button } from "@/components/ui";
+import { useConsolePresentation } from "@/components/settings/console-experience-provider";
 import { EmptyState, ErrorState } from "@/components/states";
 import { useDashboardLayout, useDashboardPresets, useGroups, usePermissions } from "@/hooks";
 import type { DashboardPreset } from "@/lib/dashboard-preset-api";
@@ -84,6 +85,7 @@ import styles from "./dashboard.module.css";
  */
 export default function DashboardPage() {
   const t = useTranslations("dashboard");
+  const common = useTranslations("common");
   const { can, role, isAppAdmin, isLoading } = usePermissions();
   const {
     storedEntries,
@@ -93,6 +95,9 @@ export default function DashboardPage() {
     save,
     reset,
   } = useDashboardLayout();
+  const presentation = useConsolePresentation();
+  const sourceEntries = storedEntries ?? presentation.dashboardDefault ?? null;
+  const configuredHome = presentation.dashboardDefault != null;
   const searchParams = useSearchParams();
   const periodParam = searchParams.get("period");
   const period = useMemo(() => parsePeriodParam(periodParam), [periodParam]);
@@ -119,9 +124,9 @@ export default function DashboardPage() {
   // different one. A new `storedEntries` identity is exactly that renumbering, so
   // reset the map with it — during render, the pattern React recommends over an
   // effect for state that follows a changing value.
-  const [overridesFor, setOverridesFor] = useState(storedEntries);
-  if (overridesFor !== storedEntries) {
-    setOverridesFor(storedEntries);
+  const [overridesFor, setOverridesFor] = useState(sourceEntries);
+  if (overridesFor !== sourceEntries) {
+    setOverridesFor(sourceEntries);
     setCollapseOverrides({});
   }
   const activeOrgId = useOrgStore((state) => state.activeOrgId);
@@ -129,7 +134,7 @@ export default function DashboardPage() {
   const viewParam = searchParams.get("view");
   const { presets, savePreset, removePreset } = useDashboardPresets(viewParam === "org");
   const groupParam = searchParams.get("group");
-  const personal = viewParam === null || viewParam === "me";
+  const personal = (viewParam === null && !configuredHome) || viewParam === "me";
   const start = useStart(personal);
   const briefing = useSuggestions(personal && can(Perm.agentsRun));
   const openingLoading =
@@ -144,7 +149,23 @@ export default function DashboardPage() {
   // would open the organization's view for a moment and ask all of its
   // questions unnarrowed before the group arrived.
   // Retain the header instance so resolving the layout does not close page help.
-  if (isLoading || layoutLoading || (viewParam === "group" && groupsLoading)) {
+  // A role policy read failure is not a layout failure: the saved arrangement
+  // may be fine, and the layout's own retry (below) must not stand in for it.
+  if (presentation.problem)
+    return (
+      <ErrorState
+        cta={{
+          label: common("retry"),
+          onClick: () => presentation.retry(),
+        }}
+      />
+    );
+  if (
+    isLoading ||
+    layoutLoading ||
+    presentation.pending ||
+    (viewParam === "group" && groupsLoading)
+  ) {
     return (
       <div className="space-y-4">
         {personal ? (
@@ -186,14 +207,14 @@ export default function DashboardPage() {
   // is theirs to keep reading - a group's for that and a group to read, and the
   // deployment's for the app admin flag. Their own is everybody's.
   const available = DASHBOARD_VIEWS.filter((option) => {
-    if (option === "org") return can(Perm.runsView) || isCustom;
+    if (option === "org") return can(Perm.runsView) || isCustom || configuredHome;
     if (option === "group") return can(Perm.runsView) && groups.length > 0;
     if (option === "deployment") return isAppAdmin;
     return true;
   });
-  // Everybody opens on their own view - the greeting, their activity and the
-  // tips - and switches to the organization's from there.
-  const fallbackView: DashboardView = "me";
+  // A configured role layout becomes the landing view; otherwise retain the
+  // personal greeting, activity and tips. Explicit view links still win.
+  const fallbackView: DashboardView = configuredHome ? "org" : "me";
   const view: DashboardView = available.includes(viewParam as DashboardView)
     ? (viewParam as DashboardView)
     : fallbackView;
@@ -202,7 +223,7 @@ export default function DashboardPage() {
   const arrangeable = view === "org";
 
   const effective = arrangeable
-    ? resolveEffectiveLayout(audience, storedEntries)
+    ? resolveEffectiveLayout(audience, sourceEntries)
     : viewLayout(view, audience);
   const visible = visibleSections(effective, can, isAppAdmin);
 
@@ -284,8 +305,8 @@ export default function DashboardPage() {
   // sections arrive as real, editable headings a person can rename and recolour.
   const initialItems = startBlank
     ? []
-    : storedEntries !== null
-      ? visibleItems(sanitizeEntries(storedEntries), can, isAppAdmin)
+    : sourceEntries !== null
+      ? visibleItems(sanitizeEntries(sourceEntries), can, isAppAdmin)
       : flattenDefaultToItems(visible, resolveSectionTitle);
 
   if (editing) {

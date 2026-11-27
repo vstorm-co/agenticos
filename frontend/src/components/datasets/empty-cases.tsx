@@ -21,6 +21,7 @@ import { useDatasetFiles } from "./use-dataset-files";
 
 interface EmptyCasesProps {
   datasetId: string;
+  importMaxBytes: number;
   /** Absent for somebody who may not add a case, who is told what the tab holds and nothing more. */
   onAddCase?: () => void;
   onImport?: (file: File) => Promise<unknown>;
@@ -33,7 +34,13 @@ interface EmptyCasesProps {
  * file, drafted by the generator, or added from an answer in Activity or a
  * conversation.
  */
-export function EmptyCases({ datasetId, onAddCase, onImport, onGenerate }: EmptyCasesProps) {
+export function EmptyCases({
+  datasetId,
+  importMaxBytes,
+  onAddCase,
+  onImport,
+  onGenerate,
+}: EmptyCasesProps) {
   const t = useTranslations("datasets");
   const picker = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -98,6 +105,7 @@ export function EmptyCases({ datasetId, onAddCase, onImport, onGenerate }: Empty
         open={importing}
         onOpenChange={setImporting}
         onChoose={() => picker.current?.click()}
+        maxBytes={importMaxBytes}
       />
     </div>
   );

@@ -162,14 +162,14 @@ describe("starting a team room", () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith("/chat?id=new-room"));
   });
 
-  it.each(["account", "organization", "unmount"] as const)(
+  it.each(["account", "organization"] as const)(
     "does not navigate, authorize or invalidate after the %s changes during creation",
     async (boundary) => {
       const creation = deferred<typeof room>();
       vi.mocked(apiClient.post).mockReturnValue(creation.promise);
       const invalidate = vi.spyOn(client, "invalidateQueries");
       const onCreated = vi.fn(() => true);
-      const view = render(<StartTeamRoom projectId="project-a" onCreated={onCreated} />, {
+      render(<StartTeamRoom projectId="project-a" onCreated={onCreated} />, {
         wrapper,
       });
       fireEvent.click(screen.getByRole("button", { name: "New team room" }));
@@ -178,7 +178,6 @@ describe("starting a team room", () => {
       act(() => {
         if (boundary === "account") useAuthStore.setState({ user: account("other") });
         if (boundary === "organization") useOrgStore.setState({ activeOrgId: "org-b" });
-        if (boundary === "unmount") view.unmount();
       });
       await act(async () => creation.resolve(room));
       expect(push).not.toHaveBeenCalled();
@@ -187,6 +186,28 @@ describe("starting a team room", () => {
       expect(toast.error).not.toHaveBeenCalled();
     },
   );
+
+  it("navigates, authorizes and invalidates after the unmount changes during creation", async () => {
+    const creation = deferred<typeof room>();
+    vi.mocked(apiClient.post).mockReturnValue(creation.promise);
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const onCreated = vi.fn(() => true);
+    const view = render(<StartTeamRoom projectId="project-a" onCreated={onCreated} />, {
+      wrapper,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "New team room" }));
+    expect(apiClient.post).toHaveBeenCalledTimes(1);
+
+    // The chats list settling to empty unmounts the button mid-flight. The
+    // identity is unchanged, so the room the reader asked for still opens -
+    // only an identity change drops it.
+    act(() => view.unmount());
+    await act(async () => creation.resolve(room));
+    expect(push).toHaveBeenCalledExactlyOnceWith("/chat?id=new-room");
+    expect(onCreated).toHaveBeenCalledExactlyOnceWith("new-room");
+    expect(invalidate).toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
 
   it("shows a current creation failure and allows another attempt", async () => {
     vi.mocked(apiClient.post).mockRejectedValueOnce(new Error("Creation failed"));
@@ -204,21 +225,33 @@ describe("starting a team room", () => {
     expect(apiClient.post).toHaveBeenCalledTimes(2);
   });
 
-  it.each(["account", "organization", "unmount"] as const)(
+  it.each(["account", "organization"] as const)(
     "does not report a late creation failure after the %s changes",
     async (boundary) => {
       const creation = deferred<typeof room>();
       vi.mocked(apiClient.post).mockReturnValue(creation.promise);
-      const view = render(<StartTeamRoom projectId="project-a" />, { wrapper });
+      render(<StartTeamRoom projectId="project-a" />, { wrapper });
       fireEvent.click(screen.getByRole("button", { name: "New team room" }));
       act(() => {
         if (boundary === "account") useAuthStore.setState({ user: account("other") });
         if (boundary === "organization") useOrgStore.setState({ activeOrgId: "org-b" });
-        if (boundary === "unmount") view.unmount();
       });
       await act(async () => creation.reject(new Error("Old request failed")));
       expect(push).not.toHaveBeenCalled();
       expect(toast.error).not.toHaveBeenCalled();
     },
   );
+
+  it("reports a late creation failure after the unmount changes", async () => {
+    const creation = deferred<typeof room>();
+    vi.mocked(apiClient.post).mockReturnValue(creation.promise);
+    const view = render(<StartTeamRoom projectId="project-a" />, { wrapper });
+    fireEvent.click(screen.getByRole("button", { name: "New team room" }));
+    // The button is gone, but the reader still asked for the room: a failure
+    // is theirs to hear about, not to swallow.
+    act(() => view.unmount());
+    await act(async () => creation.reject(new Error("Old request failed")));
+    expect(push).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith(expect.any(String));
+  });
 });

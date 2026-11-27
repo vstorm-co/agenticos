@@ -1,5 +1,5 @@
 ---
-source_sha: "e885d6a41f7e"
+source_sha: "f2aed7ebed0e"
 ---
 
 # Auf einem Server deployen { #deploy-to-a-server }
@@ -683,6 +683,8 @@ Wert ungleich null zurückkehrt oder eben nicht. Es nimmt einen **Commit** statt
 eines Branches entgegen, das Deployte ist also das Geprüfte und nicht das, wohin
 `main` seither gewandert ist - und was läuft, ist Byte für Byte das, was die CI
 gebaut hat, auf einem Host, der die Toolchain nie braucht.
+
+Nach dem Abruf der Images und der Vorbereitung der Laufzeitumgebungen stoppt das Skript API und Hintergrund-Worker des aktuellen Compose-Stacks vor den Migrationen. Alte Prozesse schreiben damit nicht nach veralteten Datenschutzregeln. Scheitert das Stoppen, bricht das Deployment vor der Migration ab. Das Skript prüft den Dienstzustand vor der Erfolgsmeldung. Bei mehreren Hosts müssen die übrigen API- und Worker-Replikate separat angehalten werden.
 
 !!! warning "Kopieren Sie es auf den Host und führen Sie es dann aus — leiten Sie es nicht in `bash -s`"
 

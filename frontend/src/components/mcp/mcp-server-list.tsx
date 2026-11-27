@@ -262,7 +262,9 @@ export function McpServerList({
     () =>
       rowsForEntries(
         featured
-          ? catalog.servers.filter((entry) => ONBOARDING_SERVICES.has(entry.key))
+          ? catalog.servers.filter(
+              (entry) => entry.gallery_visible !== false && ONBOARDING_SERVICES.has(entry.key),
+            )
           : listing.servers,
         organization.connections,
         personal.connections,
@@ -284,7 +286,10 @@ export function McpServerList({
     () =>
       [
         ...new Set([
-          ...catalog.servers.map((entry) => entry.category).filter(Boolean),
+          ...catalog.servers
+            .filter((entry) => entry.gallery_visible !== false)
+            .map((entry) => entry.category)
+            .filter(Boolean),
           CUSTOM_CATEGORY,
         ]),
       ].sort(),

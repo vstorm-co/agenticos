@@ -1519,6 +1519,22 @@ async def agents_of_runs(
     return {row.id: row.agent_id for row in result.all()}
 
 
+async def eval_answers(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> set[UUID]:
+    """Those of these runs that answered an eval case."""
+    if not run_ids:
+        return set()
+    result = await db.execute(
+        select(AgentRun.id).where(
+            AgentRun.id.in_(list(run_ids)),
+            AgentRun.organization_id == organization_id,
+            AgentRun.surface == RunSurface.EVAL.value,
+        )
+    )
+    return set(result.scalars().all())
+
+
 async def conversations_of_runs(
     db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
 ) -> list[UUID]:
@@ -2874,6 +2890,11 @@ class ApprovalRow:
     """Set by the service when this reader may not see what the call quotes."""
     always_asks: bool = False
     """Only a person's answer to this call could let it run, so nobody may approve it unread."""
+    may_approve: bool = False
+    """Set by the service: whether an approval from this reader would be accepted."""
+    acts_for_user_id: UUID | None = None
+    """Whose authority the run carries: who started it, or the binding's publisher for
+    a run a chat account asked. Decides who may approve; never shown."""
 
 
 @dataclass(frozen=True)
@@ -2888,6 +2909,10 @@ class ApprovalFilters:
             approval, because an approval belongs to a run and a run belongs to a
             person. A chat stranger's run is left out: it ran under the
             publisher's user id, but the publisher did not trigger it.
+        own_user_id: Whose runs act for. Unlike `triggered_by_user_id`, this
+            keeps a publisher-fallback row: the run acts for the publisher
+            even though a chat stranger triggered it, and the publisher is
+            the one who may approve it.
         created_from: Inclusive lower bound on when the call was parked.
         created_to: Inclusive upper bound.
         outside_live_calls: Leave out the calls parked by a run a voice call is
@@ -2896,6 +2921,7 @@ class ApprovalFilters:
 
     statuses: Sequence[str] | None = None
     triggered_by_user_id: UUID | None = None
+    own_user_id: UUID | None = None
     created_from: datetime | None = None
     created_to: datetime | None = None
     outside_live_calls: bool = False
@@ -2948,6 +2974,8 @@ async def list_approvals(
     if narrowing.triggered_by_user_id is not None:
         clauses.append(AgentRun.user_id == narrowing.triggered_by_user_id)
         clauses.append(~asked_by_stranger)
+    if narrowing.own_user_id is not None:
+        clauses.append(AgentRun.user_id == narrowing.own_user_id)
     if narrowing.created_from is not None:
         clauses.append(ToolApproval.created_at >= narrowing.created_from)
     if narrowing.created_to is not None:
@@ -3021,6 +3049,7 @@ async def list_approvals(
             note=approval.note,
             created_at=approval.created_at,
             always_asks=approval.always_asks,
+            acts_for_user_id=run_user_id,
             parked_in_chat=bool(parked_in_chat),
             asked_in_chat=(
                 ChatAsker(
@@ -3720,3 +3749,13 @@ async def down_rated_messages(
         query = query.where(Message.created_at < until)
     rows = await db.execute(query)
     return [DownRatedRow(*row) for row in rows.all()]
+
+
+async def record_workspace_origins(
+    db: AsyncSession, *, run: AgentRun, origins: Sequence[dict[str, str]]
+) -> None:
+    """Merge actual opened workspace references across approval continuations."""
+    kept = {entry["workspace_id"]: entry for entry in run.workspace_origins or []}
+    kept.update({entry["workspace_id"]: entry for entry in origins})
+    run.workspace_origins = list(kept.values())
+    await db.flush()

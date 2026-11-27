@@ -44,7 +44,12 @@ from app.services.channels.notification_send import NotificationRateLimited
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import EmailKey, get_email_service
 from app.services.notification_catalog import is_mandatory
-from app.services.notification_center import NotificationCenterService, absolute_context_url
+from app.services.notification_center import (
+    APPROVABLE_BY,
+    APPROVABLE_CALLS,
+    NotificationCenterService,
+    absolute_context_url,
+)
 from app.services.notification_routes import NotificationRouteService
 from app.services.push import PushService
 from app.services.routine_notifications import allowed_channels as routine_channels
@@ -275,7 +280,12 @@ class NotificationDeliveryService:
             )
             return outcome
 
-        email_key, context = self._render(notification, ctx=ctx)
+        email_key, context = self._render(
+            notification,
+            ctx=ctx,
+            recipient=recipient,
+            own_call=await self._center.answers_own_call(ctx, notification),
+        )
         # Resolved now, not frozen at write time with the rest of
         # `render_context`: `EmailService`'s own contract is that a caller
         # resolves the deployment's *current* name through
@@ -402,7 +412,12 @@ class NotificationDeliveryService:
         return recipient.is_app_admin, None
 
     def _render(
-        self, notification: Notification, *, ctx: AuthContext
+        self,
+        notification: Notification,
+        *,
+        ctx: AuthContext,
+        recipient: User,
+        own_call: bool,
     ) -> tuple[EmailKey, dict[str, Any]]:
         """What re-derives at send time is the *gate*, never the whole
         rendering (Decision 3) - `render_context`, frozen at write time, is
@@ -426,7 +441,17 @@ class NotificationDeliveryService:
             # a link to a decision that is not theirs to make. Rows written
             # before `run_user_id` existed carry no owner, and read as not
             # theirs: the link-less notice, which is the safe direction.
-            if may_follow_decision_link(ctx, stored_starter_id(context.get("run_user_id"))):
+            # The run's own person is likewise offered it on their own platform
+            # call that always asks, which needs no permission beyond being
+            # that person.
+            context.pop(APPROVABLE_BY, None)
+            context.pop(APPROVABLE_CALLS, None)
+            decides = (
+                recipient.is_app_admin
+                or own_call
+                or may_follow_decision_link(ctx, stored_starter_id(context.get("run_user_id")))
+            )
+            if decides:
                 return EmailKey.APPROVAL_REQUESTED, context
             # No link at all, and that is the point of it - the same "nothing
             # is asked of this reader, so nothing is offered" `notifications.py`

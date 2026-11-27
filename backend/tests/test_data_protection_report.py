@@ -105,18 +105,15 @@ class TestWhatItReports:
 
     async def test_credentials_count_the_tables_that_seal_in_place(self) -> None:
         """A bot token is a sealed credential that has no organization_secrets row."""
-        counts = [3 if table.label == "channel_bots" else 0 for table in SEALED_TABLES]
-        counts = [
-            count
-            for table, count in zip(SEALED_TABLES, counts, strict=True)
-            if table.model is not OrganizationSecret
-        ]
-        db = _db([], counts=counts)
+        counts = {"channel_bots": 3, "event_source_credentials": 2}
+        db = _db([])
+        db.scalar.side_effect = lambda query: counts.get(query.get_final_froms()[0].name, 0)
 
         section = await _credentials(db)
 
         counted = {row[1].split(" (")[0]: row[3] for row in section.rows}
         assert counted["channel_bots"] == 3
+        assert counted["event_source_credentials"] == 2
         assert "organization_secrets" not in counted
 
     async def test_collections_report_an_off_site_parse_only_with_its_own_key(self) -> None:

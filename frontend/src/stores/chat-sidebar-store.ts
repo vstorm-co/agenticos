@@ -96,3 +96,25 @@ export const useChatListModeStore = create<ChatListModeState>()(
     },
   ),
 );
+
+interface ChatListPreferences {
+  groupedByUser: Record<string, boolean>;
+  setGrouped: (userId: string, grouped: boolean) => void;
+}
+
+/** Account-scoped, so sharing a browser never carries another person's list choice. */
+export const useChatListPreferencesStore = create<ChatListPreferences>()(
+  persist(
+    (set) => ({
+      groupedByUser: {},
+      setGrouped: (userId, grouped) =>
+        set((state) => ({
+          groupedByUser: { ...state.groupedByUser, [userId]: grouped },
+        })),
+    }),
+    {
+      name: "chat-list-preferences",
+      partialize: (state) => ({ groupedByUser: state.groupedByUser }),
+    },
+  ),
+);

@@ -13,6 +13,8 @@ import { MfaCodeForm } from "@/components/auth/mfa-code-form";
 import { OAuthBlock } from "@/components/auth/oauth-buttons";
 import { goToDestination, postSignInDestination } from "@/lib/auth-landing";
 import { returnToForAttempt } from "@/lib/oauth-return";
+import { useBranding } from "@/components/branding/branding-provider";
+import { ProviderSignIn } from "@/components/auth/provider-sign-in";
 import { AuthHeading } from "@/components/auth/auth-heading";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth, type MfaChallenge } from "@/hooks/use-auth";
@@ -24,6 +26,7 @@ import { EMAIL_RE } from "@/lib/utils";
 import { useRejectedFieldMotion } from "@/hooks/use-rejected-field-motion";
 
 export function LoginForm() {
+  const branding = useBranding();
   const t = useTranslations("auth");
   const tErrors = useTranslations("errors");
   const search = useSearchParams();
@@ -91,6 +94,8 @@ export function LoginForm() {
       setIsLoading(false);
     }
   };
+
+  if (!branding.passwordSignInEnabled) return <ProviderSignIn error={error} />;
 
   return (
     <div className="space-y-8">

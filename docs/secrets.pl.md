@@ -1,5 +1,5 @@
 ---
-source_sha: "5c12fce011e3"
+source_sha: "2e1c4c57c224"
 ---
 
 # Sekrety i vault { #secrets-and-the-vault }
@@ -111,10 +111,13 @@ kończy z poświadczeniem, które zawodzi przy pierwszym runie. Sekret ma więc
 | `git_token` | Token dostępu do git przez HTTPS i jedyny host, do którego wolno go wysłać |
 | `entra_app` | Tenant id, client id i client secret rejestracji aplikacji Microsoft Entra |
 | `http_credential` | Token wysyłany przez krok HTTP workflowu, opcjonalna nazwa użytkownika i originy, do których wolno go wysłać |
+| `webhook_credentials` | Nazwa użytkownika i hasło tylko do zapisu dla Basic Auth przychodzących webhooków, bez podpowiedzi wartości; nie służy do wychodzących żądań HTTP |
 | `smtp_account` | Serwer SMTP, port, TLS, nadawca i dane logowania zapieczętowane razem dla poczty workflow |
 | `microsoft_oauth_app` | Te same trzy pola, dla rejestracji aplikacji, przez którą ludzie się logują |
 | `openai_codex` | Logowanie do ChatGPT: token dostępu, refresh token i id konta |
 | `none` | Nie jest sekretem — znacznik endpointu, który nie potrzebuje poświadczenia |
+
+**Źródła zdarzeń wielokrotnego użytku.** Źródło może wskazywać sekret Vault widoczny w organizacji przez `credentials.vault_secret_id`. Uwierzytelnianie dostawcy, HMAC i klucz API używają `api_key`; przychodzące Basic Auth używa `webhook_credentials`. Źródło odczytuje aktualną wartość przy każdej dostawie, więc rotacja Vault nie wymaga kopiowania poświadczeń do źródeł ani definicji workflow. Wybór klucza wymaga `secrets:view`; klucze osobiste, z innej organizacji lub niezgodnego rodzaju są odrzucane. `webhook_credentials` nie zastępuje ograniczonego do originów `http_credential` dla wychodzących żądań HTTP.
 
 `github_oauth_app` jest zużywany przez platformę, a nie wybierany przez
 człowieka — proces łączenia z GitHubem czyta go po stronie serwera, żeby
@@ -431,3 +434,10 @@ Zgoda na źródło zewnętrznego agenta A2A obejmuje też generację autoryzacji
 Osobiste tokeny OAuth Copilot trafiają do istniejącego magazynu poświadczeń modeli szyfrowanego dla użytkownika, bez zastępowania kluczem organizacji. Stan logowania jest związany z właścicielem, tenantem i agentem oraz wygasa w Redis; tokeny nie trafiają do odpowiedzi API ani audytu. Nowe logowanie, zmiana klucza i odłączenie zmieniają rewizję w bazie w tej samej transakcji. Metadane pozostają po usunięciu klucza, aby odrzucać starsze zgody; eksport danych właściciela obejmuje je bez wartości rewizji. Usuwa się je wraz z członkostwem lub użytkownikiem. Odłączenie usuwa lokalne poświadczenie; aplikację OAuth cofa się osobno w GitHub.
 
 Przed każdym żądaniem modelu osobiste dane Copilota są sprawdzane względem zapisanej wersji połączenia. Odłączenie lub zastąpienie połączenia blokuje kolejne żądania aktywnego uruchomienia; wysłanego już żądania nie można wycofać.
+
+
+## Przechowywanie klienta OAuth MCP { #mcp-oauth-client-storage }
+
+Typ `mcp_oauth_client` szyfruje razem URL serwera, publiczny identyfikator klienta i opcjonalny sekret. Dodając go w Vault, wybierz przeznaczenie `custom`. W automatycznym logowaniu MCP uczestniczą wyłącznie instancje widoczne dla organizacji. Baza przechowuje znormalizowaną tożsamość serwera do jednoznacznego dopasowania; nigdy nie zapisuje sekretu klienta jawnym tekstem. Udostępnienie prywatnego klienta całej organizacji jest odrzucane, jeśli miejsce dla tego serwera zajmuje już inny klient.
+
+Osobiste autoryzacje OAuth zapisują organizację źródłową, identyfikator sekretu i generację autoryzacji we własnym zaszyfrowanym ładunku. Rotacja, usunięcie lub utrata widoczności źródła dla organizacji unieważnia te autoryzacje. Zachowanie połączeń opisują [współdzielone klienty OAuth MCP](mcp.md#shared-mcp-oauth-clients).

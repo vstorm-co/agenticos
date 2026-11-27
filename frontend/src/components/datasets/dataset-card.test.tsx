@@ -8,6 +8,7 @@ import { DatasetCard } from "./dataset-card";
 
 const DATASET: Dataset = {
   id: "d1",
+  import_max_bytes: 10_485_760,
   name: "refunds",
   description: "Questions about returns",
   visibility: "private",

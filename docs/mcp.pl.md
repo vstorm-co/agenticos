@@ -1,5 +1,5 @@
 ---
-source_sha: "ac4bfd591389"
+source_sha: "222d3fe566a0"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -280,7 +280,11 @@ nie dowodzi niższego kosztu.
 Dla zewnętrznego serwera `approval: none` przepuszcza wywołania, `writes` pyta przed
 narzędziami bez `readOnlyHint: true`, a `all` także przed odczytami. Wskazówkę podaje
 sam serwer; wybierz `all`, jeśli nie ufasz jego klasyfikacji. Zewnętrzny klient MCP,
-np. Claude Code, stosuje własne ustawienia potwierdzania.
+np. Claude Code, stosuje własne ustawienia potwierdzania. Serwer samego AgenticOS
+oznacza `destructiveHint: true` każde wywołanie, które w AgenticOS zawsze pyta osobę,
+każdy zapis zadania lub rekordu tabeli, który może uruchomić agenta,
+oraz każde delete, discard, end i publish, a jego instrukcje każą klientowi
+potwierdzić je najpierw z osobą.
 
 Powiązanie platformy wymusza co najmniej `writes`. Zaufane wartości domyślne pozwalają
 bez potwierdzenia wykonywać autoryzowane odczyty, przygotowywać wersje robocze,
@@ -1350,7 +1354,7 @@ Sprawdzenie połączenia aktualizuje wykryte narzędzia i status. Dlatego `test_
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` i `roles:manage` |
 | `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (własne wywołującego; klucz wymaga `agents:run` dla `test_my_connection`) |
-| `list_improvements`, `get_improvement` | dostęp do odczytu agenta; tematy wiedzy sesji wymagają też `runs:view`, podobnie jak lista wszystkich otwartych sesji bez wskazania agenta |
+| `list_improvements`, `get_improvement` | `runs:view` i dostęp do odczytu agenta |
 | `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | dostęp do edycji agenta i `runs:view`; uruchomienie także `datasets:run`, publikacja `agents:publish` |
 | `list_datasets` | `datasets:view` |
 | `get_eval_run` | `runs:view` |
@@ -1656,3 +1660,12 @@ odbywa się przez bezpieczny formularz konsoli. Wartości sekretów i bajty obra
 nie trafiają do kontekstu modelu. Ustawienia zarządzane przez środowisko pozostają
 tylko do odczytu. Pamięć podręczna frontendu może opóźnić widoczność zmiany
 identyfikacji wizualnej wykonanej przez MCP o maksymalnie pięć minut.
+
+
+## Współdzielone klienty OAuth MCP { #shared-mcp-oauth-clients }
+
+Dla serwera MCP OAuth bez dynamicznej rejestracji klientów administrator może dodać widoczny dla organizacji **klient OAuth MCP** w Vault (`mcp_oauth_client`, przeznaczenie `custom`). Zapisz dokładny URL serwera MCP, identyfikator klienta i opcjonalny sekret. Dla jednego serwera dozwolony jest tylko jeden klient widoczny dla organizacji. Tożsamość URL zachowuje ścieżkę endpointu i normalizuje host, domyślny port oraz końcowy ukośnik; dane logowania, parametry zapytania i fragmenty nie są przyjmowane.
+
+Gdy członek wybiera OAuth bez wpisania identyfikatora klienta, połączenie używa tego klienta tylko wtedy, gdy serwer nie oferuje endpointu rejestracji. Jawnie wpisany klient ma pierwszeństwo; dynamiczna rejestracja działa bez zmian. Sprawdzenie dostępności zwraca tylko wartość logiczną, nigdy dane klienta. Brak konfiguracji skutkuje wskazówką, aby administrator dodał klienta w Vault.
+
+Każda osobista autoryzacja pozostaje zaszyfrowana dla użytkownika i związana z organizacją wydającą, aktualnym członkostwem oraz konkretną generacją sekretu. Rotacja, usunięcie lub zmiana widoczności klienta na prywatną wymaga ponownego połączenia, nawet jeśli token dostępu nie wygasł. Autoryzacji wydanej przez klienta jednej organizacji nie można używać w innej.

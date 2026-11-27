@@ -34,7 +34,8 @@ interface ToolApprovalDialogProps {
   savedDecisions?: PendingApproval["savedDecisions"];
   actionRequests: ActionRequest[];
   reviewConfigs: ReviewConfig[];
-  onDecisions: (decisions: Decision[]) => void;
+  /** Decisions for `requests`, or for the whole batch when it is omitted. */
+  onDecisions: (decisions: Decision[], requests?: ActionRequest[]) => void;
   disabled?: boolean;
   mayRemember?: boolean;
 }
@@ -44,14 +45,20 @@ interface ToolApprovalDialogProps {
  *
  * **It checks `approvals:decide` itself**, for the same reason the model picker
  * beside it checks `connections:manage`: the permission belongs to the write, and
- * `onDecisions` sends `POST /approvals/{id}` followed by `POST /runs/{id}/resume`.
- * A member or builder holds the permission at `OWN` - their own runs only - so
- * the role check alone would offer them a Submit on somebody else's run and
- * have the API refuse it on the first call. Each action therefore also carries
- * the backend's own `can_decide`, which a reloaded panel reads and the live
- * frame leaves absent; what stays for somebody who may not decide is the call
- * itself and the sentence saying who can decide: a panel that goes quiet
- * leaves a stopped conversation unexplained.
+ * `onDecisions` sends `POST /approvals/{id}` followed by `POST /runs/{id}/resume`,
+ * both of which ask for `Perm.APPROVALS_DECIDE`. Running an agent is not - `member`
+ * and `builder` hold `agents:run` and not the decision - so the everyday chat user
+ * was offered a Submit and refused by the API on the first call. A member or builder
+ * holds the permission at `OWN` - their own runs only - so the role check alone would
+ * offer them a Submit on somebody else's run and have the API refuse it on the first
+ * call. Each action therefore also carries the backend's own `can_decide`, which a
+ * reloaded panel reads and the live frame leaves absent; and a platform call that
+ * always asks runs as its person, who answers it without the permission and is the
+ * only one who may approve it - each request says so in `may_decide` and
+ * `may_approve`. In a batch mixing the two, that person answers their own calls and
+ * the rest waits for somebody who may decide it. What stays for somebody who may not
+ * decide is the call itself and the sentence saying who can decide: a panel that goes
+ * quiet leaves a stopped conversation unexplained.
  *
  * **The arguments are read, not edited.** They used to sit in a `<textarea>` whose
  * contents were diffed into an `edit` decision - and the backend never offered it:
@@ -80,30 +87,45 @@ export function ToolApprovalDialog({
   const tTools = useTranslations("chat.tools");
   const browser = useTranslations("browserCredentials");
   const { can } = usePermissions();
-  // The role check, narrowed per action where the backend answered: a reloaded
-  // panel names runs that are not this person's, and the live frame - which
-  // carries no `can_decide` - keeps the role check alone, since it only ever
-  // reaches whoever was watching their own run park.
+  // Who may decide each call: the role check, narrowed per action where the
+  // backend answered. A reloaded panel names runs that are not this person's,
+  // and the live frame - which carries no `can_decide` - keeps the role check
+  // alone for those; a platform call that always asks is answered by its own
+  // person without the permission, where `may_decide` says so. Either answer
+  // can only narrow, never widen: a `can_decide: false` vetoes even a holder.
+  const decidesAll = can(Perm.approvalsDecide);
+  const yours = actionRequests.filter(
+    (action) => action.can_decide !== false && (decidesAll || action.may_decide === true),
+  );
+  const partial = yours.length < actionRequests.length;
+  // An empty batch still offers the resume when the role check passes: every
+  // choice is already saved, so there is nothing to narrow. A `can_decide:
+  // false` vetoes even a holder, so the role check alone never re-opens a
+  // batch the backend refused this person.
   const mayDecide =
-    can(Perm.approvalsDecide) && actionRequests.every((action) => action.can_decide !== false);
+    yours.length > 0 ||
+    (decidesAll && actionRequests.every((action) => action.can_decide !== false));
   const phrase = useActionPhrase();
   const batch = actionRequests.length > 1;
 
   const sameTool =
-    actionRequests.length > 0 &&
-    actionRequests.every(
+    yours.length > 0 &&
+    yours.every(
       (action) =>
         action.can_remember === true &&
         !action.subagent_name &&
-        action.tool_name === actionRequests[0]!.tool_name &&
-        action.account === actionRequests[0]!.account,
+        action.tool_name === yours[0]!.tool_name &&
+        action.account === yours[0]!.account,
     );
-  const mayApprove = actionRequests.every(
-    (action) => !(action.always_asks && action.content_hidden),
+  const hiddenFromThem = yours.some((action) => action.always_asks && action.content_hidden);
+  const mayApprove = yours.every(
+    (action) => action.may_approve ?? !(action.always_asks && action.content_hidden),
   );
+  const decide = (decisions: Decision[]) =>
+    partial ? onDecisions(decisions, yours) : onDecisions(decisions);
   const decideAll = (type: "approve" | "reject", scope?: Decision["remember_scope"]) =>
-    onDecisions(
-      actionRequests.map((_, index) => ({
+    decide(
+      yours.map((_, index) => ({
         type,
         ...(index === 0 && scope ? { remember_scope: scope } : {}),
       })),
@@ -111,17 +133,18 @@ export function ToolApprovalDialog({
 
   return (
     // Keep batch decisions below the scrollable requests. A single request has
-    // room for decisions beside it whenever the card itself is wide enough.
+    // room for decisions beside it only when both regions retain readable width.
     <div className="@container" role="group" aria-label={t("toolApprovalRequired")}>
       <div
         className={cn(
           "border-border bg-card flex flex-col gap-2 rounded-xl border px-3 py-2 shadow-sm",
-          !batch && "@md:flex-row @md:items-start",
+          !batch && "@md:flex-row @md:flex-wrap @md:items-start",
         )}
       >
         <ul
           className={cn(
             "min-w-0 flex-1 space-y-4",
+            !batch && "@md:flex-[1_1_18rem]",
             batch &&
               "-mr-1 max-h-[min(36dvh,20rem)] scrollbar-thin [scrollbar-gutter:stable] overflow-y-auto overscroll-contain pr-2",
           )}
@@ -141,8 +164,12 @@ export function ToolApprovalDialog({
             // it was parked as the person the run acts for; else the one telling argument.
             const summary =
               draft === null
-                ? (approvalSummary(action.capability_tool_id, action.context, tTools) ??
-                  callSummary(args))
+                ? (approvalSummary(
+                    action.capability_tool_id,
+                    action.context,
+                    tTools,
+                    action.tool_name,
+                  ) ?? callSummary(args))
                 : null;
             return (
               <li key={action.id} className="flex gap-2.5">
@@ -184,7 +211,11 @@ export function ToolApprovalDialog({
                   {draft !== null ? (
                     <AgentDraftProposal draft={draft} />
                   ) : (
-                    <ApprovalDetails toolName={action.tool_name} args={args} />
+                    <ApprovalDetails
+                      toolName={action.tool_name}
+                      args={args}
+                      context={action.context}
+                    />
                   )}
                 </div>
               </li>
@@ -197,7 +228,12 @@ export function ToolApprovalDialog({
             {feedback("retryResume")}
           </Button>
         ) : mayDecide ? (
-          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+          <div className="ms-auto flex max-w-full shrink-0 flex-wrap justify-end gap-1.5">
+            {partial && (
+              <p className="text-muted-foreground w-full text-right text-xs">
+                {t("approvalOthersWait")}
+              </p>
+            )}
             <Button
               size="sm"
               variant="ghost"
@@ -207,13 +243,13 @@ export function ToolApprovalDialog({
               {t("reject")}
             </Button>
             <RejectionFeedback
-              requests={actionRequests.map((action) => ({
+              requests={yours.map((action) => ({
                 id: action.id,
                 label: phrase(action.tool_name),
               }))}
               disabled={disabled}
               onReject={(notes) =>
-                onDecisions(notes.map((note) => ({ type: "reject", ...(note ? { note } : {}) })))
+                decide(notes.map((note) => ({ type: "reject", ...(note ? { note } : {}) })))
               }
             />
             <div className="flex items-center gap-1">
@@ -222,7 +258,17 @@ export function ToolApprovalDialog({
                   {t("approve")}
                 </Button>
               ) : (
-                <p className="text-muted-foreground max-w-56 text-xs">{t("approvalNeedsTheRun")}</p>
+                <p className="text-muted-foreground max-w-56 text-xs">
+                  {hiddenFromThem
+                    ? t("approvalNeedsTheRun")
+                    : yours.some(
+                          (action) =>
+                            action.tool_name === "agenticos_change_deployment" &&
+                            action.may_approve === false,
+                        )
+                      ? t("approvalNeedsItsAdminPerson")
+                      : t("approvalNeedsItsPerson")}
+                </p>
               )}
               {mayApprove && mayRemember && sameTool && (
                 <DropdownMenu>

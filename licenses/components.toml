@@ -351,13 +351,13 @@ fulfilled_by = "Pulled by the operator from Docker Hub and run unmodified beside
 
 [[component]]
 name = "ghcr.io/vstorm-co/sandboxd"
-version = "0.2.39"
+version = "0.2.40"
 kind = "service image, deployment (optional agent sandbox)"
-license = "MIT (pydantic-ai-backend, Vstorm)"
+license = "MIT (pydantic-ai-backend, Vstorm); BSD-3-Clause (nfsembed)"
 source = "https://github.com/vstorm-co/pydantic-ai-backend"
 status = "accepted"
-obligations = "Keep the copyright notice."
-fulfilled_by = "Published by Vstorm under MIT; the image is built from that repository."
+obligations = "Keep the copyright and MIT/BSD licence notices; do not imply endorsement by the nfsembed authors."
+fulfilled_by = "Published by Vstorm from pydantic-ai-backend; the image includes the bundled filesystem exporter, its nfsembed BSD notice, Cargo.lock and release SBOM."
 
 [[component]]
 name = "Sandbox runtime `workbench` (built by sandboxd from backend/app/core/catalog/sandbox_runtimes.json)"

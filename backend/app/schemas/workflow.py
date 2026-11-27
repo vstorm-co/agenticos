@@ -387,6 +387,9 @@ class NodeCatalogEntry(BaseSchema):
     available: bool = Field(
         default=True, description="Whether new use is enabled on this deployment"
     )
+    python_callable: bool = Field(
+        default=False, description="Whether an authored Python step can bind and call this action"
+    )
     loop_body_only: bool = Field(
         default=False, description="Whether the node exists only inside a for-each loop's body"
     )

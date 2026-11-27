@@ -38,6 +38,7 @@ async def create_run(
     base_draft_hash: str,
     dataset_id: UUID,
     dataset_version: int,
+    holdout_share: Decimal,
     suite_id: UUID | None,
     suite_hash: str | None,
     scoring_hash: str,
@@ -64,6 +65,7 @@ async def create_run(
         base_draft_hash=base_draft_hash,
         dataset_id=dataset_id,
         dataset_version=dataset_version,
+        holdout_share=holdout_share,
         suite_id=suite_id,
         suite_hash=suite_hash,
         scoring_hash=scoring_hash,
@@ -95,6 +97,21 @@ async def get_run(
         statement = statement.with_for_update()
     result = await db.execute(statement)
     return result.scalar_one_or_none()
+
+
+async def datasets_of(
+    db: AsyncSession, run_ids: Sequence[UUID], *, organization_id: UUID
+) -> set[UUID]:
+    """The datasets these sessions ran on; a session that no longer exists names none."""
+    if not run_ids:
+        return set()
+    result = await db.execute(
+        select(ImprovementRun.dataset_id).where(
+            ImprovementRun.id.in_(list(run_ids)),
+            ImprovementRun.organization_id == organization_id,
+        )
+    )
+    return set(result.scalars().all())
 
 
 async def get_active(
@@ -198,9 +215,13 @@ async def list_deciding(
 
 
 async def list_for_person(
-    db: AsyncSession, *, organization_id: UUID, statuses: Sequence[str], limit: int = 20
+    db: AsyncSession, *, organization_id: UUID, statuses: Sequence[str]
 ) -> list[ImprovementRun]:
-    """The organization's sessions in these statuses, newest first."""
+    """The organization's sessions in these open statuses, newest first.
+
+    All of them: an agent holds at most one open session, so there are never more
+    than the organization has agents.
+    """
     result = await db.execute(
         select(ImprovementRun)
         .where(
@@ -208,7 +229,6 @@ async def list_for_person(
             ImprovementRun.status.in_(statuses),
         )
         .order_by(ImprovementRun.created_at.desc(), ImprovementRun.id.desc())
-        .limit(limit)
     )
     return list(result.scalars().all())
 

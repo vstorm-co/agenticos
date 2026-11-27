@@ -1,6 +1,7 @@
 """Database models."""
 
 # ruff: noqa: I001, RUF022 - Imports structured for Jinja2 template conditionals
+from app.db.models.portability_operation import PortabilityOperation
 from app.db.models.solution_installation import SolutionInstallation
 from app.db.models.task_board import TaskBoard, TaskLink
 from app.db.models.virtual_table_relation import (
@@ -198,6 +199,7 @@ from app.db.models.organization_assistant import OrganizationAssistant
 from app.db.models.channel_prompt import ChannelPrompt
 from app.db.models.external_agent import ExternalAgent
 from app.db.models.project import Project
+from app.db.models.project_filesystem import ProjectFilesystemBinding, ProjectFilesystemLease
 from app.db.models.suggestion import RoutineFindingRevision, Suggestion
 from app.db.models.watch import Watch
 from app.db.models.teams_conversation import TeamsConversation
@@ -278,8 +280,15 @@ from app.db.models.artifact_share_request import ArtifactShareRequest
 from app.db.models.artifact_favourite import ArtifactFavourite
 
 __all__ = [
+    "ProjectResource",
+    "EventDelivery",
+    "EventDispatch",
+    "EventSource",
+    "EventSourceCredential",
+    "EventSubscription",
     "PersonalContextCache",
     "SolutionInstallation",
+    "PortabilityOperation",
     "TaskBoard",
     "TaskLink",
     "PhoneCall",
@@ -466,6 +475,8 @@ __all__ = [
     "BackgroundTaskKind",
     "BackgroundWorker",
     "Project",
+    "ProjectFilesystemBinding",
+    "ProjectFilesystemLease",
     "ContextFile",
     "ContextProposal",
     "ContextMode",
@@ -568,4 +579,13 @@ __all__ = [
 
 from app.db.models.telephony import PhoneCall, PhoneContact, PhoneEndpoint
 
+from app.db.models.event_source import (
+    EventDelivery,
+    EventDispatch,
+    EventSource,
+    EventSourceCredential,
+    EventSubscription,
+)
 from app.db.models.chatgpt_registration import ChatGPTRegistration as ChatGPTRegistration
+
+from app.db.models.project_resource import ProjectResource

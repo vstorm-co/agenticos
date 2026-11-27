@@ -20,6 +20,8 @@ generic runtime readers refuse these kinds.
 
 `native_runtime_key` exports a selected key only to a native template whose initiating
 member independently has vault visibility; it is never an HTTP secret reader.
+`event_source_credentials` opens only an organization-wide ingress credential
+for the live webhook verifier, never for an API response.
 """
 
 import hashlib
@@ -45,13 +47,16 @@ from app.core.secret_kinds import (
     BrowserProfileSecret,
     GithubOAuthAppSecret,
     GoogleOAuthAppSecret,
+    McpOAuthClientSecret,
     MicrosoftOAuthAppSecret,
     SecretKind,
     SecretValue,
     SmtpAccountSecret,
     StorableSecret,
     TechnicalSecret,
+    WebhookCredentialsSecret,
     describe_kind,
+    normalized_mcp_server,
     seal_secret,
     unseal_kind,
     unseal_secret,
@@ -59,6 +64,7 @@ from app.core.secret_kinds import (
 from app.core.secret_purposes import CUSTOM
 from app.core.secret_scopes import organization_secret_scope
 from app.core.vault import VaultScope
+from app.db.locks import LockScope, hold_subject
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.resource_grant import Visibility
 from app.repositories import browser_credential as browser_credential_repo
@@ -281,6 +287,8 @@ class OrganizationSecretService:
             await self._check_browser_creation(ctx, usage_scope=usage_scope, visibility=visibility)
         elif usage_scope == "personal":
             self._check_personal_connection(ctx, value, purpose=purpose, visibility=visibility)
+        if isinstance(value, McpOAuthClientSecret) and visibility is Visibility.ORG:
+            await self._refuse_duplicate_mcp_client(ctx.organization_id, value.server_url)
         self._check_purpose(purpose, value.kind)
         await self._refuse_duplicate_name(ctx, name)
         sealed = seal_secret(
@@ -309,6 +317,11 @@ class OrganizationSecretService:
             key_version=sealed.key_version,
             created_by_user_id=ctx.user_id,
             usage_scope=usage_scope,
+            **(
+                {"mcp_oauth_server": value.server_url}
+                if isinstance(value, McpOAuthClientSecret)
+                else {}
+            ),
         )
         notifications = NotificationService(self.db)
         # Before the audit entry, never after it: `record_audit` holds the
@@ -456,6 +469,12 @@ class OrganizationSecretService:
                 self._check_personal_connection(
                     ctx, value, purpose=secret.purpose, visibility=Visibility.PRIVATE
                 )
+            if isinstance(value, McpOAuthClientSecret):
+                if secret.visibility == Visibility.ORG.value:
+                    await self._refuse_duplicate_mcp_client(
+                        ctx.organization_id, value.server_url, excluding=secret.id
+                    )
+                update_data["mcp_oauth_server"] = value.server_url
             sealed = seal_secret(
                 value,
                 scope=organization_secret_scope(
@@ -756,6 +775,41 @@ class OrganizationSecretService:
             key_version=row.key_version,
         )
 
+    async def _refuse_duplicate_mcp_client(
+        self, organization_id: UUID, server_url: str, *, excluding: UUID | None = None
+    ) -> None:
+        await hold_subject(self.db, LockScope.MCP_OAUTH_CLIENTS_PER_ORG, organization_id)
+        row = await organization_secret_repo.mcp_oauth_client(
+            self.db, organization_id=organization_id, server_url=server_url
+        )
+        if row is not None and row.id != excluding:
+            raise AlreadyExistsError(
+                message="This organization already has an OAuth client for this MCP server. Rotate its Vault secret instead.",
+                details={},
+            )
+
+    async def mcp_oauth_client_identity(
+        self, ctx: AuthContext, server_url: str
+    ) -> tuple[McpOAuthClientSecret, UUID, UUID] | None:
+        """Spend an org-visible client only in the matching server's OAuth flow."""
+        try:
+            identity = normalized_mcp_server(server_url)
+        except ValueError:
+            return None
+        row = await organization_secret_repo.mcp_oauth_client(
+            self.db, organization_id=ctx.organization_id, server_url=identity
+        )
+        if row is None:
+            return None
+        value = unseal_secret(
+            row.sealed_secret,
+            kind=SecretKind.MCP_OAUTH_CLIENT,
+            scope=VaultScope.organization(ctx.organization_id),
+            key_version=row.key_version,
+        )
+        assert isinstance(value, McpOAuthClientSecret)
+        return value, row.id, row.authorization_generation
+
     async def oauth_app(self, ctx: AuthContext, *, kind: SecretKind) -> OAuthAppSecret:
         value, _, _ = await self.oauth_app_identity(ctx, kind=kind)
         return value
@@ -912,6 +966,36 @@ class OrganizationSecretService:
             }
         )
 
+    async def event_source_credentials(
+        self, organization_id: UUID, secret_id: UUID, *, lock: bool = False
+    ) -> ApiKeySecret | WebhookCredentialsSecret:
+        """Open only an organization-wide ingress credential for webhook verification.
+
+        The source's durable binding is authority; personal and team credentials
+        cannot silently become webhook infrastructure. Re-read each delivery so
+        Vault rotation and visibility revocation apply immediately.
+        """
+        row = await organization_secret_repo.event_source_secret(
+            self.db, secret_id, organization_id=organization_id, lock=lock
+        )
+        if (
+            row is None
+            or row.organization_id != organization_id
+            or row.visibility != Visibility.ORG.value
+            or row.owner_user_id is not None
+            or row.kind not in (SecretKind.API_KEY.value, SecretKind.WEBHOOK_CREDENTIALS.value)
+        ):
+            raise NotFoundError(message="Organization webhook secret not found")
+        value = unseal_secret(
+            row.sealed_secret,
+            kind=SecretKind(row.kind),
+            scope=VaultScope.organization(organization_id),
+            key_version=row.key_version,
+        )
+        if not isinstance(value, ApiKeySecret | WebhookCredentialsSecret):
+            raise BadRequestError(message="The webhook credential has an unsupported kind")
+        return value
+
     async def get_usable(
         self, ctx: AuthContext, secret_id: UUID, *, kind: SecretKind
     ) -> OrganizationSecret:
@@ -983,6 +1067,14 @@ class OrganizationSecretService:
             key_version=secret.key_version,
         )
 
+    async def get_metadata(self, ctx: AuthContext, secret_id: UUID) -> OrganizationSecret:
+        """Read an authorized secret reference without opening its Vault value.
+
+        Consumers must project public metadata explicitly; the returned row also
+        carries the envelope used by this service's internal credential paths.
+        """
+        return await self._get(ctx, secret_id)
+
     async def _get(
         self,
         ctx: AuthContext,
@@ -1052,7 +1144,10 @@ class OrganizationSecretService:
 
 
 class SecretSharingGuard:
-    """Personal model connections remain owner-only even when the owner can edit them."""
+    """Personal model connections remain owner-only even when the owner can edit them.
+
+    Keep the organization-wide MCP client unique when a private secret is shared.
+    """
 
     async def before_visibility(
         self, db: AsyncSession, ctx: AuthContext, resource: OwnedResource, visibility: Visibility
@@ -1060,6 +1155,11 @@ class SecretSharingGuard:
         assert isinstance(resource, OrganizationSecret)
         if resource.usage_scope == "personal" and visibility is not Visibility.PRIVATE:
             raise BadRequestError(message="Personal model connections cannot be shared")
+        if visibility is Visibility.ORG and resource.kind == SecretKind.MCP_OAUTH_CLIENT.value:
+            assert resource.mcp_oauth_server is not None
+            await OrganizationSecretService(db)._refuse_duplicate_mcp_client(
+                ctx.organization_id, resource.mcp_oauth_server, excluding=resource.id
+            )
 
     async def before_share(
         self, db: AsyncSession, ctx: AuthContext, resource: OwnedResource, change: ShareChange

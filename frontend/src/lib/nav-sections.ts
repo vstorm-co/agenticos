@@ -76,6 +76,13 @@ export type NavGroup = {
   domain: NavDomain;
   items: NavItem[];
   adminOnly?: boolean;
+  /**
+   * Folded to its heading until somebody opens it, or until the page they are
+   * on is inside it. For the groups set up once and visited rarely - the
+   * connections an organization holds, its people - so the column a person
+   * reads every day is the part they use every day.
+   */
+  collapsible?: boolean;
 };
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -140,6 +147,12 @@ export const NAV_GROUPS: NavGroup[] = [
         href: ROUTES.ROUTINES,
         icon: TimerReset,
         permission: Perm.agentsView,
+      },
+      {
+        labelKey: "eventSources",
+        href: ROUTES.EVENT_SOURCES,
+        icon: Plug,
+        permission: Perm.eventSourcesView,
       },
       {
         labelKey: "datasets",
@@ -311,4 +324,25 @@ export function navItemVisible(
   if (!recoveryEntry && (!permissionsLoaded || hiddenItems.includes(item.labelKey))) return false;
   if (item.permissions) return item.permissions.some(can);
   return !item.permission || can(item.permission);
+}
+
+/** Presentation first, permissions last. Identity/admin switcher entries stay reachable. */
+export function presentedNavigation(
+  groups: readonly NavGroup[],
+  allowed: readonly string[] | null,
+): NavGroup[] {
+  if (allowed === null) return [...groups];
+  const selected = new Set(allowed);
+  return groups
+    .map((group) => {
+      if (group.adminOnly || group.switcherOnly) return group;
+      const items = group.items.filter((item) => selected.has(item.labelKey));
+      return {
+        ...group,
+        items,
+        collapsible:
+          Boolean(group.collapsible) && (items.length === group.items.length || items.length > 1),
+      };
+    })
+    .filter((group) => group.items.length > 0);
 }

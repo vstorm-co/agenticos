@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -66,7 +66,9 @@ class ContextFileSettings(BaseModel):
 class ContextConfig(BaseModel):
     """How the agent uses its bound context files."""
 
-    file_settings: dict[UUID, ContextFileSettings] = Field(
+    file_settings: dict[
+        Annotated[UUID, Field(json_schema_extra={"x-resource": "context"})], ContextFileSettings
+    ] = Field(
         default_factory=dict,
         title="How each file is used",
         description="Per-agent mode and availability for attached context files. An absent entry preserves the file's legacy defaults.",

@@ -132,14 +132,18 @@ export function StateBadge({
   tone,
   children,
   className,
+  id,
 }: {
   tone: Tone;
   children: ReactNode;
   className?: string;
+  /** For a control that names or describes itself by this state. */
+  id?: string;
 }) {
   const Icon = MARK[tone];
   return (
     <span
+      id={id}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
         CHIP[tone],

@@ -20,7 +20,16 @@ import type { ProjectChat } from "@/types";
 import type { Project } from "@/types/projects";
 
 /**
- * The project's chats as a table, and a new one.
+ * The project's chats as a table.
+ *
+ * The page header's New chat starts a one-to-one chat, not a team room, so
+ * the team-room button stays reachable on an empty project as well: the list
+ * header hides when there is nothing yet, and the button with it, so the
+ * empty state carries its own below the invitation. Only one of the two is
+ * ever in the document: the header is hidden, not unmounted, when empty, and
+ * a role query resolves to the hidden first twin instead of the visible one -
+ * a click that starts while the list is still loading can then never land
+ * once the query settles to empty.
  *
  * Everybody's, not the reader's alone: a project's chats are its members', so
  * each row says whose it is, which agents answer in it, when it last moved or
@@ -36,32 +45,35 @@ export function ProjectChats({ project }: { project: Project }) {
   const columns = useChatColumns();
   const router = useRouter();
 
-  const newChat = project.can_use ? (
-    <StartTeamRoom key={project.id} projectId={project.id} />
-  ) : undefined;
+  const isEmpty = !isLoading && !error && total === 0;
+  const newChat =
+    project.can_use && !isEmpty ? (
+      <StartTeamRoom key={project.id} projectId={project.id} />
+    ) : undefined;
 
   return (
-    <ListCard
-      fill
-      title={t("chats")}
-      counted={error ? null : t("chatCount", { count: total })}
-      controls={newChat}
-      empty={!isLoading && !error && total === 0}
-    >
+    <ListCard namedByPage fill title={t("chats")} controls={newChat} empty={isEmpty}>
       {isLoading ? (
         <LoadingState variant="skeleton-list" rows={3} />
       ) : error ? (
         <ErrorState description={getErrorMessage(error, tErrors)} />
       ) : chats.length === 0 ? (
-        <ListCardEmpty
-          icon={MessageSquare}
-          title={t("noChatsYet")}
-          description={project.can_use ? t("noChatsHint") : t("noChatsViewer")}
-        />
+        <>
+          <ListCardEmpty
+            icon={MessageSquare}
+            title={t("noChatsYet")}
+            description={project.can_use ? t("noChatsHint") : t("noChatsViewer")}
+          />
+          {project.can_use && (
+            <div className="flex justify-center pb-5">
+              <StartTeamRoom key={project.id} projectId={project.id} />
+            </div>
+          )}
+        </>
       ) : (
         <>
           <DataTable<ProjectChat>
-            fillHeight
+            className="rounded-none border-0"
             columns={columns}
             rows={chats}
             getRowKey={(chat) => chat.id}

@@ -269,7 +269,7 @@ def test_openbot_features_apply_after_the_published_t3_teaching_chain(
 
 def test_openbot_features_extend_the_published_chain_without_rewriting_it() -> None:
     chain = _chain()
-    assert chain.get_heads() == ["0367_merge_t3_chat_queue"]
+    assert chain.get_heads() == ["0375_merge_t3_v1950"]
     queue = chain.get_revision("0357_accepted_queued_messages")
     assert queue is not None
     assert queue.down_revision == "0356_trigger_webhook_receipts"
@@ -278,6 +278,12 @@ def test_openbot_features_extend_the_published_chain_without_rewriting_it() -> N
     assert queue_merge.down_revision == (
         "0366_merge_t3_thread_context",
         "0358_defer_dataset_source_links",
+    )
+    sync_merge = chain.get_revision("0375_merge_t3_v1950")
+    assert sync_merge is not None
+    assert sync_merge.down_revision == (
+        "0374_case_from_conversation",
+        "0367_merge_t3_chat_queue",
     )
     upstream_merge = chain.get_revision("0365_merge_t3_v1930")
     assert upstream_merge is not None

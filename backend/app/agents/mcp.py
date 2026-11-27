@@ -249,6 +249,8 @@ class McpServerSpec:
     # Both personal and organization accounts; independent of usage tracking.
     source_connection_id: UUID | None = None
     authorization_generation: UUID | None = None
+    # A shared Vault client can be revoked while this transport remains cached.
+    recheck_source: bool = False
     # An environment replacement still owes the production account its ceiling.
     ceiling_source: tuple[UUID, McpSourceIdentity] | None = None
     # A managed gateway creates a transport URL per run; consent still belongs

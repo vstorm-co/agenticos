@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "67639049734c"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -28,11 +28,11 @@ Robi trzy rzeczy:
 
 W Agent Builderze **Budowa** zawiera konfigurację, a **Test** otwiera interaktywny panel wersji roboczej. Otwórz **Ewaluacje**, aby porównać wersję roboczą z opublikowaną wersją na datasecie lub uruchomić **Popraw**. Wycena pojawia się przed wykonaniem. Dawny endpoint sprawdzania na podstawie dowodów pozostaje dostępny dla zgodności API.
 
-**Improve** otwiera sesję ulepszania. Model i instrukcje ulepszania należą do **Ustawień** wybranego datasetu; pomocnicy mają domyślne instrukcje w kodzie i nie mają strony edycji w katalogu agentów. Dialog ulepszania pliku kontekstowego wybiera model bezpośrednio. Nadal obowiązują budżety i zapisy runów w Aktywności.
+**Improve** otwiera sesję ulepszania. Model ulepszania i ewentualne wskazówki datasetu należą do **Ustawień** wybranego datasetu; wskazówki dochodzą pod regułami platformy dla pomocnika i nigdy ich nie zastępują; pomocnicy mają domyślne instrukcje w kodzie i nie mają strony edycji w katalogu agentów. Dialog ulepszania pliku kontekstowego wybiera model bezpośrednio. Nadal obowiązują budżety i zapisy runów w Aktywności.
 
 ## Co czyta { #what-it-reads }
 
-Asystent nie ma narzędzi. To, co czyta, jest dla niego zebrane z runów agenta z
+To, co asystent czyta, jest dla niego zebrane z runów agenta z
 ostatnich 30 dni:
 
 - odpowiedzi ocenione negatywnie, najpierw te z komentarzami;
@@ -42,6 +42,13 @@ ostatnich 30 dni:
 
 Udany run bez oceny nie mówi niczego i nie jest czytany. Nie jest też czytany
 test z panelu testowego Buildera ani run delegata.
+
+Wbudowany asystent nie ma narzędzi. Agent pomocniczy wybrany w jego miejsce może
+podpiąć `thinking`, `knowledge`, `context` albo `skills` i nic, co sięga dalej, a taki, który
+wyszukuje, dostaje bazy wiedzy poprawianego agenta. Przy poprawianiu agenta jego instrukcje to
+instrukcje poprawiania z ustawień datasetu albo wbudowane - nigdy te z jego
+własnej opublikowanej wersji. Sesja Popraw skilla uruchamia go tak, jak jest
+opublikowany, z jego własnymi instrukcjami.
 
 **Uczy się wyłącznie na przypadkach treningowych.** Oprócz ocenionych rozmów asystent czyta błędne odpowiedzi treningowe, potwierdzone regresje, uzasadnienia sędziego i notatki przeglądu z dostępnych [datasetów](datasets.md). Dostaje skuteczność treningu według tagów i kryteriów sędziego oraz liczby napraw i regresji. Pytania kontrolne, odpowiedzi i oceny nigdy nie trafiają do jego promptu. Runy sędziego i samego asystenta nadal są pomijane.
 
@@ -150,13 +157,13 @@ Sprawdzenie nie jest runem suity: nie trafia do żadnej historii suity, nikogo
 nie powiadamia, a Przyjmij kieruje się werdyktem samego runu. Zmiana skilla albo
 pliku kontekstu sprawdzana na suicie agenta, na którym działa, dostaje to samo.
 
-Każdy przypadek ma stałe przypisanie do treningu albo kontroli, zachowane między wersjami datasetu. Ustawienia datasetu wybierają udział kontroli tylko dla przyszłych przypadków (domyślnie 50%). Sprawdzenia sugestii mierzą wyłącznie przypadki kontrolne; sesja poprawy dzieli pytania od nowa dla każdej próby, w tej samej proporcji, i mierzy każdą próbę na jej własnej części kontrolnej. Oba wymagają co najmniej pięciu kontrolnych pytań z możliwością oceny.
+Każdy przypadek ma stałe przypisanie do treningu albo kontroli, zachowane między wersjami datasetu. Ustawienia datasetu wybierają udział kontroli tylko dla przyszłych przypadków (domyślnie 50%); wszystkie własne pytania testowe skilla są kontrolne, a ich udziału nie można obniżyć. Sprawdzenia sugestii mierzą wyłącznie przypadki kontrolne; sesja poprawy dzieli pytania od nowa dla każdej próby, w proporcji, jaką dataset miał przy starcie sesji, i mierzy każdą próbę na jej własnej części kontrolnej. Oba wymagają co najmniej pięciu kontrolnych pytań z możliwością oceny.
 
 Kopie pytań treningowych lub materiału źródłowego są wykluczane według znormalizowanej treści i identyfikatora runu, także po ręcznym wpisaniu lub wygenerowaniu. Poniżej minimum sesja zatrzymuje się z `no_data` albo odrzuca krok, który testowałby za mało pytań, i podaje liczbę brakujących pytań. Widok runu oznacza obie części i wykluczone kopie. Zwykłe suity i bramki promocji nadal liczą wszystkie przypadki.
 
-Sesja poprawy przypina wersję datasetu i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy i przypadki nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
+Sesja poprawy przypina wersję datasetu, udział kontroli i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy, przypadki ani zmieniony udział kontroli nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
 
-Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła. Kontekst wcześniejszych prób zawiera ograniczone fragmenty z najwyżej sześciu ostatnich zmierzonych prób, aby długie zmiany instrukcji lub treści skilla nie wypełniały promptu następnej propozycji.
+Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji tylko zaproponowanej, której szkic nie zawiera: wcześniejszej próby, mierzonej przez test wiedzy ani takiej, która podaje zmianę skilla lub pliku kontekstu. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła. Kontekst wcześniejszych prób zawiera ograniczone fragmenty z najwyżej sześciu ostatnich zmierzonych prób, aby długie zmiany instrukcji lub treści skilla nie wypełniały promptu następnej propozycji.
 
 Sprawdzenie liczy się jako test wersji roboczej, gdy wersja robocza jest
 dokładnie tym, co sprawdzało - każda sprawdzona sugestia przyjęta i nic poza tym
@@ -308,10 +315,12 @@ Retencja aktywności zachowuje łączny koszt usuniętych płatnych runów sesji
 | Przyjąć sugestię, która coś podpina albo do czegoś sięga | Także dostępu, by podpiąć to ręcznie |
 | Zastosować albo odrzucić zmianę skilla | `skills:edit` na skillu i `runs:view` |
 | Zastosować albo odrzucić zmianę pliku kontekstowego | `context:edit` na pliku i `runs:view` |
-| Sprawdzić w ewaluacji | Tego, czego wymaga [run ewaluacji](evals.md#access), i uprawnień edycji agenta |
+| Sprawdzić w ewaluacji | Tego, czego wymaga [run ewaluacji](evals.md#access), i uprawnień edycji agenta; przy zmianie skilla albo pliku kontekstu uprawnień edycji skilla lub pliku i uprawnień uruchamiania agenta, na którym jest sprawdzana |
 
 Granty się liczą: członek z grantem edycji na jednym agencie może ulepszać tego
-agenta.
+agenta, jeśli jego rola ma też `runs:view` - Owner, Admin, Builder albo Operator.
+Role Member i Viewer nie mają `runs:view`, więc sam grant nie pozwala im
+uruchomić ani odczytać sesji.
 
 Jeśli żądanie API wybiera agenta pomocniczego, potrzebujesz uprawnień do jego
 odczytu i uruchamiania. Brakujący lub niedostępny pomocnik zwraca `404` przed
@@ -364,9 +373,9 @@ ramach budżetu. Dwa wyniki z rzędu bez zmiany albo nierozstrzygnięty wynik i
 jego powtórzenie pokazują się na wyniku jako podpowiedź, że kolejna próba raczej
 nie pomoże, a nie jako zatrzymanie.
 
-Kto może rozpocząć sesję dla agenta - prawo edycji, `runs:view` i  - może też wykonać jej następny krok albo spróbować ponownie. Sesja
+Kto może rozpocząć sesję dla agenta - prawo edycji, `runs:view` i  - może też wykonać jej następny krok, spróbować ponownie albo zatwierdzić jeden z jej płatnych testów: wybranych zmian, szkicu wiedzy albo tego, co dała każda zmiana. Sesja
 zapisuje, kto to zrobił, a dalsze kroki idą z aktualnymi uprawnieniami i
-poświadczeniem tej osoby, więc sesję rozpoczętą przez Architekta można
+poświadczeniem tej osoby i są zapisywane w dzienniku pod nią, więc sesję rozpoczętą przez Architekta można
 poprowadzić dalej w konsoli.
 
 Worker przed każdym przejściem sprawdza wersję
@@ -379,6 +388,8 @@ postoju albo na wyniku przez siedem dni zamyka się jako nieaktualna, z powodem
 gotową, zatrzymaną albo nieudaną - więc rozpoczęcie kolejnej zwraca `409`,
 dopóki otwarta się nie zakończy. Twórca lub administrator organizacji może
 wysłać żądanie do `/{run_id}/cancel`.
+
+Zatrzymanie nie wymaga `runs:view`. Bez tego uprawnienia odpowiedź zawiera tylko `id` i `status`, bez budżetu, datasetu, postępu ani metadanych błędu.
 
 Osoba, która wykonała ostatni krok, dostaje powiadomienie na każdym postoju i
 przy każdym zakończeniu: przeczytana analiza, zmiany gotowe do przejrzenia,
@@ -444,7 +455,7 @@ Sesja ma adres `/agents/<agent>/improve/<session>`; stronę można zamknąć i o
 
 Krok otwiera się, gdy ma pracę do pokazania albo decyzję do podjęcia. Strona podąża za krokiem, na którym jest sesja, a po otwarciu innego kroku **Przejdź do bieżącego kroku** wraca do niego. Na postoju stopka zawiera następny krok z ceną, na przykład **Następny krok: napisz zmiany · ok. $0.04**; nic nie jest wydawane, zanim go naciśniesz. Gdy cena zmieniła się od pokazania, stopka to mówi - **Cena zmieniła się na ok. $0.05. Naciśnij jeszcze raz, aby przejść dalej.** - a gdy krok kosztuje więcej, niż zostało sesji, pozwala od razu podnieść jej limit.
 
-**Start.** Improve otwiera okno nad Agent Builderem. Dataset wybierasz w głównym formularzu; własny zestaw testowy agenta jest wybrany, jeśli istnieje. Liczniki feedbacku podsumowują materiał do analizy. Jeśli nie ma odpowiedniego zestawu, **Napisz dla mnie pytania testowe** wycenia utworzenie pytań z ocenionych odpowiedzi i tematów bez przykładów, zanim cokolwiek zostanie napisane.
+**Start.** Improve otwiera okno nad Agent Builderem. Dataset wybierasz w głównym formularzu; własny zestaw testowy agenta jest wybrany, jeśli istnieje. Liczniki feedbacku podsumowują materiał do analizy. Jeśli nie ma odpowiedniego zestawu, **Napisz dla mnie pytania testowe** wycenia utworzenie pytań z ocenionych odpowiedzi i tematów bez przykładów, zanim cokolwiek zostanie napisane. Gdy dataset ma wskazówki dla pomocnika ulepszania, okno pokazuje je razem z tym, kto ostatnio je zmienił: członka z imienia i nazwiska, a osobę, która odeszła, jako byłego członka.
 
 Koszt analizy i limit wydatków całej sesji pojawiają się przed **Zacznij poprawianie**. Każdy kolejny krok ma osobną wycenę i czeka na twoją decyzję. **Pokaż szczegóły** zawiera pole limitu wydatków, podział pytań, dzisiejszy test i link do ustawień pomocnika w datasecie. Uruchomiona sesja otwiera własną stronę. Zamknięcie okna konfiguracji wraca do agenta; istniejące linki `/improve/new` otwierają to samo okno.
 
@@ -482,7 +493,7 @@ Zakończona sesja - zachowana jako wersja robocza, opublikowana, odrzucona, anul
 
 Sesja czekająca na Ciebie, na wyniku, zatrzymana albo zakończona błędem pozostaje otwarta: **Popraw** i jej wpis w historii prowadzą do niej, żeby wykonać następny krok, podnieść limit i kontynuować, wybrać próbę, ponowić nieudany krok albo ją odrzucić.
 
-API odpowiada `409` na każdą zmianę zakończonej sesji, poza powtórzeniem anulowania albo odrzucenia, które ją zakończyło. `GET /{run_id}/changes` zwraca zmiany zmierzone w wybranej próbie. Odczyt sesji wymaga dostępu do odczytu agenta i `runs:view`; zmiana albo rozpoczęcie sesji wymaga też prawa edycji agenta.
+API odpowiada `409` na każdą zmianę zakończonej sesji, poza powtórzeniem anulowania albo odrzucenia, które ją zakończyło. `GET /{run_id}/changes` zwraca zmiany zmierzone w wybranej próbie. Odczyt sesji wymaga dostępu do odczytu agenta i `runs:view`; zmiana albo rozpoczęcie sesji wymaga też prawa edycji agenta. Jej zmiany i sugestie, które zostawia w Builderze, powstają z pytań datasetu, więc ich odczyt wymaga też dostępu do odczytu datasetu.
 
 #### Pytanie Architekta { #asking-the-architect }
 
@@ -530,17 +541,37 @@ nie wypada lepiej niż obecne instrukcje, sesja zatrzymuje się z `no_variant`.
 
 Wyszukiwanie ma własny budget, `search.budget_usd`, w ramach limitu sesji, a
 wycena startu dolicza do sumy ten budget i sprawdzenie znalezionego wariantu.
-Wariant startuje tylko wtedy, gdy jego wycena mieści się w tym, co zostało.
+Wariant startuje tylko wtedy, gdy jego wycena, razem z kosztem przeczytania
+dłuższych instrukcji, mieści się w tym, co zostało.
 Każda odpowiedź ma limit dwukrotności swojej części wyceny, więc wyszukiwanie
 może przekroczyć budget najwyżej o jeden oceniany wariant. Sesja pokazuje
 wydatki wyszukiwania osobno od reszty.
+
+Limit odpowiedzi obejmuje też koszt przeczytania dłuższych instrukcji wariantu,
+a agent, którego dotychczasowe odpowiedzi nic nie kosztowały, dostaje limit w
+wysokości ceny niewycenionego przypadku. Odpowiedź zatrzymana na własnym limicie
+liczy się dla tego wariantu jako bez odpowiedzi; wyszukiwanie kończy dopiero
+wyczerpany budget wyszukiwania, sesji albo miesięczny.
+
+Zadanie oceniające przestaje zaczynać odpowiedzi, zanim skończy się czas jego
+joba, przerywa odpowiedź trwającą tuż przed końcem joba i zachowuje to, na co
+odpowiedziało; następne zadaje resztę, więc każde pytanie jest opłacone raz.
+Zachowana odpowiedź na pytanie usunięte w międzyczasie odpada razem z nim. Przed każdym zadaniem wyszukiwanie sprawdza, czy osoba,
+w której imieniu działa, nadal ma prawo edycji agenta, `runs:view` i prawo
+uruchamiania datasetu; inaczej sesja zatrzymuje się tak, jak zrobiłaby to w
+następnym kroku. Notatka podana przy **Try again** trafia też do helpera, który
+pisze warianty.
 
 Treść wariantów, pisaną na podstawie pytań datasetu, czyta tylko ktoś, kto
 mógłby uruchomić sesję - z prawem edycji agenta, `runs:view` i prawem
 uruchamiania datasetu; pozostali widzą liczby. Pytanie, na które wariant nie
 odpowiedział albo którego nie dało się ocenić, liczy się jako niezaliczone.
-Wyszukiwanie bez postępu przez godzinę kończy się błędem `stalled` i można je
-ponowić.
+
+Rundę propozycji, na którą model nie odpowiedział - dostawca odmówił, przekroczył
+czas albo był nieosiągalny - wyszukiwanie ponawia najwyżej trzy razy; potem
+kończy się, bo helper nie mógł napisać więcej wariantów, a koszt nieudanych rund
+wlicza się do jego wydatków. Wyszukiwanie bez postępu przez godzinę kończy się
+błędem `stalled` i można je ponowić.
 
 Domyślnie warianty ocenia sędzia datasetu na własnym modelu;
 `grading_model_profile_id` ocenia je zamiast tego na tańszym albo lokalnym
@@ -602,6 +633,10 @@ Nowa naprawa jest potwierdzona tylko wtedy, gdy szkic dotarł do każdej potwier
 Ręczne testy i generowanie pytań testowych powiadamiają osobę, która je uruchomiła, o zakończeniu, także błędem. Ponowne dostarczenie zadania nie powiela powiadomienia. Testy podrzędne zestawu i sesji poprawy korzystają z powiadomienia procesu nadrzędnego. Preferencje tych zdarzeń znajdują się w **Ustawienia → Powiadomienia**. Otwarte strony testów i zbiorów danych odświeżają się przez strumień zmian po zatwierdzeniu wyniku.
 
 Krok Zrozumienie w kreatorze pokazuje ograniczoną próbkę źródeł, zapisaną przyczynę, odpowiedź, komentarze oceniających i odnośnik do rozmowy. Nieznane przyczyny pozostają jawnie niesklasyfikowane. Krok Pytania testowe odczytuje przypiętą wersję pytań sesji i oznacza pytania treningowe oraz odłożone. Dzisiaj pokazuje punkt odniesienia dopiero po pomyślnym zakończeniu testu; pomiar częściowy lub nieudany nie jest przedstawiany jako gotowy wynik bazowy. Podgląd źródeł wymaga `runs:view`, ponownie sprawdza dostęp do baz wiedzy i usuwa dane uwierzytelniające z każdego pola tekstowego.
+
+Dowody wysyłane do modelu pomocnika - pytania, odpowiedzi, komentarze oceniających, argumenty wywołań narzędzi i błędy - są redagowane tak samo, zanim wyjdą, więc cytaty, które zachowuje zmiana, też są zredagowane. Cytaty i podsumowania zapisane wcześniej są redagowane przy każdym odczycie.
+
+Wszystko, co sugestia zapisałaby, a co cytuje dane uwierzytelniające - tekst instrukcji albo skilla, nazwa lub opis narzędzia, wartość pola, nowy skill, proponowany plik kontekstu albo treść skilla - jest pokazywane zredagowane i oznaczone `contains_credential`, a akceptacja, zastosowanie albo sprawdzenie jest odrzucane. Proponowany fragment można zedytować i zaakceptować bez tych danych; proponowany plik albo treść skilla się odrzuca, a zmianę wprowadza ręcznie.
 
 
 Ekran akceptacji pokazuje numer następnej wersji i zmierzony wynik wybranej rundy. Oferta automatycznego sprawdzenia pojawia się tylko dla agenta bez zestawu sprawdzeń. Publikacja zapisuje identyfikator i numer wersji w sesji, więc ponowne otwarcie zakończenia prowadzi do tej publikacji także po kolejnej. Stare sesje bez zapisanego powiązania pokazują stan bez zgadywania wersji. Błąd odczytu sugestii pozwala ponowić odczyt; zastąpione sugestie są niedostępne zamiast bez końca się ładować. Chronione środowiska śledzące zmiany czekają na sprawdzenia, a przypięte zachowują obecną wersję.

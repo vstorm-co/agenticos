@@ -19,6 +19,31 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Upgrading
+
+- Upstream v1.94.0 + v1.95.0 sync (this PR) applies upstream revisions `0365_attempt_receipt_only`, `0365_reusable_event_sources`, `0365_routine_tool_settings`, `0365_project_resources`, `0366_shared_mcp_oauth_clients`, `0366_improvement_holdout_share`, `0367_portability_operations`, `0368_password_sign_in_policy`, `0369_run_error_code`, `0371_portable_document_snapshots`, `0371_run_workspace_origins` through `0374_case_from_conversation` after T3 `0367_merge_t3_chat_queue`; the two heads are joined by merge revision `0375_merge_t3_v1950` (one head). The fork stays English-only: the new Dutch desktop start-screen and French/Turkish console translations are not taken. Apply `0365_reusable_event_sources` first: drain and stop old workers before starting upgraded workers or schedulers, then roll out the API — old workers cannot claim source dispatch. Apply `0366_improvement_holdout_share` with API admission and background workers paused, then restart both on the updated code. Stop old API and workers before migration `0374_case_from_conversation`, then start only updated code; mixed-version writes during this upgrade are unsupported. Dataset imports past 10 MB / 10,000 rows are now refused — raise `DATASET_IMPORT_MAX_BYTES` / `DATASET_IMPORT_MAX_ROWS` before upgrading if larger imports are needed. The judge prompt is now v5: earlier eval scores are re-graded from scratch after upgrade, not reused as cached baselines. Live project mounts need sandboxd SDK/image 0.2.40 + the filesystem gateway/exporter pair (feature stays disabled until configured). New projects default to stored files; API clients wanting auto sandbox selection must send `backend: auto`. `select_project_workspace` now selects file context only — use `select_execution_target` for execution. Steering (`"steer": true`) needs all API replicas/workers updated first. If API replicas and workers roll out separately, update all of them before clients send steering requests. Deploy API + workers together. Migration `0363_app_bases_have_no_org` (from the 1.93.0 sync) still applies: it nulls org on app-scoped KBs — check app-scoped KBs bound to agents before upgrading.
+
+### Added
+
+- Projects with live file mounts under `/project/<lease UUID>` in private Docker workspaces, plus project grouping, project file context separate from command execution, and `select_execution_target`.
+- Reusable webhook event sources with provider presets, Vault-backed auth and independent routine/workflow subscribers; event sources bind to organization Vault secrets including dedicated inbound Basic credentials.
+- Selective resource bundles for workflows and knowledge bases (agent import/export review, resumable ZIP transfers, private drafts, dependency mapping).
+- Per-role console navigation and MCP/skill limits, organization dashboard defaults per role, and an optional simple-assistant preset.
+- Members can answer their own verified platform approval cards without organization-wide approval authority; approval cards name the affected agent/skill/version/dataset and show trusted quoted estimates.
+- Provider-only sign-in controls in deployment settings; steering corrections to a running agent by conversation ID (`"steer": true`); agent dependency export as YAML/JSON/ZIP.
+- Eval/Improve hardening: dataset import limits, stronger secret redaction, judge prompt v5, live Project mounts fix on isolated Compose hosts.
+
+### Changed
+
+- New projects default to stored files (see Upgrading). `select_project_workspace` selects file context only. Event sources are a contextual management page, not a default sidebar destination.
+- A person's read of an eval run re-checks the organization comparison limit; a single run read returns 429 while another comparison runs.
+
+### Fixed
+
+- Live Project mounts reachable on isolated production Compose hosts (opt-in supervisor-only gateway bridge).
+- Eval/Improve reliability: resume a live eval comparison after a failed poll, keep Improve variant searches going through refused/unanswered rounds, parse dataset imports off the event loop a row at a time, and recheck access before each Improve search unit.
+- Refresh the backend dependency lock and verify compatibility with current SDKs. Keep Daytona on its supported 0.x API (`daytona>=0.226.1,<2`) until the workspace adapter supports the SDK 2.x namespace migration; saved workflow checkpoints require the exact Monty version that wrote them (`pydantic-monty==1.6.0`).
+
 ## [1.94.0] - 2026-11-27
 
 ### Upgrading

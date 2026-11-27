@@ -355,4 +355,8 @@ async def test_a_downgrade_refuses_a_history_the_earlier_schema_could_not_hold()
     # The largest history is named; every organization seeded in this module holds 26.
     assert re.search(r"Organization [0-9a-f-]{36}'s dataset versions hold 26 cases", refused.stderr)
     assert "DATASET_MAX_VERSION_ROWS_PER_ORG" in refused.stderr
+    # The refusal stops the chain mid-downgrade: newer revisions already
+    # dropped columns the current models select, so restore head before
+    # reading back through the repository.
+    _migrate("upgrade", "head")
     assert await _read_through_the_repository(organization_id) == before

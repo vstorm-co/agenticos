@@ -108,9 +108,14 @@ export function OrgProactivity({
   return (
     <div className="space-y-3">
       {nightly && (
-        <NightlyForm key={org.id} org={org} collapsible={collapsible} defaultOpen={defaultOpen} />
+        <NightlyForm
+          key={`nightly:${org.id}`}
+          org={org}
+          collapsible={collapsible}
+          defaultOpen={defaultOpen}
+        />
       )}
-      {welcome && <WelcomeForm org={org} collapsible={collapsible} />}
+      {welcome && <WelcomeForm key={`welcome:${org.id}`} org={org} collapsible={collapsible} />}
     </div>
   );
 }
@@ -344,7 +349,7 @@ function NightlyForm({
                             })
                           }
                           className={cn(
-                            "min-h-9 min-w-9 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                            "touch:min-h-11 touch:min-w-11 min-h-9 min-w-9 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
                             on
                               ? "border-foreground/20 bg-accent text-foreground"
                               : "border-border bg-background text-muted-foreground hover:text-foreground",
@@ -412,11 +417,11 @@ function NightlyForm({
         <WatchPolicy minutes={form.watchMinutes} disabled={saving} onChange={edit} />
       </FeaturePanel>
       {changed && (
-        <div className="bg-card sticky bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 shadow-lg">
+        <div className="bg-card sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 grid gap-3 rounded-xl border p-3 shadow-lg sm:flex sm:flex-wrap sm:items-center sm:justify-between">
           <p role="status" className="text-muted-foreground text-sm">
             {t("unsavedChanges")}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:items-center max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:whitespace-normal">
             <Button
               variant="ghost"
               disabled={saving || pendingCreations > 0}
@@ -540,11 +545,11 @@ function WelcomeForm({ org, collapsible }: { org: Organization; collapsible: boo
             </FormField>
           }
           {changed && (
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
               <p role="status" className="text-muted-foreground text-sm">
                 {t("unsavedChanges")}
               </p>
-              <div className="flex items-center gap-2">
+              <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:items-center max-sm:[&>button]:h-auto max-sm:[&>button]:min-h-11 max-sm:[&>button]:whitespace-normal">
                 <Button
                   variant="ghost"
                   disabled={saving}

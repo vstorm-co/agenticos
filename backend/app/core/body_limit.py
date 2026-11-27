@@ -59,7 +59,8 @@ def max_body_bytes() -> int:
         settings.EMBED_MAX_UPLOAD_SIZE_MB,
         settings.ML_MAX_UPLOAD_SIZE_MB,
     )
-    return largest_mb * 1024 * 1024 + _ENVELOPE_ALLOWANCE
+    largest = max(largest_mb * 1024 * 1024, settings.DATASET_IMPORT_MAX_BYTES)
+    return largest + _ENVELOPE_ALLOWANCE
 
 
 class BodySizeLimitMiddleware:
@@ -83,14 +84,28 @@ class BodySizeLimitMiddleware:
             return
 
         declared = _declared_length(scope)
-        limit = max_body_bytes()
         path = str(scope.get("path", ""))
+        bundle_upload = path.startswith("/api/v1/portability/") and path.endswith("/upload")
+        limit = 512 * 1024 * 1024 if bundle_upload else max_body_bytes()
         if declared is not None and declared > limit:
             logger.warning(
                 "request_body_too_large",
                 extra={"declared_bytes": declared, "limit_bytes": limit, "path": path},
             )
-            await _too_large_response(scope, path)(scope, receive, send)
+            response = JSONResponse(
+                status_code=413,
+                content={
+                    "error": {
+                        "code": "REQUEST_TOO_LARGE",
+                        "message": "That request is too large.",
+                        "details": {
+                            "limit_mb": 512 if bundle_upload else settings.MAX_UPLOAD_SIZE_MB
+                        },
+                    }
+                },
+                headers=_widget_cors(scope, path),
+            )
+            await response(scope, receive, send)
             return
 
         received = 0
@@ -127,7 +142,9 @@ class BodySizeLimitMiddleware:
                 "request_body_too_large",
                 extra={"received_bytes": exc.received_bytes, "limit_bytes": limit, "path": path},
             )
-            await _too_large_response(scope, path)(scope, receive, send)
+            await _too_large_response(scope, path, bundle_upload=bundle_upload)(
+                scope, receive, send
+            )
 
 
 class _BodyTooLarge(Exception):
@@ -136,14 +153,14 @@ class _BodyTooLarge(Exception):
         super().__init__(received_bytes)
 
 
-def _too_large_response(scope: Scope, path: str) -> JSONResponse:
+def _too_large_response(scope: Scope, path: str, *, bundle_upload: bool = False) -> JSONResponse:
     return JSONResponse(
         status_code=413,
         content={
             "error": {
                 "code": "REQUEST_TOO_LARGE",
                 "message": "That request is too large.",
-                "details": {"limit_mb": settings.MAX_UPLOAD_SIZE_MB},
+                "details": {"limit_mb": 512 if bundle_upload else settings.MAX_UPLOAD_SIZE_MB},
             }
         },
         headers=_widget_cors(scope, path),

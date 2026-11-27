@@ -10,6 +10,7 @@ export const DRAWN_HUE: Readonly<Record<string, number>> = {
   background_tasks: 222,
   agent_messages: 250,
   workflows: 270,
+  projects: 205,
   text_to_speech: 28,
   computer_use: 200,
   video_generation: 300,
@@ -508,6 +509,18 @@ const EXTERNAL_ACP =
   '<rect class="inr" x="151" y="44" width="32" height="41" rx="4"/>' +
   '<path class="igrid2" d="M158 55H176M158 64H172"/></svg>';
 
+/** A shared project folder with reference documents, separate from a terminal. */
+const PROJECTS =
+  '<svg viewBox="0 0 240 135" aria-hidden="true" preserveAspectRatio="xMidYMid meet">' +
+  '<polygon class="ishb" points="120,46.5 195.7,90.2 120,133.8 44.3,90.2"/>' +
+  '<polygon class="ict" points="120,35 195,78 120,121 45,78"/>' +
+  '<path class="inl" d="M58 40H92L102 49H175V95H58Z"/>' +
+  '<g class="breathe"><rect class="int" x="88" y="22" width="46" height="59" rx="4"/>' +
+  '<path class="igrid2" d="M98 35H124M98 44H124M98 53H116"/></g>' +
+  '<path class="inr" d="M58 61H181L170 101H67Z"/>' +
+  '<path class="igrid2" d="M92 78H151M100 86H141"/>' +
+  "</svg>";
+
 export const DRAWN_ART: Readonly<Record<string, string>> = {
   external_acp: EXTERNAL_ACP,
   channel_actions: CHANNEL_ACTIONS,
@@ -516,6 +529,7 @@ export const DRAWN_ART: Readonly<Record<string, string>> = {
   background_tasks: BACKGROUND_TASKS,
   agent_messages: AGENT_MESSAGES,
   workflows: WORKFLOWS,
+  projects: PROJECTS,
   monitor: MONITOR,
   babysit_pr: BABYSIT_PR,
   text_to_speech: TEXT_TO_SPEECH,

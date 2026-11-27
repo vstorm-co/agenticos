@@ -268,6 +268,11 @@ async def run_request(job: RoomRequestJob) -> None:
                             message_history=history,
                             acts_for_sender=True,
                             room_lead=planning,
+                            # The worker verified the requester is a room member
+                            # and the agent is pinned before executing, so the
+                            # project context is disclosed only to admitted
+                            # members - the audience gate in prepare stands down.
+                            room_admitted=True,
                             parks_questions=True,
                             on_run_open=opened,
                             check_model_request=check_model_request,

@@ -24,6 +24,7 @@ import { CommandPalette } from "@/components/layout/command-palette";
 import { ImpersonationBanner } from "@/components/layout/impersonation-banner";
 import { InstallPrompt } from "@/components/layout/install-prompt";
 import { OfflineBanner } from "@/components/layout/offline-banner";
+import { StaleReadBanner } from "@/components/layout/stale-read-banner";
 import { LiveUpdates } from "@/components/live-updates/live-updates";
 import { NavigationProgress } from "@/components/layout/navigation-progress";
 import { PageTransition } from "@/components/layout/page-transition";
@@ -38,7 +39,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           empties every permission-gated destination at once, so the recovery
           lives beside the navigation it would otherwise silently strip. */}
       <ActiveOrgGuard />
-      <ReleaseNotes />
       <AppUpdateBanner />
       {/* The language the account chose, here or on another device or by asking an agent. */}
       <AccountLocale />
@@ -63,6 +63,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           every icon down the tree reads it from context instead of querying. */}
       <CustomIconsProvider>
         <ConsoleExperienceProvider>
+          <ReleaseNotes />
           <OnScreenKeyboard />
           {/* As tall as what can be seen, keyboard and address bar included -
             see `useOnScreenKeyboard`; `100dvh` until it has measured. */}
@@ -75,6 +76,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <MobileHeader />
             <ImpersonationBanner />
             <OfflineBanner />
+            <StaleReadBanner />
             <InstallPrompt />
             {/* The column and the content scroll independently, which is the point
             of a persistent sidebar: navigation stays put while a long run list

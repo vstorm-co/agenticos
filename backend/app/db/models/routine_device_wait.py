@@ -49,6 +49,7 @@ class RoutineDeviceWait(Base, TimestampMixin):
     event_payload: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
+    event_source_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True), nullable=True)
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="waiting", server_default="waiting"
     )

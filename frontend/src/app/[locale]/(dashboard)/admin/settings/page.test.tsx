@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BrandingProvider } from "@/components/branding/branding-provider";
+import { BUILT_IN_BRANDING } from "@/lib/branding";
 import { DeploymentSettingsForm } from "@/components/admin/deployment-settings-form";
 import type { DeploymentSettings, DeploymentSettingsPatch } from "@/hooks/use-deployment-settings";
 import DeploymentSettingsPage from "./page";
@@ -39,7 +41,15 @@ vi.mock("@/lib/api-client", () => ({
 function queryWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return function Wrapper({ children }: { children: ReactNode }) {
-    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={client}>
+        <BrandingProvider
+          branding={{ ...BUILT_IN_BRANDING, signInProviders: settings?.sign_in_providers ?? [] }}
+        >
+          {children}
+        </BrandingProvider>
+      </QueryClientProvider>
+    );
   };
 }
 
@@ -99,6 +109,7 @@ const SAVED: DeploymentSettings = {
 };
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/admin/settings");
   settings = null;
   error = null;
   loading = true;
@@ -201,4 +212,34 @@ it("guides setup from access settings and advances only when edited settings hav
   if (!firstSave) throw new Error("Expected deployment settings to be saved");
   act(() => firstSave[1].onSuccess());
   expect(next).toHaveBeenCalledOnce();
+});
+
+describe("local sign-in policy", () => {
+  it("saves the policy without resending other deployment settings", async () => {
+    loading = false;
+    settings = { ...SAVED, password_sign_in_enabled: true, sign_in_providers: ["oidc"] };
+    window.history.replaceState(null, "", "/admin/settings?section=access");
+    render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
+    await userEvent.click(screen.getByRole("switch", { name: "Allow local sign-in" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(save).toHaveBeenCalledWith({ password_sign_in_enabled: false }, expect.any(Object));
+  });
+
+  it("keeps the last visible sign-in method enabled", () => {
+    loading = false;
+    settings = { ...SAVED, password_sign_in_enabled: true, sign_in_providers: [] };
+    window.history.replaceState(null, "", "/admin/settings?section=access");
+    render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
+    expect(screen.getByRole("switch", { name: "Allow local sign-in" })).toBeDisabled();
+  });
+
+  it("shows the operator override without changing the saved switch", () => {
+    loading = false;
+    settings = { ...SAVED, password_sign_in_enabled: false, password_sign_in_forced: true };
+    window.history.replaceState(null, "", "/admin/settings?section=access");
+    render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
+    expect(screen.getByText(/operator recovery override currently enables/)).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Allow local sign-in" })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: "Allow local sign-in" })).toBeEnabled();
+  });
 });

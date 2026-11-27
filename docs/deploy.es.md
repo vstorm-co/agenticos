@@ -1,5 +1,5 @@
 ---
-source_sha: "e885d6a41f7e"
+source_sha: "f2aed7ebed0e"
 ---
 
 # Despliega en un servidor { #deploy-to-a-server }
@@ -661,6 +661,8 @@ un **commit** y no una rama, así que lo que se despliega es lo que se revisó y
 aquello a lo que `main` se haya movido desde entonces - y lo que se ejecuta es
 byte a byte lo que construyó CI, en un host que nunca necesita la cadena de
 herramientas.
+
+Tras descargar las imágenes y preparar los entornos, el script detiene la API y el worker del stack Compose actual antes de aplicar migraciones. Así los procesos antiguos no escriben con reglas de privacidad anteriores. Si la detención falla, el despliegue se interrumpe antes de migrar. El script comprueba la salud de los servicios antes de indicar éxito. Con varios hosts, detén por separado las demás réplicas de API y workers.
 
 !!! warning "Cópialo al host y ejecútalo allí — no lo canalices a `bash -s`"
 

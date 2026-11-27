@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, ValidationError
 from pydantic_ai.exceptions import ContentFilterError, ModelHTTPError, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ToolCallPart
 from pydantic_ai_harness.ask_user import AskUserRequest, AskUserResponse
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.ask_user import (
@@ -87,11 +88,14 @@ from app.services.agent_chat import (
     requested_mentions,
     requested_model_profile_id,
     requested_page_context,
+    requested_project_execution_target,
     requested_testing,
     requested_time_zone,
 )
 from app.services.agent_runner import AgentRunnerService, LiveRunSurface, PersonalServiceGap
+from app.services.approvals import may_approve, may_decide
 from app.services.attachments import load_turn_attachments
+from app.services.chat_cost_visibility import ChatCostVisibilityService, cost_bearing_chat_frame
 from app.services.chat_timeline import TurnTimeline
 from app.services.conversation import ConversationService
 from app.services.notifications import NotificationService
@@ -1759,6 +1763,7 @@ class AgentSession:
                     # downgraded (#925).
                     approval_mode=requested_approval_mode(data),
                     local=local_target,
+                    project_execution_target=requested_project_execution_target(data),
                     person_time_zone=requested_time_zone(data),
                     # The Builder's test panel: the draft, or a version, marked
                     # as a test either way (#2074).
@@ -1821,6 +1826,8 @@ class AgentSession:
             # turn is still on screen. The queue and the email carry the same rows;
             # this is a shortcut for whoever is already looking at the tab.
             if turn.parked:
+                async with get_db_context() as db:
+                    decider = await self._chat_context(db)
                 await self._emit(
                     "tool_approval_required",
                     {
@@ -1838,6 +1845,22 @@ class AgentSession:
                                 "capability_tool_id": parked.capability_tool_id,
                                 "context": parked.context,
                                 "account": parked.account,
+                                "always_asks": parked.always_asks,
+                                "may_decide": may_decide(
+                                    decider,
+                                    tool_id=parked.tool_name,
+                                    always_asks=parked.always_asks,
+                                    person_id=self.user.id,
+                                    context=parked.context,
+                                ),
+                                "may_approve": may_approve(
+                                    decider,
+                                    tool_id=parked.tool_name,
+                                    always_asks=parked.always_asks,
+                                    person_id=self.user.id,
+                                    content_hidden=False,
+                                    context=parked.context,
+                                ),
                             }
                             for parked in turn.parked
                         ],
@@ -2422,6 +2445,26 @@ class AgentSession:
             db, message_id, [str(file_id) for file_id in file_ids], user_id=self.user.id
         )
 
+    async def _send_chat_frame(self, kind: str, payload: object) -> bool:
+        accounting = cost_bearing_chat_frame(kind, payload)
+        if accounting is None:
+            return await send_event(self.websocket, kind, payload)
+        try:
+            async with get_db_context() as db:
+                visible = await ChatCostVisibilityService(db).visible_for_user(
+                    organization_id=self.organization_id, user_id=self.user.id
+                )
+        except NotFoundError:
+            visible = False
+        except SQLAlchemyError:
+            # A failed policy read withholds the financial metadata. It must not
+            # disclose spend, or discard an answer already persisted successfully.
+            logger.exception("chat_cost_visibility_read_failed")
+            visible = False
+        return await send_event(
+            self.websocket, kind, accounting.data if visible else accounting.redacted()
+        )
+
     async def _emit(self, kind: str, payload: Any) -> bool:
         """Send one frame to this socket, and keep it for whoever follows the turn.
 
@@ -2438,7 +2481,7 @@ class AgentSession:
             "user_prompt",
         }:
             payload = {"thread_root_message_id": None, **payload}
-        sent = await send_event(self.websocket, kind, payload)
+        sent = await self._send_chat_frame(kind, payload)
         if self._live_turn is not None:
             await live_turn.publish(self._live_turn, kind, payload)
         return sent
@@ -2792,7 +2835,7 @@ class AgentSession:
                     },
                 )
                 attached = True
-            if not await send_event(self.websocket, frame["type"], frame["data"]):
+            if not await self._send_chat_frame(frame["type"], frame["data"]):
                 return False
         if not ended:
             # The turn ended between the check and the subscription: the

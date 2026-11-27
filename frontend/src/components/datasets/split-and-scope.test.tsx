@@ -39,7 +39,7 @@ describe("case privacy and criterion scope", () => {
         }}
       />,
     );
-    expect(screen.getByText("From a conversation you cannot open")).toBeInTheDocument();
+    expect(screen.getByText("Source unavailable or origin unverified")).toBeInTheDocument();
     expect(screen.queryByText("PRIVATE_INPUT")).not.toBeInTheDocument();
     expect(screen.queryByText("PRIVATE_REFERENCE")).not.toBeInTheDocument();
   });

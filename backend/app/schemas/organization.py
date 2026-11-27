@@ -8,11 +8,13 @@ from uuid import UUID
 
 from pydantic import AfterValidator, EmailStr, Field, field_validator
 
+from app.core.chat_costs import ChatCostVisibility
 from app.core.permissions import OrgRoleName
 from app.db.models.organization import MembershipSourceLiteral, OnboardingStep, ProactiveTiming
 from app.db.models.watch import MIN_WATCH_MINUTES
 from app.schemas.base import BaseSchema, TimestampSchema
 from app.schemas.console_experience import ChatHomeOverrides, OnboardingReminderOverrides
+from app.schemas.console_presentation import ConsoleNotices, RoleConsoleChanges, StoredRoleConsole
 from app.schemas.user import UserRead
 
 _ID = UUID
@@ -60,6 +62,9 @@ class OrganizationUpdate(BaseSchema):
     service keys on whether the client named the field rather than on its value.
     """
 
+    console_role_defaults: RoleConsoleChanges | None = None
+    console_notices: ConsoleNotices | None = None
+    chat_cost_visibility: ChatCostVisibility | None = None
     chat_home_defaults: ChatHomeOverrides | None = None
     onboarding_reminders: OnboardingReminderOverrides | None = None
     name: str | None = Field(default=None, min_length=2, max_length=128)
@@ -213,6 +218,9 @@ class OrganizationUpdate(BaseSchema):
 
 
 class OrganizationRead(BaseSchema, TimestampSchema):
+    console_role_defaults: dict[str, StoredRoleConsole] = Field(default_factory=dict)
+    console_notices: ConsoleNotices = Field(default_factory=ConsoleNotices)
+    chat_cost_visibility: ChatCostVisibility = ChatCostVisibility.EVERYONE
     chat_home_defaults: ChatHomeOverrides | None = None
     onboarding_reminders: OnboardingReminderOverrides | None = None
     id: _ID
