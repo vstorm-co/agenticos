@@ -1,17 +1,17 @@
 ---
-source_sha: "a850cf14de8a"
+source_sha: "9a4f545a35b8"
 title: "AgenticOS vergleichen"
 seo_title: "AgenticOS im Vergleich: souveräne Schicht für KI-Agents"
-description: "Die souveräne, selbst gehostete Open-Source-Schicht AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Gemini Enterprise, Dify, n8n und Coding-Agents."
+description: "AgenticOS im Vergleich mit Claude, ChatGPT, Copilot Studio, Dify, n8n, Kortix, LobeHub, Onyx, Open WebUI, Langdock, Dust, deepset und Agents in Slack."
 ---
 
 # AgenticOS vergleichen { #compare-agenticos }
 
-Die meisten Produkte in diesem Bereich sind eines von fünf Dingen: eine Assistenten-App, ein Agent-Builder, ein Teammate-Dienst, eine gelieferte Enterprise-Plattform oder ein Coding-Agent. AgenticOS ist eine souveräne Schicht für die Agents eines Unternehmens, die Sie selbst betreiben. Diese Leitfäden zeigen, wo jede Option passt und was AgenticOS ergänzt.
+Die meisten Produkte in diesem Bereich sind eines von fünf Dingen: eine Assistenten-App, ein Agent-Builder, ein Teammate-Dienst, eine gelieferte Enterprise-Plattform oder ein Coding-Agent. AgenticOS ist eine souveräne Schicht für die Agents eines Unternehmens, die Sie selbst betreiben. Der Ausgangspunkt ist meist derselbe: Mitarbeiter nutzen eigene KI-Konten, sodass Wissen, Gedächtnis und Ausgaben außerhalb des Unternehmens liegen, und die IT will stattdessen einen gesteuerten Ort. Diese Leitfäden zeigen, wo jede Option passt und was AgenticOS ergänzt.
 
-Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026, die zu OpenAI Frontier am 14. Oktober. AgenticOS-Basis: v1.10.0. Nächste Prüfung bis 21. November 2026 oder früher, wenn ein Anbieter das in einem Leitfaden beschriebene Angebot ändert. Jeder Leitfaden nennt seine Quellen. Für diese Leitfäden wurde kein Konto eines Mitbewerbers genutzt.
+Verantwortlich: das AgenticOS-Team. Anbieterquellen geprüft am 21. Oktober 2026 für die ursprünglichen Leitfäden (OpenAI Frontier am 14. Oktober), am 2. November für Muse, Claude Duet, Grok Bot und OpenBot und am 26. November 2026 für die damals hinzugefügten Leitfäden: Open-Source-Plattformen, europäische Anbieter, Agents in Slack, der DIY-Stack und Lizenzbedingungen. Nächste Prüfung bis 27. Februar 2027 oder früher, wenn ein Anbieter das in einem Leitfaden beschriebene Angebot ändert. Jeder Leitfaden nennt seine Quellen. Für diese Leitfäden wurde kein Konto eines Mitbewerbers genutzt.
 
-Die AgenticOS-Funktionsangaben wurden am 2. November 2026 anhand von v1.35.0 aktualisiert. Das Prüfdatum der Anbieterquellen oben bleibt unverändert; dies ist keine neue Preisprüfung.
+Die AgenticOS-Funktionsangaben wurden am 27. November 2026 anhand von v1.95.0 in allen Leitfäden aktualisiert. Ältere Prüfdaten der Anbieterquellen bleiben unverändert; diese Aktualisierung ist keine neue Preisprüfung.
 
 ## Den Leitfaden für Ihre Entscheidung wählen { #pick-the-guide-for-your-decision }
 
@@ -20,6 +20,11 @@ Die AgenticOS-Funktionsangaben wurden am 2. November 2026 anhand von v1.35.0 akt
 | Einen Chat-Assistenten für das Unternehmen oder Agents, die Ihrer Organisation gehören | Claude Team und Enterprise, ChatGPT Business und Enterprise | [Claude](claude-apps.md) · [ChatGPT](chatgpt.md) |
 | Einen Builder in der Cloud-Suite eines Anbieters | Microsoft Copilot Studio, Google Gemini Enterprise | [Copilot Studio](copilot-studio.md) · [Gemini Enterprise](gemini-enterprise.md) |
 | Einen selbst gehosteten Builder oder ein Automatisierungswerkzeug | Dify, n8n | [Dify](dify.md) · [n8n](n8n.md) |
+| Eine Open-Source-Plattform für Unternehmens-Agents | Kortix CompanyOS, LobeHub, Agno AgentOS, OpenAgents, OpenHuman | [Kortix](kortix.md) · [LobeHub](lobehub.md) · [Agno](agno.md) · [OpenAgents](openagents.md) · [OpenHuman](openhuman.md) |
+| Einen selbst gehosteten Firmen-Chat oder eine Firmensuche | Open WebUI, LibreChat, Onyx | [Open WebUI und LibreChat](open-webui-librechat.md) · [Onyx](onyx.md) |
+| Den Eigenbau aus Open-Source-Bausteinen | Open WebUI, LiteLLM, Langfuse, n8n, Keycloak | [DIY-Stack](diy-stack.md) · [Lizenzbedingungen](licence-terms.md) |
+| Eine europäische KI-Plattform | Langdock, Dust, Mistral, deepset | [Langdock](langdock.md) · [Dust](dust.md) · [Mistral](mistral.md) · [deepset](deepset.md) |
+| Einen Agent in Slack | Claude Tag, Slackbot | [Agents in Slack](slack-agents.md) |
 | Ein dauerhaft laufendes KI-Teammate mit eigenem Computer | OpenAI dots, Grok Bot, Viktor, Sauna | [dots](openai-dots.md) · [Grok Bot](grok-bot.md) · [Viktor](viktor.md) · [Sauna](sauna.md) |
 | Eine Plattform oder Steuerungsebene eines Anbieters für Unternehmens-Agents | OpenAI Frontier, Microsoft Agent 365 | [Frontier](openai-frontier.md) · [Agent 365](microsoft-agent-365.md) |
 | Eine gehostete Agent-Laufzeit für Entwickler | Claude Managed Agents | [Managed Agents](claude-managed-agents.md) |
@@ -38,6 +43,19 @@ Die AgenticOS-Funktionsangaben wurden am 2. November 2026 anhand von v1.35.0 akt
 | Gemini Enterprise | Die Agent-Plattform und Suche von Google für Mitarbeiter | Google Cloud | Proprietär | Gemini in der App |
 | Dify | Ein visueller Builder für LLM-Apps und Workflows | Selbst gehostet oder Dify Cloud | Modifizierte Apache 2.0 mit Bedingungen | Viele, darunter Ollama |
 | n8n | Workflow-Automatisierung mit KI-Agent-Knoten | Selbst gehostet oder n8n Cloud | Sustainable Use License | Viele, darunter Ollama |
+| Kortix CompanyOS | Ein Unternehmen als Git-Repository aus Agents, Skills und Konnektoren | Kortix-Cloud oder selbst gehostet mit Sessions in der Kortix-Cloud | Elastic License 2.0 | Beliebige |
+| LobeHub | Ein KI-Workspace, dessen Agents Team-Chats beitreten | LobeHub-Cloud oder selbst gehostet | LobeHub Community License | Über 90 Provider |
+| Agno AgentOS | Ein Python-Framework und Runtime mit gehosteter Control Plane | Runtime selbst gehostet; Control Plane als SaaS | Runtime Apache-2.0; geschlossene Control Plane | Beliebige |
+| OpenAgents | Ein gemeinsamer Workspace für Menschen und Agents aus vielen Runtimes | Gehostet oder selbst gehostet | Apache-2.0 | Die der verbundenen Agents |
+| OpenHuman | Ein persönlicher Agent-Harness und eine Desktop-App | Desktop, Terminal oder Server | GPL-3.0 | 26 Provider und lokale Modelle |
+| Open WebUI | Eine selbst gehostete KI-Chat-Oberfläche | Selbst gehostet | BSD-3 mit Branding-Klausel | OpenAI-kompatibel und Ollama |
+| LibreChat | Ein selbst gehosteter Chat mit Agents und MCP | Selbst gehostet | MIT; Admin-Panel AGPL-3.0 | Alle großen Provider |
+| Onyx | Firmensuche und Chat mit Agents | Selbst gehostet oder Onyx-Cloud | MIT mit `ee`-Verzeichnissen | Beliebige |
+| Langdock | Ein KI-Workspace pro Arbeitsplatz mit Agents und Workflows | SaaS auf Azure in der EU | Proprietär | Mehrere Modelle, in der EU gehostet |
+| Dust | Ein gehosteter Workspace für Unternehmens-Agents | Dust-Cloud, Region USA oder EU | Proprietär | Mehrere Provider |
+| Mistral AI Studio | Modelle, Assistent und Agent-Plattform von einem Anbieter | Cloud, Serverless oder selbst gehostet | Proprietäre Plattform | Vor allem Mistral |
+| deepset Haystack Enterprise Platform | Eine souveräne Plattform für Haystack-Agents und -Pipelines | Cloud, selbst gehostet, netzwerkisoliert, STACKIT | Proprietär; Haystack Apache-2.0 | Beliebige |
+| Claude Tag / Slackbot | Anbieter-Agents in Slack | Cloud von Anthropic oder Salesforce | Proprietär | Nur Claude / Wahl von Salesforce |
 | Viktor | Ein KI-Teammate pro Slack- oder Teams-Workspace | Die Cloud von Viktor | Proprietär | OpenAI, Anthropic, Google, xAI |
 | Sauna | Ein proaktiver KI-Assistent pro Person, mit Gedächtnis | Die Cloud von Sauna | Proprietär | Das eigene Lite-Modell oder alle Modelle ab dem Tarif Basic |
 | OpenAI dots | Dauerhaft laufende Agents in ChatGPT, jeder mit einem Cloud-Computer | Die Cloud von OpenAI | Proprietär | Nur OpenAI |
@@ -65,6 +83,14 @@ Souveränität bedeutet hier vier Dinge, die Sie entscheiden: wo das Produkt lä
 | Copilot Studio | Cloud von Microsoft, in Power-Platform-Umgebungen | Standardmäßig GPT-Modelle, Claude-Modelle, Azure-Foundry-Modelle separat abgerechnet | Proprietär | Anmeldung: Entra ID · Audit: Purview · Ausgaben: monatliche Limits pro Agent |
 | Gemini Enterprise | Google Cloud, in den Regionen global, US, EU und einigen nationalen | Gemini; andere Modelle nur in Custom Agents auf der Agent Platform | Proprietär | Anmeldung: Google Cloud IAM · Audit: Audit-Logs von Google Cloud · Ausgaben: monatliche Limits auf dem Rechnungskonto |
 | Dify | Selbst gehostet oder Dify Cloud | Viele, darunter Ollama | Apache 2.0 mit Bedingungen: ein mandantenfähiger Dienst braucht eine schriftliche Erlaubnis, und das Logo darf nicht geändert werden | Anmeldung: E-Mail; SSO in Enterprise · Audit: Enterprise · Ausgaben: Abrechnung beim Provider oder Nachrichten-Credits in der Cloud |
+| Kortix CompanyOS | Kortix-Cloud oder selbst gehostet, mit Agent-Sessions in Cloud-Sandboxes von Kortix | Beliebige, mit eigenen Schlüsseln | Elastic License 2.0: kein gehosteter Dienst für Dritte, kein Umgehen des Lizenzschlüssels | Anmeldung: SAML und SCIM mit Enterprise-Schlüssel · Audit: Lesen braucht Enterprise · Ausgaben: Budget pro Workspace |
+| LobeHub | LobeHub-Cloud oder selbst gehostet | Über 90 Provider | LobeHub Community License: kommerzielle Nutzung ohne Codeänderung; Ableitungen brauchen eine kommerzielle Lizenz | Anmeldung: SAML in Enterprise · Audit: Business-Plan · Ausgaben: Kreditpool |
+| Onyx | Selbst gehostet, auch netzwerkisoliert, oder Onyx-Cloud | Beliebige | MIT-Kern; `ee`-Verzeichnisse brauchen in Produktion eine Lizenz pro Arbeitsplatz | Anmeldung: SCIM in Enterprise · Audit: OCSF-Stream · Ausgaben: pro Workspace in Business, pro Person und Gruppe in Enterprise |
+| Open WebUI | Selbst gehostet, auch netzwerkisoliert | OpenAI-kompatibel und Ollama | BSD-3 mit Branding-Klausel ab 50 Nutzern in 30 Tagen | Anmeldung: OIDC, LDAP und SCIM · Audit: nicht angegeben · Ausgaben: nicht angegeben |
+| LibreChat | Selbst gehostet | Alle großen Provider | MIT; Admin-Panel mit eigenen Rollen unter AGPL-3.0 | Anmeldung: OIDC, SAML, LDAP · Audit: Berechtigungsänderungen · Ausgaben: Token-Guthaben pro Person |
+| Langdock | SaaS auf Azure in der EU; Single-Tenant und On-Premises bei großen Verträgen | Mehrere Modelle in der EU, eigene Schlüssel | Proprietär | Anmeldung: SAML und SCIM in jedem Plan · Audit: API, 90 Tage · Ausgaben: Limits pro Workspace, Person, Gruppe, Agent und Workflow |
+| Dust | Dust-Cloud, Region USA oder EU; kein Selbsthosting | Mehrere Provider | Proprietär | Anmeldung: für diesen Leitfaden nicht geprüft · Audit: manipulationssicher in Enterprise · Ausgaben: Kredite pro Person, Gruppe und API-Schlüssel |
+| deepset Haystack Enterprise Platform | Cloud, selbst gehostet, netzwerkisoliert oder STACKIT | Beliebige | Proprietäre Plattform; Haystack-Framework Apache-2.0 | Zugriffskontrolle und Observability; Details über den Vertrieb |
 | n8n | Selbst gehostet oder n8n Cloud in Frankfurt | Viele, darunter Ollama | Sustainable Use License: interne Geschäftszwecke, nicht kommerzielle oder private Nutzung; kostenpflichtige Funktionen brauchen einen Lizenzschlüssel, der täglich den Lizenzserver von n8n kontaktiert | Anmeldung: SSO in kostenpflichtigen Plänen · Audit: Log-Streaming in Enterprise · Ausgaben: Ausführungskontingente pro Plan |
 | Viktor | Cloud von Viktor, standardmäßig in den USA gehostet | Modelle von OpenAI, Anthropic, Google und xAI oder ein eigener OpenRouter-Schlüssel | Proprietär | Anmeldung: SAML-SSO · Audit: Audit-Logs in Enterprise · Ausgaben: Credit-Pool mit monatlicher Obergrenze für Aufladungen, Limits pro Nutzer in Enterprise |
 | Sauna | Cloud von Sauna; US-Infrastruktur für US-Kunden | Das eigene Lite-Modell oder alle Modelle ab dem Tarif Basic | Proprietär | Anmeldung: E-Mail oder Google · Audit: nicht angegeben · Ausgaben: Credits pro Tarif |
@@ -76,9 +102,19 @@ Souveränität bedeutet hier vier Dinge, die Sie entscheiden: wo das Produkt lä
 | OpenClaw / NemoClaw | Ihr Rechner oder Server | Viele | Open Source; NemoClaw ist die Distribution von NVIDIA | Anmeldung, Audit und Zugriffskontrolle: minimal in OpenClaw; ergänzt durch NemoClaw |
 | Wonderful | Mandantenfähiges SaaS, Single-Tenant, Ihre Cloud oder netzwerkisoliert on-premises | Pro Aufgabe von der Plattform geroutet | Proprietär; Agents und Konfiguration lassen sich über UI oder API exportieren | Anmeldung: auf seinen Seiten nicht angegeben · Audit: Audit-Logs im AI Gateway · Ausgaben: Budgetgrenzen pro Team |
 
-Dify und n8n laufen ebenfalls auf Ihren eigenen Servern mit lokalen Modellen, und Wonderful bietet eine netzwerkisolierte On-Premises-Bereitstellung. Unter den Produkten in dieser Tabelle ist AgenticOS das einzige, bei dem alle vier Antworten bei Ihnen bleiben.
+Dify, n8n, Onyx, Open WebUI, LibreChat und deepset laufen ebenfalls auf Ihren eigenen Servern, und Wonderful bietet eine netzwerkisolierte On-Premises-Bereitstellung. Auch bei LibreChat bleiben alle vier Antworten bei Ihnen; AgenticOS ergänzt ein Budget pro Agent, geprüft vor jeder Modellanfrage, Freigaben durch andere Personen und viele Organisationen in einer Bereitstellung.
 
 Wer AgenticOS selbst betreibt, macht damit nicht jedes Modell, jeden Parser und jedes Werkzeug lokal. Jeden externen Dienst fügen Sie selbst hinzu; siehe [standardmäßig verlässt nichts das System](../data-protection.md#nothing-leaves-by-default).
+
+## Ausgabenlimits sind verbreitet; wo sie greifen, nicht { #spend-limits-are-common-where-they-apply-is-not }
+
+Ausgabenlimits allein heben ein Produkt nicht mehr ab. Claude Tag begrenzt Ausgaben pro Organisation und Slack-Kanal, Notion pro Mitglied, Hermes Business pro Teammitglied, Amazon Quick pro Nutzer, LiteLLM pro Schlüssel, Team und Tag, Kortix pro Workspace, Onyx pro Workspace oder Person, Dust pro Person und Gruppe und Langdock sogar pro Agent, in seinem kostenpflichtigen SaaS.
+
+AgenticOS kombiniert ein [Budget pro Agent](../governance.md#budgets), geprüft [vor jeder Modellanfrage](../governance.md#enforcement-is-before-the-request), gleich über welchen Provider und Kanal die Anfrage kommt, [delegierte Arbeit](../governance.md#delegation-spends-the-parents-budget), die dem delegierenden Agent angerechnet wird, im kostenlosen Open-Source-Produkt auf Ihren eigenen Servern, und dasselbe Audit-Log wie für [Freigaben](../governance.md#approvals).
+
+## Open Source, mit Bedingungen { #open-source-with-conditions }
+
+Die meisten Open-Source-Mitbewerber knüpfen Bedingungen daran: modifizierte Apache-Lizenz (Dify, FastGPT), Sustainable Use License (n8n), Elastic License 2.0 (Kortix seit Februar 2026), eigene Lizenzen (LobeHub, Open WebUI) oder Enterprise-Verzeichnisse (Onyx, LiteLLM, Langfuse). AgenticOS steht unter Apache-2.0 und hält nichts für eine bezahlte Edition zurück. [Lizenzbedingungen im Vergleich](licence-terms.md) zitiert die Klauseln.
 
 ## Was AgenticOS in jeden Vergleich einbringt { #what-agenticos-brings-to-every-comparison }
 
@@ -89,7 +125,9 @@ Diese Punkte ziehen sich durch jeden Leitfaden und stehen deshalb einmal hier.
 - **Ein Agent ist ein versioniertes Dokument.** Die Veröffentlichung friert eine [Version](../concepts.md#version) ein, [Umgebungen](../environments.md#what-an-environment-is) verweisen auf Versionen, und der Spec [wird als YAML exportiert](../features.md#exportable-into-your-own-repository), in Ihr eigenes Git-Repository.
 - **Governance steckt im Open-Source-Produkt.** [Budgets](../governance.md#enforcement-is-before-the-request) werden vor jeder Modellanfrage geprüft. [Freigaben](../governance.md#approvals) halten einen Run an, bis jemand entscheidet. Das [Audit-Log](../governance.md#audit) macht Manipulationen nachweisbar. Nichts davon wartet auf eine Enterprise-Stufe.
 - **Viele Teams, eine Bereitstellung.** Organisationen sind Mandanten, im Schema isoliert. Das [Berechtigungsmodell](../permissions.md#the-built-in-roles) hat sechs Rollen und Grants pro Ressource. [OIDC Single Sign-on, LDAP und Kerberos](../directory.md#signing-in-with-a-directory-account) ordnen Verzeichnisgruppen Rollen zu.
-- **Ein Agent, jede Oberfläche.** Derselbe veröffentlichte Agent antwortet im Web-Chat, in einem Widget, auf einer gehosteten Seite, über die HTTP-API, einen WebSocket, Slack, Telegram und Mattermost, und andere Agents erreichen ihn über [A2A](../channels.md#a2a). Siehe [Oberflächen](../channels.md).
+- **Ein Agent, jede Oberfläche.** Derselbe veröffentlichte Agent antwortet im Web-Chat, in einem Widget, auf einer gehosteten Seite, über die HTTP-API, einen WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, E-Mail und iMessage, nimmt [Telefonanrufe](../voice.md#telephone-calls) an, und andere Agents erreichen ihn über [A2A](../channels.md#a2a). Siehe [Oberflächen](../channels.md).
+- **Desktop- und Telefon-App.** Die [Desktop-App](../desktop.md) ergänzt Quick Ask, Arbeit in einem freigegebenen Ordner auf Ihrem Rechner und lokale Coding-Agents wie Claude Code und Codex. Die [Telefon-App](../mobile.md) zeigt offene Freigaben in einem Widget und nimmt Inhalte aus anderen Apps entgegen.
+- **Getestet, bevor es live geht.** [Eval-Runs](../evals.md) bewerten eine Version gegen ein versioniertes Dataset und eine Baseline, [Suites](../evals.md#suites) können die Promotion sperren, und der [Authoring-Assistent](../authoring.md) schlägt Änderungen auf Basis von Belegen vor.
 - **Menschen und Agents an einem Ort.** Ein [Projekt](../projects.md) gibt einem Team und seinen Agents gemeinsame Dateien, Instruktionen und Chats, und der [Coding Agent](../reference/capabilities.md#coding-agent) übergibt Softwarearbeit an Claude Code oder Codex in einer Sandbox. [AgenticOS ist auch ein MCP-Server](../mcp.md#agenticos-as-an-mcp-server), sodass diese Werkzeuge die Agents des Unternehmens auflisten und ausführen können.
 - **Im Code erweiterbar.** Eine [Capability](../howto/add-capability.md) ist typisiertes Python, und [jeder MCP-Server](../mcp.md) wird per URL verbunden. Konfiguration erreicht nur, was der Code registriert hat.
 - **Keine Gebühr pro Nutzer.** Sie bezahlen Ihre Modell-Provider direkt und betreiben die Infrastruktur. Vstorm bietet Implementierungshilfe als separate Vereinbarung an; siehe [Betrieb und Implementierung](../rollout.md).
@@ -100,8 +138,10 @@ Ein Vergleich, der die eigenen Lücken verschweigt, ist Werbung. Prüfen Sie die
 
 - Es gibt nur die sechs eingebauten Rollen; benutzerdefinierte Rollen sind noch nicht verfügbar.
 - Die Anmeldung hat noch kein SAML und kein SCIM; SAML funktioniert über einen Identity-Broker wie Keycloak. Siehe [was die Verzeichnisanmeldung noch nicht kann](../directory.md#what-this-does-not-do-yet).
-- Es gibt keine Evaluierungsumgebung und kein Trace-Dashboard. Bewertungen und Run-Verlauf gibt es. Siehe [wo es noch nicht fertig ist](index.md#where-this-one-is-not-finished).
-- Es gibt keinen Konversationskanal für Microsoft Teams, WhatsApp, Telefon oder E-Mail. [Sprachgespräche](../voice.md) laufen im Web-Chat, im Widget und auf der gehosteten Seite, nicht über eine Telefonleitung.
+- Es gibt kein Trace-Dashboard und keinen Reranker. Run-Verlauf, Kosten und Eval-Ergebnisse gibt es, und Traces werden nach Logfire exportiert. Siehe [wo es noch nicht fertig ist](index.md#where-this-one-is-not-finished).
+- Es gibt keinen WhatsApp-Kanal. Telefonanrufe brauchen Ihre eigene Twilio-Nummer.
+- Es gibt keinen Marktplatz für Community-Plugins oder -Nodes und weniger fertige Konnektoren als in den größten Suiten.
+- Es gibt keine Sicherheitszertifizierungen für einen verwalteten Dienst: Sie zertifizieren Ihre eigene Bereitstellung, und die [Sicherheitsseite](../security.md) ordnet ihre Kontrollen zu.
 - AgenticOS enthält inzwischen eine visuelle Workflow-Arbeitsfläche mit typisierten Schritten, Verzweigungen und Schleifen. Vergleichen Sie die benötigten Knotentypen und Integrationen, statt identische Funktionen vorauszusetzen.
 - Eine MCP-Bindung mit `writes` vertraut den Nur-Lesen-Markierungen des Servers selbst, also läuft ein Werkzeug, das er fälschlich als nur lesend markiert, ungefragt; `all` hält jeden Aufruf an. Siehe [was MCP Ihnen nicht bietet](../mcp.md#what-mcp-does-not-get-you).
 - OpenShift ist nicht validiert. Ein gepflegtes [Kubernetes-Helm-Chart](../kubernetes.md) deployt API, Worker und Konsole mit externen Datendiensten; Docker Compose bleibt der Weg für einen einzelnen Host.
@@ -136,6 +176,14 @@ Es gibt keine Lizenzgebühr und keine Gebühr pro Nutzer. Sie bezahlen Ihre Mode
 ### Welchen Vergleich sollte ich zuerst lesen? { #which-comparison-should-i-read-first }
 
 Beginnen Sie mit der Art von Produkt, die Sie abwägen: einer Assistenten-App, einem Builder in einer Cloud-Suite, einem selbst gehosteten Builder, einem Teammate-Dienst, einer gelieferten Plattform oder einem Coding-Agent. Die [Tabelle oben](#pick-the-guide-for-your-decision) verweist auf jeden Leitfaden.
+
+### Ist AgenticOS dasselbe wie Agno AgentOS oder andere „Agent OS“-Produkte? { #is-agenticos-the-same-as-agno-agentos-or-other-agent-os-products }
+
+Nein. 2026 verwenden viele Anbieter „Agent OS“ und „agentic OS“, darunter Agno, Kortix und aiXplain. AgenticOS ist die Apache-2.0-Plattform, die Vstorm unter github.com/vstorm-co/agenticos pflegt. Siehe [AgenticOS vs Agno AgentOS](agno.md).
+
+### Welche Open-Source-Plattformen stehen AgenticOS am nächsten? { #which-open-source-platforms-are-closest-to-agenticos }
+
+Kortix CompanyOS und LobeHub beschreiben dieselbe Idee von Agents, die in den Kanälen eines Unternehmens arbeiten; Onyx, Open WebUI und LibreChat sind die selbst gehosteten Chats, die die IT oft zuerst einführt; und OpenAgents koordiniert Agents aus vielen Runtimes. Die [Tabelle oben](#pick-the-guide-for-your-decision) verlinkt zu jedem einen Leitfaden.
 
 ## Weitere Ausgangspunkte { #other-starting-points }
 

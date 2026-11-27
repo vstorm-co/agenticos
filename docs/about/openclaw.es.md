@@ -2,7 +2,7 @@
 title: "AgenticOS vs OpenClaw"
 seo_title: "AgenticOS vs OpenClaw y NemoClaw: agents para una empresa"
 description: "OpenClaw es un agent personal de código abierto; NVIDIA NemoClaw lo refuerza para empresas. Compáralos con AgenticOS: muchos agents gobernados, creados en el navegador."
-source_sha: "3766ef375937"
+source_sha: "cd49343f01a0"
 ---
 
 # AgenticOS vs OpenClaw { #agenticos-vs-openclaw }
@@ -12,6 +12,8 @@ OpenClaw es un agent personal de IA de código abierto, de los proyectos con má
 Si quieres un asistente personal que ejecutas tú, OpenClaw es la opción de código abierto evidente. Si una empresa necesita agents para sus equipos, gobernados y compartidos, AgenticOS está hecho para eso, y también es código abierto.
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de OpenClaw y NemoClaw: información pública sobre los proyectos, incluido el anuncio de NVIDIA del 16 de marzo de 2026; no un despliegue probado.
+
+Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
 
 ## De un vistazo { #at-a-glance }
 
@@ -37,7 +39,7 @@ La información sobre OpenClaw contó decenas de miles de instancias expuestas a
 
 ### Creado en el navegador { #built-in-a-browser }
 
-Un asistente de OpenClaw se configura en archivos. Un agent de AgenticOS se crea en la consola - instrucciones, modelo, herramientas, conocimiento, budget - y se publica en versiones que responden en el chat web, Slack, Telegram, Mattermost, un widget y la API.
+Un asistente de OpenClaw se configura en archivos. Un agent de AgenticOS se crea en la consola - instrucciones, modelo, herramientas, conocimiento, budget - y se publica en versiones que responden en el chat web, Slack, Microsoft Teams, Telegram, Mattermost, correo electrónico, SMS, un widget y la API.
 
 ## Cuándo basta con OpenClaw { #when-openclaw-is-enough }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "c3f329d888d0"
+source_sha: "3c3674769a3e"
 title: "AgenticOS vs Copilot Studio"
 seo_title: "AgenticOS vs Copilot Studio: alternatywa self-hosted"
 description: "Porównaj Microsoft Copilot Studio z AgenticOS: bez Copilot Credits, dowolny provider modeli, własna infrastruktura, budżety per agent i otwarty audyt."
@@ -13,6 +13,8 @@ Jeśli twoja firma żyje w Microsoft 365, Copilot Studio jest naturalnym kandyda
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Copilot Studio: strona Microsoftu z cennikiem, API cen detalicznych Azure i Microsoft Learn, bez testowanego tenanta.
 
+Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
+
 ## W skrócie { #at-a-glance }
 
 | Obszar | Copilot Studio | AgenticOS |
@@ -23,7 +25,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 | Rozliczenie | 0,01 USD za Copilot Credit w modelu pay-as-you-go albo przedpłacone Copilot Credit Commit Units z rabatem do 20% | Brak opłaty licencyjnej; użycie modeli według stawek twojego providera |
 | Jak liczone jest użycie | Kredyty za funkcję: odpowiedź generatywna to 2, akcja agenta 5, ugruntowanie w grafie tenanta 10 | Tokeny modelu, wyceniane według providera |
 | Egzekwowanie wydatków | Miesięczne limity na agenta; agenci są wyłączani przy 125% przedpłaconej puli | Budżet na agenta i na organizację, sprawdzany przed każdym zapytaniem do modelu |
-| Powierzchnie | Teams, Microsoft 365, SharePoint, strona internetowa, WhatsApp, głos oraz Slack lub Telegram przez Azure Bot Service | Czat webowy z rozmowami głosowymi, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Powierzchnie | Teams, Microsoft 365, SharePoint, strona internetowa, WhatsApp, głos oraz Slack lub Telegram przez Azure Bot Service | Czat webowy z rozmowami głosowymi, widget, hostowana strona, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, e-mail, iMessage, połączenia telefoniczne |
 | Tożsamość | Microsoft Entra ID | OIDC SSO, w tym Entra, LDAP i Kerberos |
 | Zarządzanie | Polityki danych Power Platform, audyt Purview, Entra Agent ID | Katalog uprawnień, uprawnienia do zasobów, zatwierdzenia i log audytowy wykrywający manipulacje |
 
@@ -52,7 +54,7 @@ AgenticOS loguje użytkowników przez Entra ID po [OIDC](../configuration.md#sin
 ## Kiedy Copilot Studio pasuje lepiej { #when-copilot-studio-is-the-better-fit }
 
 - Twoi agenci mają działać w Teams i Microsoft 365 Copilot, a twoi użytkownicy mają już licencje Microsoft 365 Copilot.
-- Potrzebujesz konektorów Power Platform, agent flows, głosu przez telefon lub WhatsAppa. AgenticOS nie ma kanału Teams, telefonicznego ani WhatsApp; jego [rozmowy głosowe](../voice.md) działają w przeglądarce.
+- Potrzebujesz konektorów Power Platform, agent flows albo WhatsAppa, albo governance Teams i Microsoft 365 w Entra i Purview. AgenticOS odpowiada w [Microsoft Teams](../channels.md#microsoft-teams) i przyjmuje [połączenia telefoniczne](../voice.md#telephone-calls) przez Twilio, ale nie ma kanału WhatsApp i pilnuje agentów we własnej konsoli.
 - Purview, Sentinel i polityki danych Power Platform to sposób, w jaki twoja organizacja zarządza wszystkim innym.
 
 ## Wypróbuj na jednym zadaniu { #try-it-on-one-task }
@@ -75,7 +77,7 @@ Copilot Studio nalicza 0,01 USD za Copilot Credit w modelu pay-as-you-go albo sp
 
 ### Czy AgenticOS publikuje agentów w Microsoft Teams? { #can-agenticos-publish-agents-to-microsoft-teams }
 
-Jeszcze nie. Publikuje w czacie webowym, widgecie, na hostowanej stronie, przez HTTP API, WebSocket, w Slacku, Telegramie i Mattermost.
+Tak. Opublikowany agent odpowiada w [Microsoft Teams](../channels.md#microsoft-teams) jako bot, obok czatu webowego, widgetu, hostowanej strony, HTTP API, WebSocketu, Slacka, Telegrama, Mattermost, Discorda, Matrixa, SMS-ów, e-maila, iMessage i połączeń telefonicznych. To bot w Teams, a nie rozszerzenie Microsoft 365 Copilot.
 
 ## Powiązane porównania { #related-comparisons }
 

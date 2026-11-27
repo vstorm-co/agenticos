@@ -26,6 +26,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
 - Hold an eval run to the price it was started at while it runs, not only when it starts. It starts no answer, judge grading or confirming reruns that would take it past a person's accepted quote, an eval suite's ceiling or what is left of a skill check's accepted most, and ends `budget_exceeded` with the price in its error, keeping what it answered and graded. Answers already under way finish, so what it spent can pass the price by what they cost. A test started by hand says it stopped at the price you accepted.
 
 ### Fixed

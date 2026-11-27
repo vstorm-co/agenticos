@@ -2,7 +2,7 @@
 title: "AgenticOS vs OpenAI Frontier"
 seo_title: "AgenticOS vs OpenAI Frontier: una alternativa de código abierto"
 description: "OpenAI Frontier gestiona compañeros de IA de empresa con modelos de OpenAI. Compáralo con AgenticOS: código abierto, cualquier modelo, en tus servidores."
-source_sha: "22f62b5b3fff"
+source_sha: "0d1c48657cde"
 ---
 
 # AgenticOS vs OpenAI Frontier { #agenticos-vs-openai-frontier }
@@ -12,6 +12,8 @@ OpenAI Frontier es una plataforma empresarial para crear y gestionar "compañero
 Si apuestas por OpenAI y quieres que sea él quien entregue la plataforma, Frontier es la respuesta del propio proveedor. Si quieres que la plataforma sea tuya, leer su código y elegir los modelos, AgenticOS está hecho para eso.
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 14 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Frontier: el anuncio de OpenAI del 5 de febrero de 2026 según la prensa; no se publicaron precios y no se probó ninguna cuenta.
+
+Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
 
 ## De un vistazo { #at-a-glance }
 
@@ -43,7 +45,7 @@ Los [budgets](../governance.md#enforcement-is-before-the-request), las [aprobaci
 
 - Te estandarizas en OpenAI y quieres que sea él quien gestione la plataforma.
 - Sus conectores con tu CRM y tus almacenes de datos cubren tus datos.
-- Necesitas hoy un conjunto de evaluaciones: AgenticOS tiene valoraciones e historial de runs, pero todavía no una herramienta de evaluación.
+- Quieres evals ligados a los modelos de OpenAI y a su equipo de despliegue. AgenticOS tiene [eval runs](../evals.md) y suites sobre datasets versionados, para cualquier provider, pero no ingenieros desplegados propios más allá de lo que Vstorm acuerde por separado.
 
 ## Preguntas frecuentes { #frequently-asked-questions }
 
@@ -53,7 +55,7 @@ Sí. Ambos dan a una empresa muchos agents con permisos y contexto compartido. A
 
 ### ¿AgenticOS tiene evaluaciones como Frontier? { #does-agenticos-have-evaluations-like-frontier }
 
-Todavía no. AgenticOS registra cada run con sus pasos, coste y valoraciones; una herramienta de evaluación está en la hoja de ruta.
+Sí. Los [eval runs](../evals.md) puntúan una versión del agent contra un dataset versionado, la comparan con una baseline y confirman una regresión antes de contarla, y las [suites](../evals.md#suites) pueden bloquear la promoción entre entornos. Su coste se estima antes y se gasta de los mismos budgets que cualquier run.
 
 ## Comparativas relacionadas { #related-comparisons }
 

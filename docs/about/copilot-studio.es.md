@@ -1,5 +1,5 @@
 ---
-source_sha: "c3f329d888d0"
+source_sha: "3c3674769a3e"
 title: "AgenticOS vs Copilot Studio"
 seo_title: "AgenticOS vs Copilot Studio: alternativa autoalojada"
 description: "Compara Microsoft Copilot Studio con AgenticOS: sin Copilot Credits, cualquier provider de modelos, tu infraestructura, budgets por agent y auditoría abierta."
@@ -13,6 +13,8 @@ Si tu empresa vive en Microsoft 365, Copilot Studio es un candidato natural. Age
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Copilot Studio: la página de precios de Microsoft, la API de precios minoristas de Azure y Microsoft Learn, no un tenant probado.
 
+Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
+
 ## De un vistazo { #at-a-glance }
 
 | Área | Copilot Studio | AgenticOS |
@@ -23,7 +25,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026
 | Facturación | $0,01 por Copilot Credit en pago por uso, o Copilot Credit Commit Units prepagadas con hasta un 20 % de descuento | Sin cuota de licencia; uso del modelo a las tarifas de tu provider |
 | Cómo se cuenta el uso | Créditos por función: una respuesta generativa son 2, una acción de agent 5, el grounding en el grafo del tenant 10 | Tokens del modelo, con el precio de cada provider |
 | Aplicación del gasto | Límites mensuales por agent; los agents se desactivan al 125 % de la capacidad prepagada | Un budget por agent y por organización, comprobado antes de cada petición al modelo |
-| Superficies | Teams, Microsoft 365, SharePoint, web, WhatsApp, voz, y Slack o Telegram a través de Azure Bot Service | Chat web con llamadas de voz, widget, página alojada, API HTTP, WebSocket, Slack, Telegram, Mattermost |
+| Superficies | Teams, Microsoft 365, SharePoint, web, WhatsApp, voz, y Slack o Telegram a través de Azure Bot Service | Chat web con llamadas de voz, widget, página alojada, API HTTP, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, correo electrónico, iMessage, llamadas telefónicas |
 | Identidad | Microsoft Entra ID | SSO OIDC, Entra incluido, LDAP y Kerberos |
 | Gobernanza | Políticas de datos de Power Platform, auditoría de Purview, Entra Agent ID | Catálogo de permisos, concesiones, aprobaciones y un registro de auditoría con detección de manipulaciones |
 
@@ -52,7 +54,7 @@ AgenticOS inicia la sesión de las personas con Entra ID a través de [OIDC](../
 ## Cuándo Copilot Studio encaja mejor { #when-copilot-studio-is-the-better-fit }
 
 - Tus agents pertenecen a Teams y Microsoft 365 Copilot, y tus usuarios ya tienen licencias de Microsoft 365 Copilot.
-- Necesitas conectores de Power Platform, agent flows, telefonía o WhatsApp. AgenticOS no tiene canal de Teams, de teléfono ni de WhatsApp; sus [llamadas de voz](../voice.md) funcionan en el navegador.
+- Necesitas conectores de Power Platform, agent flows o WhatsApp, o la gobernanza de Teams y Microsoft 365 con Entra y Purview. AgenticOS responde en [Microsoft Teams](../channels.md#microsoft-teams) y atiende [llamadas telefónicas](../voice.md#telephone-calls) mediante Twilio, pero no tiene canal de WhatsApp y gobierna los agents en su propia consola.
 - Purview, Sentinel y las políticas de datos de Power Platform son la forma en que tu organización gobierna todo lo demás.
 
 ## Pruébalo con una tarea { #try-it-on-one-task }
@@ -75,7 +77,7 @@ Copilot Studio cobra $0,01 por Copilot Credit en pago por uso, o vende Copilot C
 
 ### ¿AgenticOS puede publicar agents en Microsoft Teams? { #can-agenticos-publish-agents-to-microsoft-teams }
 
-Todavía no. Publica en el chat web, un widget, una página alojada, la API HTTP, un WebSocket, Slack, Telegram y Mattermost.
+Sí. Un agent publicado responde en [Microsoft Teams](../channels.md#microsoft-teams) como bot, junto al chat web, un widget, una página alojada, la API HTTP, un WebSocket, Slack, Telegram, Mattermost, Discord, Matrix, SMS, correo electrónico, iMessage y llamadas telefónicas. Es un bot de Teams, no una extensión de Microsoft 365 Copilot.
 
 ## Comparativas relacionadas { #related-comparisons }
 
