@@ -2,7 +2,7 @@
 title: "AgenticOS vs Claude Managed Agents"
 seo_title: "AgenticOS vs Claude Managed Agents: entorno de agents autoalojado"
 description: "Claude Managed Agents es el entorno alojado de agents de Anthropic para desarrolladores. Compáralo con AgenticOS: un entorno con consola, en tus servidores."
-source_sha: "059068f07c88"
+source_sha: "dbddddca4568"
 ---
 
 # AgenticOS vs Claude Managed Agents { #agenticos-vs-claude-managed-agents }
@@ -12,6 +12,8 @@ Claude Managed Agents es el entorno de ejecución que Anthropic aloja para desar
 Si eres un desarrollador que crea un producto sobre Claude y quieres que Anthropic aloje el entorno, Managed Agents es el camino más corto. Si quieres que los agents de una empresa los creen las personas que los necesitan, gobernados en un solo lugar y guardados en tu infraestructura, AgenticOS está hecho para eso.
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Managed Agents: la beta pública anunciada el 8 y 9 de abril de 2026 y sus precios publicados; no una cuenta probada.
+
+Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
 
 ## De un vistazo { #at-a-glance }
 

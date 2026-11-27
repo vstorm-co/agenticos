@@ -1,7 +1,7 @@
 ---
 title: "AgenticOS vs Gemini Enterprise"
 seo_title: "AgenticOS vs Gemini Enterprise: a self-hosted alternative"
-description: "Compare Google Gemini Enterprise with AgenticOS: any model in every agent, no seat fee or build quotas, eight surfaces, on your own servers."
+description: "Compare Google Gemini Enterprise with AgenticOS: any model in every agent, no seat fee or build quotas, over a dozen surfaces, on your own servers."
 ---
 
 # AgenticOS vs Gemini Enterprise
@@ -10,6 +10,8 @@ Google Gemini Enterprise, formerly Agentspace, gives employees an assistant, ent
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Gemini Enterprise scope: Google's product page, documentation and release notes, not a tested project.
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | Gemini Enterprise | AgenticOS |
@@ -17,8 +19,8 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 | Where it runs | Google Cloud, in `global`, `us`, `eu` and some national regions | Your infrastructure |
 | Source | Proprietary | Apache-2.0 |
 | Models | Gemini in the app and Workflow Builder; other models only in custom agents on Agent Platform | 28 providers in every agent, including local |
-| Who uses it | Employees with a seat | Employees, customers and systems, on eight surfaces |
-| Surfaces | Web app, mobile app, Slack | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Who uses it | Employees with a seat | Employees, customers and systems, on over a dozen surfaces |
+| Surfaces | Web app, mobile app, Slack | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, email, iMessage, telephone calls |
 | Building | Workflow Builder; custom and partner agents on Standard and Plus | The Builder, for every agent |
 | Limits | Daily pooled quotas, such as one new agent a day on Standard | A budget per agent and per organization, checked before each model request |
 | Spend control | Monthly spend limits on the billing account | Budgets per agent, alerts to the people you choose |

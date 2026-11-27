@@ -1,5 +1,5 @@
 ---
-source_sha: "a08f44a4897c"
+source_sha: "1154cce3cc5d"
 title: "AgenticOS vs OpenAI Codex"
 seo_title: "AgenticOS vs OpenAI Codex: agents de empresa o de código"
 description: "OpenAI Codex: agent de código para desarrolladores. AgenticOS: plataforma open source y autoalojada de agents de empresa gobernados. Compáralos y combínalos."
@@ -13,6 +13,8 @@ Los dos comparten parte del terreno: una licencia Apache-2.0 para las partes abi
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Codex: la documentación de Codex de OpenAI en learn.chatgpt.com, su página de precios y el repositorio `openai/codex`, no un despliegue empresarial probado.
 
+Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
+
 ## De un vistazo { #at-a-glance }
 
 | Área | OpenAI Codex | AgenticOS |
@@ -22,7 +24,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026
 | Dónde se ejecuta | Máquinas de los desarrolladores; tareas en la nube en contenedores gestionados por OpenAI | Tu infraestructura, como servicio compartido |
 | Código | CLI Apache-2.0; nube, revisión y app de ChatGPT propietarias | Apache-2.0 |
 | Modelos | OpenAI con inicio de sesión de ChatGPT; la CLI también admite Ollama, LM Studio, Bedrock y providers personalizados | 28 providers, definidos por perfil de modelo |
-| Usuarios finales | El desarrollador | Empleados, clientes y sistemas, en ocho superficies |
+| Usuarios finales | El desarrollador | Empleados, clientes y sistemas, en más de una docena de superficies |
 | Aprobaciones | Modos de sandbox y políticas de aprobación en el puesto del desarrollador | Una persona con `approvals:decide`, desde una cola compartida |
 | Control del gasto | Límites por ventana de cinco horas en los puestos Plus y Standard Business, y créditos compartidos con ChatGPT Work | Un budget mensual por agent y por organización |
 | Precio | Incluido en todos los planes de ChatGPT, de Free a Enterprise; OpenAI estima entre $100 y $200 por desarrollador al mes en créditos | Sin cuota de licencia; uso del modelo e infraestructura |
@@ -31,7 +33,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026
 
 ### Agents para personas fuera de ingeniería { #agents-for-people-outside-engineering }
 
-Las funciones en la nube de Codex requieren un plan de ChatGPT, y sus usuarios son desarrolladores. Para los agents de empresa, OpenAI remite en su lugar a los workspace agents de ChatGPT; consulta [AgenticOS vs ChatGPT](chatgpt.md). AgenticOS da a un equipo de negocio el camino completo: instrucciones, [capabilities](../reference/capabilities.md), conocimiento, un budget, una [versión publicada](../concepts.md#version) y [ocho superficies](../channels.md).
+Las funciones en la nube de Codex requieren un plan de ChatGPT, y sus usuarios son desarrolladores. Para los agents de empresa, OpenAI remite en su lugar a los workspace agents de ChatGPT; consulta [AgenticOS vs ChatGPT](chatgpt.md). AgenticOS da a un equipo de negocio el camino completo: instrucciones, [capabilities](../reference/capabilities.md), conocimiento, un budget, una [versión publicada](../concepts.md#version) y [más de una docena de superficies](../channels.md).
 
 ### Reglas que valen para todos a la vez { #rules-that-hold-for-everyone-at-once }
 
