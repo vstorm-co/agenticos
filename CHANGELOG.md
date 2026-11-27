@@ -103,6 +103,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Preserve workflow-worker cancellation while stopping the dispatch lease heartbeat, so concurrent cleanup cannot turn cancellation into a successful dispatch.
+
 - Keep the mobile Safari composer and header inside the visible viewport while the keyboard opens, including delayed viewport events and visual-only panning; typing no longer has to trigger the first layout update.
 
 - Preserve the frozen reporting quote when an organization saves its existing currency preference; only a real preference change snapshots the current exchange rate.

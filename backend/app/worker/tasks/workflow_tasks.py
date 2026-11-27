@@ -85,8 +85,11 @@ async def _lease_kept_alive(
         yield
     finally:
         renewer.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await renewer
+        # Collect the child's requested cancellation as a value. Cancellation
+        # of this worker must still propagate while it awaits that cleanup.
+        (outcome,) = await asyncio.gather(renewer, return_exceptions=True)
+        if outcome is not None and not isinstance(outcome, asyncio.CancelledError):
+            raise outcome
 
 
 async def _renew_until_lost(node_run_id: UUID, token: UUID, claim: ClaimState) -> None:
