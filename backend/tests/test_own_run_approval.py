@@ -269,6 +269,18 @@ class TestDecideEnforcesIt:
         assert decide.await_args.kwargs["status"] == ApprovalStatus.REJECTED.value
 
     @pytest.mark.anyio
+    async def test_a_voice_bridge_decision_by_a_non_decider_is_refused(self):
+        """The voice bridge skips the first gate, so `decide` itself is what stops a non-decider on a call."""
+        ctx = _ctx("viewer")
+        with (
+            self._repositories(_run(_MEMBER)) as (approval, decide),
+            pytest.raises(AuthorizationError),
+        ):
+            await self._service().decide(ctx, approval.id, approved=True, via_call=True)
+
+        decide.assert_not_awaited()
+
+    @pytest.mark.anyio
     async def test_a_refused_caller_learns_nothing_about_the_approvals_state(self):
         """Refused before the already-decided check, so the answer is the same either way."""
         ctx = _ctx("member")
