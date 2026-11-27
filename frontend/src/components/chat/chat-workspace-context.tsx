@@ -70,6 +70,7 @@ export function ChatWorkspaceProvider({
   }, []);
   const [selection, setSelection] = useState<Selection>(null);
   const [environment, setEnvironment] = useState<WorkspaceEnvironment | null>(null);
+  const [browserEnvironment, setBrowserEnvironment] = useState(false);
   const browserId = useBrowserPanelStore((state) => state.openCallId);
   const browserRequest = useBrowserPanelStore((state) => state.openRequest);
   const automaticBrowser = useBrowserPanelStore((state) => state.automatic);
@@ -105,17 +106,21 @@ export function ChatWorkspaceProvider({
       rememberOpener(from);
       closeSources();
       setActivePanel(panel);
-      if ((panel === "browser" || panel === "desktop") && environmentPanels.includes(panel))
-        setEnvironment(panel);
-      else if (panel === "browser") setEnvironment(null);
+      if (panel === "desktop" && environmentPanels.includes(panel)) setEnvironment(panel);
+      else if (panel === "browser") {
+        if (browserEnvironment || (browserId === null && environmentPanels.includes(panel)))
+          setEnvironment(panel);
+        else setEnvironment(null);
+      }
     },
-    [closeSources, rememberOpener, environmentPanels],
+    [closeSources, rememberOpener, environmentPanels, browserEnvironment, browserId],
   );
   const openEnvironment = useCallback(
     (kind: WorkspaceEnvironment, from?: HTMLElement | null) => {
       rememberOpener(from);
       closeSources();
       setEnvironment(kind);
+      if (kind === "browser") setBrowserEnvironment(true);
       setActivePanel(kind);
     },
     [rememberOpener, closeSources],
@@ -142,7 +147,10 @@ export function ChatWorkspaceProvider({
     setPreviousBrowserRequest(browserRequest);
     if (browserId !== null && (!automaticBrowser || (activePanel === null && !sourcesOpen)))
       setActivePanel("browser");
-    if (!automaticBrowser) setEnvironment(null);
+    if (!automaticBrowser) {
+      setEnvironment(null);
+      setBrowserEnvironment(false);
+    }
   }
   if (activePanel === "browser" && browserId === null && environment !== "browser")
     setActivePanel(null);
@@ -156,6 +164,7 @@ export function ChatWorkspaceProvider({
     if (previousConversation !== null) {
       setSelection(null);
       setEnvironment(null);
+      setBrowserEnvironment(false);
       setActivePanel(null);
       setFullscreen(false);
     }

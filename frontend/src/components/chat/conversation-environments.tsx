@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { FolderOpen, Globe, Monitor } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -47,12 +47,39 @@ export function ConversationEnvironments({
   const selected = workspace.environment;
   const visible =
     selected !== null && workspace.activePanel === selected && panels.includes(selected);
+  const browserActive =
+    workspace.browserId !== null &&
+    workspace.activePanel === "browser" &&
+    panels.includes("browser");
   const environments = useConversationEnvironments(
     conversationId,
     agentId,
-    menuOpen || visible,
+    menuOpen || visible || browserActive,
     target,
   );
+  const { refresh } = environments;
+  const selectOwnedBrowser = useEffectEvent(() => {
+    if (workspace.activePanel === "browser" && workspace.environment === null)
+      workspace.openEnvironment("browser");
+  });
+  useEffect(() => {
+    if (!browserActive || conversationId === null) return;
+    let current = true;
+    void refresh().then((result) => {
+      const owned = result.data?.items.find((item) => item.kind === "browser");
+      if (
+        current &&
+        !result.error &&
+        owned !== undefined &&
+        owned.id !== null &&
+        (owned.state === "ready" || owned.state === "starting")
+      )
+        selectOwnedBrowser();
+    });
+    return () => {
+      current = false;
+    };
+  }, [browserActive, conversationId, agentId, target, workspace.browserId, refresh]);
 
   async function open(kind: WorkspaceEnvironment) {
     setFailed(false);

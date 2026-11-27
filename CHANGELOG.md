@@ -62,6 +62,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Keep legacy per-run browser activity visible when switching chat tabs. Reuse a conversation-owned browser only after a fresh readiness read; passive routing never starts an environment or replaces the selected Desktop or Visuals pane.
+
 - Explain when a proposed change quotes a credential and hold Apply, Accept and checks before submission; historical suggestions show the refusal without offering unavailable actions.
 
 - Showing whether a change of model may be accepted no longer compares a measured check again on every read; it reads the check's kept verdict.

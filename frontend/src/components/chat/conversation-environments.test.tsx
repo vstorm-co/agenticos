@@ -1,11 +1,16 @@
 import { useState, type ComponentProps } from "react";
+import type { QueryObserverSuccessResult } from "@tanstack/react-query";
 import type { ConversationEnvironmentView } from "./conversation-environment-view";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useConversationEnvironments } from "@/hooks/use-conversation-environments";
-import type { ConversationEnvironment } from "@/lib/conversation-environments-api";
-import { ChatWorkspaceProvider } from "./chat-workspace-context";
+import type {
+  ConversationEnvironment,
+  ConversationEnvironmentList,
+} from "@/lib/conversation-environments-api";
+import { ChatWorkspaceProvider, useRequiredChatWorkspace } from "./chat-workspace-context";
+import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { ConversationEnvironments } from "./conversation-environments";
 
 vi.mock("@/hooks/use-conversation-environments", () => ({ useConversationEnvironments: vi.fn() }));
@@ -18,6 +23,7 @@ vi.mock("./conversation-environment-view", () => ({
     environment: current,
   }: ComponentProps<typeof ConversationEnvironmentView>) => (
     <>
+      <div data-testid="environment-target">{current.id}</div>
       <button onClick={() => void onStart()}>Prepare test environment</button>
       <button onClick={() => void onEnd()}>End test environment</button>
       <button onClick={() => void onState(current)}>Receive test state</button>
@@ -53,6 +59,7 @@ function Harness({
   return (
     <ChatWorkspaceProvider shared conversationId={conversation} environmentPanels={panels}>
       <div ref={setSlot} />
+      <RoutingControls />
       <ConversationEnvironments
         conversationId={conversation}
         agentId={agent}
@@ -65,7 +72,21 @@ function Harness({
     </ChatWorkspaceProvider>
   );
 }
+function RoutingControls() {
+  const workspace = useRequiredChatWorkspace();
+  return (
+    <>
+      <div data-testid="routing">
+        {workspace.activePanel}:{workspace.environment ?? "activity"}
+      </div>
+      <button onClick={() => workspace.openPanel("browser")}>Browser tab</button>
+      <button onClick={() => workspace.openPanel("desktop")}>Desktop tab</button>
+      <button onClick={() => workspace.showVisual("visual", false)}>Show visual</button>
+    </>
+  );
+}
 beforeEach(() => {
+  useBrowserPanelStore.setState({ openCallId: null, openRequest: 0, automatic: false });
   api = {
     items: [environment, { ...environment, kind: "desktop" }],
     isLoading: false,
@@ -156,5 +177,170 @@ it("holds the loading geometry until a readiness read arrives", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
   await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
   expect(screen.getByRole("status")).toHaveTextContent("Loading environment");
+  expect(api.start).not.toHaveBeenCalled();
+});
+
+function readResult(
+  items = api.items ?? [],
+): QueryObserverSuccessResult<ConversationEnvironmentList, Error> {
+  return {
+    data: { items },
+    dataUpdatedAt: 1,
+    error: null,
+    errorUpdatedAt: 0,
+    failureCount: 0,
+    failureReason: null,
+    errorUpdateCount: 0,
+    isError: false,
+    isFetched: true,
+    isFetchedAfterMount: true,
+    isFetching: false,
+    isLoading: false,
+    isPending: false,
+    isLoadingError: false,
+    isInitialLoading: false,
+    isPaused: false,
+    isPlaceholderData: false,
+    isRefetchError: false,
+    isRefetching: false,
+    isStale: false,
+    isSuccess: true,
+    isEnabled: true,
+    status: "success",
+    fetchStatus: "idle",
+    refetch: api.refresh,
+  };
+}
+
+it("keeps a legacy browser activity visible after a read finds no owned environment", async () => {
+  useBrowserPanelStore.getState().open("legacy-call", true);
+  vi.mocked(api.refresh).mockResolvedValue(readResult());
+  render(<Harness />);
+  await waitFor(() => expect(api.refresh).toHaveBeenCalledOnce());
+  expect(screen.getByTestId("routing")).toHaveTextContent("browser:activity");
+  await userEvent.click(screen.getByRole("button", { name: "Show visual" }));
+  await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
+  await waitFor(() => expect(api.refresh).toHaveBeenCalledTimes(2));
+  expect(screen.getByTestId("routing")).toHaveTextContent("browser:activity");
+  expect(
+    screen.queryByRole("button", { name: "Prepare test environment" }),
+  ).not.toBeInTheDocument();
+  expect(api.start).not.toHaveBeenCalled();
+});
+
+it("keeps an explicit manual Browser selection when returning from Desktop", async () => {
+  useBrowserPanelStore.getState().open("legacy-call", true);
+  vi.mocked(api.refresh).mockResolvedValue(readResult());
+  render(<Harness />);
+  await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
+  expect(screen.getByTestId("routing")).toHaveTextContent("browser:browser");
+  await userEvent.click(screen.getByRole("button", { name: "Desktop tab" }));
+  await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
+  expect(screen.getByTestId("routing")).toHaveTextContent("browser:browser");
+  expect(api.start).not.toHaveBeenCalled();
+});
+
+it.each(["ready", "starting"] as const)(
+  "uses the actual %s owned target only after a fresh authoritative read",
+  async (state) => {
+    const answer = Promise.withResolvers<Awaited<ReturnType<typeof api.refresh>>>();
+    const owned = { ...environment, id: "22222222-2222-4222-8222-222222222222", state };
+    api.items = [owned, { ...environment, kind: "desktop" }];
+    vi.mocked(api.refresh).mockReturnValue(answer.promise);
+    useBrowserPanelStore.getState().open("owned-call", true);
+    render(<Harness />);
+    expect(screen.getByTestId("routing")).toHaveTextContent("browser:activity");
+    await act(async () => answer.resolve(readResult()));
+    expect(screen.getByTestId("routing")).toHaveTextContent("browser:browser");
+    expect(screen.getByTestId("environment-target")).toHaveTextContent(owned.id);
+    expect(api.start).not.toHaveBeenCalled();
+    expect(prepare).not.toHaveBeenCalled();
+    expect(api.refresh).toHaveBeenCalledOnce();
+  },
+);
+
+it.each(["Desktop tab", "Show visual"])(
+  "does not preempt %s when an old readiness read completes",
+  async (control) => {
+    const answer = Promise.withResolvers<Awaited<ReturnType<typeof api.refresh>>>();
+    vi.mocked(api.refresh).mockReturnValue(answer.promise);
+    useBrowserPanelStore.getState().open("owned-call", true);
+    render(<Harness />);
+    await userEvent.click(screen.getByRole("button", { name: control }));
+    const owned = {
+      ...environment,
+      id: "22222222-2222-4222-8222-222222222222",
+      state: "ready" as const,
+    };
+    await act(async () => answer.resolve(readResult([owned])));
+    expect(screen.getByTestId("routing")).toHaveTextContent(
+      control === "Desktop tab" ? "desktop:desktop" : "visuals:activity",
+    );
+    expect(api.start).not.toHaveBeenCalled();
+  },
+);
+
+it("rechecks a new activity call and ignores the superseded result", async () => {
+  const first = Promise.withResolvers<Awaited<ReturnType<typeof api.refresh>>>();
+  vi.mocked(api.refresh).mockReturnValueOnce(first.promise).mockResolvedValue(readResult());
+  useBrowserPanelStore.getState().open("first-call", true);
+  render(<Harness />);
+  await act(async () => useBrowserPanelStore.getState().open("second-call", true));
+  expect(api.refresh).toHaveBeenCalledTimes(2);
+  const owned = {
+    ...environment,
+    id: "22222222-2222-4222-8222-222222222222",
+    state: "ready" as const,
+  };
+  await act(async () => first.resolve(readResult([owned])));
+  expect(screen.getByTestId("routing")).toHaveTextContent("browser:activity");
+  expect(api.start).not.toHaveBeenCalled();
+});
+
+it("keeps legacy activity when readiness fails despite a cached owned target", async () => {
+  const owned = {
+    ...environment,
+    id: "22222222-2222-4222-8222-222222222222",
+    state: "ready" as const,
+  };
+  api.items = [owned, { ...environment, kind: "desktop" }];
+  vi.mocked(api.refresh).mockResolvedValue({
+    ...readResult(),
+    error: new Error("Controlled read refusal"),
+    isError: true,
+    isSuccess: false,
+    isRefetchError: true,
+    status: "error",
+  });
+  useBrowserPanelStore.getState().open("legacy-call", true);
+  render(<Harness />);
+  await act(async () => {});
+  expect(screen.getByTestId("routing")).toHaveTextContent("browser:activity");
+  expect(api.start).not.toHaveBeenCalled();
+});
+
+it.each(["failed", "expired", "not_started"] as const)(
+  "does not replace legacy activity with a %s owned target",
+  async (state) => {
+    const owned = { ...environment, id: "22222222-2222-4222-8222-222222222222", state };
+    vi.mocked(api.refresh).mockResolvedValue(readResult([owned]));
+    useBrowserPanelStore.getState().open("legacy-call", true);
+    render(<Harness />);
+    await act(async () => {});
+    expect(screen.getByTestId("routing")).toHaveTextContent("browser:activity");
+    expect(api.start).not.toHaveBeenCalled();
+  },
+);
+
+it("refreshes an already selected owned browser when another activity call arrives", async () => {
+  vi.mocked(api.refresh).mockResolvedValue(readResult());
+  useBrowserPanelStore.getState().open("first-call", true);
+  render(<Harness />);
+  await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
+  await act(async () => useBrowserPanelStore.getState().open("second-call", true));
+  expect(api.refresh).toHaveBeenCalledTimes(2);
+  expect(screen.getByTestId("routing")).toHaveTextContent("browser:browser");
   expect(api.start).not.toHaveBeenCalled();
 });
