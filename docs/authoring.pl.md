@@ -1,5 +1,5 @@
 ---
-source_sha: "ccaeb7fcb33e"
+source_sha: "9265232f6b26"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -684,7 +684,7 @@ Krok Zrozumienie w kreatorze pokazuje ograniczoną próbkę źródeł, zapisaną
 
 Dowody wysyłane do modelu pomocnika - pytania, odpowiedzi, komentarze oceniających, argumenty wywołań narzędzi i błędy - są redagowane tak samo, zanim wyjdą, więc cytaty, które zachowuje zmiana, też są zredagowane. Cytaty i podsumowania zapisane wcześniej są redagowane przy każdym odczycie.
 
-Wszystko, co sugestia zapisałaby, a co cytuje dane uwierzytelniające - tekst instrukcji albo skilla, nazwa lub opis narzędzia, wartość pola, nowy skill, proponowany plik kontekstu albo treść skilla - jest pokazywane zredagowane i oznaczone `contains_credential`, a akceptacja, zastosowanie albo sprawdzenie jest odrzucane. Proponowany fragment można zedytować i zaakceptować bez tych danych; proponowany plik albo treść skilla się odrzuca, a zmianę wprowadza ręcznie.
+Wszystko, co sugestia zapisałaby, a co cytuje dane uwierzytelniające - tekst instrukcji albo skilla, nazwa lub opis narzędzia, wartość pola, nowy skill, proponowany plik kontekstu albo treść skilla - jest pokazywane zredagowane i oznaczone `contains_credential`, a akceptacja, zastosowanie albo sprawdzenie jest odrzucane. Proponowany fragment można zedytować i zaakceptować bez tych danych; proponowany plik albo treść skilla się odrzuca, a zmianę wprowadza ręcznie. Konsola mówi o tym przy zmianie i wstrzymuje te akcje - akceptację, zastosowanie, sprawdzenie i wybór zmiany w kroku Zmiany w Improve - zanim cokolwiek zostanie wysłane.
 
 
 Ekran akceptacji pokazuje numer następnej wersji i zmierzony wynik wybranej rundy. Oferta automatycznego sprawdzenia pojawia się tylko dla agenta bez zestawu sprawdzeń. Publikacja zapisuje identyfikator i numer wersji w sesji, więc ponowne otwarcie zakończenia prowadzi do tej publikacji także po kolejnej. Stare sesje bez zapisanego powiązania pokazują stan bez zgadywania wersji. Błąd odczytu sugestii pozwala ponowić odczyt; zastąpione sugestie są niedostępne zamiast bez końca się ładować. Chronione środowiska śledzące zmiany czekają na sprawdzenia, a przypięte zachowują obecną wersję.

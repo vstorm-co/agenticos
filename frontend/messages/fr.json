@@ -9891,7 +9891,8 @@
       "testOptional": "Tester avant d’appliquer (facultatif)",
       "hiddenAgents": "{count, plural, one {# autre agent} other {# autres agents}}",
       "testOptionalShort": "Test (facultatif)",
-      "compareShort": "Changements"
+      "compareShort": "Changements",
+      "quotesCredential": "Cette modification cite un identifiant : elle ne peut être ni appliquée ni testée. Ignorez-la et faites la modification à la main."
     },
     "package": {
       "title": "Importer un paquet",
@@ -16661,7 +16662,8 @@
       "dismissAll": "Tout écarter",
       "verifyReport": "Ce que l’assistant a retenu de vos modifications",
       "skillCreated": "Skill {name} créé et ajouté au brouillon",
-      "working": "Lecture des runs…"
+      "working": "Lecture des runs…",
+      "checkQuotesCredential": "Une suggestion cite un identifiant : ces suggestions ne peuvent pas être vérifiées. Retirez l’identifiant en la modifiant si c’est possible, ou ignorez cette suggestion."
     },
     "suggestion": {
       "tool": "Outil {tool}",
@@ -16679,7 +16681,10 @@
       "accept": "Accepter",
       "edit": "Modifier",
       "dismiss": "Écarter",
-      "undo": "Annuler"
+      "undo": "Annuler",
+      "quotesCredential": "Cette suggestion cite un identifiant : elle ne peut pas être acceptée telle quelle. Retirez l’identifiant en la modifiant, ou ignorez-la.",
+      "quotesCredentialDismiss": "Cette suggestion cite un identifiant : elle ne peut pas être acceptée. Ignorez-la et faites la modification vous-même.",
+      "quotesCredentialHistory": "Cette ancienne suggestion contient des identifiants et ne peut pas être acceptée en l’état."
     },
     "field": {
       "editLabel": "Votre valeur",
@@ -16837,7 +16842,8 @@
       "liveHint": "L’application est immédiate : chaque agent qui lit le fichier lit le nouveau contenu à son prochain run.",
       "expects": "Attendu : {effect}",
       "applied": "Modification appliquée à {name}",
-      "discarded": "Modification de {name} rejetée"
+      "discarded": "Modification de {name} rejetée",
+      "quotesCredential": "Cette modification cite un identifiant : elle ne peut être ni appliquée ni vérifiée. Ignorez-la et faites la modification à la main."
     },
     "describe": {
       "open": "Créer avec {name}"
@@ -17745,7 +17751,9 @@
       "invalid": "Le test n’a pas pu comparer les versions de façon fiable. Examinez le test avant de tirer des conclusions.",
       "noExamples": "Aucune réponse modifiée à afficher. Ouvrez le test complet pour voir chaque question."
     },
-    "permissionRuns": "Lire une session Improve nécessite runs:view, que ce rôle n’a pas. Demandez l’accès à un propriétaire de l’organisation."
+    "permissionRuns": "Lire une session Improve nécessite runs:view, que ce rôle n’a pas. Demandez l’accès à un propriétaire de l’organisation.",
+    "changeQuotesCredential": "Cette modification cite un identifiant : elle ne peut être ni testée ni appliquée. Laissez-la de côté.",
+    "selectionQuotesCredential": "Une modification choisie cite un identifiant. Laissez-la de côté pour tester les autres."
   },
   "unsaved": {
     "title": "Vous avez des modifications non enregistrées",

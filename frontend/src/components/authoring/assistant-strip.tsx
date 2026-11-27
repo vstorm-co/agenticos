@@ -60,6 +60,7 @@ export function AssistantStrip({
   const latest = authoring?.latest ?? null;
   const pending =
     batch?.status === "open" ? batch.hunks.filter((hunk) => hunk.status === "pending") : [];
+  const quotesCredential = pending.some((hunk) => hunk.contains_credential);
   const working = latest?.status === "queued" || latest?.status === "running";
   const compact = batch === null && latest === null && assistant.error === null;
 
@@ -110,7 +111,12 @@ export function AssistantStrip({
           {pending.length > 0 && (
             <>
               {canCheck && (
-                <Button size="sm" variant="outline" onClick={() => setChecking(true)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={quotesCredential}
+                  onClick={() => setChecking(true)}
+                >
                   {t("check")}
                 </Button>
               )}
@@ -127,6 +133,9 @@ export function AssistantStrip({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {canCheck && quotesCredential && (
+          <p className="text-sm text-amber-700 dark:text-amber-400">{t("checkQuotesCredential")}</p>
+        )}
         {latest?.status === "failed" && (
           <RequestFailure request={latest} className="text-destructive-ink text-sm" />
         )}

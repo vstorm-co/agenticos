@@ -46,6 +46,7 @@ export function SuggestionCard({
   const field = hunk.kind === "spec_field";
   const pending = hunk.status === "pending";
   const editableAs = newSkill ? null : field ? editable(hunk.path) : "text";
+  const rewordable = hunk.applies && !tool && editableAs !== null;
   // A reword made at the Improve session's Changes step is what Accept writes.
   const reworded = pending ? hunk.edited_text : null;
   const proposed = field ? String(hunk.new_value ?? "") : (reworded ?? hunk.new_text);
@@ -134,6 +135,17 @@ export function SuggestionCard({
           dropped={hunk.evidence_dropped}
           hidden={hunk.evidence_hidden}
         />
+        {pending && hunk.contains_credential && (
+          <p className="text-sm text-amber-700 dark:text-amber-400">
+            {t(
+              !canEdit
+                ? "quotesCredentialHistory"
+                : rewordable
+                  ? "quotesCredential"
+                  : "quotesCredentialDismiss",
+            )}
+          </p>
+        )}
         {canEdit && (
           <div className="flex flex-wrap gap-2">
             {pending && editing !== null && (
@@ -160,13 +172,13 @@ export function SuggestionCard({
                 {hunk.applies && (
                   <Button
                     size="sm"
-                    disabled={busy || Boolean(hunk.blocked)}
+                    disabled={busy || Boolean(hunk.blocked) || Boolean(hunk.contains_credential)}
                     onClick={() => onDecide(accepting())}
                   >
                     {t("accept")}
                   </Button>
                 )}
-                {hunk.applies && !tool && editableAs !== null && (
+                {rewordable && (
                   <Button
                     size="sm"
                     variant="outline"

@@ -10006,7 +10006,8 @@
       "testOptional": "Vor dem Anwenden testen (optional)",
       "hiddenAgents": "{count, plural, one {# weiterer Agent} other {# weitere Agenten}}",
       "testOptionalShort": "Test (optional)",
-      "compareShort": "Änderungen"
+      "compareShort": "Änderungen",
+      "quotesCredential": "Diese Änderung zitiert ein Credential und kann weder übernommen noch getestet werden. Verwerfen Sie sie und nehmen Sie die Änderung von Hand vor."
     },
     "package": {
       "title": "Paket importieren",
@@ -16812,7 +16813,8 @@
       "dismissAll": "Alle verwerfen",
       "verifyReport": "Was der Assistent zu Ihren Änderungen sagt",
       "skillCreated": "Skill {name} erstellt und zum Entwurf hinzugefügt",
-      "working": "Lese die Runs…"
+      "working": "Lese die Runs…",
+      "checkQuotesCredential": "Ein Vorschlag zitiert ein Credential, daher lassen sich diese Vorschläge nicht prüfen. Entfernen Sie das Credential beim Bearbeiten, wo das geht, oder verwerfen Sie diesen Vorschlag."
     },
     "suggestion": {
       "tool": "Tool {tool}",
@@ -16830,7 +16832,10 @@
       "accept": "Annehmen",
       "edit": "Bearbeiten",
       "dismiss": "Verwerfen",
-      "undo": "Rückgängig"
+      "undo": "Rückgängig",
+      "quotesCredential": "Dieser Vorschlag zitiert ein Credential und kann so nicht übernommen werden. Entfernen Sie das Credential beim Bearbeiten oder verwerfen Sie den Vorschlag.",
+      "quotesCredentialDismiss": "Dieser Vorschlag zitiert ein Credential und kann nicht übernommen werden. Verwerfen Sie ihn und nehmen Sie die Änderung von Hand vor.",
+      "quotesCredentialHistory": "Dieser frühere Vorschlag enthält Zugangsdaten und kann so nicht angenommen werden."
     },
     "field": {
       "editLabel": "Dein Wert",
@@ -16988,7 +16993,8 @@
       "liveHint": "Anwenden wirkt sofort: Jeder Agent, der die Datei liest, liest den neuen Inhalt beim nächsten Run.",
       "expects": "Erwartet: {effect}",
       "applied": "Änderung an {name} angewendet",
-      "discarded": "Änderung an {name} verworfen"
+      "discarded": "Änderung an {name} verworfen",
+      "quotesCredential": "Diese Änderung zitiert ein Credential und kann weder übernommen noch geprüft werden. Verwerfen Sie sie und nehmen Sie die Änderung von Hand vor."
     },
     "describe": {
       "open": "Mit {name} erstellen"
@@ -17896,7 +17902,9 @@
       "invalid": "Der Test konnte die Versionen nicht zuverlässig vergleichen. Prüfen Sie ihn zuerst.",
       "noExamples": "Es gibt keine geänderten Antworten. Öffnen Sie den vollständigen Test für alle Fragen."
     },
-    "permissionRuns": "Eine Improve-Sitzung zu lesen braucht runs:view, das diese Rolle nicht hat. Bitten Sie einen Owner der Organisation um Zugriff."
+    "permissionRuns": "Eine Improve-Sitzung zu lesen braucht runs:view, das diese Rolle nicht hat. Bitten Sie einen Owner der Organisation um Zugriff.",
+    "changeQuotesCredential": "Diese Änderung zitiert ein Credential und kann weder getestet noch übernommen werden. Lassen Sie sie weg.",
+    "selectionQuotesCredential": "Eine gewählte Änderung zitiert ein Credential. Lassen Sie sie weg, um die übrigen zu testen."
   },
   "unsaved": {
     "title": "Du hast ungespeicherte Änderungen",

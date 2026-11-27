@@ -10011,7 +10011,8 @@
       "testOptional": "Testen vóór het toepassen (optioneel)",
       "hiddenAgents": "{count, plural, one {# andere agent} other {# andere agents}}",
       "testOptionalShort": "Testen (optioneel)",
-      "compareShort": "Wijzigingen"
+      "compareShort": "Wijzigingen",
+      "quotesCredential": "Deze wijziging citeert inloggegevens en kan niet worden toegepast of getest. Verwerp haar en breng de wijziging handmatig aan."
     },
     "package": {
       "title": "Pakket importeren",
@@ -17010,7 +17011,8 @@
       "dismissAll": "Alles verwerpen",
       "verifyReport": "Wat de assistent van je bewerkingen vond",
       "skillCreated": "Skill {name} aangemaakt en aan het concept toegevoegd",
-      "working": "De runs lezen…"
+      "working": "De runs lezen…",
+      "checkQuotesCredential": "Een suggestie citeert inloggegevens, dus deze suggesties kunnen niet worden gecontroleerd. Haal de inloggegevens eruit door te bewerken waar dat kan, of wijs die suggestie af."
     },
     "suggestion": {
       "tool": "Tool {tool}",
@@ -17028,7 +17030,10 @@
       "accept": "Accepteren",
       "edit": "Bewerken",
       "dismiss": "Verwerpen",
-      "undo": "Ongedaan maken"
+      "undo": "Ongedaan maken",
+      "quotesCredential": "Deze suggestie citeert inloggegevens en kan zo niet worden geaccepteerd. Haal de inloggegevens eruit door te bewerken, of wijs de suggestie af.",
+      "quotesCredentialDismiss": "Deze suggestie citeert inloggegevens en kan niet worden geaccepteerd. Wijs haar af en breng de wijziging zelf aan.",
+      "quotesCredentialHistory": "Dit eerdere voorstel bevat inloggegevens en kan zo niet worden geaccepteerd."
     },
     "field": {
       "editLabel": "Jouw waarde",
@@ -17186,7 +17191,8 @@
       "liveHint": "Toepassen gaat meteen live: elke agent die het bestand leest, leest de nieuwe inhoud bij zijn volgende run.",
       "expects": "Verwacht: {effect}",
       "applied": "De wijziging op {name} toegepast",
-      "discarded": "De wijziging aan {name} verworpen"
+      "discarded": "De wijziging aan {name} verworpen",
+      "quotesCredential": "Deze wijziging citeert inloggegevens en kan niet worden toegepast of gecontroleerd. Verwerp haar en breng de wijziging handmatig aan."
     },
     "describe": {
       "open": "Maken met {name}"
@@ -18094,7 +18100,9 @@
       "invalid": "De test kon de versies niet betrouwbaar vergelijken. Review de test voordat je conclusies trekt.",
       "noExamples": "Er zijn geen veranderde antwoorden om te tonen. Open de volledige test om elke vraag te zien."
     },
-    "permissionRuns": "Een Improve-sessie lezen vereist runs:view, en die heeft deze rol niet. Vraag een eigenaar van de organisatie om toegang."
+    "permissionRuns": "Een Improve-sessie lezen vereist runs:view, en die heeft deze rol niet. Vraag een eigenaar van de organisatie om toegang.",
+    "changeQuotesCredential": "Deze wijziging citeert inloggegevens en kan niet worden getest of toegepast. Laat haar weg.",
+    "selectionQuotesCredential": "Een gekozen wijziging citeert inloggegevens. Laat haar weg om de andere te testen."
   },
   "unsaved": {
     "title": "Je hebt niet-opgeslagen wijzigingen",

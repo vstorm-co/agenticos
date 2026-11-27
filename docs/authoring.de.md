@@ -1,5 +1,5 @@
 ---
-source_sha: "ccaeb7fcb33e"
+source_sha: "9265232f6b26"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -727,7 +727,7 @@ Der Schritt Verstehen zeigt eine begrenzte Quellenstichprobe, die gespeicherte U
 
 Die Belege, die das Modell des Helfers erhält - Fragen, Antworten, Bewertungskommentare, Argumente von Tool-Aufrufen und Fehler -, werden ebenso geschwärzt, bevor sie hinausgehen, sodass auch die Zitate geschwärzt sind, die eine Änderung behält. Früher gespeicherte Zitate und Zusammenfassungen werden bei jedem Lesen geschwärzt.
 
-Alles, was ein Vorschlag schreiben würde und Zugangsdaten zitiert - Anweisungs- oder Skill-Text, Name oder Beschreibung eines Tools, der Wert eines Felds, ein neuer Skill, eine vorgeschlagene Kontextdatei oder ein Skill-Text -, wird geschwärzt angezeigt und mit `contains_credential` markiert; Annehmen, Anwenden oder eine Prüfung wird abgelehnt. Eine vorgeschlagene Passage lässt sich ohne die Zugangsdaten bearbeiten und annehmen; eine vorgeschlagene Datei oder ein Skill-Text wird verworfen und die Änderung von Hand gemacht.
+Alles, was ein Vorschlag schreiben würde und Zugangsdaten zitiert - Anweisungs- oder Skill-Text, Name oder Beschreibung eines Tools, der Wert eines Felds, ein neuer Skill, eine vorgeschlagene Kontextdatei oder ein Skill-Text -, wird geschwärzt angezeigt und mit `contains_credential` markiert; Annehmen, Anwenden oder eine Prüfung wird abgelehnt. Eine vorgeschlagene Passage lässt sich ohne die Zugangsdaten bearbeiten und annehmen; eine vorgeschlagene Datei oder ein Skill-Text wird verworfen und die Änderung von Hand gemacht. Die Konsole sagt das neben der Änderung und hält diese Aktionen zurück - Annehmen, Anwenden, die Prüfung und die Auswahl der Änderung im Schritt Änderungen von Improve -, bevor etwas gesendet wird.
 
 
 Der Annahmeschritt nennt die nächste Versionsnummer und wiederholt das gemessene Ergebnis der ausgewählten Runde. Die automatische Prüfung wird nur für Agenten ohne Prüfungssuite angeboten. Eine Veröffentlichung speichert Versionsidentität und Nummer in der Sitzung: Nach erneutem Öffnen führt der Abschluss weiterhin zu dieser Veröffentlichung. Alte Sitzungen ohne diese Verknüpfung zeigen ihren Zustand, ohne eine Version zu erraten. Ein Lesefehler bei Vorschlägen bietet einen erneuten Versuch; ersetzte Vorschläge bleiben nicht endlos im Ladezustand. Geschützte folgende Umgebungen warten auf ihre Prüfungen, fixierte behalten ihre aktuelle Version.

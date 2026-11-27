@@ -62,6 +62,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Explain when a proposed change quotes a credential and hold Apply, Accept and checks before submission; historical suggestions show the refusal without offering unavailable actions.
+
 - Showing whether a change of model may be accepted no longer compares a measured check again on every read; it reads the check's kept verdict.
 
 - Send OpenCode Go the `x-opencode-session` header and an `agenticos/<version>` user agent on every request, so Go profiles no longer fail with `MissingSessionID`. The session stays the same for an agent, each run reviewer and each subagent across a conversation's runs; a profile's `extra_headers` still override both.

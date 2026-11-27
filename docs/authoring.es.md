@@ -1,5 +1,5 @@
 ---
-source_sha: "ccaeb7fcb33e"
+source_sha: "9265232f6b26"
 title: "Asistente de autoría"
 description: "El asistente de autoría lee lo que la gente valoró negativamente y cómo acabaron los runs, y sugiere cambios a las instrucciones, las herramientas, la configuración, los skills y los archivos de contexto de un agent. Una persona decide cada uno."
 ---
@@ -706,7 +706,7 @@ El paso Comprender muestra una muestra limitada de fuentes, la causa registrada,
 
 Las pruebas que recibe el modelo del asistente - preguntas, respuestas, comentarios de evaluación, argumentos de llamadas a herramientas y errores - se ocultan igual antes de salir, de modo que también las citas que conserva un cambio están ocultadas. Las citas y los resúmenes guardados antes se ocultan cada vez que se leen.
 
-Todo lo que una sugerencia escribiría y cite una credencial - texto de instrucciones o de una skill, el nombre o la descripción de una herramienta, el valor de un campo, una skill nueva, un archivo de contexto o un cuerpo de skill propuestos - se muestra ocultado y marcado con `contains_credential`, y aceptarlo, aplicarlo o comprobarlo se rechaza. Un pasaje sugerido puede editarse y aceptarse sin la credencial; un archivo o cuerpo de skill propuesto se descarta y el cambio se hace a mano.
+Todo lo que una sugerencia escribiría y cite una credencial - texto de instrucciones o de una skill, el nombre o la descripción de una herramienta, el valor de un campo, una skill nueva, un archivo de contexto o un cuerpo de skill propuestos - se muestra ocultado y marcado con `contains_credential`, y aceptarlo, aplicarlo o comprobarlo se rechaza. Un pasaje sugerido puede editarse y aceptarse sin la credencial; un archivo o cuerpo de skill propuesto se descarta y el cambio se hace a mano. La consola lo indica junto al cambio y bloquea antes de enviar esas acciones: aceptar, aplicar, comprobar y elegirlo en el paso Cambios de Improve.
 
 
 El paso de aceptación muestra el número de la siguiente versión y repite el resultado medido de la ronda seleccionada. La comprobación automática se ofrece solo si el agente no tiene ninguna suite. Publicar guarda la identidad y el número de versión en la sesión: al volver a abrirla, el enlace sigue apuntando a esa publicación. Las sesiones antiguas sin este dato muestran su estado sin adivinar una versión. Un error al leer sugerencias permite reintentar; las sugerencias sustituidas no permanecen cargando indefinidamente. Los entornos protegidos esperan sus comprobaciones y los fijados conservan su versión actual.

@@ -17,11 +17,13 @@ export function ContextCheckButton({
   contextId,
   proposalId,
   agents,
+  disabled = false,
 }: {
   contextId: string;
   proposalId: string;
   /** The agents bound to the file: the only ones the check runs on. */
   agents: { id: string; name: string }[];
+  disabled?: boolean;
 }) {
   const t = useTranslations("authoring.context");
   return (
@@ -31,6 +33,7 @@ export function ContextCheckButton({
       proposalId={proposalId}
       subject="context"
       agents={agents}
+      disabled={disabled}
     />
   );
 }
@@ -41,12 +44,14 @@ function CheckButton({
   proposalId,
   subject,
   agents,
+  disabled = false,
 }: {
   label: string;
   assistant: ReturnType<typeof useSkillAuthoring>;
   proposalId: string;
   subject: "skill" | "context";
   agents?: { id: string; name: string }[];
+  disabled?: boolean;
 }) {
   const router = useRouter();
   const [checking, setChecking] = useState(false);
@@ -61,7 +66,7 @@ function CheckButton({
   return (
     <>
       {/* Checking comes first: applying the change goes live at once. */}
-      <Button size="sm" onClick={() => setChecking(true)}>
+      <Button size="sm" disabled={disabled} onClick={() => setChecking(true)}>
         {label}
       </Button>
       {checking && (

@@ -105,6 +105,7 @@ function ChangeRow({
             contextId={change.context_id}
             proposalId={change.id}
             agents={change.used_by}
+            disabled={Boolean(change.contains_credential)}
           />
           <Button
             variant="ghost"
@@ -129,7 +130,7 @@ function ChangeRow({
           <Button
             variant="outline"
             size="sm"
-            disabled={disabled || change.stale}
+            disabled={disabled || change.stale || Boolean(change.contains_credential)}
             title={t("liveHint")}
             onClick={onApply}
             aria-label={t("applyTo", { name: change.context_name })}
@@ -139,6 +140,9 @@ function ChangeRow({
           </Button>
         </div>
       </div>
+      {change.contains_credential && (
+        <p className="text-sm text-amber-700 dark:text-amber-400">{t("quotesCredential")}</p>
+      )}
       {open && (
         <div className="space-y-3">
           {change.stale && (

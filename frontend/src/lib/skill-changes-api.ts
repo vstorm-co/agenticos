@@ -23,6 +23,8 @@ export interface SkillChangeRecord {
   content: string;
   /** The resource files, as name to content. */
   resources: Record<string, string>;
+  /** The proposed text quotes a credential: shown redacted, and Apply and Check refuse it. */
+  contains_credential?: boolean;
   status: ProposalStatus;
   decided_by_user_id: string | null;
   decided_at: string | null;
