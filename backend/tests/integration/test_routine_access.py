@@ -233,6 +233,14 @@ def shown(review: RoutineAccessReview) -> dict[str, str | None]:
     }
 
 
+def effective(review: RoutineAccessReview) -> dict[str, str | None]:
+    return {
+        option.tool_id: option.effective
+        for option in review.tools
+        if isinstance(option, RoutineCapabilityToolOption)
+    }
+
+
 async def delegating(db: AsyncSession, world: World) -> Agent:
     """Let the routine's agent delegate to a published helper, and review it again."""
     child = Agent(
@@ -281,9 +289,13 @@ async def test_the_review_lists_every_tool_with_the_agents_and_the_routines_sett
     assert not options["read_file"].effect and options["read_file"].agent == "free"
     assert options["write_file"].agent == "ask"
     assert options["execute"].capability_name == "Sandbox"
-    # Created by an owner: every tool they may let run, runs.
-    assert shown(review)["execute"] == "allow" and shown(review)["read_file"] == "allow"
-    assert shown(review)["write_file"] == "ask"
+    # Created by an owner: every tool they may let run, runs. Only the allow on a
+    # change is a setting of the routine's own; the read and the tool the agent
+    # asks before take the mode's default.
+    assert shown(review)["execute"] == "allow"
+    assert shown(review)["read_file"] is None and shown(review)["write_file"] is None
+    assert effective(review)["execute"] == "consent"
+    assert effective(review)["read_file"] == "run" and effective(review)["write_file"] == "ask"
     assert review.can_allow and review.allow_blocked_reason is None
     assert not review.can_trust and review.trust_blocked_reason == "organization"
     assert not review.has_delegates and review.delegates == "allow"
@@ -377,7 +389,9 @@ async def test_a_personal_consent_key_may_narrow_but_not_release_or_trust(
     assert not review.can_allow and review.allow_blocked_reason == "console"
     assert not review.can_trust and review.trust_blocked_reason == "console"
     saved = await save(db, world, sandbox("execute", "ask"), sandbox("ls", "off"), ctx=key)
-    assert shown(saved)["execute"] == "ask" and shown(saved)["ls"] == "off"
+    # Ask on a change is what a reviewed routine does anyway, so it is not stored.
+    assert shown(saved)["execute"] is None and effective(saved)["execute"] == "ask"
+    assert shown(saved)["ls"] == "off" and effective(saved)["ls"] == "off"
     # A read may run freely by anyone's say.
     await save(db, world, sandbox("read_file", "allow"), ctx=key)
     with pytest.raises(AuthorizationError) as refused:
@@ -391,7 +405,7 @@ async def test_a_personal_consent_key_may_narrow_but_not_release_or_trust(
 # Saving
 
 
-async def test_saving_stores_every_offered_tool_and_omitted_ones_ask(
+async def test_saving_stores_only_decisions_and_omitted_tools_take_the_default(
     db: AsyncSession, world: World
 ) -> None:
     before = read_policy(world.trigger.approved_sources)
@@ -400,8 +414,9 @@ async def test_saving_stores_every_offered_tool_and_omitted_ones_ask(
     policy = read_policy(world.trigger.approved_sources)
     assert policy.id != before.id and policy.consented_by == world.ctx.user_id
     stored = {setting.tool_id: setting.setting for setting in policy.tools}
-    assert stored["execute"] == "allow" and stored["ls"] == "off"
-    assert stored["read_file"] == "ask" and stored["write_file"] == "ask"
+    assert stored == {"execute": "allow", "ls": "off"}
+    # Left out: a read runs, a tool the agent asks before asks.
+    assert effective(saved)["read_file"] == "run" and effective(saved)["write_file"] == "ask"
     assert policy.approved_ceiling is not None and policy.approved_ceiling.tools == ()
     (entry,) = await audits(db, "routine.access_reviewed")
     assert entry.details is not None
@@ -412,6 +427,61 @@ async def test_saving_stores_every_offered_tool_and_omitted_ones_ask(
         "reviewed",
     )
     assert entry.details["delegates"] == "ask"
+
+
+@pytest.mark.parametrize("mode", ["reviewed", "trust_agent"])
+async def test_an_ask_the_agent_forced_ends_when_the_agent_stops_asking(
+    db: AsyncSession, world: World, mode: str
+) -> None:
+    """Where the agent asks, the review offers only Ask first or Off. Saving that
+    Ask first must not keep the routine asking once the agent stops."""
+    if mode == "trust_agent":
+        await allow_trust(db, world)
+    await save(db, world, sandbox("write_file", "ask"), mode=mode)
+    assert not read_policy(world.trigger.approved_sources).tools
+    await publish(
+        db,
+        world,
+        world.spec.model_copy(update={"capabilities": [CapabilityBindingSpec(id="sandbox")]}),
+    )
+    review = await access(db, world)
+    assert shown(review)["write_file"] is None and effective(review)["write_file"] == "run"
+    authority = await capture(db, world)
+    assert not (
+        await authority.action_policy(world.agent.id, world.spec, call("write_file"))
+    ).required
+
+
+async def test_saving_what_the_review_shows_changes_nothing(db: AsyncSession, world: World) -> None:
+    await save(db, world, sandbox("execute", "allow"), sandbox("ls", "off"), sandbox("grep", "ask"))
+    before = read_policy(world.trigger.approved_sources).tools
+    review = await access(db, world)
+    resent = [
+        {
+            "capability_id": option.capability_id,
+            "tool_id": option.tool_id,
+            "setting": option.setting,
+        }
+        for option in review.tools
+        if isinstance(option, RoutineCapabilityToolOption) and option.setting is not None
+    ]
+    await save(db, world, *resent)
+    assert read_policy(world.trigger.approved_sources).tools == before
+
+
+async def test_a_trusting_routine_shows_and_keeps_the_agents_decision_for_a_tool_it_never_set(
+    db: AsyncSession, world: World
+) -> None:
+    await allow_trust(db, world)
+    world.org.chat_may_waive_approvals = False
+    await db.flush()
+    await save(db, world, mode="trust_agent")
+    review = await access(db, world)
+    # Not shown as asking while it runs, so saving it again cannot start it asking.
+    assert shown(review)["execute"] is None and effective(review)["execute"] == "run"
+    await save(db, world, mode="trust_agent")
+    assert not read_policy(world.trigger.approved_sources).tools
+    assert await RoutineAccessService(db).waiting(world.ctx, world.trigger) == 0
 
 
 async def test_saving_ends_a_grandfathered_review(db: AsyncSession, world: World) -> None:
@@ -575,8 +645,8 @@ async def test_a_new_routine_lets_run_what_its_creator_may_allow(
     )
     policy = read_policy(created.approved_sources)
     stored = {setting.tool_id: setting.setting for setting in policy.tools}
-    assert stored["execute"] == execute
-    assert stored["read_file"] == "allow" and stored["write_file"] == "ask"
+    # What the creator may not allow is not stored: a change without an allow asks.
+    assert stored == ({"execute": "allow"} if execute == "allow" else {})
     assert policy.delegates == delegates and policy.mode == "reviewed"
 
 
@@ -634,9 +704,9 @@ async def test_ask_waits_and_allow_runs_as_the_creators_consent(
     authority = await capture(db, world)
     decision = await authority.action_policy(world.agent.id, world.spec, call("execute"))
     assert decision.required and decision.consented_by == world.ctx.user_id
-    # A read the review left asking still asks; a read it allows runs.
+    # A read left out of the save runs: the default of a reviewed routine.
     decision = await authority.action_policy(world.agent.id, world.spec, call("read_file"))
-    assert decision.required and decision.consented_by is None
+    assert not decision.required
 
 
 async def test_allow_asks_again_once_the_organization_withdraws_standing_consent(
@@ -727,8 +797,8 @@ async def test_a_trusting_routine_follows_the_agent_except_where_it_says_ask_or_
     await db.flush()
     authority = await capture(db, world)
     assert not (await authority.action_policy(world.agent.id, world.spec, call("execute"))).required
-    # Left out of the save, so stored as ask.
-    assert (await authority.action_policy(world.agent.id, world.spec, call("grep"))).required
+    # Left out of the save, so the agent decides.
+    assert not (await authority.action_policy(world.agent.id, world.spec, call("grep"))).required
     assert (await authority.action_policy(world.agent.id, world.spec, call("ls"))).required
     with pytest.raises(AuthorizationError, match="turned off"):
         await authority.action_policy(world.agent.id, world.spec, call("glob"))
@@ -835,7 +905,10 @@ async def test_mcp_tools_are_listed_by_account_with_the_agents_setting(
     assert mcp["read_mail"].agent == "free" and not mcp["read_mail"].effect
     assert mcp["read_mail"].account_name == "Work (Mail)"
     assert mcp["read_mail"].account_scope == "organization"
-    assert (mcp["read_mail"].setting, mcp["send_mail"].setting) == ("allow", "ask")
+    # Neither is a decision of the routine's own: the read runs by default, the
+    # agent asks before sending.
+    assert (mcp["read_mail"].setting, mcp["send_mail"].setting) == (None, None)
+    assert (mcp["read_mail"].effective, mcp["send_mail"].effective) == ("run", "ask")
     await save(
         db, world, {"connection_id": str(connection.id), "tool_id": "read_mail", "setting": "off"}
     )

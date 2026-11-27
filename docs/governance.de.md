@@ -1,5 +1,5 @@
 ---
-source_sha: "536a2da0708d"
+source_sha: "793e70fb8cae"
 ---
 
 # Governance { #governance }
@@ -905,8 +905,13 @@ allowed**. Für einen Aufruf gilt:
    (`decided_via = "standing"`). Dafür muss der Ersteller zum Zeitpunkt des Aufrufs
    `approvals:decide` haben und die Organisation `chat_may_waive_approvals` erlauben;
    fehlt eines davon, fragt der Aufruf.
-5. Ein Tool, das etwas ändert und keine Einstellung hat, weil es nach der Prüfung
-   hinzukam, fragt.
+5. Ein Tool ohne eigene Einstellung folgt dem Standard des Modus: Ein lesendes Tool
+   läuft, ein Tool, das etwas ändert, fragt.
+
+Gespeichert wird eine Einstellung nur, wo sie von diesem Standard abweicht. Auch **Erst
+fragen** bei einem Tool mit Schloss wird nicht gespeichert: Es ist dort neben **Off** die
+einzige Wahl, also folgt die Routine dem Agent, sobald er nicht mehr fragt. Jede Zeile
+sagt außerdem, was ein Aufruf jetzt tut, die Bestätigungen des Agents eingeschlossen.
 
 **Delegate agents** ist eine weitere Zeile für die Delegaten als Ganzes: Ihre Tools,
 die etwas ändern, fragen, außer die Zeile steht auf **Ohne Rückfrage**; das braucht
@@ -927,7 +932,10 @@ Das Erstellen einer Routine prüft ihren Zugriff sofort. Der Modus ist `reviewed
 Tool, das der Ersteller ohne Rückfrage laufen lassen darf, steht auf **Ohne Rückfrage** -
 jedes lesende Tool und jedes ändernde Tool, wenn der Ersteller die obigen Berechtigungen
 in einer Konsolensitzung hat - und alles andere auf **Erst fragen**, Delegaten
-eingeschlossen. `approvals:decide` haben Owner, Admin und Operator. Ein Builder kann also
+eingeschlossen. Davon wird nur **Ohne Rückfrage** bei einem ändernden Tool gespeichert;
+der Rest ist der Standard des Modus.
+
+`approvals:decide` haben Owner, Admin und Operator. Ein Builder kann also
 Routinen erstellen, deren ändernde Tools fragen, ebenso eine Routine, die über einen
 Schlüssel oder von einem Agent erstellt wird. **Review access before enabling** speichert
 die Routine stattdessen pausiert und öffnet die Prüfung. Das Routineformular hat keine
@@ -943,7 +951,8 @@ Eigentümer handelt, werden abgelehnt.
 
 Das Speichern nennt die Prüfung, die die Person gesehen hat: Haben sich die Quellen, die
 Tools oder die Routine seitdem geändert, wird es abgelehnt, und der Dialog lädt die
-aktuelle Prüfung. Ein Tool, das beim Speichern fehlt, fragt. Eine gespeicherte Einstellung für ein Tool,
+aktuelle Prüfung. Ein Tool, das beim Speichern fehlt, folgt dem Standard des Modus, also
+ändert das Speichern dessen, was der Dialog zeigt, nichts. Eine gespeicherte Einstellung für ein Tool,
 das gerade nicht angeboten wird, etwa auf einem Konto mit unbekannter Liste, bleibt
 unverändert. Speichern aktiviert keine
 pausierte Routine und wird als `routine.access_reviewed` mit dem Modus und der Anzahl der
@@ -958,7 +967,8 @@ seinen Argumenten.
 **Trust the agent** steht in der Gefahrenzone des Dialogs. Eine vertrauende Routine
 (`trust_agent`) nutzt die aktuellen Quellen und Tools des Agents ohne neue Prüfung;
 **Erst fragen** und **Off** gelten weiter, andere Tools folgen den Einstellungen des
-Agents, Delegaten eingeschlossen. Die Zeile der Routine zeigt das Abzeichen **Trusts
+Agents, Delegaten eingeschlossen. Ihr Dialog bietet statt **Ohne Rückfrage** **Wie der
+Agent** an, was keine dauerhafte Zustimmung braucht, und hat keine Zeile für Delegaten. Die Zeile der Routine zeigt das Abzeichen **Trusts
 agent**. Angeboten wird das nur für einen Zeitplan, nicht für eine Ereignisroutine, deren
 Eingabe von außen kommt, einem Ersteller mit `approvals:decide`, in einer Organisation,
 die **Routines may trust their agent** (`routines_may_trust_agent`) eingeschaltet hat.
@@ -2776,7 +2786,7 @@ Eine Routine, die [ihrem Agent vertraut](#routine-access), folgt stattdessen den
 
 Jede zugelassene Ausführung behält ihren eigenen Quellen- und Kontenstand. Ein geparkter Lauf kann kein späteres Konto, keine neue Autorisierung und keine spätere Prüfung übernehmen. Quelleninhaberschaft, Widerruf und Werkzeug-Positivlisten werden vor Aufrufen erneut geprüft. Fehlende optionale Werkzeuge werden gemeldet und nicht als erfolgreiche Arbeit behandelt.
 
-Die Migration `0375_routine_access_review.py` wandelt jede bestehende Routine an Ort und Stelle um, sodass keine Befugnis gewinnt und keine stehen bleibt. Eine Routine, die ihre Tools so ausführte, wie der Agent es erlaubt (**Zulässige Werkzeuge automatisch ausführen** oder keine Bestätigungswahl unter **Agent folgen**), tut das weiterhin, Delegaten eingeschlossen und ohne Berechtigungsprüfung, bis ihr Ersteller die Prüfung das nächste Mal speichert; danach gelten die obigen Regeln. Pro-Tool-Zustimmungen, die an die geprüfte Version gebunden sind, werden zu **Ohne Rückfrage**; **Vor Aktionen fragen** behält keine. Geparkte Runs werden umgewandelt, damit sie fortgesetzt werden können.
+Die Migration `0375_routine_access_review.py` wandelt jede bestehende Routine an Ort und Stelle um, sodass keine Befugnis gewinnt und keine stehen bleibt. Eine Routine, die ihre Tools so ausführte, wie der Agent es erlaubt (**Zulässige Werkzeuge automatisch ausführen** oder keine Bestätigungswahl unter **Agent folgen**), tut das weiterhin, Delegaten eingeschlossen und ohne Berechtigungsprüfung, bis ihr Ersteller die Prüfung das nächste Mal speichert; danach gelten die obigen Regeln. Ihr Dialog sagt das und zeigt die Einstellungen, die das Speichern anwendet. Pro-Tool-Zustimmungen, die an die geprüfte Version gebunden sind, werden zu **Ohne Rückfrage**; **Vor Aktionen fragen** behält keine. Geparkte Runs werden umgewandelt, damit sie fortgesetzt werden können.
 
 Eine umgewandelte Prüfung erkennt eine Prompt-Änderung erst, wenn sie erneut gespeichert wird. Ein Downgrade stellt die alten Spalten wieder her: Routinen, die wie vom Agent erlaubt liefen, kehren dazu zurück, und jede andere Routine fragt wieder vor ihren ändernden Tools.
 

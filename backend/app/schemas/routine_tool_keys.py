@@ -26,6 +26,10 @@ type RoutineDelegateSetting = Literal["allow", "ask"]
 type AgentToolSetting = Literal["free", "ask"]
 """What the agent's own settings decide for the tool, before the routine's."""
 
+type RoutineToolEffect = Literal["run", "ask", "consent", "off"]
+"""What one call does: runs, waits for approval, runs on the creator's standing
+consent, or is refused."""
+
 type AllowBlockedReason = Literal["console", "permission", "organization"]
 type TrustBlockedReason = Literal["console", "permission", "organization", "event"]
 

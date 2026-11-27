@@ -1,5 +1,5 @@
 ---
-source_sha: "536a2da0708d"
+source_sha: "793e70fb8cae"
 ---
 
 # Governance { #governance }
@@ -864,8 +864,13 @@ llamada:
    consentimiento (`decided_via = "standing"`). Esto exige que el creador tenga
    `approvals:decide` y que la organización tenga `chat_may_waive_approvals` en el
    momento de la llamada; si falta cualquiera de los dos, la llamada pregunta.
-5. Una herramienta que cambia algo y no tiene ajuste, porque es nueva desde la revisión,
-   pregunta.
+5. Una herramienta sin ajuste propio sigue el valor predeterminado del modo: una lectura
+   se ejecuta y una herramienta que cambia algo pregunta.
+
+Solo se guarda un ajuste que difiere de ese valor predeterminado. **Ask first** en una
+herramienta con candado tampoco se guarda: allí es la única opción además de **Off**, así
+que cuando el agent deja de preguntar, la rutina lo sigue. Cada fila dice también qué hace
+ahora una llamada, incluidas las aprobaciones del propio agent.
 
 **Delegate agents** es una fila más, para los delegados en conjunto: sus herramientas que
 cambian algo preguntan salvo que esté en **Run freely**, que exige el mismo permiso y el
@@ -885,7 +890,9 @@ comprobación de la conexión antes de poder mostrar sus herramientas.
 Crear una rutina revisa su acceso de inmediato. El modo es `reviewed`; toda herramienta
 que el creador puede dejar ejecutar libremente queda en **Run freely** - toda lectura, y
 toda herramienta que cambia algo cuando el creador tiene los permisos anteriores en una
-sesión de consola - y todo lo demás queda en **Ask first**, delegados incluidos.
+sesión de consola - y todo lo demás queda en **Ask first**, delegados incluidos. De esto solo se guarda **Run
+freely** en una herramienta que cambia algo; el resto es el valor predeterminado del modo.
+
 `approvals:decide` corresponde a Owner, Admin y Operator, así que un Builder puede crear
 rutinas cuyas herramientas que cambian algo preguntan, igual que una rutina creada con
 una clave o por un agent.
@@ -902,7 +909,8 @@ actúa en nombre de otro propietario.
 
 El guardado nombra la revisión que vio la persona: si las fuentes, las herramientas o la
 rutina cambiaron desde entonces, se rechaza y el diálogo carga la revisión actual. Una
-herramienta que el guardado omite pregunta. Un ajuste guardado para una herramienta que
+herramienta que el guardado omite sigue el valor predeterminado del modo, así que guardar
+lo que muestra el diálogo no cambia nada. Un ajuste guardado para una herramienta que
 no se ofrece en ese momento, como una de una cuenta cuya lista se desconoce, se conserva
 tal cual. Guardar no activa una rutina en pausa, y se
 audita como `routine.access_reviewed` con el modo y el número de herramientas de cada
@@ -917,7 +925,8 @@ argumentos.
 **Trust the agent** está en la zona de peligro del diálogo. Una rutina que confía en su
 agent (`trust_agent`) usa las fuentes y herramientas actuales del agent sin una nueva
 revisión; **Ask first** y **Off** siguen aplicándose, y las demás herramientas siguen los
-ajustes del propio agent, delegados incluidos. La fila de la rutina muestra la insignia
+ajustes del propio agent, delegados incluidos. Su diálogo ofrece **As the agent** en lugar
+de **Run freely**, que no exige consentimiento permanente, y no tiene fila de delegados. La fila de la rutina muestra la insignia
 **Trusts agent**. Solo se ofrece para un horario, no para una rutina de eventos cuya
 entrada llega de fuera, a un creador con `approvals:decide`, en una organización que ha
 activado **Routines may trust their agent** (`routines_may_trust_agent`). Ese interruptor
@@ -2627,7 +2636,7 @@ Una rutina que [confía en su agent](#routine-access) sigue en cambio las fuente
 
 Cada ejecución admitida conserva su propia instantánea de fuentes y cuentas. Una ejecución aparcada no puede tomar una cuenta, autorización o revisión posterior. La titularidad, revocación y listas de herramientas permitidas se comprueban de nuevo antes de las llamadas. Las herramientas opcionales ausentes se comunican, no se tratan como trabajo completado.
 
-La migración `0375_routine_access_review.py` convierte cada rutina existente en su sitio, de modo que ninguna gana autoridad y ninguna se detiene. Una rutina que ejecutaba sus herramientas como permite el agent (**Run eligible tools automatically**, o ninguna opción de aprobación con **Follow agent**) sigue haciéndolo, delegados incluidos, sin la comprobación de permisos, hasta que su creador vuelva a guardar la revisión; desde entonces se aplican las reglas anteriores. Los consentimientos por herramienta vinculados a la versión revisada pasan a **Run freely**; **Ask before actions** no conserva ninguno. Los runs aparcados se convierten para que puedan reanudarse.
+La migración `0375_routine_access_review.py` convierte cada rutina existente en su sitio, de modo que ninguna gana autoridad y ninguna se detiene. Una rutina que ejecutaba sus herramientas como permite el agent (**Run eligible tools automatically**, o ninguna opción de aprobación con **Follow agent**) sigue haciéndolo, delegados incluidos, sin la comprobación de permisos, hasta que su creador vuelva a guardar la revisión; desde entonces se aplican las reglas anteriores. Su diálogo lo indica y muestra los ajustes que aplicará el guardado. Los consentimientos por herramienta vinculados a la versión revisada pasan a **Run freely**; **Ask before actions** no conserva ninguno. Los runs aparcados se convierten para que puedan reanudarse.
 
 Una revisión convertida no detecta un cambio del prompt hasta que se vuelve a guardar. Revertir la migración restaura las columnas antiguas: las rutinas que se ejecutaban como permite el agent vuelven a hacerlo, y todas las demás vuelven a preguntar antes de sus herramientas que cambian algo.
 

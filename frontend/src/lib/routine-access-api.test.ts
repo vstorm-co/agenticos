@@ -8,7 +8,7 @@ import {
   routineAccessApi,
   routineToolIdentity,
   routineToolKey,
-  shownSetting,
+  modeDefault,
   type RoutineToolOption,
 } from "./routine-access-api";
 
@@ -20,6 +20,7 @@ const capability: RoutineToolOption = {
   effect: true,
   agent: "free",
   setting: null,
+  effective: "ask",
 };
 const mcp: RoutineToolOption = {
   connection_id: "c1",
@@ -30,6 +31,7 @@ const mcp: RoutineToolOption = {
   effect: true,
   agent: "free",
   setting: "allow",
+  effective: "consent",
 };
 const platform: RoutineToolOption = {
   kind: "platform",
@@ -39,6 +41,7 @@ const platform: RoutineToolOption = {
   effect: false,
   agent: "free",
   setting: null,
+  effective: "run",
 };
 
 beforeEach(() => vi.clearAllMocks());
@@ -65,16 +68,19 @@ it("names each kind of tool by its key alone, never by its display fields", () =
   expect(JSON.parse(routineToolIdentity(mcp))).toEqual(routineToolKey(mcp));
 });
 
-it("shows a tool new since the review as the server treats it", () => {
-  expect(shownSetting(capability)).toBe("ask");
-  expect(shownSetting(platform)).toBe("allow");
-  expect(shownSetting({ ...platform, agent: "ask" })).toBe("ask");
-  expect(shownSetting(mcp)).toBe("allow");
+it("shows a tool without a setting of its own as its mode treats it", () => {
+  expect(modeDefault(capability, "reviewed")).toBe("ask");
+  expect(modeDefault(platform, "reviewed")).toBe("allow");
+  expect(modeDefault(capability, "trust_agent")).toBe("allow");
+  expect(modeDefault({ ...platform, agent: "ask" }, "trust_agent")).toBe("ask");
 });
 
-it("lets a tool run freely only where the agent does and, for a change, the caller may", () => {
-  expect(mayRunFreely(capability, true)).toBe(true);
-  expect(mayRunFreely(capability, false)).toBe(false);
-  expect(mayRunFreely(platform, false)).toBe(true);
-  expect(mayRunFreely({ ...platform, agent: "ask" }, true)).toBe(false);
+it("lets a tool run freely only where the agent does and, for a reviewed change, the caller may", () => {
+  expect(mayRunFreely(capability, true, "reviewed")).toBe(true);
+  expect(mayRunFreely(capability, false, "reviewed")).toBe(false);
+  expect(mayRunFreely(platform, false, "reviewed")).toBe(true);
+  expect(mayRunFreely({ ...platform, agent: "ask" }, true, "reviewed")).toBe(false);
+  // Trusting the agent needs no standing consent: the agent decides.
+  expect(mayRunFreely(capability, false, "trust_agent")).toBe(true);
+  expect(mayRunFreely({ ...capability, agent: "ask" }, true, "trust_agent")).toBe(false);
 });

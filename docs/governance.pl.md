@@ -1,5 +1,5 @@
 ---
-source_sha: "536a2da0708d"
+source_sha: "793e70fb8cae"
 ---
 
 # Governance { #governance }
@@ -851,8 +851,13 @@ pytania, gdzie wolno**. Dla jednego wywołania:
    która wyraziła zgodę (`decided_via = "standing"`). Wymaga to, by twórca w chwili
    wywołania miał `approvals:decide`, a organizacja ustawienie
    `chat_may_waive_approvals`; jeśli brakuje któregoś z nich, wywołanie pyta.
-5. Narzędzie, które coś zmienia i nie ma ustawienia, bo pojawiło się po przeglądzie,
-   pyta.
+5. Narzędzie bez własnego ustawienia działa według domyślnych zasad trybu: odczyt
+   działa, a narzędzie, które coś zmienia, pyta.
+
+Ustawienie jest zapisywane tylko tam, gdzie różni się od tych zasad. **Najpierw
+zapytaj** przy narzędziu z kłódką też nie jest zapisywane: to jedyny wybór poza
+**Wyłączone**, więc gdy agent przestaje pytać, rutyna idzie za nim. Każdy wiersz mówi też,
+co wywołanie robi teraz, łącznie z zatwierdzeniami samego agenta.
 
 **Agenci delegowani** to jeszcze jeden wiersz, dla delegatów jako całości: ich
 narzędzia, które coś zmieniają, pytają, chyba że ustawiono **Bez pytania**, co wymaga
@@ -872,7 +877,10 @@ zanim jego narzędzia zostaną pokazane.
 Utworzenie rutyny od razu przegląda jej dostęp. Tryb to `reviewed`; każde narzędzie,
 któremu twórca może pozwolić działać bez pytania, ma **Bez pytania** - każdy odczyt i
 każde narzędzie zmieniające coś, gdy twórca ma powyższe uprawnienia w sesji konsoli - a
-wszystko inne ma **Najpierw zapytaj**, łącznie z delegatami. `approvals:decide` mają
+wszystko inne ma **Najpierw zapytaj**, łącznie z delegatami. Z tego zapisywane jest tylko
+**Bez pytania** przy narzędziu, które coś zmienia; reszta to domyślne zasady trybu.
+
+`approvals:decide` mają
 role Owner, Admin i Operator, więc Builder może tworzyć rutyny, których narzędzia
 zmieniające coś pytają; tak samo jest z rutyną utworzoną przez klucz lub przez agenta.
 **Sprawdź dostęp przed włączeniem** zamiast tego zapisuje rutynę jako wstrzymaną i
@@ -887,7 +895,8 @@ innego właściciela są odrzucani.
 
 Zapis wskazuje przegląd, który osoba widziała: jeśli od tego czasu zmieniły się źródła,
 narzędzia lub rutyna, zapis jest odrzucany, a dialog wczytuje aktualny przegląd.
-Narzędzie pominięte w zapisie pyta. Zapisane ustawienie narzędzia, którego w tej chwili
+Narzędzie pominięte w zapisie działa według domyślnych zasad trybu, więc zapis tego, co
+pokazuje dialog, niczego nie zmienia. Zapisane ustawienie narzędzia, którego w tej chwili
 nie ma w ofercie, na przykład na koncie o nieznanej liście, zostaje bez zmian. Zapis nie włącza wstrzymanej rutyny i trafia do
 audytu jako `routine.access_reviewed` z trybem i liczbą narzędzi przy każdym wyborze.
 
@@ -899,7 +908,9 @@ pytania na podstawie zgody twórcy nadal zapisuje zatwierdzony wpis z argumentam
 **Zaufaj agentowi** (**Trust the agent**) znajduje się w strefie zagrożenia dialogu.
 Ufająca rutyna (`trust_agent`) korzysta z bieżących źródeł i narzędzi agenta bez nowego
 przeglądu; **Najpierw zapytaj** i **Wyłączone** nadal obowiązują, a pozostałe narzędzia
-działają według ustawień samego agenta, także u delegatów. Wiersz rutyny pokazuje
+działają według ustawień samego agenta, także u delegatów. Jej dialog zamiast **Bez
+pytania** oferuje **Jak agent**, które nie wymaga stałej zgody, i nie ma wiersza
+delegatów. Wiersz rutyny pokazuje
 oznaczenie **Ufa agentowi**. Opcja jest dostępna tylko dla harmonogramu, nie dla
 rutyny zdarzeniowej, której wejście pochodzi z zewnątrz, dla twórcy z
 `approvals:decide`, w organizacji, która włączyła **Rutyny mogą ufać swojemu agentowi**
@@ -2614,7 +2625,7 @@ Rutyna, która [ufa swojemu agentowi](#routine-access), zamiast tego podąża za
 
 Każde dopuszczone wykonanie zachowuje własny zapis źródeł i kont. Zaparkowane wykonanie nie może przejąć późniejszego konta, autoryzacji ani przeglądu. Własność źródeł, cofnięcie dostępu i listy dozwolonych narzędzi są sprawdzane ponownie przed wywołaniem. Brak opcjonalnych narzędzi jest zgłaszany, a nie uznawany za udaną pracę.
 
-Migracja `0375_routine_access_review.py` przekształca każdą istniejącą rutynę na miejscu, więc żadna nie zyskuje uprawnień i żadna się nie zatrzymuje. Rutyna, która uruchamiała narzędzia tak, jak pozwala agent (**Uruchamiaj dozwolone narzędzia automatycznie** albo brak wyboru zatwierdzania przy **Ustawieniach agenta**), nadal tak działa, łącznie z delegatami, bez kontroli uprawnień, aż twórca ponownie zapisze przegląd; od tej chwili obowiązują powyższe zasady. Zgody na pojedyncze narzędzia związane z zatwierdzoną wersją stają się **Bez pytania**; **Pytaj przed działaniami** nie zachowuje żadnej. Zaparkowane runy są przekształcane, aby mogły zostać wznowione.
+Migracja `0375_routine_access_review.py` przekształca każdą istniejącą rutynę na miejscu, więc żadna nie zyskuje uprawnień i żadna się nie zatrzymuje. Rutyna, która uruchamiała narzędzia tak, jak pozwala agent (**Uruchamiaj dozwolone narzędzia automatycznie** albo brak wyboru zatwierdzania przy **Ustawieniach agenta**), nadal tak działa, łącznie z delegatami, bez kontroli uprawnień, aż twórca ponownie zapisze przegląd; od tej chwili obowiązują powyższe zasady. Jej dialog to mówi i pokazuje ustawienia, które zastosuje zapis. Zgody na pojedyncze narzędzia związane z zatwierdzoną wersją stają się **Bez pytania**; **Pytaj przed działaniami** nie zachowuje żadnej. Zaparkowane runy są przekształcane, aby mogły zostać wznowione.
 
 Przekształcony przegląd nie wykrywa zmiany promptu, dopóki nie zostanie ponownie zapisany. Downgrade przywraca stare kolumny: rutyny działające tak, jak pozwala agent, wracają do tego, a każda inna rutyna znowu pyta przed narzędziami, które coś zmieniają.
 

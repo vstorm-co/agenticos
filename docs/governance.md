@@ -796,8 +796,13 @@ agent**, **Ask for everything** and **Run freely where allowed**. For one call:
    (`decided_via = "standing"`). This needs the creator to hold `approvals:decide` and
    the organization's `chat_may_waive_approvals` when the call is made; if either is
    missing, the call asks.
-5. A tool that changes something and has no setting, because it is new since the
-   review, asks.
+5. A tool with no setting of its own takes the mode's default: a read runs and a
+   tool that changes something asks.
+
+A setting is stored only where it differs from that default. **Ask first** on a
+locked tool is not stored either: it is the only choice there besides **Off**, so when
+the agent stops asking, the routine follows. Each row also says what a call does now,
+the agent's own approvals included.
 
 **Delegate agents** is one more row, for the delegates as a whole: their tools that
 change something ask unless it is **Run freely**, which needs the same permission and
@@ -815,7 +820,10 @@ a connection check before its tools can be shown.
 Creating a routine reviews its access at once. The mode is `reviewed`; every tool the
 creator may let run freely is **Run freely** - every read, and every tool that changes
 something when the creator holds the permissions above in a console session - and
-everything else is **Ask first**, delegates included. `approvals:decide` belongs to
+everything else is **Ask first**, delegates included. Of these, only **Run freely** on a
+tool that changes something is stored; the rest is the mode's default.
+
+`approvals:decide` belongs to
 Owner, Admin and Operator, so a Builder can create routines whose tools that change
 something ask, and so does a routine created through a key or by an agent. **Review
 access before enabling** saves the routine paused and opens the review instead. The
@@ -830,8 +838,9 @@ owner are refused.
 
 The save names the review the person saw: if the sources, the tools or the
 routine changed since, it is refused and the dialog loads the current review. A tool the
-save leaves out asks. A saved setting for a tool not offered at the time, such as one on
-an account whose list is unknown, is kept as it was. Saving does not enable a paused routine, and it is audited as
+save leaves out takes the mode's default, so saving what the dialog shows changes
+nothing. A saved setting for a tool not offered at the time, such as one on an account
+whose list is unknown, is kept as it was. Saving does not enable a paused routine, and it is audited as
 `routine.access_reviewed` with the mode and the number of tools set to each choice.
 
 Each admitted run keeps the review it started under; a parked run cannot borrow a later
@@ -842,7 +851,8 @@ approved row with its arguments.
 **Trust the agent** is in the dialog's danger zone. A trusting routine (`trust_agent`)
 uses the agent's current sources and tools without a new review; **Ask first** and
 **Off** still apply, and other tools follow the agent's own settings, delegates
-included. The routine row shows a **Trusts agent** badge. It is offered only for a
+included. Its dialog offers **As the agent** in place of **Run freely**, which needs no
+standing consent, and has no delegates row. The routine row shows a **Trusts agent** badge. It is offered only for a
 schedule, not an event routine whose input comes from outside, to a creator holding
 `approvals:decide`, in an organization that has turned on **Routines may trust their
 agent** (`routines_may_trust_agent`). That switch sits beside the approval waiver under
@@ -2466,7 +2476,8 @@ A routine that [trusts its agent](#routine-access) follows the agent's organizat
 
 Every admitted execution retains its own source and account snapshot. A parked run cannot borrow a later account, authorization or review. Source ownership, revocation and tool allowlists are checked again before calls. Missing optional tools are reported rather than treated as successful work.
 
-Migration `0375_routine_access_review.py` converts every existing routine in place, so none gains authority and none stops. A routine that ran its tools as the agent allows (**Run eligible tools automatically**, or no approval choice under **Follow agent**) keeps doing so, delegates included, without the permission check, until its creator next saves the review; then the rules above apply. Per-tool consents bound to the reviewed version become **Run freely**; **Ask before actions** keeps none. Parked runs are converted so they can resume.
+Migration `0375_routine_access_review.py` converts every existing routine in place, so none gains authority and none stops. A routine that ran its tools as the agent allows (**Run eligible tools automatically**, or no approval choice under **Follow agent**) keeps doing so, delegates included, without the permission check, until its creator next saves the review; then the rules above apply. Its dialog says so
+and shows the settings saving will apply. Per-tool consents bound to the reviewed version become **Run freely**; **Ask before actions** keeps none. Parked runs are converted so they can resume.
 
 A converted review does not detect a prompt change until it is saved again. Downgrading restores the old columns: routines that ran as the agent allows return to that, and every other routine asks again before its tools that change something.
 

@@ -67,6 +67,8 @@ from app.services.access import AGENT, resolve_access
 from app.services.project import ProjectService
 from app.services.routine_access import (
     allow_holds,
+    decide,
+    decide_delegate,
     provider_executed,
     routine_effect,
     settings_of,
@@ -564,29 +566,35 @@ class RoutineAuthority:
             if setting == "off":
                 raise AuthorizationError(message="This tool is turned off for this routine")
             effect = await self._effect(db, spec, tool, trigger)
-            if setting == "ask":
-                return RoutineToolDecision(required=True)
             if self.routine_kind == "watch":
                 # A watch reviews its one source, not tools: every effect asks.
                 return RoutineToolDecision(required=effect is not False)
             assert self.source_policy is not None
-            if effect is False or self.source_policy.mode == "trust_agent":
+            policy = self.source_policy
+            # The same rule the review and the readiness count show. Standing
+            # consent is assumed here and checked below only where it decides.
+            outcome = (
+                decide(
+                    effect=effect,
+                    setting=setting,
+                    mode=policy.mode,
+                    grandfathered=policy.grandfathered,
+                    can_allow=True,
+                )
+                if root
+                else decide_delegate(
+                    effect=effect,
+                    delegates=policy.delegates,
+                    mode=policy.mode,
+                    grandfathered=policy.grandfathered,
+                    can_allow=True,
+                )
+            )
+            if outcome == "run":
                 # The normal ApprovalGate still enforces the agent, connection,
                 # mandatory platform and native consent floors.
                 return RoutineToolDecision()
-            allowed = (
-                setting == "allow" or (setting is None and self.source_policy.grandfathered)
-                if root
-                else self.source_policy.delegates == "allow"
-            )
-            if allowed and self.source_policy.grandfathered:
-                # Migrated from the agent's own settings, which asked nobody's permission.
-                return RoutineToolDecision()
-            if effect is None or not allowed:
-                # A capability tool absent from the declared catalog has no
-                # authority the routine can grant by guessing a name.
-                return RoutineToolDecision(required=True)
-            if not await allow_holds(
+            if outcome == "ask" or not await allow_holds(
                 db, organization_id=self.organization_id, user_id=self.user_id
             ):
                 return RoutineToolDecision(required=True)

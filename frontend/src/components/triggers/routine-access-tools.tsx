@@ -22,6 +22,7 @@ import { ROUTES } from "@/lib/constants";
 import {
   mayRunFreely,
   routineToolIdentity as identity,
+  type RoutineAccessMode,
   type RoutineAccessReview,
   type RoutineDelegateSetting,
   type RoutineToolOption,
@@ -37,11 +38,12 @@ export type SetAll = "agent" | "ask" | "allow";
  */
 export function currentSetAll(
   review: RoutineAccessReview,
-  settings: ReadonlyMap<string, RoutineToolSettingValue>,
+  mode: RoutineAccessMode,
+  valueOf: (tool: RoutineToolOption) => RoutineToolSettingValue,
 ): SetAll | "custom" {
   const asAgent = (tool: RoutineToolOption) =>
-    mayRunFreely(tool, review.can_allow) ? "allow" : "ask";
-  const tools = review.tools.map((tool) => ({ tool, value: settings.get(identity(tool)) }));
+    mayRunFreely(tool, review.can_allow, mode) ? "allow" : "ask";
+  const tools = review.tools.map((tool) => ({ tool, value: valueOf(tool) }));
   if (tools.every(({ tool, value }) => value === asAgent(tool))) return "agent";
   if (tools.every(({ value }) => value === "ask" || value === "off")) return "ask";
   if (tools.every(({ tool, value }) => value === "off" || value === asAgent(tool))) return "allow";
@@ -63,12 +65,14 @@ const DELEGATE: readonly RoutineDelegateSetting[] = ["allow", "ask"];
 
 /**
  * Every tool the routine's agent gives it, grouped by capability, account and
- * platform group, each with its own Run freely / Ask first / Off.
+ * platform group, each with its own Run freely (in `trust_agent`: As the agent) /
+ * Ask first / Off and what a call does now.
  */
 export function RoutineAccessTools({
   agentId,
   review,
-  settings,
+  mode,
+  valueOf,
   delegates,
   disabled,
   onTool,
@@ -77,7 +81,8 @@ export function RoutineAccessTools({
 }: {
   agentId: string;
   review: RoutineAccessReview;
-  settings: ReadonlyMap<string, RoutineToolSettingValue>;
+  mode: RoutineAccessMode;
+  valueOf: (tool: RoutineToolOption) => RoutineToolSettingValue;
   delegates: RoutineDelegateSetting;
   disabled: boolean;
   onTool: (tool: RoutineToolOption, value: RoutineToolSettingValue) => void;
@@ -141,13 +146,13 @@ export function RoutineAccessTools({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" disabled={disabled || review.tools.length === 0}>
-              {t("setAllCurrent", { choice: currentSetAll(review, settings) })}
+              {t("setAllCurrent", { choice: currentSetAll(review, mode, valueOf) })}
               <ChevronDown aria-hidden className="size-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuRadioGroup
-              value={currentSetAll(review, settings)}
+              value={currentSetAll(review, mode, valueOf)}
               onValueChange={(value) => {
                 if (value === "agent" || value === "ask" || value === "allow") onSetAll(value);
               }}
@@ -159,6 +164,11 @@ export function RoutineAccessTools({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {review.grandfathered && (
+        <p role="note" className="text-muted-foreground text-sm">
+          {t("grandfathered")}
+        </p>
+      )}
       {review.unlisted_accounts.length > 0 && (
         <p role="note" className="text-muted-foreground text-sm">
           {t("unlisted", { names: review.unlisted_accounts.join(", ") })}{" "}
@@ -204,8 +214,9 @@ export function RoutineAccessTools({
                     `${id}-${sectionIndex}`,
                     ...(group.name === null ? [] : [`${id}-${sectionIndex}-${groupIndex}`]),
                   ].join(" ")}
-                  value={settings.get(identity(tool)) ?? "ask"}
-                  refused={mayRunFreely(tool, review.can_allow) ? null : refusal}
+                  value={valueOf(tool)}
+                  trusting={mode === "trust_agent"}
+                  refused={mayRunFreely(tool, review.can_allow, mode) ? null : refusal}
                   disabled={disabled}
                   onChange={(value) => onTool(tool, value)}
                 />
@@ -214,7 +225,8 @@ export function RoutineAccessTools({
           ))}
         </section>
       ))}
-      {review.has_delegates && (
+      {/* A routine that trusts its agent leaves its delegates to it as well. */}
+      {review.has_delegates && mode === "reviewed" && (
         <section
           aria-label={t("delegates")}
           className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg border p-3"
@@ -244,6 +256,7 @@ function ToolRow({
   tool,
   describedBy,
   value,
+  trusting,
   refused,
   disabled,
   onChange,
@@ -251,6 +264,8 @@ function ToolRow({
   tool: RoutineToolOption;
   describedBy: string;
   value: RoutineToolSettingValue;
+  /** Run freely is the agent's own decision here, and says so. */
+  trusting: boolean;
   refused: string | null;
   disabled: boolean;
   onChange: (value: RoutineToolSettingValue) => void;
@@ -262,11 +277,15 @@ function ToolRow({
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         <span className="text-sm break-all">{tool.name}</span>
         <Badge variant="outline">{t(tool.effect ? "changes" : "reads")}</Badge>
-        {tool.setting === null && <Badge variant="secondary">{t("new")}</Badge>}
         {locked && (
           <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
             <Lock aria-hidden className="size-3" />
             {t("locked")}
+          </span>
+        )}
+        {tool.effective !== null && (
+          <span className="text-muted-foreground text-xs">
+            {t("effectiveNow", { state: tool.effective })}
           </span>
         )}
       </div>
@@ -275,6 +294,7 @@ function ToolRow({
         describedBy={describedBy}
         value={value}
         options={locked ? ASKING : ALL}
+        allowLabel={trusting ? t("setAllAgent") : undefined}
         // A tool the agent asks before never offers Run freely, so nothing to explain.
         refused={locked ? null : refused}
         disabled={disabled}

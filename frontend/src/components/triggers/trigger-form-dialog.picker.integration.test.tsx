@@ -190,6 +190,8 @@ it("creates paused and saves the reviewed access before enabling", async () => {
         effect: true,
         agent: "free",
         setting: "allow",
+        // Not reviewed yet: nothing runs until the review is saved.
+        effective: null,
       },
     ],
   });

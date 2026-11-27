@@ -21,6 +21,7 @@ from app.schemas.routine_tool_keys import (
     RoutineDelegateSetting,
     RoutineMcpToolKey,
     RoutinePlatformToolKey,
+    RoutineToolEffect,
     RoutineToolSetting,
     RoutineToolSettingValue,
     TrustBlockedReason,
@@ -33,7 +34,18 @@ class _ToolOption(BaseModel):
     agent: AgentToolSetting = Field(description="The agent's own setting for the tool")
     setting: RoutineToolSettingValue | None = Field(
         default=None,
-        description="The routine's reviewed setting; null for a tool added since the review",
+        description=(
+            "The routine's own setting; null where it has none and the mode's default applies. "
+            "For a routine not reviewed yet, or one migrated before its first review, what "
+            "saving the review proposes"
+        ),
+    )
+    effective: RoutineToolEffect | None = Field(
+        default=None,
+        description=(
+            "What a call does now, the agent's own approvals included; null before the "
+            "routine's first review"
+        ),
     )
 
 
@@ -70,6 +82,13 @@ class RoutineAccessReview(BaseModel):
     """What the routine may reach and do, and what its creator may choose."""
 
     mode: RoutineAccessMode
+    grandfathered: bool = Field(
+        default=False,
+        description=(
+            "Migrated from the agent's own approval settings and not saved since: its tools "
+            "run as the agent allows until the review is saved"
+        ),
+    )
     current: bool = Field(description="The stored review admits the next run as it stands")
     review_reason: RoutineReviewReason | None = None
     review_token: Fingerprint
@@ -93,7 +112,13 @@ class RoutineAccessReview(BaseModel):
 
 
 class RoutineAccessUpdate(BaseModel):
-    """The whole review, replacing the previous one."""
+    """The whole review, replacing the previous one.
+
+    A tool left out of `tools` gets no setting of its own, so the mode's default
+    applies to it: in `reviewed` a read runs and a tool that changes something
+    asks; in `trust_agent` the agent decides. A setting that would do the same as
+    that default is not stored either.
+    """
 
     model_config = ConfigDict(extra="forbid")
 

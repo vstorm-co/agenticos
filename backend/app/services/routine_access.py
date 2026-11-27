@@ -41,6 +41,7 @@ from app.schemas.routine_access import (
 from app.schemas.routine_sources import RoutineSourcePolicy
 from app.schemas.routine_tool_keys import (
     AllowBlockedReason,
+    RoutineAccessMode,
     RoutineCapabilityToolKey,
     RoutineCapabilityToolSetting,
     RoutineDelegateSetting,
@@ -48,6 +49,7 @@ from app.schemas.routine_tool_keys import (
     RoutineMcpToolSetting,
     RoutinePlatformToolKey,
     RoutinePlatformToolSetting,
+    RoutineToolEffect,
     RoutineToolKey,
     RoutineToolSetting,
     RoutineToolSettingValue,
@@ -208,23 +210,78 @@ def default_setting(option: RoutineToolOption, *, can_allow: bool) -> RoutineToo
     return "allow"
 
 
-def asks_for_routine(
-    option: RoutineToolOption,
-    policy: RoutineSourcePolicy,
-    setting: RoutineToolSettingValue | None,
+def decide(
     *,
+    effect: bool | None,
+    setting: RoutineToolSettingValue | None,
+    mode: RoutineAccessMode,
+    grandfathered: bool,
     can_allow: bool,
+    agent_asks: bool = False,
+) -> RoutineToolEffect:
+    """What one call of a root-agent tool does: the one rule every reader applies.
+
+    The run, the review's `effective` and the readiness count all ask this, so
+    none of them can drift from the others. `setting` is the routine's own, or
+    None where it has none and the mode's default applies: in `reviewed` a read
+    runs and a tool that changes something (or might: `effect` None) asks; in
+    `trust_agent`, and for a migrated `grandfathered` review, the agent decides.
+    `agent_asks` is the agent's own gate, which no routine setting releases; the
+    run leaves it to `ApprovalGate` and passes False.
+    """
+    if setting == "off":
+        return "off"
+    if agent_asks or setting == "ask":
+        return "ask"
+    if mode == "trust_agent" or effect is False:
+        return "run"
+    if grandfathered:
+        # Migrated from the agent's own settings, which asked nobody's permission.
+        return "run"
+    if effect is None or setting != "allow":
+        return "ask"
+    return "consent" if can_allow else "ask"
+
+
+def decide_delegate(
+    *,
+    effect: bool | None,
+    delegates: RoutineDelegateSetting,
+    mode: RoutineAccessMode,
+    grandfathered: bool,
+    can_allow: bool,
+) -> RoutineToolEffect:
+    """`decide` for a delegate's tool, which the routine sets for all delegates at once."""
+    if mode == "trust_agent" or effect is False:
+        return "run"
+    if delegates == "allow" and grandfathered:
+        return "run"
+    if effect is None or delegates != "allow":
+        return "ask"
+    return "consent" if can_allow else "ask"
+
+
+def kept(
+    option: RoutineToolOption, value: RoutineToolSettingValue, mode: RoutineAccessMode
 ) -> bool:
-    """Whether the routine, rather than the agent, makes a call to this tool wait."""
-    if option.agent == "ask" or setting == "off":
-        return False
-    if setting == "ask":
+    """Whether storing `value` for this tool does anything its absence would not.
+
+    Only such a setting is stored. An `ask` on a tool the agent asks before
+    anyway is the only choice the review offers there besides `off`, not a
+    decision; stored, it would outlive the agent's own setting and keep the
+    routine asking after the agent stopped.
+    """
+    if value == "off":
         return True
-    if policy.mode == "trust_agent" or not option.effect:
+    if option.agent == "ask":
         return False
-    if setting == "allow":
-        return not (can_allow or policy.grandfathered)
-    return not policy.grandfathered
+
+    def outcome(setting: RoutineToolSettingValue | None) -> RoutineToolEffect:
+        return decide(
+            effect=option.effect, setting=setting, mode=mode, grandfathered=False, can_allow=True
+        )
+
+    return outcome(value) != outcome(None)
 
 
 def in_console(ctx: AuthContext) -> bool:
@@ -375,20 +432,38 @@ class RoutineAccessService:
                     else "sources"
                 )
         settings = {} if stored is None else settings_of(stored)
+        # The run checks the creator's standing consent as they stand, not as this
+        # session does: a review read through a personal key shows the same.
+        holds = stored is not None and await allow_holds(
+            self.db, organization_id=ctx.organization_id, user_id=ctx.subject_id
+        )
 
         def shown(option: RoutineToolOption) -> RoutineToolSettingValue | None:
             setting = settings.get(setting_key(option))
             if setting is not None:
                 return setting
             if stored is None or stored.grandfathered:
-                # A routine not reviewed yet shows what a review would give it;
-                # a migrated one shows what it does: follow the agent.
-                return default_setting(option, can_allow=allow_reason is None or stored is not None)
+                # A routine not reviewed yet, or migrated, proposes what a new
+                # review gives it; saving applies the proposal.
+                return default_setting(option, can_allow=allow_reason is None)
             return None
+
+        def effective(option: RoutineToolOption) -> RoutineToolEffect | None:
+            if stored is None:
+                return None
+            return decide(
+                effect=option.effect,
+                setting=settings.get(setting_key(option)),
+                mode=stored.mode,
+                grandfathered=stored.grandfathered,
+                can_allow=holds,
+                agent_asks=option.agent == "ask",
+            )
 
         required = set(snapshot.unavailable) - snapshot.optional_unavailable
         return RoutineAccessReview(
             mode="reviewed" if stored is None else stored.mode,
+            grandfathered=stored is not None and stored.grandfathered,
             current=reason is None,
             review_reason=reason,
             review_token=self._token(
@@ -398,7 +473,10 @@ class RoutineAccessService:
             sources=snapshot.items,
             unavailable_sources=snapshot.unavailable,
             required_unavailable_sources=sorted(required),
-            tools=[option.model_copy(update={"setting": shown(option)}) for option in options],
+            tools=[
+                option.model_copy(update={"setting": shown(option), "effective": effective(option)})
+                for option in options
+            ],
             unlisted_accounts=unlisted,
             has_delegates=has_delegates,
             delegates=(
@@ -461,10 +539,16 @@ class RoutineAccessService:
                 message="A routine cannot let a tool run without asking where its agent asks first",
                 details={"tools": released},
             )
+        # Only what differs from the mode's default is a decision worth keeping.
+        decided = {
+            key: value for key, value in chosen.items() if kept(offered[key], value, data.mode)
+        }
         allow_reason = await allow_blocked(self.db, ctx)
+        # In `trust_agent` an `allow` is the default and is not stored, and the
+        # delegates' setting is not read, so neither waives anything here.
         if allow_reason is not None and (
-            any(value == "allow" and offered[key].effect for key, value in chosen.items())
-            or (has_delegates and data.delegates == "allow")
+            any(value == "allow" for value in decided.values())
+            or (data.mode == "reviewed" and has_delegates and data.delegates == "allow")
         ):
             raise AuthorizationError(
                 message=(
@@ -485,15 +569,14 @@ class RoutineAccessService:
             previous = settings_of(read_policy(current.approved_sources))
         except RoutineSourcesRequired:
             previous = {}
-        # A tool the request leaves out asks: the safe reading of silence. A
-        # saved setting for a tool not offered now (an account whose tool list
+        # A saved setting for a tool not offered now (an account whose tool list
         # is unknown, an optional source that is down) is kept as it was: the
         # creator was not shown it, so the save cannot have changed it, and
         # dropping an `off` would let the tool run when it comes back.
         tools = tuple(
             sorted(
                 (
-                    *(_setting(key, chosen.get(key, "ask")) for key in offered),
+                    *(_setting(key, value) for key, value in decided.items()),
                     *(
                         _setting(key, value)
                         for key, value in previous.items()
@@ -524,9 +607,9 @@ class RoutineAccessService:
                 "version_id": str(policy.version_id),
                 "mode": policy.mode,
                 "accounts": len(policy.mcp_sources),
-                "allow": sum(1 for value in chosen.values() if value == "allow"),
+                "allow": sum(1 for setting in tools if setting.setting == "allow"),
                 "ask": sum(1 for setting in tools if setting.setting == "ask"),
-                "off": sum(1 for value in chosen.values() if value == "off"),
+                "off": sum(1 for setting in tools if setting.setting == "off"),
                 "delegates": delegates,
             },
         )
@@ -541,11 +624,13 @@ class RoutineAccessService:
         snapshot = await self.sources.initial(ctx, trigger)
         options, _, _ = await self.offered(ctx, trigger)
         can_allow = await allow_blocked(self.db, ctx) is None
+        proposed = ((option, default_setting(option, can_allow=can_allow)) for option in options)
         tools = tuple(
             sorted(
                 (
-                    _setting(setting_key(option), default_setting(option, can_allow=can_allow))
-                    for option in options
+                    _setting(setting_key(option), value)
+                    for option, value in proposed
+                    if kept(option, value, "reviewed")
                 ),
                 key=lambda setting: setting.model_dump_json(),
             )
@@ -570,12 +655,19 @@ class RoutineAccessService:
             self.db, organization_id=ctx.organization_id, user_id=ctx.user_id
         )
         settings = settings_of(policy)
+        # Only where the agent itself would not ask: that wait is the agent's.
         return sum(
             1
             for option in options
-            if asks_for_routine(
-                option, policy, settings.get(setting_key(option)), can_allow=can_allow
+            if option.agent != "ask"
+            and decide(
+                effect=option.effect,
+                setting=settings.get(setting_key(option)),
+                mode=policy.mode,
+                grandfathered=policy.grandfathered,
+                can_allow=can_allow,
             )
+            == "ask"
         )
 
     async def _mcp_tools(

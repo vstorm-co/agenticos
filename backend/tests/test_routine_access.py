@@ -4,6 +4,7 @@ See `docs/design/routine-access.md`. The service paths that need a database are
 in `tests/integration/`.
 """
 
+import itertools
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -37,10 +38,12 @@ from app.services.routine_access import (
     INBOX_FINDING,
     allow_blocked,
     allow_holds,
-    asks_for_routine,
     capability_tool_options,
+    decide,
+    decide_delegate,
     default_setting,
     in_console,
+    kept,
     platform_tool_options,
     provider_executed,
     routine_effect,
@@ -140,44 +143,159 @@ def test_a_new_review_lets_run_what_the_creator_may_let_run(
     assert default_setting(_option(effect=effect, agent=agent), can_allow=can_allow) == expected
 
 
+GRID = list(
+    itertools.product(
+        ("reviewed", "trust_agent"),
+        (False, True),  # grandfathered
+        (False, True),  # agent_asks
+        (False, True, None),  # effect: read, change, unknown
+        (None, "allow", "ask", "off"),
+        (False, True),  # can_allow
+    )
+)
+
+
 @pytest.mark.parametrize(
-    ("agent", "effect", "mode", "grandfathered", "setting", "can_allow", "asks"),
+    ("mode", "grandfathered", "effect", "setting", "can_allow", "expected"),
     [
-        # The agent's own approval is the agent's, not the routine's.
-        ("ask", True, "reviewed", False, "ask", True, False),
-        # Off hides the tool; nothing waits for it.
-        ("free", True, "reviewed", False, "off", True, False),
-        ("free", False, "reviewed", False, "ask", True, True),
-        ("free", True, "trust_agent", False, "ask", True, True),
-        ("free", True, "trust_agent", False, None, False, False),
-        ("free", False, "reviewed", False, None, False, False),
-        ("free", True, "reviewed", False, "allow", True, False),
-        # An allow the creator may no longer give asks again.
-        ("free", True, "reviewed", False, "allow", False, True),
-        ("free", True, "reviewed", True, "allow", False, False),
-        # A tool added since the review asks, unless migrated from the agent's settings.
-        ("free", True, "reviewed", False, None, True, True),
-        ("free", True, "reviewed", True, None, False, False),
+        # A reviewed routine: a read runs, a change asks unless allowed and still allowable.
+        ("reviewed", False, False, None, True, "run"),
+        ("reviewed", False, True, None, True, "ask"),
+        ("reviewed", False, None, None, True, "ask"),
+        ("reviewed", False, False, "allow", False, "run"),
+        ("reviewed", False, True, "allow", True, "consent"),
+        ("reviewed", False, True, "allow", False, "ask"),
+        ("reviewed", False, None, "allow", True, "ask"),
+        ("reviewed", False, False, "ask", True, "ask"),
+        ("reviewed", False, True, "off", True, "off"),
+        # Migrated from the agent's settings: the agent decides until the review is saved.
+        ("reviewed", True, True, None, False, "run"),
+        ("reviewed", True, None, "allow", False, "run"),
+        ("reviewed", True, True, "ask", True, "ask"),
+        # Trusting the agent: only ask and off change anything.
+        ("trust_agent", False, True, None, False, "run"),
+        ("trust_agent", False, True, "allow", False, "run"),
+        ("trust_agent", False, False, "ask", True, "ask"),
+        ("trust_agent", False, True, "off", True, "off"),
     ],
 )
-def test_the_routine_makes_a_tool_wait_only_where_its_review_does(
-    agent: str,
-    effect: bool,
+def test_a_call_does_what_the_routine_and_its_mode_decide(
     mode: str,
     grandfathered: bool,
+    effect: bool | None,
     setting: str | None,
     can_allow: bool,
-    asks: bool,
+    expected: str,
 ) -> None:
-    policy = _policy(mode=mode, grandfathered=grandfathered)
     assert (
-        asks_for_routine(
-            _option(effect=effect, agent=agent),
-            policy,
-            setting,
+        decide(
+            effect=effect,
+            setting=setting,  # type: ignore[arg-type]  # parametrized literals
+            mode=mode,  # type: ignore[arg-type]  # parametrized literals
+            grandfathered=grandfathered,
             can_allow=can_allow,
         )
-        is asks
+        == expected
+    )
+
+
+@pytest.mark.parametrize(
+    ("mode", "grandfathered", "agent_asks", "effect", "setting", "can_allow"), GRID
+)
+def test_no_routine_setting_releases_what_the_agent_or_the_routine_holds_back(
+    mode: str,
+    grandfathered: bool,
+    agent_asks: bool,
+    effect: bool | None,
+    setting: str | None,
+    can_allow: bool,
+) -> None:
+    """Every combination: off refuses, an agent's or the routine's ask asks,
+    and only a reviewed allow on a change the creator may still allow runs on
+    their standing consent."""
+    outcome = decide(
+        effect=effect,
+        setting=setting,  # type: ignore[arg-type]  # parametrized literals
+        mode=mode,  # type: ignore[arg-type]  # parametrized literals
+        grandfathered=grandfathered,
+        can_allow=can_allow,
+        agent_asks=agent_asks,
+    )
+    if setting == "off":
+        assert outcome == "off"
+    elif agent_asks or setting == "ask":
+        assert outcome == "ask"
+    else:
+        assert outcome != "off"
+    assert (outcome == "consent") == (
+        mode == "reviewed"
+        and not grandfathered
+        and not agent_asks
+        and effect is True
+        and setting == "allow"
+        and can_allow
+    )
+    if mode == "trust_agent" and setting in (None, "allow") and not agent_asks:
+        assert outcome == "run"
+
+
+@pytest.mark.parametrize(
+    ("agent", "effect", "mode", "value", "stored"),
+    [
+        # The only choice besides off where the agent asks: not a decision.
+        ("ask", True, "reviewed", "ask", False),
+        ("ask", False, "trust_agent", "ask", False),
+        ("ask", True, "reviewed", "off", True),
+        # What the mode does anyway is not stored.
+        ("free", False, "reviewed", "allow", False),
+        ("free", True, "reviewed", "ask", False),
+        ("free", True, "trust_agent", "allow", False),
+        ("free", False, "trust_agent", "allow", False),
+        # What differs from it is.
+        ("free", True, "reviewed", "allow", True),
+        ("free", False, "reviewed", "ask", True),
+        ("free", True, "trust_agent", "ask", True),
+        ("free", False, "reviewed", "off", True),
+    ],
+)
+def test_a_review_stores_only_what_differs_from_its_modes_default(
+    agent: str, effect: bool, mode: str, value: str, stored: bool
+) -> None:
+    assert (
+        kept(_option(effect=effect, agent=agent), value, mode)  # type: ignore[arg-type]  # parametrized literals
+        is stored
+    )
+
+
+@pytest.mark.parametrize(
+    ("mode", "grandfathered", "effect", "delegates", "can_allow", "expected"),
+    [
+        ("trust_agent", False, True, "ask", False, "run"),
+        ("reviewed", False, False, "ask", False, "run"),
+        ("reviewed", True, True, "allow", False, "run"),
+        ("reviewed", True, True, "ask", True, "ask"),
+        ("reviewed", False, None, "allow", True, "ask"),
+        ("reviewed", False, True, "allow", False, "ask"),
+        ("reviewed", False, True, "allow", True, "consent"),
+    ],
+)
+def test_a_delegates_call_follows_the_routines_one_setting_for_delegates(
+    mode: str,
+    grandfathered: bool,
+    effect: bool | None,
+    delegates: str,
+    can_allow: bool,
+    expected: str,
+) -> None:
+    assert (
+        decide_delegate(
+            effect=effect,
+            delegates=delegates,  # type: ignore[arg-type]  # parametrized literals
+            mode=mode,  # type: ignore[arg-type]  # parametrized literals
+            grandfathered=grandfathered,
+            can_allow=can_allow,
+        )
+        == expected
     )
 
 

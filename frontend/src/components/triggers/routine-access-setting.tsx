@@ -24,6 +24,7 @@ export function RoutineAccessSetting<T extends RoutineToolSettingValue>({
   value,
   options,
   refused,
+  allowLabel,
   disabled,
   onChange,
 }: {
@@ -33,6 +34,8 @@ export function RoutineAccessSetting<T extends RoutineToolSettingValue>({
   options: readonly T[];
   /** Why Run freely is refused here; null when it is not. */
   refused: string | null;
+  /** Another name for Run freely, where it means something else. */
+  allowLabel?: string;
   disabled: boolean;
   onChange: (value: T) => void;
 }) {
@@ -87,7 +90,9 @@ export function RoutineAccessSetting<T extends RoutineToolSettingValue>({
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {t(option as RoutineToolSettingValue)}
+            {option === "allow" && allowLabel !== undefined
+              ? allowLabel
+              : t(option as RoutineToolSettingValue)}
           </button>
         );
         return blocked ? (

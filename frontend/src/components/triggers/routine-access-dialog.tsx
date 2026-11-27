@@ -29,9 +29,9 @@ import { isStaleReview, useRoutineAccess } from "@/hooks/use-routine-access";
 import { DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import {
   mayRunFreely,
+  modeDefault,
   routineToolIdentity as identity,
   routineToolKey,
-  shownSetting,
   type RoutineAccessMode,
   type RoutineAccessReview,
   type RoutineDelegateSetting,
@@ -52,17 +52,14 @@ interface Choice {
 }
 
 /**
- * What the review starts from: the stored settings, with anything the creator may
- * no longer choose narrowed to what they may - so saving it is never refused.
+ * What the review starts from: the routine's own settings (or, before its first
+ * review, the proposed ones) and its mode. A tool with none shows its mode's
+ * default and is saved without one.
  */
 function initial(review: RoutineAccessReview) {
   const tools = new Map<string, RoutineToolSettingValue>();
   for (const tool of review.tools) {
-    const shown = shownSetting(tool);
-    tools.set(
-      identity(tool),
-      shown === "allow" && !mayRunFreely(tool, review.can_allow) ? "ask" : shown,
-    );
+    if (tool.setting !== null) tools.set(identity(tool), tool.setting);
   }
   return {
     tools,
@@ -71,19 +68,33 @@ function initial(review: RoutineAccessReview) {
   } as const;
 }
 
+/**
+ * What a tool shows and saves: its own setting or its mode's default, narrowed to
+ * what the caller may choose - so saving it is never refused.
+ */
+function toolValue(
+  canAllow: boolean,
+  tool: RoutineToolOption,
+  own: RoutineToolSettingValue | undefined,
+  mode: RoutineAccessMode,
+): RoutineToolSettingValue {
+  const value = own ?? modeDefault(tool, mode);
+  return value === "allow" && !mayRunFreely(tool, canAllow, mode) ? "ask" : value;
+}
+
 function setAll(
   review: RoutineAccessReview,
-  current: ReadonlyMap<string, RoutineToolSettingValue>,
+  mode: RoutineAccessMode,
+  valueOf: (tool: RoutineToolOption) => RoutineToolSettingValue,
   choice: SetAll,
 ): Record<string, RoutineToolSettingValue> {
   const next: Record<string, RoutineToolSettingValue> = {};
   for (const tool of review.tools) {
-    const key = identity(tool);
-    const free = mayRunFreely(tool, review.can_allow);
+    const free = mayRunFreely(tool, review.can_allow, mode);
     // "As the agent" resets every tool; the other two keep a tool that is off, off.
-    if (choice === "agent") next[key] = free ? "allow" : "ask";
-    else if (current.get(key) === "off") next[key] = "off";
-    else next[key] = choice === "allow" && free ? "allow" : "ask";
+    if (choice === "agent") next[identity(tool)] = free ? "allow" : "ask";
+    else if (valueOf(tool) === "off") next[identity(tool)] = "off";
+    else next[identity(tool)] = choice === "allow" && free ? "allow" : "ask";
   }
   return next;
 }
@@ -120,14 +131,17 @@ export function RoutineAccessDialog({
   for (const [key, value] of Object.entries(ours?.tools ?? {})) settings.set(key, value);
   const delegates = ours?.delegates ?? start?.delegates ?? "ask";
   const mode = ours?.mode ?? start?.mode ?? "reviewed";
+  const canAllow = data?.can_allow === true;
+  const valueOf = (tool: RoutineToolOption) =>
+    toolValue(canAllow, tool, settings.get(identity(tool)), mode);
   const changed =
     !!data &&
     (!data.current ||
       mode !== data.mode ||
       (data.has_delegates && delegates !== data.delegates) ||
-      data.tools.some((tool) => tool.setting !== settings.get(identity(tool))));
+      data.tools.some((tool) => valueOf(tool) !== (tool.setting ?? modeDefault(tool, data.mode))));
   const counts = { allow: 0, ask: 0, off: 0 };
-  for (const value of settings.values()) counts[value] += 1;
+  for (const tool of data?.tools ?? []) counts[valueOf(tool)] += 1;
   const blocked = !data || data.required_unavailable_sources.length > 0;
   const choose = (update: Partial<Omit<Choice, "token">>) =>
     data &&
@@ -143,10 +157,10 @@ export function RoutineAccessDialog({
       await save.mutateAsync({
         review_token: review.review_token,
         mode,
-        tools: review.tools.map((tool: RoutineToolOption) => ({
-          ...routineToolKey(tool),
-          setting: settings.get(identity(tool)) ?? "ask",
-        })),
+        // Only the routine's own settings: a tool left out takes its mode's default.
+        tools: review.tools.flatMap((tool: RoutineToolOption) =>
+          settings.has(identity(tool)) ? [{ ...routineToolKey(tool), setting: valueOf(tool) }] : [],
+        ),
         delegates,
       });
       if (onSaved) {
@@ -194,14 +208,15 @@ export function RoutineAccessDialog({
                   <RoutineAccessTools
                     agentId={trigger.agent_id}
                     review={data}
-                    settings={settings}
+                    mode={mode}
+                    valueOf={valueOf}
                     delegates={delegates}
                     disabled={pending}
                     onTool={(tool, value) => choose({ tools: { [identity(tool)]: value } })}
                     onDelegates={(value) => choose({ delegates: value })}
                     onSetAll={(all) =>
                       choose({
-                        tools: setAll(data, settings, all),
+                        tools: setAll(data, mode, valueOf, all),
                         delegates: all !== "ask" && data.can_allow ? "allow" : "ask",
                       })
                     }

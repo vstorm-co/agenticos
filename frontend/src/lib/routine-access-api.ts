@@ -31,6 +31,9 @@ export type RoutineAccessMode = "reviewed" | "trust_agent";
 /** `allow` runs where the agent lets it, `ask` waits for approval, `off` hides and refuses it. */
 export type RoutineToolSettingValue = "allow" | "ask" | "off";
 
+/** What one call does now: runs, asks, runs on the creator's standing consent, or is refused. */
+export type RoutineToolEffect = "run" | "ask" | "consent" | "off";
+
 export type RoutineDelegateSetting = "allow" | "ask";
 
 export interface RoutineCapabilityToolKey {
@@ -55,8 +58,13 @@ interface ToolOption {
   effect: boolean;
   /** The agent's own setting for the tool. */
   agent: "free" | "ask";
-  /** The routine's reviewed setting; null for a tool added since the review. */
+  /**
+   * The routine's own setting; null where it has none and the mode's default
+   * applies. For a routine not reviewed yet, or migrated, what saving proposes.
+   */
   setting: RoutineToolSettingValue | null;
+  /** What a call does now, the agent's own approvals included; null before the first review. */
+  effective: RoutineToolEffect | null;
 }
 export type RoutineToolOption =
   | (RoutineCapabilityToolKey & ToolOption & { capability_name: string })
@@ -74,6 +82,8 @@ export type RoutineReviewReason =
 
 export interface RoutineAccessReview {
   mode: RoutineAccessMode;
+  /** Migrated and not saved since: its tools run as the agent allows until it is. */
+  grandfathered: boolean;
   /** The stored review admits the next run as it stands. */
   current: boolean;
   review_reason: RoutineReviewReason | null;
@@ -97,7 +107,10 @@ export interface RoutineAccessReview {
 
 export type RoutineToolSetting = RoutineToolKey & { setting: RoutineToolSettingValue };
 
-/** The whole review, replacing the previous one; a tool left out asks. */
+/**
+ * The whole review, replacing the previous one. A tool left out has no setting of
+ * its own, so the mode's default applies to it (see `modeDefault`).
+ */
 export interface RoutineAccessUpdate {
   review_token: string;
   mode: RoutineAccessMode;
@@ -116,19 +129,29 @@ export function routineToolIdentity(tool: RoutineToolOption): string {
   return JSON.stringify(routineToolKey(tool));
 }
 
-/** Whether the caller may let this tool run without asking. */
-export function mayRunFreely(tool: RoutineToolOption, canAllow: boolean): boolean {
-  return tool.agent === "free" && (canAllow || !tool.effect);
+/**
+ * Whether the caller may choose Run freely for this tool. In `trust_agent` that
+ * choice is the agent's own decision, which needs no standing consent.
+ */
+export function mayRunFreely(
+  tool: RoutineToolOption,
+  canAllow: boolean,
+  mode: RoutineAccessMode,
+): boolean {
+  return tool.agent === "free" && (mode === "trust_agent" || canAllow || !tool.effect);
 }
 
 /**
- * What a tool shows before anybody touches it: its reviewed setting, or for a
- * tool new since the review what the server does with it - a read runs, a tool
- * that changes something asks.
+ * What a tool without a setting of its own does in this mode, as the choice it
+ * amounts to: in `reviewed` a read runs and a tool that changes something asks;
+ * in `trust_agent` the agent decides. Choosing it stores nothing.
  */
-export function shownSetting(tool: RoutineToolOption): RoutineToolSettingValue {
-  if (tool.setting !== null) return tool.setting;
-  return tool.effect || tool.agent === "ask" ? "ask" : "allow";
+export function modeDefault(
+  tool: RoutineToolOption,
+  mode: RoutineAccessMode,
+): RoutineToolSettingValue {
+  if (tool.agent === "ask") return "ask";
+  return mode === "trust_agent" || !tool.effect ? "allow" : "ask";
 }
 
 const path = (agentId: string, triggerId: string) =>

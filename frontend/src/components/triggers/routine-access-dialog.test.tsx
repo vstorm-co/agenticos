@@ -47,6 +47,7 @@ function tool(overrides: Partial<RoutineToolOption> & { tool_id: string }): Rout
     effect: true,
     agent: "free",
     setting: "allow",
+    effective: "consent",
     ...overrides,
   } as RoutineToolOption;
 }
@@ -54,6 +55,7 @@ function tool(overrides: Partial<RoutineToolOption> & { tool_id: string }): Rout
 function review(overrides: Partial<RoutineAccessReview> = {}): RoutineAccessReview {
   return {
     mode: "reviewed",
+    grandfathered: false,
     current: true,
     review_reason: null,
     review_token: "token-1",
@@ -62,9 +64,11 @@ function review(overrides: Partial<RoutineAccessReview> = {}): RoutineAccessRevi
     unavailable_sources: [],
     required_unavailable_sources: [],
     tools: [
+      // Only the allow on a change is the routine's own; the read and the tool
+      // the agent asks before take the mode's default, as the server sends them.
       tool({ tool_id: "send", setting: "allow" }),
-      tool({ tool_id: "read", effect: false, setting: "allow" }),
-      tool({ tool_id: "delete", agent: "ask", setting: "ask" }),
+      tool({ tool_id: "read", effect: false, setting: null, effective: "run" }),
+      tool({ tool_id: "delete", agent: "ask", setting: null, effective: "ask" }),
     ],
     unlisted_accounts: [],
     has_delegates: false,
@@ -92,7 +96,7 @@ beforeEach(() => {
   useOrgStore.setState({ activeOrgId: "org-1" });
 });
 
-it("opens on the tools, titled with the routine, and saves every tool's setting", async () => {
+it("opens on the tools, titled with the routine, and saves only the routine's own settings", async () => {
   const onClose = vi.fn();
   render(<RoutineAccessDialog trigger={trigger} onClose={onClose} />);
   expect(screen.getByRole("dialog", { name: "Routine access: Digest" })).toBeVisible();
@@ -108,14 +112,32 @@ it("opens on the tools, titled with the routine, and saves every tool's setting"
   expect(state.save).toHaveBeenCalledWith({
     review_token: "token-1",
     mode: "reviewed",
-    tools: [
-      { capability_id: "mail", tool_id: "send", setting: "off" },
-      { capability_id: "mail", tool_id: "read", setting: "allow" },
-      { capability_id: "mail", tool_id: "delete", setting: "ask" },
-    ],
+    // The read and the locked tool keep the mode's default: nothing to store.
+    tools: [{ capability_id: "mail", tool_id: "send", setting: "off" }],
     delegates: "ask",
   });
   await waitFor(() => expect(onClose).toHaveBeenCalled());
+});
+
+it("resends the routine's own settings with what was changed", async () => {
+  render(<RoutineAccessDialog trigger={trigger} onClose={vi.fn()} />);
+  await userEvent.click(option("read", "Ask first"));
+  await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  expect(state.save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      tools: [
+        { capability_id: "mail", tool_id: "send", setting: "allow" },
+        { capability_id: "mail", tool_id: "read", setting: "ask" },
+      ],
+    }),
+  );
+});
+
+it("says what each tool does now", () => {
+  render(<RoutineAccessDialog trigger={trigger} onClose={vi.fn()} />);
+  expect(screen.getByText("Now runs on your standing consent")).toBeVisible();
+  expect(screen.getByText("Now runs without asking")).toBeVisible();
+  expect(screen.getByText("Now asks first")).toBeVisible();
 });
 
 it("locks a tool the agent always asks before to Ask first or Off", () => {
@@ -146,19 +168,57 @@ it("refuses Run freely on a tool that changes something without the permission, 
   ).toBeVisible();
 });
 
-it("shows a tool new since the review as asking when it changes something, and marks it", () => {
+it("shows a tool without a setting of its own as its mode's default, and saving it stores nothing", async () => {
   state.data = review({
     tools: [
-      tool({ tool_id: "send", setting: null }),
-      tool({ tool_id: "read", effect: false, setting: null }),
+      tool({ tool_id: "send", setting: null, effective: "ask" }),
+      tool({ tool_id: "read", effect: false, setting: null, effective: "run" }),
     ],
   });
   render(<RoutineAccessDialog trigger={trigger} onClose={vi.fn()} />);
-  expect(screen.getAllByText("New")).toHaveLength(2);
   expect(option("send", "Ask first")).toHaveAttribute("aria-checked", "true");
   expect(option("read", "Run freely")).toHaveAttribute("aria-checked", "true");
-  // Nothing touched, but the new tools still need saving.
-  expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
+  // Nothing differs from what the routine does, so there is nothing to save.
+  expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+});
+
+it("lets a trusting routine follow the agent without standing consent, and hides delegates", async () => {
+  state.data = review({
+    mode: "trust_agent",
+    can_trust: true,
+    trust_blocked_reason: null,
+    can_allow: false,
+    allow_blocked_reason: "organization",
+    has_delegates: true,
+    tools: [
+      tool({ tool_id: "send", setting: null, effective: "run" }),
+      tool({ tool_id: "delete", agent: "ask", setting: null, effective: "ask" }),
+    ],
+  });
+  render(<RoutineAccessDialog trigger={trigger} onClose={vi.fn()} />);
+  // Shown as what it is: the agent's decision, not standing consent to withhold.
+  const asAgent = option("send", "As the agent");
+  expect(asAgent).toHaveAttribute("aria-checked", "true");
+  expect(asAgent).not.toHaveAttribute("aria-disabled");
+  expect(screen.queryByRole("radiogroup", { name: "Delegate agents" })).toBeNull();
+  await userEvent.click(option("send", "Ask first"));
+  await userEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  expect(state.save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      mode: "trust_agent",
+      tools: [{ capability_id: "mail", tool_id: "send", setting: "ask" }],
+    }),
+  );
+});
+
+it("tells a migrated routine that saving replaces how it runs today", () => {
+  state.data = review({ grandfathered: true });
+  render(<RoutineAccessDialog trigger={trigger} onClose={vi.fn()} />);
+  expect(
+    screen.getByText(
+      "This routine still runs its tools as its agent allows, as it did before routine access. Saving applies the settings below instead.",
+    ),
+  ).toBeVisible();
 });
 
 it("sets all tools from the menu, keeping off tools off except As the agent", async () => {
@@ -203,7 +263,8 @@ it("filters tools by search and names accounts personal or organization", async 
         account_scope: "personal",
         effect: true,
         agent: "free",
-        setting: "ask",
+        setting: null,
+        effective: "ask",
       },
     ],
     unlisted_accounts: ["Notion"],
@@ -455,7 +516,8 @@ it("names the platform's own tools and sources by the product, grouped as the Bu
         group: "tasks",
         effect: false,
         agent: "free",
-        setting: "allow",
+        setting: null,
+        effective: "run",
       },
     ],
     sources: [
@@ -549,7 +611,8 @@ it("names an organization account's tools as the organization's", () => {
         account_scope: "organization",
         effect: true,
         agent: "free",
-        setting: "ask",
+        setting: null,
+        effective: "ask",
       },
     ],
   });

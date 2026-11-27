@@ -6,6 +6,7 @@ export function routineAccessFixture(
 ): RoutineAccessReview {
   return {
     mode: "reviewed",
+    grandfathered: false,
     current: true,
     review_reason: null,
     review_token: "access",
