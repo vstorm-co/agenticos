@@ -1585,7 +1585,7 @@ class WorkflowRegistryService:
                         await EventSourceService(self.db).require_use(
                             ctx, config.source_id, lock=True
                         )
-                    except (AuthorizationError, NotFoundError):
+                    except AuthorizationError, NotFoundError:
                         raise GraphValidationError(
                             [
                                 (

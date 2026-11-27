@@ -177,9 +177,7 @@ async def _refusal(
     # lost the authority to decide this one is refused here too. The run's own
     # person is still admitted on their own platform call that always asks,
     # which needs no permission beyond being that person.
-    if not may_decide_approval(decider, run) and not await past_own_platform_call(
-        db, decider, run
-    ):
+    if not may_decide_approval(decider, run) and not await past_own_platform_call(db, decider, run):
         return "decider_cannot_decide"
     incoming = await incoming_for_run(
         db, run, bot_id=bot.id, platform_chat_id=destination.platform_chat_id

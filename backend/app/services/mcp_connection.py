@@ -2472,7 +2472,7 @@ class McpConnectionService:
             app, _, _ = await OrganizationSecretService(self.db).oauth_app_identity_for_org(
                 org_id, kind=SecretKind.GOOGLE_OAUTH_APP
             )
-        except (NotFoundError, BadRequestError):
+        except NotFoundError, BadRequestError:
             return None
         return app.client_secret if app.client_id == payload.client_id else None
 

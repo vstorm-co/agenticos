@@ -747,7 +747,7 @@ class AgentSession:
                     include_favourite=False,
                     ctx=ctx,
                 )
-            except (NotFoundError, AuthorizationError):
+            except NotFoundError, AuthorizationError:
                 await self._cancel_turn()
                 with contextlib.suppress(RuntimeError):
                     await self.websocket.close(
@@ -924,7 +924,7 @@ class AgentSession:
         except asyncio.CancelledError:
             status = "failed"
             raise
-        except (AuthorizationError, NotFoundError):
+        except AuthorizationError, NotFoundError:
             status = "unavailable"
         except AlreadyExistsError:
             status = "busy"

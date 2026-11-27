@@ -1809,7 +1809,7 @@ def _persistable_outcome(outcome: HandlerOutcome) -> tuple[HandlerOutcome, dict[
     except PayloadTooLarge:
         code = "NODE_OUTPUT_TOO_LARGE"
         message = "The node exceeded the inline output byte limit; return file references"
-    except (ValueError, TypeError, RecursionError):
+    except ValueError, TypeError, RecursionError:
         code = "INVALID_NODE_OUTPUT"
         message = "The node returned data PostgreSQL JSONB cannot store"
     else:

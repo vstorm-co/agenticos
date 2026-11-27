@@ -92,7 +92,14 @@ from app.api.routes.v1 import subscription_accounts
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import email_webhook, imessage_webhook, sms_webhook, telegram_webhook, phone
 from app.api.routes.v1 import slack_webhook
-from app.api.routes.v1 import a2a, agent_messages, external_agents, mattermost_webhook, portability, projects
+from app.api.routes.v1 import (
+    a2a,
+    agent_messages,
+    external_agents,
+    mattermost_webhook,
+    portability,
+    projects,
+)
 from app.api.routes.v1 import teams_webhook
 from app.api.routes.v1 import embed as embed_widget
 from app.api.routes.v1 import embed_generated_media

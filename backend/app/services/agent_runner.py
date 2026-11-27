@@ -6663,7 +6663,7 @@ class AgentRunnerService:
         """One profile of `_model_catalog`, resolved - or `None`, logged, if it does not."""
         try:
             return await self.models.resolve(ctx, profile_id=profile.id)
-        except (BadRequestError, NotFoundError, AuthorizationError):
+        except BadRequestError, NotFoundError, AuthorizationError:
             logger.warning(
                 "model_profile_not_usable_for_dynamic_specialists",
                 extra={"profile_id": str(profile.id), "label": profile.label},

@@ -263,7 +263,7 @@ async def compaction_availability(
         return ConversationCompactionAvailability(available=False)
     try:
         _, spec, _ = await registry.get_runnable_spec(ctx, agent_id)
-    except (AuthorizationError, BadRequestError, NotFoundError):
+    except AuthorizationError, BadRequestError, NotFoundError:
         return ConversationCompactionAvailability(available=False)
     available = any(
         binding.id == "compaction"

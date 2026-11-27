@@ -2512,7 +2512,7 @@ class AgentTriggerService:
                 # A source receipt holds the source lock, not the routine lock.
                 # Only read the review; a concurrent consent change must win.
                 await self.sources.current(ctx, trigger, expected_id=policy.id)
-        except (AuthorizationError, NotFoundError, BadRequestError):
+        except AuthorizationError, NotFoundError, BadRequestError:
             return None
         return policy.id
 
@@ -2726,7 +2726,7 @@ class AgentTriggerService:
                 continue
             try:
                 agent = await self.agents.get(ctx, trigger.agent_id, perm=Perm.AGENTS_RUN)
-            except (NotFoundError, AuthorizationError):
+            except NotFoundError, AuthorizationError:
                 await self._disable(trigger, reason="creator_cannot_run_agent")
                 continue
             session_ended = (
@@ -3397,7 +3397,7 @@ class AgentTriggerService:
             return
         try:
             agent = await self.agents.get(ctx, trigger.agent_id, perm=Perm.AGENTS_RUN)
-        except (NotFoundError, AuthorizationError):
+        except NotFoundError, AuthorizationError:
             # The grants-aware pre-check, mirroring the run path's own
             # `resolve_access`. A creator who kept a role with `agents:run` but
             # lost the grant on *this* agent is refused here, before a run is
@@ -3465,7 +3465,7 @@ class AgentTriggerService:
                 await local_device_ready(self.db, ctx, local)
             except RoutineDeviceOffline:
                 return  # The committed activation is woken by the minute sweep.
-            except (RoutineLocalConsentRequired, PydanticValidationError, AuthorizationError):
+            except RoutineLocalConsentRequired, PydanticValidationError, AuthorizationError:
                 await self._block_local_activation(
                     trigger.id,
                     activation_id=activation_id,
@@ -3507,7 +3507,7 @@ class AgentTriggerService:
                     source = await EventSourceService(self.db).require_use(ctx, trigger.source_id)
                     if event_source_id is not None and not source.is_active:
                         source_changed = True
-            except (AuthorizationError, NotFoundError):
+            except AuthorizationError, NotFoundError:
                 source_changed = True
             if source_changed:
                 await self._record_attempt(
@@ -3643,7 +3643,7 @@ class AgentTriggerService:
                 observed_at=datetime.now(UTC),
             )
             return
-        except (NotFoundError, AuthorizationError):
+        except NotFoundError, AuthorizationError:
             # Access was withdrawn between the pre-check and the run. Same verdict:
             # disable, do not raise into a retry.
             await self._disable(trigger, reason="creator_cannot_run_agent")
@@ -4351,7 +4351,7 @@ class AgentTriggerService:
                     conversation_id=target,
                 )
                 return AnswerDelivery(TriggerDeliveryStatus.DELIVERED, target)
-        except (NotFoundError, AuthorizationError, ConflictError):
+        except NotFoundError, AuthorizationError, ConflictError:
             logger.info("trigger_delivery_access_lost", extra={"trigger_id": str(trigger.id)})
         except SQLAlchemyError as error:
             if retry_database_errors or not opened or not self.db.is_active:

@@ -345,7 +345,6 @@ class TestWhatItDoesNotTouch:
 
 async def test_portable_zip_allowance_does_not_widen_other_routes() -> None:
     from starlette.responses import Response
-    from starlette.types import Receive, Scope, Send
 
     async def accepted(scope: Scope, receive: Receive, send: Send) -> None:
         await Response(status_code=204)(scope, receive, send)

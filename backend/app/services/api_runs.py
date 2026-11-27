@@ -270,7 +270,7 @@ class ApiRunService:
                 current, job.agent_id, environment_id=job.environment_id
             )
             await ConversationService(self.db).check_api_conversation(current, job.conversation_id)
-        except (AuthenticationError, AuthorizationError, BadRequestError, NotFoundError):
+        except AuthenticationError, AuthorizationError, BadRequestError, NotFoundError:
             return False
         # A republish or promotion may have replaced tools or tightened guardrails.
         run = await agent_run_repo.get_run(self.db, run_id, organization_id=job.organization_id)
