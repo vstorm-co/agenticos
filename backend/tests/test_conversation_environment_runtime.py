@@ -90,6 +90,7 @@ def case(monkeypatch):
         row_id=workspace_id,
         connection_id=connection_id,
         close_transport=close,
+        connection_fingerprint="current-connection",
     )
     db = AsyncMock()
 

@@ -334,10 +334,11 @@ async def _provision_desktop(
             workspace_id, connection_id = opened.row_id, opened.connection_id
             if isinstance(opened.workspace, RecordingWorkspace):
                 opened = replace(opened, workspace=opened.workspace.wrapped)
-            connection = await service.connections.resolve(
-                admitted.ctx, opened.connection_id, ensure_default=False
-            )
-            resource.connection_fingerprint = service.environment_connection_fingerprint(connection)
+            if opened.connection_fingerprint is None:
+                raise EnvironmentNotReady(
+                    "environment_changed", "The desktop connection identity is unavailable."
+                )
+            resource.connection_fingerprint = opened.connection_fingerprint
         initial = opened.workspace.ref
         key = resource_key(
             "workspace", f"{admitted.ctx.organization_id}:{opened.connection_id}:{opened.scope_key}"
