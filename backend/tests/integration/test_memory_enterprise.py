@@ -1829,6 +1829,8 @@ async def test_inbox_checks_the_still_authorized_source_at_delivery(
     private = await _chat_deadline(db, org, owner, "2026-12-02", monkeypatch)
     shared = await store.publish_claim(ctx, private, MemoryClaimShare(confirmed=True))
     assert shared.id == job.claim_id
+    invalid_proof = job.model_copy(update={"source_event_id": uuid.uuid4()})
+    assert await deliver_memory_inbox(db, invalid_proof) == 0
     assert await deliver_memory_inbox(db, job) == 1
     assert await deliver_memory_inbox(db, job) == 0
     member = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
