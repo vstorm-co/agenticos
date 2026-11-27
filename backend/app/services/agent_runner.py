@@ -1126,6 +1126,16 @@ class AdmittedAs(BaseModel):
             "the way back (#788)."
         ),
     )
+    room_admitted: bool = Field(
+        default=False,
+        description=(
+            "Whether the room worker verified the requester is a room member and "
+            "the agent is pinned before executing, so the resumed run may reach "
+            "its project context as the original did. False for a run parked "
+            "before this was recorded, which resumes under the audience gate as "
+            "it always did."
+        ),
+    )
     audience_writes_memory: bool = Field(
         default=True,
         description=(
@@ -6367,6 +6377,7 @@ class AgentRunnerService:
                 else None,
                 audience_user_id=audience.user_id,
                 audience_room_key=audience.room_key,
+                room_admitted=room_admitted,
                 audience_writes_memory=audience.writes_memory,
                 audience_searches_conversations=audience.searches_conversations,
                 audience_browses_signed_in=audience.browses_signed_in,
@@ -9435,6 +9446,7 @@ class AgentRunnerService:
             approval_mode=state.admitted_as.approval_mode,
             local=state.admitted_as.local,
             project_execution_target=state.admitted_as.project_execution_target,
+            room_admitted=state.admitted_as.room_admitted,
             model_profile_id=state.admitted_as.model_profile_id,
             expected_history_provenance=state.history_provenance,
             acts_for_sender=state.admitted_as.acts_for_sender and run.user_id is not None,

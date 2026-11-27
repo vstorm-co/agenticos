@@ -12083,6 +12083,30 @@ class TestLiveQuestionContinuation:
 
         assert prepared.deps.clone_for_subagent(max_depth=0).ask_user is not None
 
+    async def test_a_room_admitted_continuation_keeps_its_room_admission(self, continuation):
+        """A run the room worker admitted keeps reaching its project context after a park.
+
+        The audience gate stands down for room-admitted runs at first execution;
+        the resume restores the same term from the parked state rather than
+        re-deriving it, or a parked question in a project room could never resume.
+        """
+        service, ctx, run, _prepared_run, assemble = continuation
+        run.paused_state["admitted_as"]["room_admitted"] = True
+
+        await service.resume(ctx, run.id)
+
+        assert assemble.await_args.kwargs["room_admitted"] is True
+
+    async def test_a_continuation_without_the_flag_resumes_without_room_admission(
+        self, continuation
+    ):
+        """A run parked before the flag existed resumes under the audience gate, as it always did."""
+        service, ctx, run, _prepared_run, assemble = continuation
+
+        await service.resume(ctx, run.id)
+
+        assert assemble.await_args.kwargs["room_admitted"] is False
+
     @pytest.mark.parametrize("redis_available", [True, False])
     async def test_main_and_delegate_frames_reach_the_socket_and_shared_trace_once(
         self, redis_available
