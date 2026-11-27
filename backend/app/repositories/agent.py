@@ -23,7 +23,7 @@ from sqlalchemy import (
     select,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONPATH
+from sqlalchemy.dialects.postgresql import ARRAY, JSONPATH
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,18 +61,35 @@ async def get_many(
     return {agent.id: agent for agent in result.scalars().all()}
 
 
-async def drafts_mentioning(db: AsyncSession, needle: str, *, organization_id: UUID) -> list[Agent]:
-    """Live agents whose draft spec contains `needle` anywhere in its text.
+def spec_names_any(
+    document: InstrumentedAttribute[dict[str, Any]], needles: Collection[str]
+) -> ColumnElement[bool]:
+    """Whether a spec holds any of `needles` as a whole string value, at any depth.
 
-    A cheap first pass for a caller that then parses each draft: an id bound by an
-    inline specialist sits deep inside a capability's config, where no column or
-    JSON path the query could name reaches it.
+    An id bound by an inline specialist sits deep inside a capability's config,
+    where no named path reaches, so the path visits every value (`$.**`) once and
+    compares it with the whole list. One walk of the stored document however many
+    ids a page asks about, and an id quoted inside longer text does not match.
     """
+    ids = func.jsonb_build_object("ids", literal(sorted(needles), ARRAY(Text)))
+    return func.jsonb_path_exists(document, cast(literal("$.** ? (@ == $ids[*])"), JSONPATH), ids)
+
+
+async def drafts_mentioning(
+    db: AsyncSession, needles: Collection[str], *, organization_id: UUID
+) -> list[Agent]:
+    """Live agents whose draft spec holds any of `needles` as a value.
+
+    A cheap first pass for a caller that then parses each draft; see
+    `spec_names_any`.
+    """
+    if not needles:
+        return []
     result = await db.execute(
         select(Agent).where(
             Agent.organization_id == organization_id,
             Agent.status != AgentStatus.ARCHIVED.value,
-            cast(Agent.draft_spec, Text).contains(needle, autoescape=True),
+            spec_names_any(Agent.draft_spec, needles),
         )
     )
     return list(result.scalars().all())

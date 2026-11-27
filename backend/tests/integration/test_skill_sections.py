@@ -30,7 +30,7 @@ from app.db.models.agent_environment import AgentEnvironment
 from app.db.models.resource_grant import GrantLevel, ResourceGrant
 from app.db.models.skill import Skill
 from app.schemas.skill import SkillSections
-from app.services import skill_library
+from app.services import resource_usage, skill_library
 from app.services.resource_usage import skill_bindings
 from app.services.skills import SkillService
 from tests.integration.test_authoring import _member, _owner
@@ -384,7 +384,8 @@ class TestCardsAcrossArrangements:
     async def test_a_card_names_a_specialists_draft_however_the_library_is_arranged(
         self, db: AsyncSession
     ):
-        """The same "drafted by" under every arrangement, and on a section's own pages."""
+        """The same "drafted by" under every arrangement, on a section's own pages and
+        on the plain listing."""
         owner = await _owner(db)
         await _skill(db, owner, "planned")
         planned = await _skill(db, owner, "planned-too")
@@ -392,12 +393,14 @@ class TestCardsAcrossArrangements:
 
         sections = await SkillService(db).list_sections(owner, "origin", per_section=1)
         page = await SkillService(db).list_readable(owner, section="origin:org")
+        flat = await SkillService(db).list_readable(owner)
 
         cards = {item.name: item for section in sections.sections for item in section.items}
-        paged = {item.name: item for item in page.items}
         assert "planned-too" not in cards
-        assert [agent.name for agent in paged["planned-too"].drafted_by] == ["Builder"]
-        assert paged["planned"].drafted_by == []
+        for listing in (page, flat):
+            paged = {item.name: item for item in listing.items}
+            assert [agent.name for agent in paged["planned-too"].drafted_by] == ["Builder"]
+            assert paged["planned"].drafted_by == []
 
 
 class TestBoundedWork:
@@ -448,6 +451,30 @@ class TestBoundedWork:
 
         assert asked == [2]
         assert [agent.name for agent in sections.sections[0].items[0].used_by] == ["Support"]
+
+    async def test_the_plain_listing_parses_only_the_drafts_naming_its_page(
+        self, db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+    ):
+        owner = await _owner(db)
+        shown = await _skill(db, owner, "aaa-shown")
+        await _agent(db, owner, "Builder", drafts=[shown], specialist=True)
+        for index in range(5):
+            elsewhere = await _skill(db, owner, f"zzz-{index}")
+            await _agent(db, owner, f"Other-{index}", drafts=[elsewhere], specialist=True)
+        parsed: list[str] = []
+        bound = resource_usage._bound_skills
+
+        def counting(spec: dict[str, Any]) -> set[uuid.UUID]:
+            parsed.append(spec["name"])
+            return bound(spec)
+
+        monkeypatch.setattr("app.services.resource_usage._bound_skills", counting)
+
+        page = await SkillService(db).list_readable(owner, limit=1)
+
+        assert [item.name for item in page.items] == ["aaa-shown"]
+        assert [agent.name for agent in page.items[0].drafted_by] == ["Builder"]
+        assert parsed == ["Builder"]
 
 
 class TestByCategory:

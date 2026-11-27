@@ -204,7 +204,7 @@ class SkillAgentService:
         drafts = {
             agent.id: lines
             for agent in await agent_repo.drafts_mentioning(
-                self.db, str(skill.id), organization_id=org
+                self.db, [str(skill.id)], organization_id=org
             )
             if (lines := lines_of(agent.draft_spec, skill.id))
         }

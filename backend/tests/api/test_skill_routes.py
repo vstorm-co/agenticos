@@ -53,7 +53,7 @@ def _used_nowhere(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr("app.services.skills.agents_serving_skills", no_skill_agents)
     monkeypatch.setattr("app.services.skills.skill_bindings", no_bindings)
-    monkeypatch.setattr("app.services.skills.agents_using", nowhere)
+    monkeypatch.setattr("app.services.skills.agents_drafting_skills", no_skill_agents)
     monkeypatch.setattr("app.services.skills.groups_sharing", nowhere)
     monkeypatch.setattr("app.services.skills.skill_version_repo.count_active_forks", no_forks)
 
