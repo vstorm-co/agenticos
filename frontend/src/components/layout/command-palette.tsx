@@ -211,7 +211,7 @@ export function CommandPalette() {
       <div
         className={cn(
           SEARCH_FIELD_FOCUS,
-          "border-border flex shrink-0 items-center gap-2 border-b px-3 py-2 sm:gap-3 sm:px-4",
+          "border-field-border bg-field has-[:focus-visible]:outline-foreground/60 m-3 flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 sm:gap-3",
         )}
       >
         <Search className="text-muted-foreground h-4 w-4 shrink-0" aria-hidden />

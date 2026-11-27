@@ -304,3 +304,18 @@ it("cancels deferred invoker restoration if its owner unmounts", async () => {
     vi.useRealTimers();
   }
 });
+
+it("autofocuses the inset rounded search surface without replacing keyboard focus", async () => {
+  await openFromFocusedInvoker();
+  const input = screen.getByRole("combobox");
+  const surface = input.parentElement;
+  expect(surface).toHaveClass("rounded-xl", "m-3", "border");
+  expect(surface).toHaveClass("has-[:focus-visible]:outline-2");
+  expect(surface).toHaveClass("has-[:focus-visible]:-outline-offset-2");
+  expect(surface).toHaveClass("has-[:focus-visible]:outline-foreground/60");
+  expect(surface).not.toHaveClass("border-b");
+  expect(input).toHaveFocus();
+  await userEvent.keyboard("{Escape}");
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(screen.getByRole("button", { name: "Open search" })).toHaveFocus();
+});
