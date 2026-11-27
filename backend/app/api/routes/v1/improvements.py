@@ -27,6 +27,7 @@ from app.schemas.improvement import (
     ImprovementSelection,
     ImprovementSkills,
     ImprovementStart,
+    ImprovementStopRead,
     ImprovementTarget,
     KnowledgeCheckConsent,
     KnowledgeCheckEstimate,
@@ -210,9 +211,16 @@ async def read_improvement(agent_id: UUID, run_id: UUID, service: ImprovementSvc
     return await service.read(ctx, agent_id, run_id)
 
 
-@router.post("/{run_id}/cancel", response_model=ImprovementRead, dependencies=[ASSISTANT])
+@router.post(
+    "/{run_id}/cancel",
+    response_model=ImprovementRead | ImprovementStopRead,
+    dependencies=[ASSISTANT],
+)
 async def stop_improvement(agent_id: UUID, run_id: UUID, service: ImprovementSvc, ctx: Auth) -> Any:
-    """Stop new work and cancel children, as the creator or an organization administrator."""
+    """Stop new work and cancel children, as the creator or an organization administrator.
+
+    A caller without `runs:view` receives only the session ID and resulting status.
+    """
     return await service.cancel(ctx, agent_id, run_id)
 
 

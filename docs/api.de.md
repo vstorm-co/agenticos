@@ -1,5 +1,5 @@
 ---
-source_sha: "58aaa4e50b4b"
+source_sha: "ce4c6fc377c9"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -364,6 +364,39 @@ demselben Body, mit dem der synchrone Aufruf antwortet - oder `failed` mit
 Folgenachricht kann also gesendet werden, bevor der Run endet. Ein Worker führt
 sie aus, durch denselben Runner, dasselbe Budget und dieselben Freigaben wie
 jede andere Oberfläche.
+
+**Einen laufenden Run steuern.** Senden Sie eine Folgenachricht ohne Anhänge an
+denselben Endpunkt, mit `Prefer: respond-async`, der `conversation_id` aus der
+ersten Antwort und `"steer": true`. Verwenden Sie für jede Webhook-Zustellung
+einen eigenen `Idempotency-Key` und bei einem erneuten Versuch denselben
+Schlüssel. Sie müssen den Status des Runs nicht vorher abfragen.
+
+```json
+{
+  "conversation_id": "c41652a2-3bb4-44c4-9e5c-82065e62b0d6",
+  "prompt": "Use the revised forecast instead.",
+  "steer": true
+}
+```
+
+Vor jeder Modellanfrage kann der Agent bis zu acht Korrekturen in der
+Reihenfolge ihres Eingangs übernehmen. Die übrigen bleiben in der Warteschlange.
+Ein laufender Tool- oder Modellaufruf wird nicht unterbrochen.
+
+Nur eine laufende asynchrone API-Anfrage für dieselbe Unterhaltung, denselben
+Agent und dieselbe Umgebung kann eine Korrektur übernehmen. Sie muss die aktuell
+ausgewählte veröffentlichte Version und denselben API-Schlüssel verwenden (oder
+ohne Schlüssel von derselben angemeldeten Person stammen). Übernimmt kein
+solcher Run die Nachricht, verarbeitet der Worker sie als eigenen Zug. Lassen
+Sie `steer` weg, um immer einen eigenen Zug einzureihen.
+
+Fragen Sie die Anfrage der Folgenachricht ab. Der Endstatus `steered` bedeutet,
+dass der Run mit der ID `steered_into_run_id` die Korrektur für eine
+Modellanfrage übernommen hat, nicht dass er abgeschlossen ist. Es gibt kein
+eigenes `result`. Schlägt der Run danach fehl, wird die Korrektur nicht
+erneut eingereiht. Bei einem eigenen Zug erhalten Sie wie gewohnt
+Status und Ergebnis des Runs. Für Anhänge oder synchrone Anfragen verwenden Sie
+einen gewöhnlichen Zug.
 
 Was sich sofort prüfen lässt, wird sofort geprüft: Eine unbekannte Konversation
 oder Anlage ist ein `404` auf den `POST`, kein Fehler, auf den man warten muss.

@@ -29,7 +29,10 @@ function useCallLine(approval: ToolApproval, withArguments: boolean): string | n
   // only as the fallback of `TableCallReadout`, which names the table instead.
   const argumentLine =
     withArguments && !isTableTool(approval.tool_id) ? callSummary(approval.tool_args) : null;
-  return approvalSummary(approval.capability_tool_id, approval.context, tTools) ?? argumentLine;
+  return (
+    approvalSummary(approval.capability_tool_id, approval.context, tTools, approval.tool_id) ??
+    argumentLine
+  );
 }
 
 /**
@@ -92,7 +95,8 @@ export function PendingApproval({
       ? callSummary(approval.tool_args)
       : null;
   const askedLine = useAskedLine(approval);
-  const mayApprove = !(approval.always_asks && approval.content_hidden);
+  const hiddenFromThem = Boolean(approval.always_asks && approval.content_hidden);
+  const mayApprove = approval.may_approve ?? !hiddenFromThem;
 
   return (
     <li>
@@ -141,6 +145,7 @@ export function PendingApproval({
             <ApprovalDetails
               toolName={approval.tool_id}
               args={approval.tool_args}
+              context={approval.context}
               fallback={
                 tableLine !== null && (
                   <p className="text-foreground/80 truncate text-sm" title={tableLine}>
@@ -158,7 +163,13 @@ export function PendingApproval({
               {t("approve")}
             </Button>
           ) : (
-            <p className="text-muted-foreground max-w-48 text-xs">{t("approveNeedsTheRun")}</p>
+            <p className="text-muted-foreground max-w-48 text-xs">
+              {hiddenFromThem
+                ? t("approveNeedsTheRun")
+                : approval.tool_id === "agenticos_change_deployment"
+                  ? t("approveNeedsItsAdminPerson")
+                  : t("approveNeedsItsPerson")}
+            </p>
           )}
           <Button size="sm" variant="outline" disabled={deciding} onClick={() => onDecide(false)}>
             <XCircle className="h-4 w-4" aria-hidden />
@@ -255,7 +266,11 @@ export function DecidedApproval({
           </span>
         )}
         <div className="w-full pt-1">
-          <ApprovalDetails toolName={approval.tool_id} args={approval.tool_args} />
+          <ApprovalDetails
+            toolName={approval.tool_id}
+            args={approval.tool_args}
+            context={approval.context}
+          />
         </div>
       </div>
     </li>

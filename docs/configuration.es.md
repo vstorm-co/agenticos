@@ -1,5 +1,5 @@
 ---
-source_sha: "b67c12b7a802"
+source_sha: "3b896741cc56"
 ---
 
 # Configuración { #configuration }
@@ -131,6 +131,8 @@ el mayor ajuste. Consulta el
 [despliegue con Nginx](deploy.md#option-b-nginx). Compose ejecuta uvicorn sin
 un límite de cuerpo propio.
 
+Las cargas de ZIP portables tienen un límite independiente de 512 MiB en ambos hosts. La consola transmite `/api/portability/{id}/upload` a la API sin almacenar todo el archivo en Next.js. Las solicitudes de control admiten 4 MiB y las de importación de texto 25 MiB para el envoltorio de cadena JSON; el documento decodificado mantiene el límite de 4 MiB. Conserva estas ubicaciones específicas al sustituir la configuración del proxy.
+
 ## Autenticación { #authentication }
 
 ### JWT { #jwt }
@@ -168,6 +170,12 @@ ciphertext es por tanto inútil fuera del tenant para el que se selló.
 
 Validación en producción: `API_KEY` no puede usar el valor por defecto con
 `ENVIRONMENT=production`.
+
+El acceso local se controla en **Admin → Despliegue → Acceso y cuentas**,
+independientemente del filtro de proveedores. Consulte
+[Acceso solo mediante el proveedor](deployment.md#provider-only-sign-in) para la
+política, su aplicación en la API y la anulación de recuperación del operador
+`AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED`.
 
 ### OAuth2 (Google) { #oauth2-google }
 
@@ -229,7 +237,7 @@ Dos botones en el frontend, configurados allí:
 
 | Variable | Por defecto | Descripción |
 | --- | --- | --- |
-| `OAUTH_PROVIDERS` | `google` | Añade `oidc` para mostrar el botón de SSO; solo `oidc` deja únicamente SSO. `ldap` añade el formulario del directorio y `kerberos` el botón de inicio de sesión de Windows, más abajo |
+| `OAUTH_PROVIDERS` | `google,oidc,ldap,kerberos` | Orden y filtro de proveedores configurados en el backend. Vacío oculta los botones. Las contraseñas locales se controlan por separado en Admin → Despliegue → Acceso y cuentas. |
 | `OIDC_DISPLAY_NAME` | `SSO` | Cómo llama el botón al proveedor: `Acme SSO`, `Okta` |
 | `OIDC_ICON` | (vacío) | `google`, `github` o `microsoft` — las marcas que la página de inicio de sesión ya lleva. Cualquier otra cosa dibuja una llave simple |
 
@@ -948,6 +956,8 @@ Los casos de prueba sobre los que corren los evals. Consulta [Datasets](datasets
 | Variable | Por defecto | Descripción |
 | --- | --- | --- |
 | `DATASET_MAX_VERSION_ROWS_PER_ORG` | `5000000` | Cuántas revisiones de casos pueden guardar juntos los datasets de una organización. Cada caso añadido y cada edición es una revisión, guardada para las versiones que la contienen; una versión guarda solo lo que cambió, así que un dataset de 10.000 casos editado 500 veces guarda 10.500, no 5 millones. Añadir o editar por encima del límite se rechaza indicando cuántas hay guardadas; quitar un caso no guarda nada y siempre está permitido, y borrar los datasets que nadie necesita libera sus revisiones. El nombre es anterior a este significado: contaba cada caso de cada versión mientras las versiones copiaban sus casos. El límite es aproximado: cada cambio se comprueba por separado, así que cambios simultáneos en datasets distintos pueden superarlo un poco. Protege el almacenamiento; no sirve para facturar |
+| `DATASET_IMPORT_MAX_BYTES` | `10485760` | El archivo más grande que lee una importación de dataset (10 MB). Un archivo mayor se lee solo un byte más allá del límite y se rechaza por demasiado grande, nombrando el campo del archivo; divídelo en varias importaciones |
+| `DATASET_IMPORT_MAX_ROWS` | `10000` | Cuántas filas puede tener una importación de dataset. El archivo se lee fila a fila y se rechaza en la primera fila que supera el límite, así que un archivo de muchas filas pequeñas no cuesta más que uno en el límite. El techo propio de un dataset, 10.000 casos, sigue aplicándose a lo que añade una importación |
 
 ## Workspaces de los agents { #agent-workspaces }
 
@@ -1374,7 +1384,7 @@ API debería llevar un techo es una decisión aparte, no esta.
 | `RATE_LIMIT_HOSTED_PAGE_PER_MINUTE` | `240` | La configuración de una página alojada, **por página** — y su logo, en un contador propio. El [formulario](workflows.md#from-a-form) de un workflow se lee en un contador de este tamaño por formulario. Ver más abajo |
 | `RATE_LIMIT_FORM_SUBMISSIONS_PER_MINUTE` | `20` | Las respuestas que admite un [formulario](workflows.md#from-a-form) de un workflow, **por formulario**: cada una es una ejecución que paga quien lo publicó, y el servidor de la consola las reenvía todas, así que una dirección no contaría a nadie |
 | `RATE_LIMIT_WORKFLOW_WEBHOOK_PER_MINUTE` | `60` | Entregas que admite un [webhook](workflows.md) de un workflow o un disparador de GitHub, **por webhook**, contadas cuando la firma se verifica y la entrega iniciaría un run, así que desconocidos y entregas omitidas no gastan nada: cada una es una ejecución |
-| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Peticiones que una dirección puede enviar a las direcciones de webhook y de disparador de GitHub de los workflows en un minuto, sea cual sea su contenido, contadas antes de leer nada. Amplio, porque remitentes como GitHub entregan para muchos hooks desde pocas direcciones |
+| `RATE_LIMIT_WORKFLOW_WEBHOOK_IP_PER_MINUTE` | `600` | Peticiones por minuto desde una dirección IP, contadas en conjunto para los webhooks de los workflows, sus disparadores de GitHub y las URL de las fuentes de eventos reutilizables. El límite se aplica antes de leer el cuerpo de la petición. El valor predeterminado tiene en cuenta a proveedores como GitHub, que envían muchos webhooks desde unas pocas direcciones |
 | `WORKFLOW_EMAIL_MAX_PER_PRINCIPAL_PER_HOUR` | `100` | Destinatarios únicos por usuario, abarcando claves y organizaciones; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_ORG_PER_HOUR` | `500` | Destinatarios únicos por organización; [email.send](reference/workflow-nodes.md#email-send) |
 | `WORKFLOW_EMAIL_MAX_PER_DEPLOYMENT_PER_HOUR` | `1000` | Destinatarios únicos en todo el despliegue; [email.send](reference/workflow-nodes.md#email-send) |

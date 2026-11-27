@@ -118,7 +118,7 @@ async def test_a_knowledge_step_owned_by_another_tenant_fails_the_session(
         await service.advance(read.id, ctx.organization_id)
         failed = await service.read(ctx, agent.id, read.id)
     assert (failed.status, failed.stage) == ("failed", "classifying")
-    assert failed.error == "Knowledge step not found"
+    assert (failed.error, failed.error_code) == ("Knowledge step not found", "not_found")
 
 
 async def test_a_classifier_still_making_progress_keeps_the_session_waiting(

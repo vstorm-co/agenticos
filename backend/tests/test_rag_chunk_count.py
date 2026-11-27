@@ -333,7 +333,9 @@ class TestRetiringWhatAReplacementDeleted:
 
     async def test_completing_a_replacement_deletes_the_row_it_superseded(self, monkeypatch):
         stale_id = uuid.uuid4()
-        stale = MagicMock(id=stale_id, storage_path="rag/docs/handbook.md")
+        stale = MagicMock(
+            id=stale_id, storage_path="rag/docs/handbook.md", parsed_content_path=None
+        )
         # `organization_id=None` keeps this test scoped to retirement, not the
         # notification write `complete_ingestion` also makes (#1598) - covered
         # separately in `tests/test_notifications.py`.
@@ -372,7 +374,7 @@ class TestRetiringWhatAReplacementDeleted:
         and it is the path that accumulates them fastest - nothing to unlink, so no
         durable run is dispatched for it.
         """
-        stale = MagicMock(id=uuid.uuid4(), storage_path="")
+        stale = MagicMock(id=uuid.uuid4(), storage_path="", parsed_content_path=None)
         deleted: list[uuid.UUID] = []
 
         monkeypatch.setattr(rag_document_repo, "update_status", AsyncMock())

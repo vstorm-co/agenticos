@@ -734,3 +734,29 @@ class TestUnknownRuns:
         assert run.request.evidence["unknown_runs"] == 3
         with pytest.raises(Stopped, match="Nothing to learn from yet"):
             run._record_evidence(EvidencePack())
+
+
+@pytest.mark.security
+def test_a_dataset_s_own_names_reach_the_prompt_redacted() -> None:
+    from app.schemas.scoring import ScorerResult
+
+    leaked = "postgres://app:Kanar3kName@db/app"
+    run = _packed(
+        evidence_kind="train_eval",
+        grades=(
+            ScorerResult(
+                scorer="judge",
+                name=f"Never print {leaked}",
+                family=leaked,
+                required=True,
+                status="fail",
+                reason="It printed it.",
+            ),
+        ),
+        uncovered_keys=(leaked,),
+    )
+
+    rendered = run.render()
+
+    assert "Kanar3kName" not in rendered
+    assert rendered.count("[redacted:url_credentials]") == 3

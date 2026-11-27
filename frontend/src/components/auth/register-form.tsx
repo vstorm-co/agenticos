@@ -14,6 +14,7 @@ import { OAuthBlock } from "@/components/auth/oauth-buttons";
 import { SignupClosed } from "@/components/auth/signup-closed";
 import { SignupPolicyNotice } from "@/components/auth/signup-policy-notice";
 import { LegalAnchor } from "@/components/legal/legal-anchor";
+import { ProviderSignIn } from "@/components/auth/provider-sign-in";
 import { AuthHeading } from "@/components/auth/auth-heading";
 import { Button, Input, Label } from "@/components/ui";
 import { useAuth } from "@/hooks";
@@ -107,6 +108,8 @@ export function RegisterForm() {
   // Before the heading, not inside the form: on a closed deployment there is no
   // form to show, and every hook above has already run so the early return is
   // still the same component.
+  if (!branding.passwordSignInEnabled) return <ProviderSignIn />;
+
   if (branding.signupMode === "closed") {
     return <SignupClosed />;
   }

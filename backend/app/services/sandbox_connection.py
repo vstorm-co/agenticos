@@ -818,6 +818,14 @@ class SandboxConnectionService:
         payload = await self._read(resolved, "/policy", connection_id)
         return SandboxPolicyRead.model_validate({**payload, "kind": resolved.kind})
 
+    async def supports_project_filesystem(self, resolved: ResolvedConnection) -> bool:
+        """Read the host's mount contract; legacy hosts explicitly lack it."""
+        if resolved.kind != "docker":
+            return False
+        payload = await self._read(resolved, "/policy", resolved.row.id)
+        policy = SandboxPolicyRead.model_validate({**payload, "kind": resolved.kind})
+        return policy.filesystem_mounts and policy.filesystem_mount_path == "/project"
+
     async def sessions(
         self, ctx: AuthContext, connection_id: UUID, *, usage: bool = False
     ) -> SandboxSessionList:

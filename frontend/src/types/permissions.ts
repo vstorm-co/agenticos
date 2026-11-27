@@ -39,6 +39,9 @@ export interface RoleCatalog {
 
 /** The permissions the UI actually branches on, named so typos fail at build time. */
 export const Perm = {
+  eventSourcesView: "event_sources:view",
+  eventSourcesUse: "event_sources:use",
+  eventSourcesEdit: "event_sources:edit",
   agentsView: "agents:view",
   agentsEdit: "agents:edit",
   agentsPublish: "agents:publish",

@@ -4,6 +4,7 @@ description: The organization's general-purpose assistant - it researches, write
   and works on code in its sandbox, remembers preferences, sets up routines and brings in specialists
   when requested or agreed.
 capabilities:
+- projects
 - ask_user
 - drafts
 - id: sandbox

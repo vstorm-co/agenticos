@@ -9,6 +9,7 @@ from app.api.routes.v1 import (
     browse_live,
     change_events,
     device_hub,
+    event_sources,
     diagnostics,
     admin_updates,
     health,
@@ -45,6 +46,7 @@ from app.api.routes.v1 import agent_environments, agent_exposures, agent_trigger
 from app.api.routes.v1 import trigger_webhooks
 from app.api.routes.v1 import agents as agent_registry
 from app.api.routes.v1 import model_providers
+from app.api.routes.v1 import project_filesystem
 from app.api.routes.v1 import secrets
 from app.api.routes.v1 import runs as agent_runs
 from app.api.routes.v1 import stats
@@ -79,7 +81,7 @@ from app.api.routes.v1 import subscription_accounts
 from app.api.routes.v1 import permissions
 from app.api.routes.v1 import email_webhook, imessage_webhook, sms_webhook, telegram_webhook, phone
 from app.api.routes.v1 import slack_webhook
-from app.api.routes.v1 import a2a, external_agents, mattermost_webhook, projects
+from app.api.routes.v1 import a2a, external_agents, mattermost_webhook, portability, projects
 from app.api.routes.v1 import teams_webhook
 from app.api.routes.v1 import embed as embed_widget
 from app.api.routes.v1 import embed_generated_media
@@ -105,6 +107,11 @@ from app.api.routes.v1 import admin_background_jobs
 from app.api.routes.v1 import run_requests
 
 v1_router = APIRouter()
+v1_router.include_router(event_sources.router, prefix="/event-sources", tags=["event-sources"])
+v1_router.include_router(
+    sharing.event_source_sharing_router, prefix="/event-sources", tags=["event-sources"]
+)
+v1_router.include_router(event_sources.public_router, prefix="/webhooks", tags=["event-sources"])
 v1_router.include_router(admin_updates.router, prefix="/admin/updates", tags=["admin:updates"])
 v1_router.include_router(diagnostics.router, tags=["diagnostics"])
 
@@ -319,7 +326,11 @@ v1_router.include_router(a2a.router, prefix="/a2a", tags=["a2a"])
 v1_router.include_router(
     external_agents.router, prefix="/external-agents", tags=["external-agents"]
 )
+v1_router.include_router(portability.router)
 v1_router.include_router(projects.router, prefix="/projects", tags=["projects"])
+v1_router.include_router(
+    project_filesystem.router, prefix="/project-filesystem", tags=["project-filesystem"]
+)
 v1_router.include_router(
     sharing.project_sharing_router, prefix="/projects", tags=["projects:sharing"]
 )

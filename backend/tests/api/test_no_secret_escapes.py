@@ -29,6 +29,7 @@ pytestmark = pytest.mark.security
 _SECRET_MODELS = frozenset(
     {
         "ApiKeySecret",
+        "SourceCredentials",
         "AzureOpenAISecret",
         "AwsCredentialsSecret",
         "GcpServiceAccountSecret",

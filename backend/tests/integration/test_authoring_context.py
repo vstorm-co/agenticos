@@ -17,7 +17,7 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -32,7 +32,7 @@ from app.db.models.agent import Agent, AgentVersion
 from app.db.models.authoring import AuthoringRequest
 from app.db.models.context import ContextFile
 from app.db.models.context_proposal import ContextProposal
-from app.db.models.eval_run import EvalRunArm
+from app.db.models.eval_run import EvalRun, EvalRunArm
 from app.db.models.eval_suite import EvalSuite
 from app.db.models.organization import OrganizationMember
 from app.repositories import authoring_repo, eval_suite_repo
@@ -280,6 +280,33 @@ async def test_a_context_change_is_checked_on_an_agent_that_binds_it(db):
 
 
 @pytest.mark.security
+async def test_a_context_change_quoting_a_credential_is_never_checked(db):
+    ctx, agent, file, run_id = await _bound(db)
+    await _improve_context(db, ctx, file, _proposes(db, run_id))
+    (proposal,) = await _pending(db, file)
+    proposal.content = "Returns take 30 days. Use postgres://app:Kanar3kContext@db/app."
+    await db.flush()
+    datasets = DatasetService(db)
+    dataset = await datasets.create(ctx, DatasetCreate(name="returns-cases"))
+    await datasets.add_case(
+        ctx,
+        dataset.id,
+        DatasetCaseCreate(input="Q", checks=[{"type": "contains", "value": "30 days"}]),
+    )
+    service = AuthoringService(db)
+    body = ProposalCheck(dataset_id=dataset.id, agent_id=agent.id, proposal_id=proposal.id)
+
+    for attempt in (service.estimate_context_check, service.check_context):
+        with pytest.raises(BadRequestError, match="quotes a credential"):
+            await attempt(ctx, file.id, body)
+
+    runs = await db.scalar(
+        select(func.count()).select_from(EvalRun).where(EvalRun.agent_id == agent.id)
+    )
+    assert runs == 0
+
+
+@pytest.mark.security
 async def test_checking_a_context_change_needs_runs_view(db):
     ctx, agent, file, run_id = await _bound(db)
     await _improve_context(db, ctx, file, _proposes(db, run_id))
@@ -375,12 +402,12 @@ async def test_the_worker_stops_on_a_file_gone_or_out_of_the_starters_reach(db):
         await AuthoringWorker(lost.id, ctx.organization_id, sessions=_sessions(db)).run()
 
     errors = {
-        request.id: request.error
+        request.id: (request.error, request.error_code)
         for request in await db.scalars(
             select(AuthoringRequest).where(AuthoringRequest.id.in_([gone.id, lost.id]))
         )
     }
     assert errors == {
-        gone.id: "The context file is gone.",
-        lost.id: "Whoever started this may no longer edit the context file.",
+        gone.id: ("The context file is gone.", "context_gone"),
+        lost.id: ("Whoever started this may no longer edit the context file.", "no_edit_context"),
     }

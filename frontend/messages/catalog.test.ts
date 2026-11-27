@@ -389,6 +389,34 @@ describe.each([
   });
 });
 
+describe.each([
+  ["French", fr],
+  ["Turkish", tr],
+])("%s catalog for Improve, the assistant and evals", (_language, catalog) => {
+  it("covers every message of those screens without obsolete keys", () => {
+    const screens = ["improvement.", "skillImprovement.", "authoring.", "evals."];
+    const ofScreens = (messages: unknown) =>
+      entries(messages)
+        .map(([key]) => key)
+        .filter((key) => screens.some((prefix) => key.startsWith(prefix)))
+        .sort();
+    expect(ofScreens(catalog)).toEqual(ofScreens(en));
+  });
+  it("preserves the current screen arguments and selector branches", () => {
+    const translated = new Map(entries(catalog));
+    const prefixes = ["improvement.", "skillImprovement.", "authoring.", "evals."];
+    const mismatches = entries(en).flatMap(([key, message]) => {
+      if (!prefixes.some((prefix) => key.startsWith(prefix))) return [];
+      const value = translated.get(key);
+      return value !== undefined &&
+        JSON.stringify(icuContract(message)) === JSON.stringify(icuContract(value))
+        ? []
+        : [key];
+    });
+    expect(mismatches).toEqual([]);
+  });
+});
+
 describe("Turkish ICU contracts", () => {
   it("preserves the arguments, rich-text links and selector values supplied by callers", () => {
     const translated = new Map(entries(tr));
@@ -444,3 +472,20 @@ it.each([en, pl, de, tr])(
     }
   },
 );
+
+describe.each([
+  ["en", en],
+  ["pl", pl],
+  ["de", de],
+  ["fr", fr],
+  ["nl", nl],
+  ["pt", pt],
+  ["tr", tr],
+])("%s protected-source copy", (_locale, catalog) => {
+  it("provides localized masked labels for both case lists and answer review", () => {
+    const messages = new Map(entries(catalog));
+    for (const key of ["datasets.maskedConversation", "datasets.scoring.maskedConversation"]) {
+      expect(messages.get(key), key).toBeTruthy();
+    }
+  });
+});

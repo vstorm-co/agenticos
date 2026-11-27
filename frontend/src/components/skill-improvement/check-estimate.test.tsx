@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { UNKNOWN_REASONS } from "@/lib/skill-check-reasons";
 import { checkAgent, skillCheck } from "@/test-utils/skill-improvement";
 import type { SkillContinuationEstimate } from "@/types/skill-improvement";
 import { CheckEstimate } from "./check-estimate";
@@ -56,4 +57,22 @@ describe("CheckEstimate", () => {
 
     expect(screen.getByText("Billing cannot be checked: its check failed.")).toBeVisible();
   });
+
+  it.each(UNKNOWN_REASONS.filter((reason) => reason !== "failed"))(
+    "gives %s as its own reason, not a failed check",
+    (reason) => {
+      const quote: SkillContinuationEstimate = {
+        ...QUOTE,
+        check_estimate: {
+          ...skillCheck(),
+          agents: [checkAgent("Billing", "unknown", { unknown_reason: reason })],
+          hidden: 0,
+        },
+      };
+      render(<CheckEstimate quote={quote} />);
+
+      const line = screen.getByText(/^Billing cannot be checked: /);
+      expect(line).not.toHaveTextContent(/failed|could not measure/);
+    },
+  );
 });

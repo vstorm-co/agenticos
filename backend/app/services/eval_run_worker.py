@@ -31,7 +31,6 @@ from uuid import UUID
 from pydantic import JsonValue, TypeAdapter
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import ToolCallPart
-from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.context import ContextBody
@@ -47,6 +46,7 @@ from app.core.exceptions import (
     NothingToScoreError,
 )
 from app.core.permissions import AuthContext, Perm
+from app.core.redaction import redact_secrets
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.case_score import CaseScore
 from app.db.models.dataset import DatasetCase
@@ -285,11 +285,11 @@ class EvalRunWorker:
             return
         beating = asyncio.create_task(self._beat())
         try:
-            await self._wave(ctx)
+            await self._wave()
             if await self._ask_lost_again():
-                await self._wave(ctx)
+                await self._wave()
             if await self._queue_reruns(ctx):
-                await self._wave(ctx)
+                await self._wave()
             await self._route_to_review(ctx)
             await self._close(EvalRunStatus.COMPLETED, only_from=EvalRunStatus.RUNNING)
         finally:
@@ -437,10 +437,9 @@ class EvalRunWorker:
             and await resolve_access(db, ctx, dataset, Perm.DATASETS_RUN, resource_type=DATASET)
         )
 
-    async def _wave(self, ctx: AuthContext) -> None:
+    async def _wave(self) -> None:
         drainers = [
-            asyncio.create_task(self._drain(ctx))
-            for _ in range(max(1, settings.EVAL_RUN_CONCURRENCY))
+            asyncio.create_task(self._drain()) for _ in range(max(1, settings.EVAL_RUN_CONCURRENCY))
         ]
         try:
             await asyncio.gather(*drainers)
@@ -451,7 +450,7 @@ class EvalRunWorker:
                 drainer.cancel()
             await asyncio.gather(*drainers, return_exceptions=True)
 
-    async def _drain(self, ctx: AuthContext) -> None:
+    async def _drain(self) -> None:
         """Claim and answer attempts until none is left, or the run stops."""
         while True:
             async with self.sessions() as db:
@@ -478,11 +477,16 @@ class EvalRunWorker:
                     return
                 await self.sleep(_FULL_BACKOFF_SECONDS)
                 continue
-            if await self._answer(ctx, attempt_id):
+            if await self._answer(attempt_id):
                 return
 
-    async def _answer(self, ctx: AuthContext, attempt_id: UUID) -> bool:
-        """Run, record and score one attempt. True when the budget stopped the run."""
+    async def _answer(self, attempt_id: UUID) -> bool:
+        """Run, record and score one attempt. True when the budget stopped the run.
+
+        The attempt runs as its starter's authority rebuilt now, not as it was when
+        the run began: a starter removed, demoted or with a revoked key stops the
+        run before another case is answered.
+        """
         org = self.organization_id
         async with self.sessions() as db:
             attempt = await eval_run_repo.get_case(db, attempt_id, organization_id=org)
@@ -497,28 +501,27 @@ class EvalRunWorker:
             dataset = await dataset_repo.get(db, run.dataset_id, organization_id=org)
             # Each cascades to the attempt, so the attempt existing means they do.
             assert arm is not None and revision is not None and dataset is not None
-            if run.proposal_check is not None:
-                try:
-                    fresh = await job_context(
-                        db,
-                        organization_id=org,
-                        user_id=run.created_by_user_id,
-                        api_key_id=run.created_by_api_key_id,
-                    )
-                except AuthenticationError:
-                    fresh = None
-                if fresh is None or not await self._may_still_run(db, fresh, run):
-                    closed = await eval_run_repo.fail_live(
-                        db,
-                        run.id,
-                        organization_id=org,
-                        now=datetime.now(UTC),
-                        error=_NO_LONGER_RUNS,
-                    )
-                    if closed:
-                        await NotificationService(db).eval_run_finished(run)
-                    return True
-                ctx = fresh
+            try:
+                fresh = await job_context(
+                    db,
+                    organization_id=org,
+                    user_id=run.created_by_user_id,
+                    api_key_id=run.created_by_api_key_id,
+                )
+            except AuthenticationError:
+                fresh = None
+            if fresh is None or not await self._may_still_run(db, fresh, run):
+                closed = await eval_run_repo.fail_live(
+                    db,
+                    run.id,
+                    organization_id=org,
+                    now=datetime.now(UTC),
+                    error=_NO_LONGER_RUNS,
+                )
+                if closed:
+                    await NotificationService(db).eval_run_finished(run)
+                return True
+            ctx = fresh
             calls: list[RecordedToolCall] = []
             asked = _Asked(revision.id, revision.input, list(revision.history or []))
 

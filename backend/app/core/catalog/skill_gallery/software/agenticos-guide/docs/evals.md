@@ -66,7 +66,7 @@ changed since offers **Test again** instead. While the run answers it says how
 many first answers are in and the comparison waits for both sides. Answers the
 judge failed to grade say why and count as neither passed nor failed, and
 **Grade again** in the header grades them again without asking the agent, for
-whoever may run the dataset.
+whoever may run the dataset and read the run's answers.
 
 Below the verdict are the sides next to each other, how the two compare, and the
 cases - each row with a pass or fail dot per side, filtered by outcome or tag,
@@ -159,6 +159,17 @@ reused baseline. Actual spending can differ from this estimate. Each model
 request still observes the monthly budgets; exhausting one ends the eval as
 `budget_exceeded`.
 
+A start may carry the estimate's `total_usd` back as `quoted_usd`, and the
+estimate's `dataset_version` with it. Starting refuses with `409` if the current
+start estimate is higher than that quote. The Architect passes both, and its
+approval card shows the quote. This compares estimates, not a hard cap on the
+provider's eventual bill. Skill update checks, knowledge drafts and promotion
+guards accept `quoted_usd` too; `GET .../gate/estimate` prices the due guards.
+
+A queued knowledge draft retains its quote. Its worker checks the estimate
+again before retrieval or model work, and refuses a higher or unknown price.
+Existing clients and jobs without a quote retain their previous behavior.
+
 A suite's estimated spend cap also includes confirming reruns and both sides
 when paired. Its first publish estimate includes the existing version as the
 next publication's baseline even when only one version exists. This estimate
@@ -187,11 +198,11 @@ An unknown environment returns 404. Concurrent suite creates or renames with the
 
 **It learns from training cases only.** Alongside rated chat runs, the assistant reads failed training answers, confirmed regressions, judge reasoning and Review notes from accessible [datasets](datasets.md). It receives training pass rates by tag and judge criterion, plus fixed and broken counts. Holdout questions, answers and grades never enter its prompt. Judge runs and the assistant's own runs remain excluded.
 
-Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default). Suggestion checks measure only holdout cases; an improvement session splits the questions again for each of its attempts, by the same share, and measures each attempt on its own held-out part. Both require at least five gradable held-out questions.
+Each case has a fixed train or holdout assignment, preserved across dataset versions. Dataset settings choose the holdout share for future cases only (50% by default); a skill's own test questions are all held out, and their share cannot be lowered. Suggestion checks measure only holdout cases; an improvement session splits the questions again for each of its attempts, by the share the dataset had when the session started, and measures each attempt on its own held-out part. Both require at least five gradable held-out questions.
 
 Copies of training questions or source evidence are excluded using normalized input and source run identity, including hand-entered and generated cases. Below the minimum, a session stops with `no_data`, or refuses the step that would test too few, and says how many questions to add. The run labels both parts and excluded copies. Ordinary suites and promotion gates still count every case.
 
-An improvement session pins its dataset version and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats and new dataset cases cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
+An improvement session pins its dataset version, its held-out share and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats, new dataset cases and a changed held-out share cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
 
 A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
 
@@ -209,6 +220,10 @@ leaves it out when asked to (`?exclude_surface=eval`). Its single-run read
 names the eval run and case it answered (`eval_case`), for a reader who may see
 the dataset. It runs as the person who started the eval, with their current role,
 and does not read or write their personal memory.
+
+That role is read again before each case. When the starter has left the
+organization, lost access to the agent or the dataset, or had their key revoked,
+the run fails before it answers another case.
 
 Each case runs **isolated**, as [Environments](https://vstorm-co.github.io/agenticos/environments/) describes: a
 tool with a test connection on the run's environment runs against it, a tool
@@ -317,7 +332,7 @@ An answer the judge failed on or skipped is **not graded**: the run lists those 
 (`POST /api/v1/datasets/{id}/scores/rescore`) reads the answer kept on the
 attempt rather than asking the agent. A person's verdict in the
 [review queue](datasets.md#review) replaces the scorers' outcome for that case,
-and the run's numbers follow it.
+and the run's numbers follow it, as they follow a new grade.
 
 A judge that searches - [Knowledge search](concepts.md#system-agent-spec) on
 its Toolbox tab - checks an answer's facts against the knowledge bases of the agent
@@ -326,6 +341,11 @@ the start of the passage, under its reason. Until its runs give it a history,
 the estimate prices each grading at the judge's steps. A judge starts at
 temperature 0, so the same answer is graded the same way twice, and its page
 warns when that is raised.
+
+A passage it found is shown only to a reader who may see the answer and read
+the knowledge base it came from, and credentials in it are redacted before it is
+kept. A passage that does not name its knowledge base is shown to nobody, since
+it may have come from somebody's personal knowledge base.
 
 A finished run keeps its first candidate's verdict, counts and pass rates as
 `outcome`, so a listing reads them without comparing every run again. It is
@@ -360,6 +380,8 @@ Criterion names, per-criterion grades and skill attributions require `runs:view`
 Stored skill sources use stable IDs: renaming a skill preserves its identity, while deleting it and reusing its name never restores access to old evidence. Session criterion details with a named skill but no original skill ID are hidden as well. The optional displayed skill name never grants access: the original ID is still checked when its label is absent.
 
 Interactive comparison reads allow up to 30 requests per person and 60 per organization per minute, with one comparison executing per organization at a time. Console and API requests share these limits. Excess or overlapping requests return HTTP 429 with `Retry-After`; clients should wait before retrying. Shared Redis coordinates workers, with a local per-worker floor during an outage. Manual verdict updates for eval-backed scores use the same budget and claim, after dataset authorization and before changing the score or cached results.
+
+Reading a run compares it again only when a person decided one of its scores since its verdict was kept, and that comparison takes the same claim and budget. While the claim is taken, a list of runs and the Builder's note on whether a change of model may be accepted show each run's verdict as it was kept, and reading the run on its own returns 429. Accepting the change still compares. A check on an eval suite keeps the suite's verdict with the run's own, so reading it again compares nothing.
 
 Readers need `runs:view` before claiming concurrency or spending quota. Active comparisons renew their claims; the 120-second expiry recovers crashed holders. A failed Redis renewal logs the failure and retains the per-worker floor.
 
@@ -714,6 +736,12 @@ the dataset - a run over a dataset the reader cannot open is not listed, and
 asking for it by id answers `404`, as a run of another organization does. A
 dataset's runs also need `datasets:view` on it, and list only the agents the
 reader may see.
+
+Deciding on one of a run's answers, or grading it again, needs `runs:view` and
+the agent that answered as well as the dataset's own permission - `datasets:edit`
+to decide, `datasets:run` to grade. Either changes the run's verdict and what was
+built on it: a suite's gate, an improvement session, a skill check. A grant on the
+dataset alone does not open them.
 
 Setting up, changing, pausing or running a suite needs `agents:edit` and
 `agents:run` on the agent, `datasets:run` on the dataset and `runs:view`, and a

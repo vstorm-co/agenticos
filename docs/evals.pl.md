@@ -1,5 +1,5 @@
 ---
-source_sha: "76ac5bb3504a"
+source_sha: "80da2d54c72a"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -75,7 +75,7 @@ ile pierwszych odpowiedzi już jest, a porównanie czeka na obie strony.
 Odpowiedzi, których sędzia nie zdołał ocenić, mówią dlaczego i nie liczą się ani
 jako zaliczone, ani jako niezaliczone, a **Oceń ponownie** (Grade again) w
 nagłówku ocenia je ponownie bez pytania agenta, dla każdego, kto może uruchamiać
-dataset.
+dataset i czytać odpowiedzi runu.
 
 Pod werdyktem są obie strony obok siebie, to, jak wypadają w porównaniu, i
 przypadki - każdy wiersz z kropką zaliczenia lub niezaliczenia dla każdej
@@ -176,6 +176,17 @@ powtórzenia baseline'u, także użytego ponownie. Rzeczywisty koszt może się 
 Każde żądanie do modelu nadal podlega budżetom miesięcznym; wyczerpanie budżetu
 kończy run jako `budget_exceeded`.
 
+Start może odesłać `total_usd` z wyceny jako `quoted_usd` i wskazać jej
+`dataset_version`. Jeśli aktualny szacunek startu jest wyższy od tej kwoty,
+serwer zwraca `409`. Architekt przekazuje oba pola, a karta zatwierdzenia pokazuje
+wycenę. To porównanie szacunków, a nie twardy limit końcowego rachunku dostawcy.
+Sprawdzenia aktualizacji skilla, szkice wiedzy i strażnicy promocji też przyjmują
+`quoted_usd`; `GET .../gate/estimate` wycenia strażników oczekujących na start.
+
+Szkic wiedzy w kolejce zachowuje uzgodnioną wycenę. Worker sprawdza ją ponownie
+przed pobieraniem danych lub pracą modelu i odmawia przy cenie wyższej albo
+nieznanej. Istniejący klienci i zadania bez wyceny zachowują wcześniejsze działanie.
+
 Próg szacowanego wydatku zestawu także obejmuje powtórzenia i obie strony
 porównania. Pierwszy szacunek publikacji uwzględnia istniejącą wersję jako
 baseline następnej publikacji, nawet gdy jest tylko jedna wersja. Ten próg
@@ -204,11 +215,11 @@ Nieznane środowisko zwraca 404. Równoległe tworzenie lub zmiana nazwy suity n
 
 **Uczy się wyłącznie na przypadkach treningowych.** Oprócz ocenionych rozmów asystent czyta błędne odpowiedzi treningowe, potwierdzone regresje, uzasadnienia sędziego i notatki przeglądu z dostępnych [datasetów](datasets.md). Dostaje skuteczność treningu według tagów i kryteriów sędziego oraz liczby napraw i regresji. Pytania kontrolne, odpowiedzi i oceny nigdy nie trafiają do jego promptu. Runy sędziego i samego asystenta nadal są pomijane.
 
-Każdy przypadek ma stałe przypisanie do treningu albo kontroli, zachowane między wersjami datasetu. Ustawienia datasetu wybierają udział kontroli tylko dla przyszłych przypadków (domyślnie 50%). Sprawdzenia sugestii mierzą wyłącznie przypadki kontrolne; sesja poprawy dzieli pytania od nowa dla każdej próby, w tej samej proporcji, i mierzy każdą próbę na jej własnej części kontrolnej. Oba wymagają co najmniej pięciu kontrolnych pytań z możliwością oceny.
+Każdy przypadek ma stałe przypisanie do treningu albo kontroli, zachowane między wersjami datasetu. Ustawienia datasetu wybierają udział kontroli tylko dla przyszłych przypadków (domyślnie 50%); wszystkie własne pytania testowe skilla są kontrolne, a ich udziału nie można obniżyć. Sprawdzenia sugestii mierzą wyłącznie przypadki kontrolne; sesja poprawy dzieli pytania od nowa dla każdej próby, w proporcji, jaką dataset miał przy starcie sesji, i mierzy każdą próbę na jej własnej części kontrolnej. Oba wymagają co najmniej pięciu kontrolnych pytań z możliwością oceny.
 
 Kopie pytań treningowych lub materiału źródłowego są wykluczane według znormalizowanej treści i identyfikatora runu, także po ręcznym wpisaniu lub wygenerowaniu. Poniżej minimum sesja zatrzymuje się z `no_data` albo odrzuca krok, który testowałby za mało pytań, i podaje liczbę brakujących pytań. Widok runu oznacza obie części i wykluczone kopie. Zwykłe suity i bramki promocji nadal liczą wszystkie przypadki.
 
-Sesja poprawy przypina wersję datasetu i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy i przypadki nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
+Sesja poprawy przypina wersję datasetu, udział kontroli i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy, przypadki ani zmieniony udział kontroli nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
 
 Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła. Kontekst wcześniejszych prób zawiera ograniczone fragmenty z najwyżej sześciu ostatnich zmierzonych prób, aby długie zmiany instrukcji lub treści skilla nie wypełniały promptu następnej propozycji.
 
@@ -226,6 +237,11 @@ runów go pomija, gdy się o to poprosi (`?exclude_surface=eval`). Odczyt
 pojedynczego runa wskazuje run ewaluacji i przypadek, na który odpowiadał
 (`eval_case`), czytającemu, który może widzieć dataset. Działa jako osoba, która
 uruchomiła ewaluację, z jej obecną rolą, i nie czyta ani nie zapisuje jej osobistej pamięci.
+
+Ta rola jest odczytywana ponownie przed każdym przypadkiem. Gdy osoba, która
+uruchomiła ewaluację, opuściła organizację, straciła dostęp do agenta albo
+datasetu albo jej klucz został unieważniony, run kończy się błędem, zanim
+odpowie na kolejny przypadek.
 
 Każdy przypadek działa **w izolacji**, jak opisują [Środowiska](environments.md):
 narzędzie z testowym połączeniem w środowisku runa działa na nim, narzędzie, o
@@ -342,7 +358,7 @@ Odpowiedź, której sędzia nie zdołał ocenić albo którą pominął, jest **
 (`POST /api/v1/datasets/{id}/scores/rescore`) czyta odpowiedź zachowaną w
 próbie, zamiast pytać agenta. Werdykt osoby w
 [kolejce przeglądu](datasets.md#review) zastępuje wynik oceniających dla tego
-przypadku, a liczby runa idą za nim.
+przypadku, a liczby runa idą za nim, tak jak za nową oceną.
 
 Sędzia, który przeszukuje - [Knowledge search](concepts.md#system-agent-spec)
 na jego zakładce Narzędzia - sprawdza fakty w odpowiedzi względem baz wiedzy agenta, który
@@ -351,6 +367,11 @@ dokument i początek fragmentu. Dopóki jego runy nie dadzą historii, wycena li
 każde ocenianie jako tyle żądań, ile kroków ma sędzia. Sędzia startuje z
 temperaturą 0, więc ta sama odpowiedź jest oceniana tak samo dwa razy, a jego
 strona ostrzega, gdy ktoś ją podniesie.
+
+Znaleziony fragment widzi tylko czytający, który może zobaczyć odpowiedź i
+czytać bazę wiedzy, z której pochodzi, a dane uwierzytelniające są w nim
+redagowane, zanim zostanie zapisany. Fragmentu, który nie wskazuje swojej bazy
+wiedzy, nie widzi nikt, bo mógł pochodzić z czyjejś osobistej bazy wiedzy.
 
 Zakończony run zachowuje werdykt, liczniki i odsetki zaliczeń swojego
 pierwszego kandydata jako `outcome`, więc lista odczytuje je bez ponownego
@@ -387,6 +408,8 @@ Nazwy kryteriów, oceny poszczególnych kryteriów i przypisania do skilli wymag
 Zapisane źródła skilli używają stałych ID: zmiana nazwy zachowuje tożsamość skilla, a jego usunięcie i ponowne użycie nazwy nie przywraca dostępu do dawnych dowodów. Szczegóły kryteriów sesji wskazujące skill bez jego pierwotnego ID również pozostają ukryte. Opcjonalna nazwa wyświetlana skilla nie nadaje dostępu: pierwotne ID jest sprawdzane również bez etykiety.
 
 Interaktywne odczyty porównań dopuszczają do 30 żądań na osobę i 60 na organizację na minutę, z jednym wykonywanym porównaniem na organizację jednocześnie. Konsola i API współdzielą te limity. Nadmiarowe lub równoległe żądania zwracają HTTP 429 z `Retry-After`; klient powinien odczekać przed ponowieniem. Wspólny Redis koordynuje workery, a podczas awarii każdy worker zachowuje lokalny limit. Ręczne zmiany oceny odpowiedzi pochodzących z ewaluacji korzystają z tego samego budżetu i blokady, po sprawdzeniu dostępu do datasetu, a przed zmianą oceny lub zapisanych wyników.
+
+Odczyt runu porównuje go ponownie tylko wtedy, gdy ktoś zdecydował o jednej z jego ocen po zapisaniu werdyktu, i to porównanie korzysta z tej samej blokady i budżetu. Gdy blokada jest zajęta, lista runów oraz informacja w Builderze, czy zmianę modelu można zaakceptować, pokazują werdykt każdego runu w zapisanej postaci, a odczyt pojedynczego runu zwraca 429. Sama akceptacja zmiany nadal porównuje. Sprawdzenie na suicie ewaluacji przechowuje werdykt suity razem z werdyktem runu, więc kolejny odczyt niczego nie porównuje.
 
 Odczyt wymaga `runs:view` przed zajęciem blokady współbieżności lub zużyciem limitu. Aktywne porównania odnawiają blokady; wygaśnięcie po 120 sekundach zwalnia blokady procesów, które przestały działać. Błąd odnowienia w Redisie jest logowany i pozostawia lokalną blokadę workera.
 
@@ -765,6 +788,12 @@ dataset - run na datasecie, którego czytający nie może otworzyć, nie jest
 wyświetlany, a prośba o niego po id odpowiada `404`, tak jak run innej
 organizacji. Runy datasetu wymagają też `datasets:view` na nim i wymieniają
 tylko agentów, których czytający może widzieć.
+
+Decyzja w sprawie jednej z odpowiedzi runu albo jej ponowna ocena wymaga
+`runs:view` i dostępu do agenta, który odpowiedział, oprócz własnego uprawnienia
+datasetu - `datasets:edit`, by zdecydować, `datasets:run`, by ocenić. Każda z nich
+zmienia werdykt runu i to, co na nim zbudowano: bramkę suity, sesję Improve,
+sprawdzenie skilla. Sam grant na datasecie ich nie otwiera.
 
 Utworzenie, zmiana, wstrzymanie albo uruchomienie suity wymaga `agents:edit` i
 `agents:run` na agencie, `datasets:run` na datasecie i `runs:view`, a do tego

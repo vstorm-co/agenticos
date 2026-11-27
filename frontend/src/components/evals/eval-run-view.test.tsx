@@ -225,6 +225,13 @@ describe("EvalRunView", () => {
     expect(screen.queryByText("You have 30 days.")).not.toBeInTheDocument();
   });
 
+  it("offers what changed in a tested draft only to a reader who may edit the agent", () => {
+    worseDraft();
+    loaded.agent = { can_run: true, can_edit: false, can_publish: false };
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.queryByRole("link", { name: "See what changed" })).not.toBeInTheDocument();
+  });
+
   it("says a draft made things worse, what changed, and shows the cases that broke", async () => {
     worseDraft();
     loaded.agent = { can_run: true, can_edit: true, can_publish: true };
@@ -499,6 +506,7 @@ describe("EvalRunView", () => {
       verdict: "invalid",
       invalid_reason: "Add 4 more held-out test questions to measure a change",
       invalid_reason_code: "too_few_held_out",
+      invalid_reason_params: { missing: 4 },
       baseline_summary: null,
     });
     renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
@@ -552,6 +560,7 @@ describe("EvalRunView", () => {
       verdict: "invalid",
       invalid_reason: "Add 4 more held-out test questions to measure a change",
       invalid_reason_code: "too_few_held_out",
+      invalid_reason_params: { missing: 4 },
       baseline_summary: null,
     });
     renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
@@ -566,13 +575,14 @@ describe("EvalRunView", () => {
       verdict: "invalid",
       invalid_reason: "Add 4 more held-out test questions to measure a change",
       invalid_reason_code: "too_few_held_out",
+      invalid_reason_params: { missing: 4 },
       baseline_summary: null,
     });
     renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
 
     expect(screen.getByText(/cannot be compared yet: too few held-out/)).toBeVisible();
     expect(
-      screen.getByText("Add 4 more held-out test questions to measure a change"),
+      screen.getByText("Add 4 more held-out test questions to measure a change."),
     ).toBeVisible();
     expect(skills.asked.every((id) => id === null)).toBe(true);
   });
@@ -878,6 +888,24 @@ describe("EvalRunView", () => {
       run: undefined,
       error: new ApiError(403, "Insufficient permissions"),
     };
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+    expect(screen.getByText("You can't open this eval run")).toBeVisible();
+  });
+
+  it("keeps the run on screen when reading it again fails", () => {
+    state.run = {
+      ...state.run,
+      run: evalRun({ suite: { id: "suite-1", name: "Nightly", trigger: "schedule" } }),
+      error: new ApiError(502, "Bad gateway"),
+    };
+    renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
+
+    expect(screen.getByText("Started by the suite Nightly on its schedule.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("closes a run whose access was taken away while it was open", () => {
+    state.run = { ...state.run, error: new ApiError(403, "Insufficient permissions") };
     renderDetailedResult(<EvalRunView agentId="agent-1" runId="run-1" />);
     expect(screen.getByText("You can't open this eval run")).toBeVisible();
   });

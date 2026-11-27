@@ -76,6 +76,7 @@ import { toast } from "sonner";
 function dataset(scoring: DatasetScoring, overrides: Partial<Dataset> = {}): Dataset {
   return {
     id: "d1",
+    import_max_bytes: 10_485_760,
     name: "Refunds",
     description: "Returns and refunds",
     visibility: "org",

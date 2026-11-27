@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SidebarShell } from "./sidebar-shell";
 import { version } from "../../../package.json";
+vi.mock("@/components/settings/console-navigation-dialog", () => ({
+  ConsoleNavigationDialog: () => <button type="button">Customize sidebar</button>,
+}));
 
 /**
  * The blocks are stubbed because this is a test about arrangement, not about
@@ -71,6 +74,13 @@ describe("SidebarShell", () => {
   it("leaves search to the sidebar header", () => {
     renderShell();
     expect(screen.queryByRole("button", { name: "the search row" })).toBeNull();
+  });
+
+  it("places navigation customization beside notifications", () => {
+    renderShell();
+    expect(screen.getByRole("button", { name: "the bell" }).parentElement).toContainElement(
+      screen.getByRole("button", { name: "Customize sidebar" }),
+    );
   });
 
   it("puts the account last", () => {

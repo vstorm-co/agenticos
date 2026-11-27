@@ -52,6 +52,25 @@ async def replace_guards(
     await db.flush()
 
 
+async def delete_agent_guards(db: AsyncSession, *, agent_id: UUID, organization_id: UUID) -> None:
+    """Remove guards of an agent's own environments before its suites are deleted.
+
+    PostgreSQL can check the suite reference before the sibling environment
+    cascade runs. Guards of other agents remain protected by that reference.
+    """
+    environments = select(AgentEnvironment.id).where(
+        AgentEnvironment.agent_id == agent_id,
+        AgentEnvironment.organization_id == organization_id,
+    )
+    await db.execute(
+        delete(EnvironmentGuard).where(
+            EnvironmentGuard.organization_id == organization_id,
+            EnvironmentGuard.environment_id.in_(environments),
+        )
+    )
+    await db.flush()
+
+
 async def guarding(
     db: AsyncSession, suite_ids: Sequence[UUID], *, organization_id: UUID
 ) -> set[UUID]:

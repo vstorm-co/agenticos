@@ -1,5 +1,5 @@
 ---
-source_sha: "cbdc4136f927"
+source_sha: "4f9850e16b2b"
 ---
 
 # Skille { #skills }
@@ -280,6 +280,8 @@ Każdy skill ma jeden zestaw, zaczynany na stronie skilla w sekcji **Pytania tes
 `POST /api/v1/skills/{id}/test-set`, albo przyciskiem **Dodaj pytania testowe** przy
 agencie, którego [Popraw](#improving-a-skill) nie mogło sprawdzić, i edytowany jak
 każdy inny [dataset](datasets.md), który Datasets oznacza jako należący do skilla.
+Zestaw nosi nazwę skilla, z numerem, gdy jakiś dataset ma już tę nazwę - na
+przykład zestaw, który zostawił usunięty skill o tej samej nazwie.
 
 Zestaw ocenia sędzia, porównując każdą odpowiedź z tą, którą ludzie ocenili w
 górę. Zestaw z ostatnich odpowiedzi zadaje każde pytanie raz: odpowiedź, którą
@@ -343,6 +345,14 @@ startem, ze wskazaniem datasetu, do którego trzeba dodać inne pytania.
   runy oceniły każdą odpowiedź na mniejszej liczbie odłożonych pytań, niż
   potrzeba do wyniku: jego wiersz mówi, ile wypadło lepiej i gorzej, i że to za
   mało, by mieć pewność.
+- Agent, którego własne pytania się nie zakończyły - ich run się nie powiódł albo
+  został zatrzymany, został odrzucony, albo sprawdzenie wygasło - po tym, jak
+  pytania skilla potwierdziły regresję, zostaje **gorszy**: zmianę nadal trzeba
+  przypiąć albo obejść forkiem. Agent, u którego pytania skilla nie potwierdziły
+  regresji, jest **nieznany**: jego wiersz mówi, że własne pytania się nie
+  zakończyły, a pytania skilla nie potwierdziły regresji - albo, gdy nie mogły
+  wystartować, dlaczego - a szczegóły zachowują wynik pytań skilla, więc
+  potwierdzenie go to decyzja podjęta na połowie sprawdzenia.
 
 Sprawdzenie, w którym nie da się sprawdzić żadnego agenta, i tak startuje i od
 razu się kończy, ze wszystkimi agentami nieznanymi, do potwierdzenia przez osobę. Okno mówi to przed startem i proponuje pytania testowe skilla albo ocenianie, którego brakuje jego pytaniom.
@@ -352,7 +362,8 @@ trafia, a sprawdzenie mówi, że nie było kogo sprawdzić.
 Agent jest oceniany raz, na pytaniach held-out ze wszystkich swoich etapów
 razem: wynik wymaga pięciu takich pytań na agenta, a nie pięciu na etap, a
 regresja potwierdzona przez jeden etap sam się liczy, cokolwiek pokazał drugi. Każde
-pytanie zestawu skilla jest held-out, a szybkie sprawdzenie losuje tylko pytania
+pytanie zestawu skilla jest held-out - jego udział zostaje równy jeden, a dodane
+pytanie jest held-out niezależnie od niego - a szybkie sprawdzenie losuje tylko pytania
 held-out agenta.
 
 Sprawdzenie wysyła swoje potwierdzone regresje i odpowiedzi, których sędzia nie
@@ -546,7 +557,11 @@ model proponuje jeden tekst. Na kroku **Changes** osoba może przepisać każdy
 fragment, także propozycję modelu (`GET …/improvements/{run_id}/merge`, a potem
 `PATCH …/merge/description` albo `…/merge/parts/{index}`). Dla pliku zmienionego po
 obu stronach różnie osoba wybiera jedną stronę (`PATCH …/merge/files`); model nigdy
-nie pisze pliku. Sprawdzenie startuje dopiero, gdy nic nie zostało nierozstrzygnięte.
+nie pisze pliku. Każdy plik pokazuje opis i rozmiar, jakie podaje mu każda strona, a po
+rozwinięciu to, co każda strona zmieniła względem wersji, od której obie wyszły,
+odczytane z wersji tej strony (`GET …/versions/{version_id}/resources/{name}`). Plik
+większy niż 200 KB albo niebędący tekstem można zamiast tego pobrać z każdej strony.
+Sprawdzenie startuje dopiero, gdy nic nie zostało nierozstrzygnięte.
 Pyta agentów forka o wynik scalenia i, jeśli nie wyłączy się `main_alone` przy
 wycenie sprawdzenia na kroku Changes, o samą najnowszą wersję main. To drugie
 sprawdzenie mówi, czy fork jest jeszcze potrzebny, a wycena podaje jego cenę
@@ -856,11 +871,24 @@ agenta](authoring.md#the-improve-wizard): Zrozumienie, Zmiany, Sprawdzenie, Wyni
 się dla Ciebie po Zrozumieniu, po Zmianach i przy wyniku, a niczego nie zmienia, dopóki
 nie zaakceptujesz.
 
+Krok, który nie może się wykonać - jego helper jest zarchiwizowany albo poza
+zasięgiem, albo zniknęły dowody, które dostał - kończy się błędem z powodem
+zapisanym w sesji, a **Retry this step within the spending limit** wykonuje go
+ponownie, jako osoba, która ponawia, gdy przyczyna zostanie usunięta. Krok ponad
+limitem wydatków zatrzymuje się na budżecie. Żaden nie jest ponawiany sam.
+
 Sesja otwarta z Improve agenta zaczyna od problemów, które ta sesja zgłosiła.
 Tylko problem cytujący linię skilla, która podaje złą wartość lub regułę,
 zabiera ze sobą kryteria agenta; gdy skill tylko milczy, problem jest radą, a
 agent nadal odpowiada za te kryteria - zobacz [Gdy błąd jest w
 skillu](authoring.md#when-the-fault-is-in-a-skill).
+
+To, co sesja pisze - tytuł i podsumowanie każdego problemu oraz proponowany
+tekst - powstaje ze wszystkich odpowiedzi, które mogła przeczytać osoba, jako
+która działa (ta, która ją rozpoczęła, albo ta, która wykonała jej ostatni
+krok), i czyta to każdy, kto może czytać sesję (`runs:view` i dostęp do
+skilla). Tylko cytaty i nazwy agentów idą za dostępem czytającego: cytat z
+agenta, którego nie widzi, i nazwa tego agenta są policzone zamiast pokazane.
 
 Start mówi, ile ocenionych w dół albo nieudanych odpowiedzi przeczyta i ilu agentom
 służy linia. Mówi też, ile kosztuje

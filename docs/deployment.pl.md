@@ -1,5 +1,5 @@
 ---
-source_sha: "fa596edf1ff5"
+source_sha: "9a57eadec91e"
 ---
 
 # Samo wdrożenie { #the-deployment-itself }
@@ -133,6 +133,29 @@ origin, na potrzeby zamiany mowy na tekst w czacie.
     przeglądarka może wybrać dowolną z wartości. Dołączony `nginx/nginx.conf`
     ustawia tylko `Strict-Transport-Security`, który należy do tego, co terminuje
     TLS; istniejąca konfiguracja proxy, która dodaje pozostałe, powinna je usunąć.
+
+## Logowanie wyłącznie przez dostawcę tożsamości { #provider-only-sign-in }
+
+W **Admin → Wdrożenie →
+Dostęp i konta** wyłącz **Zezwalaj na logowanie lokalne** po skonfigurowaniu
+dostawcy. Wyłącza to hasła lokalne, rejestrację, reset hasła i linki logowania
+przez e-mail zarówno w formularzach, jak i API. Istniejące sesje pozostają ważne.
+Hasła katalogowe sprawdza LDAP, więc są odrębną metodą logowania. Tworzenie kont
+przez SSO nadal podlega zasadom rejestracji i zaproszeń wdrożenia.
+
+Publiczna odpowiedź brandingu wymienia tylko skonfigurowanych dostawców. Konsola
+filtruje tę listę przez `OAUTH_PROVIDERS`; domyślnie dopuszcza
+`google,oidc,ldap,kerberos`. Przycisk nieskonfigurowanego Google nie jest widoczny.
+Jeśli jawnie ustawiasz filtr, uwzględnij właściwego dostawcę przed wyłączeniem
+logowania lokalnego. Konsola nie pozwala wyłączyć ostatniej widocznej metody;
+API wymaga co najmniej jednego skonfigurowanego dostawcy.
+
+**Odzyskanie dostępu przez operatora:** ustaw
+`AUTH_PASSWORD_SIGN_IN_FORCE_ENABLED=true` w środowisku API i zrestartuj wszystkie
+repliki API. Logowanie lokalne znów działa, zapisana zasada pozostaje bez zmian,
+a panel administracji pokazuje wymuszenie. Użyj istniejącego lokalnego hasła
+administratora lub formularza resetu hasła po włączeniu wymuszenia. Napraw dostawcę, usuń
+wymuszenie i ponownie uruchom repliki. Sama flaga nie nadaje konta, roli ani sesji.
 
 ## Kto może się zarejestrować { #who-may-register }
 

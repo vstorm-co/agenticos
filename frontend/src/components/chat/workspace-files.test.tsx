@@ -15,6 +15,12 @@ vi.mock("@/lib/desktop/shell", async (original) => ({
 }));
 import { apiClient } from "@/lib/api-client";
 import { ApiError } from "@/lib/api-error";
+import { useAuthStore } from "@/stores/auth-store";
+import { readConversationWorkspaceOrigins } from "@/lib/conversation-workspace-api";
+vi.mock("@/lib/conversation-workspace-api", async (original) => ({
+  ...(await original<typeof import("@/lib/conversation-workspace-api")>()),
+  readConversationWorkspaceOrigins: vi.fn(),
+}));
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), raw: vi.fn() },
@@ -59,6 +65,13 @@ function workspace(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   useSourcesPanelStore.getState().close();
   vi.clearAllMocks();
+  useAuthStore.setState({ sessionOwnerId: "files-reader" });
+  vi.mocked(readConversationWorkspaceOrigins).mockResolvedValue({
+    default_origin: null,
+    default_workspace_id: null,
+    items: [],
+    truncated: false,
+  });
   vi.mocked(apiClient.get).mockResolvedValue(workspace());
 });
 
@@ -1287,4 +1300,138 @@ it("closes the old file selection when navigating to another conversation", asyn
   expect(vi.mocked(apiClient.get).mock.calls.map(([url]) => url)).not.toContain(
     "/conversations/c2/workspace/file?path=%2Freport.csv",
   );
+});
+
+it("chooses exact project or agent files without borrowing a same-named path or archive", async () => {
+  const agent = {
+    kind: "agent" as const,
+    workspace_id: "a-space",
+    project_id: null,
+    scope: "agent",
+    backend: "state",
+    owner_label: "Analyst",
+  };
+  const project = {
+    kind: "project" as const,
+    workspace_id: "p-space",
+    project_id: "p1",
+    scope: "project",
+    backend: "state",
+    owner_label: "Launch",
+  };
+  vi.mocked(readConversationWorkspaceOrigins).mockResolvedValue({
+    default_origin: "project",
+    default_workspace_id: "p-space",
+    items: [agent, project],
+    truncated: true,
+  });
+  vi.mocked(apiClient.get).mockImplementation(async (url) =>
+    url.includes("/file?")
+      ? { path: "/report.csv", content: "agent-only preview", truncated: false }
+      : workspace({ truncated: true }),
+  );
+  draw(
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" revision={0} attachments={[]} />,
+  );
+  await openPanel();
+  expect(await screen.findByRole("combobox", { name: "File location" })).toHaveTextContent(
+    "Project files · Launch",
+  );
+  expect(apiClient.get).toHaveBeenCalledWith("/projects/p1/files");
+  expect(screen.queryByRole("button", { name: "Download as .zip" })).toBeNull();
+  expect(screen.getByText("Some file locations are omitted from this list.")).toBeVisible();
+  expect(screen.getByText("This file list is incomplete.")).toBeVisible();
+  await userEvent.click(screen.getByRole("combobox", { name: "File location" }));
+  await userEvent.click(await screen.findByRole("option", { name: "Agent files · Analyst" }));
+  await waitFor(() =>
+    expect(apiClient.get).toHaveBeenCalledWith("/sandbox-workspaces/a-space/files"),
+  );
+  await userEvent.click(await screen.findByRole("button", { name: /report.csv/ }));
+  expect(await screen.findByText("agent-only preview")).toBeVisible();
+  expect(apiClient.get).toHaveBeenCalledWith("/sandbox-workspaces/a-space/file?path=%2Freport.csv");
+  expect(apiClient.get).not.toHaveBeenCalledWith("/conversations/c1/workspace");
+});
+
+it("unmounts a preview when its project disappears instead of opening the agent's copy", async () => {
+  const agent = {
+    kind: "agent" as const,
+    workspace_id: "a-space",
+    project_id: null,
+    scope: "agent",
+    backend: "state",
+    owner_label: "Analyst",
+  };
+  const project = {
+    kind: "project" as const,
+    workspace_id: "p-space",
+    project_id: "p1",
+    scope: "project",
+    backend: "state",
+    owner_label: "Launch",
+  };
+  vi.mocked(readConversationWorkspaceOrigins).mockResolvedValue({
+    default_origin: "project",
+    default_workspace_id: "p-space",
+    items: [agent, project],
+    truncated: false,
+  });
+  vi.mocked(apiClient.get).mockResolvedValue(workspace());
+  vi.mocked(apiClient.raw).mockResolvedValue(new Response("project-private preview"));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = (revision: number) => (
+    <QueryClientProvider client={client}>
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        revision={revision}
+        attachments={[]}
+      />
+    </QueryClientProvider>
+  );
+  const rendered = render(view(0));
+  await openPanel();
+  await userEvent.click(await screen.findByRole("button", { name: /report.csv/ }));
+  expect(await screen.findByText("project-private preview")).toBeVisible();
+  vi.mocked(readConversationWorkspaceOrigins).mockResolvedValue({
+    default_origin: "agent",
+    default_workspace_id: "a-space",
+    items: [agent],
+    truncated: false,
+  });
+  rendered.rerender(view(1));
+  expect(
+    await screen.findByText("This file location is no longer available. Choose another location."),
+  ).toBeVisible();
+  expect(screen.queryByText("project-private preview")).toBeNull();
+  const reads = vi.mocked(readConversationWorkspaceOrigins).mock.calls.length;
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(readConversationWorkspaceOrigins).toHaveBeenCalledTimes(reads + 1));
+  expect(apiClient.get).not.toHaveBeenCalledWith("/sandbox-workspaces/a-space/files");
+  expect(apiClient.get).not.toHaveBeenCalledWith("/conversations/c1/workspace");
+});
+
+it("labels files without an extension in an explicit workspace", async () => {
+  vi.mocked(readConversationWorkspaceOrigins).mockResolvedValue({
+    default_origin: "agent",
+    default_workspace_id: "a-space",
+    truncated: false,
+    items: [
+      {
+        kind: "agent",
+        workspace_id: "a-space",
+        project_id: null,
+        scope: "agent",
+        backend: "state",
+        owner_label: "Analyst",
+      },
+    ],
+  });
+  vi.mocked(apiClient.get).mockResolvedValue(
+    workspace({ items: [{ path: "/README", size: null, is_dir: false, modified_at: null }] }),
+  );
+  draw(
+    <WorkspaceFiles buttonSlot={document.body} conversationId="c1" revision={0} attachments={[]} />,
+  );
+  await openPanel();
+  expect(await screen.findByRole("button", { name: /README/ })).toBeVisible();
 });

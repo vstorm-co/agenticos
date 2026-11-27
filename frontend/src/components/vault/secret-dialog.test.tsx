@@ -580,3 +580,28 @@ describe("AddSecretDialog · the name that follows the service", () => {
     expect(screen.getByLabelText("Name")).toHaveValue("");
   });
 });
+
+it("keeps an ingress credential shared when the caller requires organization visibility", async () => {
+  const onSubmit = vi.fn().mockResolvedValue({});
+  render(
+    <AddSecretDialog
+      open
+      onOpenChange={vi.fn()}
+      kinds={KINDS}
+      kind="api_key"
+      fixedVisibility="org"
+      onSubmit={onSubmit}
+      isPending={false}
+    />,
+  );
+  expect(screen.getByRole("combobox", { name: "Who can use it" })).toBeDisabled();
+  await userEvent.type(screen.getByLabelText("Name"), "Webhook signing");
+  await userEvent.type(screen.getByLabelText(/Api Key/, { selector: "input" }), "signing-value");
+  await userEvent.click(screen.getByRole("button", { name: "Store key" }));
+  expect(onSubmit).toHaveBeenCalledWith(
+    expect.objectContaining({
+      visibility: "org",
+      value: { kind: "api_key", api_key: "signing-value" },
+    }),
+  );
+});

@@ -24,6 +24,13 @@ class ContextProposalRead(BaseSchema, TimestampSchema):
     context_name: str
     description: str | None
     content: str
+    contains_credential: bool = Field(
+        default=False,
+        description=(
+            "The proposed text quotes a credential. It is shown redacted, and Apply is "
+            "refused: discard it and make the change by hand"
+        ),
+    )
     current_description: str | None
     current_content: str
     status: str

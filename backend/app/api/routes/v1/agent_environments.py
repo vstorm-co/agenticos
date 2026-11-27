@@ -20,7 +20,12 @@ from app.schemas.agent_environment import (
     EnvironmentRead,
     EnvironmentUpdate,
 )
-from app.schemas.promotion_gate import PromotionGateRead, PromotionGateRun, PromotionGateRunRead
+from app.schemas.promotion_gate import (
+    PromotionGateEstimate,
+    PromotionGateRead,
+    PromotionGateRun,
+    PromotionGateRunRead,
+)
 
 router = APIRouter()
 
@@ -93,6 +98,22 @@ async def read_promotion_gate(
 ) -> Any:
     """Whether the version may be promoted onto the environment, guard by guard."""
     return await service.read(ctx, agent_id, environment_id, version_id)
+
+
+@router.get(
+    "/{agent_id}/environments/{environment_id}/gate/estimate",
+    dependencies=[ASSISTANT],
+    response_model=PromotionGateEstimate,
+)
+async def estimate_promotion_gate(
+    agent_id: UUID,
+    environment_id: UUID,
+    ctx: Auth,
+    service: PromotionGateSvc,
+    version_id: UUID = Query(description="The version the guards would run on"),
+) -> Any:
+    """The most running the version's missing guards would spend now, as the caller."""
+    return await service.estimate(ctx, agent_id, environment_id, version_id)
 
 
 @router.post(

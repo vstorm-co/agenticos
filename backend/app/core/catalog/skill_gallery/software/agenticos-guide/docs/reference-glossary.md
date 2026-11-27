@@ -144,6 +144,7 @@ in [Capabilities](https://vstorm-co.github.io/agenticos/reference/capabilities/)
 | Memory | `memory_files` |
 | Mirage (virtual terminal) | `mirage` |
 | Planning | `planning` |
+| Projects | `projects` |
 | Work while tools run | `background_tools` |
 | Background topics | `background_tasks` |
 | Watch a command | `monitor` |
