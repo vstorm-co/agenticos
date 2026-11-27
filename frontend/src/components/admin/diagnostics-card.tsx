@@ -3,8 +3,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Activity, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { ServiceCard } from "@/components/settings/service-card";
 
-import { Button, ListCard } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { apiClient } from "@/lib/api-client";
 import { diagnosticsStatusSchema } from "@/lib/diagnostics";
 import { qk } from "@/lib/query-keys";
@@ -18,8 +19,14 @@ export function DiagnosticsCard() {
     refetchInterval: 60_000,
   });
   return (
-    <ListCard title={t("title")} counted={t("hint")}>
-      <div className="space-y-4 p-4">
+    <ServiceCard
+      icon={Activity}
+      headingLevel={3}
+      title={t("title")}
+      description={t("hint")}
+      action={null}
+    >
+      <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <span className="flex items-center gap-2 font-medium">
             <Activity className="size-4" />
@@ -68,6 +75,6 @@ export function DiagnosticsCard() {
           <code>DIAGNOSTICS_ENABLED=false</code>
         </p>
       </div>
-    </ListCard>
+    </ServiceCard>
   );
 }

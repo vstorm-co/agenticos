@@ -5672,7 +5672,7 @@
       },
       "org-assistant": {
         "title": "The AI Architect",
-        "body": "Switch the organization's assistant on or off and set how it greets people. Its name, model and knowledge are edited in the Agent Builder, like any agent's."
+        "body": "Switch the organization's AI Architect on or off. Edit its model, instructions and knowledge from Agents, like any other agent."
       },
       "org-members": {
         "title": "Who's in it",
@@ -6385,11 +6385,11 @@
       },
       "project-tracking": {
         "title": "Keep project on track",
-        "body": "Open Task table options beside Task table, then choose Automatic project tracking. Review a published source agent and its accounts before explicitly publishing a private tracker that updates the same task table on a schedule."
+        "body": "Open Task table options beside Task table, then choose Automate task updates. Review a published source agent and its accounts before explicitly publishing a private tracker that updates the same task table on a schedule."
       },
       "flow-project-tracker-create": {
         "title": "Set up a project tracker?",
-        "body": "Open Task table options, then choose Automatic project tracking. Review an editable published agent and its accounts, then explicitly publish a private tracker with scheduled checks of this project’s task table."
+        "body": "Open Task table options, then choose Automate task updates. Review an editable published agent and its accounts, then explicitly publish a private tracker with scheduled checks of this project’s task table."
       },
       "channels-phone": {
         "title": "Set up telephone routing",
@@ -15450,8 +15450,8 @@
     },
     "tracking": {
       "options": "Task table options",
-      "title": "Automatic project tracking",
-      "description": "Use this project's task table and publish a private copy of a selected agent to update it on a schedule.",
+      "title": "Automate task updates",
+      "description": "Create an agent and a scheduled routine that check progress using sources you approve and update this project’s shared task table. You can also edit the same table yourself.",
       "audience": "The routine acts as you and writes its reports in this project’s shared conversation. The source agent remains unchanged.",
       "baseAgent": "Source agent you can edit",
       "chooseAgent": "Choose a published agent",

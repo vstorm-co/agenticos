@@ -82,7 +82,7 @@ it("offers creation only to an entitled caller and retains loading/refusal state
 it("opens review and waits for successful creation before closing", async () => {
   render(<ProjectTrackingControl project={project} primaryAction={<button>Task table</button>} />);
   await userEvent.click(screen.getByRole("button", { name: "Task table options" }));
-  await userEvent.click(screen.getByRole("menuitem", { name: "Automatic project tracking" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Automate task updates" }));
   await userEvent.click(screen.getByRole("button", { name: "Confirm setup" }));
   const call = state.save.mock.calls[0];
   expect(call?.[0]).toEqual(expect.objectContaining({ publish_and_start: true }));
@@ -129,7 +129,7 @@ it("keeps the primary task action direct and opens automation only from the adja
   expect(options).toHaveAttribute("data-tour", "project-tracking-create");
   options.focus();
   await userEvent.keyboard("{ArrowDown}");
-  expect(await screen.findByRole("menuitem", { name: "Automatic project tracking" })).toHaveFocus();
+  expect(await screen.findByRole("menuitem", { name: "Automate task updates" })).toHaveFocus();
   expect(screen.queryByRole("button", { name: "Confirm setup" })).not.toBeInTheDocument();
   expect(state.save).not.toHaveBeenCalled();
 });
@@ -141,7 +141,7 @@ it.each(["error", "stale tracker"])(
       <ProjectTrackingControl project={project} primaryAction={<button>Task table</button>} />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Task table options" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Automatic project tracking" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Automate task updates" }));
     expect(screen.getByRole("button", { name: "Confirm setup" })).toBeInTheDocument();
     state.allowed = false;
     if (condition === "error") state.error = new Error("Offline");
@@ -168,7 +168,7 @@ it.each(["error", "stale tracker"])(
     expect(screen.queryByRole("button", { name: "Confirm setup" })).not.toBeInTheDocument();
     expect(state.save).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Task table options" }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Automatic project tracking" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Automate task updates" }));
     expect(screen.getByRole("button", { name: "Confirm setup" })).toBeInTheDocument();
   },
 );

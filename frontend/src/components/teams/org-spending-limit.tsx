@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 import { CurrencyOrganizationSwitch } from "@/components/money/currency-organization-switch";
@@ -11,7 +11,7 @@ import { useMoney } from "@/components/providers/currency-provider";
 import { MonetaryInput } from "@/components/money/monetary-input";
 import { useMonetaryInputs } from "@/hooks/use-monetary-inputs";
 import { useLocale } from "next-intl";
-import { SettingsSection } from "@/components/settings/settings-section";
+import { ServiceCard } from "@/components/settings/service-card";
 import { Button } from "@/components/ui";
 import { FormField } from "@/components/ui/form-field";
 import { useOrganizations, usePermissions, useSpend } from "@/hooks";
@@ -49,9 +49,14 @@ export function OrgSpendingLimit({ org }: { org: Organization }) {
   const t = useTranslations("teams");
   if (tenant !== org.id)
     return (
-      <SettingsSection title={t("monthlySpendingLimit")}>
+      <ServiceCard
+        icon={Wallet}
+        action={null}
+        title={t("monthlySpendingLimit")}
+        description={t("ceilingWhatEveryAgent")}
+      >
         <CurrencyOrganizationSwitch organizationId={org.id} />
-      </SettingsSection>
+      </ServiceCard>
     );
   // The form is a separate component so that its queries are not merely
   // ignored for someone without the permission - they are never issued. A
@@ -123,7 +128,9 @@ function SpendingLimitForm({ org }: { org: Organization }) {
   });
 
   return (
-    <SettingsSection
+    <ServiceCard
+      icon={Wallet}
+      action={null}
       title={t("monthlySpendingLimit")}
       description={t("ceilingWhatEveryAgent") + t("monthNextAgentS") + t("emptyNoLimit")}
     >
@@ -160,6 +167,6 @@ function SpendingLimitForm({ org }: { org: Organization }) {
               limit: money.format(org.monthly_budget_usd, locale),
             })}
       </p>
-    </SettingsSection>
+    </ServiceCard>
   );
 }

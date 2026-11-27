@@ -49,6 +49,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
+- Add the community Turkish README, with reciprocal language links and the same source-fingerprint, section and link checks as other README translations. Documentation links fall back to English where no Turkish page exists.
+
+- Onboarding separates shared deployment setup, shared organization setup and personal progress, in that order. App administrators can begin before the first organization exists; organization completion is shared with every administrator holding `org:settings`. Existing personal completions and snoozes remain unchanged.
+
 - Present setup and desktop-app invitations in one consistent sidebar card, with a visible-only eight-second rotation, manual navigation and pause, and no automatic rotation when reduced motion is selected. Existing completion and dismissal rules remain in force.
 
 - Keep a separate live Project-files path in retained private Docker desktops, so an editor opened by an agent can still save after its run ends. The first actual Project file or command tool prepares the configured desktop; idle file traffic never extends the session.
@@ -104,6 +108,10 @@ Two things are versioned separately from this file and worth knowing about:
 - A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. The Integrations tab on the Knowledge bases page shows each connection's API style and key, and local services are now called service connections.
 
 ### Fixed
+
+- Give Inbox filters the shared animated selection and keyboard controls, align the plan with the chat composer, and clarify that task automation updates the project’s existing task table.
+
+- Use consistent cards and compact header controls across organization and deployment settings. Keep the AI Architect card focused on availability, and give the deployment save header an opaque edge-to-edge background while scrolling.
 
 - Keep Browser work in one expandable activity line with compact page shortcuts, and temporarily fold the desktop conversation list while preserving explicit reopening and the main navigation.
 
@@ -204,6 +212,8 @@ Two things are versioned separately from this file and worth knowing about:
 - An app-scoped knowledge base is checked as itself when it is created or edited: its parser connection and OCR server must be deployment-wide and it cannot use a LlamaParse key, because its syncs resolve them with no organization. Before, a connection only the creator's organization could see was accepted and every sync then failed to find it.
 
 ### Upgrading
+
+- Apply `0385_shared_onboarding_scopes.py` after `0384_environment_layout_driver.py`. Existing deployments and organizations deliberately start with unfinished shared setup stages, including for existing administrators; no configured-state backfill completes them. Personal progress is untouched. Downgrade removes shared progress only.
 
 - Apply `0384_environment_layout_driver.py` with the old API and workers stopped, then restart them after migration. The physical driver CHECK now admits a short internal layout lease for idle browser fitting; older processes must not read these tokens. Downgrade waits for live layout work to finish and removes only expired layout tokens.
 

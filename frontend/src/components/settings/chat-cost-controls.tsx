@@ -18,16 +18,20 @@ export function OrganizationChatCostControl({
   value,
   disabled,
   onChange,
+  compact = false,
 }: {
   value: ChatCostVisibility;
+  compact?: boolean;
   disabled: boolean;
   onChange: (value: ChatCostVisibility) => void;
 }) {
   const t = useTranslations("consoleExperience.costs");
   const id = useId();
   return (
-    <div className="space-y-2" data-tour="organization-chat-costs">
-      <Label htmlFor={id}>{t("audience")}</Label>
+    <div className={compact ? "w-60 max-w-full" : "space-y-2"} data-tour="organization-chat-costs">
+      <Label htmlFor={id} className={compact ? "sr-only" : undefined}>
+        {t("audience")}
+      </Label>
       <Select
         value={value}
         disabled={disabled}

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert, Mic } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { ServiceCard } from "@/components/settings/service-card";
 
 import {
   Button,
@@ -14,7 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
   Label,
-  ListCard,
   Switch,
 } from "@/components/ui";
 import { DIALOG_CONFIRM, DIALOG_SCROLL } from "@/lib/dialog-sizes";
@@ -50,19 +50,21 @@ export function DictationAudioCard({ checked, disabled, onChange }: DictationAud
   };
 
   return (
-    <ListCard title={t("title")} counted={t("hint")}>
-      <div className="border-border flex items-start justify-between gap-4 rounded-xl border p-4">
-        <div className="min-w-0">
-          <p className="text-foreground text-sm font-medium">{t("toggle")}</p>
-          <p className="text-muted-foreground mt-0.5 text-xs">{t("toggleHint")}</p>
-        </div>
+    <ServiceCard
+      icon={Mic}
+      headingLevel={3}
+      title={t("title")}
+      description={t("hint")}
+      action={
         <Switch
           checked={checked}
           onCheckedChange={(accept) => (accept ? setAsking(true) : onChange(false))}
           disabled={disabled}
           aria-label={t("toggle")}
         />
-      </div>
+      }
+    >
+      <p className="text-muted-foreground text-xs leading-5">{t("toggleHint")}</p>
 
       {/* No trigger inside it, so the dialog only ever asks to close. */}
       <Dialog open={asking} onOpenChange={close}>
@@ -111,6 +113,6 @@ export function DictationAudioCard({ checked, disabled, onChange }: DictationAud
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </ListCard>
+    </ServiceCard>
   );
 }

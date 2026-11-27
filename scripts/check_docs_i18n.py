@@ -63,6 +63,7 @@ from docs_i18n import (
     heading_levels,
     linked_targets,
     locale_of,
+    locales_for,
     own_fragments,
     record_fingerprint,
     recorded_fingerprint,
@@ -87,7 +88,7 @@ def missing() -> list[tuple[str, str]]:
     return [
         (_name(page), locale)
         for page in translatable()
-        for locale in LOCALES
+        for locale in locales_for(page)
         if not translation_of(page, locale).exists()
     ]
 
@@ -97,7 +98,7 @@ def stale() -> list[tuple[str, str]]:
     found: list[tuple[str, str]] = []
     for page in translatable():
         current = fingerprint(page)
-        for locale in LOCALES:
+        for locale in locales_for(page):
             translation = translation_of(page, locale)
             if translation.exists() and recorded_fingerprint(translation) != current:
                 found.append((_name(page), locale))
@@ -109,7 +110,7 @@ def adrift() -> list[tuple[str, str, str]]:
     found: list[tuple[str, str, str]] = []
     for page in english_pages():
         expected = anchors(page)
-        for locale in LOCALES:
+        for locale in locales_for(page):
             translation = translation_of(page, locale)
             if not translation.exists():
                 continue
@@ -149,7 +150,7 @@ def restructured() -> list[tuple[str, str, str]]:
     found: list[tuple[str, str, str]] = []
     for page in root_pages():
         expected = heading_levels(page)
-        for locale in LOCALES:
+        for locale in locales_for(page):
             translation = translation_of(page, locale)
             if not translation.exists():
                 continue
@@ -179,7 +180,7 @@ def relinked() -> list[tuple[str, str, str]]:
     """
     found: list[tuple[str, str, str]] = []
     for page in root_pages():
-        for locale in LOCALES:
+        for locale in locales_for(page):
             translation = translation_of(page, locale)
             if not translation.exists():
                 continue
@@ -205,7 +206,7 @@ def dangling() -> list[tuple[str, str, str]]:
     """
     found: list[tuple[str, str, str]] = []
     for page in root_pages():
-        for locale in LOCALES:
+        for locale in locales_for(page):
             translation = translation_of(page, locale)
             if not translation.exists():
                 continue

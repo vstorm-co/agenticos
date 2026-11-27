@@ -9,6 +9,26 @@ from pydantic import ConfigDict, Field
 from app.db.models.organization import OnboardingStep
 from app.schemas.base import BaseSchema
 
+OnboardingScope = Literal["deployment", "organization", "personal"]
+
+
+class OnboardingScopeUpdate(BaseSchema):
+    model_config = ConfigDict(extra="forbid")
+    current_step: OnboardingStep | None = Field(
+        default=None, description="A visited screen in this scope, never evidence of saved settings"
+    )
+    completed: Literal[True] | None = None
+
+
+class OnboardingScopeRead(BaseSchema):
+    scope: OnboardingScope
+    applicable: bool
+    completed: bool = False
+    completed_at: datetime | None = None
+    current_step: OnboardingStep | None = None
+    updated_at: datetime | None = None
+
+
 StartGoal = Literal["meeting", "document", "compare"]
 
 
@@ -29,6 +49,11 @@ class OnboardingAgent(BaseSchema):
 
 
 class OnboardingRead(BaseSchema):
+    scopes: list[OnboardingScopeRead] = Field(default_factory=list)
+    active_scope: OnboardingScope | None = Field(
+        default=None,
+        description="First applicable unfinished scope: deployment, organization, personal; a snoozed personal offer is skipped",
+    )
     completed_at: datetime | None = None
     current_step: OnboardingStep | None = Field(
         default=None,
@@ -38,8 +63,8 @@ class OnboardingRead(BaseSchema):
         default=None, description="When the reported screen last changed or setup was completed"
     )
     server_time: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    organization_id: UUID
-    organization_name: str
+    organization_id: UUID | None
+    organization_name: str | None
     goal: StartGoal | None
     dismissed: bool = Field(
         description="The start offer is hidden by completion or a current 24-hour snooze"

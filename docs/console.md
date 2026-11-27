@@ -63,7 +63,7 @@ Creating a project asks for its name, workspace and audience first. **Instructio
 
 Organizations has a search field for membership names and slugs, with the matching count in the same toolbar. Clearing the search restores the full membership list.
 
-The AI Architect card links directly to its Builder beside the enable switch, without an extra disclosure. Other AI services retain collapsible forms where there are settings to edit.
+The AI Architect card controls organization availability without a separate Agent Builder action. Its model, instructions and knowledge remain editable from Agents. Organization and deployment settings use the same card frame, spacing and visible descriptions; switches and compact selectors sit at the right. Narrow cards move larger selectors to a separate right-aligned row.
 
 The Me view starts with its period summary in a card, followed by a compact Briefing with titles, sources and actions. Full proposal details remain in Inbox.
 
@@ -1100,7 +1100,7 @@ opens its wizard to be read, with what was decided on its last step; see
 
 Organization details use three tabs: **Members**, **Budget and approvals**, and **AI & services**. Members has name/email search, a role filter and the latest recorded action in this workspace. This is an audited action, not a visit or sign-in; impersonated actions are excluded and missing history shows a dash. **Edit workspace** opens a guarded name, avatar and colour dialog. AI & services uses individual function cards without parent groups. Expand configuration without losing drafts. Controls retain their own permission gates. Old `?tab=profile` links open the workspace dialog; `?tab=voice` and `?tab=proactivity` open their settings in AI & services.
 
-Daily briefing & suggestions is one service, configured once rather than through duplicate controls. Its card also shows spending and recent executions. Memory maintenance has its own model and budget and starts off. Choose a model before enabling either service. AI Architect keeps its switch and direct Agent Builder link visible, without a greeting editor or an extra disclosure. Other services use the same card header and icon layout, with disclosures only where they contain editable settings.
+Daily briefing & suggestions is one service, configured once rather than through duplicate controls. Its card also shows spending and recent executions. Memory maintenance has its own model and budget and starts off. Choose a model before enabling either service. AI Architect keeps its availability switch, without an extra Builder action, greeting editor or disclosure. Other services use the same card header and icon layout, with disclosures only where they contain editable settings.
 
 After signing in, addressed email invitations also appear in the console and onboarding without opening the email link. The recipient chooses a workspace and accepts explicitly; Later keeps an Invitations shortcut available. Only live invitations to the account’s current email are shown, excluding shareable links and organizations already joined. Acceptance switches to the chosen organization and opens its welcome flow. The server never returns the invitation token through this inbox.
 
@@ -1194,11 +1194,15 @@ The administration organization directory shows the uploaded organization pictur
 
 ## Your first task
 
+Setup has three independent scopes, offered in order: **deployment → organization → personal**. Deployment progress belongs to the whole installation and requires current app-administrator access. Organization progress belongs to the selected organization and requires `org:settings`; completing it once is visible to every authorized administrator there. Personal progress remains specific to your membership. An administrator can finish deployment setup before any organization exists, then create or choose one. An unfinished earlier scope takes priority, while completed scopes remain available to review. These stages guide setup; they do not block settings, security, sign-out or other modules.
+
+Each scope stores its own completion timestamp and last visited screen. Visiting a screen never proves that settings were saved. Concurrent completions preserve the first completion; later visits cannot reopen it. Personal snoozing does not snooze shared setup for other administrators. Upgrading introduces unfinished deployment and organization stages even for existing administrators; existing personal completions and snoozes remain unchanged. No agent, provider call, invitation or optional configuration is required merely to record completion.
+
 In a new organization, the shipped **AgenticOS** is selected before publication unless you chose another default. Its first message can explain model setup and show a configuration card without executing the draft or calling an AI provider. The reply and card remain in chat history. Builders can open the agent's model settings; other members see administrator guidance and the deployment's support contact when configured. Choose a model, add a key if required and publish the agent before normal AI replies can run. Ordinary drafts and archived agents remain unavailable for execution.
 
 The Studio walkthrough introduces the installed AgenticOS and Architect. If the shipped AgenticOS is still an accessible setup draft, its action opens the configuration chat; publishing and normal agent execution retain their usual checks. Authorized builders can configure Architect when it needs a model. Ordinary drafts and inaccessible agents do not become runnable through onboarding.
 
-Closing the start offer snoozes it for this membership’s effective 1, 3 or 7 day interval, using server time. It can return if setup is unfinished and reminders are enabled. After the questions, **Finish setup and open the app** records completion for this membership. Optional fields, invitations, a model, an agent and an AI run are not required. Completion and a successful task are separate states.
+Closing the personal start offer snoozes it for this membership’s effective 1, 3 or 7 day interval, using server time. It can return if setup is unfinished and reminders are enabled. After the questions, **Finish setup and open the app** records completion for this membership. Optional fields, invitations, a model, an agent and an AI run are not required. Completion and a successful task are separate states.
 
 Open **Get started** from the dashboard, the first-use offer or a page's help.
 On desktop, the chat start notice is a translucent overlay above the console.
@@ -1212,7 +1216,7 @@ The start follows the person's authority and existing work:
 
 | Person                                        | Guided start                                                                                                     |
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Application administrator                     | Create or choose a company organization, prepare identity and invitations, then decide how future accounts join. |
+| Application administrator                     | Shared deployment setup first, then shared organization setup and personal preferences. |
 | Organization administrator                    | Prepare their organization and its spending limit; no deployment controls.                                       |
 | New member account                            | Welcome, optional personal profile and work context, then a first task.                                          |
 | Existing account joining another organization | Welcome to that organization; use the saved personal profile or deliberately review it.                          |
@@ -1238,12 +1242,12 @@ and retain their usual permissions and save actions.
 
 The URL keeps the current step, setup question and organization for a reload. It does not preserve
 unsaved field edits, grant access or mark completion. A changed organization or
-revoked authority cannot restore a privileged step. Finishing the last step records
+revoked authority cannot restore a privileged step. Finishing the personal stage records
 membership completion even when optional fields and AI setup were skipped.
 
 Legacy account completion applies to memberships joined by that timestamp. A later
 membership starts separately. Existing personal chats and completed walkthroughs
-continue to suppress automatic restarts; available published agents also hide ordinary
+continue to suppress automatic personal restarts; available published agents also hide ordinary
 start offers. Registration and accepted-invitation entry links give a member with no
 personal activity or completion a welcome even in a workspace that already has agents.
 Older and failed chats count as activity without claiming a successful run. Explicit

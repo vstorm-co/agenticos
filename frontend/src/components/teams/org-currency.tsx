@@ -1,9 +1,10 @@
 "use client";
 
+import { Coins } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useOrganizationCurrency } from "@/hooks/use-currencies";
 import { usePermissions } from "@/hooks/use-permissions";
-import { SettingsSection } from "@/components/settings/settings-section";
+import { ServiceCard } from "@/components/settings/service-card";
 import {
   Button,
   Select,
@@ -37,31 +38,38 @@ function CurrencyForm({ org }: { org: Organization }) {
   const availableCurrencies = Object.keys(data?.rates ?? {});
   const missingRate = data && org.currency != null && !availableCurrencies.includes(org.currency);
   return (
-    <SettingsSection title={t("organization")} description={t("organizationHint")}>
-      <Select
-        value={selectedCurrency}
-        disabled={!data || save.isPending}
-        onValueChange={(value) => mutate(value === "inherit" ? null : value)}
-      >
-        <SelectTrigger aria-label={t("organization")}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="inherit">
-            {t("inherit", { currency: data?.default_currency ?? "USD" })}
-          </SelectItem>
-          {missingRate && (
-            <SelectItem value={selectedCurrency} disabled>
-              {t("rateUnavailable", { currency: selectedCurrency })}
+    <ServiceCard
+      icon={Coins}
+      responsiveAction
+      title={t("organization")}
+      description={t("organizationHint")}
+      action={
+        <Select
+          value={selectedCurrency}
+          disabled={!data || save.isPending}
+          onValueChange={(value) => mutate(value === "inherit" ? null : value)}
+        >
+          <SelectTrigger className="w-60 max-w-full" aria-label={t("organization")}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="inherit">
+              {t("inherit", { currency: data?.default_currency ?? "USD" })}
             </SelectItem>
-          )}
-          {availableCurrencies.map((currency) => (
-            <SelectItem value={currency} key={currency}>
-              {currency}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+            {missingRate && (
+              <SelectItem value={selectedCurrency} disabled>
+                {t("rateUnavailable", { currency: selectedCurrency })}
+              </SelectItem>
+            )}
+            {availableCurrencies.map((currency) => (
+              <SelectItem value={currency} key={currency}>
+                {currency}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      }
+    >
       {data?.reporting_units_per_usd && (
         <p className="text-muted-foreground text-sm">
           {t("quoteHint", { rate: data.reporting_units_per_usd, currency: data.currency })}
@@ -75,6 +83,6 @@ function CurrencyForm({ org }: { org: Organization }) {
           </Button>
         </p>
       )}
-    </SettingsSection>
+    </ServiceCard>
   );
 }

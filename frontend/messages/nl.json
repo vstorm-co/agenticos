@@ -5556,7 +5556,7 @@
       },
       "org-assistant": {
         "title": "De AI-Architect",
-        "body": "Zet de assistent van de organisatie aan of uit en stel in hoe hij mensen begroet. Zijn naam, model en kennis bewerk je in de Agent Builder, zoals bij elke agent."
+        "body": "Schakel AI Architect voor de organisatie in of uit. Bewerk het model, de instructies en de kennis via Agents, net als bij andere agents."
       },
       "org-members": {
         "title": "Wie erin zit",
@@ -6253,11 +6253,11 @@
       },
       "project-tracking": {
         "title": "Houd je project op koers",
-        "body": "Open Opties voor de takentabel naast Takentabel en kies Projecten automatisch bijhouden. Bekijk een gepubliceerde bronagent en de accounts voordat je bewust een privétracker publiceert die dezelfde tabel volgens een schema bijwerkt."
+        "body": "Open Opties voor de takentabel naast Takentabel en kies Taken automatisch bijwerken. Bekijk een gepubliceerde bronagent en de accounts voordat je bewust een privétracker publiceert die dezelfde tabel volgens een schema bijwerkt."
       },
       "flow-project-tracker-create": {
         "title": "Een projecttracker instellen?",
-        "body": "Open Opties voor de takentabel en kies Projecten automatisch bijhouden. Bekijk een bewerkbare gepubliceerde agent en de accounts en publiceer dan bewust een privétracker met geplande controles van de projecttabel."
+        "body": "Open Opties voor de takentabel en kies Taken automatisch bijwerken. Bekijk een bewerkbare gepubliceerde agent en de accounts en publiceer dan bewust een privétracker met geplande controles van de projecttabel."
       },
       "channels-phone": {
         "title": "Telefoonroutering instellen",
@@ -15334,8 +15334,8 @@
     },
     "tracking": {
       "options": "Opties voor de takentabel",
-      "title": "Projecten automatisch bijhouden",
-      "description": "Gebruik de takentabel van dit project en publiceer een privékopie van een gekozen agent om deze volgens een schema bij te werken.",
+      "title": "Taken automatisch bijwerken",
+      "description": "Maak een agent en een geplande routine die de voortgang via goedgekeurde bronnen controleren en de gedeelde takentabel van dit project bijwerken. Je kunt dezelfde tabel ook zelf bewerken.",
       "audience": "De routine handelt namens jou en schrijft haar rapporten in het gedeelde gesprek van dit project. De bronagent blijft ongewijzigd.",
       "baseAgent": "Bronagent die je kunt bewerken",
       "chooseAgent": "Een gepubliceerde agent kiezen",

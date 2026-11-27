@@ -211,6 +211,7 @@ def repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         monkeypatch.setattr(module, "DOCS", root / "docs")
         monkeypatch.setattr(module, "LOCALES", ("pl",))
     monkeypatch.setattr(docs_i18n, "ROOT_PAGES", ("README.md",))
+    monkeypatch.setattr(docs_i18n, "ROOT_EXTRA_LOCALES", {})
     return root
 
 
@@ -465,3 +466,29 @@ def test_published_documentation_links_follow_the_readme_locale(docs: Path) -> N
         base + "missing/",
         "https://example.com/mcp/",
     ]
+
+
+def test_registered_readme_locale_gets_all_root_guards_without_a_site_locale(
+    repository: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(docs_i18n, "ROOT_EXTRA_LOCALES", {"README.md": ("tr",)})
+    source = _readme(repository, _README)
+    assert ("README.md", "tr") in guard.missing()
+    translated = repository / "README.tr.md"
+    translated.write_text("# Proje\n\n[git](#işler)\n\n## İşler\n\nMetin.\n", encoding="utf-8")
+    assert docs_i18n.locale_of(translated) == "tr"
+    assert docs_i18n.locales_for(repository / "docs" / "install.md") == ("pl",)
+    assert docs_i18n.locale_of(repository / "docs" / "install.tr.md") is None
+    assert ("README.md", "tr") in guard.stale()
+    assert guard.update([translated]) == 0
+    assert docs_i18n.recorded_fingerprint(translated) == docs_i18n.fingerprint(source)
+    assert ("README.md", "tr") not in guard.stale()
+    assert guard.dangling() == [("README.md", "tr", "işler")]
+    translated.write_text(translated.read_text().replace("#işler", "#i̇şler"), encoding="utf-8")
+    assert guard.dangling() == []
+    translated.write_text(
+        translated.read_text() + "\n[extra](https://example.com)\n", encoding="utf-8"
+    )
+    assert any(locale == "tr" for _, locale, _ in guard.relinked())
+    source.unlink()
+    assert guard.orphaned() == ["README.tr.md"]

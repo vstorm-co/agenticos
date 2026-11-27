@@ -661,7 +661,7 @@ export default function OrgMembersPage({ params }: PageProps) {
           data-tour="org-governance"
           hidden={tab !== "governance"}
           forceMount
-          className="space-y-6 data-[state=inactive]:hidden"
+          className="space-y-4 data-[state=inactive]:hidden"
         >
           {org && <OrgCurrency org={org} />}
           {org && <OrgSpendingLimit org={org} />}
@@ -673,9 +673,9 @@ export default function OrgMembersPage({ params }: PageProps) {
           value="assistant"
           hidden={tab !== "assistant"}
           forceMount
-          className="space-y-6 data-[state=inactive]:hidden"
+          className="space-y-4 data-[state=inactive]:hidden"
         >
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="space-y-1">
               <h2 className="text-sm font-medium">{t("assistantServices")}</h2>
               <p className="text-muted-foreground text-sm">{t("assistantServicesHint")}</p>
@@ -691,10 +691,7 @@ export default function OrgMembersPage({ params }: PageProps) {
             )}
           </div>
           {org && canSystemServices && (
-            <section
-              className="border-border space-y-3 border-t pt-5"
-              aria-label={t("backgroundServices")}
-            >
+            <section className="space-y-4" aria-label={t("backgroundServices")}>
               <div className="space-y-1">
                 <h2 className="text-sm font-medium">{t("backgroundServices")}</h2>
                 <p className="text-muted-foreground text-sm">{t("backgroundServicesHint")}</p>

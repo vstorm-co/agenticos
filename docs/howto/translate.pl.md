@@ -1,5 +1,5 @@
 ---
-source_sha: "85e967e18444"
+source_sha: "d650d29f959a"
 ---
 
 # Przetłumacz stronę { #translate-a-page }
@@ -312,6 +312,13 @@ rusza: wskazywanie innych języków jest właśnie tym, do czego służy.
 
 **Każdy plik niesie pasek języków** do swoich trzech tłumaczeń, a tłumaczenia
 linkują z powrotem. Przy dodaniu języka zaktualizuj wszystkie cztery.
+
+Tłumaczenie społeczności może obejmować sam README. Zarejestruj je w
+`ROOT_EXTRA_LOCALES` w `scripts/docs_i18n.py`; przykładem jest turecki
+`README.tr.md`. Podlega tym samym kontrolom odcisku źródła, struktury sekcji
+i linków, bez dodawania języka serwisu ani obowiązku tłumaczenia polityk.
+Linki do dokumentacji pozostają angielskie, gdy nie ma tłumaczenia; zaznacz
+to w README. Języki serwisu to nadal angielski, polski, niemiecki i hiszpański.
 
 `CHANGELOG.md` nie jest tłumaczony, z tego samego powodu, z którego nie jest
 `release-notes.md`: to historia commitów.

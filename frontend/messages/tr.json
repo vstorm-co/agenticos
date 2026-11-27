@@ -8783,7 +8783,7 @@
       },
       "org-assistant": {
         "title": "AI Architect",
-        "body": "Kuruluş asistanını açıp kapatın ve insanları nasıl karşılayacağını belirleyin. Adı, modeli ve bilgi tabanı Agent Builder’da diğer agent’lar gibi düzenlenir."
+        "body": "Kuruluşun AI Architect asistanını açın veya kapatın. Modelini, talimatlarını ve bilgisini diğer aracılar gibi Agent'lar bölümünden düzenleyin."
       },
       "org-members": {
         "title": "Kimler üye?",
@@ -9303,11 +9303,11 @@
       },
       "project-tracking": {
         "title": "Projeyi takip edin",
-        "body": "Görev tablosu yanındaki Görev tablosu seçenekleri menüsünü açın ve Otomatik proje takibi seçeneğini seçin. Aynı tabloyu zamanlanmış olarak güncelleyen özel takip ajanını açıkça yayımlamadan önce yayımlanmış kaynak ajanı ve hesaplarını inceleyin."
+        "body": "Görev tablosu yanındaki Görev tablosu seçenekleri menüsünü açın ve Görev güncellemelerini otomatikleştir seçeneğini seçin. Aynı tabloyu zamanlanmış olarak güncelleyen özel takip ajanını açıkça yayımlamadan önce yayımlanmış kaynak ajanı ve hesaplarını inceleyin."
       },
       "flow-project-tracker-create": {
         "title": "Proje takibini yapılandırın",
-        "body": "Görev tablosu seçenekleri menüsünü açın ve Otomatik proje takibi seçeneğini seçin. Düzenleyebildiğiniz yayımlanmış ajanı ve hesaplarını inceleyin, ardından proje tablosunu zamanlanmış olarak denetleyen özel takip ajanını açıkça yayımlayın."
+        "body": "Görev tablosu seçenekleri menüsünü açın ve Görev güncellemelerini otomatikleştir seçeneğini seçin. Düzenleyebildiğiniz yayımlanmış ajanı ve hesaplarını inceleyin, ardından proje tablosunu zamanlanmış olarak denetleyen özel takip ajanını açıkça yayımlayın."
       }
     }
   },
@@ -13077,9 +13077,9 @@
       "sharedWorkspace": "Paylaşılan proje workspace’i"
     },
     "tracking": {
-      "description": "Bu projenin görev tablosunu kullanın ve zamanlanmış güncellemeler için seçtiğiniz ajanın özel bir kopyasını yayımlayın.",
+      "description": "Onayladığınız kaynaklardan ilerlemeyi kontrol edip bu projenin paylaşılan görev tablosunu güncelleyen bir agent ve zamanlanmış rutin oluşturun. Aynı tabloyu kendiniz de düzenleyebilirsiniz.",
       "options": "Görev tablosu seçenekleri",
-      "title": "Otomatik proje takibi",
+      "title": "Görev güncellemelerini otomatikleştir",
       "openTracker": "Takip agentı"
     },
     "initialSetup": "Talimatlar ve varsayılanlar",

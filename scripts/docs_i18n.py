@@ -46,6 +46,8 @@ UNPUBLISHED = frozenset({"ROADMAP.md", "about/design.md", "assets/screens/README
 # `CHANGELOG.md` is not here on purpose - it is the commit history, and
 # `docs/howto/translate.md` already says those entries stay English.
 ROOT_PAGES = ("README.md", "CONTRIBUTING.md", "SECURITY.md", "CODE_OF_CONDUCT.md")
+# Community README translations need not introduce an entire documentation locale.
+ROOT_EXTRA_LOCALES: dict[str, tuple[str, ...]] = {"README.md": ("tr",)}
 
 _SUFFIX = re.compile(r"\.(?P<locale>[a-z]{2})\.md$")
 _FRONT_MATTER = re.compile(r"\A---\n(?P<body>.*?)\n---\n", re.DOTALL)
@@ -79,10 +81,16 @@ _TARGET = re.compile(
 )
 
 
+def locales_for(source: Path) -> tuple[str, ...]:
+    """Required site locales plus explicitly registered root-only translations."""
+    extra = ROOT_EXTRA_LOCALES.get(source.name, ()) if source.resolve().parent == REPO_ROOT else ()
+    return (*LOCALES, *extra)
+
+
 def locale_of(page: Path) -> str | None:
     """The locale a file is written in, or None when it is the English source."""
     match = _SUFFIX.search(page.name)
-    if match is None or match.group("locale") not in LOCALES:
+    if match is None or match.group("locale") not in locales_for(english_source(page)):
         return None
     return match.group("locale")
 

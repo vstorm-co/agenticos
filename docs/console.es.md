@@ -1,5 +1,5 @@
 ---
-source_sha: "fc5f1d952ccd"
+source_sha: "354b8e1f3ee4"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -67,7 +67,7 @@ Al crear un proyecto, primero eliges nombre, espacio de trabajo y destinatarios.
 
 Organizaciones permite buscar nombres y slugs de las membresías, con el número de coincidencias en la misma barra. Borrar la búsqueda restaura la lista completa de membresías.
 
-La tarjeta AI Architect enlaza directamente al Builder junto al interruptor, sin otra sección desplegable. Los demás servicios de IA conservan formularios desplegables cuando tienen ajustes que editar.
+La tarjeta AI Architect controla la disponibilidad para la organización sin otra acción del Agent Builder. El modelo, las instrucciones y el conocimiento siguen editándose en Agents. Los ajustes de organización y despliegue comparten marcos de tarjeta, espaciado y descripciones visibles; los interruptores y selectores compactos están a la derecha. En tarjetas estrechas, los selectores grandes pasan a una fila independiente alineada a la derecha.
 
 La vista Me empieza con una tarjeta de resumen del período, seguida de un Briefing compacto con títulos, fuentes y acciones. Los detalles completos siguen en Inbox.
 
@@ -1157,7 +1157,7 @@ abre su asistente solo para leer, con lo decidido en su último paso; consulte e
 
 Los detalles de organización tienen tres pestañas: **Miembros**, **Presupuesto y aprobaciones** e **IA y servicios**. Miembros ofrece búsqueda por nombre/correo, filtro de rol y la última acción registrada en este espacio. Es una acción de auditoría, no una visita ni un inicio de sesión; se excluyen las acciones por suplantación y se muestra un guion si no hay historial.
 
-El informe diario y las sugerencias son un servicio con una sola configuración. Su tarjeta también muestra gasto y ejecuciones recientes. El mantenimiento de memoria tiene modelo y presupuesto propios y comienza desactivado. Elige un modelo antes de activar el servicio. AI Architect mantiene visibles el interruptor y el enlace directo al Agent Builder, sin editor de saludo ni un despliegue adicional. Los demás servicios comparten el encabezado y la disposición de iconos; solo se despliegan cuando contienen ajustes editables.
+El informe diario y las sugerencias son un servicio con una sola configuración. Su tarjeta también muestra gasto y ejecuciones recientes. El mantenimiento de memoria tiene modelo y presupuesto propios y comienza desactivado. Elige un modelo antes de activar el servicio. AI Architect conserva el interruptor de disponibilidad, sin otra acción del Builder, editor de saludo ni despliegue. Los demás servicios comparten el encabezado y la disposición de iconos; solo se despliegan cuando contienen ajustes editables.
 
 **Editar espacio** abre un diálogo para nombre, avatar y color que protege los cambios sin guardar. IA y servicios comienza con servicios en segundo plano, seguido del Arquitecto de IA, sugerencias y monitorización, y Voz. Desplegar la configuración conserva los borradores. Cada control mantiene sus permisos. Los enlaces antiguos `?tab=profile` abren el diálogo del espacio; `?tab=voice` y `?tab=proactivity` abren sus ajustes en IA y servicios.
 
@@ -1257,11 +1257,15 @@ El directorio de organizaciones de administración muestra la imagen cargada o l
 
 ## Tu primera tarea { #your-first-task }
 
+La configuración tiene tres ámbitos independientes, en este orden: **despliegue → organización → personal**. El progreso del despliegue pertenece a toda la instalación y exige permisos actuales de administrador de la aplicación. El progreso de organización pertenece a la organización seleccionada y exige `org:settings`; completarlo una vez es visible para todos sus administradores autorizados. El progreso personal sigue perteneciendo a la membresía. Un administrador de la aplicación puede completar el despliegue antes de que exista una organización y después crear o elegir una. Un ámbito anterior incompleto tiene prioridad; los completados pueden revisarse. Estos pasos guían la configuración, pero no bloquean ajustes, seguridad, cierre de sesión ni otros módulos.
+
+Cada ámbito guarda su propia fecha de finalización y la última pantalla visitada. Visitar una pantalla no demuestra que se hayan guardado ajustes. Las finalizaciones simultáneas conservan la primera fecha; las visitas posteriores no reabren el ámbito. Posponer el recordatorio personal no pospone la configuración compartida para otros administradores. Una actualización introduce etapas de despliegue y organización sin completar también para administradores existentes; conserva las finalizaciones y pausas personales. Registrar la finalización no requiere agentes, llamadas a proveedores, invitaciones ni configuración opcional.
+
 En una organización nueva se selecciona el **AgenticOS** incluido incluso antes de publicarlo, salvo que hayas elegido otro agente predeterminado. Ante el primer mensaje puede explicar la configuración del modelo y mostrar una tarjeta sin ejecutar el borrador ni llamar a un proveedor de IA. La respuesta y la tarjeta permanecen en el historial. Las personas autorizadas pueden abrir la configuración del modelo; los demás miembros ven indicaciones para contactar al administrador y el contacto de soporte de la instancia, si está configurado. Elige un modelo, añade una clave si se requiere y publica el agente antes de ejecutar respuestas normales de IA. Los borradores ordinarios y los agentes archivados siguen sin poder ejecutarse.
 
 El recorrido Studio presenta los agentes instalados AgenticOS y Architect. Si AgenticOS sigue siendo un borrador de configuración accesible, su acción abre el chat de configuración; la publicación y la ejecución normal conservan sus controles habituales. Los usuarios autorizados pueden configurar Architect cuando necesita un modelo. Los borradores ordinarios y los agentes inaccesibles no se vuelven ejecutables mediante el onboarding.
 
-Cerrar la propuesta inicial la pausa durante el intervalo efectivo de 1, 3 o 7 días de esta pertenencia, según la hora del servidor. Puede volver si la configuración sigue incompleta y los recordatorios están activados. Tras las preguntas, **Completar configuración y abrir la app** registra la finalización para esta pertenencia. No hacen falta campos opcionales, invitaciones, un modelo, un agente ni un run de IA. Completar el onboarding y realizar una tarea correctamente son estados separados.
+Cerrar la propuesta personal inicial la pausa durante el intervalo efectivo de 1, 3 o 7 días de esta pertenencia, según la hora del servidor. Puede volver si la configuración sigue incompleta y los recordatorios están activados. Tras las preguntas, **Completar configuración y abrir la app** registra la finalización para esta pertenencia. No hacen falta campos opcionales, invitaciones, un modelo, un agente ni un run de IA. Completar el onboarding y realizar una tarea correctamente son estados separados.
 
 Abre **Get started** desde el panel, la propuesta inicial o la ayuda de una página.
 En escritorio, el aviso del chat flota como una capa translúcida sobre la consola.
@@ -1275,7 +1279,7 @@ El inicio respeta los permisos y el trabajo que ya existe:
 
 | Persona                               | Inicio guiado                                                                                                                   |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Administrador de la aplicación        | Crear o elegir una organización de empresa, preparar identidad e invitaciones y decidir cómo se incorporan las cuentas futuras. |
+| Administrador de la aplicación        | Primero despliegue compartido, después organización y preferencias personales. |
 | Administrador de organización         | Preparar la organización y su límite de gasto, sin controles del despliegue.                                                    |
 | Cuenta nueva de miembro               | Bienvenida, perfil personal y contexto laboral opcionales, después una primera tarea.                                           |
 | Cuenta existente en otra organización | Bienvenida a la organización; usar el perfil guardado o revisarlo de forma deliberada.                                          |
@@ -1300,12 +1304,12 @@ plegados y conservan sus permisos y acciones de guardado habituales.
 
 La URL conserva el paso, la pregunta de configuración y la organización tras recargar. No conserva ediciones
 sin guardar ni concede permisos ni acredita la finalización. Cambiar de organización
-o perder permisos impide restaurar un paso privilegiado. El último paso registra la
+o perder permisos impide restaurar un paso privilegiado. La etapa personal registra la
 finalización de la membresía incluso si se omiten datos opcionales y configuración IA.
 
 La finalización antigua de la cuenta se aplica a membresías que ya existían en ese
 momento. Una membresía posterior empieza por separado. Los chats propios y recorridos
-terminados siguen evitando reinicios automáticos; los agentes publicados ocultan
+terminados siguen evitando reinicios personales automáticos; los agentes publicados ocultan
 ofertas de inicio normales. Los enlaces de registro e invitación dan la bienvenida a
 miembros sin actividad propia ni finalización incluso si la organización ya tiene agentes.
 Los chats antiguos o fallidos cuentan como actividad sin afirmar una ejecución correcta.

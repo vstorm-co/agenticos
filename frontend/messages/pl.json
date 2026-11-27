@@ -7354,7 +7354,7 @@
       },
       "org-assistant": {
         "title": "AI Architect",
-        "body": "Włącz lub wyłącz asystenta organizacji i ustaw jego powitanie. Nazwę, model i wiedzę edytujesz w Agent Builderze, jak u każdego agenta."
+        "body": "Włącz lub wyłącz AI Architect dla organizacji. Model, instrukcje i wiedzę edytujesz w sekcji Agenci, tak jak dla każdego innego agenta."
       },
       "org-members": {
         "title": "Kto w niej jest",
@@ -8067,11 +8067,11 @@
       },
       "project-tracking": {
         "title": "Pilnuj projektu",
-        "body": "Otwórz Opcje tabeli zadań obok Tabela zadań i wybierz Automatyczne śledzenie projektu. Przejrzyj opublikowanego agenta źródłowego i jego konta, zanim jawnie opublikujesz prywatnego opiekuna, który będzie cyklicznie aktualizował tę samą tabelę."
+        "body": "Otwórz Opcje tabeli zadań obok Tabela zadań i wybierz Automatyzuj aktualizację zadań. Przejrzyj opublikowanego agenta źródłowego i jego konta, zanim jawnie opublikujesz prywatnego opiekuna, który będzie cyklicznie aktualizował tę samą tabelę."
       },
       "flow-project-tracker-create": {
         "title": "Skonfigurować opiekuna projektu?",
-        "body": "Otwórz Opcje tabeli zadań i wybierz Automatyczne śledzenie projektu. Przejrzyj opublikowanego agenta, którego możesz edytować, oraz jego konta. Następnie jawnie opublikuj prywatnego opiekuna z cyklicznymi sprawdzeniami tabeli projektu."
+        "body": "Otwórz Opcje tabeli zadań i wybierz Automatyzuj aktualizację zadań. Przejrzyj opublikowanego agenta, którego możesz edytować, oraz jego konta. Następnie jawnie opublikuj prywatnego opiekuna z cyklicznymi sprawdzeniami tabeli projektu."
       },
       "channels-phone": {
         "title": "Skonfiguruj telefonię",
@@ -11965,8 +11965,8 @@
     },
     "tracking": {
       "options": "Opcje tabeli zadań",
-      "title": "Automatyczne śledzenie projektu",
-      "description": "Użyj tabeli zadań tego projektu i opublikuj prywatną kopię wybranego agenta, która będzie ją aktualizować według harmonogramu.",
+      "title": "Automatyzuj aktualizację zadań",
+      "description": "Utwórz agenta i zaplanowaną rutynę, które sprawdzają postęp na podstawie zatwierdzonych przez Ciebie źródeł i aktualizują wspólną tabelę zadań projektu. Tę samą tabelę możesz też edytować ręcznie.",
       "audience": "Rutyna działa w Twoim imieniu i zapisuje raporty we wspólnej rozmowie projektu. Agent źródłowy pozostaje bez zmian.",
       "baseAgent": "Agent źródłowy, którego możesz edytować",
       "chooseAgent": "Wybierz opublikowanego agenta",

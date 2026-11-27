@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { BellRing } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { ServiceCard } from "@/components/settings/service-card";
 import { toast } from "sonner";
 
 import {
   Button,
   FormField,
   Input,
-  ListCard,
   Select,
   SelectContent,
   SelectItem,
@@ -82,10 +83,13 @@ export function ApnsKeyCard() {
   const complete = keyId.trim() && teamId.trim() && topic.trim() && privateKey;
 
   return (
-    <ListCard
+    <ServiceCard
+      icon={BellRing}
+      headingLevel={3}
       title={t("title")}
-      counted={t("hint")}
-      controls={<SetupIndicator hints={data.configured ? [] : ["mobilePush"]} />}
+      description={t("hint")}
+      action={null}
+      status={<SetupIndicator hints={data.configured ? [] : ["mobilePush"]} />}
     >
       {data.configured && !replacing ? (
         <div className="border-border flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
@@ -185,6 +189,6 @@ export function ApnsKeyCard() {
           </div>
         </form>
       ) : null}
-    </ListCard>
+    </ServiceCard>
   );
 }

@@ -2036,6 +2036,19 @@ async def require_deployment_mcp_scope(request: Request, user: CurrentUser) -> N
 CurrentAppAdmin = Annotated[User, Depends(_require_app_admin)]
 
 
+async def require_personal_onboarding_session(request: Request, _user: CurrentUser) -> None:
+    """Setup completion represents a person, never a delegated key or MCP client.
+
+    Even a deployment-admin OAuth grant cannot complete the administrator's
+    onboarding. Preserve caller identity until this boundary before passing the
+    authenticated user into the organization-independent setup service.
+    """
+    if _key_caller(request) is not None:
+        raise AuthorizationError(
+            message="Setup progress requires a personal signed-in session", details={}
+        )
+
+
 _WS_TOKEN_PROTOCOL_PREFIX = "access_token."
 
 

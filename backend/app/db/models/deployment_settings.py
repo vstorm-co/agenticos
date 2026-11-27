@@ -22,6 +22,7 @@ serves whichever one a query happened to order first.
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import JsonValue
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, Text
@@ -44,7 +45,17 @@ class DeploymentSettings(Base, TimestampMixin):
     """The one row holding this installation's identity and access policy."""
 
     __tablename__ = "deployment_settings"
-    __table_args__ = (CheckConstraint("singleton", name="singleton_true"),)
+    __table_args__ = (
+        CheckConstraint("singleton", name="singleton_true"),
+        CheckConstraint(
+            "onboarding_current_step IS NULL OR onboarding_current_step = 'admin.deployment'",
+            name="onboarding_step",
+        ),
+    )
+
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    onboarding_current_step: Mapped[Literal["admin.deployment"] | None] = mapped_column(String(64))
+    onboarding_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 

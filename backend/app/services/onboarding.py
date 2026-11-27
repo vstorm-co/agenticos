@@ -1,6 +1,8 @@
 """One start contract for web, invitations and native clients; never calls a model."""
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from typing import get_args
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,8 +11,10 @@ from app.agents.spec import AgentSpec, BudgetSpec
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Perm
 from app.db.models.agent import AgentStatus
-from app.db.models.organization import OrganizationMember
+from app.db.models.deployment_settings import DeploymentSettings
+from app.db.models.organization import Organization, OrganizationMember, OrganizationOnboardingStep
 from app.db.models.resource_grant import Visibility
+from app.db.models.user import User
 from app.repositories import (
     agent_repo,
     deployment_settings_repo,
@@ -25,6 +29,9 @@ from app.schemas.onboarding import (
     MemberStartRead,
     OnboardingAgent,
     OnboardingRead,
+    OnboardingScope,
+    OnboardingScopeRead,
+    OnboardingScopeUpdate,
     OnboardingUpdate,
 )
 from app.services.agent_registry import AgentRegistryService
@@ -91,7 +98,20 @@ class OnboardingService:
         )
         if completed or (snoozed_until is not None and snoozed_until <= datetime.now(UTC)):
             snoozed_until = None
+        scopes = self._scopes(ctx, member, person, org, deployment, completed_at)
+        active_scope = next(
+            (
+                scope.scope
+                for scope in scopes
+                if scope.applicable
+                and not scope.completed
+                and (scope.scope != "personal" or snoozed_until is None)
+            ),
+            None,
+        )
         return OnboardingRead(
+            scopes=scopes,
+            active_scope=active_scope,
             organization_id=org.id,
             organization_name=org.name,
             goal=member.onboarding_goal,
@@ -114,6 +134,194 @@ class OnboardingService:
                 self.db, organization_id=ctx.organization_id, user_id=member.user_id
             ),
         )
+
+    async def deployment_state(self, actor: User) -> OnboardingRead:
+        """The app administrator's installation start before any organization exists."""
+        if not actor.is_active or not actor.is_app_admin:
+            raise AuthorizationError(
+                message="Deployment setup requires app administrator access", details={}
+            )
+        row = await deployment_settings_repo.get(self.db)
+        completed_at = row.onboarding_completed_at if row is not None else None
+        return OnboardingRead(
+            organization_id=None,
+            organization_name=None,
+            goal=None,
+            dismissed=False,
+            can_prepare=False,
+            can_configure_model=False,
+            support_email=None,
+            agents=[],
+            latest_conversation_id=None,
+            latest_completed_at=None,
+            has_result=False,
+            scopes=[
+                OnboardingScopeRead(
+                    scope="deployment",
+                    applicable=True,
+                    completed=completed_at is not None,
+                    completed_at=completed_at,
+                    current_step=row.onboarding_current_step
+                    if row is not None and completed_at is None
+                    else None,
+                    updated_at=row.onboarding_updated_at if row is not None else None,
+                ),
+                OnboardingScopeRead(scope="organization", applicable=False),
+                OnboardingScopeRead(scope="personal", applicable=False),
+            ],
+            active_scope="deployment" if completed_at is None else None,
+        )
+
+    async def update_deployment(self, actor: User, data: OnboardingScopeUpdate) -> OnboardingRead:
+        """Update installation setup without requiring a first organization."""
+        if not actor.is_active or not actor.is_app_admin:
+            raise AuthorizationError(
+                message="Deployment setup requires app administrator access", details={}
+            )
+        if data.current_step is not None and data.current_step != "admin.deployment":
+            raise BadRequestError(
+                message="This screen does not belong to deployment setup", details={}
+            )
+        row = await onboarding_repo.deployment_for_update(self.db)
+        fresh_actor = await onboarding_repo.deployment_actor(self.db, actor.id)
+        if fresh_actor is None or not fresh_actor.is_active or not fresh_actor.is_app_admin:
+            raise AuthorizationError(
+                message="Deployment setup requires app administrator access", details={}
+            )
+        await onboarding_repo.save_shared(self.db, row=row, data=data)
+        return await self.deployment_state(fresh_actor)
+
+    @staticmethod
+    def _scope_context(
+        ctx: AuthContext, member: OrganizationMember, person: User | None
+    ) -> AuthContext:
+        # AuthContext is request-scoped; shared progress rechecks live identity and membership.
+        return replace(
+            ctx, role=member.role, is_app_admin=person is not None and person.is_app_admin is True
+        )
+
+    @staticmethod
+    def _session_scope(ctx: AuthContext) -> bool:
+        return (
+            ctx.api_key_id is None
+            and ctx.key_scopes is None
+            and not ctx.subject_is_publisher_fallback
+        )
+
+    def _scopes(
+        self,
+        ctx: AuthContext,
+        member: OrganizationMember,
+        person: User | None,
+        organization: Organization,
+        deployment: DeploymentSettings | None,
+        personal_completed_at: datetime | None,
+    ) -> list[OnboardingScopeRead]:
+        fresh = self._scope_context(ctx, member, person)
+        session = self._session_scope(ctx)
+        scopes: list[OnboardingScopeRead] = []
+        for scope, applicable, row in (
+            ("deployment", session and fresh.is_app_admin, deployment),
+            ("organization", session and fresh.has(Perm.ORG_SETTINGS), organization),
+        ):
+            scopes.append(
+                OnboardingScopeRead(
+                    scope=scope,
+                    applicable=applicable,
+                    completed=applicable
+                    and row is not None
+                    and row.onboarding_completed_at is not None,
+                    completed_at=row.onboarding_completed_at
+                    if applicable and row is not None
+                    else None,
+                    current_step=row.onboarding_current_step
+                    if applicable and row is not None and row.onboarding_completed_at is None
+                    else None,
+                    updated_at=row.onboarding_updated_at
+                    if applicable and row is not None
+                    else None,
+                )
+            )
+        scopes.append(
+            OnboardingScopeRead(
+                scope="personal",
+                applicable=True,
+                completed=personal_completed_at is not None,
+                completed_at=personal_completed_at,
+                current_step=None
+                if personal_completed_at is not None
+                else member.onboarding_current_step,
+                updated_at=member.onboarding_updated_at,
+            )
+        )
+        return scopes
+
+    async def update_scope(
+        self, ctx: AuthContext, scope: OnboardingScope, data: OnboardingScopeUpdate
+    ) -> OnboardingRead:
+        """Finish or visit an authorized scope; no configuration or provider call is implied.
+
+        Deployment completion is shared installation-wide, organization completion
+        is shared within the selected tenant, and personal completion stays per member.
+        Shared writes are serialized and an already completed scope cannot be reopened.
+        """
+        if scope == "personal":
+            return await self.update(
+                ctx, OnboardingUpdate.model_validate(data.model_dump(exclude_unset=True))
+            )
+        member = await self._member(ctx)
+        person = await user_repo.get_by_id(self.db, member.user_id)
+        fresh = self._scope_context(ctx, member, person)
+        if not self._session_scope(ctx) or person is None or not person.is_active:
+            raise AuthorizationError(
+                message="Shared setup progress requires a personal signed-in account", details={}
+            )
+        if scope == "deployment":
+            if not fresh.is_app_admin:
+                raise AuthorizationError(
+                    message="Deployment setup requires app administrator access", details={}
+                )
+            if data.current_step is not None and data.current_step != "admin.deployment":
+                raise BadRequestError(
+                    message="This screen does not belong to deployment setup", details={}
+                )
+            row: DeploymentSettings | Organization = await onboarding_repo.deployment_for_update(
+                self.db
+            )
+        else:
+            if not fresh.has(Perm.ORG_SETTINGS):
+                raise AuthorizationError(
+                    message="Organization setup requires org:settings", details={}
+                )
+            if data.current_step is not None and data.current_step not in get_args(
+                OrganizationOnboardingStep
+            ):
+                raise BadRequestError(
+                    message="This screen does not belong to organization setup", details={}
+                )
+            organization = await onboarding_repo.organization_for_update(
+                self.db, ctx.organization_id
+            )
+            if organization is None:
+                raise NotFoundError(message="Organization not found", details={})
+            row = organization
+        identity = await onboarding_repo.shared_identity(
+            self.db, organization_id=ctx.organization_id, user_id=member.user_id
+        )
+        if identity is None:
+            raise NotFoundError(message="Organization membership not found", details={})
+        current_member, current_person = identity
+        current = self._scope_context(ctx, current_member, current_person)
+        if not current_person.is_active or (
+            not current.is_app_admin
+            if scope == "deployment"
+            else not current.has(Perm.ORG_SETTINGS)
+        ):
+            raise AuthorizationError(
+                message="Shared setup authority changed; reload before continuing", details={}
+            )
+        await onboarding_repo.save_shared(self.db, row=row, data=data)
+        return await self.state(ctx)
 
     async def _setup_agent(self, ctx: AuthContext) -> OnboardingAgent | None:
         try:

@@ -297,7 +297,14 @@ A page with no translation, like `docs/ROADMAP.md`, stays English, and the
 language bar is left alone: pointing at other languages is what it is for.
 
 **Each file carries a language bar** to its three translations, and the
-translations link back. Update all four when a language is added.
+translations link back. Update every README language bar when a language is added.
+
+A community translation can cover the README alone. Register it in
+`ROOT_EXTRA_LOCALES` in `scripts/docs_i18n.py`; `README.tr.md` is the Turkish
+example. It receives the same fingerprint, section-shape and link checks,
+without adding a site locale or requiring translated policy files. Its
+documentation links stay English where no translation exists; say so in the
+README. Site locales remain English, Polish, German and Spanish.
 
 `CHANGELOG.md` is not translated, for the reason `release-notes.md` is not: it is
 the commit history.

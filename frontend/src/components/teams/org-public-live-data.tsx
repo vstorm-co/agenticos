@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { Globe } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 
-import { SettingsSection } from "@/components/settings/settings-section";
+import { ServiceCard } from "@/components/settings/service-card";
 import { ConfirmDialog, Switch } from "@/components/ui";
 import { useOrganizations, usePermissions } from "@/hooks";
 import { getErrorMessage } from "@/lib/api-error";
@@ -53,19 +54,21 @@ function PublicLiveDataSwitch({ org }: { org: Organization }) {
 
   return (
     <div data-tour="org-public-live-data">
-      <SettingsSection title={t("publicLiveData")} description={t("publicLiveDataDescription")}>
-        <label className="flex items-start gap-3">
+      <ServiceCard
+        icon={Globe}
+        action={
           <Switch
             checked={org.public_live_data}
             disabled={saving}
             onCheckedChange={(next) => (next ? setAsking(true) : void change(false))}
             aria-label={t("publicLiveData")}
           />
-          <span className="text-muted-foreground text-xs leading-relaxed">
-            {t("publicLiveDataHint")}
-          </span>
-        </label>
-      </SettingsSection>
+        }
+        title={t("publicLiveData")}
+        description={t("publicLiveDataDescription")}
+      >
+        <p className="text-muted-foreground text-xs leading-relaxed">{t("publicLiveDataHint")}</p>
+      </ServiceCard>
       <ConfirmDialog
         open={asking}
         onOpenChange={setAsking}

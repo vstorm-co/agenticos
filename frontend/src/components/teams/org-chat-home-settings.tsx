@@ -101,7 +101,7 @@ function OrganizationChatHome({ org }: { org: OrganizationExperience }) {
     onboarding_reminders: useMutation(saveOptions),
   };
   return (
-    <>
+    <div className="space-y-4">
       <ServiceCard
         icon={PanelLeft}
         action={null}
@@ -168,22 +168,25 @@ function OrganizationChatHome({ org }: { org: OrganizationExperience }) {
       </ServiceCard>
       <ServiceCard
         icon={Coins}
-        action={null}
+        responsiveAction
+        action={
+          <OrganizationChatCostControl
+            compact
+            value={org.chat_cost_visibility ?? "everyone"}
+            disabled={
+              save.chat_cost_visibility.isPending || !data || data.costs?.availability === false
+            }
+            onChange={(chat_cost_visibility) =>
+              save.chat_cost_visibility.mutate({
+                ownerOrg: org.id,
+                changes: { chat_cost_visibility },
+              })
+            }
+          />
+        }
         title={t("costs.title")}
         description={t("costs.organizationHint")}
       >
-        <OrganizationChatCostControl
-          value={org.chat_cost_visibility ?? "everyone"}
-          disabled={
-            save.chat_cost_visibility.isPending || !data || data.costs?.availability === false
-          }
-          onChange={(chat_cost_visibility) =>
-            save.chat_cost_visibility.mutate({
-              ownerOrg: org.id,
-              changes: { chat_cost_visibility },
-            })
-          }
-        />
         {data?.costs?.availability === false && (
           <p className="text-muted-foreground mt-2 text-xs">{t("unavailable")}</p>
         )}
@@ -206,6 +209,6 @@ function OrganizationChatHome({ org }: { org: OrganizationExperience }) {
           }
         />
       </ServiceCard>
-    </>
+    </div>
   );
 }

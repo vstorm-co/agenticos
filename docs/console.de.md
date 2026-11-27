@@ -1,5 +1,5 @@
 ---
-source_sha: "fc5f1d952ccd"
+source_sha: "354b8e1f3ee4"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -67,7 +67,7 @@ Beim Erstellen eines Projekts geben Sie zuerst Namen, Arbeitsbereich und Zielgru
 
 Organisationen bietet eine Suche nach Namen und Slugs der Mitgliedschaften; die Trefferzahl steht in derselben Leiste. Leeren der Suche zeigt wieder alle Mitgliedschaften.
 
-Die AI-Architect-Karte verlinkt neben dem Einschalter direkt auf den Builder, ohne zusätzlichen aufklappbaren Abschnitt. Andere KI-Dienste behalten aufklappbare Formulare, wenn Einstellungen bearbeitet werden können.
+Die AI-Architect-Karte steuert die Verfügbarkeit für die Organisation ohne zusätzliche Agent-Builder-Aktion. Modell, Anweisungen und Wissen bleiben unter Agents bearbeitbar. Organisations- und Deployment-Einstellungen verwenden dieselben Kartenrahmen, Abstände und sichtbaren Beschreibungen; Schalter und kompakte Auswahllisten stehen rechts. In schmalen Karten wechseln größere Auswahllisten in eine eigene rechtsbündige Zeile.
 
 Die Me-Ansicht beginnt mit einer Zusammenfassung des Zeitraums als Karte, gefolgt von einem kompakten Briefing mit Titeln, Quellen und Aktionen. Vollständige Vorschläge bleiben im Posteingang.
 
@@ -1202,7 +1202,7 @@ ihren Assistenten nur zum Lesen, mit der Entscheidung im letzten Schritt; siehe
 
 Organisationsdetails haben drei Registerkarten: **Mitglieder**, **Budget und Freigaben** und **KI & Dienste**. Mitglieder bietet Namens-/E-Mail-Suche, Rollenfilter und die letzte erfasste Aktion in diesem Arbeitsbereich. Dies ist eine Audit-Aktion, kein Besuch oder Login; Aktionen durch Identitätsübernahme werden ausgeschlossen und fehlende Historie erscheint als Strich. **Arbeitsbereich bearbeiten** öffnet einen Dialog für Name, Avatar und Farbe mit Schutz ungespeicherter Änderungen. KI & Dienste zeigt einzelne Funktionskarten ohne übergeordnete Gruppen. Aufklappen erhält Entwürfe. Alle Steuerelemente behalten ihre Berechtigungsprüfungen. Alte Links mit `?tab=profile` öffnen den Arbeitsbereich-Dialog; `?tab=voice` und `?tab=proactivity` öffnen die passenden Einstellungen in KI & Dienste.
 
-Tägliches Briefing und Vorschläge sind ein Dienst mit gemeinsamen Einstellungen. Seine Karte zeigt auch Ausgaben und letzte Ausführungen. Die Speicherpflege hat ein eigenes Modell und Budget und beginnt ausgeschaltet. Wählen Sie vor dem Einschalten ein Modell. Beim KI-Architekten bleiben Schalter und direkter Agent-Builder-Link ohne Begrüßungseditor oder zusätzliches Aufklappen sichtbar. Andere Dienste verwenden denselben Kartenkopf und dasselbe Symbollayout; sie lassen sich nur aufklappen, wenn sie bearbeitbare Einstellungen enthalten.
+Tägliches Briefing und Vorschläge sind ein Dienst mit gemeinsamen Einstellungen. Seine Karte zeigt auch Ausgaben und letzte Ausführungen. Die Speicherpflege hat ein eigenes Modell und Budget und beginnt ausgeschaltet. Wählen Sie vor dem Einschalten ein Modell. AI Architect behält den Verfügbarkeitsschalter, ohne zusätzliche Builder-Aktion, Begrüßungseditor oder Aufklappen. Andere Dienste verwenden denselben Kartenkopf und dasselbe Symbollayout; sie lassen sich nur aufklappen, wenn sie bearbeitbare Einstellungen enthalten.
 
 Nach der Anmeldung erscheinen an die Konto-E-Mail adressierte Einladungen auch in Konsole und Onboarding, ohne den E-Mail-Link zu öffnen. Der Empfänger wählt eine Organisation und nimmt ausdrücklich an; Später lässt die Verknüpfung Einladungen verfügbar. Angezeigt werden nur gültige Einladungen an die aktuelle Konto-Adresse, ohne geteilte Links und bereits beigetretene Organisationen. Die Annahme wechselt zur gewählten Organisation und öffnet deren Begrüßung. Der Server gibt in diesem Posteingang keine Einladungstokens zurück.
 
@@ -1301,11 +1301,15 @@ Das Organisationsverzeichnis der Administration zeigt das hochgeladene Bild oder
 
 ## Ihre erste Aufgabe { #your-first-task }
 
+Die Einrichtung hat drei unabhängige Bereiche in dieser Reihenfolge: **Deployment → Organisation → Persönlich**. Der Deployment-Fortschritt gilt für die gesamte Installation und erfordert aktuelle Anwendungsadministratorrechte. Der Organisationsfortschritt gilt für die gewählte Organisation und erfordert `org:settings`; ein einmaliger Abschluss ist für alle dort berechtigten Administratoren sichtbar. Persönlicher Fortschritt bleibt an die Mitgliedschaft gebunden. Ein Anwendungsadministrator kann die Deployment-Einrichtung abschließen, bevor eine Organisation existiert, und danach eine erstellen oder auswählen. Ein früherer unvollständiger Bereich hat Vorrang; abgeschlossene Bereiche können erneut angesehen werden. Diese Schritte führen durch die Einrichtung, sperren aber weder Einstellungen noch Sicherheit, Abmeldung oder andere Module.
+
+Jeder Bereich speichert seinen eigenen Abschlusszeitpunkt und den zuletzt besuchten Bildschirm. Ein Besuch ist kein Nachweis gespeicherter Einstellungen. Gleichzeitige Abschlüsse behalten den ersten Zeitpunkt; spätere Besuche öffnen den Abschluss nicht erneut. Persönlicher Aufschub pausiert keine gemeinsame Einrichtung für andere Administratoren. Ein Upgrade führt unvollständige Deployment- und Organisationsbereiche auch für bestehende Administratoren ein; persönliche Abschlüsse und Aufschübe bleiben erhalten. Das Speichern eines Abschlusses erfordert weder Agenten, Anbieteraufrufe, Einladungen noch optionale Konfiguration.
+
 In einer neuen Organisation ist der mitgelieferte **AgenticOS** bereits vor der Veröffentlichung ausgewählt, sofern Sie keinen anderen Standard festgelegt haben. Auf die erste Nachricht kann er die Modelleinrichtung erklären und eine Konfigurationskarte zeigen, ohne den Entwurf auszuführen oder einen KI-Anbieter aufzurufen. Antwort und Karte bleiben im Chatverlauf. Berechtigte Personen öffnen die Modelleinstellungen des Agenten; andere Mitglieder sehen einen Administratorhinweis und den Supportkontakt der Instanz, falls konfiguriert. Wählen Sie ein Modell, ergänzen Sie bei Bedarf einen Schlüssel und veröffentlichen Sie den Agenten, bevor normale KI-Antworten ausgeführt werden können. Gewöhnliche Entwürfe und archivierte Agenten bleiben von der Ausführung ausgeschlossen.
 
 Der Studio-Ablauf stellt die installierten Agenten AgenticOS und Architect vor. Ist der mitgelieferte AgenticOS noch ein zugänglicher Einrichtungsentwurf, öffnet seine Aktion den Konfigurationschat; Veröffentlichung und reguläre Ausführung behalten ihre üblichen Prüfungen. Berechtigte Personen können Architect konfigurieren, wenn ein Modell fehlt. Gewöhnliche Entwürfe und unzugängliche Agenten werden durch das Onboarding nicht ausführbar.
 
-Das Schließen des Startangebots pausiert es nach Serverzeit für das wirksame Intervall dieser Mitgliedschaft von 1, 3 oder 7 Tagen. Es kann zurückkehren, wenn die Einrichtung unvollständig und Erinnerungen eingeschaltet sind. Nach den Fragen speichert **Einrichtung abschließen und App öffnen** den Abschluss für diese Mitgliedschaft. Optionale Felder, Einladungen, ein Modell, ein Agent oder ein KI-Run sind nicht erforderlich. Abgeschlossene Einrichtung und erfolgreiche Aufgabe sind getrennte Zustände.
+Das Schließen des persönlichen Startangebots pausiert es nach Serverzeit für das wirksame Intervall dieser Mitgliedschaft von 1, 3 oder 7 Tagen. Es kann zurückkehren, wenn die Einrichtung unvollständig und Erinnerungen eingeschaltet sind. Nach den Fragen speichert **Einrichtung abschließen und App öffnen** den Abschluss für diese Mitgliedschaft. Optionale Felder, Einladungen, ein Modell, ein Agent oder ein KI-Run sind nicht erforderlich. Abgeschlossene Einrichtung und erfolgreiche Aufgabe sind getrennte Zustände.
 
 Öffnen Sie **Erste Schritte** über das Dashboard, den Startvorschlag oder die
 Seitenhilfe. Auf dem Desktop liegt der Starthinweis als halbtransparente Ebene über
@@ -1318,7 +1322,7 @@ Der Einstieg berücksichtigt Berechtigungen und bestehende Arbeit:
 
 | Person                                           | Geführter Einstieg                                                                                                               |
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| Anwendungsadministrator                          | Firmenorganisation erstellen oder wählen, Identität und Einladungen vorbereiten, dann den Beitritt zukünftiger Konten festlegen. |
+| Anwendungsadministrator                          | Zuerst gemeinsame Deployment-Einrichtung, dann Organisation und persönliche Einstellungen. |
 | Organisationsadministrator                       | Organisation und Ausgabenlimit vorbereiten, ohne Deployment-Steuerung.                                                           |
 | Neues Mitgliedskonto                             | Begrüßung, optionales persönliches Profil und Arbeitskontext, dann erste Aufgabe.                                                |
 | Bestehendes Konto in einer weiteren Organisation | Begrüßung in der Organisation; gespeichertes Profil verwenden oder bewusst überprüfen.                                           |
@@ -1345,12 +1349,12 @@ bleiben eingeklappt, mit ihren üblichen Rechten und Speicheraktionen.
 Die URL erhält Schritt, Einrichtungsfrage und Organisation für ein Neuladen. Ungespeicherte Änderungen,
 Zugriff oder Abschluss werden dadurch nicht gespeichert. Organisationswechsel und
 entzogene Rechte verhindern das Wiederherstellen eines privilegierten Schritts.
-Der Abschluss des letzten Schritts wird für die Mitgliedschaft gespeichert, auch
+Der Abschluss des persönlichen Bereichs wird für die Mitgliedschaft gespeichert, auch
 wenn optionale Angaben und KI-Einrichtung übersprungen wurden.
 
 Ein früherer Kontoabschluss gilt für Mitgliedschaften, die zu diesem Zeitpunkt bereits
 bestanden. Spätere Mitgliedschaften beginnen separat. Eigene Chats und abgeschlossene
-Abläufe verhindern automatische Neustarts; veröffentlichte Agenten blenden gewöhnliche
+Abläufe verhindern automatische persönliche Neustarts; veröffentlichte Agenten blenden gewöhnliche
 Startangebote aus. Links nach Registrierung oder Einladung begrüßen Mitglieder ohne
 eigene Aktivität oder Abschluss auch in Organisationen mit fertigen Agenten. Ältere und
 fehlgeschlagene Chats zählen als Aktivität, ohne erfolgreiche Läufe zu behaupten.

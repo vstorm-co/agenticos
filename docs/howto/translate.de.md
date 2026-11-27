@@ -1,5 +1,5 @@
 ---
-source_sha: "85e967e18444"
+source_sha: "d650d29f959a"
 ---
 
 # Eine Seite übersetzen { #translate-a-page }
@@ -322,6 +322,14 @@ unangetastet: auf andere Sprachen zu zeigen ist genau ihr Zweck.
 **Jede Datei trägt eine Sprachleiste** zu ihren drei Übersetzungen, und die
 Übersetzungen verlinken zurück. Aktualisieren Sie alle vier, wenn eine Sprache
 dazukommt.
+
+Eine Community-Übersetzung kann sich auf die README beschränken. Registrieren
+Sie sie in `ROOT_EXTRA_LOCALES` in `scripts/docs_i18n.py`; `README.tr.md` ist
+das türkische Beispiel. Dieselben Prüfungen für Fingerabdruck, Abschnittsform
+und Links gelten, ohne eine Website-Sprache oder übersetzte Richtlinien
+zu verlangen. Dokumentationslinks bleiben ohne Übersetzung englisch;
+weisen Sie in der README darauf hin. Die Website bleibt englisch, polnisch,
+deutsch und spanisch.
 
 `CHANGELOG.md` wird nicht übersetzt, aus dem Grund, aus dem `release-notes.md` es
 nicht wird: Es ist die Commit-Historie.

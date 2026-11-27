@@ -5456,7 +5456,7 @@
       },
       "org-assistant": {
         "title": "L’AI Architect",
-        "body": "Activez ou désactivez l’assistant de l’organisation et définissez comment il accueille les gens. Son nom, son modèle et ses connaissances se modifient dans l’Agent Builder, comme ceux de n’importe quel agent."
+        "body": "Activez ou désactivez AI Architect pour l’organisation. Modifiez son modèle, ses instructions et ses connaissances dans Agents, comme pour tout autre agent."
       },
       "org-members": {
         "title": "Qui en fait partie",
@@ -6153,11 +6153,11 @@
       },
       "project-tracking": {
         "title": "Garder le projet sur la bonne voie",
-        "body": "Ouvrez Options du tableau des tâches à côté de Table des tâches, puis choisissez Suivi automatique du projet. Examinez un agent source publié et ses comptes avant de publier explicitement un suivi privé qui met à jour le même tableau selon un calendrier."
+        "body": "Ouvrez Options du tableau des tâches à côté de Table des tâches, puis choisissez Automatiser la mise à jour des tâches. Examinez un agent source publié et ses comptes avant de publier explicitement un suivi privé qui met à jour le même tableau selon un calendrier."
       },
       "flow-project-tracker-create": {
         "title": "Configurer un suivi de projet ?",
-        "body": "Ouvrez Options du tableau des tâches, puis choisissez Suivi automatique du projet. Examinez un agent publié modifiable et ses comptes, puis publiez explicitement un suivi privé avec des vérifications planifiées du tableau du projet."
+        "body": "Ouvrez Options du tableau des tâches, puis choisissez Automatiser la mise à jour des tâches. Examinez un agent publié modifiable et ses comptes, puis publiez explicitement un suivi privé avec des vérifications planifiées du tableau du projet."
       },
       "channels-phone": {
         "title": "Configurer le routage téléphonique",
@@ -15059,8 +15059,8 @@
     },
     "tracking": {
       "options": "Options du tableau des tâches",
-      "title": "Suivi automatique du projet",
-      "description": "Utilisez le tableau de tâches de ce projet et publiez une copie privée d’un agent choisi pour le mettre à jour selon un calendrier.",
+      "title": "Automatiser la mise à jour des tâches",
+      "description": "Créez un agent et une routine planifiée qui vérifient la progression à partir des sources approuvées et mettent à jour le tableau de tâches partagé du projet. Vous pouvez aussi modifier ce même tableau vous-même.",
       "audience": "La routine agit en votre nom et écrit ses rapports dans la conversation partagée de ce projet. L’agent source reste inchangé.",
       "baseAgent": "Agent source que vous pouvez modifier",
       "chooseAgent": "Choisir un agent publié",

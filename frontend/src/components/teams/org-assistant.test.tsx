@@ -67,13 +67,10 @@ describe("OrgAssistant", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("links the agent itself to the Builder", () => {
+  it("keeps the organization card focused on availability without a Builder CTA", () => {
     render(<OrgAssistant orgId="o1" />);
 
-    expect(screen.getByRole("link", { name: "Open in Agent Builder" })).toHaveAttribute(
-      "href",
-      "/agents/a1",
-    );
+    expect(screen.queryByRole("link", { name: "Open in Agent Builder" })).toBeNull();
   });
 
   it("switches it off at once", () => {
@@ -92,16 +89,13 @@ describe("OrgAssistant", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("offers the Builder directly and keeps its switch independent", async () => {
+  it("keeps availability independently editable without navigation", async () => {
     render(<OrgAssistant orgId="o1" />);
     expect(screen.getByRole("heading", { name: "AI Architect" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "AI Architect" })).toBeNull();
-    const builder = screen.getByRole("link", { name: "Open in Agent Builder" });
-    expect(builder).toBeVisible();
-    expect(builder).toHaveAttribute("href", "/agents/a1");
     await userEvent.click(screen.getByRole("switch", { name: "Switched on" }));
     expect(state.mutate).toHaveBeenCalledWith({ enabled: false });
-    expect(builder).toBeVisible();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   it("blocks another toggle while its write is pending", async () => {
@@ -111,7 +105,7 @@ describe("OrgAssistant", () => {
     expect(toggle).toBeDisabled();
     await userEvent.click(toggle);
     expect(state.mutate).not.toHaveBeenCalled();
-    expect(screen.getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Open in Agent Builder" })).toBeNull();
   });
 
   it("says where to give it a model when it has none", () => {

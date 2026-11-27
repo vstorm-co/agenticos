@@ -5556,7 +5556,7 @@
       },
       "org-assistant": {
         "title": "O Arquiteto de IA",
-        "body": "Ative ou desative o assistente da organização e defina como ele cumprimenta as pessoas. Nome, modelo e conhecimento são editados no Construtor de agentes, como em qualquer agente."
+        "body": "Ative ou desative o AI Architect da organização. Edite o modelo, as instruções e o conhecimento em Agentes, como para qualquer outro agente."
       },
       "org-members": {
         "title": "Quem está aqui",
@@ -6253,11 +6253,11 @@
       },
       "project-tracking": {
         "title": "Mantenha o projeto em dia",
-        "body": "Abra Opções da tabela de tarefas junto de Tabela de tarefas e escolha Acompanhamento automático do projeto. Reveja um agente de origem publicado e as suas contas antes de publicar explicitamente um acompanhador privado que atualiza a mesma tabela de forma programada."
+        "body": "Abra Opções da tabela de tarefas junto de Tabela de tarefas e escolha Automatizar a atualização de tarefas. Reveja um agente de origem publicado e as suas contas antes de publicar explicitamente um acompanhador privado que atualiza a mesma tabela de forma programada."
       },
       "flow-project-tracker-create": {
         "title": "Configurar um acompanhador de projeto?",
-        "body": "Abra Opções da tabela de tarefas e escolha Acompanhamento automático do projeto. Reveja um agente publicado editável e as suas contas e publique explicitamente um acompanhador privado com verificações programadas da tabela do projeto."
+        "body": "Abra Opções da tabela de tarefas e escolha Automatizar a atualização de tarefas. Reveja um agente publicado editável e as suas contas e publique explicitamente um acompanhador privado com verificações programadas da tabela do projeto."
       },
       "channels-phone": {
         "title": "Configure o roteamento de telefone",
@@ -15334,8 +15334,8 @@
     },
     "tracking": {
       "options": "Opções da tabela de tarefas",
-      "title": "Acompanhamento automático do projeto",
-      "description": "Use a tabela de tarefas deste projeto e publique uma cópia privada de um agente selecionado para a atualizar de forma programada.",
+      "title": "Automatizar a atualização de tarefas",
+      "description": "Crie um agente e uma rotina agendada que verificam o progresso nas fontes aprovadas e atualizam a tabela de tarefas partilhada deste projeto. Também pode editar a mesma tabela manualmente.",
       "audience": "A rotina age em seu nome e grava seus relatórios na conversa compartilhada deste projeto. O agente de origem permanece inalterado.",
       "baseAgent": "Agente de origem que você pode editar",
       "chooseAgent": "Escolha um agente publicado",

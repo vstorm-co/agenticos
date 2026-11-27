@@ -72,6 +72,14 @@ OnboardingStep = Literal[
     "member.tools",
     "member.task",
 ]
+OrganizationOnboardingStep = Literal[
+    "admin.workspace",
+    "admin.identity",
+    "admin.models",
+    "admin.tools",
+    "admin.team",
+    "admin.organization",
+]
 # When the nightly look runs: at a fixed hour, or before the person's working hours (#2301).
 ProactiveTiming = Literal["fixed", "before_work"]
 """The stored sources, as a type a schema can be written in.
@@ -94,6 +102,10 @@ class Organization(Base, TimestampMixin):
     """Organization - the primary multi-tenant unit. Every user gets a Personal org on signup."""
 
     __tablename__ = "organizations"
+
+    onboarding_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    onboarding_current_step: Mapped[OrganizationOnboardingStep | None] = mapped_column(String(64))
+    onboarding_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     monetary_terms: Mapped[dict[str, JsonValue]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'")
@@ -277,6 +289,10 @@ class Organization(Base, TimestampMixin):
     )
 
     __table_args__ = (
+        CheckConstraint(
+            "onboarding_current_step IS NULL OR onboarding_current_step IN ('admin.workspace', 'admin.identity', 'admin.models', 'admin.tools', 'admin.team', 'admin.organization')",
+            name="onboarding_step",
+        ),
         CheckConstraint(
             "chat_cost_visibility IS NULL OR chat_cost_visibility IN ('everyone', 'spend_privileged', 'nobody')",
             name="ck_organization_chat_cost_visibility",

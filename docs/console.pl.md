@@ -1,5 +1,5 @@
 ---
-source_sha: "fc5f1d952ccd"
+source_sha: "354b8e1f3ee4"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -66,7 +66,7 @@ Przy tworzeniu projektu najpierw podajesz nazwę, miejsce pracy i odbiorców. **
 
 Organizacje mają wyszukiwanie po nazwie i slugu członkostwa, z liczbą wyników w tym samym pasku. Wyczyszczenie wyszukiwania przywraca pełną listę organizacji użytkownika.
 
-Karta AI Architect ma bezpośredni link do Buildera obok przełącznika, bez dodatkowego rozwijania. Pozostałe usługi AI zachowują rozwijane formularze, jeśli mają ustawienia do edycji.
+Karta AI Architect służy do włączania asystenta w organizacji i nie zawiera osobnego przycisku Agent Builder. Model, instrukcje i wiedzę nadal edytujesz w Agents. Ustawienia organizacji i wdrożenia używają wspólnych ramek kart, odstępów i widocznych opisów; przełączniki oraz kompaktowe selektory są po prawej. W wąskiej karcie większy selektor przechodzi do osobnego wiersza wyrównanego do prawej.
 
 Widok Me zaczyna się od karty podsumowania okresu, a następnie zwartego Briefingu z tytułami, źródłami i akcjami. Pełne opisy propozycji pozostają w Inbox.
 
@@ -1127,7 +1127,7 @@ sesja otwiera kreator tylko do odczytu, z decyzją w ostatnim kroku; zobacz
 
 Szczegóły organizacji mają trzy zakładki: **Members**, **Budget and approvals** oraz **AI & services**. Members pozwala szukać po nazwie i e-mailu, filtrować role i sprawdzić ostatnie zapisane działanie w tym workspace. To działanie z audytu, nie wizyta ani logowanie; działania przez impersonację są pomijane, a brak historii pokazuje kreskę. **Edit workspace** otwiera okno nazwy, avatara i koloru z ochroną niezapisanych zmian. AI & services zawiera osobne karty funkcji bez nadrzędnych grup. Rozwijanie konfiguracji zachowuje szkice. Każda kontrolka zachowuje własne uprawnienia. Stare linki `?tab=profile` otwierają modal workspace, a `?tab=voice` i `?tab=proactivity` odpowiednie ustawienia w AI & services.
 
-Codzienny briefing i sugestie to jedna usługa, konfigurowana w jednym miejscu. Jej karta pokazuje też wydatki i ostatnie wykonania. Utrzymanie pamięci ma własny model i budżet oraz zaczyna jako wyłączone. Najpierw wybierz model, potem włącz usługę. AI Architect pokazuje przełącznik i bezpośredni link do Agent Buildera bez edytora powitania i dodatkowego rozwijania. Pozostałe usługi używają wspólnego nagłówka i układu ikon; rozwijają się tylko wtedy, gdy zawierają ustawienia do edycji.
+Codzienny briefing i sugestie to jedna usługa, konfigurowana w jednym miejscu. Jej karta pokazuje też wydatki i ostatnie wykonania. Utrzymanie pamięci ma własny model i budżet oraz zaczyna jako wyłączone. Najpierw wybierz model, potem włącz usługę. AI Architect zachowuje przełącznik dostępności, bez dodatkowego przycisku Buildera, edytora powitania i rozwijania. Pozostałe usługi używają wspólnego nagłówka i układu ikon; rozwijają się tylko wtedy, gdy zawierają ustawienia do edycji.
 
 Po zalogowaniu zaproszenia wysłane na e-mail konta pojawiają się także w konsoli i onboardingu, bez otwierania linku z wiadomości. Odbiorca wybiera organizację i jawnie przyjmuje zaproszenie; Później zostawia dostępny skrót Zaproszenia. Lista zawiera tylko aktualne zaproszenia na bieżący adres konta, bez linków współdzielonych i organizacji, do których użytkownik już należy. Przyjęcie przełącza organizację i otwiera jej powitanie. Serwer nie zwraca tokenu zaproszenia w tej skrzynce.
 
@@ -1221,11 +1221,15 @@ Lista organizacji w administracji pokazuje wgrane zdjęcie albo inicjały w wybr
 
 ## Pierwsze zadanie { #your-first-task }
 
+Konfiguracja ma trzy niezależne zakresy w kolejności: **wdrożenie → organizacja → osobisty**. Postęp wdrożenia jest wspólny dla całej instancji i wymaga bieżących uprawnień administratora aplikacji. Postęp organizacji dotyczy wybranej organizacji i wymaga `org:settings`; jednokrotne ukończenie widzą wszyscy jej uprawnieni administratorzy. Postęp osobisty nadal należy do członkostwa. Administrator aplikacji może ukończyć konfigurację wdrożenia jeszcze przed powstaniem organizacji, a następnie utworzyć lub wybrać organizację. Wcześniejszy nieukończony zakres ma pierwszeństwo; ukończone można przejrzeć ponownie. Etapy prowadzą przez konfigurację, ale nie blokują ustawień, bezpieczeństwa, wylogowania ani pozostałych modułów.
+
+Każdy zakres zapisuje osobny czas ukończenia i ostatni odwiedzony ekran. Odwiedzenie ekranu nie dowodzi zapisania ustawień. Równoczesne ukończenia zachowują pierwszy zapis; późniejsza wizyta nie otwiera ukończenia na nowo. Osobiste odłożenie przypomnienia nie odkłada wspólnej konfiguracji innym administratorom. Aktualizacja wprowadza nieukończone etapy wdrożenia i organizacji także istniejącym administratorom; zachowuje wcześniejsze ukończenia osobiste i odłożenia. Sam zapis ukończenia nie wymaga agenta, wywołania dostawcy, zaproszenia ani opcjonalnej konfiguracji.
+
 W nowej organizacji domyślnie wybrany jest dostarczony **AgenticOS**, również przed publikacją, chyba że wybierzesz innego domyślnego agenta. Po pierwszej wiadomości może wyjaśnić konfigurację modelu i pokazać kartę ustawień bez wykonywania draftu ani wywoływania dostawcy AI. Odpowiedź i karta pozostają w historii czatu. Osoby z uprawnieniami konfiguracji otwierają ustawienia modelu agenta; pozostali członkowie widzą wskazówkę dotyczącą administratora i kontakt wsparcia instancji, jeśli został podany. Wybierz model, dodaj klucz, jeśli jest wymagany, i opublikuj agenta, aby uruchomić zwykłe odpowiedzi AI. Zwykłe drafty i zarchiwizowani agenci nadal nie mogą być wykonywani.
 
 Onboarding Studio przedstawia zainstalowanych AgenticOS i Architect. Jeśli dostarczony AgenticOS jest dostępnym draftem konfiguracyjnym, przycisk otwiera rozmowę o konfiguracji; publikacja i zwykłe wykonywanie agenta nadal wymagają dotychczasowych uprawnień. Uprawniona osoba może skonfigurować Architect, gdy brakuje mu modelu. Zwykłe drafty i niedostępni agenci nie stają się wykonywalni przez onboarding.
 
-Zamknięcie propozycji startowej odkłada ją na obowiązujący dla tego członkostwa okres 1, 3 lub 7 dni według czasu serwera. Może wrócić, jeśli konfiguracja pozostaje nieukończona, a przypomnienia są włączone. Po przejściu pytań **Zakończ konfigurację i otwórz aplikację** zapisuje ukończenie dla tego członkostwa. Opcjonalne pola, zaproszenia, model, agent ani run AI nie są wymagane. Ukończenie onboardingu i udane zadanie to osobne stany.
+Zamknięcie osobistej propozycji startowej odkłada ją na obowiązujący dla tego członkostwa okres 1, 3 lub 7 dni według czasu serwera. Może wrócić, jeśli konfiguracja pozostaje nieukończona, a przypomnienia są włączone. Po przejściu pytań **Zakończ konfigurację i otwórz aplikację** zapisuje ukończenie dla tego członkostwa. Opcjonalne pola, zaproszenia, model, agent ani run AI nie są wymagane. Ukończenie onboardingu i udane zadanie to osobne stany.
 
 Otwórz **Pierwsze kroki** z dashboardu, propozycji przy pierwszym użyciu lub pomocy
 strony. Na desktopie baner startowy czatu jest półprzezroczystą nakładką nad konsolą.
@@ -1238,7 +1242,7 @@ Start uwzględnia uprawnienia osoby i jej dotychczasową pracę:
 
 | Osoba                                                | Prowadzony start                                                                                  |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Administrator aplikacji                              | Utworzenie lub wybór firmy, tożsamość i zaproszenia, następnie zasady dołączania przyszłych kont. |
+| Administrator aplikacji                              | Najpierw wspólna konfiguracja wdrożenia, potem organizacji i preferencje osobiste. |
 | Administrator organizacji                            | Przygotowanie organizacji i jej limitu wydatków, bez ustawień wdrożenia.                          |
 | Nowe konto członka                                   | Powitanie, opcjonalny profil osobisty i kontekst pracy, potem pierwsze zadanie.                   |
 | Istniejące konto dołączające do kolejnej organizacji | Powitanie w tej organizacji, użycie zapisanego profilu lub jego świadomy przegląd.                |
@@ -1264,11 +1268,11 @@ zwinięte oraz zachowują swoje uprawnienia i sposób zapisu.
 Adres URL zachowuje krok, pytanie konfiguracji i organizację po odświeżeniu. Nie przechowuje
 niezapisanych zmian, nie nadaje dostępu i nie oznacza ukończenia. Zmiana organizacji
 lub odebranie uprawnień uniemożliwiają wznowienie uprzywilejowanego kroku. Zakończenie
-ostatniego etapu zapisuje ukończenie na członkostwie także przy pominięciu pól i AI.
+etapu osobistego zapisuje ukończenie na członkostwie także przy pominięciu pól i AI.
 
 Dawne ukończenie na koncie dotyczy członkostw istniejących do tego czasu. Późniejsze
 członkostwo ma osobny start. Własne rozmowy i ukończone przewodniki nadal chronią
-przed automatycznym powtarzaniem, a opublikowani agenci ukrywają zwykłe propozycje
+przed automatycznym powtarzaniem części osobistej, a opublikowani agenci ukrywają zwykłe propozycje
 startu. Linki po rejestracji i przyjęciu zaproszenia pokazują powitanie osobie bez
 własnej aktywności lub ukończenia także w organizacji z gotowymi agentami. Starsze
 i nieudane rozmowy liczą się jako aktywność bez udawania udanego runu. Ręczny start

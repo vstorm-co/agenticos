@@ -382,10 +382,24 @@ async function chooseFilter(name: string) {
 
 it("changes the desktop filters without opening a duplicate select", async () => {
   render(<InboxPage />);
-  await userEvent.click(screen.getByRole("button", { name: "Urgent" }));
-  expect(screen.getByRole("button", { name: "Urgent" })).toHaveAttribute("aria-pressed", "true");
-  await userEvent.click(screen.getByRole("button", { name: "All" }));
-  expect(screen.getByRole("button", { name: "All" })).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(screen.getByRole("radio", { name: "Urgent" }));
+  expect(screen.getByRole("radio", { name: "Urgent" })).toHaveAttribute("aria-checked", "true");
+  await userEvent.click(screen.getByRole("radio", { name: "All" }));
+  expect(screen.getByRole("radio", { name: "All" })).toHaveAttribute("aria-checked", "true");
+});
+
+it("moves the animated filter selection with the keyboard and keeps one Tab stop", async () => {
+  render(<InboxPage />);
+  const all = screen.getByRole("radio", { name: "All" });
+  all.focus();
+  await userEvent.keyboard("{ArrowRight}");
+  const urgent = screen.getByRole("radio", { name: "Urgent" });
+  expect(urgent).toHaveFocus();
+  expect(urgent).toHaveAttribute("aria-checked", "true");
+  expect(all).toHaveAttribute("tabindex", "-1");
+  await userEvent.keyboard("{ArrowLeft}");
+  expect(all).toHaveFocus();
+  expect(all).toHaveAttribute("aria-checked", "true");
 });
 
 describe("approvals waiting on the reader", () => {
