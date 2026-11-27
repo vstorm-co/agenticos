@@ -79,7 +79,7 @@ for (const theme of ["light", "dark"] as const) {
           const requiredControls = [
             actions.getByRole("button", { name: "Add to message", exact: true }),
             actions.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true }),
-            actions.getByRole("button", { name: "Show the files", exact: true }),
+            actions.getByRole("button", { name: "Open workspace", exact: true }),
             actions.getByRole("button", { name: "Chat controls", exact: true }),
             actions.getByRole("button", { name: /^Permission mode:/ }),
             actions.getByRole("button", { name: "Usage of this conversation", exact: true }),
