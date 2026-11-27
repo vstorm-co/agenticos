@@ -10,19 +10,20 @@ what this module used to hold - an ordered read set, a `CASE` precedence, an
 owner-kind filter for an operator listing - went with it (#1470).
 """
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, or_, select, true
-from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 
 from app.core.memory_keys import PERSON_PREFIX
 from app.db.models.agent import Agent
-from app.db.models.memory import AgentMemoryFile
+from app.db.models.conversation import Conversation, Message
+from app.db.models.memory import AgentMemoryFile, MemoryNoteRevision
 
 
 def _last_written() -> Any:
@@ -44,6 +45,7 @@ async def get_by_name(
     owner_key: str,
     name: str,
     include_deactivated: bool = False,
+    for_update: bool = False,
 ) -> AgentMemoryFile | None:
     """One note by name in one owner's store - every runtime lookup.
 
@@ -60,6 +62,8 @@ async def get_by_name(
     )
     if not include_deactivated:
         query = query.where(AgentMemoryFile.deactivated_at.is_(None))
+    if for_update:
+        query = query.with_for_update().execution_options(populate_existing=True)
     result = await db.execute(query)
     return result.scalar_one_or_none()
 
@@ -116,6 +120,10 @@ async def create(
     content: str,
     content_format: str,
     kind: str,
+    object_id: UUID | None = None,
+    auto_update: bool = False,
+    maintenance_source_at: datetime | None = None,
+    maintenance_source_message_id: UUID | None = None,
 ) -> AgentMemoryFile:
     file = AgentMemoryFile(
         organization_id=organization_id,
@@ -126,6 +134,10 @@ async def create(
         content=content,
         format=content_format,
         kind=kind,
+        object_id=object_id,
+        auto_update=auto_update,
+        maintenance_source_at=maintenance_source_at,
+        maintenance_source_message_id=maintenance_source_message_id,
         # The agent's own write, which is what provenance and ordering read.
         written_at=datetime.now(UTC),
     )
@@ -144,6 +156,160 @@ async def update(
     await db.flush()
     await db.refresh(file)
     return file
+
+
+async def replace_content(
+    db: AsyncSession,
+    *,
+    file: AgentMemoryFile,
+    content: str,
+    changed_by: Literal["agent", "person", "maintenance", "restore"],
+    source_message_id: UUID | None = None,
+    source_at: datetime | None = None,
+) -> AgentMemoryFile:
+    """Replace a locked row and retain the previous body only when it changed."""
+    if file.content == content:
+        return file
+    db.add(
+        MemoryNoteRevision(
+            organization_id=file.organization_id,
+            note_id=file.id,
+            content=file.content,
+            changed_by=changed_by,
+            source_message_id=source_message_id,
+        )
+    )
+    values: dict[str, object] = {"content": content}
+    if changed_by in {"agent", "maintenance"}:
+        values["written_at"] = datetime.now(UTC)
+    if source_at is not None:
+        values["maintenance_source_at"] = source_at
+        values["maintenance_source_message_id"] = source_message_id
+    return await update(db, file=file, update_data=values)
+
+
+async def note_revisions(
+    db: AsyncSession, *, organization_id: UUID, note_id: UUID, skip: int, limit: int
+) -> tuple[list[MemoryNoteRevision], int]:
+    filters = (
+        MemoryNoteRevision.organization_id == organization_id,
+        MemoryNoteRevision.note_id == note_id,
+    )
+    rows = await db.scalars(
+        select(MemoryNoteRevision)
+        .where(*filters)
+        .order_by(MemoryNoteRevision.replaced_at.desc(), MemoryNoteRevision.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    total = await db.scalar(select(func.count()).select_from(MemoryNoteRevision).where(*filters))
+    return list(rows.all()), total or 0
+
+
+async def note_revision_sources(
+    db: AsyncSession, *, organization_id: UUID, owner_id: UUID, message_ids: Sequence[UUID]
+) -> dict[UUID, UUID]:
+    """Resolve source conversations still owned by the note's subject."""
+    if not message_ids:
+        return {}
+    rows = await db.execute(
+        select(Message.id, Conversation.id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Message.id.in_(message_ids),
+            Conversation.organization_id == organization_id,
+            Conversation.user_id == owner_id,
+        )
+    )
+    return dict(rows.all())
+
+
+async def note_revision(
+    db: AsyncSession, *, organization_id: UUID, note_id: UUID, revision_id: UUID
+) -> MemoryNoteRevision | None:
+    return await db.scalar(
+        select(MemoryNoteRevision).where(
+            MemoryNoteRevision.organization_id == organization_id,
+            MemoryNoteRevision.note_id == note_id,
+            MemoryNoteRevision.id == revision_id,
+        )
+    )
+
+
+async def search_notes(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    owner_key: str,
+    terms: list[str],
+    limit: int,
+    object_id: UUID | None = None,
+) -> list[AgentMemoryFile]:
+    """Search the active note store before limiting, without loading note bodies."""
+    if not terms and object_id is None:
+        return []
+    statement = select(AgentMemoryFile).where(
+        AgentMemoryFile.organization_id == organization_id,
+        AgentMemoryFile.agent_id == agent_id,
+        AgentMemoryFile.owner_key == owner_key,
+        AgentMemoryFile.deactivated_at.is_(None),
+    )
+    if object_id is not None:
+        statement = statement.where(AgentMemoryFile.object_id == object_id)
+    if terms:
+        search = func.to_tsquery("simple", " | ".join(terms))
+        name = func.to_tsvector("simple", AgentMemoryFile.name)
+        description = func.to_tsvector("simple", func.coalesce(AgentMemoryFile.description, ""))
+        body = func.to_tsvector("simple", AgentMemoryFile.content)
+        statement = statement.where(
+            or_(
+                name.bool_op("@@")(search),
+                description.bool_op("@@")(search),
+                body.bool_op("@@")(search),
+            )
+        ).order_by(
+            (
+                func.ts_rank(name, search) * 2
+                + func.ts_rank(description, search)
+                + func.ts_rank(body, search)
+            ).desc()
+        )
+    rows = await db.scalars(
+        statement.options(defer(AgentMemoryFile.content))
+        .order_by(_last_written().desc(), AgentMemoryFile.id)
+        .limit(limit)
+    )
+    return list(rows)
+
+
+async def automatic_notes(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    owner_key: str,
+    terms: list[str],
+    max_chars: int,
+    limit: int,
+) -> list[AgentMemoryFile]:
+    statement = select(AgentMemoryFile).where(
+        AgentMemoryFile.organization_id == organization_id,
+        AgentMemoryFile.agent_id == agent_id,
+        AgentMemoryFile.owner_key == owner_key,
+        AgentMemoryFile.auto_update.is_(True),
+        AgentMemoryFile.deactivated_at.is_(None),
+        func.length(AgentMemoryFile.content) <= max_chars,
+    )
+    if terms:
+        search = func.to_tsquery("simple", " | ".join(terms))
+        name_rank = func.ts_rank(func.to_tsvector("simple", AgentMemoryFile.name), search)
+        body_rank = func.ts_rank(func.to_tsvector("simple", AgentMemoryFile.content), search)
+        statement = statement.order_by((name_rank + body_rank * 0.2).desc())
+    rows = await db.scalars(
+        statement.order_by(_last_written().desc(), AgentMemoryFile.id).limit(limit)
+    )
+    return list(rows.all())
 
 
 async def delete(db: AsyncSession, file: AgentMemoryFile) -> None:
@@ -265,27 +431,34 @@ async def get_owned(
 
 
 async def revive_if_suppressed(
-    db: AsyncSession, *, file_id: UUID, content: str, description: str | None, kind: str
+    db: AsyncSession,
+    *,
+    file_id: UUID,
+    content: str,
+    description: str | None,
+    kind: str,
+    object_id: UUID | None = None,
 ) -> bool:
-    """Take a suppressed note over with new content, if nobody else has.
-
-    One conditional statement, because two concurrent `write_memory` calls can
-    both read the row as suppressed and both proceed: Postgres serializes the
-    updates, both report success, and the later silently overwrites a note the
-    earlier had just written. `deactivated_at IS NOT NULL` in the `WHERE` is what
-    makes exactly one of them win; the loser is told the name is taken, which is
-    the collision answer `write_file` already has for a live note.
-    """
-    result = await db.execute(
-        sa_update(AgentMemoryFile)
+    """Revive the row only if it is still suppressed, preserving its earlier body."""
+    file = await db.scalar(
+        select(AgentMemoryFile)
         .where(AgentMemoryFile.id == file_id, AgentMemoryFile.deactivated_at.is_not(None))
-        .values(
-            content=content,
-            description=description,
-            kind=kind,
-            deactivated_at=None,
-            written_at=datetime.now(UTC),
-        )
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
-    await db.flush()
-    return bool(result.rowcount)  # ty: ignore[missing-attribute]
+    if file is None:
+        return False
+    await replace_content(db, file=file, content=content, changed_by="agent")
+    await update(
+        db,
+        file=file,
+        update_data={
+            "description": description,
+            "object_id": object_id,
+            "kind": kind,
+            "deactivated_at": None,
+            "written_at": datetime.now(UTC),
+            "auto_update": False,
+        },
+    )
+    return True

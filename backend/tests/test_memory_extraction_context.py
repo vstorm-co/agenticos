@@ -5,11 +5,13 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from app.db.models.conversation import ToolCall
 from app.services.memory.extraction import (
     MAX_TRANSCRIPT_CHARS,
     ExtractionTurn,
+    _Extraction,
     answered_question_turns,
     transcript_for_extraction,
 )
@@ -148,3 +150,18 @@ def test_a_source_identifier_that_exceeds_the_budget_is_not_truncated() -> None:
         )
         == []
     )
+
+
+def test_maintenance_rejects_the_same_property_for_one_stable_object_id() -> None:
+    ref = {"kind": "project", "external_key": "crm:atlas"}
+    records = [
+        {
+            "subject": subject,
+            "statement": "Anna owns Atlas",
+            "evidence": "Anna owns Atlas",
+            "object_ref": {**ref, "name": label},
+        }
+        for subject, label in [("Owner", "Atlas"), ("owner", "Atlas Group")]
+    ]
+    with pytest.raises(ValidationError, match="one claim per subject on each object"):
+        _Extraction.model_validate({"claims": records})

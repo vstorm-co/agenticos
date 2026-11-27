@@ -243,6 +243,7 @@ class NotificationRead(BaseSchema):
         *,
         strip_context_url: bool,
         summary_override: str | None = None,
+        wording_override: dict[str, str] | None = None,
     ) -> NotificationRead:
         """Decision 7's degrade shape: the row is never rewritten, only what a
         reader without current `approvals:decide` is served from it changes -
@@ -259,7 +260,8 @@ class NotificationRead(BaseSchema):
             outcome=_outcome_of(notification),
             outcome_id=notification.outcome_id,
             params=None if summary_override else _params_of(notification),
-            wording_params=None if summary_override else _worded(notification.render_context or {}),
+            wording_params=wording_override
+            or (None if summary_override else _worded(notification.render_context or {})),
         )
 
 

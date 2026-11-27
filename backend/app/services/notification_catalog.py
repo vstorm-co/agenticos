@@ -39,6 +39,7 @@ class ContentGate(enum.Enum):
     ANNOUNCEMENT_AUDIENCE = "announcement_audience"
     ARTIFACTS_VIEW = "artifacts_view"
     WORKFLOWS_VIEW = "workflows_view"
+    SHARED_MEMORY = "shared_memory"
     SHARED_CONVERSATION = "shared_conversation"
     IMPROVEMENT_CRITERIA = "improvement_criteria"
 
@@ -74,6 +75,7 @@ CONTENT_GATE: dict[NotificationEventType, ContentGate] = {
     # Names a workflow and how many of its log lines matched, never the lines: only
     # someone who may still view the workflow is shown the row.
     NotificationEventType.WORKFLOW_LOG_ALERT: ContentGate.WORKFLOWS_VIEW,
+    NotificationEventType.MEMORY_DEADLINE_CHANGE: ContentGate.SHARED_MEMORY,
 }
 
 # `security_event`, `configuration_changed` and `background_task_paused` bypass

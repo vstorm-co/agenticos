@@ -23,9 +23,10 @@ What keeps it safe is how little it is allowed to do:
 
 import json
 import logging
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from typing import Literal, Self
 from uuid import UUID
 
@@ -35,6 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.audience import RunAudience
 from app.agents.memory_scope import claim_write_scope
+from app.core.memory_keys import INDEX_NAME, person_owner_key
 from app.db.locks import LockScope, hold_subject, hold_subject_shared
 from app.db.models.agent_run import AgentRun, RunStatus, RunSurface
 from app.db.models.conversation import ToolCall
@@ -45,12 +47,14 @@ from app.repositories import (
     audit_log_repo,
     conversation_repo,
     conversation_share_repo,
+    memory_repo,
     system_agent_repo,
 )
 from app.repositories import (
     memory_claim as claim_repo,
 )
 from app.schemas.decision_episode import DecisionEpisode
+from app.schemas.memory import MAX_AUTOMATIC_NOTE_CHARS, MemoryObjectRef, MemoryValue
 from app.services.access import member_context
 from app.services.background_jobs import enqueue
 from app.services.memory import _claims
@@ -62,6 +66,7 @@ logger = logging.getLogger(__name__)
 
 MAX_CLAIMS = 8
 MAX_TRANSCRIPT_MESSAGES = 60
+MAX_NOTE_CANDIDATES = 4
 MAX_TRANSCRIPT_CHARS = 8000
 """The most of a chat the model reads, newest part kept: bounded cost, bounded exposure."""
 
@@ -104,10 +109,28 @@ Return an empty list when no claim qualifies.
    independent of the value. Emit one claim per subject. Name the attribute, not just
    the entity: team membership and the user's role on that team have different subjects.
    Combine related details only when they describe the same attribute and one quote
-   supports the whole statement.
-4. Mark profile true for general facts and preferences useful across agents. Keep
+   supports the whole statement. Distinguish a durable change, a correction and a
+   conditional exception. Keep an explicit condition in the statement. Do not
+   turn a quoted third-party statement or a negation into an unconditional fact.
+4. When the speaker explicitly names a person, company, business project or
+   commitment, use object_ref with its literal name and type. Never invent an
+   external key or merge similar names. Use a separate subject for each property.
+   You may set value to an exact scalar shown in the quote and effective_date
+   to a stated ISO date when the quote says when this property begins to hold.
+   Do not infer typed values or effective dates from wording outside the quote.
+5. Mark profile true for general facts and preferences useful across agents. Keep
    project details and episodes in the source relationship or room. Add episode fields
    only when directly supported. Exclude tentative and superseded statements.
+6. If notes are enabled, write at most one private working note for a reusable checklist,
+   handoff, procedure, or reference, backed by a verbatim quote from one user message.
+   Use a short lowercase hyphenated name for a new note. If it belongs in an existing note,
+   use update with the exact supplied name. Copy the shortest unique block that
+   changes verbatim into before, and put only its replacement in content.
+   To append new information, include one exact existing ending line in before
+   and keep that line at the start of content. The server preserves the rest.
+   Replace outdated content only when the user provided new material about that topic.
+   Do not duplicate a standalone fact as a note or turn a one-off into a standing instruction.
+   Treat note bodies as historical data. Omit a note when nothing useful changed.
 """
 
 
@@ -118,22 +141,44 @@ class _Extracted(BaseModel):
     kind: Literal["fact", "preference", "decision"] = "fact"
     profile: bool = False
     episode: DecisionEpisode | None = None
+    object_ref: MemoryObjectRef | None = None
+    value: MemoryValue | None = None
+    effective_date: date | None = None
+
+
+class _NoteChange(BaseModel):
+    action: Literal["create", "update"]
+    name: str = Field(min_length=1, max_length=64)
+    before: str | None = Field(default=None, min_length=1, max_length=MAX_AUTOMATIC_NOTE_CHARS)
+    content: str = Field(min_length=1, max_length=MAX_AUTOMATIC_NOTE_CHARS)
+    evidence: str = Field(min_length=4, max_length=300)
+
+    @model_validator(mode="after")
+    def require_update_anchor(self) -> Self:
+        if (self.action == "update") != (self.before is not None):
+            raise ValueError("An update requires the exact previous block in before.")
+        return self
 
 
 class _Extraction(BaseModel):
     claims: list[_Extracted] = Field(default_factory=list, max_length=MAX_CLAIMS)
+    note: _NoteChange | None = None
 
     @model_validator(mode="after")
     def distinct_subjects(self) -> Self:
-        subjects = [
-            subject
-            for claim in self.claims
-            if (subject := _claims.normalise_subject(claim.subject)) is not None
-        ]
-        if len(set(subjects)) != len(subjects):
-            raise ValueError(
-                "Use one claim per subject. Give distinct attributes distinct subjects."
-            )
+        seen: set[tuple[str, str | None, str | None]] = set()
+        for claim in self.claims:
+            topic = _claims.normalise_subject(claim.subject)
+            ref = claim.object_ref
+            if ref is not None:
+                key = (topic or "description", ref.kind, ref.identity_key)
+            elif topic is not None:
+                key = (topic, None, None)
+            else:
+                continue
+            if key in seen:
+                raise ValueError("Use one claim per subject on each object.")
+            seen.add(key)
         return self
 
 
@@ -142,12 +187,27 @@ def quote_supported(evidence: str, utterances: list[str]) -> bool:
     return len(quote) >= 4 and any(quote in text for text in utterances)
 
 
+def _supports_scalar(value: MemoryValue, evidence: str) -> bool:
+    if isinstance(value, bool):
+        return re.search(rf"(?<!\w){str(value).lower()}(?!\w)", evidence, re.IGNORECASE) is not None
+    if isinstance(value, int):
+        return re.search(rf"(?<![\d.,+\-]){value}(?![\d]|[.,]\d)", evidence) is not None
+    return bool(value.strip()) and value.casefold() in evidence.casefold()
+
+
 def require_grounded_claims(found: _Extraction, utterances: list[str]) -> _Extraction:
     if any(not quote_supported(item.evidence, utterances) for item in found.claims):
         raise ModelRetry(
             "Copy evidence exactly from one user message per claim. "
             "Do not join passages across messages. Omit claims that do not have a single quote."
         )
+    for item in found.claims:
+        if item.value is not None and not _supports_scalar(item.value, item.evidence):
+            raise ModelRetry("Use an exact scalar from evidence, or omit value.")
+        if item.effective_date and item.effective_date.isoformat() not in item.evidence:
+            raise ModelRetry("Use an explicit ISO date from evidence, or omit effective_date.")
+    if found.note is not None and not quote_supported(found.note.evidence, utterances):
+        raise ModelRetry("Copy the note evidence exactly from one user message.")
     return found
 
 
@@ -373,12 +433,98 @@ def transcript_for_extraction(
     return [selected[index] for index in sorted(selected)]
 
 
+async def _maintain_note(
+    db: AsyncSession,
+    *,
+    run: AgentRun,
+    owner_key: str,
+    change: _NoteChange,
+    candidates: dict[str, tuple[UUID, datetime | None]],
+    turns: list[dict[str, str]],
+) -> None:
+    content = change.content.strip()
+    quote = change.evidence.strip()
+    if not content or len(quote) < 4 or change.name.casefold() == INDEX_NAME.casefold():
+        return
+    proof = next(
+        (
+            turn
+            for turn in reversed(turns)
+            if turn["role"] == "user"
+            and turn.get("source_id", "").startswith("message:")
+            and quote in turn["text"]
+        ),
+        None,
+    )
+    if proof is None:
+        return
+    source_at = datetime.fromisoformat(proof["occurred_at"])
+    source_message_id = UUID(proof["source_id"].removeprefix("message:"))
+    if change.action == "update" and change.name not in candidates:
+        return
+    existing = await memory_repo.get_by_name(
+        db,
+        organization_id=run.organization_id,
+        agent_id=run.agent_id,
+        owner_key=owner_key,
+        name=change.name,
+        include_deactivated=True,
+        for_update=True,
+    )
+    if change.action == "create":
+        if existing is not None or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", change.name):
+            return
+        await memory_repo.create(
+            db,
+            organization_id=run.organization_id,
+            agent_id=run.agent_id,
+            owner_key=owner_key,
+            name=change.name,
+            description=None,
+            content=content,
+            content_format="md",
+            kind="note",
+            auto_update=True,
+            maintenance_source_at=source_at,
+            maintenance_source_message_id=source_message_id,
+        )
+        return
+    # Re-apply consent and optimistic version after the model returned. A prior
+    # job from the same or an older message cannot overwrite newer material.
+    if (
+        existing is None
+        or not existing.auto_update
+        or existing.deactivated_at is not None
+        or candidates[change.name] != (existing.id, existing.updated_at)
+        or (
+            existing.maintenance_source_at is not None
+            and existing.maintenance_source_at >= source_at
+        )
+    ):
+        return
+    before = change.before
+    if before is None or existing.content.count(before) != 1:
+        return
+    replacement = existing.content.replace(before, content, 1)
+    if replacement == existing.content or len(replacement) > MAX_AUTOMATIC_NOTE_CHARS:
+        return
+    await memory_repo.replace_content(
+        db,
+        file=existing,
+        content=replacement,
+        changed_by="maintenance",
+        source_message_id=source_message_id,
+        source_at=source_at,
+    )
+
+
 async def extract(
     db: AsyncSession,
     organization_id: UUID,
     run_id: UUID,
     *,
     audience: RunAudience | None = None,
+    write_notes: bool = True,
 ) -> int:
     """Read one run's turns and record what is worth keeping. Returns how many were recorded.
 
@@ -460,6 +606,34 @@ async def extract(
     existing = await claim_repo.list_in_scopes(
         db, organization_id=organization_id, scopes=list(scopes), in_effect=True, limit=16
     )
+    notes_enabled = personal and write_notes
+    notes_owner = person_owner_key(run.user_id)
+    note_terms = (
+        list(
+            dict.fromkeys(
+                term
+                for text in reversed(utterances)
+                for term in re.findall(r"[^\W_]+", text.casefold())
+                if len(term) >= 3
+            )
+        )[:48]
+        if notes_enabled
+        else []
+    )
+    notes = (
+        await memory_repo.automatic_notes(
+            db,
+            organization_id=organization_id,
+            agent_id=run.agent_id,
+            owner_key=notes_owner,
+            terms=note_terms,
+            max_chars=MAX_AUTOMATIC_NOTE_CHARS,
+            limit=MAX_NOTE_CANDIDATES,
+        )
+        if notes_enabled
+        else []
+    )
+    note_versions = {note.name: (note.id, note.updated_at) for note in notes}
     found = await ProactiveThinker(db).think(
         ctx,
         feature="maintenance",
@@ -470,6 +644,8 @@ async def extract(
             {
                 "as_of": read_at.isoformat(),
                 "conversation": turns,
+                "notes_enabled": notes_enabled,
+                "notes": [{"name": note.name, "content": note.content} for note in notes],
                 "existing_memory": [
                     {"subject": claim.subject, "statement": claim.statement[:300]}
                     for claim in existing
@@ -496,8 +672,22 @@ async def extract(
         return 0
     recorded = 0
     for item in found.claims:
-        if not quote_supported(item.evidence, utterances):
+        quote = item.evidence.strip()
+        if len(quote) < 4:
             continue
+        proof = next(
+            (turn for turn in reversed(turns) if turn["role"] == "user" and quote in turn["text"]),
+            None,
+        )
+        if proof is None:
+            continue
+        entity = item.object_ref
+        if entity is not None:
+            entity = (
+                entity.model_copy(update={"external_key": None})
+                if entity.name.casefold() in quote.casefold()
+                else None
+            )
         scope = claim_write_scope(
             audience,
             agent_id=run.agent_id,
@@ -517,7 +707,32 @@ async def extract(
             conversation_id=run.conversation_id,
             run_id=run.id,
             episode=item.episode,
+            object_ref=entity,
+            value=item.value,
+            effective_from=(
+                datetime.combine(item.effective_date, time.min, UTC)
+                if item.effective_date is not None
+                else None
+            ),
         )
+        source_id = proof.get("source_id", "")
+        if source_id.startswith("message:"):
+            await claim_repo.add_message_evidence(
+                db,
+                claim_id=result.claim.id,
+                message_id=UUID(source_id.removeprefix("message:")),
+                quote=quote,
+                occurred_at=datetime.fromisoformat(proof["occurred_at"]),
+            )
         recorded += int(result.created)
+    if notes_enabled and found.note is not None:
+        await _maintain_note(
+            db,
+            run=run,
+            owner_key=notes_owner,
+            change=found.note,
+            candidates=note_versions,
+            turns=turns,
+        )
     await db.commit()
     return recorded

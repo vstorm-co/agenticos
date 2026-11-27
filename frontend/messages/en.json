@@ -7136,6 +7136,106 @@
       }
     },
     "memory": {
+      "operations": {
+        "title": "Inbox & backfill",
+        "inbox": "Memory Inbox rule",
+        "loading": "Loading…",
+        "loadFailed": "Could not load the data.",
+        "inboxHint": "Route changes to shared commitment deadlines to selected members with access.",
+        "modeLabel": "Mode",
+        "off": "Off",
+        "shadow": "Shadow",
+        "live": "On",
+        "sources": "Sources",
+        "gmail": "Gmail",
+        "webhook": "Signed webhook",
+        "reviewed": "Reviewed memory",
+        "recipients": "Recipients ({count}/50)",
+        "shadowModel": "Compare model recommendations using the maintenance budget",
+        "modelComparison": "Rule {baseline, select, notify {notify} other {ignore}} · model {recommendation, select, notify {notify} digest {digest} review {review} other {ignore}} · {count}",
+        "includeReview": "Include changes that need review",
+        "ruleRequired": "Select at least one source and one recipient.",
+        "save": "Save rule",
+        "reload": "Refresh",
+        "saveFailed": "Could not save the rule. Refresh and try again.",
+        "outcomes": "Rule outcomes",
+        "version": "Rule version",
+        "noOutcomes": "No decisions for this version yet.",
+        "outcome": "{change, select, changed {Changed} cancelled {Cancelled} other {Needs review}} · {outcome, select, shadow {Shadow} delivered {Delivered} other {Muted}} · {count}",
+        "backfill": "Object backfill",
+        "backfillHint": "Connect older memories using the exact external identity of their recorded sources.",
+        "progress": "Scanned {scanned} · linked {linked}",
+        "completed": "Complete",
+        "start": "Start backfill",
+        "restart": "Start a new scan",
+        "resume": "Resume backfill",
+        "backfillFailed": "Could not start or check the backfill.",
+        "aliases": "Object aliases",
+        "undo": "Undo merge",
+        "undoNamed": "Undo merge with {name}",
+        "moreAliases": "More aliases",
+        "firstPage": "First page",
+        "mergeWith": "Merge into {name}",
+        "mergeHint": "Both histories appear here. Undo restores each memory to its original object.",
+        "findAlias": "Search for an alias",
+        "chooseAlias": "Choose an object",
+        "moreCandidates": "More objects",
+        "merge": "Merge objects",
+        "mergeFailed": "Could not change aliases. Refresh the object and try again."
+      },
+      "library": {
+        "scopeLabel": "Memory scope",
+        "personal": "Personal",
+        "organization": "Organization",
+        "memoriesView": "Memory view",
+        "claims": "All memories",
+        "objects": "Objects",
+        "searchObjects": "Search objects",
+        "emptyObjects": "No objects found",
+        "timeline": "Timeline",
+        "back": "Back to objects",
+        "effectiveDate": "Effective date",
+        "knowledgeDate": "Knowledge cutoff",
+        "emptyTimeline": "No memories match this date",
+        "unknown": "Unknown",
+        "historical": "Historical result",
+        "firstPage": "First page",
+        "nextPage": "Next page",
+        "evidence": "Evidence",
+        "loadingEvidence": "Loading evidence…",
+        "evidenceUnavailable": "Evidence unavailable",
+        "withheld": "Some sources are restricted.",
+        "sharedClaims": "Shared memories",
+        "searchShared": "Search shared memories",
+        "emptyClaims": "No shared memories",
+        "sharedNotes": "Shared notes",
+        "emptyNotes": "No shared notes",
+        "share": "Share",
+        "audience": "Audience",
+        "wholeOrganization": "Entire organization",
+        "confirmShare": "Confirm sharing",
+        "shareFailure": "Could not share this item.",
+        "published": "Shared",
+        "close": "Close",
+        "conflictsOnly": "Conflicts only",
+        "conflictPending": "Awaiting review",
+        "conflictPick": "Which value should company memory use?",
+        "conflictConfirm": "Confirm value",
+        "conflictResolved": "Memory conflict resolved",
+        "conflictChanged": "This conflict changed. Review the updated values.",
+        "gmailSource": "Gmail",
+        "webhookSource": "Signed webhook",
+        "previous": "Previous: {statement}",
+        "validity": "From {start} until {end}",
+        "shareHint": "Review the audience. This publishes a copy of this item.",
+        "kind": {
+          "all": "All",
+          "person": "People",
+          "company": "Companies / Clients",
+          "project": "Projects",
+          "commitment": "Commitments"
+        }
+      },
       "showing": "Showing {from}–{to} of {total}",
       "older": "Older",
       "title": "Your memory",
@@ -7158,6 +7258,7 @@
         "correct": "Correct memory",
         "retract": "Stop using",
         "statement": "Corrected statement",
+        "typedValue": "Recorded value",
         "effectiveFrom": "Holds from",
         "cancel": "Cancel",
         "save": "Save correction",
@@ -7232,6 +7333,23 @@
           "other": "Memory"
         },
         "editNoteHint": "Correct what the agent remembers about you. Your edits are recorded separately from the original agent write.",
+        "noteAutoUpdate": "Automatic updates",
+        "noteAutoUpdateHint": "Allow Memory Maintenance to update this note from future private conversations. Earlier versions remain available.",
+        "noteOpenObject": "Open linked object",
+        "noteHistory": "Version history",
+        "noteHistoryError": "Could not load versions.",
+        "noteHistoryEmpty": "This note has no earlier versions.",
+        "noteRevisionAgent": "agent edit",
+        "noteRevisionPerson": "your edit",
+        "noteRevisionMaintenance": "automatic update",
+        "noteRevisionRestore": "restore",
+        "noteRevisionIdentical": "This update left the text identical.",
+        "noteRevisionTooLong": "This version is too long for a line comparison.",
+        "noteRevisionSource": "Open source conversation",
+        "noteRevisionLabel": "Before {origin} · {when}",
+        "noteRestoreVersion": "Restore this version",
+        "noteNewerVersions": "Newer versions",
+        "noteOlderVersions": "Older versions",
         "noteDetails": "Memory details"
       }
     },
@@ -8481,6 +8599,8 @@
       "prefAnnouncementTrigger": "An app admin sends a message to a chosen audience across the deployment.",
       "prefWorkflowNotification": "Workflow notifications",
       "prefWorkflowNotificationTrigger": "A workflow you can see sends you a message from one of its steps.",
+      "prefMemoryDeadlineChange": "Memory deadline changes",
+      "prefMemoryDeadlineChangeTrigger": "A shared commitment you can read changes deadline, is cancelled or needs review.",
       "prefWorkflowLogAlert": "Workflow log alerts",
       "prefWorkflowLogAlertTrigger": "A workflow you can see crosses an alert threshold on its log.",
       "prefArtifactOwnerChanged": "Page ownership changes",
@@ -11783,6 +11903,7 @@
       "backgroundTaskPaused": "Background jobs of the kind {kind} are paused{scoped, select, yes { for {organization}} other {}}: {reason}. Resume them on the Background jobs page once the cause is fixed.",
       "configurationChanged": "The deployment's settings were updated.",
       "usageReport": "Usage report for {name}",
+      "memoryDeadlineChange": "{name} · {change, select, changed {Deadline changed} cancelled {Deadline cancelled} other {Deadline needs review}} · {before} → {after} · {source, select, gmail {Gmail} webhook {Signed webhook} other {Reviewed memory}}",
       "workflowLogAlert": "{rule}: {count, plural, one {# occurrence} other {# occurrences}} in the log of {workflow} in the last {unit, select, hours {{hours, plural, one {# hour} other {# hours}}} other {{minutes, plural, one {# minute} other {# minutes}}}}.",
       "coalesced": {
         "securityEvent": "More security events arrived in one minute than this inbox lists individually. Every one of them is in the audit log.",
@@ -19349,6 +19470,10 @@
         "name": "Transform an image",
         "description": "Crop, resize, rotate or convert a PNG, JPEG, WebP or GIF image, with its metadata removed and its size bounded before it is decoded."
       },
+      "memory_observe": {
+        "name": "Record memory observation",
+        "description": "Record a verified delivery in organization memory, with its date and evidence."
+      },
       "knowledge_add": {
         "name": "Add to knowledge",
         "description": "Put a text or a file into knowledge collections, for agents to find."
@@ -20745,6 +20870,27 @@
           },
           "file__byte_size": {
             "title": "Byte Size"
+          }
+        }
+      },
+      "memory_observe": {
+        "config": {
+          "object_kind": {
+            "title": "Object type"
+          },
+          "object_name": {
+            "title": "Object name"
+          },
+          "object_key": {
+            "title": "Business object key"
+          },
+          "use_key_prefix": {
+            "title": "Allow a signed webhook namespace",
+            "description": "Use the business object key as a namespace ending in '/', such as crm:deals/."
+          },
+          "subject": {
+            "title": "Property",
+            "description": "Use deadline for Gmail."
           }
         }
       },

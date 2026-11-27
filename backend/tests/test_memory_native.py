@@ -54,6 +54,7 @@ def _row(*, content="body", name="prefs", deactivated_at=None):
     row.kind = "note"
     row.owner_key = OWNER
     row.deactivated_at = deactivated_at
+    row.auto_update = False
     return row
 
 
@@ -332,3 +333,24 @@ class TestDeleteFile:
             )
 
         assert not delete.await_count
+
+
+async def test_editing_with_a_stale_revision_keeps_the_new_note_body() -> None:
+    row = _row(content="current")
+    row.updated_at = datetime(2026, 11, 27, tzinfo=UTC)
+    with (
+        patch(f"{REPO}.get_by_name", new=AsyncMock(return_value=row)) as get_note,
+        patch(f"{REPO}.replace_content", new=AsyncMock()) as replace,
+        pytest.raises(_native.NoteChangedDuringRead),
+    ):
+        await _native.edit_file(
+            organization_id=ORG,
+            agent_id=AGENT,
+            owner_key=OWNER,
+            name="prefs",
+            content="stale replacement",
+            run_id=None,
+            expected_revision=datetime(2026, 11, 26, tzinfo=UTC),
+        )
+    assert get_note.await_args.kwargs["for_update"] is True
+    replace.assert_not_awaited()

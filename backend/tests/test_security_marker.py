@@ -41,6 +41,7 @@ KEYWORDS = ("tenant", "permission", "budget", "approval", "secret", "plaintext")
 # honest by `TestNoStaleExemptions`, which fails if an entry no longer exists or
 # no longer matches the net.
 EXEMPT: dict[str, str] = {
+    "tests/test_bootstrap.py::TestMemoryMaintenance::test_configures_a_separate_model_and_preserves_the_role_budget": "preserves an existing configuration value, not a budget refusal",
     "tests/test_mobile_microphone_permission.py::test_microphone_purpose_is_present_in_the_shipped_app_and_generator": "native microphone purpose metadata consistency, not a runtime authorization decision",
     "tests/test_mobile_microphone_permission.py::test_microphone_purpose_is_translated_in_every_existing_native_locale": "native purpose-string localization coverage, not a runtime authorization decision",
     "tests/test_platform_describers.py::test_invalid_nested_eval_references_do_not_break_the_approval_card": "malformed display-reference handling, not permission to decide the approval",

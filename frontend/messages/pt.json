@@ -7020,6 +7020,106 @@
       }
     },
     "memory": {
+      "operations": {
+        "title": "Caixa de entrada e preenchimento",
+        "inbox": "Regra de notificações da memória",
+        "loading": "A carregar…",
+        "loadFailed": "Não foi possível carregar os dados.",
+        "inboxHint": "Encaminhe alterações de prazos de compromissos partilhados para os membros selecionados com acesso.",
+        "modeLabel": "Modo",
+        "off": "Desativado",
+        "shadow": "Simulação",
+        "live": "Ativado",
+        "sources": "Fontes",
+        "gmail": "Gmail",
+        "webhook": "Webhook assinado",
+        "reviewed": "Memória revista",
+        "recipients": "Destinatários ({count}/50)",
+        "shadowModel": "Comparar recomendações do modelo com o orçamento de manutenção",
+        "modelComparison": "Regra {baseline, select, notify {notificar} other {ignorar}} · modelo {recommendation, select, notify {notificar} digest {resumo} review {rever} other {ignorar}} · {count}",
+        "includeReview": "Incluir alterações que precisam de revisão",
+        "ruleRequired": "Selecione pelo menos uma fonte e um destinatário.",
+        "save": "Guardar regra",
+        "reload": "Atualizar",
+        "saveFailed": "Não foi possível guardar a regra. Atualize e tente novamente.",
+        "outcomes": "Resultados da regra",
+        "version": "Versão da regra",
+        "noOutcomes": "Ainda não há decisões para esta versão.",
+        "outcome": "{change, select, changed {Alterado} cancelled {Cancelado} other {Requer revisão}} · {outcome, select, shadow {Simulado} delivered {Entregue} other {Silenciado}} · {count}",
+        "backfill": "Preenchimento de objetos",
+        "backfillHint": "Associe memórias antigas pela identidade externa exata das respetivas fontes registadas.",
+        "progress": "{scanned} verificados · {linked} associados",
+        "completed": "Concluído",
+        "start": "Iniciar preenchimento",
+        "restart": "Iniciar nova análise",
+        "resume": "Retomar preenchimento",
+        "backfillFailed": "Não foi possível iniciar ou verificar o preenchimento.",
+        "aliases": "Aliases do objeto",
+        "undo": "Anular união",
+        "undoNamed": "Anular união com {name}",
+        "moreAliases": "Mais aliases",
+        "firstPage": "Primeira página",
+        "mergeWith": "Unir a {name}",
+        "mergeHint": "Os dois históricos aparecem aqui. A anulação devolve cada memória ao objeto original.",
+        "findAlias": "Procurar alias",
+        "chooseAlias": "Escolher objeto",
+        "moreCandidates": "Mais objetos",
+        "merge": "Unir objetos",
+        "mergeFailed": "Não foi possível alterar os aliases. Atualize o objeto e tente novamente."
+      },
+      "library": {
+        "scopeLabel": "Âmbito da memória",
+        "personal": "Pessoal",
+        "organization": "Organização",
+        "memoriesView": "Vista da memória",
+        "claims": "Todos os registos",
+        "objects": "Objetos",
+        "searchObjects": "Pesquisar objetos",
+        "emptyObjects": "Nenhum objeto encontrado",
+        "timeline": "Cronologia",
+        "back": "Voltar aos objetos",
+        "effectiveDate": "Data de validade",
+        "knowledgeDate": "Conhecimento até",
+        "emptyTimeline": "Nenhum registo nesta data",
+        "unknown": "Desconhecido",
+        "historical": "Resultado histórico",
+        "firstPage": "Primeira página",
+        "nextPage": "Página seguinte",
+        "evidence": "Evidências",
+        "loadingEvidence": "A carregar evidências…",
+        "evidenceUnavailable": "Evidências indisponíveis",
+        "withheld": "Algumas fontes têm acesso restrito.",
+        "sharedClaims": "Registos partilhados",
+        "searchShared": "Pesquisar registos partilhados",
+        "emptyClaims": "Nenhum registo partilhado",
+        "sharedNotes": "Notas partilhadas",
+        "emptyNotes": "Nenhuma nota partilhada",
+        "share": "Partilhar",
+        "audience": "Destinatários",
+        "wholeOrganization": "Toda a organização",
+        "confirmShare": "Confirmar partilha",
+        "shareFailure": "Não foi possível partilhar este registo.",
+        "published": "Partilhado",
+        "close": "Fechar",
+        "conflictsOnly": "Somente conflitos",
+        "conflictPending": "Aguardando revisão",
+        "conflictPick": "Qual valor a memória da empresa deve usar?",
+        "conflictConfirm": "Confirmar valor",
+        "conflictResolved": "Conflito de memória resolvido",
+        "conflictChanged": "Este conflito mudou. Confira os valores atualizados.",
+        "gmailSource": "Gmail",
+        "webhookSource": "Webhook assinado",
+        "previous": "Anterior: {statement}",
+        "validity": "De {start} até {end}",
+        "shareHint": "Reveja os destinatários. Será publicada uma cópia.",
+        "kind": {
+          "all": "Todos",
+          "person": "Pessoas",
+          "company": "Empresas e clientes",
+          "project": "Projetos",
+          "commitment": "Compromissos"
+        }
+      },
       "showing": "Mostrando {from}–{to} de {total}",
       "older": "Mais antigas",
       "title": "Sua memória",
@@ -7042,6 +7142,7 @@
         "correct": "Corrigir memória",
         "retract": "Parar de usar",
         "statement": "Afirmação corrigida",
+        "typedValue": "Valor registrado",
         "effectiveFrom": "Vale a partir de",
         "cancel": "Cancelar",
         "save": "Salvar correção",
@@ -7116,6 +7217,23 @@
           "other": "Memória"
         },
         "editNoteHint": "Corrija o que o agente lembra sobre você. Suas edições são registradas separadamente da gravação original do agente.",
+        "noteAutoUpdate": "Atualizações automáticas",
+        "noteAutoUpdateHint": "Permita que o Memory Maintenance atualize esta nota com base em conversas privadas futuras. As versões anteriores continuam disponíveis.",
+        "noteOpenObject": "Abrir objeto associado",
+        "noteHistory": "Histórico de versões",
+        "noteHistoryError": "Não foi possível carregar as versões.",
+        "noteHistoryEmpty": "Esta nota não tem versões anteriores.",
+        "noteRevisionAgent": "edição do agente",
+        "noteRevisionPerson": "a sua edição",
+        "noteRevisionMaintenance": "atualização automática",
+        "noteRevisionRestore": "restauro",
+        "noteRevisionIdentical": "Esta alteração manteve o texto idêntico.",
+        "noteRevisionTooLong": "Esta versão é demasiado longa para comparar linha a linha.",
+        "noteRevisionSource": "Abrir a conversa de origem",
+        "noteRevisionLabel": "Antes de {origin} · {when}",
+        "noteRestoreVersion": "Restaurar esta versão",
+        "noteNewerVersions": "Versões mais recentes",
+        "noteOlderVersions": "Versões mais antigas",
         "noteDetails": "Detalhes da memória"
       }
     },
@@ -8365,6 +8483,8 @@
       "prefAnnouncementTrigger": "Um administrador do aplicativo envia uma mensagem a um público escolhido em toda a implantação.",
       "prefWorkflowNotification": "Notificações de workflow",
       "prefWorkflowNotificationTrigger": "Um workflow que você pode ver envia uma mensagem a você a partir de uma de suas etapas.",
+      "prefMemoryDeadlineChange": "Alterações de prazos na memória",
+      "prefMemoryDeadlineChangeTrigger": "Um compromisso partilhado a que tem acesso muda de prazo, é cancelado ou precisa de revisão.",
       "prefWorkflowLogAlert": "Alertas de log de workflow",
       "prefWorkflowLogAlertTrigger": "Um workflow que você pode ver ultrapassa um limite de alerta em seu log.",
       "prefArtifactOwnerChanged": "Mudanças de propriedade de páginas",
@@ -11667,6 +11787,7 @@
       "backgroundTaskPaused": "As tarefas em segundo plano do tipo {kind} estão pausadas{scoped, select, yes { para {organization}} other {}}: {reason}. Retome-as na página Tarefas em segundo plano assim que a causa for corrigida.",
       "configurationChanged": "As configurações da implantação foram atualizadas.",
       "usageReport": "Relatório de uso de {name}",
+      "memoryDeadlineChange": "{name} · {change, select, changed {Prazo alterado} cancelled {Prazo cancelado} other {Prazo a rever}} · {before} → {after} · {source, select, gmail {Gmail} webhook {Webhook assinado} other {Memória revista}}",
       "workflowLogAlert": "{rule}: {count, plural, one {# ocorrência} other {# ocorrências}} no log do workflow {workflow} nos últimos {unit, select, hours {{hours, plural, one {# hora} other {# horas}}} other {{minutes, plural, one {# minuto} other {# minutos}}}}.",
       "coalesced": {
         "securityEvent": "Chegaram mais eventos de segurança em um minuto do que esta caixa de entrada lista individualmente. Todos eles estão no log de auditoria.",
@@ -19229,6 +19350,10 @@
         "name": "Transformar uma imagem",
         "description": "Recorta, redimensiona, gira ou converte uma imagem PNG, JPEG, WebP ou GIF, com os metadados removidos e o tamanho limitado antes da decodificação."
       },
+      "memory_observe": {
+        "name": "Registrar observação na memória",
+        "description": "Registre um evento verificado com data e evidência na memória da organização."
+      },
       "knowledge_add": {
         "name": "Adicionar à base de conhecimento",
         "description": "Coloca um texto ou um arquivo em coleções da base de conhecimento para que os agentes possam encontrá-los."
@@ -20606,6 +20731,27 @@
           },
           "file__byte_size": {
             "title": "Tamanho em bytes"
+          }
+        }
+      },
+      "memory_observe": {
+        "config": {
+          "object_kind": {
+            "title": "Tipo de objeto"
+          },
+          "object_name": {
+            "title": "Nome do objeto"
+          },
+          "object_key": {
+            "title": "Chave do objeto de negócio"
+          },
+          "use_key_prefix": {
+            "title": "Permitir um namespace para o webhook assinado",
+            "description": "Use a chave do objeto de negócio como um namespace que termina em '/', como crm:deals/."
+          },
+          "subject": {
+            "title": "Propriedade",
+            "description": "Use deadline para Gmail."
           }
         }
       },

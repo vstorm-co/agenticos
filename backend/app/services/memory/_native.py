@@ -16,7 +16,7 @@ the conversation's own. Which one that is, is decided in
 """
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import exists, select
@@ -28,7 +28,7 @@ from app.db.locks import LockScope, hold_subject, hold_subject_shared
 from app.db.models.agent_run import AgentRun
 from app.db.models.user import User
 from app.db.session import get_db_context
-from app.repositories import audit_log_repo, memory_repo
+from app.repositories import audit_log_repo, memory_claim, memory_repo
 
 
 @dataclass(frozen=True)
@@ -63,6 +63,19 @@ async def read_file(
     *, organization_id: UUID, agent_id: UUID, owner_key: str, name: str
 ) -> str | None:
     """One note's body by name, or None when the store holds no such name."""
+    snapshot = await read_file_revision(
+        organization_id=organization_id,
+        agent_id=agent_id,
+        owner_key=owner_key,
+        name=name,
+    )
+    return None if snapshot is None else snapshot[0]
+
+
+async def read_file_revision(
+    *, organization_id: UUID, agent_id: UUID, owner_key: str, name: str
+) -> tuple[str, datetime] | None:
+    """Read the body and its revision together, for an optimistic edit."""
     async with get_db_context() as db:
         row = await memory_repo.get_by_name(
             db,
@@ -71,7 +84,7 @@ async def read_file(
             owner_key=owner_key,
             name=name,
         )
-        return None if row is None else row.content
+        return None if row is None else (row.content, row.updated_at or row.created_at)
 
 
 async def person_still_exists(db: AsyncSession, owner_key: str) -> bool:
@@ -145,6 +158,10 @@ async def refuse_if_erased_during_run(
         raise ErasedDuringRun
 
 
+class NoteObjectUnavailable(Exception):
+    """The object is absent or belongs to a different memory scope."""
+
+
 async def write_file(
     *,
     organization_id: UUID,
@@ -155,6 +172,7 @@ async def write_file(
     description: str | None,
     kind: str,
     run_id: UUID | None,
+    object_id: UUID | None = None,
 ) -> bool:
     """Create a new note. False when the name is already taken in that store.
 
@@ -174,6 +192,17 @@ async def write_file(
             # data the erasure reported as removed (#1421).
             return False
         await refuse_if_erased_during_run(db, owner_key=owner_key, agent_id=agent_id, run_id=run_id)
+        if (
+            object_id is not None
+            and await memory_claim.get_object(
+                db,
+                organization_id=organization_id,
+                object_id=object_id,
+                scope_keys=[owner_key],
+            )
+            is None
+        ):
+            raise NoteObjectUnavailable
         # The write path is the one that sees a suppressed note, because the name
         # is taken in the database either way and a create that could not see it
         # would fail on the constraint with nothing useful to say. A suppressed
@@ -201,6 +230,7 @@ async def write_file(
                 content=content,
                 description=description,
                 kind=kind,
+                object_id=object_id,
             )
         try:
             await memory_repo.create(
@@ -213,6 +243,7 @@ async def write_file(
                 content=content,
                 content_format="md",
                 kind=kind,
+                object_id=object_id,
             )
         except IntegrityError:
             # A concurrent write took the name between the check and this insert; the
@@ -223,6 +254,10 @@ async def write_file(
         return True
 
 
+class NoteChangedDuringRead(Exception):
+    """A note no longer matches the revision the writer read."""
+
+
 async def edit_file(
     *,
     organization_id: UUID,
@@ -231,6 +266,7 @@ async def edit_file(
     name: str,
     content: str,
     run_id: UUID | None,
+    expected_revision: datetime | None = None,
 ) -> bool:
     """Replace an existing note's body. False when there is no such name.
 
@@ -247,16 +283,17 @@ async def edit_file(
             agent_id=agent_id,
             owner_key=owner_key,
             name=name,
+            for_update=True,
         )
+        if expected_revision is not None and (
+            row is None or (row.updated_at or row.created_at) != expected_revision
+        ):
+            raise NoteChangedDuringRead
         if row is None:
             return False
-        await memory_repo.update(
-            db,
-            file=row,
-            # The agent's own write, which is what provenance and ordering read -
-            # `updated_at` moves for a suppression too.
-            update_data={"content": content, "written_at": datetime.now(UTC)},
-        )
+        if row.auto_update and expected_revision is None:
+            raise NoteChangedDuringRead
+        await memory_repo.replace_content(db, file=row, content=content, changed_by="agent")
         return True
 
 
@@ -279,6 +316,7 @@ async def delete_file(
             agent_id=agent_id,
             owner_key=owner_key,
             name=name,
+            for_update=True,
         )
         if row is None:
             return False

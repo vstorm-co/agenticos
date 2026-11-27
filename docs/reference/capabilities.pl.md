@@ -1,5 +1,5 @@
 ---
-source_sha: "617b957f6b31"
+source_sha: "13019dd32ff1"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -481,15 +481,121 @@ wynika po stronie serwera z tego, kto usłyszy odpowiedź, a nigdy z modelu — 
   twórca](../concepts.md#unless-its-creator-lets-it-run-as-them): harmonogram
   czyta wtedy i zapisuje magazyn twórcy, a zdarzenie tylko go czyta.
 
-Nie ma magazynu obejmującego całą organizację. Taki istniał i został usunięty:
-był drugim mechanizmem dla tego, co robią już [pliki kontekstu](../context.md) —
-stałej wiedzy, którą pisze człowiek i wiąże z agentami — a jedno zadanie z dwoma
-mechanizmami to sposób, w jaki oba zaczynają się nie zgadzać. Pamięć jest tym,
-czego nauczył się _agent_; wszystko, co pisze człowiek, należy do kontekstu.
+[Pliki kontekstu](../context.md) służą do pisania stałych instrukcji. Agent
+przechowuje notatki robocze w zakresie osoby lub pokoju. Osoba z uprawnieniem
+`context:edit` dla całej organizacji może w ustawieniach udostępnić sprawdzoną
+kopię własnej notatki lub twierdzenia organizacji albo grupie.
+
+### Obiekty biznesowe i historia { #memory-business-objects }
+
+W **Settings → Memory** są widoki Osobista i Organizacyjna, a w każdym Memories
+i Notes. W Memories filtruj obiekty według typu: osoba, firma lub klient,
+projekt biznesowy albo zobowiązanie. Projekt biznesowy ma własną tożsamość i
+może istnieć bez przestrzeni w module Projects. Bieżące członkostwo w grupach
+wyznacza widoczność publikacji grupowych. Udostępniasz sprawdzoną wersję notatki.
+Usunięcie osobistego źródła usuwa udostępnione kopie notatki.
+
+Do trwałych faktów, preferencji i decyzji służy `remember`. Do notatek
+roboczych, takich jak wskazówki do przekazania pracy czy listy kontrolne,
+służy `write_memory`, również gdy mieszczą się w jednym zdaniu.
+
+Opcjonalny `object_ref` wskazuje obiekt biznesowy, a `value`
+przechowuje typowaną wartość prostą. `recall(as_of=…)` podaje stan na datę,
+a `known_at` ogranicza wiedzę do chwili przed późniejszą korektą. Przedziały
+są półotwarte. Wpis bez daty początku można znaleźć w aktualnym wyszukiwaniu.
+Odczyt historyczny wymaga daty obserwacji. Otwórz zamknięty przedział na osi czasu osobistego obiektu i wybierz korektę, aby poprawić wpis z zachowaniem wcześniejszego stanu wiedzy. Historia zmian stanu zaczyna się
+w nowym schemacie. Istniejące wpisy i ich identyfikatory pozostają dostępne.
+
+Użyj `recall(include_notes=True)`, aby wyszukać aktywne notatki rozmowy
+po nazwie, opisie lub treści. Wynik otworzysz przez `read_memory`. Dokładne
+wyszukanie faktu umożliwiają `object_id` i `subject`. Bieżące wyniki mogą
+zawierać typowaną wartość, okres obowiązywania i dostępne dowody. Odczyt
+historyczny szereguje fakty według statusu znanego w podanej chwili.
+Maintenance zamienia jeden dokładnie dopasowany, unikatowy fragment notatki
+objętej zgodą, sprawdza wersję i zapisuje źródło.
+
+Zapisz typowaną relację przez `remember(object_ref=…, relation=…)`.
+Predykaty to `client` (projekt do firmy), `responsible` (projekt do osoby)
+i `part_of` (zobowiązanie do projektu). Oba obiekty mają ten sam zakres.
+Relacja zachowuje daty i dowody. Jest widoczna na obu osiach czasu.
+`recall(related_to=…)` wyszukuje relacje według ID obiektu docelowego.
+Zatwierdzona publikacja kopiuje oba obiekty.
+
+### Obserwacje z workflow { #memory-gmail }
+
+Opublikowany workflow może zapisać zweryfikowane zdarzenie w pamięci
+organizacji. Użyj istniejącego triggera **Gmail** lub **Webhook** i dodaj krok
+[Zapisz obserwację w pamięci](workflow-nodes.md#memory-observe). Ustaw klucz
+obiektu biznesowego i właściwość w edytorze workflow. W triggerze Gmaila
+podaj pełny zweryfikowany adres nadawcy. W kroku zapisu wybierz właściwość
+`deadline`. Przyjmowany wiersz ma postać `Deadline: YYYY-MM-DD` albo
+`Deadline: cancelled`. Uruchomienie wersji roboczej nie zapisuje pamięci.
+
+Podpisany Webhook może przyjąć typowaną obserwację z integracji pośredniczącej
+z CRM. Osoba, w imieniu której działa workflow, potrzebuje organizacyjnego
+`context:edit` przy publikacji i wykonaniu. Użyj istniejących kroków
+akceptacji i powiadomień według potrzeb. Krok zwraca `changed` przy
+zmianie aktualnej wartości z tego samego źródła. Ponowienia, spory
+i opóźnione obserwacje mają własne wyniki do użycia w grafie.
+
+Aby połączyć dowody z workflow i czatu, użyj tego samego klucza obiektu,
+właściwości i typowanej wartości. Udostępnij sprawdzony wpis z czatu
+organizacji. Zgodność w pokrywającym się okresie daje jeden wpis
+z niezależnymi dowodami. Cofnięcie dostępu do Gmaila ukrywa dowody i wpisy
+oparte wyłącznie na tym źródle.
+
+W **Organizacyjna → Memories → Tylko konflikty** osoba z organizacyjnym
+`context:edit` może zatwierdzić wartość. Alternatywy pozostają na osi czasu,
+a decyzja trafia do audytu. Zmiana kandydatów wymaga ponownego przeglądu.
 
 Jeden przełącznik, **Allow personal memory**, znosi magazyn osobowy w całości ze
 względu na zgodność albo prywatność; notatki prowadzone na czatach grupowych
 zostają.
+
+Korekta samego tekstu zachowuje zapisaną wartość typowaną. Zmień pole **Zapisana wartość** w edytorze lub przekaż `value` do `correct_memory`, aby ją zastąpić. Nowa nazwa dla istniejącego klucza zewnętrznego zachowuje historię obiektu pod tym samym ID.
+
+Właściciel organizacji może przypisać Workflow do typu obiektu i właściwości
+przez `GET /memory/source-authorities` i `PUT /memory/source-authorities`.
+Wartość null w `workflow_id` usuwa regułę. Dopuszczona obserwacja z przypisanego
+Workflow może zmienić obowiązującą wartość, jeśli jej data jest późniejsza.
+Pozostałe Workflows mogą dostarczyć dowód lub spór. Reguła obejmuje nowe
+obserwacje, a zmiany konfiguracji trafiają do audytu.
+
+### Aliasy i uzupełnianie obiektów { #memory-object-operations }
+
+W osi czasu obiektu otwórz **Aliasy obiektu** i sprawdź drugi obiekt tego
+samego typu i zakresu przed scaleniem. Pamięć osobistą scala jej właściciel.
+Scalanie pamięci wspólnej wymaga `context:edit` w całej organizacji i dostępu
+do obu obiektów. Główna oś czasu pokazuje obie historie. Prowadzą do niej też
+linki do aliasu. Każdy wpis zachowuje pierwotny obiekt i źródło. **Cofnij
+scalenie** rozdziela historie, w tym wpisy zapisane po scaleniu. Obie operacje
+są audytowane. Przed przeniesieniem obiektu z aliasami cofnij jego połączenia.
+
+Właściciel organizacji uruchamia lub wznawia **Uzupełnianie obiektów** w
+**Organizacja → Inbox i backfill**. Worker zatwierdza każdą ograniczoną partię
+z punktem wznowienia i kolejkuje następną. Starszy wpis zostaje powiązany tylko
+wtedy, gdy wszyscy zapisani poprzednicy wskazują ten sam zewnętrzny obiekt,
+zakres dostępu, agenta i właściwość. Niepowiązane i niejednoznaczne wpisy
+pozostają w Memories. Uzupełnianie zachowuje ich treść, źródła i daty oraz
+nie tworzy kart w Inbox.
+
+### Zmiany zobowiązań w Inbox { #memory-inbox }
+
+Właściciel organizacji ustawia źródła i odbiorców w **Organizacja → Inbox i
+backfill**. Reguła obejmuje zmienione lub anulowane terminy wspólnych
+zobowiązań. Może też kierować sprzeczne daty do sprawdzenia. Domyślnie jest
+wyłączona. Tryb próbny zapisuje liczniki według wyniku i wersji reguły. Tryb
+aktywny tworzy kartę z poprzednią i nową datą, źródłem oraz linkiem do osi
+czasu obiektu. Worker sprawdza aktualną rewizję, uprawnienia do skrzynki,
+członkostwo w organizacji i dostęp grupowy. Inbox ponawia kontrolę przy każdym
+wyświetleniu karty. Ponowienia dla tej samej rewizji, reguły i odbiorcy
+rozliczają się raz. Workflow może użyć własnego kroku powiadomień do osobnej akcji.
+
+W trybie Shadow opcja **Porównuj rekomendacje modelu** uruchamia dla
+kwalifikujących się zmian job na profilu i budżecie Memory Maintenance. Model
+sugeruje powiadomienie, podsumowanie, sprawdzenie lub pominięcie. Liczniki
+porównują decyzje modelu z regułą dla wybranej wersji. Przed zapisem job
+ponownie sprawdza źródło, rewizję i dostęp odbiorcy.
 
 ### Fakty, preferencje i decyzje { #memory-claims }
 

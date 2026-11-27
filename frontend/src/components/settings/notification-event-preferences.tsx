@@ -135,7 +135,10 @@ export function NotificationEventPreferences() {
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:w-80 lg:shrink-0">
-                      {[...event.channels, chatChannel].map((channel) => (
+                      {(event.chat === false
+                        ? event.channels
+                        : [...event.channels, chatChannel]
+                      ).map((channel) => (
                         <label
                           key={channel}
                           className="bg-muted/40 flex min-w-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg px-2 py-1.5"

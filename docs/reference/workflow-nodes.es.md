@@ -1,5 +1,5 @@
 ---
-source_sha: "1b7c73e09d28"
+source_sha: "bff92f4c37ce"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -812,6 +812,33 @@ hilo con un `:`, o un hilo de Telegram que no es un número, hace fallar el paso
 ::: app.workflows.nodes.channel_members._handler.ChannelMembersOutput
 
 ::: app.workflows.nodes.channel_find._handler.ChannelFindOutput
+
+## memory.observe { #memory-observe }
+
+Guarda una entrega de Gmail verificada o un webhook firmado en la memoria
+de la organización. Requiere un workflow publicado y `context:edit` para
+toda la organización al publicar y ejecutar. Configura tipo, nombre, clave
+externa y propiedad. Un borrador devuelve `preview`.
+
+Para [Gmail](#trigger-gmail), indica la dirección completa del remitente y
+elige `deadline`. Leemos una línea `Deadline: YYYY-MM-DD` o
+`Deadline: cancelled` y se vuelve a comprobar la autorización del buzón.
+
+El JSON del [Webhook](#trigger-webhook) firmado incluye `record_key`,
+`object_key`, `subject`, `value`, `quote` y `effective_at`. La clave y
+la propiedad deben coincidir con la configuración. El valor puede ser texto,
+entero, booleano o null. La fecha con hora debe incluir un desplazamiento.
+
+La salida proporciona `claim_id`, `status` y `changed`. Usa `changed`
+con [Notificar a miembros](#notification-send). Los duplicados, disputas
+y eventos tardíos tienen estados propios. Se aplican las reglas de entrega
+y reintento existentes del workflow.
+
+Para admitir varios objetos del mismo tipo y propiedad, activa **Allow a signed
+webhook namespace** y configura un prefijo como `crm:deals/`. El cuerpo
+firmado requiere `object_name` y un `object_key` como `crm:deals/42`.
+Con la opción desactivada, la clave y el nombre se fijan en el flujo.
+Gmail usa una clave fija.
 
 ## agent.run { #agent-run }
 

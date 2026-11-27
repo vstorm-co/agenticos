@@ -1,5 +1,5 @@
 ---
-source_sha: "617b957f6b31"
+source_sha: "13019dd32ff1"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -502,16 +502,128 @@ Agent falsch machen könnte.
   laufen](../concepts.md#unless-its-creator-lets-it-run-as-them): Ein Zeitplan liest
   und schreibt dann den Speicher des Erstellers, ein Ereignis liest ihn nur.
 
-Es gibt keinen organisationsweiten Speicher. Es gab einen, und er wurde entfernt:
-Er war ein zweiter Mechanismus für das, was [Kontextdateien](../context.md) bereits
-leisten — ständiges Wissen, das eine Person verfasst und an Agents bindet —, und
-eine Aufgabe mit zwei Mechanismen ist der Weg, auf dem die beiden sich
-widersprechen. Gedächtnis ist das, was der _Agent_ gelernt hat; alles, was ein
-Mensch schreibt, gehört in den Kontext.
+[Kontextdateien](../context.md) enthalten verfasste Anweisungen. Agents speichern
+Arbeitsnotizen im persönlichen Speicher oder im Chatraum. Mit organisationsweitem
+`context:edit` lassen sich geprüfte Kopien von persönlichen Notizen oder Claims
+in den Einstellungen mit der Organisation oder einer Gruppe teilen.
+
+### Geschäftsobjekte und Verlauf { #memory-business-objects }
+
+**Settings → Memory** bietet eine persönliche und eine Organisationsansicht,
+jeweils mit Memories und Notes. In Memories lassen sich Personen, Firmen und
+Kunden, Geschäftsprojekte und Zusagen filtern. Ein Geschäftsprojekt hat eine
+eigene Identität und kann ohne Workspace in Projects bestehen. Gruppenfreigaben
+richten sich nach der aktuellen Mitgliedschaft. Eine Freigabe speichert die
+geprüfte Notizversion. Beim Löschen der persönlichen Quelle entfallen auch
+die veröffentlichten Notizkopien.
+
+`remember` speichert dauerhafte Fakten, Präferenzen und Entscheidungen.
+`write_memory` hält Arbeitsnotizen wie Übergaben und Checklisten fest, auch
+wenn sie nur eine Zeile lang sind.
+
+`object_ref` benennt optional ein Geschäftsobjekt und
+`value` einen typisierten Wert. `recall(as_of=…)` liest den Stand zu einem
+Datum. `known_at` beschränkt ihn auf den Wissensstand vor einer späteren
+Korrektur. Zeitintervalle schließen ihr Ende aus. Einträge ohne Startdatum
+bleiben in der aktuellen Suche sichtbar. Der historische Abruf benötigt eine
+datierte Beobachtung. Eine Korrektur auf der persönlichen Zeitachse ändert das abgeschlossene Intervall und erhält den früheren Wissensstand. Zustandsänderungen werden ab dem neuen Schema erfasst.
+Bestehende Einträge behalten ihre IDs.
+
+Mit `recall(include_notes=True)` suchst du aktive Notizen im Speicher
+der Unterhaltung nach Name, Beschreibung oder Inhalt. Öffne Treffer mit
+`read_memory`. `object_id` und `subject` ermöglichen eine genaue Faktensuche.
+Aktuelle Ergebnisse können typisierte Werte, Gültigkeit und zugängliche
+Belege enthalten. Historische Abfragen sortieren nach dem zum Stichtag
+bekannten Status. Bei Einwilligung ersetzt der Wartungsjob einen exakt und
+eindeutig passenden Textblock. Er prüft die Version und speichert die Quelle.
+
+Erfasse eine typisierte Beziehung mit `remember(object_ref=…, relation=…)`.
+Die Prädikate sind `client` (Projekt zu Firma), `responsible` (Projekt
+zu Person) und `part_of` (Verpflichtung zu Projekt). Beide Objekte behalten
+denselben Zugriffsbereich. Die Beziehung behält Zeitangaben und Belege und ist
+in beiden Zeitachsen sichtbar. `recall(related_to=…)` findet Beziehungen zur
+Zielobjekt-ID. Eine geprüfte Freigabe kopiert beide Objekte.
+
+### Beobachtungen aus Workflows { #memory-gmail }
+
+Ein veröffentlichter Workflow kann verifizierte Zustellungen im
+Organisationsgedächtnis speichern. Verwende den vorhandenen Trigger
+**Gmail** oder **Webhook** und [Beobachtung speichern](workflow-nodes.md#memory-observe).
+Konfiguriere Geschäftsschlüssel und Eigenschaft im Editor. Für Gmail gib
+die vollständige verifizierte Absenderadresse an und wähle `deadline`.
+Die Nachricht enthält `Deadline: YYYY-MM-DD` oder `Deadline: cancelled`.
+Ein Testlauf des Entwurfs speichert nichts.
+
+Ein signierter Webhook kann typisierte Beobachtungen aus einer CRM-Anbindung
+annehmen. Die ausführende Person braucht bei Veröffentlichung und Ausführung
+organisationsweites `context:edit`. Verwende die bestehenden Genehmigungs-
+und Benachrichtigungsschritte. `changed` bezeichnet eine Aktualisierung
+derselben Quelle. Wiederholungen, Konflikte und verspätete Beobachtungen
+haben eigene Ergebnisse.
+
+Verwende zum Zusammenführen derselben Beobachtung aus Workflow und Chat
+denselben Geschäftsschlüssel, dieselbe Eigenschaft und denselben typisierten
+Wert. Gib die geprüfte Chat-Aussage für die Organisation frei. Überlappende
+Gültigkeit mit übereinstimmendem Wert ergibt einen Eintrag mit unabhängigen
+Belegen. Ein widerrufener Gmail-Zugang verbirgt seine Belege und ausschließlich
+von ihm abhängige Einträge.
+
+Unter **Organisation → Memories → Nur Konflikte** bestätigt ein Mitglied mit
+organisationsweitem `context:edit` einen Wert. Die Alternativen bleiben
+auf der Zeitachse und die Entscheidung wird protokolliert. Ändert sich
+die Auswahl, wird sie erneut geprüft.
 
 Ein Schalter, **Allow personal memory**, streicht den personenbezogenen Speicher
 vollständig, aus Compliance- oder Datenschutzgründen; die in Gruppenchats
 geführten Notizen bleiben.
+
+Eine reine Textkorrektur behält den typisierten Wert. Ändere **Gespeicherter Wert** im Editor oder übergib `value` an `correct_memory`, um ihn zu ersetzen. Eine neue Bezeichnung für denselben externen Schlüssel erhält den Objektverlauf unter derselben ID.
+
+Der Organisationseigentümer kann je Objekttyp und Eigenschaft einen Workflow
+mit `GET /memory/source-authorities` und `PUT /memory/source-authorities`
+festlegen. Null in `workflow_id` hebt die Zuweisung auf. Eine zugelassene
+Beobachtung des Workflows kann die Eigenschaft ab einem späteren Zeitpunkt
+aktualisieren. Weitere Workflows können Belege oder Widersprüche liefern.
+Die Regel gilt für neue Eingänge. Änderungen werden protokolliert.
+
+### Objektaliase und Nachpflege { #memory-object-operations }
+
+Öffne **Objektaliase** im Verlauf und prüfe das zweite Objekt desselben
+Typs und derselben Zielgruppe vor dem Zusammenführen. In der persönlichen
+Bibliothek entscheidet der Eigentümer. In der gemeinsamen Bibliothek sind
+organisationsweites `context:edit` und Zugriff auf beide Objekte erforderlich.
+Der primäre Verlauf zeigt beide Historien. Auch Links zum Alias führen dorthin.
+Jeder Eintrag behält sein Objekt und seine Quelle. **Zusammenführung rückgängig
+machen** trennt auch die seitdem hinzugekommenen Einträge. Beide Aktionen
+werden protokolliert. Löse bestehende Aliase, bevor du ihr Ziel verschiebst.
+
+Der Organisationseigentümer startet oder setzt die **Nachpflege** unter
+**Organisation → Posteingang und Nachpflege** fort. Der Worker speichert den
+Fortschritt mit jeder begrenzten Gruppe und reiht die nächste ein. Ältere
+Einträge werden nur verknüpft, wenn alle gespeicherten Vorgänger dasselbe
+externe Objekt, dieselbe Zielgruppe, denselben Agenten und dieselbe Eigenschaft
+bezeichnen. Ungeklärte Einträge bleiben in Erinnerungen. Die Nachpflege
+erhält Inhalte, Quellen und Zeitstempel und erzeugt keine Posteingangskarten.
+
+### Änderungen von Verpflichtungen im Posteingang { #memory-inbox }
+
+Der Organisationseigentümer konfiguriert Quellen und Empfänger unter
+**Organisation → Posteingang und Nachpflege**. Die Regel gilt für geänderte
+und abgesagte Fristen gemeinsamer Verpflichtungen. Auf Wunsch meldet sie
+umstrittene Termine zur Prüfung. Sie ist zunächst aus. Im Testlauf werden
+Ergebnisse nach Regelversion gezählt. Im aktiven Modus zeigt die Karte die
+bisherige und neue Frist, die Quelle und einen Link zum Objektverlauf. Der
+Worker prüft die aktuelle Revision, den Postfachzugriff sowie Organisations-
+und Gruppenmitgliedschaft. Der Posteingang prüft die Rechte erneut beim
+Anzeigen. Wiederholungen für dieselbe Revision, Regel und Person werden
+einmal verarbeitet. Ein Workflow kann für eine separate Aktion weiterhin
+seinen eigenen Benachrichtigungsschritt verwenden.
+
+Im Shadow-Modus startet **Modellempfehlungen vergleichen** für geeignete
+Änderungen einen Job mit dem Profil und Budget der Gedächtniswartung. Das
+Modell empfiehlt Meldung, Übersicht, Prüfung oder Überspringen. Zähler
+vergleichen Modell und Regel je Version. Der Job prüft vor dem Speichern
+Quelle, aktuelle Revision und Empfängerzugriff erneut.
 
 ### Fakten, Vorlieben und Entscheidungen { #memory-claims }
 

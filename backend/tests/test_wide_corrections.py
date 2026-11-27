@@ -184,6 +184,16 @@ class TestWhatTheCheckAndTheCardRead:
 
         assert described == {"before": "Office closes at six", "after": "Office closes at five"}
 
+    async def test_the_card_shows_an_explicit_typed_mutation(self) -> None:
+        project_of, claim_for_approval = _reading(MagicMock(statement="Old count", value=20))
+        with project_of, claim_for_approval:
+            described = await describe_correction(
+                _deps(),
+                {"claim_id": str(uuid.uuid4()), "statement": "New count", "value": 0},
+                None,
+            )
+        assert described == {"before": "Old count [20]", "after": "New count [0]"}
+
     @pytest.mark.parametrize("allow_personal", [True, False])
     async def test_the_card_reads_what_the_tool_reads(self, allow_personal: bool) -> None:
         from app.agents.capabilities.memory_files import MemoryFilesConfig

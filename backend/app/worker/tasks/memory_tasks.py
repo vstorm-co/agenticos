@@ -12,8 +12,9 @@ import logging
 from app.agents.audience import RunAudience
 from app.db.session import get_db_context
 from app.repositories import memory_claim as claim_repo
-from app.services.memory import claims, extraction
-from app.worker.jobs import ExtractMemory
+from app.services.memory import MemoryService, claims, extraction
+from app.services.memory_inbox import classify_memory_inbox, deliver_memory_inbox
+from app.worker.jobs import BackfillMemoryObjects, DeliverMemoryInbox, ExtractMemory
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ SCOPES_PER_SWEEP = 200
 """How many changed scopes one sweep folds; the rest wait for the next."""
 
 
-async def extract_memory(payload: ExtractMemory) -> int:
+async def extract_memory(payload: ExtractMemory, *, write_notes: bool = True) -> int:
     """Read one finished chat for what is worth remembering. Returns how many claims it recorded."""
     async with get_db_context() as db:
         if payload.audience_user_id is not None:
@@ -33,8 +34,26 @@ async def extract_memory(payload: ExtractMemory) -> int:
                     user_id=payload.audience_user_id,
                     room_key=payload.audience_room_key,
                 ),
+                write_notes=write_notes,
             )
-        return await extraction.extract(db, payload.organization_id, payload.run_id)
+        return await extraction.extract(
+            db, payload.organization_id, payload.run_id, write_notes=write_notes
+        )
+
+
+async def notify_memory_change(payload: DeliverMemoryInbox) -> int:
+    async with get_db_context() as db:
+        return await deliver_memory_inbox(db, payload)
+
+
+async def shadow_memory_change(payload: DeliverMemoryInbox) -> int:
+    async with get_db_context() as db:
+        return await classify_memory_inbox(db, payload)
+
+
+async def backfill_memory_objects(payload: BackfillMemoryObjects) -> int:
+    async with get_db_context() as db:
+        return await MemoryService(db).continue_object_backfill(payload)
 
 
 async def consolidate_memory() -> int:

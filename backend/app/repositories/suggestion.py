@@ -6,16 +6,36 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import String, cast, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
+from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED, McpConnection
 from app.db.models.suggestion import (
     RoutineFindingRevision,
     Suggestion,
     SuggestionKind,
     SuggestionStatus,
 )
+
+
+def _mail_visible() -> ColumnElement[bool]:
+    return or_(
+        Suggestion.payload["memory_mail"].as_boolean().is_distinct_from(True),
+        select(McpConnection.id)
+        .where(
+            McpConnection.organization_id == Suggestion.organization_id,
+            cast(McpConnection.id, String)
+            == Suggestion.payload["memory_mail_grant_id"].as_string(),
+            cast(McpConnection.authorization_generation, String)
+            == Suggestion.payload["memory_mail_authorization"].as_string(),
+            McpConnection.is_enabled.is_(True),
+            McpConnection.last_error.is_distinct_from(AUTHORIZATION_EXPIRED),
+        )
+        .correlate(Suggestion)
+        .exists(),
+    )
 
 
 async def propose(
@@ -68,6 +88,7 @@ async def list_open(db: AsyncSession, *, organization_id: UUID, user_id: UUID) -
         .where(
             Suggestion.organization_id == organization_id,
             Suggestion.user_id == user_id,
+            _mail_visible(),
             Suggestion.status == SuggestionStatus.OPEN.value,
         )
         .order_by(Suggestion.created_at.desc())
@@ -81,7 +102,11 @@ async def list_all(
     """Every proposal this person was made here, whatever they answered, newest first."""
     result = await db.execute(
         select(Suggestion)
-        .where(Suggestion.organization_id == organization_id, Suggestion.user_id == user_id)
+        .where(
+            Suggestion.organization_id == organization_id,
+            Suggestion.user_id == user_id,
+            _mail_visible(),
+        )
         .order_by(Suggestion.created_at.desc())
         .limit(limit)
     )
@@ -173,6 +198,7 @@ async def get_own(
         Suggestion.id == suggestion_id,
         Suggestion.organization_id == organization_id,
         Suggestion.user_id == user_id,
+        _mail_visible(),
     )
     if lock_generated:
         result = await db.execute(

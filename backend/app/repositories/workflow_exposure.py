@@ -31,17 +31,22 @@ async def create(db: AsyncSession, **fields: Any) -> WorkflowExposure:
 
 
 async def get(
-    db: AsyncSession, exposure_id: UUID, *, organization_id: UUID, workflow_id: UUID
+    db: AsyncSession,
+    exposure_id: UUID,
+    *,
+    organization_id: UUID,
+    workflow_id: UUID,
+    for_update: bool = False,
 ) -> WorkflowExposure | None:
     """One exposure of one workflow, in one organization."""
-    result = await db.execute(
-        select(WorkflowExposure).where(
-            WorkflowExposure.id == exposure_id,
-            WorkflowExposure.organization_id == organization_id,
-            WorkflowExposure.workflow_id == workflow_id,
-        )
+    query = select(WorkflowExposure).where(
+        WorkflowExposure.id == exposure_id,
+        WorkflowExposure.organization_id == organization_id,
+        WorkflowExposure.workflow_id == workflow_id,
     )
-    return result.scalar_one_or_none()
+    if for_update:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    return await db.scalar(query)
 
 
 async def active_by_workflow(
@@ -229,6 +234,17 @@ async def get_delivery(
     return result.scalar_one_or_none()
 
 
+async def delivery_for_run(
+    db: AsyncSession, *, organization_id: UUID, run_id: UUID
+) -> WorkflowWebhookDelivery | None:
+    return await db.scalar(
+        select(WorkflowWebhookDelivery).where(
+            WorkflowWebhookDelivery.organization_id == organization_id,
+            WorkflowWebhookDelivery.workflow_run_id == run_id,
+        )
+    )
+
+
 async def create_delivery(
     db: AsyncSession,
     *,
@@ -237,6 +253,7 @@ async def create_delivery(
     delivery_id: str,
     workflow_run_id: UUID,
     signed_digest: str | None = None,
+    portal_authority: tuple[UUID, UUID] | None = None,
 ) -> WorkflowWebhookDelivery:
     delivery = WorkflowWebhookDelivery(
         organization_id=organization_id,
@@ -245,6 +262,8 @@ async def create_delivery(
         workflow_run_id=workflow_run_id,
         signed_digest=signed_digest,
     )
+    if portal_authority is not None:
+        delivery.portal_grant_id, delivery.portal_authorization_generation = portal_authority
     db.add(delivery)
     await db.flush()
     return delivery

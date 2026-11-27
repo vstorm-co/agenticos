@@ -458,14 +458,122 @@ there is nothing for the agent to get wrong.
   creator](../concepts.md#unless-its-creator-lets-it-run-as-them): a schedule then
   reads and writes the creator's store, and an event only reads it.
 
-There is no organisation-wide store. One existed and was removed: it was a second
-mechanism for what [context files](../context.md) already do — standing knowledge
-a person authors and binds to agents — and one job with two mechanisms is how the
-two disagree. Memory is what the *agent* learned; anything a human writes belongs
-in context.
+Use [context files](../context.md) for authored standing instructions. Agents keep
+their working notes in the person or room store. A member with organization-wide
+`context:edit` can publish a reviewed copy of a personal note or claim to the
+organization or one of its groups from Settings.
+
+### Business objects and history { #memory-business-objects }
+
+**Settings → Memory** has Personal and Organization views. Each contains Memories
+and Notes. In Memories, filter Objects by person, company/client, business project
+or commitment. Business projects have their own identity and may exist without a
+workspace in Projects. The current member's group memberships determine which
+group publications are visible. Publishing a note takes a snapshot at the
+reviewed revision. Deleting the personal source removes its published notes.
+
+Use `remember` for durable facts, preferences and decisions. Use `write_memory`
+for working notes such as handoffs and checklists, even if they fit on one line.
+
+An optional `object_ref` names a business object, and `value` carries an
+exact scalar property. Use `recall(as_of=…)` for validity on a date and
+`known_at` to cut off knowledge before a later correction. Explicit time ranges
+are half-open. A claim with no start date remains available in current search.
+Historical queries need a dated observation. Open a completed interval in a personal object's timeline and use **Correct** to revise that interval while preserving the earlier knowledge snapshot. History of status changes starts
+with the new schema. Existing claims and their IDs remain available.
+
+Use `recall(include_notes=True)` to find active notes by name, description or
+body in the conversation's note store. Open a match with `read_memory`.
+Use `object_id` and `subject` for an exact fact lookup. Current results can
+include typed values, validity and accessible source evidence. Historical
+recall ranks claims by the status known at its cutoff. Maintenance updates
+an opted-in note by replacing one exact, uniquely matching block, with a
+version check and a recorded source.
+
+Record a typed relationship with `remember(object_ref=…, relation=…)`.
+The predicates are `client` (project to company), `responsible` (project
+to person) and `part_of` (commitment to project). Both objects stay in
+the same audience. The relationship retains the claim's dates and evidence.
+Both object timelines show it. Use `recall(related_to=…)` to find incoming
+relationships by target object ID. A reviewed share copies both objects.
+
+### Workflow observations { #memory-gmail }
+
+A published workflow can record a verified delivery in organization memory.
+Use the existing **Gmail** or **Webhook** trigger and add
+[Record memory observation](workflow-nodes.md#memory-observe). Configure
+the business object key and property in the workflow editor. For Gmail,
+set a full verified sender address in the trigger and choose the `deadline`
+property. The accepted email line is `Deadline: YYYY-MM-DD` or
+`Deadline: cancelled`. A draft run leaves memory unchanged.
+
+A signed Webhook trigger can receive a typed observation from a CRM relay.
+The workflow principal needs organization-wide `context:edit` at publish
+and run time. Use existing approval and notification steps where the
+workflow calls for them. The action returns `changed` for a revision of
+an existing value from the same source. Replays, disputes and late
+observations can be routed separately through their status.
+
+To combine evidence from a workflow and chat, use the same business object
+key, property and typed value. Publish the chat claim to the organization
+after review. Agreement for overlapping validity keeps one entry with
+independent support. Revoking a Gmail grant hides Gmail evidence and any
+claim that depends on it alone.
+
+Open **Organization → Memories → Conflicts only** to review contradictory
+values. An editor with organization-wide `context:edit` confirms the value.
+The alternatives stay on the timeline, and the decision is audited. If the
+set of candidates changes, the editor reviews the updated list.
 
 One switch, **Allow personal memory**, drops the per-person store entirely for
 compliance or privacy; the notes kept in group chats stay.
+
+Corrections keep the current typed value when you edit the wording. Change **Recorded value** in the editor or pass `value` to `correct_memory` to replace it. A new label for an existing external key keeps the object's history under the same ID.
+
+An organization owner can use `GET /memory/source-authorities` and
+`PUT /memory/source-authorities` to assign a workflow ID per object kind
+and property. Set `workflow_id` to null to clear a selection. An admitted
+observation from that workflow can advance the property at a strictly later
+effective time. A different workflow can supply evidence or a dispute. The
+rule applies to future admissions and updates are audited.
+
+### Object aliases and backfill { #memory-object-operations }
+
+In an object's timeline, open **Object aliases** to review another object of
+the same type and audience before merging it. Personal merges belong to the
+memory owner. Shared merges require organization-wide `context:edit` and
+access to both identities. The primary timeline shows the histories together,
+and links to the alias open that timeline. Each claim keeps its original
+object and source. **Undo merge** restores the separate histories, including
+claims added after the merge. Both actions are audited. To move an identity
+that already has aliases, undo those links first.
+
+An organization owner can start or resume **Object backfill** under
+**Organization → Inbox & backfill**. A worker commits each bounded batch with
+its checkpoint, then queues the next batch. Backfill links an older claim only
+when all its recorded predecessors identify the same external object in the
+same audience, agent and property. Ambiguous or unlinked claims stay
+available in Memories. The backfill keeps their content, sources and
+timestamps and creates no Inbox cards.
+
+### Commitment changes in Inbox { #memory-inbox }
+
+An organization owner configures the sources and recipients under
+**Organization → Inbox & backfill**. The rule covers changed or cancelled
+deadlines on shared commitments and optionally routes disputed dates for
+review. It starts off. Shadow mode records counts by result and rule version.
+Live mode writes a card with the previous and new date, the source and a
+link to the object timeline. The worker rechecks the current revision,
+mailbox grant, organization membership and group access. Inbox also checks
+access each time it shows a card. Retries for the same revision, rule and
+recipient settle once. A workflow may still use its own notification step
+for a separate action.
+
+With **Compare model recommendations** enabled in Shadow, eligible changes
+also reach a budgeted job using the Memory Maintenance profile. The model
+suggests notify, digest, review or ignore. Counts compare the model with the
+deterministic rule for the selected version. The job checks the source,
+current revision and recipient access again before storing the recommendation.
 
 ### Facts, preferences and decisions { #memory-claims }
 

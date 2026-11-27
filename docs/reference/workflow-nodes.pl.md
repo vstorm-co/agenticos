@@ -1,5 +1,5 @@
 ---
-source_sha: "1b7c73e09d28"
+source_sha: "bff92f4c37ce"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -796,6 +796,33 @@ liczbą, kończy krok błędem `CHANNEL_TARGET_INVALID` przed wysłaniem czegoko
 ::: app.workflows.nodes.channel_members._handler.ChannelMembersOutput
 
 ::: app.workflows.nodes.channel_find._handler.ChannelFindOutput
+
+## memory.observe { #memory-observe }
+
+Zapisuje zweryfikowaną dostawę Gmaila albo podpisanego webhooka do pamięci
+organizacji. Wymaga opublikowanego workflow i organizacyjnego `context:edit`
+przy publikacji oraz wykonaniu. Konfiguracja określa typ, nazwę i klucz
+obiektu oraz właściwość. Wersja robocza zwraca `preview`.
+
+Dla [Gmaila](#trigger-gmail) ustaw pełny adres nadawcy w triggerze i wybierz
+`deadline`. Krok czyta potwierdzony wiersz `Deadline: YYYY-MM-DD` lub
+`Deadline: cancelled` i ponownie sprawdza autoryzację skrzynki.
+
+Dla [Webhooka](#trigger-webhook) podpisany JSON ma pola `record_key`,
+`object_key`, `subject`, `value`, `quote` i `effective_at`. Klucz obiektu
+i właściwość muszą zgadzać się z konfiguracją. Wartość to tekst, liczba
+całkowita, wartość logiczna albo null. Czas wymaga strefy lub offsetu.
+
+Wynik zawiera `claim_id`, `status` i `changed`. Warunek na `changed`
+może uruchomić [powiadomienie](#notification-send). Ponowienia, konflikty
+i opóźnione obserwacje mają osobne statusy. Obowiązują istniejące reguły
+dostaw i ponowień workflow.
+
+Aby obsłużyć wiele obiektów tego samego typu i o tej samej właściwości,
+włącz **Allow a signed webhook namespace** i ustaw prefiks, np.
+`crm:deals/`. Podpisane żądanie musi podać `object_name` oraz
+`object_key`, np. `crm:deals/42`. Bez tej opcji klucz i nazwa pochodzą
+z konfiguracji. Gmail używa stałego klucza.
 
 ## agent.run { #agent-run }
 

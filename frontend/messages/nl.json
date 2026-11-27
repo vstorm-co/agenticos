@@ -7020,6 +7020,106 @@
       }
     },
     "memory": {
+      "operations": {
+        "title": "Inbox en aanvulling",
+        "inbox": "Inboxregel voor geheugen",
+        "loading": "Laden…",
+        "loadFailed": "De gegevens konden niet worden geladen.",
+        "inboxHint": "Stuur wijzigingen in deadlines van gedeelde toezeggingen naar geselecteerde leden met toegang.",
+        "modeLabel": "Modus",
+        "off": "Uit",
+        "shadow": "Proefmodus",
+        "live": "Aan",
+        "sources": "Bronnen",
+        "gmail": "Gmail",
+        "webhook": "Ondertekende webhook",
+        "reviewed": "Beoordeeld geheugen",
+        "recipients": "Ontvangers ({count}/50)",
+        "shadowModel": "Modelaanbevelingen vergelijken met het onderhoudsbudget",
+        "modelComparison": "Regel {baseline, select, notify {melden} other {overslaan}} · model {recommendation, select, notify {melden} digest {overzicht} review {beoordelen} other {overslaan}} · {count}",
+        "includeReview": "Neem wijzigingen op die beoordeeld moeten worden",
+        "ruleRequired": "Selecteer minstens één bron en één ontvanger.",
+        "save": "Regel opslaan",
+        "reload": "Vernieuwen",
+        "saveFailed": "De regel kon niet worden opgeslagen. Vernieuw en probeer het opnieuw.",
+        "outcomes": "Resultaten van de regel",
+        "version": "Regelversie",
+        "noOutcomes": "Nog geen beslissingen voor deze versie.",
+        "outcome": "{change, select, changed {Gewijzigd} cancelled {Geannuleerd} other {Te beoordelen}} · {outcome, select, shadow {Proefmodus} delivered {Bezorgd} other {Gedempt}} · {count}",
+        "backfill": "Objecten aanvullen",
+        "backfillHint": "Koppel oudere herinneringen via de exacte externe identiteit van hun opgeslagen bronnen.",
+        "progress": "{scanned} gecontroleerd · {linked} gekoppeld",
+        "completed": "Voltooid",
+        "start": "Aanvulling starten",
+        "restart": "Nieuwe scan starten",
+        "resume": "Aanvulling hervatten",
+        "backfillFailed": "De aanvulling kon niet worden gestart of gecontroleerd.",
+        "aliases": "Objectaliassen",
+        "undo": "Samenvoeging ongedaan maken",
+        "undoNamed": "Samenvoeging met {name} ongedaan maken",
+        "moreAliases": "Meer aliassen",
+        "firstPage": "Eerste pagina",
+        "mergeWith": "Samenvoegen met {name}",
+        "mergeHint": "Beide geschiedenissen verschijnen hier. Na het ongedaan maken keert elke herinnering terug naar het oorspronkelijke object.",
+        "findAlias": "Zoek een alias",
+        "chooseAlias": "Kies een object",
+        "moreCandidates": "Meer objecten",
+        "merge": "Objecten samenvoegen",
+        "mergeFailed": "De aliassen konden niet worden gewijzigd. Vernieuw het object en probeer het opnieuw."
+      },
+      "library": {
+        "scopeLabel": "Geheugenbereik",
+        "personal": "Persoonlijk",
+        "organization": "Organisatie",
+        "memoriesView": "Geheugenweergave",
+        "claims": "Alle items",
+        "objects": "Objecten",
+        "searchObjects": "Objecten zoeken",
+        "emptyObjects": "Geen objecten gevonden",
+        "timeline": "Tijdlijn",
+        "back": "Terug naar objecten",
+        "effectiveDate": "Geldigheidsdatum",
+        "knowledgeDate": "Kennis beschikbaar op",
+        "emptyTimeline": "Geen items voor deze datum",
+        "unknown": "Onbekend",
+        "historical": "Historisch resultaat",
+        "firstPage": "Eerste pagina",
+        "nextPage": "Volgende pagina",
+        "evidence": "Bewijs",
+        "loadingEvidence": "Bewijs laden…",
+        "evidenceUnavailable": "Bewijs niet beschikbaar",
+        "withheld": "Sommige bronnen zijn afgeschermd.",
+        "sharedClaims": "Gedeelde items",
+        "searchShared": "Gedeelde items zoeken",
+        "emptyClaims": "Geen gedeelde items",
+        "sharedNotes": "Gedeelde notities",
+        "emptyNotes": "Geen gedeelde notities",
+        "share": "Delen",
+        "audience": "Ontvangers",
+        "wholeOrganization": "Hele organisatie",
+        "confirmShare": "Delen bevestigen",
+        "shareFailure": "Dit item kon niet worden gedeeld.",
+        "published": "Gedeeld",
+        "close": "Sluiten",
+        "conflictsOnly": "Alleen conflicten",
+        "conflictPending": "Wacht op beoordeling",
+        "conflictPick": "Welke waarde moet het bedrijfsgeheugen gebruiken?",
+        "conflictConfirm": "Waarde bevestigen",
+        "conflictResolved": "Geheugenconflict opgelost",
+        "conflictChanged": "Dit conflict is gewijzigd. Controleer de bijgewerkte waarden.",
+        "gmailSource": "Gmail",
+        "webhookSource": "Ondertekende webhook",
+        "previous": "Vorige: {statement}",
+        "validity": "Van {start} tot {end}",
+        "shareHint": "Controleer de ontvangers. Je deelt een kopie van dit item.",
+        "kind": {
+          "all": "Alle",
+          "person": "Personen",
+          "company": "Bedrijven en klanten",
+          "project": "Projecten",
+          "commitment": "Toezeggingen"
+        }
+      },
       "showing": "{from}–{to} van {total} getoond",
       "older": "Ouder",
       "title": "Je geheugen",
@@ -7042,6 +7142,7 @@
         "correct": "Herinnering corrigeren",
         "retract": "Niet meer gebruiken",
         "statement": "Gecorrigeerde bewering",
+        "typedValue": "Opgeslagen waarde",
         "effectiveFrom": "Geldt vanaf",
         "cancel": "Annuleren",
         "save": "Correctie opslaan",
@@ -7116,6 +7217,23 @@
           "other": "Herinnering"
         },
         "editNoteHint": "Corrigeer wat de agent over je onthoudt. Je bewerkingen worden apart vastgelegd van wat de agent oorspronkelijk schreef.",
+        "noteAutoUpdate": "Automatische updates",
+        "noteAutoUpdateHint": "Sta Memory Maintenance toe deze notitie bij te werken op basis van toekomstige privégesprekken. Eerdere versies blijven beschikbaar.",
+        "noteOpenObject": "Gekoppeld object openen",
+        "noteHistory": "Versiegeschiedenis",
+        "noteHistoryError": "Kan versies niet laden.",
+        "noteHistoryEmpty": "Deze notitie heeft geen eerdere versies.",
+        "noteRevisionAgent": "bewerking door de agent",
+        "noteRevisionPerson": "jouw bewerking",
+        "noteRevisionMaintenance": "automatische update",
+        "noteRevisionRestore": "herstel",
+        "noteRevisionIdentical": "Bij deze wijziging is de tekst gelijk gebleven.",
+        "noteRevisionTooLong": "Deze versie is te lang om regel voor regel te vergelijken.",
+        "noteRevisionSource": "Bronconversatie openen",
+        "noteRevisionLabel": "Vóór {origin} · {when}",
+        "noteRestoreVersion": "Deze versie herstellen",
+        "noteNewerVersions": "Nieuwere versies",
+        "noteOlderVersions": "Oudere versies",
         "noteDetails": "Details"
       }
     },
@@ -8365,6 +8483,8 @@
       "prefAnnouncementTrigger": "Een app-beheerder stuurt een bericht naar een gekozen doelgroep binnen de installatie.",
       "prefWorkflowNotification": "Workflowmeldingen",
       "prefWorkflowNotificationTrigger": "Een workflow die je kunt zien, stuurt je een bericht vanuit een van zijn stappen.",
+      "prefMemoryDeadlineChange": "Deadlinewijzigingen in geheugen",
+      "prefMemoryDeadlineChangeTrigger": "De deadline van een gedeelde toezegging die je kunt lezen, wijzigt, vervalt of moet worden beoordeeld.",
       "prefWorkflowLogAlert": "Waarschuwingen uit workflowlogs",
       "prefWorkflowLogAlertTrigger": "Een workflow die je kunt zien, overschrijdt een waarschuwingsdrempel in zijn log.",
       "prefArtifactOwnerChanged": "Nieuwe eigenaar van een pagina",
@@ -11667,6 +11787,7 @@
       "backgroundTaskPaused": "Achtergrondtaken van de soort {kind} zijn gepauzeerd{scoped, select, yes { voor {organization}} other {}}: {reason}. Hervat ze op de pagina Achtergrondtaken zodra de oorzaak is opgelost.",
       "configurationChanged": "De instellingen van de installatie zijn bijgewerkt.",
       "usageReport": "Gebruiksrapport voor {name}",
+      "memoryDeadlineChange": "{name} · {change, select, changed {Deadline gewijzigd} cancelled {Deadline geannuleerd} other {Deadline beoordelen}} · {before} → {after} · {source, select, gmail {Gmail} webhook {Ondertekende webhook} other {Beoordeeld geheugen}}",
       "workflowLogAlert": "{rule}: {count, plural, one {# voorval} other {# voorvallen}} in het log van {workflow} in de afgelopen {unit, select, hours {{hours, plural, one {# uur} other {# uur}}} other {{minutes, plural, one {# minuut} other {# minuten}}}}.",
       "coalesced": {
         "securityEvent": "Er kwamen in één minuut meer beveiligingsgebeurtenissen binnen dan deze inbox afzonderlijk toont. Ze staan allemaal in het auditlog.",
@@ -19229,6 +19350,10 @@
         "name": "Een afbeelding bewerken",
         "description": "Bijsnijden, schalen, draaien of omzetten van een PNG-, JPEG-, WebP- of GIF-afbeelding, met de metadata verwijderd en de grootte begrensd voordat ze wordt gedecodeerd."
       },
+      "memory_observe": {
+        "name": "Waarneming opslaan",
+        "description": "Sla een geverifieerde levering met datum en bewijs op in het organisatiegeheugen."
+      },
       "knowledge_add": {
         "name": "Aan kennis toevoegen",
         "description": "Zet een tekst of een bestand in kenniscollecties, zodat agents het vinden."
@@ -20606,6 +20731,27 @@
           },
           "file__byte_size": {
             "title": "Grootte in bytes"
+          }
+        }
+      },
+      "memory_observe": {
+        "config": {
+          "object_kind": {
+            "title": "Objecttype"
+          },
+          "object_name": {
+            "title": "Objectnaam"
+          },
+          "object_key": {
+            "title": "Sleutel bedrijfsobject"
+          },
+          "use_key_prefix": {
+            "title": "Naamruimte voor ondertekende webhook toestaan",
+            "description": "Gebruik de sleutel van het bedrijfsobject als naamruimte die eindigt op '/', bijvoorbeeld crm:deals/."
+          },
+          "subject": {
+            "title": "Eigenschap",
+            "description": "Gebruik deadline voor Gmail."
           }
         }
       },

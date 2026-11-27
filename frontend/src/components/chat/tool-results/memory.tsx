@@ -20,6 +20,11 @@ export function MemoryToolResult({
   const t = useTranslations("chat.tools");
   const statement = recordedMemoryStatement(toolCall);
   const labels = useTranslations("pages.memory.browser");
+  const object = statement
+    ? /^Recorded \(claim [a-f0-9-]{36}, object ([a-f0-9-]{36}), scope (profile|this agent)\)/i.exec(
+        resultText,
+      )?.[1]
+    : undefined;
   const kind = toolCall.args.kind;
   const kindLabel = kind === "fact" || kind === "preference" || kind === "decision" ? kind : "fact";
   return (
@@ -30,7 +35,7 @@ export function MemoryToolResult({
           {t("memoryResult")}
         </span>
         <Link
-          href="/settings/memory"
+          href={object ? `/settings/memory?object=${object}` : "/settings/memory"}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs"
         >
           {t("manageMemory")}

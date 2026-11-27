@@ -10,13 +10,16 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.memory_keys import organization_owner_key, person_owner_key
 from app.db.models.agent import Agent
+from app.db.models.memory_claim import MemoryClaim
 from app.db.models.organization import Organization
 from app.db.models.user import User
 from app.repositories import memory_claim as claim_repo
+from app.repositories import memory_repo
 from app.repositories.memory_claim import ClaimScope
 from app.services.memory import claims
 
@@ -115,6 +118,180 @@ async def test_two_agents_disagreeing_is_a_dispute_not_a_winner(db: AsyncSession
         db, organization_id=org.id, scopes=[scope], statuses=("disputed",)
     )
     assert {claim.statement for claim in disputed} == {"Prefers email", "Prefers phone"}
+
+
+async def test_note_search_ignores_suppressed_notes_and_other_stores(db: AsyncSession) -> None:
+    org, user, first_agent, other_agent = await _tenant(db)
+    other_org, other_user, _, _ = await _tenant(db)
+    owner_key = person_owner_key(user.id)
+    for tenant, agent, store, name in (
+        (org.id, first_agent.id, owner_key, "atlas"),
+        (org.id, first_agent.id, owner_key, "suppressed"),
+        (org.id, other_agent.id, owner_key, "other-agent"),
+        (org.id, first_agent.id, person_owner_key(other_user.id), "other-person"),
+    ):
+        note = await memory_repo.create(
+            db,
+            organization_id=tenant,
+            agent_id=agent,
+            owner_key=store,
+            name=name,
+            description=None,
+            kind="note",
+            content="Passation pour l'équipe Atlas",
+            content_format="md",
+        )
+        if name == "suppressed":
+            note.deactivated_at = datetime.now(UTC)
+    await db.flush()
+
+    async def find(tenant: uuid.UUID) -> list[str]:
+        return [
+            note.name
+            for note in await memory_repo.search_notes(
+                db,
+                organization_id=tenant,
+                agent_id=first_agent.id,
+                owner_key=owner_key,
+                terms=["passation"],
+                limit=4,
+            )
+        ]
+
+    assert await find(org.id) == ["atlas"]
+    assert await find(other_org.id) == []
+    assert (
+        await memory_repo.search_notes(
+            db,
+            organization_id=org.id,
+            agent_id=first_agent.id,
+            owner_key=owner_key,
+            terms=[],
+            limit=4,
+        )
+        == []
+    )
+    assert (
+        await memory_repo.search_notes(
+            db,
+            organization_id=org.id,
+            agent_id=first_agent.id,
+            owner_key=owner_key,
+            terms=[],
+            object_id=uuid.uuid4(),
+            limit=4,
+        )
+        == []
+    )
+
+
+async def test_historical_recall_ranks_status_at_the_requested_cutoff(db: AsyncSession) -> None:
+    org, user, *_ = await _tenant(db)
+    scope = ClaimScope(person_owner_key(user.id))
+    effective = datetime(2024, 1, 1, tzinfo=UTC)
+    first = await claim_repo.create(
+        db,
+        organization_id=org.id,
+        scope_key=scope.scope_key,
+        statement="Atlas confirmed owner",
+        kind="fact",
+        origin="person",
+        status="current",
+        observed_at=datetime.now(UTC),
+        effective_from=effective,
+    )
+    second = await claim_repo.create(
+        db,
+        organization_id=org.id,
+        scope_key=scope.scope_key,
+        statement="Atlas alternate owner",
+        kind="fact",
+        origin="agent",
+        status="disputed",
+        observed_at=datetime.now(UTC),
+        effective_from=effective,
+    )
+    cutoff = datetime.now(UTC)
+    await claim_repo.set_status(db, first, "disputed")
+    await claim_repo.set_status(db, second, "current")
+
+    async def top(known_at: datetime | None) -> list[uuid.UUID]:
+        rows = await claims.recall(
+            db,
+            organization_id=org.id,
+            scopes=[scope],
+            query="Atlas owner",
+            as_of=effective,
+            known_at=known_at,
+            limit=1,
+        )
+        return [row.id for row in rows]
+
+    assert await top(None) == [second.id]
+    assert await top(cutoff) == [first.id]
+
+
+async def test_consolidation_reaches_agreement_hidden_by_newer_claims(db: AsyncSession) -> None:
+    org, user, finance, _ = await _tenant(db)
+    key = person_owner_key(user.id)
+    first = await _raw(db, org, key, "Prefers email", subject="channel")
+    second = await _raw(db, org, key, "prefers email", subject="channel")
+    private = await _raw(db, org, key, "Prefers phone", subject="channel", agent_id=finance.id)
+    await db.execute(
+        insert(MemoryClaim),
+        [
+            {
+                "organization_id": org.id,
+                "scope_key": key,
+                "statement": f"Unrelated observation {index}",
+                "kind": "fact",
+                "origin": "agent",
+                "status": "current",
+                "observed_at": datetime.now(UTC),
+            }
+            for index in range(501)
+        ],
+    )
+    await claim_repo.bump_revision(db, organization_id=org.id, scope_key=key)
+
+    result = await claims.consolidate(db, organization_id=org.id, scope_key=key)
+
+    assert result.merged == 2
+    await db.refresh(first)
+    await db.refresh(second)
+    assert first.status == second.status == "merged"
+    await db.refresh(private)
+    assert private.status == "current"
+
+
+async def test_consolidation_resumes_and_revisits_subjects_changed_between_batches(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    org, user, *_ = await _tenant(db)
+    org_id = org.id
+    key = person_owner_key(user.id)
+    monkeypatch.setattr(claims, "CONSOLIDATION_SUBJECTS_PER_BATCH", 1)
+    for subject in ("contact", "owner"):
+        await _raw(db, org, key, "Anna", subject=subject)
+        await _raw(db, org, key, "anna", subject=subject)
+    await claim_repo.bump_revision(db, organization_id=org_id, scope_key=key)
+
+    first = await claims.consolidate(db, organization_id=org_id, scope_key=key)
+    assert first.merged == 2
+    await db.commit()
+    async with AsyncSession(db.bind) as resumed:
+        org = await resumed.get(Organization, org_id)
+        assert org is not None
+        await _raw(resumed, org, key, "Prefers text", subject="availability")
+        await _raw(resumed, org, key, "Prefers phone", subject="availability")
+        await claim_repo.bump_revision(resumed, organization_id=org_id, scope_key=key)
+        second = await claims.consolidate(resumed, organization_id=org_id, scope_key=key)
+        assert second.merged == 2 and second.disputed == 0
+        pending = await claim_repo.scopes_with_changes(resumed, limit=10)
+        assert key in {state.scope_key for state in pending}
+        third = await claims.consolidate(resumed, organization_id=org_id, scope_key=key)
+        assert third.disputed == 2
+        assert not (await claims.consolidate(resumed, organization_id=org_id, scope_key=key)).ran
 
 
 async def test_consolidation_folds_agreement_once_and_is_idempotent(db: AsyncSession) -> None:

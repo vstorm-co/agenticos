@@ -11,7 +11,13 @@ import { MemoryAgentAvatar } from "./memory-agent-avatar";
 import { NoteDetail } from "./note-detail";
 import { MemoryPager, MemoryRow } from "./memory-list";
 
-export function MyNotes({ agents }: { agents: readonly AgentUsage[] }) {
+export function MyNotes({
+  agents,
+  canShare,
+}: {
+  agents: readonly AgentUsage[];
+  canShare?: boolean;
+}) {
   const t = useTranslations("pages.memory");
   const view = useTranslations("pages.memory.browser");
   const [q, setQ] = useState("");
@@ -105,6 +111,7 @@ export function MyNotes({ agents }: { agents: readonly AgentUsage[] }) {
           key={note.id}
           note={note}
           agent={agents.find((agent) => agent.id === note.agent_id)}
+          canShare={canShare}
           onClose={() => setSelected(null)}
           setActive={setActive}
           remove={remove}

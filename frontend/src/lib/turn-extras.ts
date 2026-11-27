@@ -132,7 +132,9 @@ export function recordedMemoryStatement(call: ToolCall): string | null {
     call.status !== "completed" ||
     !["remember", "correct_memory"].includes(toolLookupName(call)) ||
     typeof call.result !== "string" ||
-    !/^(Recorded|Corrected) \(claim [0-9a-f-]{36}\)/i.test(call.result)
+    !/^(Recorded|Corrected) \(claim [0-9a-f-]{36}(?:, object [0-9a-f-]{36}, scope [a-z ]+)?\)/i.test(
+      call.result,
+    )
   )
     return null;
   return typeof call.args.statement === "string" ? call.args.statement : null;

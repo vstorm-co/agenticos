@@ -520,6 +520,7 @@
       "backgroundTaskPaused": "{kind} türündeki arka plan işleri{scoped, select, yes { {organization} için} other {}} duraklatıldı: {reason}. Neden giderildiğinde bunları Arka plan işleri sayfasından sürdürün.",
       "configurationChanged": "Dağıtımın ayarları güncellendi.",
       "usageReport": "{name} için kullanım raporu",
+      "memoryDeadlineChange": "{name} · {change, select, changed {Tarih değişti} cancelled {Tarih iptal edildi} other {Tarih incelenmeli}} · {before} → {after} · {source, select, gmail {Gmail} webhook {İmzalı webhook} other {İncelenen bellek}}",
       "workflowLogAlert": "{rule}: son {unit, select, hours {{hours, plural, one {# saatte} other {# saatte}}} other {{minutes, plural, one {# dakikada} other {# dakikada}}}} {workflow} logunda {count, plural, one {# kez} other {# kez}}.",
       "coalesced": {
         "securityEvent": "Bir dakika içinde bu gelen kutusunun tek tek listelediğinden daha fazla güvenlik olayı geldi. Hepsi denetim kaydında.",
@@ -2560,6 +2561,109 @@
       }
     },
     "memory": {
+      "claims": {
+        "typedValue": "Kaydedilen değer"
+      },
+      "operations": {
+        "title": "Gelen kutusu ve geçmişi tamamlama",
+        "inbox": "Bellek bildirim kuralı",
+        "loading": "Yükleniyor…",
+        "loadFailed": "Veriler yüklenemedi.",
+        "inboxHint": "Ortak taahhütlerdeki tarih değişikliklerini erişimi olan seçili üyelere gönderin.",
+        "modeLabel": "Mod",
+        "off": "Kapalı",
+        "shadow": "Deneme",
+        "live": "Açık",
+        "sources": "Kaynaklar",
+        "gmail": "Gmail",
+        "webhook": "İmzalı webhook",
+        "reviewed": "İncelenen bellek",
+        "recipients": "Alıcılar ({count}/50)",
+        "shadowModel": "Bakım bütçesiyle model önerilerini karşılaştır",
+        "modelComparison": "Kural {baseline, select, notify {bildir} other {atla}} · model {recommendation, select, notify {bildir} digest {özet} review {incele} other {atla}} · {count}",
+        "includeReview": "İnceleme gereken değişiklikleri dahil et",
+        "ruleRequired": "En az bir kaynak ve bir alıcı seçin.",
+        "save": "Kuralı kaydet",
+        "reload": "Yenile",
+        "saveFailed": "Kural kaydedilemedi. Yenileyip tekrar deneyin.",
+        "outcomes": "Kural sonuçları",
+        "version": "Kural sürümü",
+        "noOutcomes": "Bu sürüm için henüz karar yok.",
+        "outcome": "{change, select, changed {Değişti} cancelled {İptal} other {İncelenmeli}} · {outcome, select, shadow {Deneme} delivered {İletildi} other {Sessize alındı}} · {count}",
+        "backfill": "Nesne geçmişini tamamlama",
+        "backfillHint": "Eski kayıtları kaydedilen kaynakların tam harici kimliğiyle ilişkilendirin.",
+        "progress": "{scanned} tarandı · {linked} ilişkilendirildi",
+        "completed": "Tamamlandı",
+        "start": "Taramayı başlat",
+        "restart": "Yeni tarama başlat",
+        "resume": "Taramaya devam et",
+        "backfillFailed": "Tarama başlatılamadı veya denetlenemedi.",
+        "aliases": "Nesne takma adları",
+        "undo": "Birleştirmeyi geri al",
+        "undoNamed": "{name} ile birleştirmeyi geri al",
+        "moreAliases": "Daha fazla takma ad",
+        "firstPage": "İlk sayfa",
+        "mergeWith": "{name} ile birleştir",
+        "mergeHint": "Her iki geçmiş burada görünür. Geri alma her kaydı asıl nesnesine döndürür.",
+        "findAlias": "Takma ad ara",
+        "chooseAlias": "Nesne seç",
+        "moreCandidates": "Daha fazla nesne",
+        "merge": "Nesneleri birleştir",
+        "mergeFailed": "Takma adlar değiştirilemedi. Nesneyi yenileyip tekrar deneyin."
+      },
+      "library": {
+        "scopeLabel": "Bellek kapsamı",
+        "personal": "Kişisel",
+        "organization": "Kuruluş",
+        "memoriesView": "Bellek görünümü",
+        "claims": "Tüm kayıtlar",
+        "objects": "Nesneler",
+        "searchObjects": "Nesne ara",
+        "emptyObjects": "Nesne bulunamadı",
+        "timeline": "Zaman çizelgesi",
+        "back": "Nesnelere dön",
+        "effectiveDate": "Geçerlilik tarihi",
+        "knowledgeDate": "Bilginin kesim tarihi",
+        "emptyTimeline": "Bu tarihe ait kayıt yok",
+        "unknown": "Bilinmiyor",
+        "historical": "Geçmiş sonuç",
+        "firstPage": "İlk sayfa",
+        "nextPage": "Sonraki sayfa",
+        "evidence": "Kanıt",
+        "loadingEvidence": "Kanıt yükleniyor…",
+        "evidenceUnavailable": "Kanıt kullanılamıyor",
+        "withheld": "Bazı kaynaklara erişim kısıtlıdır.",
+        "sharedClaims": "Paylaşılan kayıtlar",
+        "searchShared": "Paylaşılan kayıtları ara",
+        "emptyClaims": "Paylaşılan kayıt yok",
+        "sharedNotes": "Paylaşılan notlar",
+        "emptyNotes": "Paylaşılan not yok",
+        "share": "Paylaş",
+        "audience": "Alıcılar",
+        "wholeOrganization": "Tüm kuruluş",
+        "confirmShare": "Paylaşımı onayla",
+        "shareFailure": "Bu kayıt paylaşılamadı.",
+        "published": "Paylaşıldı",
+        "close": "Kapat",
+        "conflictsOnly": "Yalnızca çakışmalar",
+        "conflictPending": "İnceleme bekliyor",
+        "conflictPick": "Şirket belleği hangi değeri kullanmalı?",
+        "conflictConfirm": "Değeri onayla",
+        "conflictResolved": "Bellek çakışması çözüldü",
+        "conflictChanged": "Bu çakışma değişti. Güncel değerleri inceleyin.",
+        "gmailSource": "Gmail",
+        "webhookSource": "İmzalı webhook",
+        "previous": "Önceki: {statement}",
+        "validity": "{start} ile {end} arası",
+        "shareHint": "Alıcıları kontrol edin. Bu kaydın bir kopyası paylaşılır.",
+        "kind": {
+          "all": "Tümü",
+          "person": "Kişiler",
+          "company": "Şirketler ve müşteriler",
+          "project": "Projeler",
+          "commitment": "Taahhütler"
+        }
+      },
       "showing": "{total} kayıttan {from}–{to} arası gösteriliyor",
       "older": "Daha eski",
       "title": "Belleğiniz",
@@ -2572,7 +2676,24 @@
       "restore": "Bu notu yeniden kullan",
       "delete": "Bu notu sil",
       "browser": {
-        "editNoteHint": "Agent’ın sizin hakkınızda hatırladıklarını düzeltin. Düzenlemeleriniz ilk agent kaydından ayrı tutulur."
+        "editNoteHint": "Agent’ın sizin hakkınızda hatırladıklarını düzeltin. Düzenlemeleriniz ilk agent kaydından ayrı tutulur.",
+        "noteAutoUpdate": "Otomatik güncellemeler",
+        "noteAutoUpdateHint": "Memory Maintenance aracının gelecekteki özel görüşmelerden yararlanarak bu notu güncellemesine izin verin. Önceki sürümlere erişebilirsiniz.",
+        "noteOpenObject": "Bağlı nesneyi aç",
+        "noteHistory": "Sürüm geçmişi",
+        "noteHistoryError": "Sürümler yüklenemedi.",
+        "noteHistoryEmpty": "Bu notun önceki sürümü yok.",
+        "noteRevisionAgent": "ajan düzenlemesi",
+        "noteRevisionPerson": "düzenlemeniz",
+        "noteRevisionMaintenance": "otomatik güncelleme",
+        "noteRevisionRestore": "geri yükleme",
+        "noteRevisionIdentical": "Bu güncelleme metni değiştirmedi.",
+        "noteRevisionTooLong": "Bu sürüm satır satır karşılaştırma için çok uzun.",
+        "noteRevisionSource": "Kaynak konuşmayı aç",
+        "noteRevisionLabel": "{origin} öncesi · {when}",
+        "noteRestoreVersion": "Bu sürümü geri yükle",
+        "noteNewerVersions": "Daha yeni sürümler",
+        "noteOlderVersions": "Daha eski sürümler"
       }
     },
     "agentDetail": {
@@ -3757,6 +3878,8 @@
       "prefAnnouncementTrigger": "Uygulama yöneticisi, dağıtım genelinde seçilen kitleye mesaj gönderir.",
       "prefWorkflowNotification": "Workflow bildirimleri",
       "prefWorkflowNotificationTrigger": "Görebildiğiniz bir workflow, adımlarından biri aracılığıyla size mesaj gönderir.",
+      "prefMemoryDeadlineChange": "Bellekteki tarih değişiklikleri",
+      "prefMemoryDeadlineChangeTrigger": "Erişebildiğiniz ortak bir taahhüdün tarihi değişti, iptal edildi veya incelenmeli.",
       "prefWorkflowLogAlert": "Workflow log uyarıları",
       "prefWorkflowLogAlertTrigger": "Görebildiğiniz bir workflowun logu, uyarı eşiğini aşar.",
       "prefArtifactOwnerChanged": "Sayfa sahipliği değişiklikleri",
@@ -14654,6 +14777,10 @@
         "name": "Görseli dönüştür",
         "description": "PNG, JPEG, WebP veya GIF görselini kırpın, yeniden boyutlandırın, döndürün ya da dönüştürün; meta verileri kaldırılır ve çözülmeden önce boyutu sınırlanır."
       },
+      "memory_observe": {
+        "name": "Belleğe gözlem kaydet",
+        "description": "Doğrulanmış bir olayı tarihi ve kanıtıyla kuruluş belleğine kaydedin."
+      },
       "knowledge_add": {
         "name": "Bilgi tabanına ekle",
         "description": "Agent’ların bulabilmesi için bir metni veya dosyayı bilgi tabanlarına ekleyin."
@@ -16050,6 +16177,27 @@
           },
           "file__byte_size": {
             "title": "Bayt cinsinden boyut"
+          }
+        }
+      },
+      "memory_observe": {
+        "config": {
+          "object_kind": {
+            "title": "Nesne türü"
+          },
+          "object_name": {
+            "title": "Nesne adı"
+          },
+          "object_key": {
+            "title": "İş nesnesi anahtarı"
+          },
+          "use_key_prefix": {
+            "title": "İmzalı webhook ad alanına izin ver",
+            "description": "İş nesnesi anahtarını '/' ile biten bir ad alanı olarak kullanın, örneğin crm:deals/."
+          },
+          "subject": {
+            "title": "Özellik",
+            "description": "Gmail için deadline kullanın."
           }
         }
       },

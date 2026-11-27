@@ -55,6 +55,7 @@ async def list_notifications(
             row,
             strip_context_url=gates[row.id].strip_context_url,
             summary_override=gates[row.id].summary_override,
+            wording_override=gates[row.id].wording_override,
         )
         for row in rows
     ]
@@ -136,6 +137,7 @@ async def mark_notification_read(
         notification,
         strip_context_url=gate.strip_context_url,
         summary_override=gate.summary_override,
+        wording_override=gate.wording_override,
     )
 
 

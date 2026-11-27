@@ -18,9 +18,9 @@ from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import RunStatus, RunSurface
 from app.db.models.background_job import BackgroundJob
-from app.db.models.conversation import Conversation, Message
+from app.db.models.conversation import Conversation, Message, ToolCall
 from app.db.models.credential import ModelProfile
-from app.db.models.memory_claim import MemoryClaim
+from app.db.models.memory_claim import MemoryClaim, MemoryClaimEvidence
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.system_agent_profile import DAILY_BRIEFING, MEMORY_MAINTENANCE
 from app.db.models.user import User
@@ -374,10 +374,12 @@ async def test_a_finished_chat_is_read_once_into_claims_in_its_own_scope(
                 profile=True,
             ),
             extraction._Extracted(statement="Invented assistant-only claim", evidence="Noted"),
+            extraction._Extracted(statement="Insufficient evidence", evidence="  I "),
             extraction._Extracted(
                 statement="The Acme renewal is due in March",
                 evidence="The Acme renewal is due in March",
                 subject="acme",
+                object_ref={"kind": "company", "name": "Acme", "external_key": "untrusted"},
             ),
         ],
     )
@@ -409,6 +411,13 @@ async def test_a_finished_chat_is_read_once_into_claims_in_its_own_scope(
     assert by_text["Prefers short answers"].agent_id is None
     assert by_text["The Acme renewal is due in March"].agent_id == agent.id
     assert all(claim.source_run_id == run.id and claim.origin == "agent" for claim in claims)
+    linked = by_text["The Acme renewal is due in March"]
+    assert linked.object_id is not None
+    from app.services.memory import MemoryService
+
+    detail = await MemoryService(db).claim_detail(ctx, linked.id)
+    assert [evidence.quote for evidence in detail.evidence] == ["The Acme renewal is due in March"]
+    assert detail.evidence[0].source_id == human[1]["source_id"]
 
 
 @pytest.mark.parametrize(
@@ -486,7 +495,7 @@ async def test_the_job_reads_one_run_in_its_own_session(
     assert (
         await memory_tasks.extract_memory(ExtractMemory(organization_id=org_id, run_id=run_id)) == 3
     )
-    read.assert_awaited_once_with(db, org_id, run_id)
+    read.assert_awaited_once_with(db, org_id, run_id, write_notes=True)
 
 
 @pytest.mark.parametrize("moved", ["project", "edit share"])
@@ -906,7 +915,11 @@ async def test_the_worker_preserves_a_room_audience(
     )
     assert await memory_tasks.extract_memory(payload) == 1
     read.assert_awaited_once_with(
-        db, org_id, run_id, audience=RunAudience(user_id=user_id, room_key="room:slack:C123")
+        db,
+        org_id,
+        run_id,
+        audience=RunAudience(user_id=user_id, room_key="room:slack:C123"),
+        write_notes=True,
     )
 
 
@@ -1009,3 +1022,38 @@ async def test_removing_a_maintenance_model_disables_its_role(db: AsyncSession) 
     await ModelProfileService(db).delete_profile(ctx, model.id)
     profile = await system_agent_repo.get(db, organization_id=org.id, role=MEMORY_MAINTENANCE)
     assert profile is not None and profile.enabled is False and profile.model_profile_id is None
+
+
+async def test_native_answer_contributes_without_forging_message_evidence(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, org, agent, version, _, _ = await _world(db)
+    run, conversation = await _chat_run(db, org, agent, version, user)
+    await _transcript(db, conversation, run, [("assistant", "")])
+    message_id = await db.scalar(select(Message.id).where(Message.run_id == run.id))
+    assert message_id is not None
+    db.add(
+        ToolCall(
+            message_id=message_id,
+            tool_call_id="question-about-dates",
+            tool_name="ask_user_question",
+            tool_id="ask_user_question",
+            args={"questions": [{"header": "Dates", "question": "Report date format?"}]},
+            result=json.dumps({"Dates": ["ISO dates"]}),
+            status="completed",
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
+        )
+    )
+    await db.flush()
+    _think(
+        monkeypatch,
+        [extraction._Extracted(statement="Use ISO dates in reports", evidence="ISO dates")],
+    )
+    assert await extraction.extract(db, org.id, run.id) == 1
+    claim = await db.scalar(select(MemoryClaim).where(MemoryClaim.source_run_id == run.id))
+    assert claim is not None and claim.statement == "Use ISO dates in reports"
+    assert (
+        await db.scalar(select(MemoryClaimEvidence).where(MemoryClaimEvidence.claim_id == claim.id))
+        is None
+    )

@@ -419,6 +419,28 @@ class ExtractMemory(Payload):
         return self
 
 
+class DeliverMemoryInbox(Payload):
+    """Recheck and deliver one shared memory transition."""
+
+    organization_id: UUID
+    claim_id: UUID
+    previous_id: UUID
+    rule_version: int
+    policy_version: int
+    revision_at: datetime
+    change: Literal["changed", "cancelled", "review"]
+    source: Literal["gmail", "webhook", "reviewed"]
+    source_event_id: UUID | None = None
+
+
+class BackfillMemoryObjects(Payload):
+    """One bounded step of a backfill requested by an organization owner."""
+
+    organization_id: UUID
+    requested_by: UUID
+    cutoff: datetime
+
+
 class LookThroughWatch(Payload):
     """One person's watch over one of their connections, due for a look (#2301)."""
 
@@ -803,6 +825,30 @@ EXTRACT_MEMORY = Task(
     timeout=timedelta(minutes=5),
     priority=Priority.BULK,
 )
+DELIVER_MEMORY_INBOX = Task(
+    kind="deliver-memory-inbox",
+    payload_type=DeliverMemoryInbox,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=1),
+    priority=Priority.SCHEDULED,
+)
+SHADOW_MEMORY_INBOX = Task(
+    kind="shadow-memory-inbox",
+    payload_type=DeliverMemoryInbox,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=3),
+    priority=Priority.BULK,
+)
+BACKFILL_MEMORY_OBJECTS = Task(
+    kind="backfill-memory-objects",
+    payload_type=BackfillMemoryObjects,
+    pool=Pool.SYSTEM,
+    max_attempts=3,
+    timeout=timedelta(minutes=1),
+    priority=Priority.BULK,
+)
 # One attempt, like the nightly look: a model call on the person's limit, and the
 # watch's next look is the retry.
 LOOK_THROUGH_WATCH = Task(
@@ -1122,6 +1168,9 @@ TASKS: dict[str, TaskKind] = {
         WORKFLOW_DISPATCH_NODE,
         THINK_FOR_PERSON,
         EXTRACT_MEMORY,
+        DELIVER_MEMORY_INBOX,
+        SHADOW_MEMORY_INBOX,
+        BACKFILL_MEMORY_OBJECTS,
         LOOK_THROUGH_WATCH,
         BRIEF_PERSON,
         INSTALL_ROLE_PACK,

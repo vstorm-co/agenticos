@@ -25,6 +25,7 @@ from app.core.permissions import AuthContext, OrgRoleName
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.organization import Organization
 from app.db.models.resource_grant import Visibility
+from app.db.models.system_agent_profile import MEMORY_MAINTENANCE
 from app.db.session import get_db_context
 from app.repositories import (
     agent_repo,
@@ -32,8 +33,10 @@ from app.repositories import (
     mcp_registry_server_repo,
     member_repo,
     organization_repo,
+    system_agent_repo,
 )
 from app.schemas.organization import OrganizationCreate
+from app.schemas.system_agent import SystemAgentUpdate
 from app.schemas.user import UserCreate
 from app.services import agent_templates, mcp_audit
 from app.services.agent_registry import AgentRegistryService, slugify
@@ -43,6 +46,7 @@ from app.services.model_profile import ModelProfileService
 from app.services.organization import OrganizationService
 from app.services.organization_secret import OrganizationSecretService
 from app.services.sandbox_connection import SandboxConnectionService
+from app.services.system_agent import SystemAgentService
 from app.services.user import UserService
 
 # Model ids for the providers bootstrap offers, so the demo agent runs without
@@ -83,6 +87,11 @@ DEFAULT_ORGANIZATION = "Acme"
     help="Provider API key. Without it the agent is created but cannot run.",
 )
 @click.option("--model", "model_id", default=None, help="Model id (defaults per provider)")
+@click.option(
+    "--memory-maintenance-model",
+    envvar="BOOTSTRAP_MEMORY_MAINTENANCE_MODEL",
+    help="Enable Memory maintenance on this separate model, using the selected provider's key.",
+)
 def bootstrap(
     email: str,
     password: str,
@@ -90,9 +99,20 @@ def bootstrap(
     provider: str,
     api_key: str | None,
     model_id: str | None,
+    memory_maintenance_model: str | None,
 ) -> None:
     """Walk a fresh install to a running agent."""
-    asyncio.run(_bootstrap(email, password, org_name, provider, api_key, model_id))
+    asyncio.run(
+        _bootstrap(
+            email,
+            password,
+            org_name,
+            provider,
+            api_key,
+            model_id,
+            memory_maintenance_model=memory_maintenance_model,
+        )
+    )
 
 
 async def _bootstrap(
@@ -102,6 +122,8 @@ async def _bootstrap(
     provider: str,
     api_key: str | None,
     model_id: str | None,
+    *,
+    memory_maintenance_model: str | None = None,
 ) -> None:
     async with get_db_context() as db:
         user_service = UserService(db)
@@ -135,6 +157,8 @@ async def _bootstrap(
 
         profile_id = await _resolve_model(db, ctx, provider, api_key, model_id)
         await _resolve_starter_agents(db, ctx, profile_id)
+        if memory_maintenance_model is not None:
+            await _configure_memory_maintenance(db, ctx, profile_id, memory_maintenance_model)
         await _resolve_mcp_mirror(db)
         await db.commit()
 
@@ -294,6 +318,51 @@ async def _resolve_model(
     )
     success(f"Created model {profile.label} ({model})")
     return profile.id
+
+
+async def _configure_memory_maintenance(
+    db: AsyncSession, ctx: AuthContext, profile_id: uuid.UUID | None, model: str
+) -> None:
+    """Give the opted-in role a separately configured profile on the bootstrap credential."""
+    default = (
+        await credential_repo.get_profile(db, profile_id, organization_id=ctx.organization_id)
+        if profile_id is not None
+        else None
+    )
+    if default is None or default.secret_id is None:
+        raise click.ClickException("Memory maintenance needs a keyed bootstrap model profile.")
+    label = f"{default.provider} memory maintenance ({model})"[:128]
+    maintenance = await credential_repo.get_profile_by_label(
+        db, label, organization_id=ctx.organization_id
+    )
+    if maintenance is None:
+        maintenance = await ModelProfileService(db).create_profile(
+            ctx,
+            label=label,
+            provider=default.provider,
+            model=model,
+            secret_id=default.secret_id,
+            params={"thinking": "low"},
+        )
+    elif maintenance.provider != default.provider or maintenance.model != model:
+        raise click.ClickException(
+            "A model profile with the Memory maintenance label already exists."
+        )
+
+    current = await system_agent_repo.get(
+        db, organization_id=ctx.organization_id, role=MEMORY_MAINTENANCE
+    )
+    if current is None or not current.enabled or current.model_profile_id != maintenance.id:
+        await SystemAgentService(db).update(
+            ctx,
+            MEMORY_MAINTENANCE,
+            SystemAgentUpdate(
+                enabled=True,
+                model_profile_id=maintenance.id,
+                monthly_budget_usd=current.monthly_budget_usd if current is not None else None,
+            ),
+        )
+    success(f"Memory maintenance uses {model}")
 
 
 async def _resolve_starter_agents(db, ctx: AuthContext, profile_id: uuid.UUID | None) -> None:

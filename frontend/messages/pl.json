@@ -2253,6 +2253,106 @@
       }
     },
     "memory": {
+      "operations": {
+        "title": "Inbox i backfill",
+        "inbox": "Reguła Inbox dla pamięci",
+        "loading": "Wczytywanie…",
+        "loadFailed": "Nie udało się wczytać danych.",
+        "inboxHint": "Kieruj zmiany terminów wspólnych zobowiązań do wybranych osób z dostępem.",
+        "modeLabel": "Tryb",
+        "off": "Wyłączony",
+        "shadow": "Próbny",
+        "live": "Włączony",
+        "sources": "Źródła",
+        "gmail": "Gmail",
+        "webhook": "Podpisany webhook",
+        "reviewed": "Zatwierdzona pamięć",
+        "recipients": "Odbiorcy ({count}/50)",
+        "shadowModel": "Porównuj rekomendacje modelu z budżetu maintenance",
+        "modelComparison": "Reguła {baseline, select, notify {powiadom} other {pomiń}} · model {recommendation, select, notify {powiadom} digest {podsumowanie} review {do sprawdzenia} other {pomiń}} · {count}",
+        "includeReview": "Uwzględnij zmiany do sprawdzenia",
+        "ruleRequired": "Wybierz co najmniej jedno źródło i jednego odbiorcę.",
+        "save": "Zapisz regułę",
+        "reload": "Odśwież",
+        "saveFailed": "Nie udało się zapisać reguły. Odśwież i spróbuj ponownie.",
+        "outcomes": "Wyniki reguły",
+        "version": "Wersja reguły",
+        "noOutcomes": "Brak decyzji dla tej wersji.",
+        "outcome": "{change, select, changed {Zmiana} cancelled {Anulowanie} other {Do sprawdzenia}} · {outcome, select, shadow {Próba} delivered {Dostarczono} other {Wyciszono}} · {count}",
+        "backfill": "Uzupełnianie obiektów",
+        "backfillHint": "Połącz starsze wpisy pamięci na podstawie dokładnych kluczy zewnętrznych ich zapisanych źródeł.",
+        "progress": "Sprawdzono {scanned} · połączono {linked}",
+        "completed": "Zakończono",
+        "start": "Rozpocznij uzupełnianie",
+        "restart": "Rozpocznij od nowa",
+        "resume": "Wznów uzupełnianie",
+        "backfillFailed": "Nie udało się uruchomić uzupełniania lub sprawdzić postępu.",
+        "aliases": "Aliasy obiektu",
+        "undo": "Cofnij scalenie",
+        "undoNamed": "Cofnij scalenie z obiektem {name}",
+        "moreAliases": "Więcej aliasów",
+        "firstPage": "Pierwsza strona",
+        "mergeWith": "Scal z obiektem {name}",
+        "mergeHint": "Obie historie pojawią się tutaj. Cofnięcie przywróci każdy wpis do jego pierwotnego obiektu.",
+        "findAlias": "Szukaj aliasu",
+        "chooseAlias": "Wybierz obiekt",
+        "moreCandidates": "Więcej obiektów",
+        "merge": "Scal obiekty",
+        "mergeFailed": "Nie udało się zmienić aliasów. Odśwież obiekt i spróbuj ponownie."
+      },
+      "library": {
+        "scopeLabel": "Zakres pamięci",
+        "personal": "Osobista",
+        "organization": "Organizacyjna",
+        "memoriesView": "Widok pamięci",
+        "claims": "Wszystkie wpisy",
+        "objects": "Obiekty",
+        "searchObjects": "Szukaj obiektów",
+        "emptyObjects": "Brak pasujących obiektów",
+        "timeline": "Oś czasu",
+        "back": "Wróć do obiektów",
+        "effectiveDate": "Data obowiązywania",
+        "knowledgeDate": "Stan wiedzy na dzień",
+        "emptyTimeline": "Brak wpisów dla tej daty",
+        "unknown": "Brak danych",
+        "historical": "Wynik historyczny",
+        "firstPage": "Pierwsza strona",
+        "nextPage": "Następna strona",
+        "evidence": "Dowody",
+        "loadingEvidence": "Wczytywanie dowodów…",
+        "evidenceUnavailable": "Dowody niedostępne",
+        "withheld": "Część źródeł ma ograniczony dostęp.",
+        "sharedClaims": "Wspólna pamięć",
+        "searchShared": "Szukaj wspólnych wpisów",
+        "emptyClaims": "Brak wspólnych wpisów",
+        "sharedNotes": "Wspólne notatki",
+        "emptyNotes": "Brak wspólnych notatek",
+        "share": "Udostępnij",
+        "audience": "Odbiorcy",
+        "wholeOrganization": "Cała organizacja",
+        "confirmShare": "Potwierdź udostępnienie",
+        "shareFailure": "Nie udało się udostępnić wpisu.",
+        "published": "Udostępniono",
+        "close": "Zamknij",
+        "conflictsOnly": "Tylko konflikty",
+        "conflictPending": "Oczekuje na sprawdzenie",
+        "conflictPick": "Której wartości ma używać pamięć firmowa?",
+        "conflictConfirm": "Zatwierdź wartość",
+        "conflictResolved": "Konflikt pamięci rozstrzygnięty",
+        "conflictChanged": "Ten konflikt się zmienił. Sprawdź aktualne wartości.",
+        "gmailSource": "Gmail",
+        "webhookSource": "Podpisany webhook",
+        "previous": "Poprzednio: {statement}",
+        "validity": "Od {start} do {end}",
+        "shareHint": "Sprawdź odbiorców. Udostępniasz kopię tego wpisu.",
+        "kind": {
+          "all": "Wszystkie",
+          "person": "Osoby",
+          "company": "Firmy i klienci",
+          "project": "Projekty",
+          "commitment": "Zobowiązania"
+        }
+      },
       "showing": "Pokazane {from}–{to} z {total}",
       "older": "Starsze",
       "title": "Twoja pamięć",
@@ -2275,6 +2375,7 @@
         "correct": "Popraw wspomnienie",
         "retract": "Przestań używać",
         "statement": "Poprawione zdanie",
+        "typedValue": "Zapisana wartość",
         "effectiveFrom": "Obowiązuje od",
         "cancel": "Anuluj",
         "save": "Zapisz poprawkę",
@@ -2349,6 +2450,23 @@
           "other": "Wspomnienie"
         },
         "editNoteHint": "Popraw to, co agent pamięta o Tobie. Twoje korekty są rejestrowane osobno od pierwotnego zapisu agenta.",
+        "noteAutoUpdate": "Automatyczne aktualizacje",
+        "noteAutoUpdateHint": "Zezwól Memory Maintenance na aktualizowanie tej notatki na podstawie przyszłych prywatnych rozmów. Poprzednie wersje pozostają dostępne.",
+        "noteOpenObject": "Otwórz powiązany obiekt",
+        "noteHistory": "Historia wersji",
+        "noteHistoryError": "Nie udało się załadować wersji.",
+        "noteHistoryEmpty": "Ta notatka nie ma wcześniejszych wersji.",
+        "noteRevisionAgent": "edycją agenta",
+        "noteRevisionPerson": "Twoją edycją",
+        "noteRevisionMaintenance": "automatyczną aktualizacją",
+        "noteRevisionRestore": "przywróceniem",
+        "noteRevisionIdentical": "Treść po tej zmianie jest identyczna.",
+        "noteRevisionTooLong": "Ta wersja jest za długa na porównanie wiersz po wierszu.",
+        "noteRevisionSource": "Otwórz rozmowę źródłową",
+        "noteRevisionLabel": "Przed {origin} · {when}",
+        "noteRestoreVersion": "Przywróć tę wersję",
+        "noteNewerVersions": "Nowsze wersje",
+        "noteOlderVersions": "Starsze wersje",
         "noteDetails": "Szczegóły pamięci"
       }
     },
@@ -3531,6 +3649,8 @@
     "settings": {
       "prefWorkflowNotification": "Powiadomienia z workflow",
       "prefWorkflowNotificationTrigger": "Workflow, który widzisz, wysyła Ci wiadomość z jednego ze swoich kroków.",
+      "prefMemoryDeadlineChange": "Zmiany terminów w pamięci",
+      "prefMemoryDeadlineChangeTrigger": "Wspólne zobowiązanie, do którego masz dostęp, zmienia termin, zostaje anulowane lub wymaga sprawdzenia.",
       "prefWorkflowLogAlert": "Alerty z dziennika workflow",
       "prefWorkflowLogAlertTrigger": "Dziennik workflow, który widzisz, przekracza próg alertu.",
       "prefArtifactOwnerChanged": "Zmiana właściciela strony",
@@ -11949,6 +12069,7 @@
       "backgroundTaskPaused": "Zadania w tle rodzaju {kind} są wstrzymane{scoped, select, yes { dla {organization}} other {}}: {reason}. Wznów je na stronie Zadania w tle, gdy przyczyna zostanie usunięta.",
       "configurationChanged": "Zaktualizowano ustawienia wdrożenia.",
       "usageReport": "Raport użycia: {name}",
+      "memoryDeadlineChange": "{name} · {change, select, changed {Zmiana terminu} cancelled {Anulowano termin} other {Termin do sprawdzenia}} · {before} → {after} · {source, select, gmail {Gmail} webhook {Podpisany webhook} other {Zatwierdzona pamięć}}",
       "workflowLogAlert": "{rule}: {count, plural, one {# wystąpienie} few {# wystąpienia} many {# wystąpień} other {# wystąpienia}} w logu {workflow} w ciągu {unit, select, hours {{hours, plural, one {ostatniej godziny} few {ostatnich # godzin} many {ostatnich # godzin} other {ostatnich # godziny}}} other {{minutes, plural, one {ostatniej minuty} few {ostatnich # minut} many {ostatnich # minut} other {ostatnich # minuty}}}}.",
       "coalesced": {
         "securityEvent": "W ciągu minuty przyszło więcej zdarzeń bezpieczeństwa, niż ta skrzynka pokazuje osobno. Każde z nich jest w dzienniku audytu.",
@@ -19122,6 +19243,10 @@
         "name": "Przekształć obraz",
         "description": "Przytnij, zmień rozmiar, obróć lub przekonwertuj obraz PNG, JPEG, WebP lub GIF, z usuniętymi metadanymi i rozmiarem ograniczonym przed dekodowaniem."
       },
+      "memory_observe": {
+        "name": "Zapisz obserwację w pamięci",
+        "description": "Zapisz zweryfikowane zdarzenie z datą i dowodem w pamięci organizacji."
+      },
       "knowledge_add": {
         "name": "Dodaj do wiedzy",
         "description": "Dodaj tekst lub plik do kolekcji wiedzy, żeby agenci mogli go znaleźć."
@@ -20518,6 +20643,27 @@
           },
           "file__byte_size": {
             "title": "Rozmiar w bajtach"
+          }
+        }
+      },
+      "memory_observe": {
+        "config": {
+          "object_kind": {
+            "title": "Typ obiektu"
+          },
+          "object_name": {
+            "title": "Nazwa obiektu"
+          },
+          "object_key": {
+            "title": "Klucz obiektu biznesowego"
+          },
+          "use_key_prefix": {
+            "title": "Zezwól podpisanemu webhookowi na przestrzeń nazw",
+            "description": "Użyj klucza obiektu biznesowego jako przestrzeni nazw zakończonej '/', np. crm:deals/."
+          },
+          "subject": {
+            "title": "Właściwość",
+            "description": "Dla Gmaila użyj deadline."
           }
         }
       },

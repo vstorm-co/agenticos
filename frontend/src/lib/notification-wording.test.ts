@@ -25,6 +25,19 @@ const polish = translator("pl", { ...en, ...pl });
 const say = (params: Record<string, string>, t: Translate = english) => wordedSummary(params, t);
 
 describe("wordedSummary", () => {
+  it("shows the source and the before and after dates for a memory cancellation", () => {
+    const event = {
+      wording: "memory_deadline_change",
+      object_name: "XYZ",
+      change: "cancelled",
+      source: "gmail",
+      before: "2026-12-03",
+      after: "",
+    };
+    expect(say(event)).toBe("XYZ · Deadline cancelled · 2026-12-03 → — · Gmail");
+    expect(say(event, polish)).toBe("XYZ · Anulowano termin · 2026-12-03 → — · Gmail");
+  });
+
   it("words a run and a routine, with and without what they said", () => {
     expect(say({ wording: "run_completed", agent_name: "Clerk" })).toBe("Clerk finished a run.");
     expect(say({ wording: "routine_finished", routine_name: "Digest" })).toBe("Digest finished.");

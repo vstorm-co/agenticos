@@ -13,7 +13,13 @@ import { ClaimFilters, type Kind, type Scope } from "./claim-filters";
 import { MemoryPager, MemoryRow } from "./memory-list";
 import { MemoryAgentAvatar } from "./memory-agent-avatar";
 
-export function MyClaims({ agents }: { agents: readonly AgentUsage[] }) {
+export function MyClaims({
+  agents,
+  canShare,
+}: {
+  agents: readonly AgentUsage[];
+  canShare?: boolean;
+}) {
   const t = useTranslations("pages.memory.claims");
   const view = useTranslations("pages.memory.browser");
   const [q, setQ] = useState("");
@@ -131,6 +137,7 @@ export function MyClaims({ agents }: { agents: readonly AgentUsage[] }) {
           agent={agents.find((agent) => agent.id === claim.agent_id)}
           correct={correct}
           retract={retract}
+          canShare={canShare}
           onClose={() => setSelected(null)}
         />
       )}

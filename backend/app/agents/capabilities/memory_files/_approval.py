@@ -1,5 +1,6 @@
 """What a person deciding a parked memory call reads on its card."""
 
+import json
 from collections.abc import Mapping
 from typing import Any
 from uuid import UUID
@@ -17,7 +18,7 @@ from app.services.memory._runtime import ClaimView
 SHARE_PRIVATE_FIELDS = frozenset({"claim"})
 """The keys of a `share_memory` card that quote the run's memory."""
 
-CORRECTION_PRIVATE_FIELDS = frozenset({"before", "after", "statement"})
+CORRECTION_PRIVATE_FIELDS = frozenset({"before", "after", "statement", "value"})
 """The keys of a `correct_memory` call and card that quote the run's memory."""
 
 _WIDE_SCOPES = frozenset(
@@ -84,7 +85,12 @@ async def describe_correction(
     claim = await _named_claim(deps, args, allow_personal=_personal(config))
     if claim is None:
         return None
-    return {"before": claim.statement, "after": str(args.get("statement", ""))}
+    before, after = claim.statement, str(args.get("statement", ""))
+    value = args.get("value")
+    if isinstance(value, str | int | bool):
+        before = f"{before} [{json.dumps(claim.value, ensure_ascii=False)}]"
+        after = f"{after} [{json.dumps(value, ensure_ascii=False)}]"
+    return {"before": before, "after": after}
 
 
 async def correction_is_wide(deps: AgentDeps, args: Mapping[str, Any]) -> bool:

@@ -33,6 +33,7 @@ interface PreferenceEvent {
   /** Which channels `GET /notifications/preferences` offers for this event -
    * a subset of `["in_app", "email", "push"]`, per Decision 4's togglable-pairs rule. */
   channels: readonly NotificationChannel[];
+  chat?: false;
 }
 
 export const CHANNEL_LABEL: Record<NotificationChannel, string> = {
@@ -202,6 +203,13 @@ export const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     words: "prefWorkflowNotification",
     icon: Workflow,
     channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "memory_deadline_change",
+    words: "prefMemoryDeadlineChange",
+    icon: Bell,
+    channels: ["in_app"],
+    chat: false,
   },
   {
     eventType: "workflow_log_alert",

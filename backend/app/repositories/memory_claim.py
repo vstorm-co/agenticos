@@ -11,15 +11,55 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid5
 
-from sqlalchemy import ARRAY, Text, and_, func, literal, or_, select, true
+from sqlalchemy import (
+    ARRAY,
+    JSON,
+    Select,
+    Text,
+    Uuid,
+    and_,
+    case,
+    column,
+    func,
+    literal,
+    or_,
+    select,
+    true,
+    tuple_,
+    update,
+    values,
+)
 from sqlalchemy import delete as sa_delete
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute, aliased
+from sqlalchemy.orm.util import AliasedClass
+from sqlalchemy.sql.elements import ColumnElement
 
+from app.core.memory_keys import organization_owner_key
+from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
-from app.db.models.memory_claim import MemoryClaim, MemoryScopeState
+from app.db.models.mcp_connection import AUTHORIZATION_EXPIRED, McpConnection
+from app.db.models.memory_claim import (
+    MemoryClaim,
+    MemoryClaimEvidence,
+    MemoryClaimRevision,
+    MemoryInboxDecision,
+    MemoryInboxRule,
+    MemoryInboxShadowDecision,
+    MemoryMailEvent,
+    MemoryMailSource,
+    MemoryObject,
+    MemoryObjectBackfill,
+    MemoryObjectMerge,
+    MemoryScopeState,
+    MemorySourceAuthority,
+    SharedMemoryNote,
+)
+from app.db.models.workflow_exposure import WorkflowExposure, WorkflowWebhookDelivery
 
 
 @dataclass(frozen=True)
@@ -28,6 +68,11 @@ class ClaimScope:
 
     scope_key: str
     agent_id: UUID | None = None
+
+
+async def hold_scope_write_lock(db: AsyncSession, *, organization_id: UUID, scope_key: str) -> None:
+    """Serialize ledger mutations within an organization and audience."""
+    await hold_subject(db, LockScope.MEMORY_CLAIMS_PER_SCOPE, uuid5(organization_id, scope_key))
 
 
 def _texts(values: list[str]) -> Any:
@@ -42,7 +87,7 @@ def _in_effect() -> Any:
     unspoken until then; status alone cannot say that, so what is put in front of a model
     is filtered by the interval too.
     """
-    now = func.now()
+    now = func.statement_timestamp()
     return and_(
         or_(MemoryClaim.effective_from.is_(None), MemoryClaim.effective_from <= now),
         or_(MemoryClaim.effective_to.is_(None), MemoryClaim.effective_to > now),
@@ -63,10 +108,74 @@ def _in_scopes(scopes: Sequence[ClaimScope]) -> Any:
     )
 
 
+def _authorized_mail_events() -> Select[MemoryMailEvent]:
+    grant_generation = case(
+        (MemoryMailEvent.workflow_delivery_id.is_not(None), MemoryMailEvent.generation),
+        else_=MemoryMailSource.authorization_generation,
+    )
+    portal = and_(
+        MemoryMailEvent.provider == "gmail",
+        McpConnection.organization_id == MemoryMailEvent.organization_id,
+        grant_generation == McpConnection.authorization_generation,
+        McpConnection.purpose == "portal",
+        McpConnection.portal_key == "google",
+        McpConnection.oauth_payload.is_not(None),
+        McpConnection.is_enabled.is_(True),
+        McpConnection.last_error.is_distinct_from(AUTHORIZATION_EXPIRED),
+        or_(
+            MemoryMailEvent.workflow_delivery_id.is_not(None),
+            MemoryMailSource.grant_id == MemoryMailEvent.grant_id,
+        ),
+    )
+    webhook = and_(
+        MemoryMailEvent.provider == "webhook",
+        WorkflowWebhookDelivery.organization_id == MemoryMailEvent.organization_id,
+        WorkflowWebhookDelivery.signed_digest.is_not(None),
+    )
+    return (
+        select(MemoryMailEvent)
+        .outerjoin(
+            MemoryMailSource, MemoryMailSource.organization_id == MemoryMailEvent.organization_id
+        )
+        .outerjoin(McpConnection, McpConnection.id == MemoryMailEvent.grant_id)
+        .outerjoin(
+            WorkflowWebhookDelivery,
+            WorkflowWebhookDelivery.id == MemoryMailEvent.workflow_delivery_id,
+        )
+        .where(or_(portal, webhook))
+    )
+
+
+def readable_mail_source(
+    claim: type[MemoryClaim] | AliasedClass[MemoryClaim] = MemoryClaim,
+) -> ColumnElement[bool]:
+    """A published mail fact stays available only while the same mailbox is authorized."""
+    return (
+        _authorized_mail_events()
+        .with_only_columns(MemoryMailEvent.id)
+        .where(
+            MemoryMailEvent.id == claim.mail_event_id,
+            MemoryMailEvent.organization_id == claim.organization_id,
+        )
+        .correlate(claim)
+        .exists()
+    )
+
+
+def _visibility_for(claim: type[MemoryClaim] | AliasedClass[MemoryClaim]) -> ColumnElement[bool]:
+    return or_(claim.mail_event_id.is_(None), readable_mail_source(claim))
+
+
+def _visible() -> ColumnElement[bool]:
+    return _visibility_for(MemoryClaim)
+
+
 async def get(db: AsyncSession, *, organization_id: UUID, claim_id: UUID) -> MemoryClaim | None:
     result = await db.execute(
         select(MemoryClaim)
-        .where(MemoryClaim.organization_id == organization_id, MemoryClaim.id == claim_id)
+        .where(
+            MemoryClaim.organization_id == organization_id, MemoryClaim.id == claim_id, _visible()
+        )
         .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
@@ -79,7 +188,9 @@ async def many(
         return []
     result = await db.execute(
         select(MemoryClaim).where(
-            MemoryClaim.organization_id == organization_id, MemoryClaim.id.in_(list(claim_ids))
+            MemoryClaim.organization_id == organization_id,
+            MemoryClaim.id.in_(list(claim_ids)),
+            _visible(),
         )
     )
     return list(result.scalars().all())
@@ -103,6 +214,7 @@ async def list_in_scopes(
         .where(
             MemoryClaim.organization_id == organization_id,
             _in_scopes(scopes),
+            _visible(),
             MemoryClaim.status.in_(list(statuses)),
             _in_effect() if in_effect else true(),
         )
@@ -117,7 +229,7 @@ async def list_for_owner(
     db: AsyncSession,
     *,
     organization_id: UUID,
-    scope_key: str,
+    scope_key: str | Sequence[str],
     statuses: Sequence[str],
     skip: int,
     limit: int,
@@ -129,7 +241,8 @@ async def list_for_owner(
     """Every claim one owner holds in an organization, under any agent, and the total."""
     clause = (
         MemoryClaim.organization_id == organization_id,
-        MemoryClaim.scope_key == scope_key,
+        MemoryClaim.scope_key.in_([scope_key] if isinstance(scope_key, str) else scope_key),
+        _visible(),
         MemoryClaim.status.in_(list(statuses)),
         _in_effect() if in_effect else true(),
         MemoryClaim.kind == kind if kind else true(),
@@ -180,33 +293,121 @@ async def about_subject(
     scope: ClaimScope,
     subject: str,
     statuses: Sequence[str] = ("current", "disputed"),
+    object_id: UUID | None = None,
+    lock: bool = False,
+    in_effect: bool = False,
+    limit: int | None = None,
 ) -> list[MemoryClaim]:
-    """The live claims on one topic in one scope, oldest first."""
-    result = await db.execute(
-        select(MemoryClaim)
-        .where(
-            MemoryClaim.organization_id == organization_id,
-            _in_scopes([scope]),
-            MemoryClaim.subject == subject,
-            MemoryClaim.status.in_(list(statuses)),
-        )
-        .order_by(MemoryClaim.observed_at.asc(), MemoryClaim.id.asc())
+    """The claims on one topic and object in one scope, oldest first."""
+    query = select(MemoryClaim).where(
+        MemoryClaim.organization_id == organization_id,
+        _in_scopes([scope]),
+        MemoryClaim.subject == subject,
+        MemoryClaim.object_id == object_id,
+        MemoryClaim.status.in_(list(statuses)),
+        _visible(),
+        _in_effect() if in_effect else true(),
     )
-    return list(result.scalars().all())
+    if limit is not None:
+        query = query.limit(limit)
+    if lock:
+        # Erasure locks shared descendants in id order too.
+        query = (
+            query.order_by(MemoryClaim.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    else:
+        query = query.order_by(MemoryClaim.observed_at, MemoryClaim.id)
+    rows = list((await db.execute(query)).scalars().all())
+    return sorted(rows, key=lambda row: (row.observed_at, row.id)) if lock else rows
 
 
 async def without_subject(
-    db: AsyncSession, *, organization_id: UUID, scope: ClaimScope
+    db: AsyncSession, *, organization_id: UUID, scope: ClaimScope, object_id: UUID | None = None
 ) -> list[MemoryClaim]:
     result = await db.execute(
         select(MemoryClaim).where(
             MemoryClaim.organization_id == organization_id,
             _in_scopes([scope]),
             MemoryClaim.subject.is_(None),
+            MemoryClaim.object_id == object_id,
             MemoryClaim.status == "current",
         )
     )
     return list(result.scalars().all())
+
+
+def _latest_known_revision(known_at: datetime) -> Select[MemoryClaimRevision]:
+    return (
+        select(MemoryClaimRevision)
+        .where(
+            MemoryClaimRevision.claim_id == MemoryClaim.id,
+            MemoryClaimRevision.known_from <= known_at,
+        )
+        .order_by(MemoryClaimRevision.known_from.desc())
+        .limit(1)
+        .correlate(MemoryClaim)
+    )
+
+
+def _at(as_of: datetime | None, known_at: datetime | None) -> ColumnElement[bool]:
+    if as_of is None:
+        return and_(MemoryClaim.status.in_(("current", "disputed")), _in_effect())
+
+    statuses = ("current", "disputed", "superseded")
+    start = MemoryClaim.effective_from
+    if known_at is None:
+        return and_(
+            MemoryClaim.status.in_(statuses),
+            start <= as_of,
+            or_(MemoryClaim.effective_to.is_(None), MemoryClaim.effective_to > as_of),
+        )
+
+    # An old row has no trustworthy state before its last pre-migration change.
+    last = (
+        _latest_known_revision(known_at)
+        .with_only_columns(MemoryClaimRevision.known_from)
+        .scalar_subquery()
+    )
+    revision = select(MemoryClaimRevision.claim_id).where(
+        MemoryClaimRevision.claim_id == MemoryClaim.id,
+        MemoryClaimRevision.known_from == last,
+        MemoryClaimRevision.status.in_(statuses),
+        or_(MemoryClaimRevision.effective_to.is_(None), MemoryClaimRevision.effective_to > as_of),
+    )
+    return and_(
+        start <= as_of,
+        or_(
+            revision.exists(),
+            and_(
+                last.is_(None),
+                func.coalesce(MemoryClaim.updated_at, MemoryClaim.observed_at) <= known_at,
+                MemoryClaim.status.in_(statuses),
+                or_(MemoryClaim.effective_to.is_(None), MemoryClaim.effective_to > as_of),
+            ),
+        ),
+    )
+
+
+async def states_known_at(
+    db: AsyncSession,
+    *,
+    rows: Sequence[MemoryClaim],
+    known_at: datetime,
+) -> dict[UUID, MemoryClaimRevision]:
+    if not rows:
+        return {}
+    revisions = await db.scalars(
+        select(MemoryClaimRevision)
+        .where(
+            MemoryClaimRevision.claim_id.in_([row.id for row in rows]),
+            MemoryClaimRevision.known_from <= known_at,
+        )
+        .ext(distinct_on(MemoryClaimRevision.claim_id))
+        .order_by(MemoryClaimRevision.claim_id, MemoryClaimRevision.known_from.desc())
+    )
+    return {row.claim_id: row for row in revisions}
 
 
 async def search(
@@ -216,43 +417,380 @@ async def search(
     scopes: Sequence[ClaimScope],
     terms: Sequence[str],
     limit: int,
+    as_of: datetime | None = None,
+    known_at: datetime | None = None,
+    object_id: UUID | None = None,
+    related_to: UUID | None = None,
+    subject: str | None = None,
 ) -> list[MemoryClaim]:
-    """Live claims whose statement or subject contains any term - no model call."""
-    if not scopes or not terms:
+    """Rank matches inside the approved scope and validity window, before limiting."""
+    if not scopes or (not terms and object_id is None and related_to is None and subject is None):
         return []
-    needles = [f"%{term}%" for term in terms]
+    matches = [
+        or_(
+            MemoryClaim.statement.icontains(term, autoescape=True),
+            MemoryClaim.subject.icontains(term, autoescape=True),
+            MemoryClaim.object_id.in_(
+                select(MemoryObject.id).where(
+                    MemoryObject.organization_id == organization_id,
+                    MemoryObject.name.icontains(term, autoescape=True),
+                )
+            ),
+        )
+        for term in terms
+    ]
+    rank = func.num_nonnulls(*(case((match, 1)) for match in matches)) if matches else literal(0)
+    status = MemoryClaim.status
+    if as_of is not None and known_at is not None:
+        known_status = (
+            _latest_known_revision(known_at)
+            .with_only_columns(MemoryClaimRevision.status)
+            .scalar_subquery()
+        )
+        status = func.coalesce(known_status, MemoryClaim.status)
     result = await db.execute(
         select(MemoryClaim)
         .where(
             MemoryClaim.organization_id == organization_id,
             _in_scopes(scopes),
-            MemoryClaim.status.in_(["current", "disputed"]),
-            _in_effect(),
-            or_(
-                *(MemoryClaim.statement.ilike(needle) for needle in needles),
-                *(MemoryClaim.subject.ilike(needle) for needle in needles),
-            ),
+            _visible(),
+            _at(as_of, known_at),
+            or_(*matches) if matches else true(),
+            MemoryClaim.subject == subject if subject is not None else true(),
+            MemoryClaim.object_id == object_id if object_id is not None else true(),
+            MemoryClaim.related_object_id == related_to if related_to is not None else true(),
         )
-        .order_by(MemoryClaim.observed_at.desc())
-        .limit(limit * 4)
+        .order_by(
+            rank.desc(),
+            (status == "current").desc(),
+            MemoryClaim.observed_at.desc(),
+            MemoryClaim.id,
+        )
+        .limit(limit)
     )
     return list(result.scalars().all())
 
 
-async def agents_in_scope(
-    db: AsyncSession, *, organization_id: UUID, scope_key: str
-) -> set[UUID | None]:
-    """The agents that hold live claims in a scope; `None` stands for the shared ones."""
+async def put_object(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    scope_key: str,
+    kind: str,
+    name: str,
+    identity_key: str,
+    refresh_name: bool = True,
+) -> MemoryObject:
+    """Keep the stable identity and refresh its label on an external-key write."""
+    insert = pg_insert(MemoryObject).values(
+        organization_id=organization_id,
+        scope_key=scope_key,
+        kind=kind,
+        name=name,
+        identity_key=identity_key,
+    )
+    if refresh_name and identity_key.startswith("external:"):
+        statement = insert.on_conflict_do_update(
+            constraint="uq_memory_objects_identity",
+            set_={"name": insert.excluded.name, "updated_at": func.now()},
+            where=MemoryObject.name.is_distinct_from(insert.excluded.name),
+        )
+    else:
+        statement = insert.on_conflict_do_nothing(constraint="uq_memory_objects_identity")
     result = await db.execute(
-        select(MemoryClaim.agent_id)
+        statement.returning(MemoryObject).execution_options(populate_existing=True)
+    )
+    found = result.scalar_one_or_none()
+    if found is not None:
+        return found
+    return (
+        await db.execute(
+            select(MemoryObject)
+            .where(
+                MemoryObject.organization_id == organization_id,
+                MemoryObject.scope_key == scope_key,
+                MemoryObject.kind == kind,
+                MemoryObject.identity_key == identity_key,
+            )
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one()
+
+
+def _active_aliases(
+    target_id: UUID | ColumnElement[UUID] | InstrumentedAttribute[UUID],
+) -> Select[UUID]:
+    return select(MemoryObjectMerge.source_id).where(
+        MemoryObjectMerge.target_id == target_id,
+        MemoryObjectMerge.undone_at.is_(None),
+    )
+
+
+def _visible_object_id(
+    object_id: UUID | ColumnElement[UUID] | InstrumentedAttribute[UUID],
+) -> ColumnElement[bool]:
+    return (
+        select(MemoryClaim.id)
+        .where(
+            or_(MemoryClaim.object_id == object_id, MemoryClaim.related_object_id == object_id),
+            _visible(),
+        )
+        .exists()
+    )
+
+
+async def get_object(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    object_id: UUID,
+    scope_keys: Sequence[str],
+    follow_merge: bool = False,
+) -> MemoryObject | None:
+    if follow_merge:
+        target = select(MemoryObjectMerge.target_id).where(
+            MemoryObjectMerge.source_id == object_id,
+            MemoryObjectMerge.undone_at.is_(None),
+            _visible_object_id(MemoryObjectMerge.target_id),
+        )
+        match = MemoryObject.id == func.coalesce(target.scalar_subquery(), object_id)
+    else:
+        match = MemoryObject.id == object_id
+    return await db.scalar(
+        select(MemoryObject).where(
+            MemoryObject.organization_id == organization_id,
+            MemoryObject.scope_key.in_(scope_keys),
+            match,
+            _visible_object_id(MemoryObject.id),
+        )
+    )
+
+
+async def active_object_merges(
+    db: AsyncSession, *, target_id: UUID, cursor: UUID | None, limit: int
+) -> list[tuple[MemoryObjectMerge, MemoryObject]]:
+    rows = await db.execute(
+        select(MemoryObjectMerge, MemoryObject)
+        .join(MemoryObject, MemoryObject.id == MemoryObjectMerge.source_id)
+        .where(
+            MemoryObjectMerge.target_id == target_id,
+            MemoryObjectMerge.undone_at.is_(None),
+            MemoryObjectMerge.id > cursor if cursor else true(),
+            _visible_object_id(MemoryObject.id),
+        )
+        .order_by(MemoryObjectMerge.id)
+        .limit(limit)
+    )
+    return [(merge, entity) for merge, entity in rows]
+
+
+async def active_merge(
+    db: AsyncSession, *, merge_id: UUID, target_id: UUID
+) -> MemoryObjectMerge | None:
+    return await db.scalar(
+        select(MemoryObjectMerge).where(
+            MemoryObjectMerge.id == merge_id,
+            MemoryObjectMerge.target_id == target_id,
+            MemoryObjectMerge.undone_at.is_(None),
+        )
+    )
+
+
+async def merge_objects(
+    db: AsyncSession, *, source_id: UUID, target_id: UUID
+) -> MemoryObjectMerge | None:
+    # A target may have many aliases. Keeping the graph one level deep preserves
+    # the exact partition a reviewer restores when undoing any one merge.
+    blocked = await db.scalar(
+        select(MemoryObjectMerge.id)
+        .where(
+            MemoryObjectMerge.undone_at.is_(None),
+            or_(
+                MemoryObjectMerge.source_id.in_((source_id, target_id)),
+                MemoryObjectMerge.target_id == source_id,
+            ),
+        )
+        .limit(1)
+    )
+    if blocked is not None:
+        return None
+    merge = MemoryObjectMerge(source_id=source_id, target_id=target_id)
+    db.add(merge)
+    await db.flush()
+    return merge
+
+
+async def undo_object_merge(db: AsyncSession, merge: MemoryObjectMerge) -> None:
+    merge.undone_at = datetime.now(UTC)
+    await db.flush()
+
+
+async def list_objects(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    scope_keys: Sequence[str],
+    kind: str | None,
+    q: str,
+    cursor: UUID | None,
+    limit: int,
+    merge_target: UUID | None = None,
+) -> list[MemoryObject]:
+    matches_name = true()
+    if q:
+        alias_object = aliased(MemoryObject)
+        alias_claim = aliased(MemoryClaim)
+        # Only search names that are themselves still visible. The outer
+        # tenant and audience filters also apply to every reviewed alias.
+        alias_matches = (
+            select(alias_object.id)
+            .join(MemoryObjectMerge, MemoryObjectMerge.source_id == alias_object.id)
+            .where(
+                MemoryObjectMerge.target_id == MemoryObject.id,
+                MemoryObjectMerge.undone_at.is_(None),
+                alias_object.name.icontains(q, autoescape=True),
+                select(alias_claim.id)
+                .where(alias_claim.object_id == alias_object.id, _visibility_for(alias_claim))
+                .exists(),
+            )
+            .exists()
+        )
+        matches_name = or_(MemoryObject.name.icontains(q, autoescape=True), alias_matches)
+    result = await db.scalars(
+        select(MemoryObject)
+        .where(
+            MemoryObject.organization_id == organization_id,
+            MemoryObject.scope_key.in_(scope_keys),
+            MemoryObject.kind == kind if kind else true(),
+            matches_name,
+            MemoryObject.id > cursor if cursor else true(),
+            # Erasure and agent removal can leave an identity without any visible source.
+            ~select(MemoryObjectMerge.id)
+            .where(
+                MemoryObjectMerge.source_id == MemoryObject.id,
+                MemoryObjectMerge.undone_at.is_(None),
+                _visible_object_id(MemoryObjectMerge.target_id),
+            )
+            .exists(),
+            and_(
+                MemoryObject.id != merge_target,
+                ~select(MemoryObjectMerge.id)
+                .where(
+                    MemoryObjectMerge.target_id == MemoryObject.id,
+                    MemoryObjectMerge.undone_at.is_(None),
+                )
+                .exists(),
+            )
+            if merge_target is not None
+            else true(),
+            _visible_object_id(MemoryObject.id),
+        )
+        .order_by(MemoryObject.id)
+        .limit(limit)
+    )
+    return list(result)
+
+
+async def object_claims(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    scope_key: str,
+    object_id: UUID,
+    as_of: datetime | None,
+    known_at: datetime | None,
+    cursor: UUID | None,
+    limit: int,
+) -> list[MemoryClaim]:
+    identity = or_(
+        MemoryClaim.object_id == object_id,
+        MemoryClaim.object_id.in_(_active_aliases(object_id)),
+        MemoryClaim.related_object_id == object_id,
+        MemoryClaim.related_object_id.in_(_active_aliases(object_id)),
+    )
+    cursor_row = (
+        select(MemoryClaim.observed_at, MemoryClaim.id)
         .where(
             MemoryClaim.organization_id == organization_id,
             MemoryClaim.scope_key == scope_key,
-            MemoryClaim.status.in_(["current", "disputed"]),
+            identity,
+            MemoryClaim.id == cursor,
         )
-        .distinct()
+        .subquery()
     )
-    return set(result.scalars().all())
+    query = select(MemoryClaim).where(
+        MemoryClaim.organization_id == organization_id,
+        MemoryClaim.scope_key == scope_key,
+        identity,
+        _visible(),
+        _at(as_of, known_at) if as_of is not None else true(),
+    )
+    if cursor is not None:
+        query = query.where(
+            tuple_(MemoryClaim.observed_at, MemoryClaim.id)
+            < select(cursor_row.c.observed_at, cursor_row.c.id).scalar_subquery()
+        )
+    result = await db.scalars(
+        query.order_by(MemoryClaim.observed_at.desc(), MemoryClaim.id.desc()).limit(limit)
+    )
+    return list(result)
+
+
+def _consolidation_candidates(organization_id: UUID, scope_key: str) -> ColumnElement[bool]:
+    return and_(
+        MemoryClaim.organization_id == organization_id,
+        MemoryClaim.scope_key == scope_key,
+        MemoryClaim.status.in_(("current", "disputed")),
+        MemoryClaim.origin.in_(("agent", "person")),
+        MemoryClaim.subject.is_not(None),
+        MemoryClaim.object_id.is_(None),
+        MemoryClaim.effective_from.is_(None),
+        MemoryClaim.effective_to.is_(None),
+        or_(MemoryClaim.episode.is_(None), MemoryClaim.episode == JSON.NULL),
+        _visible(),
+    )
+
+
+async def consolidation_subjects(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    scope_key: str,
+    after: str | None,
+    limit: int,
+) -> list[str]:
+    """Page by subject so facts about one property are never split by a row limit."""
+    candidates = (
+        select(MemoryClaim.subject)
+        .where(_consolidation_candidates(organization_id, scope_key))
+        .group_by(MemoryClaim.subject, MemoryClaim.agent_id)
+        .having(func.count() > 1)
+    )
+    if after is not None:
+        candidates = candidates.where(MemoryClaim.subject > after)
+    topics = candidates.subquery()
+    names = await db.scalars(
+        select(topics.c.subject).distinct().order_by(topics.c.subject).limit(limit)
+    )
+    return [name for name in names if name is not None]
+
+
+async def consolidation_claims(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    scope_key: str,
+    subjects: Sequence[str],
+) -> list[MemoryClaim]:
+    rows = await db.scalars(
+        select(MemoryClaim)
+        .where(
+            _consolidation_candidates(organization_id, scope_key),
+            MemoryClaim.subject.in_(subjects),
+        )
+        .order_by(MemoryClaim.observed_at.desc(), MemoryClaim.id)
+    )
+    return list(rows)
 
 
 async def derived_by_key(
@@ -273,15 +811,48 @@ async def create(db: AsyncSession, **values: Any) -> MemoryClaim:
     db.add(claim)
     await db.flush()
     await db.refresh(claim)
+    db.add(
+        MemoryClaimRevision(
+            claim_id=claim.id,
+            known_from=claim.observed_at,
+            status=claim.status,
+            effective_to=claim.effective_to,
+        )
+    )
+    await db.flush()
     return claim
 
 
 async def set_status(
     db: AsyncSession, claim: MemoryClaim, status: str, *, effective_to: datetime | None = None
 ) -> None:
+    if claim.status == status and (effective_to is None or claim.effective_to == effective_to):
+        return
+    previous = await db.scalar(
+        select(MemoryClaimRevision.known_from)
+        .where(MemoryClaimRevision.claim_id == claim.id)
+        .limit(1)
+    )
+    if previous is None:
+        db.add(
+            MemoryClaimRevision(
+                claim_id=claim.id,
+                known_from=claim.updated_at or claim.observed_at,
+                status=claim.status,
+                effective_to=claim.effective_to,
+            )
+        )
     claim.status = status
     if effective_to is not None:
         claim.effective_to = effective_to
+    db.add(
+        MemoryClaimRevision(
+            claim_id=claim.id,
+            known_from=datetime.now(UTC),
+            status=claim.status,
+            effective_to=claim.effective_to,
+        )
+    )
     db.add(claim)
     await db.flush()
 
@@ -314,9 +885,14 @@ async def locked_state(
     return result.scalar_one_or_none()
 
 
-async def mark_consolidated(db: AsyncSession, state: MemoryScopeState, revision: int) -> None:
-    state.consolidated_revision = revision
-    state.consolidated_at = datetime.now(UTC)
+async def advance_consolidation(
+    db: AsyncSession, state: MemoryScopeState, *, revision: int, cursor: str | None
+) -> None:
+    state.consolidation_cursor = cursor
+    state.consolidating_revision = revision if cursor is not None else None
+    if cursor is None:
+        state.consolidated_revision = revision
+        state.consolidated_at = datetime.now(UTC)
     db.add(state)
     await db.flush()
 
@@ -326,6 +902,11 @@ async def scopes_with_changes(db: AsyncSession, *, limit: int) -> list[MemorySco
     result = await db.execute(
         select(MemoryScopeState)
         .where(MemoryScopeState.revision > MemoryScopeState.consolidated_revision)
+        .order_by(
+            MemoryScopeState.consolidated_at.asc().nulls_first(),
+            MemoryScopeState.organization_id,
+            MemoryScopeState.scope_key,
+        )
         .limit(limit)
     )
     return list(result.scalars().all())
@@ -352,13 +933,15 @@ async def _delete_descendants(
         query = select(MemoryClaim).where(MemoryClaim.derived_from.has_any(_texts(frontier)))
         if organization_id is not None:
             query = query.where(MemoryClaim.organization_id == organization_id)
-        rows = (await db.execute(query)).scalars().all()
+        rows = list(await db.scalars(query.order_by(MemoryClaim.id).with_for_update()))
         frontier = []
         for row in rows:
             remaining = [item for item in row.derived_from if item not in gone]
             if remaining:
                 row.derived_from = remaining
                 db.add(row)
+                continue
+            if await _retain_mail_observation(db, row):
                 continue
             frontier.append(str(row.id))
             gone.add(str(row.id))
@@ -382,6 +965,10 @@ async def delete_for_scope(db: AsyncSession, *, organization_id: UUID, scope_key
         .scalars()
         .all()
     )
+    if own:
+        await hold_scope_write_lock(
+            db, organization_id=organization_id, scope_key=organization_owner_key(organization_id)
+        )
     copies = await _delete_descendants(
         db, [str(identifier) for identifier in own], organization_id=organization_id
     )
@@ -397,6 +984,8 @@ async def delete_for_scope(db: AsyncSession, *, organization_id: UUID, scope_key
         )
     )
     await db.flush()
+    if own:
+        await prune_empty_objects(db, organization_id=organization_id)
     return (result.rowcount or 0) + copies  # ty: ignore[missing-attribute]
 
 
@@ -408,15 +997,26 @@ async def delete_everywhere_about(db: AsyncSession, *, scope_key: str) -> int:
     change counters. A shared copy is derived data; it does not outlive its source.
     """
     own = (
-        (await db.execute(select(MemoryClaim.id).where(MemoryClaim.scope_key == scope_key)))
-        .scalars()
-        .all()
-    )
-    removed = await _delete_descendants(db, [str(identifier) for identifier in own])
+        await db.execute(
+            select(MemoryClaim.id, MemoryClaim.organization_id).where(
+                MemoryClaim.scope_key == scope_key
+            )
+        )
+    ).all()
+    # Use the worker's organization lock before selecting an independent mail
+    # source. The event cannot cascade away between lookup and FK assignment.
+    affected = sorted({row.organization_id for row in own})
+    for organization_id in affected:
+        await hold_scope_write_lock(
+            db, organization_id=organization_id, scope_key=organization_owner_key(organization_id)
+        )
+    removed = await _delete_descendants(db, [str(row.id) for row in own])
     own_removed = await db.execute(sa_delete(MemoryClaim).where(MemoryClaim.scope_key == scope_key))
     removed += own_removed.rowcount or 0  # ty: ignore[missing-attribute]
     await db.execute(sa_delete(MemoryScopeState).where(MemoryScopeState.scope_key == scope_key))
     await db.flush()
+    for organization_id in affected:
+        await prune_empty_objects(db, organization_id=organization_id)
     return removed
 
 
@@ -439,6 +1039,10 @@ async def delete_for_agent(db: AsyncSession, *, organization_id: UUID, agent_id:
         .scalars()
         .all()
     )
+    if own:
+        await hold_scope_write_lock(
+            db, organization_id=organization_id, scope_key=organization_owner_key(organization_id)
+        )
     copies = await _delete_descendants(
         db, [str(identifier) for identifier in own], organization_id=organization_id
     )
@@ -448,6 +1052,8 @@ async def delete_for_agent(db: AsyncSession, *, organization_id: UUID, agent_id:
         )
     )
     await db.flush()
+    if own:
+        await prune_empty_objects(db, organization_id=organization_id)
     return (result.rowcount or 0) + copies  # ty: ignore[missing-attribute]
 
 
@@ -470,3 +1076,549 @@ async def ancestry_scope_keys(
         keys.update(row.scope_key for row in rows)
         frontier = sorted({UUID(str(parent)) for row in rows for parent in row.derived_from} - seen)
     return keys
+
+
+async def publish_note(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    source_id: UUID,
+    scope_key: str,
+    name: str,
+    content: str,
+) -> SharedMemoryNote:
+    inserted = pg_insert(SharedMemoryNote).values(
+        organization_id=organization_id,
+        source_id=source_id,
+        scope_key=scope_key,
+        name=name,
+        content=content,
+    )
+    result = await db.scalars(
+        inserted.on_conflict_do_update(
+            constraint="uq_shared_memory_note_source",
+            set_={
+                "name": inserted.excluded.name,
+                "content": inserted.excluded.content,
+                "updated_at": func.now(),
+            },
+        ).returning(SharedMemoryNote)
+    )
+    return result.one()
+
+
+async def shared_notes(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    keys: Sequence[str],
+    cursor: UUID | None,
+    limit: int,
+) -> list[SharedMemoryNote]:
+    result = await db.scalars(
+        select(SharedMemoryNote)
+        .where(
+            SharedMemoryNote.organization_id == organization_id,
+            SharedMemoryNote.scope_key.in_(keys),
+            SharedMemoryNote.id > cursor if cursor else true(),
+        )
+        .order_by(SharedMemoryNote.id)
+        .limit(limit)
+    )
+    return list(result)
+
+
+async def mail_event(
+    db: AsyncSession, *, organization_id: UUID, event_id: UUID
+) -> MemoryMailEvent | None:
+    return await db.scalar(
+        select(MemoryMailEvent)
+        .where(
+            MemoryMailEvent.organization_id == organization_id,
+            MemoryMailEvent.id == event_id,
+        )
+        .execution_options(populate_existing=True)
+    )
+
+
+def _mail_evidence_of(claim: MemoryClaim) -> Select[MemoryMailEvent]:
+    return _authorized_mail_events().where(
+        MemoryMailEvent.organization_id == claim.organization_id,
+        or_(
+            MemoryMailEvent.id == claim.mail_event_id,
+            MemoryMailEvent.supported_claim_id == claim.id,
+        ),
+    )
+
+
+async def has_mail_evidence(db: AsyncSession, *, claim: MemoryClaim) -> bool:
+    return bool(await db.scalar(select(_mail_evidence_of(claim).exists())))
+
+
+async def mail_evidence(
+    db: AsyncSession, *, claim: MemoryClaim, limit: int = 20
+) -> list[MemoryMailEvent]:
+    return list(
+        await db.scalars(
+            _mail_evidence_of(claim)
+            .order_by(MemoryMailEvent.received_at.desc(), MemoryMailEvent.id.desc())
+            .limit(limit)
+        )
+    )
+
+
+async def _retain_mail_observation(db: AsyncSession, claim: MemoryClaim) -> bool:
+    # Drop the private publication and its wording while retaining what the mail
+    # independently disclosed. Reads still apply the mailbox's current authorization.
+    query = select(MemoryMailEvent).where(
+        MemoryMailEvent.organization_id == claim.organization_id,
+        MemoryMailEvent.supported_claim_id == claim.id,
+        MemoryMailEvent.claim_statement.is_not(None),
+    )
+    if claim.effective_to is not None:
+        query = query.where(MemoryMailEvent.received_at < claim.effective_to)
+    event = await db.scalar(
+        query.order_by(MemoryMailEvent.received_at, MemoryMailEvent.id).limit(1)
+    )
+    if event is None:
+        return False
+    assert event.claim_statement is not None
+    claim.derived_from = []
+    claim.author_user_id = None
+    claim.source_run_id = None
+    claim.source_conversation_id = None
+    claim.origin = "agent"
+    claim.statement = event.claim_statement
+    claim.mail_event_id = event.id
+    claim.effective_from = event.received_at
+    claim.observed_at = max(claim.observed_at, event.admitted_at)
+    claim.observation_source = event.observation_source
+    return True
+
+
+async def workflow_evidence(
+    db: AsyncSession, *, organization_id: UUID, grant_id: UUID, event_key: str
+) -> MemoryMailEvent | None:
+    return await db.scalar(
+        select(MemoryMailEvent).where(
+            MemoryMailEvent.organization_id == organization_id,
+            MemoryMailEvent.grant_id == grant_id,
+            MemoryMailEvent.delivery_id == event_key,
+        )
+    )
+
+
+async def backfill_state(
+    db: AsyncSession, *, organization_id: UUID, start: bool = False
+) -> MemoryObjectBackfill | None:
+    if start:
+        await db.execute(
+            pg_insert(MemoryObjectBackfill)
+            .values(organization_id=organization_id, cutoff=func.statement_timestamp())
+            .on_conflict_do_nothing()
+        )
+    query = select(MemoryObjectBackfill).where(
+        MemoryObjectBackfill.organization_id == organization_id
+    )
+    return await db.scalar(query.with_for_update() if start else query)
+
+
+async def unlinked_object_page(
+    db: AsyncSession, state: MemoryObjectBackfill, *, limit: int
+) -> list[MemoryClaim]:
+    query = select(MemoryClaim).where(
+        MemoryClaim.organization_id == state.organization_id,
+        MemoryClaim.created_at <= state.cutoff,
+        MemoryClaim.object_id.is_(None),
+    )
+    if state.cursor_at is not None and state.cursor_id is not None:
+        query = query.where(
+            tuple_(MemoryClaim.created_at, MemoryClaim.id)
+            > tuple_(state.cursor_at, state.cursor_id)
+        )
+    return list(
+        await db.scalars(
+            query.order_by(MemoryClaim.created_at, MemoryClaim.id).limit(limit).with_for_update()
+        )
+    )
+
+
+async def link_backfilled_claims(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    links: dict[UUID, UUID],
+) -> None:
+    if not links:
+        return
+    pairs = values(column("claim_id", Uuid), column("object_id", Uuid), name="links").data(
+        list(links.items())
+    )
+    # Object association alone doesn't change when the ledger first knew the fact.
+    await db.execute(
+        update(MemoryClaim)
+        .where(
+            MemoryClaim.organization_id == organization_id,
+            MemoryClaim.id == pairs.c.claim_id,
+            MemoryClaim.object_id.is_(None),
+        )
+        .values(object_id=pairs.c.object_id, updated_at=MemoryClaim.updated_at)
+    )
+
+
+async def external_objects_for_claims(
+    db: AsyncSession, *, organization_id: UUID, claim_ids: set[UUID]
+) -> dict[UUID, tuple[str, UUID | None, str | None, UUID]]:
+    if not claim_ids:
+        return {}
+    rows = await db.execute(
+        select(
+            MemoryClaim.id,
+            MemoryClaim.scope_key,
+            MemoryClaim.agent_id,
+            MemoryClaim.subject,
+            MemoryObject.id,
+        )
+        .join(MemoryObject, MemoryObject.id == MemoryClaim.object_id)
+        .where(
+            MemoryClaim.organization_id == organization_id,
+            MemoryClaim.id.in_(claim_ids),
+            MemoryObject.organization_id == organization_id,
+            MemoryObject.scope_key == MemoryClaim.scope_key,
+            MemoryObject.identity_key.startswith("external:", autoescape=True),
+            _visible(),
+        )
+        .with_for_update(of=MemoryObject, read=True, key_share=True)
+    )
+    return {
+        claim_id: (scope, agent, subject, object_id)
+        for claim_id, scope, agent, subject, object_id in rows
+    }
+
+
+async def prune_empty_objects(
+    db: AsyncSession, *, organization_id: UUID, scope_key: str | None = None
+) -> None:
+    await db.execute(
+        sa_delete(MemoryObject).where(
+            MemoryObject.organization_id == organization_id,
+            MemoryObject.scope_key == scope_key if scope_key is not None else true(),
+            ~select(MemoryClaim.id)
+            .where(
+                or_(
+                    MemoryClaim.object_id == MemoryObject.id,
+                    MemoryClaim.related_object_id == MemoryObject.id,
+                )
+            )
+            .exists(),
+        )
+    )
+
+
+async def add_message_evidence(
+    db: AsyncSession,
+    *,
+    claim_id: UUID,
+    message_id: UUID,
+    quote: str,
+    occurred_at: datetime,
+) -> None:
+    await db.execute(
+        pg_insert(MemoryClaimEvidence)
+        .values(
+            claim_id=claim_id,
+            message_id=message_id,
+            quote=quote,
+            occurred_at=occurred_at,
+        )
+        .on_conflict_do_nothing()
+    )
+
+
+async def message_evidence(
+    db: AsyncSession, claim_id: UUID, *, limit: int = 10
+) -> list[MemoryClaimEvidence]:
+    return list(
+        await db.scalars(
+            select(MemoryClaimEvidence)
+            .where(MemoryClaimEvidence.claim_id == claim_id)
+            .order_by(MemoryClaimEvidence.occurred_at.desc(), MemoryClaimEvidence.message_id)
+            .limit(limit)
+        )
+    )
+
+
+async def source_authorities(
+    db: AsyncSession, *, organization_id: UUID
+) -> list[MemorySourceAuthority]:
+    return list(
+        await db.scalars(
+            select(MemorySourceAuthority)
+            .where(MemorySourceAuthority.organization_id == organization_id)
+            .order_by(MemorySourceAuthority.object_kind, MemorySourceAuthority.subject)
+        )
+    )
+
+
+async def set_source_authority(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    object_kind: str,
+    subject: str,
+    workflow_id: UUID | None,
+) -> None:
+    if workflow_id is None:
+        await db.execute(
+            sa_delete(MemorySourceAuthority).where(
+                MemorySourceAuthority.organization_id == organization_id,
+                MemorySourceAuthority.object_kind == object_kind,
+                MemorySourceAuthority.subject == subject,
+            )
+        )
+        return
+    statement = pg_insert(MemorySourceAuthority).values(
+        organization_id=organization_id,
+        object_kind=object_kind,
+        subject=subject,
+        workflow_id=workflow_id,
+    )
+    await db.execute(
+        statement.on_conflict_do_update(
+            index_elements=["organization_id", "object_kind", "subject"],
+            set_={"workflow_id": workflow_id},
+        )
+    )
+
+
+async def authoritative_workflow(
+    db: AsyncSession, *, organization_id: UUID, object_kind: str, subject: str
+) -> UUID | None:
+    return await db.scalar(
+        select(MemorySourceAuthority.workflow_id).where(
+            MemorySourceAuthority.organization_id == organization_id,
+            MemorySourceAuthority.object_kind == object_kind,
+            MemorySourceAuthority.subject == subject,
+        )
+    )
+
+
+async def workflow_supports_claim(
+    db: AsyncSession, *, claim: MemoryClaim, workflow_id: UUID
+) -> bool:
+    return bool(
+        await db.scalar(
+            select(
+                _mail_evidence_of(claim)
+                .join(WorkflowExposure, WorkflowWebhookDelivery.exposure_id == WorkflowExposure.id)
+                .where(
+                    WorkflowWebhookDelivery.organization_id == claim.organization_id,
+                    WorkflowExposure.organization_id == claim.organization_id,
+                    WorkflowExposure.workflow_id == workflow_id,
+                    WorkflowExposure.is_active.is_(True),
+                )
+                .exists()
+            )
+        )
+    )
+
+
+async def inbox_shadow_decision(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    claim_id: UUID,
+    rule_version: int,
+    policy_version: int,
+    revision_at: datetime,
+    change: str,
+) -> MemoryInboxShadowDecision | None:
+    return await db.scalar(
+        select(MemoryInboxShadowDecision).where(
+            MemoryInboxShadowDecision.organization_id == organization_id,
+            MemoryInboxShadowDecision.claim_id == claim_id,
+            MemoryInboxShadowDecision.rule_version == rule_version,
+            MemoryInboxShadowDecision.policy_version == policy_version,
+            MemoryInboxShadowDecision.revision_at == revision_at,
+            MemoryInboxShadowDecision.change == change,
+        )
+    )
+
+
+async def record_inbox_shadow(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    claim_id: UUID,
+    rule_version: int,
+    policy_version: int,
+    revision_at: datetime,
+    change: str,
+    baseline_notify: bool,
+    recommendation: str,
+) -> None:
+    await db.execute(
+        pg_insert(MemoryInboxShadowDecision)
+        .values(
+            organization_id=organization_id,
+            claim_id=claim_id,
+            rule_version=rule_version,
+            policy_version=policy_version,
+            revision_at=revision_at,
+            change=change,
+            baseline_notify=baseline_notify,
+            recommendation=recommendation,
+        )
+        .on_conflict_do_nothing()
+    )
+
+
+async def inbox_shadow_counts(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    version: int,
+) -> list[tuple[bool, str, int]]:
+    baseline, recommendation = (
+        MemoryInboxShadowDecision.baseline_notify,
+        MemoryInboxShadowDecision.recommendation,
+    )
+    rows = await db.execute(
+        select(baseline, recommendation, func.count())
+        .where(
+            MemoryInboxShadowDecision.organization_id == organization_id,
+            MemoryInboxShadowDecision.rule_version == version,
+        )
+        .group_by(baseline, recommendation)
+        .order_by(baseline, recommendation)
+    )
+    return [(notify, choice, count) for notify, choice, count in rows]
+
+
+async def inbox_rule(
+    db: AsyncSession, *, organization_id: UUID, for_delivery: bool = False, edit: bool = False
+) -> MemoryInboxRule | None:
+    if edit:
+        await db.execute(
+            pg_insert(MemoryInboxRule)
+            .values(organization_id=organization_id)
+            .on_conflict_do_nothing()
+        )
+    query = select(MemoryInboxRule).where(MemoryInboxRule.organization_id == organization_id)
+    if edit or for_delivery:
+        query = query.with_for_update(read=for_delivery).execution_options(populate_existing=True)
+    return await db.scalar(query)
+
+
+async def record_inbox_decision(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    claim_id: UUID,
+    rule_version: int,
+    policy_version: int,
+    revision_at: datetime,
+    recipient_id: UUID,
+    change: str,
+    outcome: str,
+) -> MemoryInboxDecision | None:
+    return await db.scalar(
+        pg_insert(MemoryInboxDecision)
+        .values(
+            organization_id=organization_id,
+            claim_id=claim_id,
+            rule_version=rule_version,
+            policy_version=policy_version,
+            revision_at=revision_at,
+            recipient_id=recipient_id,
+            change=change,
+            outcome=outcome,
+        )
+        .on_conflict_do_nothing()
+        .returning(MemoryInboxDecision)
+    )
+
+
+async def inbox_decision_counts(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    rule_version: int,
+) -> list[tuple[str, str, int]]:
+    change, outcome = MemoryInboxDecision.change, MemoryInboxDecision.outcome
+    rows = await db.execute(
+        select(change, outcome, func.count())
+        .where(
+            MemoryInboxDecision.organization_id == organization_id,
+            MemoryInboxDecision.rule_version == rule_version,
+        )
+        .group_by(change, outcome)
+        .order_by(change, outcome)
+    )
+    return [(kind, outcome, count) for kind, outcome, count in rows]
+
+
+async def previously_accepted(
+    db: AsyncSession,
+    *,
+    candidate_ids: Sequence[UUID],
+) -> set[UUID]:
+    return set(
+        await db.scalars(
+            select(MemoryClaimRevision.claim_id)
+            .where(
+                MemoryClaimRevision.claim_id.in_(candidate_ids),
+                MemoryClaimRevision.status == "current",
+            )
+            .distinct()
+        )
+    )
+
+
+async def latest_claim_revision(db: AsyncSession, *, claim_id: UUID) -> datetime | None:
+    return await db.scalar(
+        select(MemoryClaimRevision.known_from)
+        .where(MemoryClaimRevision.claim_id == claim_id)
+        .order_by(MemoryClaimRevision.known_from.desc())
+        .limit(1)
+    )
+
+
+async def inbox_objects(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    object_ids: set[UUID],
+    scopes: set[str],
+) -> dict[UUID, MemoryObject]:
+    if not object_ids:
+        return {}
+    rows = await db.scalars(
+        select(MemoryObject).where(
+            MemoryObject.organization_id == organization_id,
+            MemoryObject.id.in_(object_ids),
+            MemoryObject.scope_key.in_(scopes),
+            MemoryObject.kind == "commitment",
+        )
+    )
+    return {row.id: row for row in rows}
+
+
+async def readable_event_ids(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    event_ids: set[UUID],
+) -> set[UUID]:
+    if not event_ids:
+        return set()
+    return set(
+        await db.scalars(
+            _authorized_mail_events()
+            .with_only_columns(MemoryMailEvent.id)
+            .where(
+                MemoryMailEvent.organization_id == organization_id,
+                MemoryMailEvent.id.in_(event_ids),
+            )
+        )
+    )

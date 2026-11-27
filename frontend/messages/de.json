@@ -6406,6 +6406,106 @@
       }
     },
     "memory": {
+      "operations": {
+        "title": "Posteingang und Nachpflege",
+        "inbox": "Posteingangsregel für Erinnerungen",
+        "loading": "Wird geladen…",
+        "loadFailed": "Die Daten konnten nicht geladen werden.",
+        "inboxHint": "Leite Terminänderungen gemeinsamer Verpflichtungen an ausgewählte Mitglieder mit Zugriff weiter.",
+        "modeLabel": "Modus",
+        "off": "Aus",
+        "shadow": "Testlauf",
+        "live": "An",
+        "sources": "Quellen",
+        "gmail": "Gmail",
+        "webhook": "Signierter Webhook",
+        "reviewed": "Geprüfte Erinnerung",
+        "recipients": "Empfänger ({count}/50)",
+        "shadowModel": "Modellempfehlungen mit dem Wartungsbudget vergleichen",
+        "modelComparison": "Regel {baseline, select, notify {melden} other {überspringen}} · Modell {recommendation, select, notify {melden} digest {Übersicht} review {prüfen} other {überspringen}} · {count}",
+        "includeReview": "Änderungen zur Prüfung einschließen",
+        "ruleRequired": "Wähle mindestens eine Quelle und einen Empfänger.",
+        "save": "Regel speichern",
+        "reload": "Aktualisieren",
+        "saveFailed": "Die Regel konnte nicht gespeichert werden. Aktualisiere die Seite und versuche es erneut.",
+        "outcomes": "Regelergebnisse",
+        "version": "Regelversion",
+        "noOutcomes": "Für diese Version liegen noch keine Entscheidungen vor.",
+        "outcome": "{change, select, changed {Geändert} cancelled {Abgesagt} other {Prüfung nötig}} · {outcome, select, shadow {Testlauf} delivered {Zugestellt} other {Stummgeschaltet}} · {count}",
+        "backfill": "Objekte nachpflegen",
+        "backfillHint": "Verknüpfe ältere Erinnerungen anhand der exakten externen Kennung ihrer gespeicherten Quellen.",
+        "progress": "{scanned} geprüft · {linked} verknüpft",
+        "completed": "Abgeschlossen",
+        "start": "Nachpflege starten",
+        "restart": "Neue Prüfung starten",
+        "resume": "Nachpflege fortsetzen",
+        "backfillFailed": "Die Nachpflege konnte nicht gestartet oder geprüft werden.",
+        "aliases": "Objektaliase",
+        "undo": "Zusammenführung rückgängig machen",
+        "undoNamed": "Zusammenführung mit {name} rückgängig machen",
+        "moreAliases": "Weitere Aliase",
+        "firstPage": "Erste Seite",
+        "mergeWith": "Mit {name} zusammenführen",
+        "mergeHint": "Hier erscheinen beide Verläufe. Beim Rückgängigmachen kehrt jede Erinnerung zu ihrem ursprünglichen Objekt zurück.",
+        "findAlias": "Alias suchen",
+        "chooseAlias": "Objekt auswählen",
+        "moreCandidates": "Weitere Objekte",
+        "merge": "Objekte zusammenführen",
+        "mergeFailed": "Die Aliase konnten nicht geändert werden. Lade das Objekt neu und versuche es erneut."
+      },
+      "library": {
+        "scopeLabel": "Speicherbereich",
+        "personal": "Persönlich",
+        "organization": "Organisation",
+        "memoriesView": "Speicheransicht",
+        "claims": "Alle Einträge",
+        "objects": "Objekte",
+        "searchObjects": "Objekte suchen",
+        "emptyObjects": "Keine Objekte gefunden",
+        "timeline": "Zeitachse",
+        "back": "Zurück zu Objekten",
+        "effectiveDate": "Gültigkeitsdatum",
+        "knowledgeDate": "Wissensstand am",
+        "emptyTimeline": "Keine Einträge zu diesem Datum",
+        "unknown": "Unbekannt",
+        "historical": "Historisches Ergebnis",
+        "firstPage": "Erste Seite",
+        "nextPage": "Nächste Seite",
+        "evidence": "Belege",
+        "loadingEvidence": "Belege werden geladen…",
+        "evidenceUnavailable": "Belege nicht verfügbar",
+        "withheld": "Einige Quellen sind zugriffsbeschränkt.",
+        "sharedClaims": "Geteilte Einträge",
+        "searchShared": "Geteilte Einträge suchen",
+        "emptyClaims": "Keine geteilten Einträge",
+        "sharedNotes": "Geteilte Notizen",
+        "emptyNotes": "Keine geteilten Notizen",
+        "share": "Teilen",
+        "audience": "Empfänger",
+        "wholeOrganization": "Ganze Organisation",
+        "confirmShare": "Freigabe bestätigen",
+        "shareFailure": "Dieser Eintrag konnte nicht geteilt werden.",
+        "published": "Geteilt",
+        "close": "Schließen",
+        "conflictsOnly": "Nur Konflikte",
+        "conflictPending": "Prüfung ausstehend",
+        "conflictPick": "Welchen Wert soll das Unternehmensgedächtnis verwenden?",
+        "conflictConfirm": "Wert bestätigen",
+        "conflictResolved": "Konflikt im Gedächtnis gelöst",
+        "conflictChanged": "Dieser Konflikt hat sich geändert. Prüfe die aktuellen Werte.",
+        "gmailSource": "Gmail",
+        "webhookSource": "Signierter Webhook",
+        "previous": "Zuvor: {statement}",
+        "validity": "Von {start} bis {end}",
+        "shareHint": "Prüfe die Empfänger. Eine Kopie des Eintrags wird geteilt.",
+        "kind": {
+          "all": "Alle",
+          "person": "Personen",
+          "company": "Firmen und Kunden",
+          "project": "Projekte",
+          "commitment": "Zusagen"
+        }
+      },
       "showing": "{from}–{to} von {total} werden angezeigt",
       "older": "Ältere",
       "title": "Ihr Gedächtnis",
@@ -6428,6 +6528,7 @@
         "correct": "Erinnerung korrigieren",
         "retract": "Nicht mehr verwenden",
         "statement": "Korrigierte Aussage",
+        "typedValue": "Gespeicherter Wert",
         "effectiveFrom": "Gilt ab",
         "cancel": "Abbrechen",
         "save": "Korrektur speichern",
@@ -6502,6 +6603,23 @@
           "other": "Erinnerung"
         },
         "editNoteHint": "Korrigiere, was sich der Agent über dich merkt. Deine Änderungen werden getrennt vom ursprünglichen Agent-Eintrag protokolliert.",
+        "noteAutoUpdate": "Automatische Aktualisierungen",
+        "noteAutoUpdateHint": "Erlaube Memory Maintenance, diese Notiz anhand künftiger privater Unterhaltungen zu aktualisieren. Frühere Versionen bleiben verfügbar.",
+        "noteOpenObject": "Verknüpftes Objekt öffnen",
+        "noteHistory": "Versionsverlauf",
+        "noteHistoryError": "Versionen konnten nicht geladen werden.",
+        "noteHistoryEmpty": "Für diese Notiz gibt es keine früheren Versionen.",
+        "noteRevisionAgent": "Bearbeitung durch den Agenten",
+        "noteRevisionPerson": "deiner Bearbeitung",
+        "noteRevisionMaintenance": "automatischer Aktualisierung",
+        "noteRevisionRestore": "der Wiederherstellung",
+        "noteRevisionIdentical": "Der Text blieb bei dieser Änderung gleich.",
+        "noteRevisionTooLong": "Diese Version ist zu lang für einen Zeilenvergleich.",
+        "noteRevisionSource": "Quellunterhaltung öffnen",
+        "noteRevisionLabel": "Vor {origin} · {when}",
+        "noteRestoreVersion": "Diese Version wiederherstellen",
+        "noteNewerVersions": "Neuere Versionen",
+        "noteOlderVersions": "Ältere Versionen",
         "noteDetails": "Gedächtnisdetails"
       }
     },
@@ -7751,6 +7869,8 @@
       "prefAnnouncementTrigger": "Ein App-Admin sendet eine Nachricht an einen gewählten Empfängerkreis im ganzen Deployment.",
       "prefWorkflowNotification": "Workflow-Benachrichtigungen",
       "prefWorkflowNotificationTrigger": "Ein Workflow, den Sie sehen können, sendet Ihnen aus einem seiner Schritte eine Nachricht.",
+      "prefMemoryDeadlineChange": "Terminänderungen in Erinnerungen",
+      "prefMemoryDeadlineChangeTrigger": "Eine zugängliche gemeinsame Verpflichtung ändert ihren Termin, wird abgesagt oder muss geprüft werden.",
       "prefWorkflowLogAlert": "Warnungen aus dem Workflow-Protokoll",
       "prefWorkflowLogAlertTrigger": "Das Protokoll eines Workflows, den Sie sehen können, überschreitet einen Warnschwellenwert.",
       "prefArtifactOwnerChanged": "Eigentümerwechsel einer Seite",
@@ -11469,6 +11589,7 @@
       "backgroundTaskPaused": "Hintergrundjobs der Art {kind} sind pausiert{scoped, select, yes { für {organization}} other {}}: {reason}. Setzen Sie sie auf der Seite Hintergrundjobs fort, sobald die Ursache behoben ist.",
       "configurationChanged": "Die Einstellungen des Deployments wurden aktualisiert.",
       "usageReport": "Nutzungsbericht für {name}",
+      "memoryDeadlineChange": "{name} · {change, select, changed {Termin geändert} cancelled {Termin abgesagt} other {Termin prüfen}} · {before} → {after} · {source, select, gmail {Gmail} webhook {Signierter Webhook} other {Geprüfte Erinnerung}}",
       "workflowLogAlert": "{rule}: {count, plural, one {# Vorkommen} other {# Vorkommen}} im Log von {workflow} in {unit, select, hours {{hours, plural, one {der letzten Stunde} other {den letzten # Stunden}}} other {{minutes, plural, one {der letzten Minute} other {den letzten # Minuten}}}}.",
       "coalesced": {
         "securityEvent": "In einer Minute kamen mehr Sicherheitsereignisse an, als dieser Posteingang einzeln auflistet. Jedes davon steht im Audit-Log.",
@@ -19035,6 +19156,10 @@
         "name": "Bild umwandeln",
         "description": "Ein PNG-, JPEG-, WebP- oder GIF-Bild zuschneiden, skalieren, drehen oder konvertieren; Metadaten werden entfernt und die Größe wird vor dem Dekodieren begrenzt."
       },
+      "memory_observe": {
+        "name": "Beobachtung speichern",
+        "description": "Speichere eine verifizierte Zustellung mit Datum und Beleg im Organisationsgedächtnis."
+      },
       "knowledge_add": {
         "name": "Zum Wissen hinzufügen",
         "description": "Einen Text oder eine Datei in Wissens-Collections ablegen, damit Agents sie finden."
@@ -20431,6 +20556,27 @@
           },
           "file__byte_size": {
             "title": "Größe in Bytes"
+          }
+        }
+      },
+      "memory_observe": {
+        "config": {
+          "object_kind": {
+            "title": "Objekttyp"
+          },
+          "object_name": {
+            "title": "Objektname"
+          },
+          "object_key": {
+            "title": "Geschäftsobjektschlüssel"
+          },
+          "use_key_prefix": {
+            "title": "Namensraum für signierten Webhook zulassen",
+            "description": "Verwende den Geschäftsobjektschlüssel als Namensraum mit '/' am Ende, etwa crm:deals/."
+          },
+          "subject": {
+            "title": "Eigenschaft",
+            "description": "Verwende für Gmail deadline."
           }
         }
       },

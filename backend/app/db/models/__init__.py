@@ -116,8 +116,21 @@ from app.db.models.credential import ModelProfile
 from app.db.models.organization_secret import OrganizationSecret
 from app.db.models.context import ContextFile, ContextMode
 from app.db.models.context_proposal import ContextProposal
-from app.db.models.memory import AgentMemoryFile
-from app.db.models.memory_claim import MemoryClaim, MemoryScopeState
+from app.db.models.memory import AgentMemoryFile, MemoryNoteRevision
+from app.db.models.memory_claim import (
+    MemoryClaim,
+    MemoryClaimEvidence,
+    MemoryClaimRevision,
+    MemoryInboxDecision,
+    MemoryInboxRule,
+    MemoryMailEvent,
+    MemoryMailSource,
+    MemoryObject,
+    MemoryObjectBackfill,
+    MemoryObjectMerge,
+    MemoryScopeState,
+    SharedMemoryNote,
+)
 from app.db.models.primary_conversation import PrimaryConversation
 from app.db.models.system_agent_profile import SystemAgentProfile
 from app.db.models.virtual_table import (
@@ -400,6 +413,17 @@ __all__ = [
     "ContextMode",
     "AgentMemoryFile",
     "MemoryClaim",
+    "MemoryClaimEvidence",
+    "MemoryClaimRevision",
+    "MemoryInboxDecision",
+    "MemoryInboxRule",
+    "MemoryMailEvent",
+    "MemoryMailSource",
+    "MemoryNoteRevision",
+    "MemoryObject",
+    "MemoryObjectBackfill",
+    "MemoryObjectMerge",
+    "SharedMemoryNote",
     "MemoryScopeState",
     "PrimaryConversation",
     "SystemAgentProfile",

@@ -14,6 +14,7 @@ instructions are what it obeys, so an index is injected only where its content
 could have steered nobody but its reader.
 """
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -580,3 +581,38 @@ class TestAReadOnlyRun:
         )
 
         assert await _toolset().list_memory(ctx) == "No notes saved yet."
+
+
+async def test_an_agent_can_edit_using_the_revision_returned_by_read_memory(monkeypatch):
+    revision = datetime(2026, 11, 27, tzinfo=UTC)
+    read = AsyncMock(return_value=("earlier body", revision))
+    edit = AsyncMock(return_value=True)
+    monkeypatch.setattr(memory_store, "read_file_revision", read)
+    monkeypatch.setattr(memory_store, "edit_file", edit)
+    toolset = _toolset()
+    ctx = _ctx(_deps())
+    assert await toolset.read_memory(ctx, "plan", include_revision=True) == (
+        f"Revision: {revision.isoformat()}\n\nearlier body"
+    )
+    assert await toolset.edit_memory(ctx, "plan", "updated body", expected_revision=revision) == (
+        "Updated note 'plan'."
+    )
+    assert edit.await_args.kwargs["expected_revision"] == revision
+    edit.side_effect = memory_store.NoteChangedDuringRead
+    with pytest.raises(ModelRetry, match="Read it again"):
+        await toolset.edit_memory(ctx, "plan", "updated body", expected_revision=revision)
+
+
+async def test_a_missing_revision_read_offers_existing_notes(monkeypatch) -> None:
+    monkeypatch.setattr(memory_store, "read_file_revision", AsyncMock(return_value=None))
+    monkeypatch.setattr(memory_store, "list_files", AsyncMock(return_value=[_entry("prefs")]))
+    with pytest.raises(ModelRetry, match="prefs"):
+        await _toolset().read_memory(_ctx(_deps()), "missing", include_revision=True)
+
+
+async def test_a_note_cannot_link_to_an_unavailable_object(monkeypatch) -> None:
+    monkeypatch.setattr(
+        memory_store, "write_file", AsyncMock(side_effect=memory_store.NoteObjectUnavailable)
+    )
+    reply = await _toolset().write_memory(_ctx(_deps()), "prefs", "body", object_id=uuid4())
+    assert reply == "That object is unavailable in this note's memory scope."

@@ -16,6 +16,8 @@ export interface MemoryNote {
   agent_id: string;
   agent_name: string | null;
   name: string;
+  auto_update?: boolean;
+  object_id?: string | null;
   description: string | null;
   content: string;
   format: string;
@@ -48,6 +50,33 @@ export async function setNoteActive(id: string, active: boolean): Promise<Memory
 export async function editNoteContent(note: MemoryNote, content: string): Promise<MemoryNote> {
   return apiClient.patch<MemoryNote>(`${ROOT}/mine/${note.id}/content`, {
     content,
+    expected_updated_at: note.updated_at,
+  });
+}
+
+export interface NoteRevision {
+  id: string;
+  content: string;
+  changed_by: "agent" | "person" | "maintenance" | "restore";
+  replaced_at: string;
+  source_conversation_id?: string | null;
+}
+
+export function getNoteRevisions(id: string, skip: number) {
+  return apiClient.get<{ items: NoteRevision[]; total: number }>(
+    `${ROOT}/mine/${id}/revisions?skip=${skip}`,
+  );
+}
+
+export function setNoteAutoUpdate(note: MemoryNote, enabled: boolean) {
+  return apiClient.patch<MemoryNote>(`${ROOT}/mine/${note.id}/auto-update`, {
+    enabled,
+    expected_updated_at: note.updated_at,
+  });
+}
+
+export function restoreNoteRevision(note: MemoryNote, revision: string) {
+  return apiClient.post<MemoryNote>(`${ROOT}/mine/${note.id}/revisions/${revision}/restore`, {
     expected_updated_at: note.updated_at,
   });
 }
@@ -99,13 +128,17 @@ export async function reviewDecisionCase(
   });
 }
 
+export type MemoryValue = string | number | boolean;
+
 export interface MemoryClaim {
   id: string;
   agent_id: string | null;
   agent_name: string | null;
   /** `profile` serves every agent acting for the person; `agent` is one agent's relationship. */
-  scope: "profile" | "agent";
+  scope: "profile" | "agent" | "organization" | "group";
   subject: string | null;
+  object_id?: string | null;
+  value?: MemoryValue | null;
   statement: string;
   kind: string;
   origin: "agent" | "person" | "consolidation";
@@ -153,15 +186,218 @@ export async function correctClaim(
   statement: string,
   effectiveFrom: string | null,
   episode?: DecisionEpisode,
+  value?: MemoryValue,
 ): Promise<MemoryClaim> {
   return apiClient.post<MemoryClaim>(`${ROOT}/claims/mine/${id}/correct`, {
     statement,
     effective_from: effectiveFrom,
     ...(episode ? { episode } : {}),
+    ...(value === undefined ? {} : { value }),
   });
 }
 
 /** Take a claim out of use. It and everything it came from stay in the history. */
 export async function retractClaim(id: string): Promise<MemoryClaim> {
   return apiClient.post<MemoryClaim>(`${ROOT}/claims/mine/${id}/retract`, {});
+}
+
+export type MemoryLibrary = "personal" | "organization";
+export type MemoryObjectKind = "person" | "company" | "project" | "commitment";
+
+export interface MemoryObject {
+  id: string;
+  kind: MemoryObjectKind;
+  name: string;
+  external_key?: string | null;
+}
+
+export interface MemoryCursorPage<T> {
+  items: T[];
+  next_cursor: string | null;
+}
+
+export interface MemoryTimeline extends MemoryCursorPage<MemoryClaim> {
+  object: MemoryObject;
+}
+
+export interface MemoryClaimDetail extends MemoryClaim {
+  evidence: Array<{
+    kind: "message" | "gmail" | "webhook";
+    source_id: string;
+    quote: string;
+    occurred_at: string;
+  }>;
+  sources: MemoryClaim[];
+  superseded: MemoryClaim | null;
+  withheld: number;
+  conflicts: MemoryClaim[];
+}
+
+export interface SharedMemoryNote {
+  id: string;
+  name: string;
+  content: string;
+}
+
+export function getMemoryObjects(
+  library: MemoryLibrary,
+  q: string,
+  kind: MemoryObjectKind | "all",
+  cursor: string | null,
+  mergeTarget?: string,
+) {
+  const query = new URLSearchParams({ library, q });
+  if (mergeTarget) query.set("merge_target", mergeTarget);
+  if (kind !== "all") query.set("kind", kind);
+  if (cursor) query.set("cursor", cursor);
+  return apiClient.get<MemoryCursorPage<MemoryObject>>(`${ROOT}/objects?${query}`);
+}
+
+export function getMemoryTimeline(
+  library: MemoryLibrary,
+  objectId: string,
+  asOf: string,
+  knownAt: string,
+  cursor: string | null,
+) {
+  const query = new URLSearchParams({ library });
+  if (asOf) query.set("as_of", `${asOf}T00:00:00Z`);
+  if (asOf && knownAt) query.set("known_at", `${knownAt}T23:59:59.999999Z`);
+  if (cursor) query.set("cursor", cursor);
+  return apiClient.get<MemoryTimeline>(`${ROOT}/objects/${objectId}?${query}`);
+}
+
+export function getMemoryClaimDetail(library: MemoryLibrary, id: string) {
+  const location = library === "personal" ? "mine" : "shared";
+  return apiClient.get<MemoryClaimDetail>(`${ROOT}/claims/${location}/${id}`);
+}
+
+export function getSharedClaims(q: string, skip: number, disputed = false) {
+  const query = new URLSearchParams({ q, skip: String(skip) });
+  if (disputed) query.set("disputed", "true");
+  return apiClient.get<MemoryClaimPage>(`${ROOT}/claims/shared?${query}`);
+}
+
+export function resolveSharedMemoryConflict(winnerId: string, candidateIds: string[]) {
+  return apiClient.post<MemoryClaim>(`${ROOT}/claims/shared/${winnerId}/resolve`, {
+    candidate_ids: candidateIds,
+  });
+}
+
+export function getSharedNotes(cursor: string | null) {
+  const query = new URLSearchParams(cursor ? { cursor } : {});
+  return apiClient.get<MemoryCursorPage<SharedMemoryNote>>(`${ROOT}/notes/shared?${query}`);
+}
+
+export function shareMemoryClaim(id: string, groupId: string | null) {
+  return apiClient.post<MemoryClaim>(`${ROOT}/claims/mine/${id}/share`, {
+    confirmed: true,
+    group_id: groupId,
+  });
+}
+
+export function shareMemoryNote(note: MemoryNote, groupId: string | null) {
+  return apiClient.post<SharedMemoryNote>(`${ROOT}/mine/${note.id}/share`, {
+    confirmed: true,
+    group_id: groupId,
+    expected_updated_at: note.updated_at,
+  });
+}
+
+export function amendHistoricalClaim(
+  id: string,
+  statement: string,
+  episode?: DecisionEpisode,
+  value?: MemoryValue,
+) {
+  return apiClient.post<MemoryClaim>(`${ROOT}/claims/mine/${id}/correct`, {
+    statement,
+    episode,
+    historical: true,
+    ...(value === undefined ? {} : { value }),
+  });
+}
+
+export interface MemoryObjectMerge {
+  id: string;
+  source: MemoryObject;
+  target_id: string;
+  merged_at: string;
+}
+
+export function getMemoryObjectMerges(library: MemoryLibrary, id: string, cursor: string | null) {
+  const query = new URLSearchParams({ library });
+  if (cursor) query.set("cursor", cursor);
+  return apiClient.get<MemoryCursorPage<MemoryObjectMerge>>(
+    `${ROOT}/objects/${id}/merges?${query}`,
+  );
+}
+
+export function mergeMemoryObject(library: MemoryLibrary, id: string, sourceId: string) {
+  return apiClient.post<MemoryObjectMerge>(`${ROOT}/objects/${id}/merges?library=${library}`, {
+    source_id: sourceId,
+    confirmed: true,
+  });
+}
+
+export function undoMemoryObjectMerge(library: MemoryLibrary, id: string, mergeId: string) {
+  return apiClient.delete<void>(`${ROOT}/objects/${id}/merges/${mergeId}?library=${library}`);
+}
+
+export const MEMORY_INBOX_SOURCES = ["gmail", "webhook", "reviewed"] as const;
+export const MEMORY_INBOX_MODES = ["off", "shadow", "live"] as const;
+
+export interface MemoryInboxRule {
+  version: number;
+  mode: (typeof MEMORY_INBOX_MODES)[number];
+  sources: (typeof MEMORY_INBOX_SOURCES)[number][];
+  recipient_ids: string[];
+  include_review: boolean;
+  shadow_model?: boolean;
+}
+
+interface MemoryInboxDecision {
+  change: "changed" | "cancelled" | "review";
+  outcome: "shadow" | "delivered" | "muted";
+  count: number;
+}
+
+export function getMemoryInboxRule() {
+  return apiClient.get<MemoryInboxRule>(`${ROOT}/inbox-rule`);
+}
+
+export function setMemoryInboxRule({ version, ...settings }: MemoryInboxRule) {
+  return apiClient.put<MemoryInboxRule>(`${ROOT}/inbox-rule`, {
+    expected_version: version,
+    ...settings,
+  });
+}
+
+export function getMemoryInboxDecisions(version: number) {
+  return apiClient.get<MemoryInboxDecision[]>(`${ROOT}/inbox-rule/decisions?version=${version}`);
+}
+
+export function getMemoryInboxModelDecisions(version: number) {
+  return apiClient.get<
+    {
+      baseline_notify: boolean;
+      recommendation: "notify" | "digest" | "review" | "ignore";
+      count: number;
+    }[]
+  >(`${ROOT}/inbox-rule/shadow-model?version=${version}`);
+}
+
+interface MemoryObjectBackfill {
+  cutoff: string;
+  completed_at: string | null;
+  scanned: number;
+  linked: number;
+}
+
+export function getMemoryObjectBackfill() {
+  return apiClient.get<MemoryObjectBackfill | null>(`${ROOT}/object-backfill`);
+}
+
+export function runMemoryObjectBackfill(restart: boolean) {
+  return apiClient.post<MemoryObjectBackfill>(`${ROOT}/object-backfill/run`, { restart });
 }

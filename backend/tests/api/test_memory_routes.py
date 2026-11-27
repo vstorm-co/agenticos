@@ -7,6 +7,7 @@ reaches the browser as a refusal.
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -23,8 +24,13 @@ from app.schemas.memory import (
     MemoryClaimList,
     MemoryClaimRead,
     MemoryErasureResult,
+    MemoryInboxRuleRead,
     MemoryNoteList,
     MemoryNoteRead,
+    MemoryObjectBackfillRead,
+    MemoryObjectMergePage,
+    MemoryObjectMergeRead,
+    MemoryObjectRead,
 )
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -299,3 +305,248 @@ async def test_personal_note_correction_keeps_revision_and_content() -> None:
     assert response.status_code == 200
     assert edit.await_args.args[2].content == "Corrected"
     assert edit.await_args.args[2].expected_updated_at is None
+
+
+async def test_company_library_object_routes_validate_dates_before_reading() -> None:
+    from app.schemas.memory import MemoryObjectPage, MemoryObjectRead, MemoryObjectTimeline
+
+    object_id = uuid4()
+    project = MemoryObjectRead(id=object_id, kind="project", name="XYZ")
+    listed = AsyncMock(return_value=MemoryObjectPage(items=[project]))
+    timeline = AsyncMock(return_value=MemoryObjectTimeline(object=project, items=[]))
+    with (
+        patch("app.services.memory.MemoryService.objects", new=listed),
+        patch("app.services.memory.MemoryService.object_timeline", new=timeline),
+    ):
+        async with _client() as client:
+            page = await client.get(f"{ROOT}/objects?library=organization&kind=project")
+            historical = await client.get(
+                f"{ROOT}/objects/{object_id}?as_of=2020-01-01T00%3A00%3A00Z"
+            )
+            refused = await client.get(f"{ROOT}/objects/{object_id}?as_of=2020-01-01")
+    assert page.status_code == historical.status_code == 200
+    assert refused.status_code == 422
+    assert listed.await_args.kwargs["library"] == "organization"
+    timeline.assert_awaited_once()
+    assert timeline.await_args.kwargs["object_id"] == object_id
+
+
+async def test_shared_claim_and_note_routes_require_confirmation_on_writes() -> None:
+    from app.schemas.memory import SharedMemoryNotePage, SharedMemoryNoteRead
+
+    note = SharedMemoryNoteRead(id=NOTE, name="XYZ", content="Reviewed note")
+    claims = MemoryClaimList(items=[MemoryClaimRead(**_CLAIM)], total=1)
+    with (
+        patch(
+            "app.services.memory.MemoryService.shared_claims", new=AsyncMock(return_value=claims)
+        ),
+        patch(
+            "app.services.memory.MemoryService.shared_claim_detail",
+            new=AsyncMock(return_value=MemoryClaimDetail(**_CLAIM)),
+        ),
+        patch(
+            "app.services.memory.MemoryService.shared_notes",
+            new=AsyncMock(return_value=SharedMemoryNotePage(items=[note])),
+        ),
+        patch(
+            "app.services.memory.MemoryService.publish_claim",
+            new=AsyncMock(return_value=claims.items[0]),
+        ) as share,
+        patch(
+            "app.services.memory.MemoryService.publish_note", new=AsyncMock(return_value=note)
+        ) as share_note,
+    ):
+        async with _client() as client:
+            assert (await client.get(f"{ROOT}/claims/shared")).status_code == 200
+            assert (await client.get(f"{ROOT}/claims/shared/{_CLAIM_ID}")).status_code == 200
+            assert (await client.get(f"{ROOT}/notes/shared")).status_code == 200
+            assert (
+                await client.post(
+                    f"{ROOT}/claims/mine/{_CLAIM_ID}/share", json={"confirmed": False}
+                )
+            ).status_code == 422
+            assert (
+                await client.post(f"{ROOT}/claims/mine/{_CLAIM_ID}/share", json={"confirmed": True})
+            ).status_code == 200
+            assert (
+                await client.post(
+                    f"{ROOT}/mine/{NOTE}/share",
+                    json={"confirmed": True, "expected_updated_at": None},
+                )
+            ).status_code == 200
+    share.assert_awaited_once()
+    share_note.assert_awaited_once()
+
+
+async def test_shared_memory_conflict_route_forwards_reviewed_ids() -> None:
+    claim = MemoryClaimRead(**_CLAIM)
+    with patch(
+        "app.services.memory.MemoryService.resolve_shared_conflict",
+        new=AsyncMock(return_value=claim),
+    ) as resolve:
+        async with _client() as client:
+            url = f"{ROOT}/claims/shared/{_CLAIM_ID}/resolve"
+            assert (await client.post(url, json={"candidate_ids": []})).status_code == 422
+            response = await client.post(url, json={"candidate_ids": [str(_CLAIM_ID), str(NOTE)]})
+            assert response.status_code == 200
+            assert response.json()["id"] == str(_CLAIM_ID)
+    resolve.assert_awaited_once()
+    assert resolve.await_args.args[2].candidate_ids == [_CLAIM_ID, NOTE]
+
+
+async def test_note_maintenance_and_history_use_the_same_private_note_routes() -> None:
+    from app.schemas.memory import MemoryNoteRevisionList
+
+    revision = uuid4()
+    consent = AsyncMock(return_value=_NOTE.model_copy(update={"auto_update": True}))
+    history = AsyncMock(return_value=MemoryNoteRevisionList(items=[], total=0))
+    restore = AsyncMock(return_value=_NOTE)
+    with (
+        patch("app.services.memory.MemoryService.set_note_auto_update", consent),
+        patch("app.services.memory.MemoryService.note_revisions", history),
+        patch("app.services.memory.MemoryService.restore_note_revision", restore),
+    ):
+        async with _client() as client:
+            enabled = await client.patch(
+                f"{ROOT}/mine/{NOTE}/auto-update",
+                json={"enabled": True, "expected_updated_at": None},
+            )
+            page = await client.get(f"{ROOT}/mine/{NOTE}/revisions?skip=5")
+            restored = await client.post(
+                f"{ROOT}/mine/{NOTE}/revisions/{revision}/restore",
+                json={"expected_updated_at": None},
+            )
+    assert enabled.status_code == 200 and enabled.json()["auto_update"]
+    assert page.json() == {"items": [], "total": 0}
+    assert history.await_args.kwargs == {"skip": 5, "limit": 5}
+    assert restored.status_code == 200
+    assert restore.await_args.args[1:3] == (NOTE, revision)
+
+
+async def test_memory_object_aliases_wire_review_and_undo() -> None:
+    primary, alias_id, merge_id = uuid4(), uuid4(), uuid4()
+    merge = MemoryObjectMergeRead(
+        id=merge_id,
+        source=MemoryObjectRead(id=alias_id, kind="company", name="Atlas"),
+        target_id=primary,
+        merged_at=datetime.now(UTC),
+    )
+    with (
+        patch(
+            "app.services.memory.MemoryService.object_merges",
+            new=AsyncMock(
+                return_value=MemoryObjectMergePage(items=[merge]),
+            ),
+        ),
+        patch(
+            "app.services.memory.MemoryService.merge_objects", new=AsyncMock(return_value=merge)
+        ) as write,
+        patch("app.services.memory.MemoryService.undo_object_merge", new=AsyncMock()) as undo,
+    ):
+        async with _client() as client:
+            path = f"{ROOT}/objects/{primary}/merges"
+            unconfirmed = await client.post(path, json={"source_id": str(alias_id)})
+            created = await client.post(
+                f"{path}?library=organization",
+                json={
+                    "source_id": str(alias_id),
+                    "confirmed": True,
+                },
+            )
+            listed = await client.get(path)
+            removed = await client.delete(f"{path}/{merge_id}?library=organization")
+
+    assert (
+        unconfirmed.status_code,
+        created.status_code,
+        listed.status_code,
+        removed.status_code,
+    ) == (422, 201, 200, 204)
+    assert created.json()["id"] == str(merge_id)
+    assert listed.json()["items"][0]["source"]["id"] == str(alias_id)
+    assert write.await_args is not None and write.await_args.kwargs["target_id"] == primary
+    assert undo.await_args is not None and undo.await_args.kwargs["merge_id"] == merge_id
+
+
+async def test_memory_operations_require_owner_and_expose_typed_progress() -> None:
+    async with _client() as client:
+        assert (await client.get(f"{ROOT}/inbox-rule")).status_code == 403
+        assert (await client.get(f"{ROOT}/object-backfill")).status_code == 403
+
+    rule = MemoryInboxRuleRead(
+        version=1,
+        mode="shadow",
+        sources=["webhook"],
+        recipient_ids=[PERSON],
+        include_review=True,
+    )
+    summary = MemoryObjectBackfillRead(
+        cutoff=datetime.now(UTC),
+        scanned=200,
+        linked=5,
+        completed_at=None,
+    )
+    with (
+        patch("app.services.memory.MemoryService.inbox_rule", new=AsyncMock(return_value=rule)),
+        patch(
+            "app.services.memory.MemoryService.update_inbox_rule", new=AsyncMock(return_value=rule)
+        ),
+        patch(
+            "app.services.memory.MemoryService.inbox_decision_counts",
+            new=AsyncMock(return_value=[]),
+        ),
+        patch(
+            "app.services.memory.MemoryService.object_backfill_status",
+            new=AsyncMock(return_value=None),
+        ),
+        patch(
+            "app.services.memory.MemoryService.run_object_backfill",
+            new=AsyncMock(return_value=summary),
+        ),
+        patch(
+            "app.services.memory.MemoryService.advance_object_backfill",
+            new=AsyncMock(return_value=summary),
+        ),
+    ):
+        async with _client() as client:
+            assert (await client.get(f"{ROOT}/inbox-rule")).json()["mode"] == "shadow"
+            saved = await client.put(
+                f"{ROOT}/inbox-rule",
+                json={
+                    "expected_version": 0,
+                    "mode": "shadow",
+                    "sources": ["webhook"],
+                    "recipient_ids": [str(PERSON)],
+                    "include_review": True,
+                },
+            )
+            assert saved.status_code == 200 and saved.json()["version"] == 1
+            assert (await client.get(f"{ROOT}/inbox-rule/decisions?version=1")).json() == []
+            assert (await client.get(f"{ROOT}/object-backfill")).json() is None
+            scheduled = await client.post(f"{ROOT}/object-backfill/run", json={"restart": False})
+            assert scheduled.status_code == 202 and scheduled.json()["scanned"] == 200
+            advanced = await client.post(f"{ROOT}/object-backfill/advance", json={"limit": 200})
+            assert advanced.status_code == 200 and advanced.json()["linked"] == 5
+            assert (
+                await client.post(f"{ROOT}/object-backfill/advance", json={"limit": 201})
+            ).status_code == 422
+
+
+async def test_memory_policy_routes_expose_owner_configuration_and_model_counts() -> None:
+    path = "app.services.memory.MemoryService"
+    async with _client() as client:
+        assert (await client.get(f"{ROOT}/source-authorities")).status_code == 403
+        assert (await client.get(f"{ROOT}/inbox-rule/shadow-model?version=1")).status_code == 403
+    authority = {"object_kind": "company", "subject": "headcount", "workflow_id": None}
+    count = {"baseline_notify": True, "recommendation": "digest", "count": 2}
+    with (
+        patch(f"{path}.source_authorities", new=AsyncMock(return_value=[authority])),
+        patch(f"{path}.update_source_authority", new=AsyncMock(return_value=authority)),
+        patch(f"{path}.inbox_shadow_counts", new=AsyncMock(return_value=[count])),
+    ):
+        async with _client() as client:
+            assert (await client.get(f"{ROOT}/source-authorities")).json() == [authority]
+            assert (
+                await client.put(f"{ROOT}/source-authorities", json=authority)
+            ).json() == authority
+            assert (await client.get(f"{ROOT}/inbox-rule/shadow-model?version=1")).json() == [count]

@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
+from pydantic import AwareDatetime
 from pydantic_ai.tools import RunContext
 from pydantic_ai.toolsets import FunctionToolset
 
@@ -25,6 +26,7 @@ from app.agents.memory_scope import claim_write_scope, memory_owner_key, readabl
 from app.core.memory_keys import INDEX_NAME as _INDEX_NAME
 from app.repositories.memory_claim import ClaimScope
 from app.schemas.decision_episode import DecisionEpisode
+from app.schemas.memory import MemoryObjectRef, MemoryRelationRef, MemoryValue
 from app.services import memory as memory_store
 from app.services.memory._runtime import ClaimView, ShareRefused
 
@@ -137,7 +139,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             for entry in entries
         )
 
-    async def read_memory(self, ctx: RunContext[AgentDeps], name: str) -> str:
+    async def read_memory(
+        self, ctx: RunContext[AgentDeps], name: str, include_revision: bool = False
+    ) -> str:
         """Read one note's body by its name.
 
         Use it when your index mentions a note that looks relevant to what you are
@@ -147,6 +151,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
 
         Args:
             name: The note's name, exactly as the index or `list_memory` gives it.
+            include_revision: Include the revision token when preparing to edit the note.
 
         Returns:
             The note's body, or - when nothing of that name exists - a retry naming
@@ -156,9 +161,21 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         if isinstance(scope, str):
             return scope
         organization_id, agent_id, owner_key = scope
-        content = await memory_store.read_file(
-            organization_id=organization_id, agent_id=agent_id, owner_key=owner_key, name=name
-        )
+        if include_revision:
+            snapshot = await memory_store.read_file_revision(
+                organization_id=organization_id,
+                agent_id=agent_id,
+                owner_key=owner_key,
+                name=name,
+            )
+            if snapshot is not None:
+                content, revision = snapshot
+                return f"Revision: {revision.isoformat()}\n\n{content}"
+            content = None
+        else:
+            content = await memory_store.read_file(
+                organization_id=organization_id, agent_id=agent_id, owner_key=owner_key, name=name
+            )
         if content is None:
             entries = await memory_store.list_files(
                 organization_id=organization_id, agent_id=agent_id, owner_key=owner_key
@@ -178,18 +195,21 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         content: str,
         description: str | None = None,
         kind: str = "note",
+        object_id: UUID | None = None,
     ) -> str:
-        """Save a new note under a name, so a later conversation can find it.
+        """Save a named working note, handoff, checklist or reference for a later conversation.
 
-        Save substantial material, such as a briefing about a person or a checklist.
-        A one-line fact, preference or decision belongs in `remember`. Notes appear
-        in the overview automatically. Use `edit_memory` to update an existing note.
+        Use for a requested working note or reusable context such as a handoff,
+        checklist or reference you will need in a later conversation. Notes can
+        be short and appear in the overview automatically. Use `edit_memory` to
+        update an existing note.
 
         Args:
             name: A short handle to find it by, unique among your notes here.
             content: What to remember, as plain text or Markdown.
             description: The one line shown for it in `list_memory`.
             kind: A short category, e.g. `note`, `profile`, `preference`.
+            object_id: Optional business object ID from remember or recall in this same memory scope.
 
         Returns:
             A confirmation, or - when the name is already taken - a note to edit
@@ -218,25 +238,36 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 description=description,
                 kind=kind,
                 run_id=ctx.deps.run_id,
+                object_id=object_id,
             )
         except memory_store.ErasedDuringRun:
             return _ERASED
+        except memory_store.NoteObjectUnavailable:
+            return "That object is unavailable in this note's memory scope."
         if not created:
             return (
                 f"A note named {name!r} already exists. Use `edit_memory` to change it, "
                 "or choose a different name."
             )
-        return f"Saved note {name!r}."
+        linked = f" (object {object_id})" if object_id is not None else ""
+        return f"Saved note {name!r}{linked}."
 
-    async def edit_memory(self, ctx: RunContext[AgentDeps], name: str, content: str) -> str:
+    async def edit_memory(
+        self,
+        ctx: RunContext[AgentDeps],
+        name: str,
+        content: str,
+        expected_revision: AwareDatetime | None = None,
+    ) -> str:
         """Replace the body of a note you already saved.
 
-        Read the note first so you preserve existing useful details. To create or
+        Read the note with include_revision=true before updating it. To create or
         remove a note use `write_memory` or `delete_memory`.
 
         Args:
             name: The name of an existing note.
             content: The new body, which replaces the old one entirely.
+            expected_revision: The revision token returned by read_memory, to guard against concurrent edits.
 
         Returns:
             A confirmation, or a note that nothing of that name exists here, so
@@ -254,9 +285,14 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 name=name,
                 content=content,
                 run_id=ctx.deps.run_id,
+                expected_revision=expected_revision,
             )
         except memory_store.ErasedDuringRun:
             return _ERASED
+        except memory_store.NoteChangedDuringRead:
+            return steer(
+                ctx, "The note changed. Read it again with include_revision=true before editing."
+            )
         if not edited:
             return f"No note named {name!r} to edit. Use `write_memory` to save a new one."
         return f"Updated note {name!r}."
@@ -315,11 +351,16 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         profile: bool = False,
         effective_from: str | None = None,
         episode: DecisionEpisode | None = None,
+        object_ref: MemoryObjectRef | None = None,
+        effective_to: str | None = None,
+        value: MemoryValue | None = None,
+        relation: MemoryRelationRef | None = None,
     ) -> str:
         """Record one durable fact, preference or decision, with where it came from.
 
-        Use it for something a person told you or decided that a later conversation
-        should rely on, in one plain sentence. It is saved where this conversation
+        Use it when the person asks you to remember a fact or an object. Write your
+        own useful working notes with write_memory. After the conversation, memory
+        maintenance can capture other supported facts. It is saved where this conversation
         belongs: a private chat's claim is that person's, a group chat's is the
         chat's. Set `profile` for a general fact or preference every agent working
         for the person may use ("prefers short answers"); leave it off for case
@@ -337,6 +378,15 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             kind: `fact`, `preference` or `decision`.
             profile: True for a general fact or preference about the person.
             effective_from: ISO date from which it holds, for example `2026-11-03`.
+            effective_to: Optional exclusive end date. Use an explicit interval for a
+                dated observation such as a headcount report. Leave uncertain dates empty.
+            object_ref: Optional person, company, business project or commitment and name.
+                A business project can exist without a Projects workspace. Supply an
+                external key only when the person provided one for this identity.
+            relation: Optional typed relationship. Use client (project to company),
+                responsible (project to person) or part_of (commitment to project).
+                Supply object_ref for its start and leave subject and value empty.
+            value: Optional exact numeric, Boolean or text value for the named property.
             episode: For a decision only: observed situation, chosen action, alternatives,
                 expected and actual outcomes, and any correction. Do not invent outcomes.
                 Keep case evidence in this agent or room; never set profile for an episode.
@@ -352,6 +402,14 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             return _READ_ONLY
         if episode is not None and (kind != "decision" or profile):
             return "Record an episode as a decision in this case, without profile sharing."
+        if relation is not None and (
+            object_ref is None
+            or not relation.supports(object_ref.kind)
+            or subject is not None
+            or value is not None
+            or kind != "fact"
+        ):
+            return "A relation needs the matching object types, with no separate subject or value."
         target = claim_write_scope(
             audience,
             agent_id=deps.agent_id,
@@ -365,6 +423,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         start = _parse_date(effective_from)
         if effective_from and start is None:
             return "effective_from must be an ISO date such as 2026-11-03."
+        end = _parse_date(effective_to)
+        if effective_to is not None and (start is None or end is None or end <= start):
+            return "effective_to must be an ISO date later than effective_from."
         author = UUID(str(audience.user_id)) if audience.user_id else None
         try:
             saved = await memory_store.runtime.remember(
@@ -377,7 +438,11 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 conversation_id=deps.conversation_id,
                 run_id=deps.run_id,
                 effective_from=start,
-                **({"episode": episode} if episode is not None else {}),
+                effective_to=end,
+                object_ref=object_ref,
+                value=value,
+                relation=relation,
+                episode=episode,
             )
         except memory_store.ErasedDuringRun:
             return _ERASED
@@ -389,14 +454,27 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 f"Kept aside as disputed (claim {claim.id}): it contradicts something already "
                 "recorded on that subject. Do not treat it as established; ask the person."
             )
+        if claim.object_id is not None:
+            action = "Recorded" if created else "Already recorded"
+            return f"{action} (claim {claim.id}, object {claim.object_id}, scope {claim.scope})."
         return (
             f"Recorded (claim {claim.id})."
             if created
             else f"Already recorded (claim {claim.id}); nothing changed."
         )
 
-    async def recall(self, ctx: RunContext[AgentDeps], query: str) -> str:
-        """Find recorded facts, preferences and decisions relevant to a question.
+    async def recall(
+        self,
+        ctx: RunContext[AgentDeps],
+        query: str,
+        as_of: str | None = None,
+        known_at: str | None = None,
+        object_id: UUID | None = None,
+        related_to: UUID | None = None,
+        subject: str | None = None,
+        include_notes: bool = False,
+    ) -> str:
+        """Find relevant facts, preferences and decisions, optionally with working notes.
 
         Searches what you are allowed to know here - this conversation's claims, the
         person's profile, the project's and the organization's - without reading
@@ -405,21 +483,65 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         what you are asked now.
 
         Args:
-            query: A few words about what you want to know.
+            query: A few keywords. Leave empty for an exact object or property lookup.
+            as_of: Optional ISO effective date. Use it for questions about the past.
+            known_at: Optional ISO knowledge cutoff, in addition to as_of. Use it
+                when asked what was known before a later correction.
+            object_id: Optional exact business object ID from a previous memory result.
+            related_to: Find relationships pointing to this exact object ID.
+            subject: Optional exact property of a fact, such as deadline or headcount.
+            include_notes: Also find relevant note names in this conversation's own store.
+                Available for current searches without an exact property. Open a match
+                with read_memory to get its body.
 
         Returns:
-            Matching claims, one per line with their id, scope and when they began to
-            hold; a `[disputed]` mark where sources disagree.
+            Facts with their scope, validity, typed value and available evidence.
+            A `[disputed]` mark means the value needs review. When asked, includes
+            names of matching working notes.
         """
         scopes = await self._claim_scopes(ctx)
         if isinstance(scopes, str):
             return scopes
+        when = _parse_date(as_of)
+        cutoff = _parse_date(known_at)
+        if (as_of is not None and when is None) or (
+            known_at is not None and (when is None or cutoff is None)
+        ):
+            return "Use an ISO date for as_of, and optionally a knowledge cutoff known_at."
+        audience = ctx.deps.audience
+        reader = audience.user_id if audience is not None and audience.private else None
         found = await memory_store.runtime.recall(
-            organization_id=_organization(ctx), scopes=scopes, query=query
+            organization_id=_organization(ctx),
+            scopes=scopes,
+            query=query,
+            as_of=when,
+            known_at=cutoff,
+            object_id=object_id,
+            related_to=related_to,
+            subject=subject,
+            reading_member=reader,
+            include_groups=reader is not None
+            and audience is not None
+            and not audience.shared_transcript,
         )
-        if not found:
-            return "Nothing recorded matches."
-        return "\n".join(_line(claim) for claim in found)
+        lines = [_line(claim) for claim in found]
+        if include_notes and when is None and subject is None and related_to is None:
+            note_scope = self._scope(ctx)
+            if not isinstance(note_scope, str):
+                organization_id, agent_id, owner_key = note_scope
+                entries = await memory_store.runtime.find_notes(
+                    organization_id=organization_id,
+                    agent_id=agent_id,
+                    owner_key=owner_key,
+                    query=query,
+                    object_id=object_id,
+                    reading_member=reader,
+                )
+                lines.extend(
+                    f"- Note {entry.name}" + (f": {entry.description}" if entry.description else "")
+                    for entry in entries
+                )
+        return "\n".join(lines) if lines else "Nothing recorded matches."
 
     async def correct_memory(
         self,
@@ -427,6 +549,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         claim_id: str,
         statement: str,
         effective_from: str | None = None,
+        value: MemoryValue | None = None,
     ) -> str:
         """Record the person's correction of a claim, keeping the history it corrects.
 
@@ -439,6 +562,8 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             claim_id: The id from `recall`.
             statement: The corrected sentence.
             effective_from: ISO date it takes effect, if not now.
+            value: The new typed value (text, integer, boolean) if it changed.
+                Omit it to preserve the stored value.
 
         Returns:
             A confirmation, or why the claim could not be corrected.
@@ -462,6 +587,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 claim_id=identifier,
                 scopes=scopes,
                 statement=statement,
+                value=value,
                 author_user_id=UUID(str(audience.user_id)),
                 effective_from=start,
                 run_id=deps.run_id,
@@ -550,4 +676,15 @@ def _line(claim: ClaimView) -> str:
     details = ""
     if claim.episode is not None:
         details = " · Decision evidence: " + claim.episode.model_dump_json(exclude_none=True)[:1200]
-    return f"- {claim.statement}{since} [{claim.scope}]{mark} id={claim.id}{details}"
+    if claim.value is not None:
+        details += f" · Recorded value: {claim.value!r}"
+    if claim.effective_to is not None:
+        details += f" · Effective until: {claim.effective_to.isoformat()} (exclusive)"
+    if claim.related_object_id is not None:
+        details += f" · {claim.subject} → object {claim.related_object_id}"
+    if claim.evidence:
+        details += " · Sources: " + ", ".join(item.model_dump_json() for item in claim.evidence)
+    object_context = f" object={claim.object_id}" if claim.object_id else ""
+    return (
+        f"- {claim.statement}{since} [{claim.scope}]{mark} id={claim.id}{object_context}{details}"
+    )

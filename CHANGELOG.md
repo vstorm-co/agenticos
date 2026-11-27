@@ -19,9 +19,34 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Browse personal and organization memory, publish a reviewed claim or note to a group or organization, and inspect typed business objects with evidence and date-aware recall.
+- Record verified Gmail or signed webhook observations in organization memory through published Workflows. Compose approvals and notifications using the existing steps.
+- Link matching Gmail and reviewed chat evidence on a shared business object, and resolve conflicting values in the organization memory library.
+- Choose a separate Memory maintenance model during bootstrap with `--memory-maintenance-model`.
+- Browse previous versions of personal Notes, restore a version, and let Memory Maintenance update individual opted-in notes from private conversations.
+- Route shared commitment deadline changes to Inbox with a versioned rule, a shadow mode and recipient access checks.
+- Merge and restore business object aliases with an audit trail, and resume an exact-identity backfill from its last completed batch.
+
+- Find working Notes and typed facts from one recall tool, with accessible evidence on current matches.
+- Use a signed, reviewed object-key namespace to record multiple CRM objects of one type and property from a workflow.
+- Record and recall dated relationships between projects, clients, responsible people and commitments.
+- Assign an authoritative Workflow per object property and compare Inbox recommendations with the deterministic rule in Shadow.
+
 ### Changed
 
 - Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
+
+### Fixed
+
+- Rank historical memory by the status known at the requested time and resume consolidation by property after a worker interruption.
+- Preserve unrelated note content when maintenance replaces an exact block and verify literal typed values and dates against the source quote.
+- Keep memory erasure from scanning the ledger for every deleted claim by indexing references to superseded claims.
+
+- Preserve typed values in memory corrections, refresh external object labels, and extract the same property on distinct objects from one conversation.
+- Preserve validity dates when publishing memories and rank relevant memories before limiting the result set.
+- Save short cross-chat handoffs and other working notes through the Notes tool when the agent needs to refer to them later.
 
 ## [1.95.0] - 2026-11-26
 

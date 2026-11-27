@@ -1,5 +1,5 @@
 ---
-source_sha: "617b957f6b31"
+source_sha: "13019dd32ff1"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -491,16 +491,125 @@ herramienta recibe un ámbito y no hay nada que el agent pueda confundir.
   [se ejecute como su creador](../concepts.md#unless-its-creator-lets-it-run-as-them):
   un horario lee y escribe entonces el almacén del creador, y un evento solo lo lee.
 
-No hay un almacén para toda la organización. Existió uno y se retiró: era un
-segundo mecanismo para lo que ya hacen los [archivos de contexto](../context.md)
-— conocimiento permanente que una persona escribe y vincula a agents — y un solo
-trabajo con dos mecanismos es la forma en que los dos acaban contradiciéndose. La
-memoria es lo que aprendió el _agent_; lo que escribe una persona va en el
-contexto.
+Los [archivos de contexto](../context.md) contienen instrucciones permanentes.
+Los agentes guardan sus notas de trabajo en el espacio personal o del chat.
+Quien tenga `context:edit` en toda la organización puede publicar desde los
+ajustes una copia revisada de una nota o un claim propio para un grupo o para
+la organización.
+
+### Objetos de negocio e historial { #memory-business-objects }
+
+**Settings → Memory** tiene vistas personal y de organización, ambas con
+Memories y Notes. En Memories se puede filtrar por persona, empresa o cliente,
+proyecto de negocio y compromiso. Un proyecto de negocio tiene identidad propia
+y puede existir sin un espacio en Projects. Las publicaciones de un grupo son
+visibles para sus miembros actuales. Al compartir se guarda una versión revisada
+de la nota. Al eliminar la fuente personal se eliminan sus notas publicadas.
+
+Usa `remember` para hechos, preferencias y decisiones duraderos. Usa
+`write_memory` para notas de trabajo, como traspasos y listas de comprobación,
+aunque ocupen una sola línea.
+
+`object_ref` indica un objeto y `value` un valor simple
+con tipo. `recall(as_of=…)` consulta la validez en una fecha y `known_at`
+limita el conocimiento anterior a una corrección. Los intervalos excluyen su
+fecha final. Los registros sin fecha inicial siguen en la búsqueda actual. Una
+consulta histórica requiere una observación fechada. Corrige un intervalo cerrado desde el historial personal para conservar el estado de conocimiento anterior. Los cambios de estado se
+registran desde el nuevo esquema. Los registros existentes conservan sus IDs.
+
+Usa `recall(include_notes=True)` para buscar por nombre, descripción o
+contenido en las notas activas de la conversación. Abre una coincidencia
+con `read_memory`. Usa `object_id` y `subject` para una consulta exacta.
+Los resultados actuales pueden incluir valores tipados, su vigencia y los
+indicios accesibles. Las consultas históricas se ordenan por el estado
+conocido en esa fecha. Con consentimiento, el mantenimiento reemplaza un
+bloque exacto y único, comprueba la versión y registra la fuente.
+
+Registra una relación tipada con `remember(object_ref=…, relation=…)`.
+Los predicados son `client` (proyecto a empresa), `responsible` (proyecto a
+persona) y `part_of` (compromiso a proyecto). Ambos objetos conservan el mismo
+ámbito. La relación conserva fechas e indicios y aparece en ambas cronologías.
+`recall(related_to=…)` busca relaciones por ID de destino. Una publicación
+revisada copia ambos objetos.
+
+### Observaciones desde workflows { #memory-gmail }
+
+Un workflow publicado puede guardar entregas verificadas en la memoria
+de la organización. Usa el trigger existente **Gmail** o **Webhook** y añade
+[Registrar observación](workflow-nodes.md#memory-observe). Configura la clave
+del objeto y la propiedad en el editor. Para Gmail indica la dirección
+completa de un remitente verificado y elige `deadline`. Se acepta una línea
+`Deadline: YYYY-MM-DD` o `Deadline: cancelled`. Un borrador no escribe memoria.
+
+Un webhook firmado puede recibir observaciones tipadas de una integración
+con CRM. La persona que ejecuta el workflow necesita `context:edit` para
+toda la organización al publicar y ejecutar. Usa los pasos de aprobación
+y notificación existentes. `changed` identifica una revisión de la misma
+fuente. Las repeticiones, disputas y observaciones tardías tienen resultados
+propios que el grafo puede utilizar.
+
+Para combinar evidencia del workflow y del chat, usa la misma clave del
+objeto, propiedad y valor tipado, y publica la afirmación revisada a la
+organización. Las observaciones coincidentes con vigencia solapada pasan
+a un registro con evidencia independiente. Revocar el acceso a Gmail
+oculta esa evidencia y los registros que dependen solo de ella.
+
+En **Organización → Memories → Solo conflictos**, una persona con
+`context:edit` para toda la organización confirma un valor. Las alternativas
+siguen en la cronología y la decisión queda registrada. Si cambia la lista
+de candidatos, se revisa de nuevo.
 
 Un interruptor, **Allow personal memory**, elimina por completo el almacén por
 persona, por motivos de cumplimiento o de privacidad; las notas guardadas en chats
 de grupo se quedan.
+
+Una corrección del texto conserva el valor tipado. Edita **Valor registrado** o pasa `value` a `correct_memory` para sustituirlo. Una etiqueta nueva para la misma clave externa conserva el historial del objeto con el mismo ID.
+
+El propietario de la organización puede asignar un flujo por tipo de objeto
+y propiedad con `GET /memory/source-authorities` y `PUT /memory/source-authorities`.
+Un valor nulo en `workflow_id` elimina la asignación. Una observación admitida
+de ese flujo puede actualizar la propiedad a partir de una fecha posterior.
+Los demás flujos pueden aportar indicios o discrepancias. La regla se aplica
+a nuevas observaciones y sus cambios quedan auditados.
+
+### Alias de objetos y actualización del historial { #memory-object-operations }
+
+Abre **Alias del objeto** en su historial y revisa el segundo objeto del
+mismo tipo y ámbito antes de fusionarlo. En la biblioteca personal, decide el
+dueño. La biblioteca compartida exige `context:edit` para toda la organización y
+acceso a las dos identidades. El historial principal muestra ambos historiales.
+Los enlaces al alias también llevan allí. Cada entrada conserva su objeto y
+fuente. **Deshacer la fusión** separa también las entradas posteriores a la unión.
+Ambas operaciones quedan auditadas. Desvincula los alias antes de mover su objeto.
+
+El propietario de la organización inicia o reanuda la actualización en
+**Organización → Bandeja de entrada y actualización**. El worker guarda el
+punto de reanudación con cada lote acotado y encola el siguiente. Una entrada
+antigua se asocia solo si todos sus predecesores indican el mismo objeto
+externo, ámbito, agente y propiedad. Las entradas ambiguas siguen accesibles
+en Memories. La actualización conserva el contenido, las fuentes y las fechas.
+No genera tarjetas en la bandeja de entrada.
+
+### Cambios de compromisos en la bandeja { #memory-inbox }
+
+El propietario de la organización elige fuentes y destinatarios en
+**Organización → Bandeja de entrada y actualización**. La regla cubre
+fechas límite modificadas o canceladas de compromisos compartidos. También
+puede enviar fechas en disputa a revisión. Al principio está desactivada.
+
+El modo de prueba cuenta los resultados por versión de la regla. El modo
+activo muestra una tarjeta con la fecha anterior y la nueva, la fuente y un
+enlace al historial. El worker verifica la revisión, el acceso al buzón y
+la pertenencia a la organización y al grupo. La bandeja vuelve a comprobar
+el acceso al mostrar la tarjeta. Cada revisión, regla y destinatario se
+procesan una vez. Un workflow puede usar su propio paso de notificación para
+una acción distinta.
+
+En modo Shadow, **Comparar recomendaciones del modelo** ejecuta un trabajo
+para cambios admisibles con el perfil y presupuesto de mantenimiento.
+El modelo recomienda notificar, resumir, revisar u omitir. Los contadores
+comparan el modelo con la regla para cada versión. Antes de guardar la
+recomendación, el trabajo vuelve a comprobar fuente, revisión y acceso.
 
 ### Hechos, preferencias y decisiones { #memory-claims }
 

@@ -110,7 +110,7 @@ def _workflows(
     workflows = MagicMock()
     workflows.has_polled_email = AsyncMock(return_value=True)
 
-    async def receive(*, organization_id, source, events):
+    async def receive(*, organization_id, source, events, connection):
         recorder.steps.append(f"workflows:{source}:{len(events)}")
         return admitted
 
@@ -160,7 +160,7 @@ async def _run(
     )
     _queueing(triggers, recorder, dispatch)
 
-    session = MagicMock()
+    session = MagicMock(scalar=AsyncMock(return_value=None))
 
     class _Ctx:
         async def __aenter__(self):
@@ -459,7 +459,7 @@ class TestOneMailboxIsOneTenant:
         triggers.prepare_polled_fires = AsyncMock(return_value=[])
         triggers.polled_places = AsyncMock(return_value={})
 
-        session = MagicMock()
+        session = MagicMock(scalar=AsyncMock(return_value=None))
 
         class _Ctx:
             async def __aenter__(self):
@@ -504,7 +504,7 @@ class TestWhichGrantsAreRead:
 
         connections = MagicMock()
         connections.portal_poll_candidates = AsyncMock(return_value=[])
-        session = MagicMock()
+        session = MagicMock(scalar=AsyncMock(return_value=None))
 
         class _Ctx:
             async def __aenter__(self):

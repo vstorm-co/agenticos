@@ -115,7 +115,13 @@ describe("memory browser", () => {
     await userEvent.click(screen.getByRole("button", { name: "correct" }));
     await userEvent.type(screen.getByLabelText("statement"), "!");
     await userEvent.click(screen.getByRole("button", { name: "save" }));
-    expect(correct).toHaveBeenCalledWith("c-1", "Prefers short answers!", null, undefined);
+    expect(correct).toHaveBeenCalledWith(
+      "c-1",
+      "Prefers short answers!",
+      null,
+      undefined,
+      undefined,
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
   it("retains entered text after a refused correction", async () => {
@@ -192,6 +198,7 @@ it("corrects a decision with an effective date and observed outcome", async () =
       actual_outcome: "Confirmed Friday",
       correction: "Prefers short answers",
     }),
+    undefined,
   );
 });
 it("can cancel an edit and dismiss detail without changing memory", async () => {
@@ -265,4 +272,38 @@ it("keeps memories scrollable above a persistent one-page footer", () => {
   expect(screen.getByText("1 / 1")).toBeVisible();
   expect(screen.getByRole("button", { name: "previousPage" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "nextPage" })).toBeDisabled();
+});
+
+it.each([
+  [20, 0],
+  [true, false],
+  ["2026-12-01", "2026-12-02"],
+] as const)("allows a typed correction from %s to %s", async (value, replacement) => {
+  mount({ items: [claim({ value })] });
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: /Prefers short answers/ }));
+  await user.click(screen.getByRole("button", { name: "correct" }));
+  const input = screen.getByLabelText("typedValue");
+  const save = screen.getByRole("button", { name: "save" });
+  expect(save).toBeDisabled();
+  if (typeof value === "boolean") {
+    await user.click(input);
+  } else {
+    if (typeof value === "number") {
+      fireEvent.change(input, { target: { value: "" } });
+      expect(save).toBeDisabled();
+      fireEvent.change(input, { target: { value: "2.5" } });
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      expect(save).toBeDisabled();
+    }
+    fireEvent.change(input, { target: { value: String(replacement) } });
+  }
+  await user.click(save);
+  expect(correct).toHaveBeenCalledWith(
+    "c-1",
+    "Prefers short answers",
+    null,
+    undefined,
+    replacement,
+  );
 });

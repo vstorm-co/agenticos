@@ -141,7 +141,7 @@ async def _poll_one_grant(db: AsyncSession, grant: McpConnection, source: str) -
     # Only the mailboxes': workflows have a Gmail and an Outlook trigger, not one for
     # the other polled sources.
     admitted_every_run = source not in ("gmail", "outlook") or await workflows.receive_polled_email(
-        organization_id=grant.organization_id, source=source, events=read.events
+        organization_id=grant.organization_id, source=source, events=read.events, connection=grant
     )
     # In the fires' own transaction: the cursor moves exactly when the fires for
     # what it read are queued, so a crash re-reads the window - which the

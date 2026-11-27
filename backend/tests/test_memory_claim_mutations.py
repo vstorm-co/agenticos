@@ -7,7 +7,8 @@ from uuid import uuid4
 import pytest
 
 from app.core.exceptions import ConflictError
-from app.db.models.memory_claim import MemoryClaim
+from app.db import models
+from app.db.models.memory_claim import MemoryClaim, MemoryClaimEvidence
 from app.repositories.memory_claim import ClaimScope
 from app.services.memory import claims
 
@@ -44,3 +45,7 @@ async def test_same_scope_sharing_is_refused_before_any_persistence() -> None:
             db, claim=row, to=ClaimScope(row.scope_key, None), author_user_id=uuid4()
         )
     db.execute.assert_not_awaited()
+
+
+def test_memory_claim_evidence_is_available_from_the_model_package() -> None:
+    assert models.MemoryClaimEvidence is MemoryClaimEvidence

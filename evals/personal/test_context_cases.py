@@ -13,13 +13,13 @@ from app.services.dataset_files import parse
 class ContextCasesTests(unittest.TestCase):
     def test_corpus_survives_the_production_import_export_contract(self) -> None:
         cases = load_context_cases()
-        self.assertEqual(len(cases), 51)
+        self.assertEqual(len(cases), 55)
         exported = "".join(case.model_dump_json() + "\n" for case in cases)
         self.assertEqual(parse(exported.encode(), "jsonl"), cases)
         self.assertNotIn("dev@vstorm.co", exported)
         self.assertNotIn("agenticos.vstorm.co/chat", exported)
         self.assertGreaterEqual(sum("holdout" in case.tags for case in cases), 12)
-        self.assertEqual(sum("memory" in case.tags for case in cases), 11)
+        self.assertEqual(sum("memory" in case.tags for case in cases), 15)
 
     def test_fixture_exercises_sources_the_old_window_and_clip_drop(self) -> None:
         cases = {

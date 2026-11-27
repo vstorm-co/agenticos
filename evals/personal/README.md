@@ -1,12 +1,12 @@
 # AgenticOS local evaluations
 
-The three suites contain **222 synthetic multi-turn conversations** in [datasets/](datasets/). Run them from the CLI with the repository's locked dependencies. The runner creates no entries in the platform's Datasets or Evals views.
+The three suites contain **233 synthetic multi-turn conversations** in [datasets/](datasets/). Run them from the CLI with the repository's locked dependencies. The runner creates no entries in the platform's Datasets or Evals views.
 
 | Suite | Cases | Path exercised |
 | --- | ---: | --- |
-| AgenticOS | 122 | Published shipped starter, conversation history, scope, tool routing and arguments, answers |
-| Memory | 50 | Production extraction model, durable facts, corrections, provenance, duplicate intent |
-| Briefing and suggestions | 50 | Production nightly reading model, recurring intent, connected sources and existing or dismissed proposals |
+| AgenticOS | 127 | Published shipped starter, conversation history, scope, tool routing and arguments, answers |
+| Memory | 53 | Production extraction model, durable facts, corrections, provenance, duplicate intent |
+| Briefing and suggestions | 53 | Production nightly reading model, recurring intent, connected sources and existing or dismissed proposals |
 
 The background suites exercise their production instructions and output schemas using synthetic packets. Database-level tests separately cover persistence, supersession and scope, and morning inbox delivery. The morning delivery pass does not call a model.
 
@@ -35,11 +35,11 @@ evals/personal/stack.sh build app
 evals/personal/stack.sh up -d app worker sandboxd artifact-render eval-notion
 evals/personal/stack.sh exec -T app sh -c '
   BOOTSTRAP_API_KEY="$OPENROUTER_API_KEY" exec agenticos cmd bootstrap \
-    --org "AgenticOS Local Eval DeepSeek Baseline" --provider openrouter --model "$AGENTICOS_EVAL_MODEL"
+    --org "AgenticOS Local Memory Eval" --provider openrouter --model "$AGENTICOS_EVAL_MODEL"
 '
 ```
 
-Bootstrap installs AgenticOS and its dependencies through the production shipped-template path. It preserves an existing installation, including the previous model. For a clean comparison, use a fresh eval database or explicitly configure an eval model profile and pass its ID with `--model-profile`. Rebuild the Docker image after changing backend code or bundled resources. The preflight refuses a published starter whose managed configuration differs from the image. Start clean to get the current bundled Skill and Context contents as well.
+The local example publishes AgenticOS with Sonnet 5.5 and enables Memory maintenance with GPT-6 Luna. Bootstrap installs AgenticOS and its dependencies through the production shipped-template path. It preserves an existing installation, including the previous model. For a clean comparison, use a fresh eval database or explicitly configure an eval model profile and pass its ID with `--model-profile`. Rebuild the Docker image after changing backend code or bundled resources. The preflight refuses a published starter whose managed configuration differs from the image. Start clean to get the current bundled Skill and Context contents as well.
 
 Read the organization and user IDs from the eval database. Copy the two values, separated by `|`, into `AGENTICOS_EVAL_ORG_ID` and `AGENTICOS_EVAL_USER_ID` in `evals/personal/.env`:
 
@@ -49,7 +49,7 @@ evals/personal/stack.sh exec -T db sh -c '
 ' -- "SELECT o.id, u.id FROM organizations o
 JOIN organization_members m ON m.organization_id = o.id
 JOIN users u ON u.id = m.user_id
-WHERE o.slug = 'agenticos-local-eval-deepseek-baseline' AND u.email = 'admin@example.com'"
+WHERE o.slug = 'agenticos-local-memory-eval' AND u.email = 'admin@example.com'"
 ```
 
 Without `--max-usd`, the command only checks the published AgenticOS and selected model. Omit `--limit` to select every case. This example checks three cases without making model calls:
@@ -76,7 +76,7 @@ Candidate results have no published `agent_version`. They record `source_agent_v
 
 ```sh
 mkdir -p evals/personal/results
-report="evals/personal/results/$(date +%F-%H%M%S)-deepseek-v4-flash-0731-agenticos.jsonl"
+report="evals/personal/results/$(date +%F-%H%M%S)-agenticos.jsonl"
 
 evals/personal/stack.sh run --rm --no-deps -T app sh -c '
   exec /app/.venv/bin/python /personal-eval/run.py --suite agenticos \
@@ -109,15 +109,20 @@ Run from the repository root with the configured `evals/personal/.env`.
 
 ```sh
 for suite in memory briefing; do
-  report="evals/personal/results/$(date +%F-%H%M%S)-deepseek-v4-flash-0731-$suite.jsonl"
+  report="evals/personal/results/$(date +%F-%H%M%S)-$suite.jsonl"
   uv run --directory backend --env-file ../evals/personal/.env sh -c '
+    if [ "$1" = memory ]; then
+      model=${BOOTSTRAP_MEMORY_MAINTENANCE_MODEL:-$AGENTICOS_EVAL_MODEL}
+    else
+      model=${AGENTICOS_EVAL_BRIEFING_MODEL:-$AGENTICOS_EVAL_MODEL}
+    fi
     exec python ../evals/personal/run.py --suite "$1" \
-      --model "openrouter:$AGENTICOS_EVAL_MODEL" --limit 50
+      --model "openrouter:$model" --limit 53
   ' sh "$suite" > "$report"
 done
 ```
 
-Use repeated `--case` with `--limit 3` for a smoke run. These modes and the judge also accept other Pydantic AI model identifiers. Provider-reported USD is recorded when available.
+Use repeated `--case` with `--limit 3` for a smoke run. These modes and the judge also accept other Pydantic AI model identifiers. Provider-reported USD is recorded when available. With `--max-usd`, the runner stops between cases when observed spend reaches the threshold or when spend is incomplete. A single case can exceed the remaining threshold. See the [memory model matrix](../memory/MODEL-MATRIX.md) for the proposed model IDs, controls and estimates.
 
 Briefing uses the same proposal selection as production for duplicates, connected sources and usable schedules. The JSONL retains the model's proposals for diagnosis. Memory validates quoted evidence against the supplied user turns.
 
@@ -132,11 +137,40 @@ uv run python ../evals/personal/run.py --api-url http://127.0.0.1:18080 \
   --organization-id "$ORG_ID" --agent-id "$AGENT_ID" --limit 4 \
   --live-case sandbox-file --live-case report-chart-real \
   --live-case diagram-approval --live-case app-private-preview
-uv run python ../evals/personal/run.py --api-url http://127.0.0.1:18080 \
-  --organization-id "$ORG_ID" --agent-id "$AGENT_ID" --limit 3 --live-memory
 ```
 
-These verify actual Sandbox, chart, visual and private App outputs and write, correct and recall a synthetic preference across three conversations. Approval gates are active. Browser use and computer use are outside the suite. App preview uses the headless artifact renderer. Stop the stack with `evals/personal/stack.sh down`.
+These verify Sandbox, chart, visual and private App outputs. Approval gates are active. App preview uses the headless artifact renderer. Stop the stack with `evals/personal/stack.sh down`.
+
+### Memory tools
+
+Use the isolated AgenticOS runner with the same published agent and each test
+`--model-profile`. The authored memory slice checks tool selection, arguments
+and forbidden attempts. Read tools must execute. An isolated write attempt
+records intent while the isolation guard holds the side effect.
+
+```sh
+uv run python ../evals/personal/run.py --suite agenticos \
+  --organization-id "$ORG_ID" --user-id "$USER_ID" --model-profile "$PROFILE_ID" \
+  --case agenticos-remember-client --case agenticos-self-note \
+  --case agenticos-project-no-workspace --case agenticos-as-of-tool \
+  --case agenticos-confirm-share --case explicit-memory-file-read \
+  --case memory-oneoff --case durable-style-implicit --max-usd "$CAP"
+```
+
+Use the same isolated test stack and explicit `AGENTICOS_PERSONAL_EVAL=1` for
+the stateful probe. Disable Memory maintenance in that test organization so
+that only the agent tools can account for changes to the fixture. The probe
+runs through the private member audience, checks the tool receipts and persisted
+preference across three fresh conversations, and verifies the supersession
+chain. It leaves the synthetic preference in the disposable test account.
+
+```sh
+uv run python ../evals/personal/run.py --suite agenticos --live-memory \
+  --organization-id "$ORG_ID" --user-id "$USER_ID" --model-profile "$PROFILE_ID" \
+  --max-usd "$CAP"
+```
+
+Omit `--max-usd` on either AgenticOS command for a free preflight.
 
 ## Optional judge
 
@@ -145,7 +179,7 @@ From the repository root, after inspecting the deterministic report, keep the `r
 ```sh
 uv run --directory backend --env-file ../evals/personal/.env sh -c '
   exec python ../evals/personal/run.py --judge-model "$AGENTICOS_EVAL_JUDGE_MODEL" \
-    --judge-report "$1" --limit 122
+    --judge-report "$1" --limit 127
 ' sh "../$report" > "${report%.jsonl}-judge.jsonl"
 ```
 
@@ -175,7 +209,7 @@ Thirty-two cases are marked `holdout`. Their labels remain useful for reporting,
 
 These are desired-behavior fixtures, not another 51 successes for the older
 `NightlyReading` schema. Their references and counter-examples need semantic
-review. The existing 222-case corpus and its scores remain separate. The packets
+review. The existing 233-case corpus and its scores remain separate. The packets
 use the platform's `DatasetCaseContent` JSONL format, so the normal Dataset import
 and evaluation path can consume them. `run.py` remains the older narrow-contract
 replay. `context_run.py` compares that reader with the production context pipeline
@@ -227,6 +261,41 @@ reaches it; one admitted request can exceed the remaining amount. Missing cost
 information stops the replay. Preserve failed attempts when calculating total
 spend. A model judge is an aid to review, not a human usefulness rating. Report
 technical failures separately, and do not merge these scores with the original
-222-case corpus.
+233-case corpus.
 
 Temporal-context regressions include Polish and German scheduling answers in words and a message timestamp with unselected time options. Extraction and verification receive original event timestamps, local UTC offsets and linked structured questions/answers. The model interprets scheduling intent; code validates source identities, exact citations and access rather than parsing natural-language weekdays or hours. Memory maintenance retains source timestamps and distinguishes native questions from submitted human answers.
+
+## Company memory replay
+
+The three datasets now include explicit client/project saves, date-aware recall,
+approval, exact attribution and recurring deadline controls. The context packets
+cover date and knowledge cutoffs and ambiguous or inaccessible evidence.
+
+List the database-backed cases without connecting to anything:
+
+```bash
+cd backend
+uv run python ../evals/personal/memory_replay.py --list
+```
+
+With the test PostgreSQL instance running, use the same command without `--list`.
+Set `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER` and `POSTGRES_PASSWORD` to
+the test connection. For one slice add `--case memory-headcount-as-of`. The
+runner creates and drops a separate database. It uses synthetic Gmail workflow deliveries and signed webhook requests
+and does not invoke models. It checks stored values and intervals, exact-shape
+input, visibility, replay and the change signal used by the workflow notification step.
+
+The synthetic CRM fixture goes through the same typed observation contract as
+Gmail. Its replay covers A → B → A and a contradictory second record. A signed workflow test also exercises the CRM relay contract through the existing Webhook trigger. Additional
+cases cover reviewed chat/Gmail agreement in both arrival orders, removal of either
+proof, and stale or unauthorized conflict decisions. The fixture needs no CRM grant.
+
+For paid comparisons, freeze the dataset and baseline SHA, record per-case
+evidence, answers and abstentions, and keep the answering model and read budget
+constant for the current and candidate AgenticOS, raw retrieval, Mem0 OSS and
+Hindsight. Include ingest, answering and grading costs alongside latency and
+quality. Keep reviewed regression cases out of the newly sampled holdout and do
+a small accounting pass before running the full LongMemEval-S cohort.
+
+For paired recall and answer benchmarks against other memory systems, plus a
+model-free PostgreSQL scale runner, see [Memory benchmarks](../memory/README.md).

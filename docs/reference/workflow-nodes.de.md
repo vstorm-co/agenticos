@@ -1,5 +1,5 @@
 ---
-source_sha: "1b7c73e09d28"
+source_sha: "bff92f4c37ce"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -834,6 +834,34 @@ Schritt mit `CHANNEL_TARGET_INVALID` scheitern, bevor etwas gesendet wird.
 ::: app.workflows.nodes.channel_members._handler.ChannelMembersOutput
 
 ::: app.workflows.nodes.channel_find._handler.ChannelFindOutput
+
+## memory.observe { #memory-observe }
+
+Speichert eine verifizierte Gmail- oder signierte Webhook-Zustellung im
+Organisationsgedächtnis. Erfordert einen veröffentlichten Workflow und
+organisationsweites `context:edit` bei Veröffentlichung und Ausführung.
+Die Konfiguration umfasst Objekttyp, Name, externe Kennung und Eigenschaft.
+Ein Entwurf liefert `preview`.
+
+Bei [Gmail](#trigger-gmail) nutze die vollständige Absenderadresse und wähle
+`deadline`. Die Nachricht muss `Deadline: YYYY-MM-DD` oder
+`Deadline: cancelled` enthalten. Die Autorisierung des Postfachs wird geprüft.
+
+Der signierte [Webhook](#trigger-webhook)-JSON-Text enthält `record_key`,
+`object_key`, `subject`, `value`, `quote` und `effective_at`. Kennung
+und Eigenschaft müssen zur Konfiguration passen. Werte sind Text, Ganzzahl,
+Boolesch oder null. Der Zeitstempel enthält einen Offset.
+
+Die Ausgabe enthält `claim_id`, `status` und `changed`. Verwende `changed`
+mit [Mitglieder benachrichtigen](#notification-send). Wiederholungen,
+Konflikte und verspätete Beobachtungen haben eigene Statuswerte. Die
+vorhandenen Zustell- und Wiederholungsregeln des Workflows gelten.
+
+Für mehrere Objekte desselben Typs und derselben Eigenschaft aktiviere
+**Allow a signed webhook namespace** und setze ein Präfix wie `crm:deals/`.
+Der signierte Inhalt enthält dann `object_name` und einen `object_key` wie
+`crm:deals/42`. Ohne diese Einstellung bleiben Schlüssel und Anzeigename
+im Workflow festgelegt. Gmail verwendet einen festen Schlüssel.
 
 ## agent.run { #agent-run }
 
