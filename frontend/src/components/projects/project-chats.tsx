@@ -25,7 +25,11 @@ import type { Project } from "@/types/projects";
  * The page header's New chat starts a one-to-one chat, not a team room, so
  * the team-room button stays reachable on an empty project as well: the list
  * header hides when there is nothing yet, and the button with it, so the
- * empty state carries its own below the invitation.
+ * empty state carries its own below the invitation. Only one of the two is
+ * ever in the document: the header is hidden, not unmounted, when empty, and
+ * a role query resolves to the hidden first twin instead of the visible one -
+ * a click that starts while the list is still loading can then never land
+ * once the query settles to empty.
  *
  * Everybody's, not the reader's alone: a project's chats are its members', so
  * each row says whose it is, which agents answer in it, when it last moved or
@@ -41,18 +45,14 @@ export function ProjectChats({ project }: { project: Project }) {
   const columns = useChatColumns();
   const router = useRouter();
 
-  const newChat = project.can_use ? (
-    <StartTeamRoom key={project.id} projectId={project.id} />
-  ) : undefined;
+  const isEmpty = !isLoading && !error && total === 0;
+  const newChat =
+    project.can_use && !isEmpty ? (
+      <StartTeamRoom key={project.id} projectId={project.id} />
+    ) : undefined;
 
   return (
-    <ListCard
-      namedByPage
-      fill
-      title={t("chats")}
-      controls={newChat}
-      empty={!isLoading && !error && total === 0}
-    >
+    <ListCard namedByPage fill title={t("chats")} controls={newChat} empty={isEmpty}>
       {isLoading ? (
         <LoadingState variant="skeleton-list" rows={3} />
       ) : error ? (

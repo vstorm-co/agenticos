@@ -383,7 +383,7 @@ describe("ProjectChats", () => {
       isLoading: false,
       error: null,
     });
-    wrap(<ProjectChats project={aProject()} />);
+    const { container } = wrap(<ProjectChats project={aProject()} />);
     expect(screen.getByRole("link", { name: /Press release/ })).toHaveAttribute(
       "href",
       "/chat?id=c-1",
@@ -394,6 +394,10 @@ describe("ProjectChats", () => {
     expect(row).toHaveTextContent("Kacper");
     expect(screen.getByText("Untitled chat")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New team room" })).toBeInTheDocument();
+    // Exactly one team-room button in the document: a role query resolves to
+    // the first same-named button, so a hidden twin in the header would
+    // shadow the visible one.
+    expect(container.querySelectorAll('[data-tour="project-new-chat"]')).toHaveLength(1);
     expect(screen.queryByText("2 chats")).not.toBeInTheDocument();
     const table = screen.getByRole("table");
     const frame = table.closest('[data-list-layout="panel"]');
@@ -549,11 +553,15 @@ describe("ProjectChats", () => {
   });
 
   it("invites a first chat, and says when the list failed", () => {
-    const { unmount } = wrap(<ProjectChats project={aProject()} />);
+    const { container, unmount } = wrap(<ProjectChats project={aProject()} />);
     expect(screen.getByText(/Start one/)).toBeInTheDocument();
     // The team-room button must stay reachable before the first chat exists:
     // the page header's New chat starts a one-to-one chat, not a team room.
     expect(screen.getByRole("button", { name: "New team room" })).toBeInTheDocument();
+    // And it must be the only one: the header's twin stays in the document
+    // hidden when the list is empty, and a role query resolves to that hidden
+    // first twin instead of the visible one.
+    expect(container.querySelectorAll('[data-tour="project-new-chat"]')).toHaveLength(1);
     unmount();
 
     chats.mockReturnValue({ chats: [], total: 0, isLoading: false, error: new Error("down") });
@@ -563,8 +571,9 @@ describe("ProjectChats", () => {
 
   it("holds its place while loading", () => {
     chats.mockReturnValue({ chats: [], total: 0, isLoading: true, error: null });
-    wrap(<ProjectChats project={aProject()} />);
+    const { container } = wrap(<ProjectChats project={aProject()} />);
     expect(screen.queryByText(/Start one/)).not.toBeInTheDocument();
+    expect(container.querySelectorAll('[data-tour="project-new-chat"]')).toHaveLength(1);
   });
 });
 
