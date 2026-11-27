@@ -3789,6 +3789,10 @@ def test_code_mode_calls_upgrade_from_the_released_history_and_downgrade_without
     None
 ):
     released = "0375_merge_service_connections"
+    # Other migration tests leave independent branch heads applied. Upgrading
+    # to an ancestor does not remove those branches or their script column.
+    reset = _alembic("downgrade", "base")
+    assert reset.returncode == 0, reset.stderr
     assert _alembic("upgrade", released).returncode == 0
     engine = create_engine(_url(MIGRATION_DATABASE))
     try:

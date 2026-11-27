@@ -181,11 +181,13 @@ class TestToolDeclarations:
                 name="refunds",
                 description="How refunds work.",
                 content="…",
+                manifest_metadata={},
                 resources=[
                     SimpleNamespace(
                         name="template.md",
                         description="Reply template",
                         content="Dear {name},",
+                        encoding="utf8",
                     )
                 ],
             )
@@ -1134,6 +1136,7 @@ class TestToolsets:
             name = "template.md"
             description = "Reply template"
             content = "Dear {name},"
+            encoding = "utf8"
 
         class _Skill:
             name = "refunds"

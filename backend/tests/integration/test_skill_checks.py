@@ -665,7 +665,9 @@ class TestTheRule:
         assert states == {"A": "better", "B": "no_change", "C": "no_change"}
         assert (read.status, read.verdict) == (CheckStatus.DONE, CheckVerdict.PASSED)
         assert read.outcomes[0] is CheckOutcome.APPLY
-        assert read.candidate == NEW
+        assert read.candidate == NEW.model_copy(
+            update={"manifest_metadata": lab.skill.manifest_metadata or {}}
+        )
 
     async def test_one_agent_worse_blocks_and_offers_the_four_ways(self, db, monkeypatch):
         lab = await _lab(db)

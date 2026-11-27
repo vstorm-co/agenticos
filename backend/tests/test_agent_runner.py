@@ -62,6 +62,7 @@ from app.agents.capabilities.sandbox import WORKSPACE_RESOURCE, WORKSPACE_SHARED
 from app.agents.capabilities.sandbox._capability import build_workspace
 from app.agents.capabilities.sandbox._recording import RecordingWorkspace
 from app.agents.capabilities.skills import SkillBody
+from app.agents.code_checkpoint import CodeContinuations
 from app.agents.computer_on_use import RequestComputerOnUse
 from app.agents.connect_on_use import ConnectionRequest, ConnectOnUse
 from app.agents.deps import AgentDeps
@@ -297,6 +298,7 @@ def _prepared(
     built.model_label = "gpt-4.1"
     built.deps.tool_definitions = {}
     built.deps.tool_identities = {}
+    built.deps.code_continuations = CodeContinuations()
     # A real gauge: what a turn records against its conversation is read off
     # this, and a `MagicMock` answers "yes, summarised" to every turn.
     built.context = ContextGauge()
@@ -4672,6 +4674,7 @@ class TestResume:
     def _built(self, output: str = "sent"):
         built = MagicMock()
         built.ledger = SpendLedger()
+        built.deps.code_continuations = CodeContinuations()
         # A real gauge: what a turn records against its conversation is read off
         # this, and a `MagicMock` answers "yes, summarised" to every turn.
         built.context = ContextGauge()

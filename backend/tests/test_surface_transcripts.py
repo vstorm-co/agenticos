@@ -154,6 +154,7 @@ def _run_yielding(agent_run: AsyncMock) -> Iterator[tuple[dict[str, PreparedRun]
     ) -> PreparedRun:
         built = MagicMock()
         built.ledger = SpendLedger()
+        built.deps.code_continuations = AgentDeps().code_continuations
         built.model_label = "gpt-4.1"
         built.context = ContextGauge()
         built.reminder_state = ReminderState()
