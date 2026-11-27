@@ -1,5 +1,5 @@
 ---
-source_sha: "74d7e5d2126c"
+source_sha: "e824ac136e76"
 title: "AgenticOS vs Dify"
 seo_title: "AgenticOS vs Dify: alternativa Apache-2.0 y multi-tenant"
 description: "Compara Dify y AgenticOS, dos plataformas de agents de IA autoalojadas: condiciones de licencia, multi-tenancy, SSO, budgets, aprobaciones, auditoría y precios."
@@ -11,7 +11,7 @@ Ambos productos son autoalojados y ambos hacen recuperación de documentos, así
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Dify: el repositorio público en la versión 1.17.1, su licencia, su documentación y su página de precios; no un plan cloud probado ni un despliegue fijado.
 
-Las funciones de AgenticOS se actualizaron el 2 de noviembre de 2026 con v1.35.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
+Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
 
 ## De un vistazo { #at-a-glance }
 
@@ -25,7 +25,7 @@ Las funciones de AgenticOS se actualizaron el 2 de noviembre de 2026 con v1.35.0
 | Auditoría | Enterprise | Registro de auditoría con detección de manipulaciones, con exportación CSV y JSONL |
 | Control del gasto | Facturación del provider, o créditos de mensajes de Cloud | Un budget mensual por agent y por organización, comprobado antes de cada petición al modelo |
 | Aprobación humana | Un nodo Human Input en un workflow | Aprobación por capability y por herramienta, y una política de aprobación por conexión MCP (none, writes o all); el run queda detenido hasta que alguien decide |
-| Superficies | App web, embed, API, servidor MCP; Slack mediante un plugin | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Telegram, Mattermost |
+| Superficies | App web, embed, API, servidor MCP; Slack mediante un plugin | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, correo electrónico, iMessage, llamadas telefónicas |
 | Kubernetes | Helm charts de la comunidad; la alta disponibilidad oficial es Enterprise | [Chart Helm mantenido](../kubernetes.md) para API, worker y consola con servicios de datos externos; OpenShift sin validar |
 
 ## Dónde llega más lejos AgenticOS { #where-agenticos-goes-further }

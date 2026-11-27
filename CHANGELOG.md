@@ -34,6 +34,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Record and recall dated relationships between projects, clients, responsible people and commitments.
 - Assign an authoritative Workflow per object property and compare Inbox recommendations with the deterministic rule in Shadow.
 
+### Changed
+
+- Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
+
 ### Fixed
 
 - Rank historical memory by the status known at the requested time and resume consolidation by property after a worker interruption.
