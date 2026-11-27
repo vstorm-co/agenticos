@@ -1,6 +1,6 @@
 # AgenticOS vs Claude Duet
 
-Sources checked 2 November 2026; AgenticOS baseline v1.35.0.
+Sources checked 2 November 2026; AgenticOS baseline v1.35.0; feature statements refreshed on 27 November 2026 against v1.95.0.
 
 ## At a glance
 

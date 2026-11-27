@@ -12,6 +12,8 @@ If you are committed to OpenAI and want it to deliver the platform, Frontier is 
 
 Maintained by the AgenticOS team. Sources checked 14 October 2026. AgenticOS baseline: v1.10.0. Frontier scope: OpenAI's announcement of 5 February 2026 as reported by the press; pricing was not published, and no account was tested.
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | OpenAI Frontier | AgenticOS |
@@ -42,7 +44,7 @@ Frontier is built around OpenAI's models. An AgenticOS agent uses a [model profi
 
 - You are standardising on OpenAI and want it to run the platform for you.
 - Its connectors to your CRM and warehouses cover your data.
-- An evaluation suite matters today: AgenticOS has ratings and run history, but no evaluation harness yet.
+- You want evaluations tied to OpenAI's own models and deployment team. AgenticOS has [eval runs](../evals.md) and suites against versioned datasets, for any provider, but no forward-deployed engineers of its own beyond what Vstorm agrees separately.
 
 ## Frequently asked questions
 
@@ -52,7 +54,7 @@ Yes. Both give a company many agents with permissions and shared context. Agenti
 
 ### Does AgenticOS have evaluations like Frontier?
 
-Not yet. AgenticOS records every run with its steps, cost and ratings; an evaluation harness is on the roadmap.
+Yes. [Eval runs](../evals.md) score an agent version against a versioned dataset, compare it with a baseline and confirm a regression before it counts, and [suites](../evals.md#suites) can gate promotion between environments. Their cost is estimated first and spent from the same budgets as any run.
 
 ## Related comparisons
 

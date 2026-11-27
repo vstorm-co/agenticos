@@ -12,6 +12,8 @@ If you want one personal assistant you run yourself, OpenClaw is the obvious ope
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. OpenClaw and NemoClaw scope: public reporting on the projects, including NVIDIA's announcement of 16 March 2026, not a tested deployment.
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | OpenClaw / NemoClaw | AgenticOS |
@@ -36,7 +38,7 @@ Reporting on OpenClaw counted tens of thousands of instances exposed to the inte
 
 ### Built in a browser
 
-An OpenClaw assistant is configured in files. An AgenticOS agent is built in the console - instructions, model, tools, knowledge, budget - and published in versions that answer in web chat, Slack, Telegram, Mattermost, a widget and the API.
+An OpenClaw assistant is configured in files. An AgenticOS agent is built in the console - instructions, model, tools, knowledge, budget - and published in versions that answer in web chat, Slack, Microsoft Teams, Telegram, Mattermost, email, SMS, a widget and the API.
 
 ## When OpenClaw is enough
 

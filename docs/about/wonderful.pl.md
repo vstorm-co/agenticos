@@ -1,5 +1,5 @@
 ---
-source_sha: "4079f387b7a5"
+source_sha: "a2e95d7f0d80"
 title: "AgenticOS vs Wonderful"
 seo_title: "AgenticOS vs Wonderful: platforma AI dla firm na własność"
 description: "Porównaj dostarczany enterprise AI OS Wonderful z AgenticOS, platformą agentów open source na własność, którą sam uruchamiasz, z pomocą we wdrożeniu od Vstorm."
@@ -13,6 +13,8 @@ Pytanie dotyczy nie tyle tego, które oprogramowanie jest lepsze, ile tego, co c
 
 Utrzymuje zespół AgenticOS w Vstorm. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Wonderful: jego publiczne strony o AI OS, wdrożeniu, agentach, gatewayu i bezpieczeństwie oraz ogłoszenie o finansowaniu, a nie negocjowana umowa ani przetestowane konto.
 
+Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
+
 ## W skrócie { #at-a-glance }
 
 | Obszar | Wonderful | AgenticOS |
@@ -21,7 +23,7 @@ Utrzymuje zespół AgenticOS w Vstorm. Źródła sprawdzono 21 października 202
 | Źródła | Własnościowe; eksport agentów i konfiguracji przez UI lub API | Apache-2.0; całą platformę można czytać i forkować |
 | Gdzie działa | Wielotenantowy SaaS, single-tenant, twoja chmura albo odizolowane od sieci on-premises | Twoja infrastruktura, z Docker Compose |
 | Ceny | Nieopublikowane; sprzedaż przez handlowców | Bez opłaty licencyjnej; modele, infrastruktura i ewentualne uzgodnione usługi |
-| Kanały | Głos, czat, e-mail, dokumenty i inne kanały | Czat webowy z rozmowami głosowymi, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Kanały | Głos, czat, e-mail, dokumenty i inne kanały | Czat webowy z rozmowami głosowymi, widget, hostowana strona, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, e-mail, iMessage, połączenia telefoniczne |
 | Modele | Routing per zadanie przez platformę | Twój wybór spośród 28 providerów, ustawiany per profil modelu |
 | Nadzór | AI Gateway z limitami budżetu per zespół i logami audytowymi | Budżety per agent i per organizacja, zatwierdzenia i log audytowy wykrywający manipulacje |
 | Deklaracje zgodności | SOC 2 Type II, ISO 27001:2022, PCI DSS, RODO, zgodność z EU AI Act | Twoje kontrole na twojej infrastrukturze; zobacz [bezpieczeństwo](../security.md) |
@@ -49,7 +51,7 @@ Certyfikaty Wonderful obejmują jego własną usługę. W AgenticOS sprawdzasz s
 ## Kiedy Wonderful pasuje lepiej { #when-wonderful-is-the-better-fit }
 
 - Chcesz, żeby producent odpowiadał za dostawę od początku do końca, na wielu rynkach i w wielu językach.
-- Głównym zastosowaniem są agenci głosowi obsługujący klientów przez telefon. AgenticOS przyjmuje [rozmowy głosowe](../voice.md) tylko w przeglądarce i nie ma kanału telefonicznego, WhatsApp ani SMS.
+- Głównym zastosowaniem są agenci głosowi obsługujący klientów przez telefon, wdrażani i strojeni przez dostawcę. AgenticOS przyjmuje [połączenia telefoniczne](../voice.md#telephone-calls) przez twój własny numer w Twilio i ma kanał SMS, ale nie ma kanału WhatsApp ani własnego zespołu wdrożeniowego.
 - Potrzebujesz własnych certyfikatów producenta, takich jak SOC 2 Type II i PCI DSS, a nie własnych kontroli.
 
 ## Pytania do umowy o dostawę { #questions-for-the-delivery-agreement }
@@ -80,7 +82,7 @@ Tak. Działa z Docker Compose na twoim własnym hoście. Z lokalnym modelem cał
 
 ### Czy AgenticOS obsługuje agentów głosowych lub WhatsApp? { #does-agenticos-support-voice-or-whatsapp-agents }
 
-Głos częściowo: od 1.10.0 członek organizacji albo gość może [zadzwonić do agenta](../voice.md) z czatu webowego, widgetu lub hostowanej strony, a notatki głosowe wysłane do bota w kanale są transkrybowane. Nie ma jeszcze linii telefonicznej, WhatsApp ani SMS.
+Głos częściowo: od 1.10.0 członek organizacji albo gość może [zadzwonić do agenta](../voice.md) z czatu webowego, widgetu lub hostowanej strony, a notatki głosowe wysłane do bota w kanale są transkrybowane. Numer w Twilio może też przyjmować [połączenia telefoniczne](../voice.md#telephone-calls) dla opublikowanego embeda głosowego i SMS-y przez kanał [SMS](../channels.md#sms). Kanału WhatsApp jeszcze nie ma.
 
 ### Co się stanie, jeśli przestaniemy współpracować z Vstorm? { #what-happens-if-we-stop-working-with-vstorm }
 
