@@ -1,17 +1,19 @@
 ---
-source_sha: "88fad9bc6ae2"
+source_sha: "be478eed6376"
 title: "AgenticOS vs ChatGPT"
 seo_title: "AgenticOS vs ChatGPT Enterprise: alternatywa self-hosted"
-description: "Porównaj ChatGPT Business, Enterprise i workspace agents z AgenticOS: self-hosted, dowolny model, osiem powierzchni, budżety per agent i logi audytowe."
+description: "Porównaj ChatGPT Business, Enterprise i workspace agents z AgenticOS: self-hosted, dowolny model, kilkanaście powierzchni, budżety per agent i logi audytowe."
 ---
 
 # AgenticOS vs ChatGPT { #agenticos-vs-chatgpt }
 
 ChatGPT Business i Enterprise dają pracownikom asystenta OpenAI, a w 2026 roku doszły do nich workspace agents: współdzieleni agenci budowani w ChatGPT i uruchamiani w ChatGPT, w Slacku, według harmonogramu albo z wyzwalacza API. To najbliższy AgenticOS odpowiednik u OpenAI. Różnice dotyczą tego, gdzie działają, jakich modeli używają i kto może z nich skorzystać.
 
-AgenticOS działa na twojej infrastrukturze, używa wybranego przez ciebie modelu i publikuje jednego agenta na osiem powierzchni. Wśród nich są widget na stronę internetową i API, które zwraca odpowiedź.
+AgenticOS działa na twojej infrastrukturze, używa wybranego przez ciebie modelu i publikuje jednego agenta na kilkanaście powierzchni. Wśród nich są widget na stronę internetową i API, które zwraca odpowiedź.
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres ChatGPT: strony OpenAI z cennikiem, opisem danych firmowych, Help Center i dokumentacją dla deweloperów, bez testowanego workspace'u. Workspace agents są w fazie research preview, więc przed decyzją sprawdź ich aktualny stan.
+
+Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
 
 ## W skrócie { #at-a-glance }
 
@@ -21,7 +23,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 | Kod | Własnościowy | Apache-2.0 |
 | Modele | Tylko OpenAI | 28 providerów, w tym OpenAI, oraz modele lokalne |
 | Budowanie agentów | Workspace agents, w research preview, z wersjami i udostępnianiem | Publikowani agenci z wersjami, środowiskami i eksportem do YAML |
-| Powierzchnie agenta | ChatGPT, Slack, harmonogramy, wyzwalacz API | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost, harmonogramy i wyzwalacze zdarzeń |
+| Powierzchnie agenta | ChatGPT, Slack, harmonogramy, wyzwalacz API | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, e-mail, iMessage, połączenia telefoniczne, harmonogramy i wyzwalacze zdarzeń |
 | API | Wyzwalacz zwraca `202 Accepted` i link do rozmowy; sprawdzanie statusu runa jest w becie, a odpowiedzi nie da się pobrać | `POST /agents/{id}/run` zwraca run i jego odpowiedź |
 | Kontrola wydatków | Pule kredytów i limity nadwyżek na workspace lub grupę | Budżet na agenta i na organizację, sprawdzany przed każdym zapytaniem do modelu |
 | Tożsamość | SAML SSO w Business; SCIM, kontrola dostępu oparta na rolach i zarządzanie kluczami w Enterprise | OIDC SSO, LDAP i Kerberos z mapowaniem grup oraz uprawnienia per zasób, w każdym wdrożeniu |
@@ -34,7 +36,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 
 Strona dla deweloperów OpenAI mówi, że wyzwalacz API workspace agenta „zwraca 202 Accepted z linkiem do rozmowy w ChatGPT” i że „odpowiedzi agenta nie można obecnie pobrać przez API”. Sprawdzanie statusu runa jest w becie. Strony OpenAI nie wymieniają dla agenta powierzchni w postaci widgetu, Telegramu ani Mattermost.
 
-Agent AgenticOS odpowiada przez [HTTP API](../channels.md#the-public-api) z wynikiem, streamuje przez [WebSocket](../channels.md#the-raw-websocket) i osadza się na twojej stronie jako [widget](../channels.md#the-website-widget). [Hostowana strona](../channels.md#a-hosted-page) to link dla każdego. Boty [Slack, Telegram i Mattermost](../channels.md#slack) działają z tożsamością powiązanej osoby, która zadała pytanie.
+Agent AgenticOS odpowiada przez [HTTP API](../channels.md#the-public-api) z wynikiem, streamuje przez [WebSocket](../channels.md#the-raw-websocket) i osadza się na twojej stronie jako [widget](../channels.md#the-website-widget). [Hostowana strona](../channels.md#a-hosted-page) to link dla każdego. Boty [Slack](../channels.md#slack), [Microsoft Teams](../channels.md#microsoft-teams), Telegram, Mattermost, [Discord](../channels.md#discord) i [Matrix](../channels.md#matrix) działają z tożsamością powiązanej osoby, która zadała pytanie, a ten sam agent przyjmuje [SMS](../channels.md#sms), [e-mail](../channels.md#email) i [połączenia telefoniczne](../voice.md#telephone-calls).
 
 ### Model to twoja decyzja { #the-model-is-your-decision }
 
@@ -71,7 +73,7 @@ Zbuduj [wspólnego agenta dokumentowego](../howto/first-document-agent.md) jako 
 
 ### Czy AgenticOS to samodzielnie hostowana alternatywa dla ChatGPT Enterprise? { #is-agenticos-a-self-hosted-alternative-to-chatgpt-enterprise }
 
-Dla agentów, których właścicielem jest twoja organizacja, tak. Działa na twojej infrastrukturze, używa OpenAI albo dowolnego innego providera i publikuje każdego agenta na osiem powierzchni, z własnym budżetem i historią runów. Nie zastępuje ChatGPT jako asystenta dla każdego pracownika.
+Dla agentów, których właścicielem jest twoja organizacja, tak. Działa na twojej infrastrukturze, używa OpenAI albo dowolnego innego providera i publikuje każdego agenta na kilkanaście powierzchni, z własnym budżetem i historią runów. Nie zastępuje ChatGPT jako asystenta dla każdego pracownika.
 
 ### Czy AgenticOS może używać modeli OpenAI? { #can-agenticos-use-openai-models }
 

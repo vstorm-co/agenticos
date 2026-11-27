@@ -2,7 +2,7 @@
 title: "AgenticOS vs Sauna"
 seo_title: "AgenticOS vs Sauna: una alternativa autoalojada"
 description: "Sauna es un asistente de IA proactivo por persona, en su nube. AgenticOS: muchos agents gobernados, cualquier modelo y budgets por agent en tus servidores."
-source_sha: "0b50f057f109"
+source_sha: "5a291dd8092f"
 ---
 
 # AgenticOS vs Sauna { #agenticos-vs-sauna }
@@ -13,6 +13,8 @@ Si quieres un asistente personal que empiece a trabajar en tu bandeja de entrada
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de Sauna: sus páginas públicas de precios, seguridad y privacidad (la política de privacidad actualizada el 6 de octubre de 2026), no una cuenta probada ni un contrato negociado.
 
+Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
+
 ## De un vistazo { #at-a-glance }
 
 | Área | Sauna | AgenticOS |
@@ -22,7 +24,7 @@ Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026
 | Código | Propietario | Apache-2.0 |
 | Modelos | El modelo Sauna Lite en el plan Lite; todos los modelos desde Basic; modelos propios desde Pro | 28 providers, incluidos Ollama y LiteLLM en tu propio hardware |
 | Conocimiento | Los archivos que subes, la memoria que aprende y las herramientas que conectas | Colecciones de documentos en tu Postgres, con el parsing y el chunking que elijas, y cinco conectores de sincronización |
-| Superficies | App web, app de iOS, iMessage, Slack, Gmail, Superhuman, correo electrónico | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Telegram, Mattermost |
+| Superficies | App web, app de iOS, iMessage, Slack, Gmail, Superhuman, correo electrónico | Chat web, widget, página alojada, API HTTP, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, correo electrónico, iMessage, llamadas telefónicas |
 | Compartir | Privado por defecto; se comparte con personas elegidas, y un cerebro compartido de empresa en el plan Team | Seis roles, 33 permisos y grants por recurso, por organización |
 | Autonomía | Configurable, desde proponer acciones hasta actuar por su cuenta | Aprobaciones por capability, por herramienta y por conexión MCP, decididas por una persona con `approvals:decide` |
 | Precios | Free con 10 créditos al día, o 20 con una tarjeta verificada; Lite $29, Basic $99, Pro $299 y Team $999 al mes, solo pago mensual | Sin cuota de licencia; pagas a los providers de modelos y la infraestructura |

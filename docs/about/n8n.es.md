@@ -1,5 +1,5 @@
 ---
-source_sha: "e65292f64912"
+source_sha: "64778db1845f"
 title: "AgenticOS vs n8n"
 seo_title: "AgenticOS vs n8n: alternativa Apache-2.0 para agents de IA"
 description: "Compara n8n con AgenticOS para agents de IA: licencia, SSO y roles sin planes de pago, budgets por agent en lugar de cuotas de ejecuciones, y aprobaciones."
@@ -13,7 +13,7 @@ Encajan bien juntos. n8n mueve datos entre sistemas según una programación. Ag
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de n8n: su página de precios, su documentación y su licencia en n8n@2.44.5, no un plan de nube probado ni una licencia Enterprise autoalojada.
 
-Las funciones de AgenticOS se actualizaron el 2 de noviembre de 2026 con v1.35.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
+Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
 
 La disponibilidad de agents nativos y la configuración del conocimiento autoalojado se revisaron en la documentación oficial de n8n el 2 de noviembre de 2026. Los agents nativos están en vista previa en Cloud y en planes autoalojados desde 2.32.3. Esto no renueva la auditoría de precios anterior.
 
@@ -65,7 +65,7 @@ n8n construye la recuperación con nodos: loaders, embeddings y un almacén vect
 
 - El trabajo consiste en mover datos entre muchos sistemas, con ramas, reintentos y programaciones.
 - Prefieres la biblioteca de nodos, integraciones y edición de workflows de este producto. AgenticOS también tiene un editor visual; los nodos disponibles y la semántica de ejecución difieren.
-- Necesitas sus canales de revisión, como Microsoft Teams, WhatsApp o Gmail, o sus métricas de evaluación. AgenticOS todavía no tiene ninguna de las dos cosas.
+- Necesitas sus canales de revisión humana, como WhatsApp o Gmail, o su biblioteca de nodos de integración. AgenticOS tiene [Microsoft Teams](../channels.md#microsoft-teams), [correo electrónico](../channels.md#email) y [eval runs](../evals.md), pero no canal de WhatsApp y muchas menos integraciones listas.
 
 ## Úsalos juntos { #use-them-together }
 

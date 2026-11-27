@@ -1,5 +1,5 @@
 ---
-source_sha: "77658c876710"
+source_sha: "3e2a9620fb45"
 ---
 
 # Über AgenticOS { #about-agenticos }
@@ -54,7 +54,7 @@ alles an, womit Sie es vergleichen.
 | Zugriffskontrolle | Ein [Permission-Katalog](../permissions.md) in Code, Rollen daraus zusammengesetzt, Grants pro Ressource, die ausweiten und nie einengen. `approval: required` ist das `sudo` — der Run parkt und wartet auf einen Menschen |
 | Treiber | [28 Modell-Provider](../models.md) hinter einem Modellprofil und [jeder MCP-Server per URL](../mcp.md). Ändern Sie das Profil, und jeder Agent, der es nutzt, zieht mit, ohne dass einer neu veröffentlicht wird |
 | Dateisystem | [Collections, Skills und Context](../file-processing.md) in Ihrem eigenen Postgres, Embeddings mit einem Schlüssel pro Organisation |
-| Shell | Ein Runner hinter [Web-Chat, der API, Slack, Telegram, einem Widget, einer gehosteten Seite und einem Zeitplan](../channels.md) |
+| Shell | Ein Runner hinter [Web-Chat, der API, Slack, Microsoft Teams, Telegram, E-Mail, SMS, einer Telefonleitung, einem Widget, einer gehosteten Seite und einem Zeitplan](../channels.md) |
 | Audit-Log | Jeder Run, jede Approval-Entscheidung, jede Schlüsselrotation — mit Werten, nie mit Zeilen, und nie mit einem Schlüssel im Klartext |
 
 !!! info "Warum der Test so geschrieben ist, dass er auch auf uns angewandt wird"
@@ -73,9 +73,11 @@ Es steht als R11 auf
 [der Roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md).
 
 Zwei weitere Lücken, die man vor einem Vergleich kennen sollte: Es gibt noch kein
-SAML und kein SCIM — die Anmeldung läuft über JWT, API-Schlüssel, Google OAuth und
-Magic Links — und es gibt keine Evaluations-Umgebung, also testet man einen Agent
-vor dem Veröffentlichen von Hand.
+SAML und kein SCIM — die Anmeldung läuft über OIDC-Single-Sign-on, LDAP, Kerberos,
+Google und E-Mail, und ein reiner SAML-Identitätsanbieter geht über einen Broker wie
+Keycloak — und die Rollen sind die sechs eingebauten, ohne eigene Rollen. Einen
+Agent vor dem Veröffentlichen testen [Eval-Runs](../evals.md) gegen versionierte
+Datasets.
 
 ## Für wen es ist { #who-it-is-for }
 

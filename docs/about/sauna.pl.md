@@ -2,7 +2,7 @@
 title: "AgenticOS vs Sauna"
 seo_title: "AgenticOS vs Sauna: self-hosted alternatywa dla Sauny"
 description: "Sauna to proaktywny asystent AI dla każdej osoby, w jej chmurze. AgenticOS: wielu zarządzanych agentów, dowolny model i budżet per agent na twoich serwerach."
-source_sha: "0b50f057f109"
+source_sha: "5a291dd8092f"
 ---
 
 # AgenticOS vs Sauna { #agenticos-vs-sauna }
@@ -13,6 +13,8 @@ Jeśli chcesz jednego osobistego asystenta, który w dziesięć minut zacznie pr
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres Sauna: jej publiczne strony cennika, bezpieczeństwa i polityki prywatności (polityka zaktualizowana 6 października 2026), a nie przetestowane konto ani negocjowana umowa.
 
+Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
+
 ## W skrócie { #at-a-glance }
 
 | Obszar | Sauna | AgenticOS |
@@ -22,7 +24,7 @@ Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja
 | Źródła | Własnościowe | Apache-2.0 |
 | Modele | Model Sauna Lite w planie Lite; wszystkie modele od planu Basic; własne modele od planu Pro | 28 providerów, w tym Ollama i LiteLLM na twoim sprzęcie |
 | Wiedza | Wrzucone pliki, pamięć, której się uczy, i podłączone narzędzia | Kolekcje dokumentów w twoim Postgresie, z wybranym przez ciebie parsowaniem i chunkingiem oraz pięcioma konektorami synchronizacji |
-| Powierzchnie | Aplikacja webowa, aplikacja iOS, iMessage, Slack, Gmail, Superhuman, e-mail | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Powierzchnie | Aplikacja webowa, aplikacja iOS, iMessage, Slack, Gmail, Superhuman, e-mail | Czat webowy, widget, hostowana strona, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, e-mail, iMessage, połączenia telefoniczne |
 | Udostępnianie | Domyślnie prywatne; udostępnianie wybranym osobom i wspólny mózg firmy w planie Team | Sześć ról, 33 uprawnienia i granty per zasób, w każdej organizacji |
 | Autonomia | Konfigurowalna, od proponowania akcji po samodzielne działanie | Zatwierdzenia per capability, per narzędzie i per połączenie MCP, decyduje osoba z `approvals:decide` |
 | Ceny | Free z 10 kredytami dziennie albo 20 ze zweryfikowaną kartą; Lite $29, Basic $99, Pro $299 i Team $999 miesięcznie, tylko rozliczenie miesięczne | Bez opłaty licencyjnej; płacisz providerom modeli i za infrastrukturę |
