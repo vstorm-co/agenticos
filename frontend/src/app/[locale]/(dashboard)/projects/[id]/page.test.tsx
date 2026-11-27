@@ -151,6 +151,12 @@ it.each([0, 12])("shows %s chats in the tab without a separate count toolbar", a
   await mount(<ProjectPage params={Promise.resolve({ id: "p-1" })} />);
   expect(await screen.findAllByRole("link", { name: "New chat" })).toHaveLength(1);
   const chatsTab = screen.getByRole("tab", { name: "Chats" });
+  for (const trigger of screen.getAllByRole("tab")) {
+    expect(trigger).toHaveClass("gap-2");
+    expect(trigger.querySelector("svg")).toHaveClass("size-4", "shrink-0");
+    expect(trigger.querySelector("svg")).not.toHaveClass("mr-1.5");
+  }
+  expect(chatsTab.querySelector("span[aria-hidden]")).not.toHaveClass("ml-1.5");
   expect(chatsTab).toHaveAccessibleName("Chats");
   expect(chatsTab).toHaveAccessibleDescription(count === 0 ? "No chats yet" : `${count} chats`);
   act(() =>
