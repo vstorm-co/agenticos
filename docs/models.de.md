@@ -1,5 +1,5 @@
 ---
-source_sha: "610012f84d9c"
+source_sha: "ee6a07df66fa"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -448,7 +448,7 @@ Für einen **Z.AI GLM Coding Plan** wähle **Z.AI** und setze **Endpoint** ausdr
 
 Ein Planschlüssel ist nicht mit dem nutzungsabhängigen API-Schlüssel des Anbieters austauschbar. Manche Anbieter beschränken Planschlüssel auf Coding-Tools; die Nutzung über eine Agentenplattform ist deine Entscheidung und kann den Plan einschränken oder sperren. AgenticOS-Budgets behandeln diese Nutzung als unbepreiste Abo-Nutzung.
 
-**OpenCode-Go-Sitzungen.** Go lehnt eine Anfrage ohne den Header `x-opencode-session` ab (`MissingSessionID`) und verlangt, dass sich jeder Client mit eigenem Namen statt mit dem eines SDK ausweist. AgenticOS sendet beides bei jeder Go-Anfrage: den User-Agent `agenticos/<Version>` und eine undurchsichtige Sitzungs-ID, abgeleitet aus der Unterhaltung und dem Namen des Agenten. Der Agent, jeder Lauf-Reviewer und jeder Subagent behalten so eine Sitzung über alle Läufe der Unterhaltung. Ein Lauf außerhalb einer Unterhaltung verwendet seine Lauf-ID. Ein Modell, das ohne beides gebaut wird, etwa ein Workflow-Schritt, die Aufnahme oder das Schrittmodell des Browsers, erhält bei jedem Bau eine neue Sitzung. Ein Eintrag `extra_headers` in den Parametern des Profils überschreibt jeden der beiden Header.
+**OpenCode-Go-Sitzungen.** AgenticOS sendet `x-opencode-session` und den eigenen User-Agent `agenticos/<version>` bei Go-Modellanfragen. Ein veröffentlichter Agent nutzt seine stabile Agent-ID innerhalb der Unterhaltung; eine Umbenennung ändert die Sitzung nicht. Inline- und dynamische Spezialisten haben getrennte Eltern-und-Namens-Bereiche; Reviewer haben eigene Bereiche. Ohne Unterhaltung gilt die Run-ID; außerhalb eines Runs aufgebaute Modelle behalten eine generierte Sitzung über ihre Fallback-Kette. Explizite `extra_headers` überschreiben beide Header weiterhin.
 
 OpenCode Go ist für typische Coding-Agent-Anfragen vorgesehen. Diese Routing-Header ändern die erlaubte Nutzung des Abonnements nicht; ein Go-Profil ist keine uneingeschränkte Inferenz-API für allgemeine Zwecke.
 

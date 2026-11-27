@@ -66,7 +66,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Showing whether a change of model may be accepted no longer compares a measured check again on every read; it reads the check's kept verdict.
 
-- Send OpenCode Go the `x-opencode-session` header and an `agenticos/<version>` user agent on every request, so Go profiles no longer fail with `MissingSessionID`. The session stays the same for an agent, each run reviewer and each subagent across a conversation's runs; a profile's `extra_headers` still override both.
+- Send OpenCode Go the `x-opencode-session` header and an `agenticos/<version>` user agent on every request, so Go profiles no longer fail with `MissingSessionID`. Stable agent identities keep sessions across renames, reviewers and specialists have separate scopes, and a fallback chain shares one generated session; a profile's `extra_headers` still override both.
 
 - Freeze complete skill files when queuing a Check, retain its immutable base on legacy resumes, and reject proposals changed while planning without rewriting submitted fingerprints. Preserve the migration constraint name on rollback.
 

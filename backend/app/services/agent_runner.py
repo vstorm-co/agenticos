@@ -3415,6 +3415,7 @@ def _delegate_builder(
     extra_toolsets: list[AbstractToolset[Any]],
     test_bindings: frozenset[str] = frozenset(),
     reviewer_models: Mapping[UUID, ModelRequestSpec] | None = None,
+    provider_session_scope: tuple[str, ...] | None = None,
 ) -> Callable[[], PydanticAgent[Any, Any]]:
     """A closure that builds one delegate, with nothing left to look up.
 
@@ -3447,6 +3448,7 @@ def _delegate_builder(
             agent_id=agent_id,
             run_id=delegation.run.id,
             conversation_id=delegation.run.conversation_id,
+            provider_session_scope=provider_session_scope,
             user_id=delegation.user_id,
             user_name=delegation.user_name,
             granted_scopes=DEFAULT_GRANTED_SCOPES,
@@ -3533,6 +3535,7 @@ def _dynamic_builder(
             ),
             model=profiles[model],
             agent_id=delegation.agent_id,
+            provider_session_scope=("dynamic", str(delegation.agent_id), name),
             resources={
                 "kb_collection_names": [],
                 "kb_vector_scopes": {},
@@ -6524,6 +6527,7 @@ class AgentRunnerService:
                 spec=spec,
                 model=await self._delegated_model(delegation, spec),
                 agent_id=delegation.agent_id,
+                provider_session_scope=("inline", str(delegation.agent_id), specialist.name),
                 resources=own_resources,
                 secrets=await self.secrets.resolve_for_bindings(ctx, _secret_ids(spec)),
                 # A specialist has no MCP connections. They are

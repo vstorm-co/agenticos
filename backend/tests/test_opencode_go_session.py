@@ -164,7 +164,8 @@ async def test_the_operators_extra_headers_still_win() -> None:
     assert unrelated[0].headers["x-team"] == "a"
 
 
-async def test_a_fallback_continues_the_same_session() -> None:
+@pytest.mark.parametrize("session", [None, "s"])
+async def test_a_fallback_continues_the_same_session(session: str | None) -> None:
     sent: list[httpx2.Request] = []
 
     def respond(request: httpx2.Request) -> httpx2.Response:
@@ -173,13 +174,16 @@ async def test_a_fallback_continues_the_same_session() -> None:
             return httpx2.Response(400, content=b"{}", headers={"content-type": "application/json"})
         return _reply(request)
 
-    spec = replace(_spec(), fallbacks=[(_credential(), "kimi-k2.6")], provider_session="s")
+    spec = replace(_spec(), fallbacks=[(_credential(), "kimi-k2.6")], provider_session=session)
     async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as transport:
         with patch.object(OpenAICompatibleProvider, "_get_http_client", return_value=transport):
             model = spec.build()
         await Agent(model).run("hello")
 
-    assert [request.headers[OPENCODE_SESSION_HEADER] for request in sent] == ["s", "s"]
+    assert len(sent) == 2
+    assert len({request.headers[OPENCODE_SESSION_HEADER] for request in sent}) == 1
+    if session is not None:
+        assert sent[0].headers[OPENCODE_SESSION_HEADER] == session
 
 
 async def test_go_refuses_a_legacy_http_client() -> None:
@@ -194,10 +198,14 @@ async def test_go_refuses_a_legacy_http_client() -> None:
 def test_the_session_is_opaque_and_stable_per_key() -> None:
     conversation = uuid.uuid4()
 
-    assert provider_session(conversation, "Clerk") == provider_session(conversation, "Clerk")
-    assert provider_session(conversation, "Clerk") != provider_session(conversation, "Other")
-    assert str(conversation) not in provider_session(conversation, "Clerk")
-    assert len(provider_session(conversation, "Clerk")) == 32
+    assert provider_session(conversation, "inline", "Clerk") == provider_session(
+        conversation, "inline", "Clerk"
+    )
+    assert provider_session(conversation, "inline", "Clerk") != provider_session(
+        conversation, "Other"
+    )
+    assert str(conversation) not in provider_session(conversation, "inline", "Clerk")
+    assert len(provider_session(conversation, "inline", "Clerk")) == 32
 
 
 class TestTheFactory:
@@ -208,6 +216,8 @@ class TestTheFactory:
         spec: AgentSpec,
         *,
         conversation_id: uuid.UUID | None = None,
+        agent_id: uuid.UUID | None = None,
+        provider_scope: tuple[str, ...] | None = None,
         run_id: uuid.UUID | None = None,
         params: dict[str, object] | None = None,
         reviewer_models: dict[uuid.UUID, ModelRequestSpec] | None = None,
@@ -217,6 +227,8 @@ class TestTheFactory:
             _spec(params=params),
             organization_id=uuid.uuid4(),
             conversation_id=conversation_id,
+            agent_id=agent_id,
+            provider_session_scope=provider_scope,
             run_id=run_id,
             reviewer_models=reviewer_models or {},
         )
@@ -237,9 +249,13 @@ class TestTheFactory:
         # A subagent in the same conversation is a conversation of its own with the model.
         delegate, _, _ = self._built(AgentSpec(name="Researcher"), conversation_id=conversation)
 
-        assert _session_of(first) == _session_of(second) == provider_session(conversation, "Clerk")
+        assert (
+            _session_of(first)
+            == _session_of(second)
+            == provider_session(conversation, "inline", "Clerk")
+        )
         assert _session_of(elsewhere) != _session_of(first)
-        assert _session_of(delegate) == provider_session(conversation, "Researcher")
+        assert _session_of(delegate) == provider_session(conversation, "inline", "Researcher")
 
     def test_a_run_without_a_conversation_is_its_own_session(self) -> None:
         run = uuid.uuid4()
@@ -247,7 +263,7 @@ class TestTheFactory:
         model, _, _ = self._built(AgentSpec(name="Clerk"), run_id=run)
         anonymous, _, _ = self._built(AgentSpec(name="Clerk"))
 
-        assert _session_of(model) == provider_session(run, "Clerk")
+        assert _session_of(model) == provider_session(run, "inline", "Clerk")
         assert _session_of(anonymous) is not None
 
     def test_a_reviewer_gets_a_session_of_its_own_in_the_conversation(self) -> None:
@@ -263,7 +279,7 @@ class TestTheFactory:
         _, (anonymous,), _ = self._built(spec, reviewer_models={profile: _spec()})
 
         assert _session_of(reviewer.model) == provider_session(
-            conversation, "Clerk", "reviewer", "sources"
+            conversation, "inline", "Clerk", "reviewer", "sources"
         )
         assert _session_of(anonymous.model) is not None
 
@@ -302,3 +318,43 @@ async def test_go_session_headers_preserve_the_profiles_custom_pricing() -> None
     assert sent[0].headers[OPENCODE_SESSION_HEADER] == "priced-conversation"
     assert sent[0].headers["user-agent"] == USER_AGENT
     assert result.usage.cost == Decimal("0.000005")
+
+
+def test_a_published_agent_keeps_its_session_after_rename_and_separates_same_named_delegates() -> (
+    None
+):
+    conversation, identity, other = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    build = TestTheFactory._built
+    first, _, _ = build(AgentSpec(name="Clerk"), agent_id=identity, conversation_id=conversation)
+    renamed, _, _ = build(
+        AgentSpec(name="Renamed"), agent_id=identity, conversation_id=conversation
+    )
+    delegate, _, _ = build(AgentSpec(name="Clerk"), agent_id=other, conversation_id=conversation)
+    inline, _, _ = build(
+        AgentSpec(name="Clerk"),
+        agent_id=identity,
+        conversation_id=conversation,
+        provider_scope=("inline", str(identity), "Clerk"),
+    )
+    dynamic, _, _ = build(
+        AgentSpec(name="Clerk"),
+        agent_id=identity,
+        conversation_id=conversation,
+        provider_scope=("dynamic", str(identity), "Clerk"),
+    )
+    assert (
+        _session_of(first)
+        == _session_of(renamed)
+        == provider_session(conversation, "agent", str(identity))
+    )
+    assert (
+        len({_session_of(first), _session_of(delegate), _session_of(inline), _session_of(dynamic)})
+        == 4
+    )
+
+
+def test_session_components_cannot_collide_at_a_separator() -> None:
+    conversation = uuid.uuid4()
+    assert provider_session(conversation, "a/reviewer/b") != provider_session(
+        conversation, "a", "reviewer", "b"
+    )

@@ -240,6 +240,7 @@ def build_agent(
     agent_id: UUID | None = None,
     run_id: UUID | None = None,
     conversation_id: UUID | None = None,
+    provider_session_scope: tuple[str, ...] | None = None,
     user_id: str | None = None,
     user_name: str | None = None,
     audience: RunAudience | None = None,
@@ -272,6 +273,9 @@ def build_agent(
 
     Args:
         spec: The published (or draft, when previewing) agent definition.
+        provider_session_scope: A routing scope for inline/dynamic specialists
+            whose cost is attributed to the parent agent_id. Published agents
+            default to their stable database identity; this grants no authority.
         offer_setup_tools: Whether to offer implicit setup actions. Restricted
             automatic turns and answer-only turns cannot expand their setup.
         model_spec: Already-resolved model and credentials.
@@ -359,6 +363,9 @@ def build_agent(
             enforce because the model provider executes the tool.
     """
     session_key = conversation_id if conversation_id is not None else run_id
+    session_scope = provider_session_scope or (
+        ("agent", str(agent_id)) if agent_id is not None else ("inline", spec.name)
+    )
     routine_policy = None
     if routine_action_check is not None:
         if agent_id is None:
@@ -604,7 +611,7 @@ def build_agent(
             if spec.loop_guard.enabled
             else []
         ),
-        *_reviewers(spec, reviewer_models or {}, recorder, session_key),
+        *_reviewers(spec, reviewer_models or {}, recorder, session_key, session_scope),
         # Off unless the spec asks, and never under a session that asks before
         # every tool: nothing could be folded into a script there.
         *(
@@ -655,11 +662,13 @@ def build_agent(
     )
 
     # A provider that routes by conversation (OpenCode Go) sees one session per
-    # agent in it, across all of the conversation's runs; a run with no
-    # conversation is its own. Subagents come through here with the parent's
-    # conversation and their own name.
+    # stable agent identity in it, across all runs and display-name changes.
+    # Inline/dynamic specialists use an explicit parent-and-name scope because
+    # their attribution agent_id remains the parent's; it must not be invented.
     if session_key is not None:
-        model_spec = replace(model_spec, provider_session=provider_session(session_key, spec.name))
+        model_spec = replace(
+            model_spec, provider_session=provider_session(session_key, *session_scope)
+        )
 
     if isinstance(model_spec, NativeModelSpec):
         capabilities.append(NativeContext())
@@ -722,6 +731,7 @@ def _reviewers(
     models: Mapping[UUID, ModelRequestSpec],
     recorder: RunRecorder,
     session_key: UUID | None,
+    session_scope: tuple[str, ...],
 ) -> list[RunReviewer]:
     """The spec's run reviewers, each on the model the runner resolved for it (#2106).
 
@@ -756,7 +766,7 @@ def _reviewers(
                     else replace(
                         model,
                         provider_session=provider_session(
-                            session_key, spec.name, "reviewer", reviewer.name
+                            session_key, *session_scope, "reviewer", reviewer.name
                         ),
                     )
                 ).build(),

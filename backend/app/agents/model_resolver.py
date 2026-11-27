@@ -50,6 +50,7 @@ second run.
 """
 
 import hashlib
+import json
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -282,14 +283,16 @@ USER_AGENT = f"agenticos/{__version__}"
 """How AgenticOS names itself to a provider that asks every client to."""
 
 
-def provider_session(*key: object) -> str:
+def provider_session(*key: UUID | str) -> str:
     """An opaque, stable session id for a provider that routes by conversation.
 
     The same key always gives the same id, so every request of one conversation
     reaches the provider under one session; the key is hashed so the provider
     never sees a conversation or run id of this deployment.
     """
-    return hashlib.sha256("/".join(str(part) for part in key).encode()).hexdigest()[:32]
+    return hashlib.sha256(
+        json.dumps([str(part) for part in key], separators=(",", ":")).encode()
+    ).hexdigest()[:32]
 
 
 class _OpenCodeGoClient(AsyncOpenAI):
@@ -1021,6 +1024,7 @@ def build_with_fallbacks(
         raise BadRequestError(
             message="Official ChatGPT plan usage cannot participate in automatic model fallbacks"
         )
+    session = session if session is not None else uuid4().hex
     model = build_model(*primary, session)
     if not fallbacks:
         return model

@@ -1,5 +1,5 @@
 ---
-source_sha: "610012f84d9c"
+source_sha: "ee6a07df66fa"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -428,7 +428,7 @@ Para un **Z.AI GLM Coding Plan**, selecciona **Z.AI** y configura **Endpoint** e
 
 Una clave de plan no es intercambiable con la clave de API facturada por uso del proveedor. Algunos proveedores limitan las claves de plan a herramientas de programación; usarla desde una plataforma de agentes es tu decisión y puede limitar o suspender el plan. Los presupuestos de AgenticOS tratan este uso como uso de suscripción sin precio.
 
-**Sesiones de OpenCode Go.** Go rechaza una solicitud sin la cabecera `x-opencode-session` (`MissingSessionID`) y pide a cada cliente que se identifique con su propio nombre y no con el de un SDK. AgenticOS envía ambas en cada solicitud a Go: el user agent `agenticos/<versión>` y un ID de sesión opaco derivado de la conversación y del nombre del agente. Así, el agente, cada revisor de la ejecución y cada subagente mantienen una sesión en todas las ejecuciones de la conversación. Una ejecución fuera de una conversación usa su ID de ejecución. Un modelo construido sin ninguno de los dos, como un paso de workflow, la ingesta o el modelo de pasos del navegador, recibe una sesión nueva cada vez que se construye. Una entrada `extra_headers` en los parámetros del perfil sobrescribe cualquiera de las dos cabeceras.
+**Sesiones de OpenCode Go.** AgenticOS envía `x-opencode-session` y su propio user agent `agenticos/<version>` en las solicitudes a modelos Go. Un agente publicado utiliza su ID estable dentro de la conversación; cambiarle el nombre no cambia la sesión. Los especialistas inline y dinámicos usan ámbitos distintos de padre y nombre; los revisores tienen su propio ámbito. Sin conversación se usa el ID de ejecución; los modelos creados fuera de una ejecución mantienen una sesión generada en toda su cadena de respaldo. Los `extra_headers` explícitos siguen sobrescribiendo ambos encabezados.
 
 OpenCode Go está destinado al tráfico típico de agentes de programación. Estos encabezados de enrutamiento no cambian el uso permitido de la suscripción; un perfil Go no ofrece inferencia de uso general sin restricciones.
 
