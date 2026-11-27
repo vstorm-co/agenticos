@@ -249,7 +249,7 @@ export function ChannelBotsTable({
               </ActionTooltip>
               <ActionTooltip label={t("removeBot", { bot: bot.name })} disabled={busy}>
                 <Button
-                  variant="ghost"
+                  variant="destructive-ghost"
                   size="icon"
                   disabled={busy}
                   aria-label={t("removeBot", { bot: bot.name })}

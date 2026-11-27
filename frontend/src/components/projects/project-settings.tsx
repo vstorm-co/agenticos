@@ -163,7 +163,7 @@ export function ProjectSettings({ project }: { project: Project }) {
               <p className="text-sm font-medium">{t("deleteProject")}</p>
               <p className="text-muted-foreground text-sm">{t("deleteProjectHint")}</p>
             </div>
-            <Button variant="outline" onClick={() => setConfirmDelete(true)}>
+            <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
               <Trash2 className="h-4 w-4" />
               {t("delete")}
             </Button>

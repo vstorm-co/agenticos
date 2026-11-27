@@ -32,9 +32,9 @@ export function ServiceConnectionRemove({
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button
-          variant="ghost"
+          variant="destructive-ghost"
           size="sm"
-          className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+          className="h-8 w-8 p-0"
           aria-label={tc("removeNamed", { name: service.name })}
         >
           <Trash2 className="h-3.5 w-3.5" />

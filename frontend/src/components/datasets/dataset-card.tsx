@@ -83,7 +83,7 @@ export function DatasetCard({ dataset, onDelete }: DatasetCardProps) {
         )}
         {dataset.can_edit && (
           <Button
-            variant="ghost"
+            variant="destructive-ghost"
             size="icon"
             aria-label={tc("deleteNamed", { name: dataset.name })}
             onClick={onDelete}

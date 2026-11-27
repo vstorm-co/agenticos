@@ -118,9 +118,9 @@ export function SuiteRow({ suite, canManage }: { suite: EvalSuite; canManage: bo
             {suite.is_active ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
           </Button>
           <Button
-            variant="ghost"
+            variant="destructive-ghost"
             size="icon"
-            className="hover:text-destructive-ink h-8 w-8"
+            className="h-8 w-8"
             aria-label={t("delete")}
             disabled={remove.isPending}
             onClick={() => setDeleting(true)}

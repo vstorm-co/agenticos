@@ -323,9 +323,9 @@ export function ViewSelect({
         {active?.can_delete && (
           <Button
             type="button"
-            variant="ghost"
+            variant="destructive-ghost"
             size="icon"
-            className="text-muted-foreground size-8 max-sm:hidden"
+            className="size-8 max-sm:hidden"
             aria-label={t("delete")}
             title={t("delete")}
             onClick={() => setDeleting(active)}

@@ -197,9 +197,9 @@ export function DocumentsTable({
               )}
               {mayEdit && (
                 <Button
-                  variant="ghost"
+                  variant="destructive-ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+                  className="h-8 w-8 p-0"
                   onClick={() => onRemove(doc)}
                   title={t("removeDocument")}
                   aria-label={t("removeDocument2")}

@@ -161,11 +161,7 @@ export function SkillPageHeader({
               : t("open")}
           </Button>
           {line === null && onDelete && (
-            <Button
-              variant="outline"
-              className="text-destructive hover:text-destructive"
-              onClick={onDelete}
-            >
+            <Button variant="destructive" onClick={onDelete}>
               <Trash2 className="h-4 w-4" aria-hidden />
               {t("deleteSkill.button")}
             </Button>

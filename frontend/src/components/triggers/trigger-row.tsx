@@ -271,9 +271,9 @@ export function TriggerRow({ trigger, showAgent = false, blockers: read }: Trigg
               )}
               <ActionTooltip label={t("delete")}>
                 <Button
-                  variant="ghost"
+                  variant="destructive-ghost"
                   size="icon"
-                  className="hover:text-destructive h-8 w-8"
+                  className="h-8 w-8"
                   aria-label={t("delete")}
                   disabled={remove.isPending}
                   onClick={() => setConfirmingDelete(true)}

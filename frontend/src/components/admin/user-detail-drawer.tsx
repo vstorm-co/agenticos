@@ -430,11 +430,7 @@ export function UserDetailDrawer({
 
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-destructive hover:text-destructive ml-auto"
-              >
+              <Button variant="destructive-ghost" size="sm" className="ml-auto">
                 <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                 {t("delete")}
               </Button>

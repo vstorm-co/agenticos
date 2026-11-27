@@ -103,6 +103,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Show persisted-resource Delete actions in red consistently, including project deletion and quiet table controls, while keeping Cancel and unlink actions neutral.
+
 - Acknowledge live Browser and Desktop takeover only to the socket that acquired control, and avoid repeated viewport resizing when environment expiry updates.
 
 - Use consistent icon, label and count spacing across project tabs.

@@ -235,7 +235,7 @@ export function VaultTable({
                   </Button>
                 )}
                 <Button
-                  variant="ghost"
+                  variant="destructive-ghost"
                   size="icon"
                   aria-label={tc("deleteNamed", { name: row.name })}
                   onClick={() => onDelete(row.secret)}

@@ -255,7 +255,7 @@ function TemplateLibrary({
                       <Button
                         type="button"
                         size="icon"
-                        variant="ghost"
+                        variant="destructive-ghost"
                         aria-label={t("deleteTemplate", { name: template.name })}
                         disabled={busy || !canEdit}
                         onClick={() =>

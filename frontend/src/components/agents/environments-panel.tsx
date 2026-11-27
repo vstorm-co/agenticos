@@ -336,7 +336,7 @@ export function EnvironmentsPanel({
               )}
               {canManage && !environment.is_default && (
                 <Button
-                  variant="ghost"
+                  variant="destructive-ghost"
                   size="sm"
                   disabled={remove.isPending}
                   aria-label={tc("removeNamed", { name: environment.name })}
