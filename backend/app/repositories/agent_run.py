@@ -2909,6 +2909,10 @@ class ApprovalFilters:
             approval, because an approval belongs to a run and a run belongs to a
             person. A chat stranger's run is left out: it ran under the
             publisher's user id, but the publisher did not trigger it.
+        own_user_id: Whose runs act for. Unlike `triggered_by_user_id`, this
+            keeps a publisher-fallback row: the run acts for the publisher
+            even though a chat stranger triggered it, and the publisher is
+            the one who may approve it.
         created_from: Inclusive lower bound on when the call was parked.
         created_to: Inclusive upper bound.
         outside_live_calls: Leave out the calls parked by a run a voice call is
@@ -2917,6 +2921,7 @@ class ApprovalFilters:
 
     statuses: Sequence[str] | None = None
     triggered_by_user_id: UUID | None = None
+    own_user_id: UUID | None = None
     created_from: datetime | None = None
     created_to: datetime | None = None
     outside_live_calls: bool = False
@@ -2969,6 +2974,8 @@ async def list_approvals(
     if narrowing.triggered_by_user_id is not None:
         clauses.append(AgentRun.user_id == narrowing.triggered_by_user_id)
         clauses.append(~asked_by_stranger)
+    if narrowing.own_user_id is not None:
+        clauses.append(AgentRun.user_id == narrowing.own_user_id)
     if narrowing.created_from is not None:
         clauses.append(ToolApproval.created_at >= narrowing.created_from)
     if narrowing.created_to is not None:

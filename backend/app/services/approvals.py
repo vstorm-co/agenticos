@@ -327,10 +327,15 @@ class ApprovalService:
         approvals and nothing else: the scope answers which rows of the
         organization's queue are theirs, and the filter below is forced rather
         than defaulted, so a `triggered_by_user_id` naming somebody else is
-        overwritten rather than honoured.
+        overwritten rather than honoured. "Theirs" means runs that act for
+        them, which includes a publisher-fallback row a chat account asked
+        for - the publisher is the one who may approve it, even though they
+        did not trigger it.
         """
         if ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.OWN:
-            filters = replace(filters or ApprovalFilters(), triggered_by_user_id=ctx.user_id)
+            filters = replace(
+                filters or ApprovalFilters(), triggered_by_user_id=None, own_user_id=ctx.user_id
+            )
         rows, total = await agent_run_repo.list_approvals(
             self.db,
             organization_id=ctx.organization_id,
