@@ -11374,7 +11374,8 @@
         "completed": "Ihr Test ist abgeschlossen.",
         "failed": "Ihr Test konnte nicht abgeschlossen werden.",
         "cancelled": "Ihr Test wurde abgebrochen.",
-        "budget_exceeded": "Ihr Test wurde am Budget angehalten."
+        "budget_exceeded": "Ihr Test wurde am Budget angehalten.",
+        "quote": "Ihr Test wurde bei dem von Ihnen akzeptierten Preis angehalten."
       },
       "questions": {
         "ready": "Ihre Testfragen sind geschrieben und warten auf Ihre Prüfung.",

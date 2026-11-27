@@ -11688,7 +11688,8 @@
         "completed": "Your test finished.",
         "failed": "Your test could not finish.",
         "cancelled": "Your test was cancelled.",
-        "budget_exceeded": "Your test stopped at its budget."
+        "budget_exceeded": "Your test stopped at its budget.",
+        "quote": "Your test stopped at the price you accepted."
       },
       "questions": {
         "ready": "Your test questions are written and wait for your review.",

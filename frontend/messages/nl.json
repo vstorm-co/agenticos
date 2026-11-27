@@ -11572,7 +11572,8 @@
         "completed": "Je test is afgerond.",
         "failed": "Je test kon niet worden afgerond.",
         "cancelled": "Je test is geannuleerd.",
-        "budget_exceeded": "Je test is gestopt bij zijn budget."
+        "budget_exceeded": "Je test is gestopt bij zijn budget.",
+        "quote": "Je test is gestopt bij de prijs die je hebt geaccepteerd."
       },
       "questions": {
         "ready": "Je testvragen zijn geschreven en wachten op je review.",

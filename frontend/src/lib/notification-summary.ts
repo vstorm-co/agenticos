@@ -67,7 +67,9 @@ export function notificationSummary(item: Notification, t: Translate, tStop: Tra
     return outcome.criteria?.length ? `${line} ${criteriaSentence(outcome.criteria, t)}` : line;
   }
   if (item.event_type === "eval_run_finished" && TEST.includes(outcome.status))
-    return t(`outcome.test.${outcome.status}`);
+    return outcome.reason === "quote"
+      ? t("outcome.test.quote")
+      : t(`outcome.test.${outcome.status}`);
   if (item.event_type === "case_generation_finished" && GENERATION.includes(outcome.status))
     return t(`outcome.questions.${outcome.status}`);
   return item.summary;

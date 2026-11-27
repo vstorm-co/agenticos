@@ -11335,7 +11335,8 @@
         "completed": "Votre test est terminé.",
         "failed": "Votre test n’a pas pu aboutir.",
         "cancelled": "Votre test a été annulé.",
-        "budget_exceeded": "Votre test s’est arrêté à son budget."
+        "budget_exceeded": "Votre test s’est arrêté à son budget.",
+        "quote": "Votre test s’est arrêté au prix que vous avez accepté."
       },
       "questions": {
         "ready": "Vos questions de test sont rédigées et attendent votre revue.",
