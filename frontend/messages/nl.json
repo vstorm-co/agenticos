@@ -17033,7 +17033,7 @@
       "undo": "Ongedaan maken",
       "quotesCredential": "Deze suggestie citeert inloggegevens en kan zo niet worden geaccepteerd. Haal de inloggegevens eruit door te bewerken, of wijs de suggestie af.",
       "quotesCredentialDismiss": "Deze suggestie citeert inloggegevens en kan niet worden geaccepteerd. Wijs haar af en breng de wijziging zelf aan.",
-      "quotesCredentialHistory": "Dit eerdere voorstel bevat inloggegevens en kan zo niet worden geaccepteerd."
+      "quotesCredentialReadOnly": "Dit voorstel bevat inloggegevens en kan zo niet worden geaccepteerd."
     },
     "field": {
       "editLabel": "Jouw waarde",

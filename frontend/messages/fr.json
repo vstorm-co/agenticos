@@ -16684,7 +16684,7 @@
       "undo": "Annuler",
       "quotesCredential": "Cette suggestion cite un identifiant : elle ne peut pas être acceptée telle quelle. Retirez l’identifiant en la modifiant, ou ignorez-la.",
       "quotesCredentialDismiss": "Cette suggestion cite un identifiant : elle ne peut pas être acceptée. Ignorez-la et faites la modification vous-même.",
-      "quotesCredentialHistory": "Cette ancienne suggestion contient des identifiants et ne peut pas être acceptée en l’état."
+      "quotesCredentialReadOnly": "Cette suggestion contient des identifiants et ne peut pas être acceptée en l’état."
     },
     "field": {
       "editLabel": "Votre valeur",

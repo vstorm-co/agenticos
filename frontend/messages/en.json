@@ -17149,7 +17149,7 @@
       "undo": "Undo",
       "quotesCredential": "This suggestion quotes a credential, so it can't be accepted as written. Edit the credential out, or dismiss it.",
       "quotesCredentialDismiss": "This suggestion quotes a credential, so it can't be accepted. Dismiss it and make the change by hand.",
-      "quotesCredentialHistory": "This historical suggestion quotes a credential and cannot be accepted as written."
+      "quotesCredentialReadOnly": "This suggestion quotes a credential and cannot be accepted as written."
     },
     "field": {
       "editLabel": "Your value",

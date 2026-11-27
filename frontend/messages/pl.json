@@ -16922,7 +16922,7 @@
       "undo": "Cofnij",
       "quotesCredential": "Ta sugestia cytuje poświadczenie, więc nie można jej przyjąć w tej postaci. Usuń poświadczenie w edycji albo ją odrzuć.",
       "quotesCredentialDismiss": "Ta sugestia cytuje poświadczenie, więc nie można jej przyjąć. Odrzuć ją i wprowadź zmianę ręcznie.",
-      "quotesCredentialHistory": "Ta historyczna sugestia zawiera dane uwierzytelniające i nie może zostać zaakceptowana w tej postaci."
+      "quotesCredentialReadOnly": "Ta sugestia zawiera dane uwierzytelniające i nie może zostać zaakceptowana w tej postaci."
     },
     "field": {
       "editLabel": "Twoja wartość",

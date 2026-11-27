@@ -139,7 +139,7 @@ export function SuggestionCard({
           <p className="text-sm text-amber-700 dark:text-amber-400">
             {t(
               !canEdit
-                ? "quotesCredentialHistory"
+                ? "quotesCredentialReadOnly"
                 : rewordable
                   ? "quotesCredential"
                   : "quotesCredentialDismiss",

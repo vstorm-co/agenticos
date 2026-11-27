@@ -18347,7 +18347,7 @@
       "undo": "Geri al",
       "quotesCredential": "Bu öneri bir kimlik bilgisi alıntılıyor, bu yüzden olduğu gibi kabul edilemez. Düzenleyerek kimlik bilgisini çıkarın veya öneriyi reddedin.",
       "quotesCredentialDismiss": "Bu öneri bir kimlik bilgisi alıntılıyor, bu yüzden kabul edilemez. Öneriyi reddedin ve değişikliği elle yapın.",
-      "quotesCredentialHistory": "Bu geçmiş öneri kimlik bilgileri içeriyor ve bu haliyle kabul edilemez."
+      "quotesCredentialReadOnly": "Bu öneri kimlik bilgileri içeriyor ve bu haliyle kabul edilemez."
     },
     "field": {
       "editLabel": "Değeriniz",

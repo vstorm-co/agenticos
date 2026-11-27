@@ -16835,7 +16835,7 @@
       "undo": "Rückgängig",
       "quotesCredential": "Dieser Vorschlag zitiert ein Credential und kann so nicht übernommen werden. Entfernen Sie das Credential beim Bearbeiten oder verwerfen Sie den Vorschlag.",
       "quotesCredentialDismiss": "Dieser Vorschlag zitiert ein Credential und kann nicht übernommen werden. Verwerfen Sie ihn und nehmen Sie die Änderung von Hand vor.",
-      "quotesCredentialHistory": "Dieser frühere Vorschlag enthält Zugangsdaten und kann so nicht angenommen werden."
+      "quotesCredentialReadOnly": "Dieser Vorschlag enthält Zugangsdaten und kann so nicht angenommen werden."
     },
     "field": {
       "editLabel": "Dein Wert",

@@ -255,7 +255,7 @@ describe("SuggestionCard", () => {
   });
 });
 
-it("keeps a closed batch credential warning historical without unavailable actions", () => {
+it("keeps a read-only credential warning free of unavailable actions", () => {
   render(
     <SuggestionCard
       hunk={hunk({ contains_credential: true })}
@@ -264,8 +264,9 @@ it("keeps a closed batch credential warning historical without unavailable actio
       onDecide={vi.fn()}
     />,
   );
-  expect(screen.getByText(/historical suggestion quotes a credential/)).toBeVisible();
+  expect(screen.getByText(/suggestion quotes a credential and cannot be accepted/)).toBeVisible();
   expect(screen.queryByText(/Dismiss it/)).toBeNull();
+  expect(screen.queryByText(/historical/)).toBeNull();
   expect(screen.queryByRole("button", { name: "Dismiss" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
 });
