@@ -1,5 +1,5 @@
 ---
-source_sha: "77658c876710"
+source_sha: "3e2a9620fb45"
 ---
 
 # Acerca de AgenticOS { #about-agenticos }
@@ -53,7 +53,7 @@ lo estés comparando.
 | Control de acceso | Un [catálogo de permisos](../permissions.md) en código, roles compuestos a partir de él, grants por recurso que amplían y nunca reducen. `approval: required` es el `sudo` — el run se aparca y espera a una persona |
 | Drivers | [28 providers de modelos](../models.md) detrás de un perfil de modelo, y [cualquier servidor MCP por URL](../mcp.md). Cambia el perfil y todos los agents que lo usan se mueven con él, sin republicar ninguno |
 | Sistema de ficheros | [Colecciones, skills y context](../file-processing.md) en tu propio Postgres, con embeddings que usan una clave por organización |
-| Shell | Un único runner detrás del [chat web, la API, Slack, Telegram, un widget, una página alojada y un horario](../channels.md) |
+| Shell | Un único runner detrás del [chat web, la API, Slack, Microsoft Teams, Telegram, correo electrónico, SMS, una línea telefónica, un widget, una página alojada y un horario](../channels.md) |
 | Registro de auditoría | Cada run, cada decisión de aprobación, cada rotación de secreto — con valores, nunca con filas, y nunca con una clave en texto plano |
 
 !!! info "Por qué la prueba está escrita para aplicárnosla también a nosotros"
@@ -72,9 +72,10 @@ Está en [la hoja de ruta](https://github.com/vstorm-co/agenticos/blob/main/docs
 como R11.
 
 Otras dos lagunas que conviene conocer antes de comparar: todavía no hay SAML ni
-SCIM — el inicio de sesión es JWT, claves de API, Google OAuth y enlaces mágicos
-— y no hay un entorno de evaluación, así que probar un agent antes de publicarlo
-es algo que haces a mano.
+SCIM — el inicio de sesión es SSO con OIDC, LDAP, Kerberos, Google y correo, y un
+proveedor de identidad solo SAML pasa por un broker como Keycloak — y los roles son
+los seis integrados, sin roles personalizados. Probar un agent antes de publicarlo
+lo cubren los [eval runs](../evals.md) sobre datasets versionados.
 
 ## Para quién es { #who-it-is-for }
 

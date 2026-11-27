@@ -1,5 +1,5 @@
 ---
-source_sha: "c53ca829ee5e"
+source_sha: "2368d61a1260"
 title: "AgenticOS vs OpenCode"
 seo_title: "AgenticOS vs OpenCode: herramientas de agents open source"
 description: "OpenCode: agent de código MIT para un desarrollador. AgenticOS: plataforma Apache-2.0 para los agents de IA de una empresa, con roles, budgets y auditoría."
@@ -10,6 +10,8 @@ description: "OpenCode: agent de código MIT para un desarrollador. AgenticOS: p
 OpenCode es un agent de programación de código abierto con licencia MIT. Se ejecuta en una terminal, una app de escritorio o un IDE y se conecta a más de 75 providers de modelos. Es una opción sólida para un desarrollador que quiere su propio agent en su propio repositorio. AgenticOS también es de código abierto, y está construido para otro trabajo: muchos agents, muchos usuarios, un único despliegue gobernado.
 
 Mantenido por el equipo de AgenticOS. Fuentes revisadas el 21 de octubre de 2026. Versión de referencia de AgenticOS: v1.10.0. Alcance de OpenCode: su documentación en opencode.ai, incluidas las páginas de la Console de OpenCode 2 bajo `/v2/`, y el repositorio `anomalyco/opencode` en v1.19.3, de la línea 1.x, no un despliegue empresarial probado.
+
+Las funciones de AgenticOS se actualizaron el 27 de noviembre de 2026 con v1.95.0. La fecha de revisión del proveedor indicada arriba no cambia; esto no es una nueva auditoría de precios.
 
 ## De un vistazo { #at-a-glance }
 
@@ -69,7 +71,7 @@ Sí. OpenCode es MIT y AgenticOS es Apache-2.0, y ambos pueden usar modelos loca
 
 ### ¿Se pueden compartir los agents de AgenticOS con personas que no programan? { #can-agenticos-agents-be-shared-with-people-who-do-not-code }
 
-Sí. Responden a través de un widget, una página alojada, Slack, Telegram, Mattermost o la API HTTP, sin nada que instalar.
+Sí. Responden a través de un widget, una página alojada, Slack, Microsoft Teams, Telegram, Mattermost, correo electrónico o la API HTTP, sin nada que instalar.
 
 ### ¿OpenCode puede ayudar a construir capabilities de AgenticOS? { #can-opencode-help-build-agenticos-capabilities }
 

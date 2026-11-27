@@ -2,7 +2,7 @@
 title: "AgenticOS vs Sauna"
 seo_title: "AgenticOS vs Sauna: eine selbst gehostete Alternative"
 description: "Sauna ist ein proaktiver KI-Assistent pro Person, in ihrer Cloud. AgenticOS: viele kontrollierte Agents, jedes Modell und Budgets pro Agent auf Ihren Servern."
-source_sha: "0b50f057f109"
+source_sha: "5a291dd8092f"
 ---
 
 # AgenticOS vs Sauna { #agenticos-vs-sauna }
@@ -13,6 +13,8 @@ Wenn Sie einen persönlichen Assistenten möchten, der in zehn Minuten an Ihrem 
 
 Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basisversion: v1.10.0. Umfang Sauna: die öffentlichen Seiten zu Preisen, Sicherheit und Datenschutz (die Datenschutzerklärung mit Stand 6. Oktober 2026), kein getestetes Konto und kein verhandelter Vertrag.
 
+Die AgenticOS-Funktionsangaben wurden am 27. November 2026 anhand von v1.95.0 aktualisiert. Das Prüfdatum der Anbieterquellen oben bleibt unverändert; dies ist keine neue Preisprüfung.
+
 ## Auf einen Blick { #at-a-glance }
 
 | Bereich | Sauna | AgenticOS |
@@ -22,7 +24,7 @@ Gepflegt vom AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Bas
 | Quellcode | Proprietär | Apache-2.0 |
 | Modelle | Das Modell Sauna Lite im Tarif Lite; alle Modelle ab Basic; eigene Modelle ab Pro | 28 Provider, darunter Ollama und LiteLLM auf Ihrer eigenen Hardware |
 | Wissen | Abgelegte Dateien, ein Gedächtnis, das er aufbaut, und verbundene Tools | Dokumentsammlungen in Ihrem Postgres, mit Parsing und Chunking nach Ihrer Wahl und fünf Sync-Konnektoren |
-| Oberflächen | Web-App, iOS-App, iMessage, Slack, Gmail, Superhuman, E-Mail | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
+| Oberflächen | Web-App, iOS-App, iMessage, Slack, Gmail, Superhuman, E-Mail | Web-Chat, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, E-Mail, iMessage, Telefonanrufe |
 | Teilen | Standardmäßig privat; Freigabe für ausgewählte Personen und ein gemeinsames Unternehmensgehirn im Tarif Team | Sechs Rollen, 33 Berechtigungen und Grants pro Ressource, pro Organisation |
 | Autonomie | Konfigurierbar, vom Vorschlagen von Aktionen bis zum selbstständigen Handeln | Freigaben pro Capability, pro Werkzeug und pro MCP-Verbindung, entschieden von einer Person mit `approvals:decide` |
 | Preise | Free mit 10 Credits pro Tag oder 20 mit verifizierter Karte; Lite 29 $, Basic 99 $, Pro 299 $ und Team 999 $ im Monat, nur monatlich | Keine Lizenzgebühr; Sie bezahlen Modell-Provider und Infrastruktur |
