@@ -34,7 +34,13 @@ from pydantic_ai import RunContext
 from pydantic_ai.messages import ModelRequest, ToolReturn, ToolReturnPart
 from pydantic_ai.toolsets import FunctionToolset
 
-from app.agents.browser_events import BrowserControl, BrowserEvent, BrowserEventSink
+from app.agents.browser_events import (
+    BrowserControl,
+    BrowserEvent,
+    BrowserEventSink,
+    OwnedEnvironmentView,
+    with_environment,
+)
 from app.agents.capabilities._failures import steer
 from app.agents.capabilities._generated import admit, store_generated
 from app.agents.capabilities.computer_use._actions import (
@@ -126,6 +132,7 @@ class _Session:
 
     factory: ComputerFactory
     computer: Computer | None = None
+    provenance: OwnedEnvironmentView | None = None
     screen: Screen | None = None
     actions_taken: int = 0
     step: int = 0
@@ -169,10 +176,13 @@ class _Session:
     async def desktop(self, ctx: RunContext[Any]) -> Computer:
         if self.computer is None:
             self.computer = await self.factory(ctx.workspace)
+            self.provenance = (
+                self.computer if isinstance(self.computer, OwnedEnvironmentView) else None
+            )
         return self.computer
 
     async def emit(self, event: BrowserEvent) -> None:
-        if self.sink is not None and not await self.sink(event):
+        if self.sink is not None and not await self.sink(with_environment(event, self.provenance)):
             # The reader left and the run goes on: no more frames drawn for nobody.
             self.sink = None
 

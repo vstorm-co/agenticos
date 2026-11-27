@@ -22,12 +22,19 @@ from app.agents.capabilities.computer_use import (
 )
 from app.agents.spec import AgentSpec
 from app.core.config import settings
-from app.core.exceptions import AuthenticationError, AuthorizationError, BadRequestError
+from app.core.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    BadRequestError,
+    ConflictError,
+)
 from app.core.permissions import AuthContext
 from app.core.secret_kinds import ApiKeySecret
 from app.db.models.agent import Agent
+from app.db.models.agent_run import RunSurface
 from app.db.models.conversation import Conversation
 from app.db.models.project import Project
+from app.repositories import agent_run as environment_runs
 from app.repositories import member as member_repo
 from app.repositories import user as user_repo
 from app.schemas.conversation_environment import (
@@ -315,3 +322,26 @@ async def settings_for(
             "connection_unavailable",
             "Check this agent's environment settings and the deployment allowlist.",
         ) from exc
+
+
+async def require_environment_run(
+    db: AsyncSession,
+    ctx: AuthContext,
+    *,
+    run_id: UUID,
+    conversation_id: UUID,
+    agent_id: UUID,
+    version_id: UUID,
+) -> None:
+    """Validate a real admitted private web run before any owned physical input."""
+    run = await environment_runs.get_run(db, run_id, organization_id=ctx.organization_id)
+    if (
+        run is None
+        or run.status != "running"
+        or run.surface != RunSurface.WEB.value
+        or run.agent_version_id != version_id
+        or run.user_id != ctx.user_id
+        or run.agent_id != agent_id
+        or run.conversation_id != conversation_id
+    ):
+        raise ConflictError(message="The environment's agent run is no longer active")

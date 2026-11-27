@@ -1318,3 +1318,5 @@ In conversation mode, the next eligible private web-chat turn adopts the same li
 See [session lifetimes](sandbox.md#conversation-environments) for configuration and failure behavior.
 
 Browser contexts are isolated per owner and conversation. A desktop follows its configured workspace or project scope: an agent-scoped or otherwise shared executor has a shared physical GUI. The driver lease serializes control; it does not make that shared desktop private. An owner-only menu protects who can attach this chat's view, not the screen content of a deliberately shared executor.
+
+Delegates keep their own browser and desktop activity views. A delegate using the same remote desktop must acquire its physical driver before starting or driving that screen; another active driver prevents startup. An independent delegate browser is never substituted with the primary agent's saved environment.

@@ -1,5 +1,5 @@
 ---
-source_sha: "7d6eef878f23"
+source_sha: "47df6e445448"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -1344,3 +1344,5 @@ W trybie rozmowy następna uprawniona tura prywatnego czatu przejmuje tę samą 
 Konfigurację i zachowanie przy awarii opisują [czasy życia sesji](sandbox.pl.md#conversation-environments).
 
 Konteksty przeglądarki są izolowane dla właściciela i rozmowy. Pulpit ma zakres skonfigurowanego workspace lub projektu: executor o zakresie agenta albo inny współdzielony executor ma wspólny fizyczny interfejs. Dzierżawa serializuje sterowanie, ale nie zmienia wspólnego pulpitu w prywatny. Menu dostępne tylko właścicielowi ogranicza podłączenie podglądu czatu, a nie widoczność ekranu celowo współdzielonego executora.
+
+Delegaci zachowują własne widoki aktywności przeglądarki i pulpitu. Delegat używający tego samego zdalnego pulpitu musi przejąć jego fizyczne sterowanie przed uruchomieniem lub obsługą ekranu; inny aktywny sterownik blokuje start. Niezależna przeglądarka delegata nigdy nie jest zastępowana zapisanym środowiskiem głównego agenta.

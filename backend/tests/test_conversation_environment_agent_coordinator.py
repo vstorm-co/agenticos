@@ -25,6 +25,7 @@ from app.schemas.conversation_environment import (
     ConversationEnvironmentRefusal,
 )
 from app.services import conversation_environment_agent as adapter
+from app.services import conversation_environment_policy as environment_policy
 from app.services.conversation_environment_driver import EnvironmentDriver
 from app.services.conversation_environment_policy import (
     BrowserEnvironmentSettings,
@@ -278,7 +279,9 @@ async def test_driver_rechecks_real_web_producer_identity(case, monkeypatch, cha
             "completed" if changed == "status" else "api" if changed == "surface" else uuid4(),
         )
     monkeypatch.setattr(
-        adapter.run_repo, "get_run", AsyncMock(return_value=None if changed == "missing" else run)
+        environment_policy.environment_runs,
+        "get_run",
+        AsyncMock(return_value=None if changed == "missing" else run),
     )
     if changed is None:
         await case.owner._check(AsyncMock())
@@ -420,7 +423,7 @@ async def test_store_refuses_expired_physical_token_and_failed_renewal(case):
 async def test_valid_page_driver_forwards_exact_operation_and_result(case, method, args):
     page = AsyncMock(spec=PageSession)
     page.native_id, page.streaming = "actual-target", True
-    wrapped = adapter.DrivenPage(page, case.driver)
+    wrapped = adapter.DrivenPage(page, case.driver, case.row.id)
     result = await getattr(wrapped, method)(*args)
     getattr(page, method).assert_awaited_once_with(*args)
     case.driver.require.assert_awaited_once()
@@ -612,7 +615,9 @@ async def test_successful_physical_claim_binds_only_run_lifetime_to_actual_adopt
         agent_id=case.owner.agent_id,
         conversation_id=case.owner.conversation_id,
     )
-    monkeypatch.setattr(adapter.run_repo, "get_run", AsyncMock(return_value=producer))
+    monkeypatch.setattr(
+        environment_policy.environment_runs, "get_run", AsyncMock(return_value=producer)
+    )
     claim_db = AsyncMock()
 
     async def acquired():
@@ -640,7 +645,9 @@ async def test_terminal_adopter_cannot_be_bound_after_claim(case, monkeypatch):
     case.owner.environment_id = case.row.id
     case.row.session_lifetime = "run"
     original = case.row.source_run_id = uuid4()
-    monkeypatch.setattr(adapter.run_repo, "get_run", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        environment_policy.environment_runs, "get_run", AsyncMock(return_value=None)
+    )
     db = AsyncMock()
     with pytest.raises(ConflictError, match="no longer active"):
         await case.owner._adopt(db)

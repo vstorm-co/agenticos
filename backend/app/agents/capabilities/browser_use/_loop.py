@@ -41,6 +41,7 @@ from app.agents.browser_events import (
     BrowserControl,
     BrowserEvent,
     BrowserEventSink,
+    with_environment,
 )
 from app.agents.browser_sign_ins import SignIn
 from app.agents.capabilities.browser_use._decision import (
@@ -342,7 +343,7 @@ async def _drive(
         """Send one frame, and answer whether a surface received it."""
         if sink is None:
             return True
-        return await sink(event)
+        return await sink(with_environment(event, session.page))
 
     page = session.page
     snapshot = await page.snapshot()

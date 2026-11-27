@@ -10,6 +10,7 @@ import anyio
 from pydantic_ai.workspaces import Workspace
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.browser_events import OwnedEnvironmentView
 from app.agents.browser_sign_ins import SignIn
 from app.agents.capabilities.browser_use._elements import Element, Snapshot
 from app.agents.capabilities.browser_use._loop import PageSession
@@ -27,10 +28,8 @@ from app.agents.capabilities.computer_use._backends import (
 from app.agents.capabilities.computer_use._desktop_apps import App
 from app.core.exceptions import ConflictError
 from app.core.permissions import AuthContext
-from app.db.models.agent_run import RunSurface
 from app.db.models.conversation_environment import ConversationEnvironment
 from app.db.session import get_db_context
-from app.repositories import agent_run as run_repo
 from app.repositories import conversation_environment as environments
 from app.schemas.conversation_environment import (
     ConversationEnvironmentKind,
@@ -45,6 +44,7 @@ from app.services.conversation_environment_policy import (
     EnvironmentSettings,
     authority,
     legacy_run_desktop,
+    require_environment_run,
 )
 from app.services.conversation_environment_resources import (
     BrowserEnvironmentResource,
@@ -197,17 +197,14 @@ class AgentEnvironment:
             await db.flush()
 
     async def _require_run(self, db: AsyncSession) -> None:
-        run = await run_repo.get_run(db, self.run_id, organization_id=self.ctx.organization_id)
-        if (
-            run is None
-            or run.status != "running"
-            or run.surface != RunSurface.WEB.value
-            or run.agent_version_id != self.version_id
-            or run.user_id != self.ctx.user_id
-            or run.agent_id != self.agent_id
-            or run.conversation_id != self.conversation_id
-        ):
-            raise ConflictError(message="The environment's agent run is no longer active")
+        await require_environment_run(
+            db,
+            self.ctx,
+            run_id=self.run_id,
+            conversation_id=self.conversation_id,
+            agent_id=self.agent_id,
+            version_id=self.version_id,
+        )
 
     async def load(self) -> tuple[EnvironmentSettings, EnvironmentResource]:
         if self.driver is None:
@@ -359,7 +356,7 @@ class AgentEnvironment:
         ) as page:
             if self.driver is None:
                 raise ConflictError(message="The browser driver was released")
-            yield DrivenPage(page, self.driver)
+            yield DrivenPage(page, self.driver, resource.environment_id)
 
     def desktop(self) -> ComputerFactoryDecorator:
         return ComputerFactoryDecorator(self.wrap_computer)
@@ -372,7 +369,7 @@ class AgentEnvironment:
             try:
                 resolved, resource = await self.load()
                 view = await stack.enter_async_context(runtime.open_view(resource, resolved))
-                return DrivenComputer(_desktop_computer(view), self, stack)
+                return DrivenComputer(_desktop_computer(view), self, stack, resource.environment_id)
             except BaseException:
                 await stack.aclose()
                 await self.finish()
@@ -381,10 +378,17 @@ class AgentEnvironment:
         return open_computer
 
 
-class DrivenComputer:
+class DrivenComputer(OwnedEnvironmentView):
     """Fence every read and input; close detaches transport, then releases the driver."""
 
-    def __init__(self, wrapped: Computer, owner: AgentEnvironment, stack: AsyncExitStack) -> None:
+    def __init__(
+        self,
+        wrapped: Computer,
+        owner: AgentEnvironment,
+        stack: AsyncExitStack,
+        environment_id: UUID,
+    ) -> None:
+        super().__init__(environment_id)
         self.wrapped, self.owner, self.stack = wrapped, owner, stack
         self.label = wrapped.label
 
@@ -412,10 +416,13 @@ class DrivenComputer:
             await self.owner.finish()
 
 
-class DrivenPage:
+class DrivenPage(OwnedEnvironmentView):
     """Typed page adapter checking the physical driver before every operation."""
 
-    def __init__(self, wrapped: PageSession, driver: EnvironmentDriver) -> None:
+    def __init__(
+        self, wrapped: PageSession, driver: EnvironmentDriver, environment_id: UUID
+    ) -> None:
+        super().__init__(environment_id)
         self.wrapped, self.driver = wrapped, driver
         self.native_id = wrapped.native_id
 

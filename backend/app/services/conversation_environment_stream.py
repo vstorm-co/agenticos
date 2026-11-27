@@ -126,6 +126,7 @@ async def stream_environment(
             EnvironmentBrowserFrame(
                 data=BrowserEvent(
                     kind=kind,
+                    environment_id=environment_id,
                     call_id=str(environment_id),
                     step=sequence,
                     image=image,

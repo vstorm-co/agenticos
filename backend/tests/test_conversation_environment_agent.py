@@ -49,7 +49,7 @@ async def test_lost_physical_driver_blocks_every_page_operation_before_provider_
     page.native_id, page.streaming = None, False
     driver = AsyncMock(spec=EnvironmentDriver)
     driver.require.side_effect = AuthorizationError(message="Access revoked")
-    wrapped = adapter.DrivenPage(page, driver)
+    wrapped = adapter.DrivenPage(page, driver, uuid4())
     with pytest.raises(AuthorizationError):
         await getattr(wrapped, method)(*args)
     getattr(page, method).assert_not_awaited()
@@ -59,7 +59,7 @@ async def test_page_adoption_keeps_native_identity_and_does_not_copy_or_transfor
     page = AsyncMock(spec=PageSession)
     page.native_id, page.streaming = "actual-target", True
     driver = AsyncMock(spec=EnvironmentDriver)
-    wrapped = adapter.DrivenPage(page, driver)
+    wrapped = adapter.DrivenPage(page, driver, uuid4())
     assert wrapped.native_id == "actual-target" and wrapped.streaming
     await wrapped.type_text(ELEMENT, "unsaved input")
     page.type_text.assert_awaited_once_with(ELEMENT, "unsaved input")
@@ -86,7 +86,7 @@ async def test_page_stream_checks_control_before_attaching_and_detaches_only_its
         delivered.append(image)
 
     driver = AsyncMock(spec=EnvironmentDriver)
-    wrapped = adapter.DrivenPage(page, driver)
+    wrapped = adapter.DrivenPage(page, driver, uuid4())
     async with wrapped.stream(send):
         assert delivered == ["existing-frame"]
     assert closed == [True]
@@ -106,7 +106,7 @@ async def test_desktop_reads_and_actions_are_refused_after_driver_loss(method, a
     owner = AsyncMock(spec=adapter.AgentEnvironment)
     owner.driver = AsyncMock(spec=EnvironmentDriver)
     owner.driver.require.side_effect = AuthorizationError(message="No longer allowed")
-    wrapped = adapter.DrivenComputer(computer, owner, AsyncExitStack())
+    wrapped = adapter.DrivenComputer(computer, owner, AsyncExitStack(), uuid4())
     with pytest.raises(AuthorizationError):
         await getattr(wrapped, method)(*args)
     getattr(computer, method).assert_not_awaited()
@@ -125,7 +125,7 @@ async def test_desktop_detach_failure_still_releases_run_driver():
         raise OSError("Transport close failed")
 
     stack.push_async_callback(fail_close)
-    wrapped = adapter.DrivenComputer(computer, owner, stack)
+    wrapped = adapter.DrivenComputer(computer, owner, stack, uuid4())
     with pytest.raises(OSError):
         await wrapped.close()
     owner.finish.assert_awaited_once()

@@ -113,6 +113,16 @@ class ProjectRunAuthority:
         return ctx, project
 
 
+@dataclass(frozen=True)
+class DesktopExecutionSelection:
+    """Effect-free physical execution choice held by one delegation snapshot."""
+
+    target: Literal["agent", "project"]
+    project_id: UUID | None
+    project_generation: UUID | None
+    opened: OpenWorkspace | None
+
+
 class RunProjectWorkspace(Workspace):
     """One selector per top-level run; approval resumes restore only the project id."""
 
@@ -195,6 +205,18 @@ class RunProjectWorkspace(Workspace):
         self._read_versions: dict[tuple[UUID, str], bytes] = {}
         self._require_continuation_reads = False
         self.workspace = self
+
+    def desktop_selection(self) -> DesktopExecutionSelection:
+        """Describe the actual executor without opening it or snapshotting its files."""
+        self._require_open()
+        return DesktopExecutionSelection(
+            self.execution_target,
+            self.project_id,
+            self.project_generation,
+            self._lifecycle_owner.agent_workspace
+            if self.execution_target == "agent" and self.open_agent_executor is not None
+            else None,
+        )
 
     def snapshot_for_delegate(self) -> Workspace:
         """Pin this delegation's targets; the root retains executor cleanup and journals."""

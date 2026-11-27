@@ -180,3 +180,56 @@ async def test_observer_resolving_a_missing_default_cannot_create_a_deployment_c
     create.assert_not_awaited()
     assert await resolver._row_for(case.ctx, None) is case.resolved.row
     create.assert_awaited_once_with(case.ctx.organization_id)
+
+
+@pytest.mark.parametrize("generation_state", ["same", "changed", "legacy_same", "legacy_moved"])
+async def test_effect_free_execution_scope_checks_actual_selected_project_before_any_provider(
+    case, monkeypatch, generation_state
+):
+    from app.db.models.project import Project
+    from app.services import project_workspace_guard
+
+    selected = Project(
+        id=uuid4(),
+        organization_id=case.ctx.organization_id,
+        name="Selected executor",
+        backend="service",
+        sandbox_connection_id=case.resolved.row.id,
+        workspace_generation=None if generation_state == "legacy_same" else uuid4(),
+        runtime=None,
+    )
+    project = AsyncMock(return_value=selected)
+    monkeypatch.setattr(project_workspace_guard, "project_for_workspace", project)
+    generation = (
+        None
+        if generation_state in ("legacy_same", "legacy_moved")
+        else uuid4()
+        if generation_state == "changed"
+        else selected.workspace_generation
+    )
+    if generation_state in ("changed", "legacy_moved"):
+        with pytest.raises(NotFoundError, match="selected project executor changed"):
+            await case.service.resolve_live_execution(
+                case.ctx,
+                spec=case.spec,
+                identity=case.identity,
+                execution_target="project",
+                selected_project_id=selected.id,
+                selected_generation=generation,
+            )
+        SandboxConnectionService.resolve.assert_not_awaited()
+    else:
+        result = await case.service.resolve_live_execution(
+            case.ctx,
+            spec=case.spec,
+            identity=case.identity,
+            execution_target="project",
+            selected_project_id=selected.id,
+            selected_generation=generation,
+        )
+        assert result.scope == "project"
+        assert result.identity.project_id == selected.id
+        assert result.identity.project_workspace_id == selected.workspace_generation
+        assert result.key != case.row.scope_key
+        workspaces.workspace_repo.get.assert_not_awaited()
+    project.assert_awaited_once_with(case.service.db, case.ctx, selected.id)

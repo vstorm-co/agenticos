@@ -467,6 +467,22 @@ class WorkspaceFlushFailure:
     error: WorkspaceCapacityError | ExternalServiceError
 
 
+@dataclass(frozen=True)
+class LiveExecutorScope:
+    """Current authorized identity for observing or fencing a retained executor."""
+
+    config: SandboxConfig
+    identity: WorkspaceIdentity
+    scope: SessionScope
+    resolved: ResolvedConnection
+    key: str
+
+
+@dataclass(frozen=True)
+class LiveWorkspaceMetadata(LiveExecutorScope):
+    row: AgentWorkspace
+
+
 @dataclass
 class OpenWorkspace:
     """A workspace a run is using, and what it takes to put it away."""
@@ -487,6 +503,7 @@ class OpenWorkspace:
     """Sandbox identity; each run receives separate, short-lived Project authority."""
 
     connection_id: UUID | None = None
+    connection_fingerprint: str | None = None
     """Which registered connection it runs on, for a workspace that is not `state`."""
 
     briefing: str | None = None
@@ -1099,6 +1116,7 @@ class SandboxWorkspaceService:
             scope_key=key,
             row_id=row.id if row is not None else None,
             connection_id=resolved.row.id,
+            connection_fingerprint=self.environment_connection_fingerprint(resolved),
             filesystem_binding_id=None if filesystem is None else filesystem.binding_id,
             briefing=briefing,
             parses_documents=parses_documents,
@@ -1277,6 +1295,88 @@ class SandboxWorkspaceService:
             ).encode()
         ).hexdigest()
 
+    async def resolve_live_execution(
+        self,
+        ctx: AuthContext,
+        *,
+        spec: AgentSpec,
+        identity: WorkspaceIdentity,
+        execution_target: ProjectExecutionTarget,
+        selected_project_id: UUID | None = None,
+        selected_generation: UUID | None = None,
+    ) -> LiveExecutorScope:
+        """Resolve the authorized physical key without creating rows, sessions or providers."""
+        from app.services.conversation import ConversationService
+        from app.services.project_workspace_guard import project_for_workspace
+
+        if identity.conversation_id is None or ctx.user_id is None:
+            raise NotFoundError(message="The live workspace is unavailable", details={})
+        conversation = await ConversationService(self.db).get_conversation(
+            identity.conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            for_write=True,
+            turn=True,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        if execution_target == "project":
+            project = await project_for_workspace(
+                self.db, ctx, selected_project_id or conversation.project_id
+            )
+            config = project_sandbox(project)
+            if (
+                selected_project_id is not None or selected_generation is not None
+            ) and project.workspace_generation != selected_generation:
+                raise NotFoundError(message="The selected project executor changed", details={})
+            identity = replace(
+                identity, project_id=project.id, project_workspace_id=project.workspace_generation
+            )
+            scope: SessionScope = "project"
+        else:
+            config = sandbox_config(spec)
+            if config is None or config.backend != "service":
+                raise NotFoundError(message="The live workspace is unavailable", details={})
+            scope = config.session_scope
+        if config.backend != "service":
+            raise NotFoundError(message="The live workspace is unavailable", details={})
+        resolved = await self.connections.resolve(ctx, config.connection_id, ensure_default=False)
+        key = self._key(
+            identity, scope, "service", resolved.row.id, _keyed_runtime(config, resolved)
+        )
+        return LiveExecutorScope(config, identity, scope, resolved, key)
+
+    async def resolve_live_workspace(
+        self,
+        ctx: AuthContext,
+        *,
+        spec: AgentSpec,
+        identity: WorkspaceIdentity,
+        execution_target: ProjectExecutionTarget,
+        workspace_id: UUID,
+        connection_fingerprint: str,
+    ) -> LiveWorkspaceMetadata:
+        """Resolve existing executor authority without admission, recovery or provider I/O."""
+        execution = await self.resolve_live_execution(
+            ctx,
+            spec=spec,
+            identity=identity,
+            execution_target=execution_target,
+        )
+        config, identity, scope = execution.config, execution.identity, execution.scope
+        resolved, key = execution.resolved, execution.key
+        if self.environment_connection_fingerprint(resolved) != connection_fingerprint:
+            raise NotFoundError(message="The live workspace connection changed", details={})
+        row = await workspace_repo.get(self.db, workspace_id, organization_id=ctx.organization_id)
+        if (
+            row is None
+            or row.scope_key != key
+            or row.backend != "service"
+            or row.connection_id != resolved.row.id
+        ):
+            raise NotFoundError(message="The original live workspace is unavailable", details={})
+        return LiveWorkspaceMetadata(config, identity, scope, resolved, key, row)
+
     async def attach_live_environment(
         self,
         ctx: AuthContext,
@@ -1295,48 +1395,17 @@ class SandboxWorkspaceService:
         workspace row, substitutes a lost ref or inherits a run-only Project lease.
         The caller serializes actual GUI input separately from observation.
         """
-        from app.services.conversation import ConversationService
-        from app.services.project_workspace_guard import project_for_workspace
-
-        if identity.conversation_id is None or ctx.user_id is None:
-            raise NotFoundError(message="The live workspace is unavailable", details={})
-        conversation = await ConversationService(self.db).get_conversation(
-            identity.conversation_id,
-            organization_id=ctx.organization_id,
-            user_id=ctx.user_id,
-            for_write=True,
-            turn=True,
-            include_favourite=False,
-            ctx=ctx,
+        current = await self.resolve_live_workspace(
+            ctx,
+            spec=spec,
+            identity=identity,
+            execution_target=execution_target,
+            workspace_id=workspace_id,
+            connection_fingerprint=connection_fingerprint,
         )
-        if execution_target == "project":
-            project = await project_for_workspace(self.db, ctx, conversation.project_id)
-            config = project_sandbox(project)
-            identity = replace(
-                identity, project_id=project.id, project_workspace_id=project.workspace_generation
-            )
-            scope: SessionScope = "project"
-        else:
-            config = sandbox_config(spec)
-            if config is None or config.backend != "service":
-                raise NotFoundError(message="The live workspace is unavailable", details={})
-            scope = config.session_scope
-        if config.backend != "service":
-            raise NotFoundError(message="The live workspace is unavailable", details={})
-        resolved = await self.connections.resolve(ctx, config.connection_id, ensure_default=False)
-        if self.environment_connection_fingerprint(resolved) != connection_fingerprint:
-            raise NotFoundError(message="The live workspace connection changed", details={})
-        key = self._key(
-            identity, scope, "service", resolved.row.id, _keyed_runtime(config, resolved)
-        )
-        row = await workspace_repo.get(self.db, workspace_id, organization_id=ctx.organization_id)
-        if (
-            row is None
-            or row.scope_key != key
-            or row.backend != "service"
-            or row.connection_id != resolved.row.id
-            or row.session_id != ref.id
-        ):
+        config, identity, scope = current.config, current.identity, current.scope
+        resolved, key, row = current.resolved, current.key, current.row
+        if row.session_id != ref.id:
             raise NotFoundError(message="The original live workspace is unavailable", details={})
         filesystem = await self._filesystem_for(config, identity, key, scope, resolved, row)
         sandbox = self._service_capability(

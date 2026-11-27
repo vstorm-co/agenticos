@@ -1,5 +1,5 @@
 ---
-source_sha: "7d6eef878f23"
+source_sha: "47df6e445448"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -1382,3 +1382,5 @@ En modo conversación, el siguiente turno autorizado del chat web privado adopta
 Consulta [duración de las sesiones](sandbox.es.md#conversation-environments) para la configuración y el comportamiento ante fallos.
 
 Los contextos del navegador se aíslan por propietario y conversación. El escritorio sigue el alcance configurado del workspace o proyecto: un executor con alcance de agente o compartido tiene una interfaz física común. La concesión serializa el control; no convierte ese escritorio compartido en privado. El menú exclusivo del propietario protege el acceso a la vista del chat, no el contenido de pantalla de un executor compartido deliberadamente.
+
+Los delegados conservan sus propias vistas de actividad del navegador y escritorio. Un delegado que use el mismo escritorio remoto debe obtener su control físico antes de iniciar o manejar esa pantalla; otro controlador activo impide el inicio. El navegador independiente de un delegado nunca se sustituye por el entorno guardado del agente principal.

@@ -61,3 +61,55 @@ async def test_auxiliary_and_public_web_runs_keep_their_existing_lifecycle(case,
     resources = case.build_agent.call_args.kwargs["resources"]
     assert "conversation_browser" not in resources
     assert "conversation_desktop" not in resources
+
+
+@pytest.mark.parametrize("verified", [False, True])
+async def test_root_shared_scope_captures_original_executor_fingerprint_without_re_resolving(
+    case, monkeypatch, verified
+):
+    from app.agents.spec import AgentSpec, CapabilityBindingSpec
+    from app.core.exceptions import ConflictError
+    from app.services.agent_registry import DELEGATION_CAPABILITY_ID
+    from app.services.conversation_environment_delegates import NESTED_DESKTOP_AUTHORITY
+    from app.services.sandbox_workspace import OpenWorkspace
+    from tests.workspaces import document_workspace
+
+    agent, previous, version = case.runnable.return_value
+    current = AgentSpec(
+        name=previous.name,
+        model_profile_id=previous.model_profile_id,
+        capabilities=[
+            CapabilityBindingSpec(id="sandbox", config={"backend": "service"}),
+            CapabilityBindingSpec(id=DELEGATION_CAPABILITY_ID, config={}),
+        ],
+    )
+    case.runnable.return_value = agent, current, version
+    opened = OpenWorkspace(
+        workspace=document_workspace(),
+        kind="service",
+        scope="conversation",
+        scope_key="actual-executor",
+        row_id=uuid4(),
+        connection_id=uuid4(),
+        connection_fingerprint="original-connection" if verified else None,
+    )
+    case.opened.return_value = opened
+    monkeypatch.setattr(case.service, "_workspace_shared", AsyncMock(return_value=False))
+    monkeypatch.setattr(case.service, "_delegation_runtime", AsyncMock(return_value=None))
+    monkeypatch.setattr(
+        "app.services.attachments.chat_file_repo.left_by_interrupted_turns",
+        AsyncMock(return_value=[]),
+    )
+    resolve = AsyncMock()
+    monkeypatch.setattr(case.service.workspaces.connections, "resolve", resolve)
+    if not verified:
+        with pytest.raises(ConflictError, match="verified connection identity"):
+            await case.service.prepare(
+                _ctx(), uuid4(), surface=RunSurface.WEB, conversation_id=uuid4()
+            )
+    else:
+        await case.service.prepare(_ctx(), uuid4(), surface=RunSurface.WEB, conversation_id=uuid4())
+        nested = case.build_agent.call_args.kwargs["resources"][NESTED_DESKTOP_AUTHORITY]
+        assert nested.workspace.connection_fingerprint == "original-connection"
+        assert nested.workspace.scope_key == opened.scope_key
+    resolve.assert_not_awaited()

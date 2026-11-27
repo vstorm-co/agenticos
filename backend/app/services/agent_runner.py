@@ -292,6 +292,7 @@ from app.core.exceptions import (
     AppException,
     AuthorizationError,
     BadRequestError,
+    ConflictError,
     ExternalServiceError,
     ModelCallFailedError,
     NotFoundError,
@@ -3416,6 +3417,7 @@ def _delegate_builder(
     test_bindings: frozenset[str] = frozenset(),
     reviewer_models: Mapping[UUID, ModelRequestSpec] | None = None,
     provider_session_scope: tuple[str, ...] | None = None,
+    version_id: UUID | None = None,
 ) -> Callable[[], PydanticAgent[Any, Any]]:
     """A closure that builds one delegate, with nothing left to look up.
 
@@ -3441,6 +3443,21 @@ def _delegate_builder(
         own_resources = dict(resources)
         if any(_computer_requirements(spec)):
             own_resources.update(delegation.computer_resources)
+        from app.services.conversation_environment_delegates import (
+            NESTED_DESKTOP_AUTHORITY,
+            NestedDesktopAuthority,
+        )
+
+        nested_authority = own_resources.get(NESTED_DESKTOP_AUTHORITY)
+        if isinstance(nested_authority, NestedDesktopAuthority):
+            desktop_driver = nested_authority.for_child(
+                effective,
+                secrets,
+                agent_id=agent_id,
+                version_id=version_id,
+            )
+            if desktop_driver is not None:
+                own_resources["conversation_desktop"] = desktop_driver
         built = build_agent(
             _with_execution_environment(effective, None),
             model,
@@ -5858,6 +5875,42 @@ class AgentRunnerService:
                     kind=kind,
                 )
 
+            from app.services.conversation_environment_delegates import (
+                NESTED_DESKTOP_AUTHORITY,
+                NestedDesktopAuthority,
+                SharedDesktopWorkspace,
+            )
+
+            if _delegation_config(spec) is not None:
+                shared_desktop = None
+                if (
+                    workspace is not None
+                    and workspace.kind == "service"
+                    and workspace.connection_id is not None
+                ):
+                    if workspace.connection_fingerprint is None:
+                        raise ConflictError(
+                            message="The shared executor has no verified connection identity"
+                        )
+                    shared_desktop = SharedDesktopWorkspace(
+                        workspace.connection_id,
+                        workspace.scope_key,
+                        workspace.connection_fingerprint,
+                        "project" if workspace.scope == "project" else "agent",
+                        project.id
+                        if workspace.scope == "project" and project is not None
+                        else None,
+                    )
+                resources[NESTED_DESKTOP_AUTHORITY] = NestedDesktopAuthority(
+                    ctx,
+                    agent.id,
+                    version_id,
+                    run.id,
+                    conversation_id,
+                    project_execution_target or "agent",
+                    shared_desktop,
+                    shares_workspace=workspace is not None or project_workspace is not None,
+                )
             if "local_browser_session" not in resources:
                 resources["conversation_browser"] = owned_environment("browser").browser()
             if "local_computer_session" not in resources:
@@ -6801,6 +6854,7 @@ class AgentRunnerService:
                 spec=runnable,
                 model=model,
                 agent_id=ref.agent_id,
+                version_id=ref.agent_version_id,
                 resources=delegate_resources,
                 secrets=secrets,
                 extra_toolsets=toolsets,
@@ -6885,6 +6939,16 @@ class AgentRunnerService:
             SKILL_BODIES_RESOURCE: projected,
             RUN_SKILL_BODIES_RESOURCE: run_bodies,
         }
+        from app.services.conversation_environment_delegates import (
+            NESTED_DESKTOP_AUTHORITY,
+            NestedDesktopAuthority,
+        )
+
+        nested_authority = parent_resources.get(NESTED_DESKTOP_AUTHORITY)
+        if isinstance(nested_authority, NestedDesktopAuthority):
+            resources[NESTED_DESKTOP_AUTHORITY] = nested_authority.delegated(
+                shares_workspace=any(binding.id == SANDBOX_CAPABILITY_ID for binding in shared),
+            )
         if isinstance(routine, RoutineAuthority):
             resources["routine_authority"] = routine
             resources["routine_behavior_namespace"] = behavior_namespace

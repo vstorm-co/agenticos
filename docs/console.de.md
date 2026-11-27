@@ -1,5 +1,5 @@
 ---
-source_sha: "7d6eef878f23"
+source_sha: "47df6e445448"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -1431,3 +1431,5 @@ Im Unterhaltungsmodus übernimmt der nächste berechtigte private Webchat-Turn d
 Konfiguration und Fehlerverhalten stehen unter [Sitzungslaufzeiten](sandbox.de.md#conversation-environments).
 
 Browserkontexte sind je Eigentümer und Unterhaltung isoliert. Ein Desktop folgt dagegen dem konfigurierten Workspace- oder Projektumfang: Ein agentenweiter oder sonst gemeinsam genutzter Executor besitzt eine gemeinsame physische Oberfläche. Die Steuerungslease serialisiert Eingaben und macht den Desktop nicht privat. Das Eigentümermenü schützt die Anbindung dieser Chatansicht, nicht den Bildschirminhalt eines bewusst gemeinsam genutzten Executors.
+
+Delegierte behalten eigene Aktivitätsansichten für Browser und Desktop. Ein Delegierter, der denselben Remote-Desktop nutzt, muss dessen physische Steuerung vor dem Start oder der Bedienung übernehmen; eine andere aktive Steuerung verhindert den Start. Ein unabhängiger Browser eines Delegierten wird niemals durch die gespeicherte Umgebung des Hauptagenten ersetzt.
