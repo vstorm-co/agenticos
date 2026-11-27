@@ -15,7 +15,9 @@ from pydantic_ai.toolsets import FunctionToolset
 
 from app.agents.capabilities.skills import Skills
 from app.agents.capabilities.skills._loader import ReadSkillReturnPart, SkillLoader
+from app.agents.code_mode import CodeCalls, code_mode
 from app.agents.deps import AgentDeps
+from app.agents.manifest import RunRecorder
 from app.agents.tool_call_ids import UniqueToolCallIds
 from app.agents.tool_errors import ToolErrorEnvelope, ToolErrors
 from app.agents.tool_repair import CountedRepair
@@ -105,7 +107,7 @@ class _Wire:
 
 
 async def _run_wire(
-    calls: list[_Call], interleaved: bool
+    calls: list[_Call], interleaved: bool, *, code_enabled: bool = False
 ) -> tuple[list[ToolCallPart], list[ToolReturnPart], list[str]]:
     wire = _Wire(calls, interleaved)
     executed: list[str] = []
@@ -136,6 +138,18 @@ async def _run_wire(
                 Skills(skills),
                 SkillLoader(),
                 UniqueToolCallIds(),
+                *(
+                    [
+                        code_mode(
+                            approval_required=frozenset(),
+                            asking=frozenset(),
+                            max_tool_calls=20,
+                        ),
+                        CodeCalls(recorder=RunRecorder()),
+                    ]
+                    if code_enabled
+                    else []
+                ),
             ],
         )
 
@@ -149,6 +163,19 @@ async def _run_wire(
             assert run.result is not None
             messages = run.result.all_messages()
     assert len(wire.requests) == 2
+    advertised = wire.requests[0].get("tools")
+    assert isinstance(advertised, list)
+    offered: set[str] = set()
+    for entry in advertised:
+        assert isinstance(entry, dict)
+        definition = entry.get("function")
+        assert isinstance(definition, dict)
+        name = definition.get("name")
+        assert isinstance(name, str)
+        offered.add(name)
+    assert "read_skill" in offered
+    assert ("run_code" in offered) is code_enabled
+    assert ("read_file_0" in offered) is not code_enabled
     return (
         [
             part
@@ -169,13 +196,20 @@ async def _run_wire(
 
 @pytest.mark.parametrize("interleaved", [False, True])
 @pytest.mark.parametrize("skill_count,others", [(2, False), (3, False), (1, True)])
+@pytest.mark.parametrize("code_enabled", [False, True])
 async def test_each_skill_id_survives_the_real_stream_and_chat_executor(
-    skill_count: int, others: bool, interleaved: bool
+    skill_count: int, others: bool, interleaved: bool, code_enabled: bool
 ) -> None:
     calls = [_Call("read_skill", {"id": name}) for name in ("alpha", "beta", "gamma")[:skill_count]]
     if others:
-        calls += [_Call(f"read_file_{n}", {"path": f"file-{n}.txt"}) for n in range(6)]
-    asked, returned, executed = await _run_wire(calls, interleaved)
+        if code_enabled:
+            operations = ", ".join(f"read_file_{n}(path='file-{n}.txt')" for n in range(6))
+            calls.append(
+                _Call("run_code", {"code": f"import asyncio\nawait asyncio.gather({operations})"})
+            )
+        else:
+            calls += [_Call(f"read_file_{n}", {"path": f"file-{n}.txt"}) for n in range(6)]
+    asked, returned, executed = await _run_wire(calls, interleaved, code_enabled=code_enabled)
     assert [(part.tool_name, part.args_as_dict()) for part in asked] == [
         (call.name, call.args) for call in calls
     ]
