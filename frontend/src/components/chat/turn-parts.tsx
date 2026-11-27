@@ -273,11 +273,14 @@ export function TurnParts({
           fileSource={fileSource}
         />
         <TurnVisuals calls={visualCalls(group.runs)} />
-        <TurnMcpApps calls={mcpAppCalls(group.runs)} saved={!(live && isStreaming)} />
         <TurnDrafts calls={draftCalls(group.runs)} />
       </div>
     );
   });
+  // MCP Apps pages come after the answer, not between its steps and its text: the
+  // answer reads as the page's caption, and a tall dashboard does not push the
+  // text a screen down. Once the turn is saved, which is when a page can be read.
+  rendered.push(<TurnMcpApps key="mcp-apps" calls={mcpAppCalls(runs)} saved={!isStreaming} />);
   if (
     interaction &&
     interaction.messageId === messageId &&

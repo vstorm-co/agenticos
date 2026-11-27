@@ -176,13 +176,19 @@ export function TurnMcpApps({
   /** The turn has ended and is stored: a page is read through its stored call. */
   saved: boolean;
 }) {
+  const shown = calls.filter((call) => call.mcp_app && call.status === "completed");
+  if (!saved || shown.length === 0) return null;
+  return <McpAppPages calls={shown} />;
+}
+
+/** The pages themselves, read through the conversation on screen. */
+function McpAppPages({ calls }: { calls: ToolCall[] }) {
   // Null on a surface that cannot read a stored call - a hosted page, the widget.
   const conversationId = useConversationOnScreen();
-  const shown = calls.filter((call) => call.mcp_app && call.status === "completed");
-  if (!saved || conversationId === null || shown.length === 0) return null;
+  if (conversationId === null) return null;
   return (
     <div className="flex w-full min-w-0 flex-col gap-4 py-2.5">
-      {shown.map((call) => (
+      {calls.map((call) => (
         <McpAppFrame key={call.id} conversationId={conversationId} call={call} />
       ))}
     </div>
