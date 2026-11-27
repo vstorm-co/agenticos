@@ -103,6 +103,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Allow authenticated video and audio file previews to play their blob URLs under the console Content Security Policy, without granting external media origins.
+
 - Show persisted-resource Delete actions in red consistently, including project deletion and quiet table controls, while keeping Cancel and unlink actions neutral.
 
 - Acknowledge live Browser and Desktop takeover only to the socket that acquired control, and avoid repeated viewport resizing when environment expiry updates.

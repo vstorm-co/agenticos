@@ -36,6 +36,13 @@ describe("the console's content security policy", () => {
     );
   });
 
+  it("plays authorized video and audio blobs without allowing external media origins", () => {
+    expect(directives["media-src"]).toEqual(["'self'", "blob:"]);
+    expect(contentSecurityPolicy(DEFAULT_PUBLIC_CONFIG, NONCE)).toContain("media-src 'self' blob:");
+    expect(cspDirectives(SPLIT_ORIGIN, NONCE)["media-src"]).toEqual(["'self'", "blob:"]);
+    expect(directives["default-src"]).toEqual(["'self'"]);
+  });
+
   it("frames a blob, because that is what a document preview is", () => {
     // The viewer fetches the bytes, mints a blob URL and puts it in an iframe.
     // Without this the policy falls back to `default-src 'self'` and refuses it.
