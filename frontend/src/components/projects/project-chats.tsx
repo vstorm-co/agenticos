@@ -20,7 +20,12 @@ import type { ProjectChat } from "@/types";
 import type { Project } from "@/types/projects";
 
 /**
- * The project's chats as a table; the page header owns starting a new chat.
+ * The project's chats as a table.
+ *
+ * The page header's New chat starts a one-to-one chat; the team-room button
+ * stays in this list's header, so it is reachable before the first chat
+ * exists. The list is not marked empty: on an empty list the header hides,
+ * and the button would go with it, exactly when there is nothing yet.
  *
  * Everybody's, not the reader's alone: a project's chats are its members', so
  * each row says whose it is, which agents answer in it, when it last moved or
@@ -30,9 +35,7 @@ import type { Project } from "@/types/projects";
 export function ProjectChats({ project }: { project: Project }) {
   const t = useTranslations("projects");
   const tErrors = useTranslations("errors");
-  const { chats, total, isLoading, error, hasMore, loadingMore, loadMore } = useProjectChats(
-    project.id,
-  );
+  const { chats, isLoading, error, hasMore, loadingMore, loadMore } = useProjectChats(project.id);
   const columns = useChatColumns();
   const router = useRouter();
 
@@ -41,13 +44,7 @@ export function ProjectChats({ project }: { project: Project }) {
   ) : undefined;
 
   return (
-    <ListCard
-      namedByPage
-      fill
-      title={t("chats")}
-      controls={newChat}
-      empty={!isLoading && !error && total === 0}
-    >
+    <ListCard namedByPage fill title={t("chats")} controls={newChat}>
       {isLoading ? (
         <LoadingState variant="skeleton-list" rows={3} />
       ) : error ? (

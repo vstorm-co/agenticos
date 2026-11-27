@@ -551,6 +551,9 @@ describe("ProjectChats", () => {
   it("invites a first chat, and says when the list failed", () => {
     const { unmount } = wrap(<ProjectChats project={aProject()} />);
     expect(screen.getByText(/Start one/)).toBeInTheDocument();
+    // The team-room button must stay reachable before the first chat exists:
+    // the page header's New chat starts a one-to-one chat, not a team room.
+    expect(screen.getByRole("button", { name: "New team room" })).toBeInTheDocument();
     unmount();
 
     chats.mockReturnValue({ chats: [], total: 0, isLoading: false, error: new Error("down") });
