@@ -49,7 +49,7 @@ from app.repositories import (
 from app.repositories import workflow_run as workflow_run_repo
 from app.repositories.agent_run import ApprovalFilters, ApprovalRow
 from app.schemas.agent_run import ToolConsentRead
-from app.services.approval_authority import may_decide_approval
+from app.services.approval_authority import decides_as_starter, may_decide_approval
 from app.services.channels.handback import (
     EXPIRED_NOTICE,
     STRANDED_NOTICE,
@@ -136,12 +136,18 @@ def may_decide(
 ) -> bool:
     """Whether `ctx` may answer this parked call at all.
 
-    `approvals:decide`, or the call's own person answering their own platform call
+    `approvals:decide` at `ALL`, the run's own starter deciding at `OWN`
+    (#225), or the call's own person answering their own platform call
     that always asks, which needs no permission beyond being that person.
+    A bare `has()` would admit any `OWN` holder for any run.
     """
-    return ctx.has(Perm.APPROVALS_DECIDE) or (
-        bound_platform_call(tool_id, always_asks=always_asks, context=context)
-        and answers_for(ctx, person_id)
+    return (
+        ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.ALL
+        or decides_as_starter(ctx, person_id)
+        or (
+            bound_platform_call(tool_id, always_asks=always_asks, context=context)
+            and answers_for(ctx, person_id)
+        )
     )
 
 
@@ -161,10 +167,14 @@ def may_approve(
         return False
     if runs_as_its_person(tool_id, always_asks=always_asks):
         return answers_for(ctx, person_id) and (
-            ctx.has(Perm.APPROVALS_DECIDE)
+            ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.ALL
+            or decides_as_starter(ctx, person_id)
             or bound_platform_call(tool_id, always_asks=always_asks, context=context)
         )
-    return ctx.has(Perm.APPROVALS_DECIDE)
+    return (
+        ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.ALL
+        or decides_as_starter(ctx, person_id)
+    )
 
 
 async def past_own_platform_call(db: AsyncSession, ctx: AuthContext, run: AgentRun) -> bool:

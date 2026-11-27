@@ -29,7 +29,7 @@ from app.agents.capabilities import all_capabilities
 from app.agents.mcp import PLATFORM_MCP_PREFIX, tool_prefix
 from app.core.background import spawn_after_commit
 from app.core.exceptions import AppException, AuthorizationError
-from app.core.permissions import AuthContext, OrgRoleName, Perm
+from app.core.permissions import AuthContext, OrgRoleName, Perm, Scope
 from app.core.tool_identity import ToolIdentity
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus
 from app.db.models.channel_bot import ChannelBot
@@ -637,8 +637,8 @@ class ChannelPrompts:
         return await self.runner.resume(ctx, prompt.run_id)
 
     async def _may_decide(self, ctx: AuthContext, approval_id: UUID, run_id: UUID) -> bool:
-        """`approvals:decide`, or the run's own person pressing on their own platform call."""
-        if ctx.has(Perm.APPROVALS_DECIDE):
+        """`approvals:decide` at `ALL`, or the run's own person pressing on their own platform call."""
+        if ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.ALL:
             return True
         approval = await agent_run_repo.get_approval(
             self.db, approval_id, organization_id=ctx.organization_id
