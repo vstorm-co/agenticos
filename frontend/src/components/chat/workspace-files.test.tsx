@@ -1634,3 +1634,24 @@ it("labels files without an extension in an explicit workspace", async () => {
   await openPanel();
   expect(await screen.findByRole("button", { name: /README/ })).toBeVisible();
 });
+
+it("closes a standalone files panel and returns focus to its own opener", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <WorkspaceFiles
+        buttonSlot={document.body}
+        conversationId="c1"
+        revision={0}
+        attachments={[]}
+      />
+    </QueryClientProvider>,
+  );
+  const opener = await screen.findByRole("button", { name: /^Show the files/ });
+  await userEvent.click(opener);
+  await userEvent.click(await screen.findByRole("button", { name: "Expand workspace" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Dock workspace" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Close the file panel" }));
+  expect(opener).toHaveFocus();
+  expect(screen.queryByRole("tabpanel", { name: "Files" })).not.toBeInTheDocument();
+});

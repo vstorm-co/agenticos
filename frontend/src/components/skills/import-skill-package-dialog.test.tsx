@@ -42,7 +42,7 @@ function setup() {
     </QueryClientProvider>,
   );
   const input = () => rendered.container.ownerDocument.querySelector('input[type="file"]')!;
-  return { ...rendered, imported, close, input };
+  return { ...rendered, imported, close, input, client };
 }
 beforeEach(() => {
   vi.clearAllMocks();
@@ -90,3 +90,107 @@ it("discards a preview response after the user changes organizations", async () 
   expect(screen.queryByText("assets/template.xlsx")).not.toBeInTheDocument();
   expect(view.imported).not.toHaveBeenCalled();
 });
+
+it("previews a ZIP's text files and cancels without importing", async () => {
+  vi.mocked(previewSkillPackage).mockResolvedValue({
+    ...preview,
+    files: [{ name: "guide.txt", encoding: "utf8", size_bytes: 12, sha256: "hash" }],
+  });
+  const view = setup();
+  const inputs = view.container.ownerDocument.querySelectorAll('input[type="file"]');
+  const file = new File(["archive"], "skill.zip");
+  const zip = inputs[1];
+  if (!zip) throw new Error("Expected the ZIP upload input");
+  fireEvent.change(zip, { target: { files: [file] } });
+  await screen.findByText("guide.txt");
+  expect(previewSkillPackage).toHaveBeenCalledWith([file], "zip");
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(view.close).toHaveBeenCalledWith(false);
+  expect(applySkillPackage).not.toHaveBeenCalled();
+});
+
+it("allows escape when idle and keeps the package open while an apply is pending", async () => {
+  const view = setup();
+  await userEvent.keyboard("{Escape}");
+  expect(view.close).toHaveBeenCalledWith(false);
+  view.close.mockClear();
+  let reject!: (error: Error) => void;
+  vi.mocked(applySkillPackage).mockReturnValue(
+    new Promise((_, fail) => {
+      reject = fail;
+    }),
+  );
+  fireEvent.change(view.input(), { target: { files: [new File(["body"], "SKILL.md")] } });
+  await screen.findByText("assets/template.xlsx");
+  await userEvent.click(screen.getByRole("button", { name: "Import skill" }));
+  await userEvent.keyboard("{Escape}");
+  expect(view.close).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Import skill" })).toBeDisabled();
+  await userEvent.click(screen.getByRole("button", { name: "Import skill" }));
+  expect(applySkillPackage).toHaveBeenCalledTimes(1);
+  await act(async () => reject(new Error("import refused")));
+  expect(await screen.findByRole("alert")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Import skill" })).toBeEnabled();
+  expect(view.imported).not.toHaveBeenCalled();
+});
+
+it("ignores an empty file selection without starting a preview", () => {
+  const view = setup();
+  fireEvent.change(view.input(), { target: { files: [] } });
+  expect(previewSkillPackage).not.toHaveBeenCalled();
+});
+
+it.each(["receipt", "invalidation"] as const)(
+  "never navigates or announces an import after a tenant switch during %s",
+  async (boundary) => {
+    const view = setup();
+    const receipt = {
+      skill_id: "new",
+      version_id: "v1",
+      name: "template",
+      files: 1,
+      fingerprint: "digest",
+    };
+    const invalidate = vi.spyOn(view.client, "invalidateQueries");
+    if (boundary === "receipt")
+      vi.mocked(applySkillPackage).mockImplementationOnce(async () => {
+        scope.tenant = "org-b";
+        return receipt;
+      });
+    else
+      invalidate.mockImplementationOnce(async () => {
+        scope.tenant = "org-b";
+      });
+    fireEvent.change(view.input(), { target: { files: [new File(["body"], "SKILL.md")] } });
+    await screen.findByText("assets/template.xlsx");
+    await userEvent.click(screen.getByRole("button", { name: "Import skill" }));
+    await waitFor(() => expect(applySkillPackage).toHaveBeenCalled());
+    expect(view.imported).not.toHaveBeenCalled();
+    expect(view.close).not.toHaveBeenCalled();
+    if (boundary === "receipt") expect(invalidate).not.toHaveBeenCalled();
+  },
+);
+
+it.each(["preview", "apply"] as const)(
+  "does not report a stale %s failure in a different organization",
+  async (boundary) => {
+    const view = setup();
+    if (boundary === "preview")
+      vi.mocked(previewSkillPackage).mockImplementationOnce(async () => {
+        scope.tenant = "org-b";
+        throw new Error("old tenant failure");
+      });
+    fireEvent.change(view.input(), { target: { files: [new File(["body"], "SKILL.md")] } });
+    if (boundary === "apply") {
+      await screen.findByText("assets/template.xlsx");
+      vi.mocked(applySkillPackage).mockImplementationOnce(async () => {
+        scope.tenant = "org-b";
+        throw new Error("old tenant failure");
+      });
+      await userEvent.click(screen.getByRole("button", { name: "Import skill" }));
+    }
+    await waitFor(() => expect(scope.tenant).toBe("org-b"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(view.imported).not.toHaveBeenCalled();
+  },
+);

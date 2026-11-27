@@ -24,6 +24,11 @@ import {
 } from "@/lib/skill-package-api";
 import { qk } from "@/lib/query-keys";
 
+interface PackageSelection {
+  files: File[];
+  format: SkillPackageFormat;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -39,9 +44,7 @@ function PackageDialog({ open, onOpenChange, onImported }: Props) {
   const tenant = useTenantId();
   const current = useTenantGuard();
   const client = useQueryClient();
-  const [selection, setSelection] = useState<{ files: File[]; format: SkillPackageFormat } | null>(
-    null,
-  );
+  const [selection, setSelection] = useState<PackageSelection | null>(null);
   const [preview, setPreview] = useState<SkillPackagePreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -62,16 +65,11 @@ function PackageDialog({ open, onOpenChange, onImported }: Props) {
       if (current(tenant)) setBusy(false);
     }
   }
-  async function apply() {
-    if (!selection || !preview || busy) return;
+  async function apply(selection: PackageSelection, fingerprint: string) {
     setBusy(true);
     setFailure(null);
     try {
-      const receipt = await applySkillPackage(
-        selection.files,
-        selection.format,
-        preview.fingerprint,
-      );
+      const receipt = await applySkillPackage(selection.files, selection.format, fingerprint);
       if (!current(tenant)) return;
       await client.invalidateQueries({ queryKey: qk.skills.all() });
       if (!current(tenant)) return;
@@ -144,7 +142,13 @@ function PackageDialog({ open, onOpenChange, onImported }: Props) {
           <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
             {t("cancel")}
           </Button>
-          <Button loading={busy} disabled={!preview || busy} onClick={() => void apply()}>
+          <Button
+            loading={busy}
+            disabled={!selection || !preview || busy}
+            onClick={
+              selection && preview ? () => void apply(selection, preview.fingerprint) : undefined
+            }
+          >
             {t("apply")}
           </Button>
         </DialogFooter>

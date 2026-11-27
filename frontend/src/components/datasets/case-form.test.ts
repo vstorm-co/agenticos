@@ -309,3 +309,17 @@ describe("pasted case JSON", () => {
     expect(caseContentFromJson(value)).toBeNull();
   });
 });
+
+it("rejects a currency-invalid criterion instead of reusing its last canonical amount", () => {
+  const result = checksOf([
+    { type: "max_cost_usd", value: "bad", rest: {}, currencyInvalid: true },
+  ]);
+  expect(result).toEqual({ checks: [], problems: ["notNumber"] });
+});
+
+it("opens incomplete imported key criteria without inventing missing facts", () => {
+  expect(keyRows({ type: "keys", value: "", rest: { keys: [{ key: 1, value: null }] } })).toEqual([
+    { key: "", value: "" },
+  ]);
+  expect(checkDraft({ type: "keys" })).toEqual({ type: "keys", value: "", rest: { keys: [] } });
+});

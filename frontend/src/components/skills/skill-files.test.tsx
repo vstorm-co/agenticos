@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { downloadSkillFile } from "@/lib/skill-package-api";
@@ -465,4 +466,51 @@ it("a freshly loaded binary body is never displayed through an older text listin
   expect(screen.queryByText("SECRET_BASE64_BODY")).not.toBeInTheDocument();
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Download file" })).toBeInTheDocument();
+});
+
+it("reports a binary download refusal and leaves the download retryable", async () => {
+  vi.mocked(downloadSkillFile).mockRejectedValueOnce(new Error("download refused"));
+  const error = vi.spyOn(toast, "error");
+  render(
+    <FilePane
+      skillId="skill"
+      resource={{ ...resource("assets/template.xlsx"), encoding: "base64" }}
+      canEdit
+      busy={false}
+      onSave={vi.fn()}
+      onDelete={vi.fn()}
+    />,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Download file" }));
+  await waitFor(() => expect(error).toHaveBeenCalled());
+  expect(screen.getByRole("button", { name: "Download file" })).toBeEnabled();
+});
+
+it("discards a changed resource through the navigation guard before leaving", async () => {
+  render(
+    <FilePane
+      skillId="skill"
+      resource={resource("guide.md", "guide")}
+      canEdit
+      busy={false}
+      onSave={vi.fn()}
+      onDelete={vi.fn()}
+    />,
+  );
+  const input = screen.getByLabelText("guide.md source");
+  await userEvent.type(input, " unsaved");
+  const proceed = vi.fn();
+  act(() => useUnsavedChangesStore.getState().leave(proceed));
+  await act(async () => useUnsavedChangesStore.getState().answer("discard"));
+  expect(input).toHaveValue("# Body");
+  expect(proceed).toHaveBeenCalledOnce();
+});
+
+it("treats a cancelled file selection as an empty list at the upload boundary", () => {
+  const onPick = vi.fn();
+  const { container } = render(<UploadButton label="Upload files" onPick={onPick} />);
+  const input = container.querySelector('input[type="file"]');
+  if (!input) throw new Error("Expected the upload input");
+  fireEvent.change(input, { target: { files: null } });
+  expect(onPick).toHaveBeenCalledWith([]);
 });

@@ -2124,3 +2124,33 @@ it("keeps monetary transport descriptors out of the rendered config controls", (
   expect(screen.queryByLabelText("Monetary Inputs")).toBeNull();
   expect(screen.queryByLabelText("Monetary Terms")).toBeNull();
 });
+
+it("retains invalid monetary input and explicitly clears a valid optional node limit", () => {
+  const { updateNodeConfig } = renderForm({
+    definition: makeDefinition({
+      id: "agent.run",
+      config_schema: {
+        type: "object",
+        properties: { max_cost_usd: { type: ["number", "null"], maximum: 5 } },
+      },
+    }),
+    config: { max_cost_usd: 1 },
+  });
+  const input = screen.getByLabelText("Limit (USD)");
+  fireEvent.change(input, { target: { value: "bad" } });
+  expect(input).toBeInvalid();
+  expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+    max_cost_usd: "bad",
+    monetary_inputs: { max_cost_usd: { amount: "bad", currency: "USD" } },
+  });
+  fireEvent.change(input, { target: { value: "2" } });
+  expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+    max_cost_usd: "2",
+    monetary_inputs: { max_cost_usd: { amount: "2", currency: "USD" } },
+  });
+  fireEvent.change(input, { target: { value: "" } });
+  expect(updateNodeConfig).toHaveBeenLastCalledWith("N", {
+    max_cost_usd: null,
+    monetary_inputs: {},
+  });
+});
