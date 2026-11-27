@@ -3936,14 +3936,10 @@ async def _own_specs(
             )
         ):
             continue
-        headers = await resolve_auth_headers(account)
-        if headers is None:
-            logger.info(
-                "Skipping one of the sender's own %r connections for this run: "
-                "no usable credentials",
-                ref.catalog_key,
-            )
-            continue
+        # Managed accounts are resolved through an account-pinned session,
+        # never by turning their metadata-only URL into a bearer <redacted>
+        # (resolve_auth_headers returns None for them by design), so they
+        # must reach the managed branch below instead of this pre-check.
         name = ref.catalog_key if account is primary else _extra_prefix(ref.catalog_key, account)
         reviewed_prefix = (
             None if approved_sources is None else approved_sources[account.id].tool_prefix
