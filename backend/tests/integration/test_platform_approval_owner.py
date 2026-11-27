@@ -347,8 +347,10 @@ async def test_the_queue_refuses_another_persons_approval_with_403(db: AsyncSess
 
 
 class TestTheRunsPersonWithoutApprovalsDecide:
-    """A Builder or a Member holds no `approvals:decide`; their own platform call is
-    still theirs to answer, and nothing else in the queue is."""
+    """A Builder or a Member holds `approvals:decide` at `OWN` (#225): their own
+    run's calls are theirs to answer, and nothing else in the queue is. The
+    bound exception is what lets a person with no such permission answer
+    their own platform call - provenance, not the tool's name, opens it."""
 
     async def test_they_approve_their_own_platform_call(self, db: AsyncSession):
         org = await _org(db)
@@ -380,15 +382,18 @@ class TestTheRunsPersonWithoutApprovalsDecide:
         with pytest.raises(AuthorizationError):
             await ApprovalService(db).decide(builder, approval.id, approved=approved)
 
-    async def test_they_cannot_decide_their_own_call_of_another_tool(self, db: AsyncSession):
+    async def test_they_can_decide_their_own_call_of_another_tool(self, db: AsyncSession):
+        """Their own run's ordinary call is theirs to decide at `OWN` (#225);
+        the platform-only reservation does not extend to it."""
         org = await _org(db)
         builder = await _member(db, org, OrgRoleName.BUILDER)
         _run, approval = await _parked(
             db, org, builder, tool_id="github_merge_pull_request", always_asks=True
         )
 
-        with pytest.raises(AuthorizationError):
-            await ApprovalService(db).decide(builder, approval.id, approved=True)
+        decided = await ApprovalService(db).decide(builder, approval.id, approved=True)
+
+        assert decided.status == ApprovalStatus.APPROVED.value
 
     async def test_they_continue_their_own_run_past_their_platform_call(self, db: AsyncSession):
         """Past the permission check: the next refusal is the spec the fixture never published."""
@@ -408,7 +413,8 @@ class TestTheRunsPersonWithoutApprovalsDecide:
         with pytest.raises(AuthorizationError):
             await _parked_runs(db).resume(builder, run.id)
 
-    async def test_they_cannot_continue_their_run_past_another_tool(self, db: AsyncSession):
+    async def test_they_continue_their_run_past_another_tool(self, db: AsyncSession):
+        """Past the permission check: the next refusal is the spec the fixture never published."""
         org = await _org(db)
         builder = await _member(db, org, OrgRoleName.BUILDER)
         run, _approval = await _parked(
@@ -419,7 +425,7 @@ class TestTheRunsPersonWithoutApprovalsDecide:
             status=ApprovalStatus.APPROVED,
         )
 
-        with pytest.raises(AuthorizationError):
+        with pytest.raises(BadRequestError, match="no longer exists"):
             await _parked_runs(db).resume(builder, run.id)
 
 
@@ -517,19 +523,31 @@ async def test_the_runs_person_approves_through_the_queue_route_without_the_perm
 async def test_an_unproven_platform_name_grants_no_own_person_exception(
     db: AsyncSession, tool_id: str, marker: dict[str, str] | None
 ) -> None:
-    """Stored legacy names and external MCP aliases are not trusted binding evidence."""
+    """Stored legacy names and external MCP aliases are not trusted binding evidence.
+
+    The decider is the run's own person demoted to viewer, so no `approvals:decide`
+    grant is in play at all: the bare name alone must not open the own-person
+    exception. Provenance, not the name, opens it - the same person with a bound
+    call may answer it.
+    """
     org = await _org(db)
     member = await _member(db, org, OrgRoleName.MEMBER)
     run, approval = await _parked(db, org, member, tool_id=tool_id, platform_bound=False)
     approval.context = marker
     await db.flush()
+    viewer = replace(member, role="viewer")
 
     with pytest.raises(AuthorizationError):
-        await ApprovalService(db).decide(member, approval.id, approved=True)
+        await ApprovalService(db).decide(viewer, approval.id, approved=True)
     with pytest.raises(AuthorizationError):
-        await _parked_runs(db).resume(member, run.id)
+        await _parked_runs(db).resume(viewer, run.id)
     await db.refresh(approval)
     assert approval.status == ApprovalStatus.PENDING.value
+
+    approval.context = {"platform_tool": "true"}
+    await db.flush()
+    decided = await ApprovalService(db).decide(viewer, approval.id, approved=True)
+    assert decided.status == ApprovalStatus.APPROVED.value
 
 
 async def test_a_legacy_platform_call_still_requires_its_own_person(db: AsyncSession) -> None:
