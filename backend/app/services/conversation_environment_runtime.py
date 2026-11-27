@@ -132,6 +132,8 @@ async def provision(
     payload: ConversationEnvironmentPayload,
     store: ResourceWriter,
     drive: ProvisionDriver,
+    *,
+    attempt: int = 1,
 ) -> None:
     environment_id = payload.environment_id
     if isinstance(resolved, BrowserEnvironmentSettings):
@@ -154,7 +156,7 @@ async def provision(
 
         await retain_tab(resolved, payload, start_url=None, keep=keep)
         return
-    await _provision_desktop(resolved, environment_id, store, drive)
+    await _provision_desktop(resolved, payload, store, drive, attempt=attempt)
 
 
 def workspace_identity(resolved: DesktopEnvironmentSettings) -> WorkspaceIdentity:
@@ -225,10 +227,13 @@ async def _journal_unpublished_sandbox(
 
 async def _provision_desktop(
     resolved: DesktopEnvironmentSettings,
-    environment_id: UUID,
+    payload: ConversationEnvironmentPayload,
     store: ResourceWriter,
     drive: ProvisionDriver,
+    *,
+    attempt: int,
 ) -> None:
+    environment_id = payload.environment_id
     config, admitted = resolved.config, resolved.authority
     resource = DesktopEnvironmentResource(
         environment_id=environment_id,
@@ -316,9 +321,12 @@ async def _provision_desktop(
                         "backend_not_supported",
                         "A persistent desktop needs a conversation, user or agent sandbox scope.",
                     )
-                opened = await service.open(
-                    admitted.spec, ctx=admitted.ctx, identity=workspace_identity(resolved)
-                )
+                if admitted.producer_run_id is None:
+                    opened = await service.open_for_environment(payload, attempt)
+                else:
+                    opened = await service.open(
+                        admitted.spec, ctx=admitted.ctx, identity=workspace_identity(resolved)
+                    )
             if opened is None or opened.row_id is None or opened.connection_id is None:
                 raise EnvironmentNotReady(
                     "workspace_unavailable", "The desktop has no retained workspace."
@@ -482,6 +490,7 @@ async def open_view(
                 workspace_id=resource.workspace_id,
                 ref=resource.workspace_ref,
                 connection_fingerprint=resource.connection_fingerprint,
+                environment_id=resource.environment_id,
             )
         workspace, transport = opened.workspace, opened.close_transport
     try:
@@ -551,7 +560,7 @@ async def start_environment(payload: ConversationEnvironmentPayload, *, attempt:
             finally:
                 await driver.close()
 
-        await provision(resolved, payload, store, drive)
+        await provision(resolved, payload, store, drive, attempt=attempt)
         async with get_worker_db_context() as db:
             await ConversationEnvironmentService(db).ready(payload, attempt)
     except BaseException as failure:

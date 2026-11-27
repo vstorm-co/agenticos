@@ -29,7 +29,7 @@ def opaque(case, request, monkeypatch):
         )
     )
     opened = replace(case.opened, sandbox=provider)
-    runtime.SandboxWorkspaceService.open.return_value = opened
+    runtime.SandboxWorkspaceService.open_for_environment.return_value = opened
     case.workspace.ref = None
     destroyed = AsyncMock()
     monkeypatch.setattr(type(provider), "destroy", destroyed)

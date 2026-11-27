@@ -45,7 +45,7 @@ from datetime import UTC, datetime, timedelta
 from functools import partial
 from io import BytesIO
 from pathlib import PurePosixPath
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 from uuid import UUID, uuid4
 
 import anyio
@@ -72,6 +72,7 @@ from app.agents.capabilities.sandbox._identity import (
     SessionScope,
     WorkspaceIdentity,
     WorkspaceScopeUnavailable,
+    retained_scope_key,
     scope_key,
 )
 from app.agents.capabilities.sandbox._opensandbox import OpenSandboxWorkspace, OrgOpenSandboxBackend
@@ -114,6 +115,9 @@ from app.services.workspace_archive import stream_zip, zip_folder, zip_members
 
 ServiceSandbox = SandboxdWorkspace | DaytonaWorkspace | E2BWorkspace | OpenSandboxWorkspace
 """What supplies a connection's sandboxes, on its explicitly resolved account."""
+
+if TYPE_CHECKING:
+    from app.worker.jobs import ConversationEnvironmentPayload
 
 logger = logging.getLogger(__name__)
 
@@ -948,6 +952,72 @@ class SandboxWorkspaceService:
             ),
         )
 
+    async def open_for_environment(
+        self,
+        payload: ConversationEnvironmentPayload,
+        attempt: int,
+    ) -> OpenWorkspace:
+        """Prepare a real owned manual desktop without inventing run authority."""
+        from app.services.conversation_environment_policy import DesktopEnvironmentSettings
+        from app.services.conversation_environments import ConversationEnvironmentService
+
+        admitted = await ConversationEnvironmentService(self.db).claim(payload, attempt)
+        if (
+            not isinstance(admitted, DesktopEnvironmentSettings)
+            or admitted.authority.producer_run_id is not None
+            or admitted.authority.execution_target != "agent"
+            or admitted.authority.ctx.user_id is None
+        ):
+            raise BadRequestError(message="The manual desktop admission is no longer available")
+        if admitted.config.desktop not in ("sandbox", "auto") or (
+            admitted.config.desktop == "auto" and admitted.credential
+        ):
+            raise BadRequestError(message="The manual desktop does not use this retained executor")
+        config = sandbox_config(admitted.authority.spec)
+        if (
+            config is None
+            or config.backend != "service"
+            or config.session_scope not in ("conversation", "user", "agent")
+        ):
+            raise BadRequestError(
+                message="A manual desktop needs a retained container-backed workspace"
+            )
+        owner = admitted.authority
+        identity = WorkspaceIdentity(
+            organization_id=owner.ctx.organization_id,
+            agent_id=owner.agent.id,
+            run_id=None,
+            conversation_id=owner.conversation.id,
+            user_id=str(owner.ctx.user_id),
+            project_id=owner.conversation.project_id,
+        )
+        resolved = await self.connections.resolve(
+            owner.ctx, config.connection_id, ensure_default=False
+        )
+        key = self._retained_key(
+            identity,
+            config.session_scope,
+            "service",
+            resolved.row.id,
+            _keyed_runtime(config, resolved),
+        )
+        return await self._open_service(config, identity, key, config.session_scope, resolved)
+
+    @staticmethod
+    def _retained_key(
+        identity: WorkspaceIdentity,
+        scope: SessionScope,
+        backend: BackendKind,
+        connection_id: UUID | None = None,
+        runtime: str | None = None,
+    ) -> str:
+        if scope not in ("conversation", "user", "agent"):
+            raise BadRequestError(message="A manual desktop needs a persistent workspace scope")
+        try:
+            return retained_scope_key(identity, scope, backend, connection_id, runtime)
+        except WorkspaceScopeUnavailable as exc:
+            raise BadRequestError(message=str(exc), details={"session_scope": scope}) from exc
+
     async def _open_config(
         self,
         config: SandboxConfig,
@@ -1306,6 +1376,30 @@ class SandboxWorkspaceService:
         selected_generation: UUID | None = None,
     ) -> LiveExecutorScope:
         """Resolve the authorized physical key without creating rows, sessions or providers."""
+        return await self._resolve_live_execution(
+            ctx,
+            spec=spec,
+            identity=identity,
+            execution_target=execution_target,
+            selected_project_id=selected_project_id,
+            selected_generation=selected_generation,
+            key_for=self._key,
+        )
+
+    async def _resolve_live_execution(
+        self,
+        ctx: AuthContext,
+        *,
+        spec: AgentSpec,
+        identity: WorkspaceIdentity,
+        execution_target: ProjectExecutionTarget,
+        selected_project_id: UUID | None = None,
+        selected_generation: UUID | None = None,
+        key_for: Callable[
+            [WorkspaceIdentity, SessionScope, BackendKind, UUID | None, str | None], str
+        ],
+    ) -> LiveExecutorScope:
+        """Resolve the authorized physical key without creating rows, sessions or providers."""
         from app.services.conversation import ConversationService
         from app.services.project_workspace_guard import project_for_workspace
 
@@ -1341,9 +1435,7 @@ class SandboxWorkspaceService:
         if config.backend != "service":
             raise NotFoundError(message="The live workspace is unavailable", details={})
         resolved = await self.connections.resolve(ctx, config.connection_id, ensure_default=False)
-        key = self._key(
-            identity, scope, "service", resolved.row.id, _keyed_runtime(config, resolved)
-        )
+        key = key_for(identity, scope, "service", resolved.row.id, _keyed_runtime(config, resolved))
         return LiveExecutorScope(config, identity, scope, resolved, key)
 
     async def resolve_live_workspace(
@@ -1355,13 +1447,43 @@ class SandboxWorkspaceService:
         execution_target: ProjectExecutionTarget,
         workspace_id: UUID,
         connection_fingerprint: str,
+        environment_id: UUID | None = None,
     ) -> LiveWorkspaceMetadata:
         """Resolve existing executor authority without admission, recovery or provider I/O."""
-        execution = await self.resolve_live_execution(
+        key_for = self._key
+        if identity.run_id is None and execution_target != "project" and environment_id is not None:
+            from app.services.conversation_environment_policy import DesktopEnvironmentSettings
+            from app.services.conversation_environment_resources import DesktopEnvironmentResource
+            from app.services.conversation_environments import ConversationEnvironmentService
+
+            if identity.conversation_id is None:
+                raise NotFoundError(
+                    message="The manual desktop identity is unavailable", details={}
+                )
+            _, configured, resource = await ConversationEnvironmentService(self.db).live(
+                ctx,
+                identity.conversation_id,
+                environment_id,
+                execution_target,
+            )
+            if (
+                not isinstance(configured, DesktopEnvironmentSettings)
+                or not isinstance(resource, DesktopEnvironmentResource)
+                or resource.backend != "sandbox"
+                or resource.workspace_id != workspace_id
+                or identity.organization_id != ctx.organization_id
+                or identity.agent_id != configured.authority.agent.id
+                or identity.user_id != str(ctx.user_id)
+            ):
+                raise NotFoundError(message="The manual desktop identity changed", details={})
+            spec = configured.authority.spec
+            key_for = self._retained_key
+        execution = await self._resolve_live_execution(
             ctx,
             spec=spec,
             identity=identity,
             execution_target=execution_target,
+            key_for=key_for,
         )
         config, identity, scope = execution.config, execution.identity, execution.scope
         resolved, key = execution.resolved, execution.key
@@ -1387,6 +1509,7 @@ class SandboxWorkspaceService:
         workspace_id: UUID,
         ref: WorkspaceRef,
         connection_fingerprint: str,
+        environment_id: UUID | None = None,
     ) -> OpenWorkspace:
         """Attach an admitted environment's exact workspace, without opening a turn.
 
@@ -1402,6 +1525,7 @@ class SandboxWorkspaceService:
             execution_target=execution_target,
             workspace_id=workspace_id,
             connection_fingerprint=connection_fingerprint,
+            environment_id=environment_id,
         )
         config, identity, scope = current.config, current.identity, current.scope
         resolved, key, row = current.resolved, current.key, current.row

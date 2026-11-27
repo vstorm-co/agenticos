@@ -48,7 +48,7 @@ async def test_missing_service_sandbox_never_opens_an_executor(case, config):
 
 @pytest.mark.parametrize("missing", ["all", "row_id", "connection_id"])
 async def test_missing_workspace_identity_fails_before_provider_start(case, missing):
-    runtime.SandboxWorkspaceService.open.return_value = (
+    runtime.SandboxWorkspaceService.open_for_environment.return_value = (
         None if missing == "all" else replace(case.opened, **{missing: None})
     )
     with pytest.raises(EnvironmentNotReady, match="retained workspace"):

@@ -100,6 +100,9 @@ def case(monkeypatch):
     monkeypatch.setattr(runtime, "get_worker_db_context", session)
     monkeypatch.setattr(runtime.SandboxWorkspaceService, "open", AsyncMock(return_value=opened))
     monkeypatch.setattr(
+        runtime.SandboxWorkspaceService, "open_for_environment", AsyncMock(return_value=opened)
+    )
+    monkeypatch.setattr(
         runtime.SandboxWorkspaceService, "attach_live_environment", AsyncMock(return_value=opened)
     )
     monkeypatch.setattr(
@@ -494,7 +497,8 @@ async def test_provider_start_runs_outside_the_admission_transaction_and_journal
 
     monkeypatch.setattr(conversation_environment_driver, "EnvironmentDriver", Driver)
 
-    async def provision(resolved, payload, store, drive):
+    async def provision(resolved, payload, store, drive, *, attempt):
+        assert attempt == 1
         assert not active and resolved is case.desktop and payload == case.payload
         async with drive("physical"):
             assert await store(case.resource, "physical")
