@@ -821,6 +821,23 @@ describe("opening a conversation", () => {
 });
 
 describe("creating, renaming and removing a conversation", () => {
+  it("creates an empty project conversation while retaining its server ownership", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.post).mockResolvedValue({
+      ...conversation("project-chat"),
+      project_id: "project",
+    });
+    let created: unknown;
+    await act(async () => {
+      created = await result.current.createConversation(undefined, { projectId: "project" });
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/conversations", {
+      title: undefined,
+      project_id: "project",
+    });
+    expect(created).toMatchObject({ id: "project-chat", project_id: "project" });
+  });
+
   it("hands back the new conversation and refetches the list it belongs in", async () => {
     const result = await hook();
     vi.mocked(apiClient.post).mockResolvedValue(conversation("c-new", { title: "Refunds" }));

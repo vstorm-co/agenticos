@@ -2764,7 +2764,68 @@
       "expand": "Agrandir le workspace",
       "dock": "Ancrer le workspace",
       "allFiles": "Retour à tous les fichiers",
-      "close": "Fermer le workspace"
+      "close": "Fermer le workspace",
+      "desktop": "Bureau",
+      "open": "Ouvrir le workspace"
+    },
+    "environmentView": {
+      "agentDriving": "L’agent utilise cet environnement. Attendez que le contrôle soit disponible.",
+      "humanDriving": "Une personne contrôle cet environnement.",
+      "canTakeOver": "Vous observez. Prenez le contrôle pour interagir.",
+      "watchOnly": "Lecture seule.",
+      "refresh": "Vérifier la disponibilité",
+      "end": "Terminer l’environnement",
+      "start": "Ouvrir l’environnement",
+      "startNew": "Ouvrir un nouvel environnement",
+      "retry": "Reconnecter la vue",
+      "confirmTitle": "Terminer cet environnement ?",
+      "confirmDescription": "Fermer le panneau conserve l’environnement. Le terminer libère sa session ; l’état non enregistré de la page peut être perdu.",
+      "failure": {
+        "start": "Impossible d’ouvrir l’environnement. Vérifiez sa disponibilité et réessayez.",
+        "end": "Impossible de terminer l’environnement. Il fonctionne peut-être encore.",
+        "state": "Impossible d’actualiser la disponibilité. Vérifiez-la avant de continuer."
+      },
+      "phase": {
+        "expired": {
+          "title": "Environnement terminé",
+          "description": "Ouvrez un nouvel environnement pour continuer."
+        },
+        "failed": {
+          "title": "Environnement indisponible",
+          "description": "Vérifiez sa disponibilité ou essayez explicitement de l’ouvrir à nouveau."
+        },
+        "notStarted": {
+          "title": "Environnement non démarré",
+          "description": "Ouvrez cet environnement au besoin. Aucun agent n’est lancé."
+        },
+        "starting": {
+          "title": "Préparation de l’environnement",
+          "description": "Vous pouvez quitter ce panneau et revenir lorsqu’il sera prêt."
+        },
+        "forbidden": {
+          "title": "Accès indisponible",
+          "description": "Votre accès a changé. Vérifiez la disponibilité pour connaître les autorisations actuelles."
+        },
+        "malformed": {
+          "title": "Vue en direct non vérifiée",
+          "description": "Le flux a été arrêté. Reconnectez-vous pour obtenir une nouvelle vue en direct."
+        },
+        "disconnected": {
+          "title": "Vue en direct déconnectée",
+          "description": "Reconnectez-vous pour continuer à observer le même environnement."
+        },
+        "connecting": {
+          "title": "Connexion de la vue en direct",
+          "description": "En attente de l’écran actuel de l’environnement."
+        }
+      },
+      "browserTitle": "Navigateur",
+      "desktopTitle": "Bureau",
+      "loadFailed": "Impossible de charger l’environnement. Réessayez.",
+      "loading": "Chargement de l’environnement…",
+      "runLifetime": "Cet environnement se ferme après le prochain run de l’agent.",
+      "idleMinutes": "Conservé pendant au plus {minutes, plural, one {# minute} other {# minutes}} d’inactivité.",
+      "idleSeconds": "Conservé pendant au plus {seconds, plural, one {# seconde} other {# secondes}} d’inactivité."
     }
   },
   "common": {
@@ -6329,6 +6390,10 @@
       "chat-visual-workspace": {
         "title": "Une page à côté du chat",
         "body": "Ouvrez un visuel dans le panneau latéral redimensionnable pour continuer à discuter pendant que vous l’utilisez. Basculez entre Aperçu et Code, agrandissez ou fermez le panneau sans réinitialiser ses commandes."
+      },
+      "chat-environments": {
+        "title": "Ouvrir un environnement",
+        "body": "Choisissez Navigateur ou Bureau dans le menu workspace, puis ouvrez l’environnement. Vous pouvez l’utiliser avant de solliciter l’agent. Fermer le panneau conserve la session ; terminer l’environnement la libère."
       }
     },
     "chooseLanguage": "Langue",
@@ -11365,6 +11430,14 @@
           "description": "Démarre un bureau E2B distinct pour ce run. Sélectionnez ci-dessous la clé E2B de l’organisation ; aucune connexion Sandbox n’est nécessaire.",
           "summary": "Un bureau isolé hébergé par E2B."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Ce run"
+        },
+        "conversation": {
+          "label": "Cette conversation"
+        }
       }
     },
     "browser_use": {
@@ -11388,6 +11461,14 @@
           "label": "Cet ordinateur (application de bureau)",
           "summary": "Un navigateur privé sur votre ordinateur associé.",
           "description": "Nécessite une application de bureau associée et le navigateur Local sélectionné dans ce chat. Votre session de navigation personnelle n’est pas partagée."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Ce run"
+        },
+        "conversation": {
+          "label": "Cette conversation"
         }
       }
     },
@@ -14044,6 +14125,14 @@
       "prefer_native_browser": {
         "title": "Utiliser le navigateur local natif",
         "description": "Utiliser un onglet natif intégré pour la navigation DOM locale. Désactivez pour une compatibilité Chromium isolée. La vision et les remplacements de langue/fuseau horaire utilisent Chromium."
+      },
+      "session_lifetime": {
+        "title": "Durée de session",
+        "description": "Dans le chat web privé, fermer après chaque run ou conserver le même environnement entre les messages. Les autres canaux gardent leur durée actuelle."
+      },
+      "session_idle_seconds": {
+        "title": "Délai d’inactivité (secondes)",
+        "description": "Terminer l’environnement conservé après cette inactivité, dans la limite du déploiement. Fermer le panneau ne le termine pas."
       }
     },
     "channel_tools": {
@@ -14574,6 +14663,14 @@
       "preview": {
         "title": "Aperçu en direct",
         "description": "Afficher le bureau en direct dans le chat pendant que l’agent le pilote."
+      },
+      "session_lifetime": {
+        "title": "Durée de session",
+        "description": "Dans le chat web privé, fermer après chaque run ou conserver le même environnement entre les messages. Les autres canaux gardent leur durée actuelle."
+      },
+      "session_idle_seconds": {
+        "title": "Délai d’inactivité (secondes)",
+        "description": "Terminer l’environnement conservé après cette inactivité, dans la limite du déploiement. Fermer le panneau ne le termine pas."
       }
     },
     "phone_calls": {

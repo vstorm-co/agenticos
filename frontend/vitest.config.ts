@@ -253,6 +253,8 @@ export default defineConfig({
         "src/components/chat/turn-produced-outputs.tsx",
         "src/components/chat/browser-view.tsx",
         "src/components/chat/browser-window.tsx",
+        "src/components/chat/conversation-environments.tsx",
+        "src/components/chat/conversation-environment-view.tsx",
         "src/components/chat/browser-navigation.tsx",
         "src/components/chat/native-browser.tsx",
         "src/components/chat/live-viewport.tsx",

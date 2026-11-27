@@ -2801,7 +2801,68 @@
       "expand": "Workspace vergroten",
       "dock": "Workspace vastzetten",
       "allFiles": "Terug naar alle bestanden",
-      "close": "Workspace sluiten"
+      "close": "Workspace sluiten",
+      "desktop": "Bureaublad",
+      "open": "Workspace openen"
+    },
+    "environmentView": {
+      "agentDriving": "De agent gebruikt deze omgeving. Wacht tot bediening beschikbaar is.",
+      "humanDriving": "Een persoon bestuurt deze omgeving.",
+      "canTakeOver": "Je kijkt mee. Neem de bediening over om te werken.",
+      "watchOnly": "Alleen bekijken.",
+      "refresh": "Beschikbaarheid controleren",
+      "end": "Omgeving beëindigen",
+      "start": "Omgeving openen",
+      "startNew": "Nieuwe omgeving openen",
+      "retry": "Weergave opnieuw verbinden",
+      "confirmTitle": "Deze omgeving beëindigen?",
+      "confirmDescription": "Het paneel sluiten behoudt de omgeving. Beëindigen geeft de sessie vrij; niet-opgeslagen paginastatus kan verloren gaan.",
+      "failure": {
+        "start": "De omgeving kon niet worden geopend. Controleer de beschikbaarheid en probeer opnieuw.",
+        "end": "De omgeving kon niet worden beëindigd. Ze draait mogelijk nog.",
+        "state": "Gereedheid kon niet worden bijgewerkt. Controleer de beschikbaarheid voordat je doorgaat."
+      },
+      "phase": {
+        "expired": {
+          "title": "Omgeving beëindigd",
+          "description": "Open een nieuwe omgeving om door te gaan."
+        },
+        "failed": {
+          "title": "Omgeving niet beschikbaar",
+          "description": "Controleer de beschikbaarheid of probeer de omgeving expliciet opnieuw te openen."
+        },
+        "notStarted": {
+          "title": "Omgeving niet gestart",
+          "description": "Open deze omgeving wanneer nodig. Er wordt geen agent gestart."
+        },
+        "starting": {
+          "title": "Omgeving voorbereiden",
+          "description": "Je kunt dit paneel verlaten en terugkomen zodra het klaar is."
+        },
+        "forbidden": {
+          "title": "Geen toegang",
+          "description": "Je toegang is gewijzigd. Controleer de beschikbaarheid voor de huidige rechten."
+        },
+        "malformed": {
+          "title": "Liveweergave kon niet worden geverifieerd",
+          "description": "De stream is gestopt. Verbind opnieuw voor een nieuwe liveweergave."
+        },
+        "disconnected": {
+          "title": "Liveweergave verbroken",
+          "description": "Verbind opnieuw om dezelfde omgeving te blijven bekijken."
+        },
+        "connecting": {
+          "title": "Liveweergave verbinden",
+          "description": "Wachten op het huidige scherm van de omgeving."
+        }
+      },
+      "browserTitle": "Browser",
+      "desktopTitle": "Bureaublad",
+      "loadFailed": "De omgeving kon niet worden geladen. Probeer het opnieuw.",
+      "loading": "Omgeving laden…",
+      "runLifetime": "Deze omgeving sluit na de volgende run van de agent.",
+      "idleMinutes": "Bewaard gedurende maximaal {minutes, plural, one {# minuut} other {# minuten}} inactiviteit.",
+      "idleSeconds": "Bewaard gedurende maximaal {seconds, plural, one {# seconde} other {# seconden}} inactiviteit."
     }
   },
   "approvalFeedback": {
@@ -6445,6 +6506,10 @@
       "chat-visual-workspace": {
         "title": "Een pagina naast je chat",
         "body": "Open een visual in het zijpaneel met aanpasbare grootte om verder te chatten terwijl je de visual gebruikt. Wissel tussen Voorbeeld en Code, vergroot het paneel of sluit het zonder de bedieningselementen opnieuw in te stellen."
+      },
+      "chat-environments": {
+        "title": "Liveomgeving openen",
+        "body": "Kies Browser of Desktop in het workspace-menu en open de omgeving. Je kunt haar gebruiken voordat je de agent iets vraagt. Het paneel sluiten bewaart de sessie; de omgeving beëindigen geeft haar vrij."
       }
     },
     "chooseLanguage": "Taal",
@@ -11590,6 +11655,14 @@
           "description": "Start een aparte E2B-desktop voor deze run. Kies hieronder de E2B-sleutel van de organisatie; er is geen Sandbox-koppeling nodig.",
           "summary": "Een afgeschermde desktop gehost door E2B."
         }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Deze run"
+        },
+        "conversation": {
+          "label": "Dit gesprek"
+        }
       }
     },
     "browser_use": {
@@ -11613,6 +11686,14 @@
           "label": "Deze computer (desktop-app)",
           "summary": "Een privébrowser op je gekoppelde computer.",
           "description": "Vereist een gekoppelde desktop-app en Lokale browser gekozen in deze chat. Je persoonlijke browsersessie wordt niet gedeeld."
+        }
+      },
+      "session_lifetime": {
+        "run": {
+          "label": "Deze run"
+        },
+        "conversation": {
+          "label": "Dit gesprek"
         }
       }
     },
@@ -14293,6 +14374,14 @@
       "prefer_native_browser": {
         "title": "De native lokale browser gebruiken",
         "description": "Gebruik een ingebed native tabblad voor lokaal surfen via de DOM. Schakel uit voor compatibiliteit met afgeschermd Chromium. Vision en overschrijvingen van taal en tijdzone gebruiken Chromium."
+      },
+      "session_lifetime": {
+        "title": "Sessieduur",
+        "description": "Sluit in privéwebchat na elke run of behoud dezelfde liveomgeving tussen berichten. Andere kanalen behouden hun bestaande levensduur."
+      },
+      "session_idle_seconds": {
+        "title": "Inactiviteitslimiet (seconden)",
+        "description": "Beëindig een bewaarde omgeving na deze inactiviteit, begrensd door het implementatiebeleid. Het paneel sluiten beëindigt haar niet."
       }
     },
     "channel_tools": {
@@ -14823,6 +14912,14 @@
       "preview": {
         "title": "Live voorbeeld",
         "description": "Toon de desktop live in de chat terwijl de agent hem bedient."
+      },
+      "session_lifetime": {
+        "title": "Sessieduur",
+        "description": "Sluit in privéwebchat na elke run of behoud dezelfde liveomgeving tussen berichten. Andere kanalen behouden hun bestaande levensduur."
+      },
+      "session_idle_seconds": {
+        "title": "Inactiviteitslimiet (seconden)",
+        "description": "Beëindig een bewaarde omgeving na deze inactiviteit, begrensd door het implementatiebeleid. Het paneel sluiten beëindigt haar niet."
       }
     },
     "phone_calls": {
