@@ -26,10 +26,14 @@ class FoundPassage:
     Attributes:
         source: The document it came from, by file name, when the store knows it.
         quote: The start of the matched passage.
+        knowledge_base_ids: The knowledge bases behind the collection that returned
+            it, so a reader is shown it only when they may read those; none when the
+            result did not say which collection it came from.
     """
 
     source: str | None
     quote: str
+    knowledge_base_ids: tuple[UUID, ...] = ()
 
 
 @dataclass
@@ -81,6 +85,9 @@ class KnowledgeSearchLog:
                 FoundPassage(
                     source=result.metadata.get("filename"),
                     quote=" ".join(result.content.split())[:MAX_FOUND_CHARS],
+                    knowledge_base_ids=self.collections.get(
+                        str(result.metadata.get("collection", "")), ()
+                    ),
                 )
                 for result in results[:MAX_FOUND]
             )

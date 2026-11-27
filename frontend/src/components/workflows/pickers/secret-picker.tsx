@@ -38,6 +38,8 @@ export interface SecretPickerProps {
   purpose?: string;
   /** Explicit usage boundary; an absent scope never satisfies an organization-only step. */
   usageScope?: SecretUsageScope;
+  /** Background ingress uses only credentials shared with the organization. */
+  organizationOnly?: boolean;
   /** A validation message from the property panel, shown under the control. */
   error?: string;
   /** Non-secret defaults shown for review when a credential is created. */
@@ -68,6 +70,7 @@ export function SecretPicker({
   error,
   label,
   initialValue,
+  organizationOnly = false,
 }: SecretPickerProps) {
   const t = useTranslations("workflows");
   const caption = label ?? t("pickerSecretLabel");
@@ -88,7 +91,8 @@ export function SecretPicker({
     (secret) =>
       (kind === undefined || secret.kind === kind) &&
       (purpose === undefined || secret.purpose === purpose) &&
-      (usageScope === undefined || secret.usage_scope === usageScope),
+      (usageScope === undefined || secret.usage_scope === usageScope) &&
+      (!organizationOnly || (secret.visibility === "org" && secret.owner_user_id === null)),
   );
   // The field's kind as this build knows it. One it has no form for offers no
   // dialog; a field naming none takes any shape, so the whole vault form opens.
@@ -130,7 +134,11 @@ export function SecretPicker({
                 <KeyRound className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{secret.name}</span>
                 {!smtp && kind !== "http_credential" && (
-                  <Badge variant="outline">{secret.kind}</Badge>
+                  <Badge variant="outline">
+                    {secret.kind === "webhook_credentials"
+                      ? t("pickerWebhookCredentials")
+                      : secret.kind}
+                  </Badge>
                 )}
               </span>
             </SelectItem>
@@ -179,6 +187,7 @@ export function SecretPicker({
           initial={{ name: caption, value: initialValue }}
           kinds={kinds}
           kind={shape?.kind}
+          fixedVisibility={organizationOnly ? "org" : undefined}
           isPending={create.isPending}
           onSubmit={async (data) => {
             const scoped = { ...data };

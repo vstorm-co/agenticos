@@ -43,6 +43,7 @@ import {
 
 import { PinAgentButton } from "@/components/agents/pin-agent-button";
 import { AgentAvatar } from "@/components/agents/agent-avatar";
+import { ExportAgentDialog } from "@/components/agents/export-dialog";
 import { StartImprovementDialog } from "@/components/improvement/start-improvement-dialog";
 import { ImprovementHistory } from "@/components/improvement/improvement-history";
 import {
@@ -279,7 +280,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const testedRun = searchParams.get("run");
   const testedArm = searchParams.get("arm");
   const compareTo = testedRun ? "tested" : Number(searchParams.get("to")) || "draft";
-  const { spec: testedSpec } = useEvalArmSpec(testedRun, testedArm);
+  const { spec: testedSpec, error: testedSpecError } = useEvalArmSpec(testedRun, testedArm);
   const publishAsked = searchParams.get("publish") === "1";
   const router = useRouter();
   const {
@@ -383,6 +384,8 @@ export default function AgentBuilderPage({ params }: PageProps) {
   const [fixing, setFixing] = useState(false);
   const [confirming, setConfirming] = useState<"archive" | "delete" | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const tPortability = useTranslations("portability");
   const [shippedUpdateOpen, setShippedUpdateOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -1359,14 +1362,16 @@ export default function AgentBuilderPage({ params }: PageProps) {
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild className={DESCRIBED_ITEM}>
-                    <a href={`/api/agents/${id}/spec.yaml`} download>
-                      <Download className="h-4 w-4" />
-                      <DropdownMenuItemText
-                        label={t("exportYaml")}
-                        description={tMenu("menuExportHint")}
-                      />
-                    </a>
+                  <DropdownMenuItem
+                    className={DESCRIBED_ITEM}
+                    disabled={isDirty || saveDraft.isPending}
+                    onSelect={() => setExportOpen(true)}
+                  >
+                    <Download className="h-4 w-4" />
+                    <DropdownMenuItemText
+                      label={tPortability("exportTitle")}
+                      description={tMenu("menuExportHint")}
+                    />
                   </DropdownMenuItem>
                   {canDuplicate && (
                     <DropdownMenuItem className={DESCRIBED_ITEM} onSelect={duplicate}>
@@ -1668,6 +1673,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
         {shippedUpdateOpen && (
           <ShippedUpdateDialog agentId={id} onClose={() => setShippedUpdateOpen(false)} />
         )}
+        {exportOpen && <ExportAgentDialog agentId={id} open onOpenChange={setExportOpen} />}
         <PublishDialog
           open={publishOpen}
           onOpenChange={setPublishOpen}
@@ -2423,6 +2429,7 @@ export default function AgentBuilderPage({ params }: PageProps) {
                   compareFrom={compareFrom}
                   compareTo={compareTo}
                   testedSpec={testedSpec ? { spec: testedSpec, label: t("draftAsTested") } : null}
+                  testedSpecError={testedSpecError}
                 />
               </CardContent>
             </Card>

@@ -97,10 +97,13 @@ from app.workflows.graph.model import (
     jsonb_value_fits,
 )
 from app.workflows.graph.validate import derive_scopes, graph_size_problems, validate_graph
+from app.workflows.nodes._triggers import WebhookTriggerConfig
 from app.workflows.nodes.core_input._handler import TriggerInputConfig, effective_input_schema
+from app.workflows.python_actions import PYTHON_ACTIONS, python_callable
 from app.workflows.triggers import (
     DECLARES_FIELDS,
     UNATTENDED,
+    WEBHOOK,
     WORKFLOW_CALL,
     WORKFLOW_FAILED,
     entry_nodes,
@@ -338,6 +341,13 @@ def _table_references(graph: dict[str, Any]) -> list[tuple[UUID, tuple[UUID, ...
         for node in graph.get("nodes", [])
         if isinstance(node.get("config", {}).get("table"), dict)
     ]
+    for node in graph.get("nodes", []):
+        actions = node.get("config", {}).get("actions")
+        if node.get("definition_id") == PYTHON_ACTIONS and isinstance(actions, dict):
+            for action in actions.values():
+                config = action.get("config") if isinstance(action, dict) else None
+                if isinstance(config, dict) and isinstance(table := config.get("table"), dict):
+                    refs.append(table)
     refs += [
         binding.get("source")
         for binding in graph.get("bindings", [])
@@ -432,6 +442,7 @@ class WorkflowRegistryService:
                 retry_guarantee=definition.retry_guarantee,
                 scopes=sorted(definition.scopes),
                 available=definition.available() if definition.available else True,
+                python_callable=python_callable(definition),
                 loop_body_only=definition.loop_body_only,
                 exclusive_branches=definition.exclusive_branches,
             )
@@ -1021,17 +1032,28 @@ class WorkflowRegistryService:
             details={"slug": base_slug},
         )
 
-    async def list(self, ctx: AuthContext, *, skip: int = 0, limit: int = 50) -> WorkflowList:
+    async def list(
+        self, ctx: AuthContext, *, project_id: UUID | None = None, skip: int = 0, limit: int = 50
+    ) -> WorkflowList:
         """The workflows this caller may see: their own, org-visible ones and those shared."""
         shared = await visible_resource_ids(
             self.db, ctx, resource_type=WORKFLOW, perm=Perm.WORKFLOWS_VIEW
         )
+        member_ids = None
+        if project_id is not None:
+            from app.db.models.project_resource import ProjectResourceKind
+            from app.services.project_resources import ProjectResourceService
+
+            member_ids = await ProjectResourceService(self.db).member_ids(
+                ctx, project_id, ProjectResourceKind.WORKFLOW
+            )
         items, total = await workflow_repo.list_visible(
             self.db,
             organization_id=ctx.organization_id,
             user_id=ctx.subject_id,
             see_all=shared is None,
             shared_ids=shared or [],
+            **({"only_ids": member_ids} if project_id is not None else {}),
             skip=skip,
             limit=limit,
         )
@@ -1540,6 +1562,38 @@ class WorkflowRegistryService:
             ):
                 require_human_publisher(ctx)
         graph = _without_pins(await validate_graph(self.db, ctx, draft_graph))
+        # Only publishing subscribes to a live source. Draft tests use supplied or
+        # pinned input, so source-use checks do not belong in graph validation.
+        # Publishing records an audit before writing its entry registrations.
+        # Take the source lock first, as source mutations and routine bindings do.
+        for node in entry_nodes(graph):
+            if node.definition_id == WEBHOOK:
+                config = WebhookTriggerConfig.model_validate(node.config)
+                if config.require_source and config.source_id is None:
+                    raise GraphValidationError(
+                        [
+                            (
+                                f"nodes.{node.id}.config.source_id",
+                                "Choose an event source or select Dedicated webhook before publishing",
+                            )
+                        ]
+                    )
+                if config.source_id is not None:
+                    from app.services.event_sources import EventSourceService
+
+                    try:
+                        await EventSourceService(self.db).require_use(
+                            ctx, config.source_id, lock=True
+                        )
+                    except (AuthorizationError, NotFoundError):
+                        raise GraphValidationError(
+                            [
+                                (
+                                    f"nodes.{node.id}.config.source_id",
+                                    "Choose an event source you have permission to use",
+                                )
+                            ]
+                        ) from None
         version_number = await workflow_repo.next_version_number(self.db, workflow_id=workflow.id)
         version = await workflow_repo.create_version(
             self.db,

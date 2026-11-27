@@ -39,6 +39,7 @@ class WorkflowAdmissionQuotaError(AppException):
     status_code = 429
 
     def __init__(self, *, scope: str, limit: int, outstanding: int, requested: int) -> None:
+        self.can_fit_when_idle = requested <= limit
         super().__init__(
             # The workflow's own limit is its editors' setting, and says so.
             message=(
@@ -218,6 +219,20 @@ class WorkflowDispatchRefusedError(AppException):
     code = "DISPATCH_REFUSED"
 
 
+class ScriptActionUnavailableError(WorkflowDispatchRefusedError):
+    """A configured action no longer passes its resource check at dispatch."""
+
+    message = "The bound action or its resources are not available to this workflow run"
+    code = "SCRIPT_ACTION_UNAVAILABLE"
+
+
+class ScriptRetryUnsafeError(WorkflowDispatchRefusedError):
+    """A new run cannot safely repeat or replace an earlier action call."""
+
+    message = "The previous script call changed or its effect was not confirmed. Inspect the earlier run before starting a new one."
+    code = "SCRIPT_ACTION_RETRY_UNSAFE"
+
+
 class WorkflowGraphUnresolvableError(WorkflowDispatchRefusedError):
     """The run's graph, or the node a `NodeRun` names in it, no longer resolves."""
 
@@ -338,7 +353,8 @@ class WorkflowInlineStorageLimitError(AppException):
     code = "WORKFLOW_INLINE_STORAGE_LIMIT"
     status_code = 429
 
-    def __init__(self, *, scope: str) -> None:
+    def __init__(self, *, scope: str, can_fit_when_idle: bool = False) -> None:
+        self.can_fit_when_idle = can_fit_when_idle
         super().__init__(details={"scope": scope})
 
 

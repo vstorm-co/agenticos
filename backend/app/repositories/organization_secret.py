@@ -160,6 +160,7 @@ async def create(
     key_version: int,
     created_by_user_id: UUID | None,
     usage_scope: str = "organization",
+    mcp_oauth_server: str | None = None,
 ) -> OrganizationSecret:
     secret = OrganizationSecret(
         organization_id=organization_id,
@@ -174,6 +175,7 @@ async def create(
         key_version=key_version,
         created_by_user_id=created_by_user_id,
         usage_scope=usage_scope,
+        mcp_oauth_server=mcp_oauth_server,
     )
     db.add(secret)
     await db.flush()
@@ -296,3 +298,36 @@ async def authorization_generation(
             OrganizationSecret.organization_id == organization_id,
         )
     )
+
+
+async def mcp_oauth_client(
+    db: AsyncSession, *, organization_id: UUID, server_url: str
+) -> OrganizationSecret | None:
+    result = await db.execute(
+        select(OrganizationSecret)
+        .where(
+            OrganizationSecret.organization_id == organization_id,
+            OrganizationSecret.kind == "mcp_oauth_client",
+            OrganizationSecret.visibility == Visibility.ORG.value,
+            OrganizationSecret.mcp_oauth_server == server_url,
+        )
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
+async def event_source_secret(
+    db: AsyncSession, secret_id: UUID, *, organization_id: UUID, lock: bool = False
+) -> OrganizationSecret | None:
+    """Fresh ingress authority; optional shared lock keeps verification valid until receipt."""
+    query = (
+        select(OrganizationSecret)
+        .where(
+            OrganizationSecret.id == secret_id,
+            OrganizationSecret.organization_id == organization_id,
+        )
+        .execution_options(populate_existing=True)
+    )
+    if lock:
+        query = query.with_for_update(read=True)
+    return await db.scalar(query)

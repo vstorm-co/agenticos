@@ -29,7 +29,7 @@ from app.agents.capabilities import all_capabilities
 from app.agents.mcp import PLATFORM_MCP_PREFIX, tool_prefix
 from app.core.background import spawn_after_commit
 from app.core.exceptions import AppException, AuthorizationError
-from app.core.permissions import AuthContext, OrgRoleName
+from app.core.permissions import AuthContext, OrgRoleName, Perm
 from app.core.tool_identity import ToolIdentity
 from app.db.models.agent_run import AgentRun, ApprovalStatus, RunStatus
 from app.db.models.channel_bot import ChannelBot
@@ -44,7 +44,7 @@ from app.repositories import (
 )
 from app.services.agent_runner import AgentRunnerService, PausedRunState, RunSegment
 from app.services.approval_authority import may_decide_approval
-from app.services.approvals import ApprovalService
+from app.services.approvals import ApprovalService, may_decide
 from app.services.channel_bot import unseal_bot_token
 from app.services.channels import get_adapter
 from app.services.channels.base import (
@@ -614,15 +614,18 @@ class ChannelPrompts:
         presser in a shared channel is whoever tapped and the run is whose
         it is. A colleague's press on somebody else's run is refused before
         anything is written, exactly as a press on a question that was not
-        asked of them is.
+        asked of them is. The run's own person may also press their own
+        platform call that always asks, without the permission.
         """
+        if prompt.approval_id is None:  # pragma: no cover - the table's check constraint
+            return None
         run = await agent_run_repo.get_run(
             self.db, prompt.run_id, organization_id=ctx.organization_id
         )
-        if not may_decide_approval(ctx, run):
+        if not may_decide_approval(ctx, run) and not await self._may_decide(
+            ctx, prompt.approval_id, prompt.run_id
+        ):
             raise AuthorizationError(message=NOT_YOURS)
-        if prompt.approval_id is None:  # pragma: no cover - the table's check constraint
-            return None
         approved = choice == 0
         await ApprovalService(self.db).decide(ctx, prompt.approval_id, approved=approved)
         await channel_prompt_repo.answer(self.db, prompt=prompt, value={"approved": approved})
@@ -632,6 +635,26 @@ class ChannelPrompts:
         if any(approval.status == ApprovalStatus.PENDING.value for approval in approvals):
             return None
         return await self.runner.resume(ctx, prompt.run_id)
+
+    async def _may_decide(self, ctx: AuthContext, approval_id: UUID, run_id: UUID) -> bool:
+        """`approvals:decide`, or the run's own person pressing on their own platform call."""
+        if ctx.has(Perm.APPROVALS_DECIDE):
+            return True
+        approval = await agent_run_repo.get_approval(
+            self.db, approval_id, organization_id=ctx.organization_id
+        )
+        run = await agent_run_repo.get_run(self.db, run_id, organization_id=ctx.organization_id)
+        return (
+            approval is not None
+            and run is not None
+            and may_decide(
+                ctx,
+                tool_id=approval.tool_id,
+                always_asks=approval.always_asks,
+                person_id=run.user_id,
+                context=approval.context,
+            )
+        )
 
     async def _answer(
         self, ctx: AuthContext, prompt: ChannelPrompt, choice: int | None, typed: str | None

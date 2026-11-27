@@ -65,6 +65,8 @@ export interface NodeDefinition {
   scopes: string[];
   /** Disabled versions remain readable but cannot be added for new use. */
   available?: boolean;
+  /** Whether this version can be bound as a function in a Python actions step. */
+  python_callable?: boolean;
   /** Whether the node exists only inside a `control.foreach` body (`loop.item`, `loop.yield`). */
   loop_body_only?: boolean;
   /** Whether the node leaves by exactly one output port per run, so a merge may rejoin its branches. */
@@ -667,7 +669,7 @@ export interface WorkflowNodeRunRead {
   media_operation?: WorkflowMediaOperationRead | null;
   id: Uuid;
   node_instance_id: Uuid;
-  scope_path: { loop_node_id: Uuid; index: number }[];
+  scope_path: ({ loop_node_id: Uuid; index: number } | { action: string; index: number })[];
   status: NodeRunStatus;
   waiting_reason: string | null;
   attempts: number;
@@ -899,6 +901,8 @@ export interface WorkflowExposureRead {
   adapter: ExposureAdapter;
   is_active: boolean;
   execution_principal_user_id: Uuid | null;
+  /** The reusable source whose credentials authenticate this webhook. */
+  source_id: Uuid | null;
   run_input: Record<string, unknown>;
   schedule_kind: ExposureScheduleKind | null;
   interval_seconds: number | null;

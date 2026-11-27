@@ -735,19 +735,26 @@ def test_run_conversation_check_waits_for_every_account_delete_cascade() -> None
             db.add(agent)
             db.flush()
             chat_id = _legacy_conversation(db, org_id, owner.id, "Private")
-            # A Core insert names only these columns: the model is at head and the
-            # schema here is not.
+            # Core inserts still apply current Python defaults to later columns;
+            # historical SQL must stay independent of the model at head.
             run_id = uuid4()
             db.execute(
-                insert(AgentRun).values(
-                    id=run_id,
-                    organization_id=org_id,
-                    agent_id=agent.id,
-                    started_at=datetime.now(UTC),
-                    user_id=owner.id,
-                    conversation_id=chat_id,
-                    routine_policy={"approved_sources": []},
-                )
+                text(
+                    "INSERT INTO agent_runs "
+                    "(id, organization_id, agent_id, user_id, conversation_id, started_at, "
+                    "surface, status, input_tokens, output_tokens, cost_usd, cost_is_partial, "
+                    "routine_kind, routine_policy) VALUES "
+                    "(:id, :org, :agent, :owner, :chat, :started, 'web', 'running', "
+                    "0, 0, 0, false, 'trigger', '{\"approved_sources\": []}'::jsonb)"
+                ),
+                {
+                    "id": run_id,
+                    "org": org_id,
+                    "agent": agent.id,
+                    "owner": owner.id,
+                    "chat": chat_id,
+                    "started": datetime.now(UTC),
+                },
             )
             db.commit()
             owner_id = owner.id
@@ -2239,7 +2246,7 @@ def test_published_thread_chain_preserves_saved_profiles_and_matches_models(prev
         assert upgraded.returncode == 0, upgraded.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0367_merge_t3_chat_queue"
+                "0375_merge_t3_v1950"
             ]
             row = connection.execute(
                 text(
@@ -2334,6 +2341,12 @@ class TestRoomThreadMigration:
             "0366_merge_t3_thread_context",
             "0358_defer_dataset_source_links",
         )
+        sync_merge = script.get_revision("0375_merge_t3_v1950")
+        assert sync_merge is not None
+        assert sync_merge.down_revision == (
+            "0374_case_from_conversation",
+            "0367_merge_t3_chat_queue",
+        )
         source_links = script.get_revision("0358_defer_dataset_source_links")
         assert source_links is not None
         assert source_links.down_revision == "0357_accepted_queued_messages"
@@ -2346,7 +2359,7 @@ class TestRoomThreadMigration:
             "0365_merge_t3_v1930",
             "0358_room_thread_context",
         )
-        assert script.get_heads() == ["0367_merge_t3_chat_queue"]
+        assert script.get_heads() == ["0375_merge_t3_v1950"]
 
     def test_existing_quotes_survive_roundtrip_and_models_match_head(self) -> None:
         reset = _alembic("downgrade", "base")
@@ -2374,7 +2387,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0367_merge_t3_chat_queue"]
+                ).all() == ["0375_merge_t3_v1950"]
                 rows = connection.execute(
                     text(
                         "SELECT id,reply_to_message_id,thread_root_message_id FROM messages "
@@ -2476,7 +2489,7 @@ class TestRoomThreadMigration:
             with engine.connect() as connection:
                 assert connection.scalars(
                     text("SELECT version_num FROM alembic_version")
-                ).all() == ["0367_merge_t3_chat_queue"]
+                ).all() == ["0375_merge_t3_v1950"]
             check = _alembic("check")
             assert check.returncode == 0, check.stderr
         finally:
@@ -2679,7 +2692,7 @@ class TestRoomThreadMigration:
         assert resumed.returncode == 0, resumed.stderr
         with engine.connect() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0367_merge_t3_chat_queue"
+                "0375_merge_t3_v1950"
             ]
             assert connection.execute(
                 text("SELECT content, thread_root_message_id FROM messages WHERE id = :id"),
@@ -3633,7 +3646,7 @@ def test_personal_work_context_upgrades_a_database_at_the_t3_head() -> None:
         assert "personal_context_cache" in inspector.get_table_names()
         with engine.begin() as connection:
             assert connection.scalars(text("SELECT version_num FROM alembic_version")).all() == [
-                "0367_merge_t3_chat_queue"
+                "0375_merge_t3_v1950"
             ]
             assert (
                 connection.scalar(
@@ -4235,3 +4248,306 @@ def test_routine_chat_mode_migration_maps_destinations_without_changing_authorit
                 )
     finally:
         engine.dispose()
+
+
+class TestCaseFromConversationBackfill:
+    def test_a_case_from_a_chat_is_flagged_even_once_its_links_are_gone(self):
+        reset = _alembic("downgrade", "base")
+        assert reset.returncode == 0, reset.stderr
+        up = _alembic("upgrade", "0373_project_filesystem_mounts")
+        assert up.returncode == 0, up.stderr
+        rows: dict[str, tuple[str, str | None]] = {
+            "copied": ("conversation", None),
+            "drafted from a deleted chat": ("synthetic", "asked_by_user_id"),
+            "noted from a deleted chat": ("synthetic", "noted_by_user_id"),
+            "with a person's turn": ("synthetic", "history_author_ids"),
+            "drafted from a run": ("synthetic", "source_run_id"),
+            "drafted from a document": ("synthetic", "source_document_id"),
+            "typed": ("manual", None),
+            "imported": ("import", None),
+            "uncertain old revision": ("synthetic", None),
+            "uncertain current revision": ("synthetic", None),
+            "document reference already deleted": ("synthetic", None),
+            "document and chat": ("synthetic", "source_run_id"),
+            "document and note": ("synthetic", "noted_by_user_id"),
+            "document and history": ("synthetic", "history_author_ids"),
+        }
+        ids = {name: uuid4() for name in rows}
+        dataset, organization, uncertain_case = uuid4(), uuid4(), uuid4()
+        engine = create_engine(_url(MIGRATION_DATABASE))
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("SET LOCAL session_replication_role = replica"))
+                for position, (name, (source, link)) in enumerate(rows.items()):
+                    connection.execute(
+                        text(
+                            "INSERT INTO dataset_cases (id, dataset_id, organization_id, case_id, "
+                            "input, source, position, added_in, removed_in, improvement_partition, "
+                            "asked_by_user_id, noted_by_user_id, source_run_id, "
+                            "source_document_id, history, history_author_ids) VALUES (:id, "
+                            ":dataset, :org, :case, 'Q', :source, :position, :added, :removed, 'train', "
+                            ":asked_by_user_id, :noted_by_user_id, :source_run_id, "
+                            ":source_document_id, CAST(:history AS jsonb), "
+                            "CAST(:authors AS uuid[]))"
+                        ),
+                        {
+                            "id": ids[name],
+                            "dataset": dataset,
+                            "org": organization,
+                            "case": uncertain_case if name.startswith("uncertain") else uuid4(),
+                            "added": 2 if name == "uncertain current revision" else 1,
+                            "removed": 2 if name == "uncertain old revision" else None,
+                            "source": source,
+                            "position": position,
+                            **{
+                                column: uuid4()
+                                if column == link
+                                or (
+                                    name.startswith("document and ")
+                                    and column == "source_document_id"
+                                )
+                                else None
+                                for column in (
+                                    "asked_by_user_id",
+                                    "noted_by_user_id",
+                                    "source_run_id",
+                                    "source_document_id",
+                                )
+                            },
+                            "history": '[{"role": "user", "content": "Hi"}]'
+                            if link == "history_author_ids"
+                            else "[]",
+                            "authors": [str(uuid4())] if link == "history_author_ids" else [],
+                        },
+                    )
+            up = _alembic("upgrade", "head")
+            assert up.returncode == 0, up.stderr
+            with engine.connect() as connection:
+                flags = dict(
+                    connection.execute(
+                        text("SELECT id, from_conversation FROM dataset_cases")
+                    ).all()
+                )
+            assert {name: flags[ids[name]] for name in rows} == {
+                "copied": True,
+                "drafted from a deleted chat": True,
+                "noted from a deleted chat": True,
+                "with a person's turn": True,
+                "drafted from a run": True,
+                "drafted from a document": False,
+                "typed": False,
+                "imported": False,
+                "uncertain old revision": True,
+                "uncertain current revision": True,
+                "document reference already deleted": True,
+                "document and chat": True,
+                "document and note": True,
+                "document and history": True,
+            }
+            check = _alembic("check")
+            assert check.returncode == 0, check.stderr
+            down = _alembic("downgrade", "0373_project_filesystem_mounts")
+            assert down.returncode == 0, down.stderr
+            with engine.connect() as connection:
+                assert not connection.execute(
+                    text(
+                        "SELECT 1 FROM information_schema.columns WHERE "
+                        "table_name='dataset_cases' AND column_name='from_conversation'"
+                    )
+                ).first()
+                assert connection.scalar(text("SELECT count(*) FROM dataset_cases")) == len(rows)
+        finally:
+            engine.dispose()
+
+
+def test_event_source_downgrade_preserves_runnable_fire_jobs() -> None:
+    from app.db.models.background_job import BackgroundJob
+
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    legacy = {"trigger_id": str(uuid4()), "event_context": "already rendered"}
+    nullable = {**legacy, "event_source_id": None}
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                insert(BackgroundJob),
+                [
+                    {
+                        "kind": "fire-trigger",
+                        "pool": "agent",
+                        "max_attempts": 3,
+                        "status": status,
+                        "payload": nullable,
+                    }
+                    for status in ("queued", "running", "dead")
+                ],
+            )
+            source_job = connection.scalar(
+                insert(BackgroundJob)
+                .values(
+                    kind="fire-trigger",
+                    pool="agent",
+                    max_attempts=3,
+                    status="queued",
+                    payload={**legacy, "event_source_id": str(uuid4())},
+                )
+                .returning(BackgroundJob.id)
+            )
+        for status in ("queued", "dead"):
+            with engine.begin() as connection:
+                connection.execute(
+                    update(BackgroundJob)
+                    .where(BackgroundJob.id == source_job)
+                    .values(status=status)
+                )
+            refused = _alembic("downgrade", "0364_merge_routine_and_kb")
+            assert refused.returncode != 0 and "source-bound fire-trigger jobs" in refused.stderr
+        with engine.begin() as connection:
+            connection.execute(
+                update(BackgroundJob)
+                .where(BackgroundJob.id == source_job)
+                .values(status="cancelled")
+            )
+        result = _alembic("downgrade", "0364_merge_routine_and_kb")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as connection:
+            assert connection.scalars(
+                select(BackgroundJob.payload).where(
+                    BackgroundJob.payload["trigger_id"].astext == legacy["trigger_id"],
+                    BackgroundJob.status != "cancelled",
+                )
+            ).all() == [legacy, legacy, legacy]
+    finally:
+        with engine.begin() as connection:
+            connection.execute(
+                delete(BackgroundJob).where(
+                    BackgroundJob.payload["trigger_id"].astext == legacy["trigger_id"]
+                )
+            )
+        engine.dispose()
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+
+
+def test_event_source_downgrade_retires_only_obsolete_queue_work() -> None:
+    from app.db.models.background_job import BackgroundJob
+    from app.db.models.background_schedule import BackgroundSchedule
+    from app.db.models.background_task_kind import BackgroundTaskKind
+    from app.db.models.event_source import (
+        EventDelivery,
+        EventDispatch,
+        EventSource,
+        EventSourceCredential,
+    )
+    from app.db.models.organization import Organization
+
+    result = _alembic("upgrade", "head")
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    owner, org, credential, source, receipt, dispatch, job, sweep = (uuid4() for _ in range(8))
+    retention = "source-delivery-retention"
+    try:
+        with engine.begin() as conn:
+            conn.execute(_HISTORICAL_USER_INSERT, {"id": owner, "email": f"{owner}@example.com"})
+            conn.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {"id": org, "slug": str(org), "name": "Test", "owner": owner},
+            )
+            conn.execute(
+                insert(EventSourceCredential).values(
+                    id=credential, organization_id=org, sealed_secret="sealed", secret_key_version=1
+                )
+            )
+            conn.execute(
+                insert(EventSource).values(
+                    id=source,
+                    organization_id=org,
+                    secret_id=credential,
+                    name="Events",
+                    provider="webhook",
+                    auth={},
+                )
+            )
+            conn.execute(
+                insert(EventDelivery).values(
+                    id=receipt,
+                    organization_id=org,
+                    source_id=source,
+                    body={"event": "still needed"},
+                )
+            )
+            conn.execute(
+                insert(EventDispatch).values(
+                    id=dispatch, organization_id=org, delivery_id=receipt, status="pending"
+                )
+            )
+            conn.execute(
+                insert(BackgroundJob).values(
+                    id=job,
+                    kind="dispatch-source-event",
+                    pool="system",
+                    max_attempts=3,
+                    payload={"dispatch_id": str(dispatch), "organization_id": str(org)},
+                )
+            )
+            conn.execute(
+                insert(BackgroundJob).values(
+                    id=sweep, kind=retention, pool="system", max_attempts=1, status="running"
+                )
+            )
+            conn.execute(
+                insert(BackgroundSchedule).values(
+                    name=retention,
+                    kind=retention,
+                    interval_seconds=86400,
+                    next_run_at=datetime.now(UTC),
+                )
+            )
+            conn.execute(insert(BackgroundTaskKind).values(kind=retention))
+        blocked = _alembic("downgrade", "0364_merge_routine_and_kb")
+        assert blocked.returncode != 0 and "settle pending source work" in blocked.stderr
+        with engine.begin() as conn:
+            # A refused downgrade must leave the accepted input and job intact.
+            assert conn.scalar(select(EventDelivery.body).where(EventDelivery.id == receipt)) == {
+                "event": "still needed"
+            }
+            assert (
+                conn.scalar(select(BackgroundJob.status).where(BackgroundJob.id == job)) == "queued"
+            )
+            conn.execute(
+                update(EventDispatch)
+                .where(EventDispatch.id == dispatch)
+                .values(status="skipped", completed_at=datetime.now(UTC))
+            )
+        blocked = _alembic("downgrade", "0364_merge_routine_and_kb")
+        assert blocked.returncode != 0 and "running event source jobs" in blocked.stderr
+        with engine.begin() as conn:
+            conn.execute(
+                update(BackgroundJob)
+                .where(BackgroundJob.id == sweep)
+                .values(status="dead", last_error="original failure")
+            )
+        result = _alembic("downgrade", "0364_merge_routine_and_kb")
+        assert result.returncode == 0, result.stderr
+        with DatabaseSession(engine) as db:
+            for retired in (job, sweep):
+                row = db.get(BackgroundJob, retired)
+                assert row is not None and row.status == "cancelled"
+                assert row.finished_at is not None and row.settled_at is not None
+            assert db.get(BackgroundJob, sweep).last_error == "original failure"
+            assert db.get(BackgroundSchedule, retention) is None
+            assert (
+                db.scalar(select(BackgroundTaskKind.id).where(BackgroundTaskKind.kind == retention))
+                is None
+            )
+    finally:
+        with engine.begin() as conn:
+            conn.execute(delete(BackgroundJob).where(BackgroundJob.id.in_((job, sweep))))
+            conn.execute(delete(BackgroundSchedule).where(BackgroundSchedule.name == retention))
+            conn.execute(delete(BackgroundTaskKind).where(BackgroundTaskKind.kind == retention))
+            conn.execute(delete(Organization).where(Organization.id == org))
+            conn.execute(delete(User).where(User.id == owner))
+        engine.dispose()
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr

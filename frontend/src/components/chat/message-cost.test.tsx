@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { ChatCostContext } from "@/components/settings/console-experience-provider";
 import { MessageCost, RoundedCost } from "./message-cost";
 import type { TurnUsage } from "@/types";
 
@@ -101,3 +102,19 @@ describe("RoundedCost and the cache", () => {
     expect(screen.getByTitle(/500 read from the cache/)).toBeInTheDocument();
   });
 });
+
+it.each([MessageCost, RoundedCost])("hides cached spend under the reader policy", (Cost) => {
+  const { container } = render(
+    <ChatCostContext.Provider value={false}>
+      <Cost usage={usage()} />
+    </ChatCostContext.Provider>,
+  );
+  expect(container).toBeEmptyDOMElement();
+});
+it.each([MessageCost, RoundedCost])(
+  "does not invent a free price when accounting is withheld",
+  (Cost) => {
+    const { container } = render(<Cost usage={usage({ cost_usd: null })} />);
+    expect(container).toBeEmptyDOMElement();
+  },
+);

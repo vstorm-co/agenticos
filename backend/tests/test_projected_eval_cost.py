@@ -73,6 +73,7 @@ def test_retrieval_embeddings_and_repeats_are_visible_and_can_exhaust_the_budget
     from app.schemas.eval_run import EvalRunEstimate, KnowledgeCheckRecord, ProposalCheckRecord
 
     estimate = EvalRunEstimate(
+        dataset_version=1,
         cases=5,
         arms=[],
         judge_usd=Decimal(0),
@@ -134,6 +135,7 @@ def test_replacement_prices_freeze_each_model_and_its_judge_share(cached):
             )
         )
     estimate = EvalRunEstimate(
+        dataset_version=1,
         cases=2,
         arms=arms,
         judge_usd=Decimal("0.8"),

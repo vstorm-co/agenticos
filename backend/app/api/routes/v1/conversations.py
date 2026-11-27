@@ -8,6 +8,7 @@ from app.api.deps import (
     ActiveOrg,
     AgentRegistrySvc,
     Auth,
+    ChatCostVisibilitySvc,
     CodingTaskChangeSvc,
     ConversationShareSvc,
     ConversationSvc,
@@ -95,6 +96,7 @@ from app.schemas.room_submission import (
 from app.schemas.room_thread import RoomThreadActionRead, RoomThreadReadCursor
 from app.schemas.visual import VisualPublish, VisualPublished
 from app.schemas.workspace import (
+    ConversationWorkspaceOrigins,
     WorkspaceFileContent,
     WorkspaceFileRead,
     WorkspaceListing,
@@ -261,7 +263,7 @@ async def compaction_availability(
         return ConversationCompactionAvailability(available=False)
     try:
         _, spec, _ = await registry.get_runnable_spec(ctx, agent_id)
-    except AuthorizationError, BadRequestError, NotFoundError:
+    except (AuthorizationError, BadRequestError, NotFoundError):
         return ConversationCompactionAvailability(available=False)
     available = any(
         binding.id == "compaction"
@@ -567,6 +569,9 @@ async def list_conversations(
         "updated_at", description="Sort column"
     ),
     sort_dir: Literal["asc", "desc"] = Query("desc", description="Sort direction"),
+    favourites_first: bool = Query(
+        True, description="Pin favourites before the requested ordering"
+    ),
     hide_api: bool = Query(False, description="Leave out conversations opened over the API"),
     hide_channels: bool = Query(
         True,
@@ -604,6 +609,7 @@ async def list_conversations(
         archived_only=archived_only,
         sort_by=sort_by,
         sort_dir=sort_dir,
+        **({"favourites_first": False} if not favourites_first else {}),
         hide_api=hide_api,
         hide_channels=hide_channels,
         project_id=project_id,
@@ -743,6 +749,7 @@ async def get_conversation(
     current_user: CurrentUser,
     active_org: ActiveOrg,
     ctx: Auth,
+    costs: ChatCostVisibilitySvc,
     include_messages: bool = Query(True),
 ) -> Any:
     """Get a conversation, optionally including its full transcript.
@@ -770,7 +777,9 @@ async def get_conversation(
         ctx=ctx,
     )
 
-    return conversation if include_messages else ConversationRead.model_validate(conversation)
+    if not include_messages:
+        return ConversationRead.model_validate(conversation)
+    return await costs.conversation(ctx, ConversationReadWithMessages.model_validate(conversation))
 
 
 @router.get("/{conversation_id}/forks", response_model=ConversationForkList)
@@ -1063,6 +1072,7 @@ async def list_messages(
     current_user: CurrentUser,
     active_org: ActiveOrg,
     ctx: Auth,
+    costs: ChatCostVisibilitySvc,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     latest: bool = False,
@@ -1113,11 +1123,14 @@ async def list_messages(
         if top_level_only
         else []
     )
-    return MessageList(
-        items=[MessageRead.model_validate(item) for item in items],
-        total=total,
-        cost=cost,
-        moved_thread_stubs=stubs,
+    return await costs.transcript(
+        ctx,
+        MessageList(
+            items=[MessageRead.model_validate(item) for item in items],
+            total=total,
+            cost=cost,
+            moved_thread_stubs=stubs,
+        ),
     )
 
 
@@ -1176,15 +1189,19 @@ async def add_message(
     conversation_service: ConversationSvc,
     current_user: CurrentUser,
     active_org: ActiveOrg,
+    ctx: Auth,
+    costs: ChatCostVisibilitySvc,
 ) -> Any:
     """Add a message to a conversation in the caller's organization.
 
     Unscoped, this accepted a `role: "assistant"` turn into any conversation
     in the deployment, and it rendered to its owner as the agent's answer.
     """
-    return await conversation_service.add_message(
+    message = await conversation_service.add_message(
         conversation_id, data, organization_id=active_org.id, user_id=current_user.id
     )
+
+    return await costs.message(ctx, MessageRead.model_validate(message))
 
 
 @router.post(
@@ -1394,6 +1411,17 @@ async def list_workspace_files(
         unreadable_code=contents.unreadable_code,
         truncated=contents.truncated,
     )
+
+
+@router.get("/{conversation_id}/workspace-origins", response_model=ConversationWorkspaceOrigins)
+async def list_workspace_origins(conversation_id: UUID, workspaces: WorkspaceSvc, ctx: Auth) -> Any:
+    """List actual project and agent file origins without starting any runtime.
+
+    Each origin is read through its own existing resource endpoint: project_id
+    selects project files, workspace_id selects agent files. Identical paths in
+    separate origins never fall back to one another. Access is rechecked on reads.
+    """
+    return await workspaces.origins(ctx, conversation_id=conversation_id)
 
 
 @router.get("/{conversation_id}/workspace/file", response_model=WorkspaceFileContent)

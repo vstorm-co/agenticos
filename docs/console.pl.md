@@ -1,5 +1,5 @@
 ---
-source_sha: "1ff5f4e1ee1b"
+source_sha: "9004b0be9a02"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -214,6 +214,32 @@ Ustawienia instalacji mają też opcjonalny termin **Wygaśnięcia ogłoszenia**
 
 Administracja jest dostępna w menu konta. Jej ustawienia używają wspólnych zakładek i zachowują draft podczas przełączania sekcji. Pamięć i Notatki wypełniają pozostały obszar, przewijają własne wiersze i zachowują stopkę **1 / 1**. Zwykły Architect używa tej samej rodziny generowanych portretów co inni agenci; własne przesłane obrazy pozostają zachowane. Widoki skrzynki współdzielą wygląd wierszy, a przeciąganie Kanbana pokazuje rzeczywistą kartę. Późniejsze kroki konfiguracji zachowują spójny układ nagłówka, formularza i ilustracji; kontynuacja niezmienionego profilu nie zgłasza zapisu.
 
+### Menu i podpowiedzi produktowe { #console-presentation }
+
+W **Admin → Deployment → Tożsamość → Dostępność konsoli** operator wybiera sekcje menu i opcjonalne podpowiedzi dostępne dla organizacji. Organizacja ustawia **Konsolę dla każdej roli** w **AI i usługi**: wybiera wbudowaną rolę, zmienia menu, sprawdza podgląd i zapisuje. **Prosty asystent** wybiera Chat, Inbox, Projekty i Dokumenty. To opcjonalny preset, a nie nowa konfiguracja obecnych kont.
+
+Użytkownik może zawęzić ten wybór w **Ustawienia → Profil → Moje menu**. Pusta lista celowo ukrywa wszystkie główne pozycje; wybór odziedziczony podąża za organizacją i deploymentem. Zmiany menu wymagają **Zapisu**, a opuszczenie strony z niezapisanym wyborem wyświetla ostrzeżenie. Ustawienia konta, przełączanie organizacji i dostęp administratora pozostają osiągalne. Ukrycie strony nie odbiera uprawnień: uprawniona osoba nadal otworzy jej URL. Zwykłe sprawdzenie uprawnień działa po filtrowaniu widoku.
+
+Podgląd roli pokazuje menu z uwzględnieniem uprawnień tej roli oraz administratora. Nie działa w imieniu innej osoby i nie wczytuje jej danych. **Podpowiedzi produktowe** osobno sterują zaproszeniem do aplikacji desktopowej i automatycznymi informacjami o wydaniach oraz instalacji na telefonie, na poziomie deploymentu, organizacji i członkostwa. Wybór osobisty nie omija nadrzędnych ograniczeń. Komunikaty o konserwacji, dostępności usługi i bezpieczeństwie działają jak dotychczas; ukrycie zaproszenia nie wyłącza zainstalowanej aplikacji.
+
+
+### Katalogi i dashboardy ról { #console-catalogs }
+
+**Konsola dla każdej roli** obejmuje również galerie MCP i Skills. Można wybrać wszystkie dostępne pozycje, jawną listę dozwolonych albo tylko serwery podłączone przez organizację / widoczne zainstalowane Skills. Ograniczenia galerii organizacji dotyczą ról bez zarządzania katalogiem; zarządzających nadal ograniczają ustawienia wdrożenia i własne. Użytkownik zawęża swoje galerie w **Ustawienia → Profil → Katalogi**. Pusta lista celowo nie udostępnia pozycji.
+
+Ograniczenia katalogu zmieniają odkrywanie funkcji, nie uprawnienia narzędzi. Istniejące dostępne konta pozostają obsługiwane w **Połączone**, a powiązania opublikowanych agentów zachowują dotychczasowe kontrole dostępu. Serwer filtruje wyniki przed liczeniem i stronicowaniem. Prywatna kopia Skill innej osoby nie jest pokazywana jako zainstalowana komuś bez dostępu. Odświeżenie polityki konsoli unieważnia pamięć podręczną galerii.
+
+Aby ustawić **Domyślny dashboard** roli, najpierw ułóż i zapisz własny dashboard, a następnie skopiuj go w ustawieniach roli. Przejrzyj podgląd samego układu i osobno zapisz. Przed udostępnieniem usuń filtry przypięte do konkretnej osoby lub agenta. Zapobiega to rozprowadzaniu prywatnych identyfikatorów w ustawieniach organizacji. Układ zachowuje obsługiwane szerokości, wysokości, sekcje i opcje prezentacji; nie kopiuje wektorów ani danych widżetów.
+
+Skonfigurowany układ roli staje się jej stroną główną. Własny zapisany układ użytkownika ma pierwszeństwo, również celowo pusty. Reset własnego układu ponownie dziedziczy ustawienie roli. Brak ustawienia roli zachowuje standardową stronę główną. Uprawnienia widżetów są sprawdzane na końcu dla każdej osoby. Nieudany odczyt układu lub polityki pokazuje błąd i ponowienie zamiast chwilowo wyświetlać inny układ.
+
+### Koszty w chacie { #chat-cost-visibility }
+
+**Koszty w chacie** mają ściślejszą hierarchię: dostępność w deploymencie → odbiorcy w organizacji → wybór użytkownika. Deployment może ukryć koszty w całym chacie. W ustawieniach **AI i usługi** organizacji wybierz **Wszyscy** (domyślnie), **Osoby z dostępem do wydatków** (`budgets:manage` lub `runs:view`) albo **Nikt w chacie**. W **Ustawienia → Profil** użytkownik może ukryć koszty u siebie, ale nie może obejść nadrzędnego ograniczenia.
+
+Reguła obejmuje ceny odpowiedzi, koszty delegacji, sumy rozmów i procent wykorzystanego budgetu, także w zapisanej historii, streamie po ponownym połączeniu, współdzielonych chatach i kontynuacjach Q&A. Ukryte metadane finansowe nie trafiają do odpowiedzi API chatu; odczyty tokenów i kontekstu pozostają dostępne. Reguła nie zmienia tekstu odpowiedzi agenta ani dowolnych wyników narzędzi. Księgowanie i egzekwowanie budgetów działają bez zmian. Koszty w Activity i dashboardzie zachowują własne uprawnienia.
+
+
 ## Dashboard { #the-dashboard }
 
 Strona startowa to **układalna siatka widgetów** i jest odpowiedzią na pytanie
@@ -305,6 +331,8 @@ migawkę, którą chciałeś zachować.
 ## Rutyny i obserwacje { #routines-and-watches }
 
 Nowe rutyny automatycznie korzystają z dostępnej konfiguracji agenta przy tworzeniu, w zatwierdzonej granicy dostępu i zachowania. Wstępny przegląd dostępu nie jest wymagany; brak opcjonalnego konta MCP nie blokuje niezwiązanej z nim pracy. Późniejsze rozszerzenia źródeł lub narzędzi oraz zmiany instrukcji, skills, kontekstu albo delegatów wymagają przeglądu twórcy przed uruchomieniem. Zmiany samego modelu i bezpieczne ograniczenia pozostają w zatwierdzonej granicy. Nadal obowiązują zgody agenta, obowiązkowe zgody platformy i zgoda na lokalny folder. Okno dostępu pozwala też zachować zatwierdzony snapshot; istniejące ograniczone rutyny zachowują swoją politykę do zmiany przez właściciela.
+
+Domyślnie dozwolone narzędzia nowych rutyn działają automatycznie według reguł zatwierdzania agenta, a uruchomienia trafiają do jednego czatu tylko do odczytu. Osobny czat na run pozwala od razu kontynuować rozmowę; wspólną historię można sforkować. W **Narzędziach rutyny** opcje **Jak u agenta**, **Pytaj za każdym razem** i **Wyłączone** zachowują lub zaostrzają reguły agenta; wymagane zgody nadal obowiązują. Zapis ograniczeń starszej rutyny usuwa poprzednie stałe zgody, o czym dialog ostrzega. Zobacz [Narzędzia rutyny](governance.md#routine-action-consent).
 
 Gdy **Skip this run** pomija termin z powodu trwającego uruchomienia, historia zapisuje przyczynę bez nowego uruchomienia ani opłat. Jeśli serwer przyznaje Ci prawo do zatrzymania oczekującego uruchomienia, możesz zrobić to bezpośrednio w historii. Zatrzymanie zachowuje naliczone koszty i odblokowuje kolejny termin harmonogramu. Kolejne pominięcia przez ten sam niedokończony przebieg mają jeden wspólny wpis w historii.
 
@@ -1164,6 +1192,12 @@ szkicu albo z sesji do jej runa trafia na wiersz, który lista pokazuje.
 
 ## Do czego służy każdy obszar { #what-each-area-is-for }
 
+**Źródła zdarzeń** pozostają dostępne pod `/event-sources`, ale nie są domyślną pozycją paska bocznego. Stronę zarządzania otworzysz z wyboru źródła w rutynie lub workflow. Możesz dodać ją przez dostosowanie nawigacji; jawne wybory roli w organizacji i osobiste zostają zachowane.
+
+**Overview** (Dashboard), **Chat** i **Inbox** są na początku sidebara.
+**Build & manage** pokazuje Agents, Workflows, Routines i Apps bez rozwijania;
+następne są Projects.
+
 **Home**, **Chat**, **Inbox** i **Agent messages** są na stałe na górze sidebara.
 Pod nimi są przypięte pozycje, w kolejności przypinania; każde konto zaczyna bez
 żadnej. **More** otwiera wszystko, co możesz zobaczyć, pogrupowane jako Pages, Build,
@@ -1451,3 +1485,8 @@ Nowe konta otwierają `/onboarding` po rejestracji hasłem lub pierwszym logowan
 Po subskrypcjach konfiguracja modelu pokazuje najpierw dostawcę, następnie połączenie i model. Subskrypcje osobiste pozostają w poprzednim kroku. Narzędzia zaczynają od sugerowanych usług; **Przeglądaj wszystkie usługi** otwiera pełny katalog MCP.
 
 Gdy agent zadaje pytanie, karta i zwykły edytor pozostają widoczne razem. Edytor zachowuje szkic i załączniki; nowe wiadomości czekają w kolejce, a odpowiedź na pytanie wysyłasz przez kartę. Zatrzymanie odpowiedzi wstrzymuje kolejkę do jej świadomego wznowienia. Zwykłe zakończenie odpowiedzi nadal uruchamia kolejne wiadomości.
+
+
+## Płaska lista ostatnich chatów { #flat-recent-chat-list }
+
+Nagłówek Chatów oferuje **Ostatnią aktywność (płaską listę)**. Łączy chaty projektowe i zwykłe w jedną listę według ostatniej aktywności, bez nagłówków projektów, nieprzeczytanych i ulubionych. Ulubione zachowują gwiazdki, ale nie są przypinane ponad nowszą aktywnością. Paginacja korzysta z tej kolejności na serwerze, więc stare ulubione nie wypychają ostatnich chatów z pierwszej strony. Dotychczasowe filtry agenta, archiwum i API nadal działają. Wybór jest zapisywany w tej przeglądarce osobno dla każdego zalogowanego użytkownika; **Grupuj chaty według projektu** przywraca domyślny widok grupowany.

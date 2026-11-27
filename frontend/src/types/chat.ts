@@ -110,6 +110,12 @@ export interface ChatMessage {
   clientMessageId?: string;
   /** A saved bubble still addressed by its local id while deltas arrive. */
   persistedId?: string;
+  /**
+   * The live answer of a turn whose socket went away. Its `message_saved`
+   * was due on that socket and will not come, so a re-read replaces it with the
+   * saved row, and a replay of the same turn replaces it on attachment.
+   */
+  socketDropped?: boolean;
   id: string;
   /** Stable position in a persisted conversation; absent on older servers and live turns. */
   ordinal?: number | null;
@@ -537,7 +543,7 @@ export interface TurnUsage {
   /** Of `input_tokens`, those written to the provider's cache - priced above it. */
   cache_write_tokens?: number | null;
   /** The turn's cost as a Decimal string, the shape every REST surface uses. */
-  cost_usd: string;
+  cost_usd?: string | null;
   /**
    * Whether `cost_usd` is a floor rather than the whole of it.
    *
@@ -546,7 +552,7 @@ export interface TurnUsage {
    * as a caveat rather than dropped - a number nobody can act on is still worth
    * more than nothing, provided it does not claim to be exact.
    */
-  cost_is_partial: boolean;
+  cost_is_partial?: boolean | null;
   budget_percent: number | null;
   /** This agent's own monthly cap, which is the one an author can raise. */
   agent_budget_percent: number | null;
@@ -628,6 +634,10 @@ export interface ActionRequest {
   always_asks?: boolean;
   /** Whether this caller may decide this call. Absent on the live frame, which the role check covers; set on a reloaded panel, where the run may be somebody else's. */
   can_decide?: boolean;
+  /** Whether this person may answer the call at all: `approvals:decide`, or it is their own platform call. */
+  may_decide?: boolean;
+  /** Whether an approval from this person would be accepted. */
+  may_approve?: boolean;
 }
 
 export interface ReviewConfig {
@@ -879,7 +889,7 @@ export interface ConversationCost {
   input_tokens: number;
   output_tokens: number;
   /** A string on the wire, because money is `Numeric`. */
-  cost_usd: string | number;
+  cost_usd?: string | number | null;
   /** Null where no turn recorded the flag - "nobody knows", not "exact". */
   cost_is_partial: boolean | null;
 }

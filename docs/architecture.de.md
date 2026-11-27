@@ -1,5 +1,5 @@
 ---
-source_sha: "6a33855a6a23"
+source_sha: "4d4baf538454"
 ---
 
 # Architektur { #architecture }
@@ -438,6 +438,25 @@ bloßen Daten:
 | --------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------- |
 | `WORKSPACE_RESOURCE`        | dem geöffneten Workspace, den der Run auch als `ctx.workspace` erhält | `tool_output_limits` und einem Delegierten, der `sandbox` teilt |
 | `SUBAGENT_RUNTIME_RESOURCE` | dem aufgelösten Delegationsbaum                                       | der `subagents`-Capability                                      |
+
+Live-Projekt-Mounts verwenden eine zweite, bewusst schmale Servicegrenze. Der Runner
+injiziert einen Projektauswahl-Port; Capabilities lesen nicht direkt die Datenbank.
+Das Projektdateisystem-Gateway prüft Mitgliedschaft, Grants, Lease und Workspace-
+Generation bei jedem RPC in einer eigenen Transaktion neu. Ein Binding-Zugangstoken
+bezeichnet einen privaten Agenten-Workspace; unveränderliche Lease-Verzeichnisse
+bezeichnen autorisierten Projektzugriff eines Laufs. Leases laufen nach 90 Sekunden
+ab, werden alle 30 Sekunden erneuert und bei Laufende, Pause oder Auswahlwechsel
+widerrufen.
+
+Der vertrauenswürdige SDK-Broker prüft die Binding-Identität vor Sitzungsstart und
+Ausführung, hält den Exporter auf einer privaten Bridge und bindet nur ein benanntes
+NFS-Volume in den bestehenden Agentencontainer ein. Projektprovider bleiben für die
+Dateien maßgeblich. State liefert transaktionale Prüfung exklusiver Dateierstellung;
+nativer Speicher benötigt dauerhafte erweiterte Attribute und atomare Hardlinks.
+Nicht unterstützte Provider oder Scopes verweigern die Zulassung. Exporter-Epochen
+bleiben für gemountete Handles unveränderlich; ein Wechsel stoppt den behaltenen
+Agenten bis zur expliziten Wiederherstellung, ohne leeren Ersatz oder automatische
+Wiederholung unterbrochener Befehle.
 
 Delegation ist der schärfste Fall für diese Regel. Ein Delegierter ist eine Zeile;
 ebenso seine gepinnte Version, seine Collections, seine Skills und seine Secrets,

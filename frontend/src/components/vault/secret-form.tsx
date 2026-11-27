@@ -1,5 +1,7 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+import type { FieldCopyFor } from "@/components/agents/capability-field-copy";
 import { SchemaForm } from "@/components/agents/schema-form";
 import {
   BrowserSecretFields,
@@ -46,6 +48,8 @@ export function SecretFields({
   idPrefix,
   errors,
 }: SecretFieldsProps) {
+  // Above the browser-kind return: hooks run in the same order on every render.
+  const t = useTranslations("eventSources");
   if (isBrowserSecretKind(info.kind)) {
     return (
       <BrowserSecretFields
@@ -58,12 +62,18 @@ export function SecretFields({
       />
     );
   }
+  const copyFor: FieldCopyFor = (field) =>
+    info.kind === "webhook_credentials" && (field === "username" || field === "password")
+      ? { title: t(field), description: "" }
+      : null;
   return (
     <div className="space-y-4">
       {/* What the shape is, only where there is more than one field to read
           it against: over a lone API key field it was a sentence about nothing. */}
       {secretFieldNames(info.json_schema).length > 1 && (
-        <p className="text-muted-foreground text-xs leading-relaxed">{info.description}</p>
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          {info.kind === "webhook_credentials" ? t("vaultBasicHelp") : info.description}
+        </p>
       )}
       <SchemaForm
         schema={info.json_schema}
@@ -72,6 +82,7 @@ export function SecretFields({
         disabled={disabled}
         idPrefix={idPrefix}
         errors={errors}
+        copyFor={copyFor}
       />
     </div>
   );

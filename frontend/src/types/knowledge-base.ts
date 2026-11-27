@@ -255,10 +255,10 @@ export interface KBDocument {
   filetype: string | null;
   filesize: number | null;
   /**
-   * `rag_documents.status`, as the worker wrote it - `processing`, `done` or
+   * `rag_documents.status`, as the worker wrote it - `stored`, `processing`, `done` or
    * `error`. Read it through `ragStatus` in `@/lib/rag-status`.
    *
-   * Not narrowed to those three, because the column is a free `String(20)` and
+   * Not narrowed to those tokens, because the column is a free `String(20)` and
    * nothing constrains it to them. This used to claim `pending | completed |
    * failed`, three words the backend has never written, and the badge built on
    * that union drew every finished document as its raw token (#356).
@@ -268,15 +268,17 @@ export interface KBDocument {
   vector_document_id: string | null;
   chunk_count: number;
   has_file: boolean;
+  /** A stored parsed snapshot or completed indexed content is available. */
+  has_parsed_content: boolean;
   created_at: string;
   completed_at: string | null;
   /**
    * What actually read this document, rather than what the collection is
    * configured with today.
    *
-   * Recorded at upload and never revised, which is the point: the collection's
-   * configuration moves on, and comparing the two later would start calling
-   * ordinary uploads departures. `null` on documents ingested before any of this
+   * Recorded for the current ingestion attempt: changing collection settings
+   * does not reparse an existing document. Explicit indexing of an imported
+   * original starts a new attempt with the destination configuration. `null` on documents ingested before any of this
    * was recorded.
    */
   parser: string | null;

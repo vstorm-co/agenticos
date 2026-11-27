@@ -26,9 +26,18 @@ function labelOf(item: EvidenceItem, index: number, source?: EvidenceSource) {
  * those that were not says something was removed. A reader without `runs:view`
  * gets the links without the words.
  */
-export function EvidenceList({ items, dropped }: { items: EvidenceItem[]; dropped: number }) {
+export function EvidenceList({
+  items,
+  dropped,
+  hidden = 0,
+}: {
+  items: EvidenceItem[];
+  dropped: number;
+  /** Items from agents the reader may not see, counted rather than shown. */
+  hidden?: number;
+}) {
   const t = useTranslations("authoring.evidence");
-  if (items.length === 0 && dropped === 0) {
+  if (items.length === 0 && dropped === 0 && hidden === 0) {
     return <p className="text-muted-foreground text-xs">{t("none")}</p>;
   }
   return (
@@ -52,8 +61,15 @@ export function EvidenceList({ items, dropped }: { items: EvidenceItem[]; droppe
       {dropped > 0 && (
         <p className="text-muted-foreground text-xs">{t("dropped", { count: dropped })}</p>
       )}
+      <HiddenEvidence count={hidden} />
     </div>
   );
+}
+
+function HiddenEvidence({ count }: { count: number }) {
+  const t = useTranslations("authoring.evidence");
+  if (count === 0) return null;
+  return <p className="text-muted-foreground text-xs">{t("hidden", { count })}</p>;
 }
 
 /**
@@ -63,43 +79,49 @@ export function EvidenceList({ items, dropped }: { items: EvidenceItem[]; droppe
 export function ConversationEvidence({
   items,
   sources,
+  hidden = 0,
 }: {
   items: EvidenceItem[];
   sources: Record<string, EvidenceSource>;
+  /** Items from agents the reader may not see, counted rather than shown. */
+  hidden?: number;
 }) {
   const t = useTranslations("improvement");
-  if (items.length === 0)
+  if (items.length === 0 && hidden === 0)
     return <p className="text-muted-foreground text-xs">{t("basedOnNone")}</p>;
   return (
-    <ul className="space-y-2">
-      {items.map((item, index) => {
-        const known = sources[item.run_id];
-        const { kind, number } = labelOf(item, index, known);
-        const conversation = known?.conversation_id;
-        const values = {
-          kind,
-          number,
-          source: (chunks: ReactNode) =>
-            conversation ? (
-              <Link href={`/chat/${conversation}`} className="underline">
-                {chunks}
-              </Link>
-            ) : (
-              <span className="font-medium">{chunks}</span>
-            ),
-        };
-        return (
-          <li key={`${item.run_id}-${index}`} className="space-y-0.5 text-xs">
-            {item.quote !== null && <q className="block italic">{item.quote}</q>}
-            <p className="text-muted-foreground line-clamp-2 break-words">
-              {known?.question
-                ? t.rich("basedOnSourceAsked", { ...values, question: known.question })
-                : t.rich("basedOnSource", values)}
-            </p>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="space-y-2">
+      <ul className="space-y-2">
+        {items.map((item, index) => {
+          const known = sources[item.run_id];
+          const { kind, number } = labelOf(item, index, known);
+          const conversation = known?.conversation_id;
+          const values = {
+            kind,
+            number,
+            source: (chunks: ReactNode) =>
+              conversation ? (
+                <Link href={`/chat/${conversation}`} className="underline">
+                  {chunks}
+                </Link>
+              ) : (
+                <span className="font-medium">{chunks}</span>
+              ),
+          };
+          return (
+            <li key={`${item.run_id}-${index}`} className="space-y-0.5 text-xs">
+              {item.quote !== null && <q className="block italic">{item.quote}</q>}
+              <p className="text-muted-foreground line-clamp-2 break-words">
+                {known?.question
+                  ? t.rich("basedOnSourceAsked", { ...values, question: known.question })
+                  : t.rich("basedOnSource", values)}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+      <HiddenEvidence count={hidden} />
+    </div>
   );
 }
 

@@ -42,7 +42,7 @@ from app.db.models.ml_service_call import MLServiceCall
 from app.db.models.resource_grant import Visibility
 from app.main import app
 from app.repositories.agent_run import ApprovalRow, WindowAggregates, WindowBreakdown
-from app.schemas.agent import ParkedCall, ParkedQuestion
+from app.schemas.agent import AgentRunResult, ParkedCall, ParkedQuestion
 from app.services.agent_runner import RunSegment
 from app.services.ml import MLService
 from app.services.parked_runs import Continued, DecidedApproval
@@ -124,6 +124,7 @@ class _Absent:
 
 _SERVICE_DEPS = (
     deps.get_agent_registry_service,
+    deps.get_portability_service,
     # The org-wide `GET /triggers` and `POST /triggers/readiness` are the gated trigger
     # routes, so past their gate the stub answers 404 like the rest; the per-agent
     # routes are ungated and never reach this sweep.
@@ -158,6 +159,14 @@ _SERVICE_DEPS = (
     deps.get_solution_service,
 )
 
+
+class _VisibleRunCosts:
+    """The route contract projects a supplied run; disclosure policy has its own tests."""
+
+    async def run_result(self, _ctx: AuthContext, data: AgentRunResult) -> AgentRunResult:
+        return data
+
+
 Provider = Callable[[], object]
 
 
@@ -189,6 +198,7 @@ def as_role(mock_redis: MagicMock) -> Iterator[ClientFactory]:
         app.dependency_overrides[deps.get_db_session] = lambda: absent
         for factory in _SERVICE_DEPS:
             app.dependency_overrides[factory] = lambda: absent
+        app.dependency_overrides[deps.get_chat_cost_visibility_service] = _VisibleRunCosts
         app.dependency_overrides.update(overrides or {})
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             yield client
@@ -347,6 +357,21 @@ CALLS: tuple[Call, ...] = (
     # How close the organization is to its agent limit: only a caller who can
     # create an agent has a use for it.
     Call("GET", "/agents/ceiling", Perm.AGENTS_EDIT),
+    Call("GET", "/agents/import-destinations", Perm.AGENTS_EDIT, query="?kind=agent"),
+    Call("POST", "/agents/import-preview", Perm.AGENTS_EDIT, body={"text": "{}"}),
+    Call(
+        "POST",
+        "/agents/import",
+        Perm.AGENTS_EDIT,
+        body={
+            "operation_id": str(_SOME_ID),
+            "bundle": {
+                "roots": [f"agent/{_SOME_ID}"],
+                "resources": [{"key": f"agent/{_SOME_ID}", "kind": "agent", "name": "Draft"}],
+            },
+            "choices": {},
+        },
+    ),
     Call("POST", "/agents", Perm.AGENTS_EDIT, body={"spec": _SPEC}),
     # A system agent is an agent too, so it is gated like `create`.
     Call("POST", "/agents/system", Perm.AGENTS_EDIT, body={"kind": "judge", "name": "Grader"}),
@@ -391,6 +416,7 @@ CALLS: tuple[Call, ...] = (
     # opens any run, and the person who started one opens and retries that one
     # without it - the link in an expired-approval notice. The runner service decides;
     # `tests/test_own_run_open.py` proves the refusals.
+    Call("GET", "/runs/{run_id}", Perm.RUNS_VIEW),
     Call("GET", "/runs/{run_id}/parked", Perm.APPROVALS_DECIDE),
     Call("POST", "/runs/{run_id}/resume", Perm.APPROVALS_DECIDE),
     Call("GET", "/approvals", Perm.APPROVALS_DECIDE),
@@ -516,6 +542,20 @@ CALLS: tuple[Call, ...] = (
         "/workflows/media-operations/{operation_id}/resolve",
         Perm.BUDGETS_MANAGE,
         body={"outcome": "not_charged"},
+    ),
+    Call("POST", "/workflows/bundle-import-preview", Perm.WORKFLOWS_CREATE, body={"text": "{}"}),
+    Call(
+        "POST",
+        "/workflows/bundle-import",
+        Perm.WORKFLOWS_CREATE,
+        body={
+            "operation_id": str(_SOME_ID),
+            "bundle": {
+                "roots": [f"workflow/{_SOME_ID}"],
+                "resources": [{"key": f"workflow/{_SOME_ID}", "kind": "workflow", "name": "Draft"}],
+            },
+            "choices": {},
+        },
     ),
     Call("GET", "/workflow-runs", Perm.WORKFLOWS_VIEW),
     # Which providers exist and what shape of credential each takes is read by
@@ -1566,6 +1606,8 @@ class TestReadingWhatARunIsParkedOn:
                 # The stubbed calls carry the field's default: nothing here
                 # said this caller may decide them.
                 "can_decide": False,
+                "may_decide": False,
+                "may_approve": False,
             },
             {
                 "id": str(shared_id),
@@ -1581,6 +1623,8 @@ class TestReadingWhatARunIsParkedOn:
                 "content_hidden": False,
                 "always_asks": False,
                 "can_decide": False,
+                "may_decide": False,
+                "may_approve": False,
             },
         ]
 
@@ -1781,7 +1825,12 @@ class TestResumeAnswersWithWhatTheContinuationDid:
             async def parked_questions(self, *args: Any, **kwargs: Any) -> list[Any]:
                 return []
 
-        overrides = {deps.get_agent_runner_service: lambda: _Resuming()}
+        runner = _Resuming()
+        parked = MagicMock(resume=AsyncMock(return_value=Continued(await runner.resume(), False)))
+        overrides = {
+            deps.get_agent_runner_service: lambda: runner,
+            deps.get_parked_run_service: lambda: parked,
+        }
         async with as_role(only(Perm.APPROVALS_DECIDE), overrides) as client:
             response = await client.post(_url(f"/runs/{run.id}/resume"))
 
@@ -2173,6 +2222,10 @@ V1 = settings.API_V1_STR
 # in the diff of this list is a route a reviewer will look at.
 UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
+        # Sandbox supervisors use an exact workspace binding token, never session JWTs.
+        # Every file RPC additionally reauthorizes the live run and Project lease.
+        ("GET", f"{V1}/project-filesystem/bindings/{{binding_id}}"),
+        ("POST", f"{V1}/project-filesystem/bindings/{{binding_id}}/fs"),
         # Twilio fetches staged MMS bytes with an expiring, media-bound token.
         ("GET", f"{V1}/sms/media/{{media_id}}"),
         # A BlueBubbles bridge supplies its configured bearer credential, not a user session.
@@ -2359,6 +2412,8 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # service verifies that HMAC against the trigger named in the path. A
         # session here would mean the integration could never deliver.
         ("POST", f"{V1}/webhooks/triggers/{{source}}/{{trigger_id}}"),
+        # Reusable sources verify the sender against the named source's credentials.
+        ("POST", f"{V1}/webhooks/sources/{{source_id}}"),
         # A GitHub App's single delivery URL. The same arrangement with the routing
         # moved into the body: an App has one URL and one signing secret per
         # installation, so the path names nothing and the installation id in the
@@ -2664,12 +2719,19 @@ class TestAQuestionTheRunParkedOn:
             parked_questions=AsyncMock(return_value=[]),
         )
         body = {"responses": {"ask-1": [{"selected": ["Casual"]}]}}
-        async with as_role("viewer", {deps.get_agent_runner_service: lambda: service}) as client:
+        parked = MagicMock(
+            answer=AsyncMock(return_value=Continued(service.answer.return_value, False))
+        )
+        overrides = {
+            deps.get_agent_runner_service: lambda: service,
+            deps.get_parked_run_service: lambda: parked,
+        }
+        async with as_role("viewer", overrides) as client:
             response = await client.post(_url(f"/runs/{run.id}/answers"), json=body)
 
         assert response.status_code == 200
         assert response.json()["output"] == "Done, casually."
-        assert service.answer.call_args.args[2] == {"ask-1": [{"selected": ["Casual"]}]}
+        assert parked.answer.call_args.args[2] == {"ask-1": [{"selected": ["Casual"]}]}
 
     async def test_a_decision_answers_with_whether_it_continues_in_the_chat(
         self, as_role: ClientFactory, synthetic_roles: None

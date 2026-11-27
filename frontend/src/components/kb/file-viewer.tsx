@@ -9,6 +9,18 @@ import { CopyButton } from "@/components/chat/copy-button";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { FileViewer as SharedFileViewer, type ViewerTab } from "@/components/files";
 import { JsonView } from "@/components/ui/json-view";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui";
+import { DIALOG_WINDOW } from "@/lib/dialog-sizes";
 import { qk } from "@/lib/query-keys";
 import { getParsedKBDocument, kbDocumentAccess } from "@/lib/rag-api";
 import type { KBParsedContent } from "@/types";
@@ -20,6 +32,8 @@ interface FileViewerDoc {
   filetype: string | null;
   filesize?: number | null;
   created_at?: string;
+  has_file?: boolean;
+  has_parsed_content?: boolean;
 }
 
 interface FileViewerProps {
@@ -47,6 +61,9 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
   const t = useTranslations("kb");
   if (!open || doc === null) return null;
 
+  if (doc.has_file === false)
+    return <SnapshotViewer key={doc.id} kbId={kbId} doc={doc} onClose={onClose} />;
+
   return (
     <SharedFileViewer
       // Keyed on the document, so opening a second one starts with its own state
@@ -59,20 +76,58 @@ export function FileViewer({ kbId, doc, open, onClose }: FileViewerProps) {
         modifiedAt: doc.created_at ?? null,
       }}
       access={kbDocumentAccess(kbId, doc)}
-      extraTabs={[
-        {
-          value: "parsed",
-          label: t("parsed"),
-          content: <ParsedTab kbId={kbId} docId={doc.id} />,
-        } satisfies ViewerTab,
-        {
-          value: "json",
-          label: t("json"),
-          content: <StoredJsonTab kbId={kbId} docId={doc.id} />,
-        } satisfies ViewerTab,
-      ]}
+      extraTabs={
+        doc.has_parsed_content === false
+          ? []
+          : [
+              {
+                value: "parsed",
+                label: t("parsed"),
+                content: <ParsedTab kbId={kbId} docId={doc.id} />,
+              } satisfies ViewerTab,
+              {
+                value: "json",
+                label: t("json"),
+                content: <StoredJsonTab kbId={kbId} docId={doc.id} />,
+              } satisfies ViewerTab,
+            ]
+      }
       onClose={onClose}
     />
+  );
+}
+
+function SnapshotViewer({
+  kbId,
+  doc,
+  onClose,
+}: {
+  kbId: string;
+  doc: FileViewerDoc;
+  onClose: () => void;
+}) {
+  const t = useTranslations("kb");
+  return (
+    <Dialog open onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className={DIALOG_WINDOW}>
+        <DialogHeader className="shrink-0 pr-10">
+          <DialogTitle className="truncate">{doc.filename}</DialogTitle>
+          <DialogDescription>{t("parsedSnapshotOnly")}</DialogDescription>
+        </DialogHeader>
+        <Tabs defaultValue="parsed" className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <TabsList>
+            <TabsTrigger value="parsed">{t("parsed")}</TabsTrigger>
+            <TabsTrigger value="json">{t("json")}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="parsed" className="min-h-0 flex-1 scrollbar-thin overflow-y-auto">
+            <ParsedTab kbId={kbId} docId={doc.id} />
+          </TabsContent>
+          <TabsContent value="json" className="min-h-0 flex-1 scrollbar-thin overflow-y-auto">
+            <StoredJsonTab kbId={kbId} docId={doc.id} />
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   );
 }
 

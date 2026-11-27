@@ -20,7 +20,7 @@ import type { ProjectChat } from "@/types";
 import type { Project } from "@/types/projects";
 
 /**
- * The project's chats as a table, and a new one.
+ * The project's chats as a table; the page header owns starting a new chat.
  *
  * Everybody's, not the reader's alone: a project's chats are its members', so
  * each row says whose it is, which agents answer in it, when it last moved or
@@ -42,9 +42,9 @@ export function ProjectChats({ project }: { project: Project }) {
 
   return (
     <ListCard
+      namedByPage
       fill
       title={t("chats")}
-      counted={error ? null : t("chatCount", { count: total })}
       controls={newChat}
       empty={!isLoading && !error && total === 0}
     >
@@ -61,7 +61,7 @@ export function ProjectChats({ project }: { project: Project }) {
       ) : (
         <>
           <DataTable<ProjectChat>
-            fillHeight
+            className="rounded-none border-0"
             columns={columns}
             rows={chats}
             getRowKey={(chat) => chat.id}

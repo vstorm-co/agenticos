@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.exceptions import NotFoundError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.main import app
+from app.schemas.improvement import ImprovementStopRead
 from app.services.improvement_pipeline import ImprovementPipelineService
 
 pytestmark = pytest.mark.anyio
@@ -116,6 +117,21 @@ async def test_service_refusals_keep_the_actor_and_frozen_resource_path(
             assert supplied[key] == value
 
 
+async def test_a_session_read_by_its_id_answers_the_services_refusal(
+    client: AsyncClient, mock_db_session: MagicMock
+) -> None:
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.VIEWER)
+    service = ImprovementPipelineService(mock_db_session)
+    app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    app.dependency_overrides[deps.get_improvement_service] = lambda: service
+    refusal = AsyncMock(side_effect=NotFoundError(message="Improvement session not found"))
+    with patch.object(service, "read_session", refusal):
+        response = await client.get(f"{settings.API_V1_STR}/improvements/{_RUN}")
+    assert response.status_code == 404, response.text
+    call = refusal.await_args
+    assert call is not None and call.args == (ctx, _RUN)
+
+
 @pytest.mark.parametrize("target", [{}, {"dataset_id": str(_DATASET), "suite_id": str(uuid4())}])
 async def test_an_ambiguous_question_source_is_rejected_before_the_service(
     client: AsyncClient, mock_db_session: MagicMock, target: dict[str, str]
@@ -171,3 +187,19 @@ async def test_listing_sessions_that_wait_for_a_person_needs_runs_view(
         app.dependency_overrides[deps.get_auth_context] = lambda: limited
         refused = await client.get(f"{settings.API_V1_STR}/improvements")
         assert refused.status_code == 403
+
+
+@pytest.mark.security
+async def test_stopping_without_read_access_serializes_only_a_stop_receipt(
+    client: AsyncClient, mock_db_session: MagicMock
+) -> None:
+    ctx = AuthContext(user_id=uuid4(), organization_id=uuid4(), role=OrgRoleName.MEMBER)
+    app.dependency_overrides[deps.get_auth_context] = lambda: ctx
+    service = ImprovementPipelineService(mock_db_session)
+    app.dependency_overrides[deps.get_improvement_service] = lambda: service
+    with patch.object(
+        service, "cancel", AsyncMock(return_value=ImprovementStopRead(id=_RUN, status="cancelled"))
+    ):
+        response = await client.post(f"{settings.API_V1_STR}{_ONE}/cancel", json={})
+    assert response.status_code == 200, response.text
+    assert response.json() == {"id": str(_RUN), "status": "cancelled"}

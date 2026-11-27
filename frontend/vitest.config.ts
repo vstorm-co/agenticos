@@ -57,9 +57,18 @@ export default defineConfig({
         "src/stores/**",
         "src/hooks/**",
         "src/components/agents/**/*.{ts,tsx}",
+        "src/components/portability/**/*.{ts,tsx}",
+        "src/components/workflows/bundle-import-dialog.tsx",
         "src/components/authoring/**/*.tsx",
         "src/components/improvement/**/*.tsx",
         "src/components/settings/service-card.tsx",
+        "src/components/settings/console-experience-provider.tsx",
+        "src/components/settings/chat-cost-controls.tsx",
+        "src/components/settings/console-navigation-controls.tsx",
+        "src/components/settings/console-catalog-controls.tsx",
+        "src/components/settings/console-notice-controls.tsx",
+        "src/components/teams/org-console-navigation.tsx",
+        "src/components/teams/org-console-dashboard.tsx",
         "src/components/ui/disclosure-content.tsx",
         "src/components/skill-improvement/**/*.tsx",
         "src/components/triggers/source-consents-panel.tsx",
@@ -85,6 +94,7 @@ export default defineConfig({
         "src/components/dashboard/widgets/sandbox-*.tsx",
         // The routines card, held to the gate by #594's own "done when".
         "src/components/dashboard/widgets/routines.tsx",
+        "src/components/dashboard/widgets/event-sources.tsx",
         "src/components/dashboard/widgets/background-tasks.tsx",
         // The agent messages card.
         "src/components/dashboard/widgets/agent-messages.tsx",
@@ -358,6 +368,7 @@ export default defineConfig({
         // The directory (LDAP) sign-in form (#1773). The rest of `auth/` predates
         // the gate and is not in it yet; this file is new, so it starts inside.
         "src/components/auth/directory-login-form.tsx",
+        "src/components/auth/provider-sign-in.tsx",
         "src/components/skills/**/*.tsx",
         "src/components/context/**/*.tsx",
         "src/components/memory/**/*.tsx",

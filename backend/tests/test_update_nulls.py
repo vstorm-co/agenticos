@@ -49,6 +49,7 @@ from app.db.models.dashboard_layout import DashboardLayout
 from app.db.models.dataset import Dataset, DatasetCase
 from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.eval_suite import EvalSuite
+from app.db.models.event_source import EventSource
 from app.db.models.failure_learning import AgentFailureLedger
 from app.db.models.group import Group, GroupMember
 from app.db.models.knowledge_base import KnowledgeBase
@@ -93,7 +94,9 @@ from app.schemas.artifact import (
 from app.schemas.assistant import AssistantUpdate
 from app.schemas.channel_bot import ChannelBotUpdate
 from app.schemas.coding_account import CodingAccountUpdate
+from app.schemas.console_dashboard import OrganizationDashboardUpdate
 from app.schemas.console_experience import ConsoleExperienceUpdate
+from app.schemas.console_presentation import RoleConsoleUpdate
 from app.schemas.context import ContextFileUpdate
 from app.schemas.conversation import ConversationUpdate
 from app.schemas.conversation_share import ConversationShareUpdate
@@ -101,6 +104,7 @@ from app.schemas.dashboard_layout import DashboardLayoutUpdate
 from app.schemas.dataset import DatasetCaseUpdate, DatasetUpdate
 from app.schemas.deployment_settings import DeploymentSettingsUpdate
 from app.schemas.eval_suite import EvalSuiteUpdate
+from app.schemas.event_source import EventSourceUpdate
 from app.schemas.failure_learning import LedgerEntryUpdate
 from app.schemas.group import GroupLeadUpdate, GroupUpdate
 from app.schemas.knowledge_base import KnowledgeBaseUpdate
@@ -119,6 +123,7 @@ from app.schemas.onboarding import OnboardingUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.permissions import RoleNavigationUpdate
 from app.schemas.project import ProjectUpdate
+from app.schemas.project_resource import ProjectEntrypointUpdate
 from app.schemas.push import ApnsKeyUpdate, PushFocusUpdate, PushPreferencesUpdate
 from app.schemas.resource_grant import VisibilityUpdate
 from app.schemas.retention import RetentionUpdate
@@ -166,6 +171,9 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     CodingAccountUpdate: None,
     # `preferences` and `reminders` merge/clear the member's nullable JSONB overrides.
     ConsoleExperienceUpdate: OrganizationMember,
+    # Nested role policies replace or clear typed JSONB values, not individual row columns.
+    OrganizationDashboardUpdate: None,
+    RoleConsoleUpdate: None,
     TaskUpdate: None,
     NotificationRouteUpdate: NotificationRoute,
     # Sets `auto_consent` from `enabled`; `confirmed` is checked and audited, never stored.
@@ -186,6 +194,7 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     DatasetScoringUpdate: None,
     DatasetUpdate: Dataset,
     EvalSuiteUpdate: EvalSuite,
+    EventSourceUpdate: EventSource,
     JudgeScorerUpdate: None,
     ConversationUpdate: Conversation,
     # Sets `permission` on one share (`conversation_share.change_permission`).
@@ -215,6 +224,8 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     PortalPollIntervalUpdate: McpConnection,
     ProjectUpdate: Project,
     RecordGrantUpdate: ResourceGrant,
+    # Selects or clears a flag across the project's workflow membership rows.
+    ProjectEntrypointUpdate: None,
     RecordUpdate: None,
     # Replaces one role's list inside role_navigation JSONB, not a hidden_items row column.
     RoleNavigationUpdate: None,
@@ -361,6 +372,9 @@ class TestEveryUpdateSchemaIsAccountedFor:
             "VisibilityUpdate",
             "WorkflowDraftUpdate",
             "WorkflowActiveUpdate",
+            "ProjectEntrypointUpdate",
+            "OrganizationDashboardUpdate",
+            "RoleConsoleUpdate",
         }
 
 

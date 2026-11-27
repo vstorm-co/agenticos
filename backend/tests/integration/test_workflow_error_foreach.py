@@ -677,14 +677,16 @@ async def test_a_step_with_no_edges_in_a_loop_body_that_is_on_is_still_unreachab
 async def test_a_step_set_aside_takes_nothing_from_the_node_run_ceiling(
     engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
 ):
-    """11 is the tightest ceiling the plain loop fits: its third iteration starts on
-    eight rows and adds three. Counted, the parked step would make that four."""
+    """The three iterations fit in 11 rows; only the top-level output does not."""
     monkeypatch.setattr("app.core.config.settings.WORKFLOW_RUN_MAX_NODE_RUNS", 11)
-    graph, _parked = _parked_in(_Loop())
+    loop = _Loop()
+    graph, _parked = _parked_in(loop)
 
     run = await drive(await _run(engine, graph, {"items": ITEMS}))
 
-    assert run.status == WorkflowRunStatus.SUCCEEDED.value
+    assert run.status == WorkflowRunStatus.FAILED.value
+    assert run.error is not None and run.error["code"] == "NODE_RUN_LIMIT"
+    assert run.error["details"] == {"limit": 11, "node_instance_id": str(loop.out.id)}
 
 
 async def test_nested_loops_keep_each_iteration_in_its_own_scope(engine: AsyncEngine):

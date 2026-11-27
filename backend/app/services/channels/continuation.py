@@ -28,6 +28,7 @@ from app.repositories import agent_run_repo, channel_bot_repo, channel_prompt_re
 from app.services.access import decider_context
 from app.services.agent_runner import AgentRunnerService, RunSegment
 from app.services.approval_authority import may_decide_approval
+from app.services.approvals import past_own_platform_call
 from app.services.channels.base import OutgoingAttachment
 from app.services.channels.handback import REFUSED_NOTICE, ChatNotice, chat_destination
 from app.services.channels.handback_jobs import queue_notices, queue_segment
@@ -173,8 +174,12 @@ async def _refusal(
         return "decider_unavailable"
     # Rechecked against this run, not the permission alone: a member holds
     # `approvals:decide` for their own runs only, so a decider who has since
-    # lost the authority to decide this one is refused here too.
-    if not may_decide_approval(decider, run):
+    # lost the authority to decide this one is refused here too. The run's own
+    # person is still admitted on their own platform call that always asks,
+    # which needs no permission beyond being that person.
+    if not may_decide_approval(decider, run) and not await past_own_platform_call(
+        db, decider, run
+    ):
         return "decider_cannot_decide"
     incoming = await incoming_for_run(
         db, run, bot_id=bot.id, platform_chat_id=destination.platform_chat_id

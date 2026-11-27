@@ -28,6 +28,7 @@ from starlette.requests import HTTPConnection
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.core.platform_tool_policy import confirms_with_its_person
 from app.services import rate_limit
 from app.services.agent_templates import APP_ENVIRONMENT_GUIDANCE
 from app.services.api_key import is_api_key
@@ -41,6 +42,13 @@ REGISTER_PATH = "/register"
 
 _READ = ToolAnnotations(read_only_hint=True, open_world_hint=False)
 _WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False)
+_DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=False)
+
+
+def _annotations(tool: PlatformTool) -> ToolAnnotations:
+    if not tool.writes:
+        return _READ
+    return _DESTRUCTIVE if confirms_with_its_person(tool.name) else _WRITE
 
 
 def _mcp_token() -> str | None:
@@ -110,6 +118,8 @@ inspect status and read the saved resource, rather than repeating the write.
 Reuse existing resources; prefer managed task boards for commitments over creating
 a parallel task schema. Read back consequential writes before claiming success.
 An `error` envelope is an explicit domain refusal, never a successful change.
+Confirm every call annotated destructive with the person first: it publishes, deletes,
+ends or spends, and nothing on this server asks them for you.
 Use its code and field details to correct input; do not bypass permission refusals.
 """
     + "\n\n"
@@ -148,10 +158,7 @@ def build_platform_mcp(app: ASGIApp) -> tuple[FastMCP, StarletteWithLifespan]:
     )
     api = PlatformApi(app, token=_mcp_token, on_refusal=_tool_error)
     for tool in platform_tools(api):
-        server.tool(
-            _with_domain_errors(tool.function),
-            annotations=_WRITE if tool.writes else _READ,
-        )
+        server.tool(_with_domain_errors(tool.function), annotations=_annotations(tool))
     # Stateless, answering in JSON: a tool call is one request and one answer,
     # so any worker of any replica can serve it, with nothing to keep in memory.
     # FastMCP's Host/Origin guard stays off: it protects unauthenticated local

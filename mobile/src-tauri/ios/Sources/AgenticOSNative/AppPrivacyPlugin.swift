@@ -7,9 +7,11 @@ import WebKit
 class AppPrivacyPlugin: Plugin {
   private weak var webview: WKWebView?
   private var cover: UIView?
+  private var keyboard: NativeKeyboardResize?
 
   override func load(webview: WKWebView) {
     self.webview = webview
+    keyboard = NativeKeyboardResize(webview: webview)
     NotificationCenter.default.addObserver(
       self, selector: #selector(hidePreview),
       name: UIApplication.willResignActiveNotification, object: nil)

@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
 from app.agents.mcp_oauth import OAuthError
 from app.api.deps import (
+    Auth,
     CurrentUser,
     DBSession,
     McpConnectionSvc,
@@ -97,15 +98,13 @@ async def delete_mcp_connection(
 
 
 @router.post("/probe", response_model=McpSignInProbeResult)
-async def probe_mcp_sign_in(
-    data: McpSignInProbe, service: McpConnectionSvc, user: CurrentUser
-) -> Any:
+async def probe_mcp_sign_in(data: McpSignInProbe, service: McpConnectionSvc, ctx: Auth) -> Any:
     """Whether a server added by its address supports OAuth sign-in (#2073).
 
     Runs the discovery a sign-in would, registering nothing. A server that answers
     with no OAuth metadata is `sign_in: false` - a token or no credential, then.
     """
-    return await service.probe_sign_in(data.url)
+    return await service.probe_sign_in(data.url, ctx)
 
 
 @router.post("/oauth/start", response_model=McpOAuthStartResult)

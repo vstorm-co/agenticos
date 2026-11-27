@@ -68,6 +68,7 @@ SCHEDULES: tuple[Schedule, ...] = (
     Schedule("sweep-network-connections", jobs.SWEEP_NETWORK_CONNECTIONS, timedelta(seconds=15)),
     Schedule("sweep-browser-procedure-teachings", jobs.SWEEP_BROWSER_PROCEDURE_TEACHINGS, _MINUTE),
     Schedule("reconcile-room-requests", jobs.RECONCILE_ROOM_REQUESTS, timedelta(seconds=15)),
+    Schedule("sweep-portable-transfers", jobs.SWEEP_PORTABLE_TRANSFERS, _HOUR),
     Schedule(
         "reconcile-conversation-tasks", jobs.RECONCILE_CONVERSATION_TASKS, timedelta(seconds=15)
     ),
@@ -152,6 +153,7 @@ SCHEDULES: tuple[Schedule, ...] = (
     Schedule("sweep-background-jobs", jobs.SWEEP_BACKGROUND_JOBS, _DAY),
     Schedule("expire-case-key-drafts", jobs.EXPIRE_CASE_KEY_DRAFTS, _DAY),
     Schedule("workflow-run-retention", jobs.WORKFLOW_RUN_RETENTION, _DAY),
+    Schedule("source-delivery-retention", jobs.SOURCE_DELIVERY_RETENTION, _DAY),
     # Generated images, speech and video past `GENERATED_MEDIA_RETENTION_DAYS` (#2310).
     Schedule("sweep-generated-media", jobs.SWEEP_GENERATED_MEDIA, _DAY),
     # A report covers the period its occurrence names, so one that arrives while

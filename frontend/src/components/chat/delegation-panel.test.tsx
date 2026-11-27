@@ -1,3 +1,4 @@
+import { ChatCostContext } from "@/components/settings/console-experience-provider";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -380,4 +381,16 @@ it("keeps a nested specialist reachable after its synchronous parent is folded a
     />,
   );
   expect(screen.getByText("Critic")).toBeInTheDocument();
+});
+
+it("hides a delegation's cached cost under the reader policy", () => {
+  render(
+    <ChatCostContext.Provider value={false}>
+      <DelegationPanels
+        delegations={[delegation({ status: "completed", costUsd: 0.0042, inputTokens: 1200 })]}
+      />
+    </ChatCostContext.Provider>,
+  );
+  expect(screen.queryByText(/\$0.0042/)).toBeNull();
+  expect(screen.getByText("Researcher")).toBeVisible();
 });

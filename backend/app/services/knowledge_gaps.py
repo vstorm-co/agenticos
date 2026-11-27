@@ -38,7 +38,6 @@ from uuid import UUID
 import numpy as np
 import numpy.typing as npt
 from pydantic_ai.usage import RunUsage
-from pydantic_ai_harness.guardrails.detectors import redact_secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities import get as get_capability
@@ -54,12 +53,14 @@ from app.core.exceptions import (
     AlreadyExistsError,
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     IdentifyingContentError,
     NotFoundError,
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm, Scope
 from app.core.phone import phone_text_error
+from app.core.redaction import redact_secrets
 from app.db.locks import LockScope, hold_subject
 from app.db.models.background_job import BackgroundJob
 from app.db.models.context import ContextFile
@@ -512,15 +513,17 @@ def _classification_prompt(
             + (f"\n\n{files}" if files else "")
         )
     for number, candidate in enumerate(candidates, start=1):
-        comments = "\n".join(f"- {_clip(comment, 600)}" for comment in candidate.comments)
+        comments = "\n".join(
+            f"- {_clip(_redacted(comment), 600)}" for comment in candidate.comments
+        )
         agent_number = (
             agent_numbers.get(candidate.agent_version_id) if candidate.agent_version_id else None
         )
         parts.append(
             f"## Answer {number}\n"
             + (f"Agent: {agent_number}\n" if agent_number else "")
-            + f"Asked: {_clip(candidate.question, 600)}\n"
-            f"Answered: {_clip(candidate.answer, 1_200)}\n"
+            + f"Asked: {_clip(candidate.question and _redacted(candidate.question), 600)}\n"
+            f"Answered: {_clip(_redacted(candidate.answer), 1_200)}\n"
             f"Comments of readers who rated it down:\n{comments or '(none)'}"
         )
     return "\n\n".join(parts)
@@ -758,6 +761,7 @@ class KnowledgeGapService:
         status: TopicStatusLiteral | None,
         skip: int,
         limit: int,
+        topic_ids: Sequence[UUID] | None = None,
     ) -> KnowledgeGapTopicList:
         threshold = settings.KNOWLEDGE_GAP_MIN_SIMILARITY
         rows, total = await knowledge_gap_repo.list_topics(
@@ -769,6 +773,7 @@ class KnowledgeGapService:
             agent_id=agent_id,
             skip=skip,
             limit=limit,
+            topic_ids=topic_ids,
         )
         ungrouped = await knowledge_gap_repo.count_ungrouped(
             self.db,
@@ -872,8 +877,12 @@ class KnowledgeGapService:
         status: TopicStatusLiteral | None = None,
         skip: int = 0,
         limit: int = 50,
+        topic_ids: Sequence[UUID] | None = None,
     ) -> KnowledgeGapTopicList:
         """What one agent searched for and did not find, in the knowledge bases the caller reads.
+
+        `topic_ids` narrows the items and their total to those topics; the counts per
+        knowledge base and the ungrouped questions stay the agent's.
 
         Raises:
             AuthorizationError: For a caller without `runs:view` across the organization.
@@ -887,7 +896,13 @@ class KnowledgeGapService:
             raise NotFoundError(message="Agent not found", details={"agent_id": agent_id})
         readable = await self._readable_with_misses(ctx, agent_id=agent.id)
         return await self._list(
-            ctx, readable, agent_id=agent.id, status=status, skip=skip, limit=limit
+            ctx,
+            readable,
+            agent_id=agent.id,
+            status=status,
+            skip=skip,
+            limit=limit,
+            topic_ids=topic_ids,
         )
 
     async def _topic(
@@ -1030,7 +1045,9 @@ class KnowledgeGapService:
         known = [file.content for file in await self._context_files(ctx, row.agent_ids)]
         return _flags(text, sources=sources, known=known)
 
-    async def request_draft(self, ctx: AuthContext, topic_id: UUID) -> KnowledgeGapTopicDetail:
+    async def request_draft(
+        self, ctx: AuthContext, topic_id: UUID, *, quoted_usd: Decimal | None = None
+    ) -> KnowledgeGapTopicDetail:
         """Queue a draft of a topic's missing passage, as the caller; the topic says it is coming.
 
         Every refusal :meth:`draft` would make before calling the model is made
@@ -1046,6 +1063,7 @@ class KnowledgeGapService:
             NotFoundError: For a topic in a knowledge base the caller may not
                 change, or one with no questions left.
             SystemAgentUnavailableError: The drafter cannot run for this caller.
+            ConcurrentChangeError: A draft would now cost more than `quoted_usd`.
         """
         _require_runs_view(ctx)
         if current_impersonator() is not None:
@@ -1059,10 +1077,12 @@ class KnowledgeGapService:
         await SystemAgentRunner(self.db).require_runnable(
             ctx, key=KNOWLEDGE_GAP_DRAFTER.key, agent_id=kb.gap_drafter_agent_id
         )
+        await self._check_draft_quote(ctx, topic_id, quoted_usd)
         job_id = await enqueue(
             self.db,
             DRAFT_TOPIC,
             DraftTopic(
+                quoted_usd=quoted_usd,
                 organization_id=ctx.organization_id,
                 topic_id=topic.id,
                 user_id=ctx.user_id,
@@ -1077,6 +1097,21 @@ class KnowledgeGapService:
                 self.db, topic=topic, update_data={"draft_job_id": job_id}
             )
         return await self.read(ctx, topic.id)
+
+    async def _check_draft_quote(
+        self, ctx: AuthContext, topic_id: UUID, quoted_usd: Decimal | None
+    ) -> None:
+        if quoted_usd is None:
+            return
+        price = (await self.draft_estimate(ctx, topic_id)).total_usd
+        if price is None or price > quoted_usd:
+            raise ConcurrentChangeError(
+                message="The draft estimate is unavailable or higher than quoted; estimate it again",
+                details={
+                    "estimate_usd": None if price is None else str(price),
+                    "quoted_usd": str(quoted_usd),
+                },
+            )
 
     async def draft_estimate(self, ctx: AuthContext, topic_id: UUID) -> KnowledgeGapDraftEstimate:
         """The most one draft of a topic costs: its longest prompt at the drafter's price.
@@ -1115,7 +1150,9 @@ class KnowledgeGapService:
             for query in queries
         ]
 
-    async def draft(self, ctx: AuthContext, topic_id: UUID) -> None:
+    async def draft(
+        self, ctx: AuthContext, topic_id: UUID, *, quoted_usd: Decimal | None = None
+    ) -> None:
         """Ask the drafting agent for the passage a topic's questions need, and keep it.
 
         One run of the organization's seeded knowledge-gap drafter, as the caller:
@@ -1143,6 +1180,7 @@ class KnowledgeGapService:
                 be read.
         """
         _require_runs_view(ctx)
+        await self._check_draft_quote(ctx, topic_id, quoted_usd)
         topic = await self._topic(ctx, topic_id, edit=True)
         material = await knowledge_gap_repo.drafting_material(
             self.db,

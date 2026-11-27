@@ -21,6 +21,7 @@
  * reveals entries rather than briefly offering ones about to disappear.
  */
 
+import { useConsolePresentation } from "@/components/settings/console-experience-provider";
 import { useEffect, useRef } from "react";
 import { scrollWithin } from "@/lib/scroll-within";
 import Link, { useLinkStatus } from "next/link";
@@ -156,11 +157,29 @@ export function SidebarNav({
   const { pinnedIds, ready, toggle } = useNavPins();
   const t = useTranslations("nav");
 
+  const { navigation, problem, retry } = useConsolePresentation();
+  const experience = useTranslations("consoleExperience.presentation");
+  const common = useTranslations("common");
+  if (problem)
+    return (
+      <div role="alert" className="space-y-2 px-3 py-4 text-sm">
+        <p>{experience("loadError")}</p>
+        <button type="button" className="text-primary underline underline-offset-4" onClick={retry}>
+          {common("retry")}
+        </button>
+      </div>
+    );
+  // The role's allowed entries narrow the pinned layout, the way the
+  // presentation narrows the group list upstream: an entry the role may not
+  // see is not pinnable, not current, and not in More.
+  const allowed = navigation === null ? null : new Set(navigation);
   const { fixed, pinned, current, more } = buildNavLayout({
     pinnedIds,
     pathname,
     isAdmin: isAppAdmin(user),
-    isVisible: (item) => navItemVisible(item, can, hiddenNavigationItems, isLoaded),
+    isVisible: (item) =>
+      (allowed === null || allowed.has(item.labelKey)) &&
+      navItemVisible(item, can, hiddenNavigationItems, isLoaded),
   });
 
   return (

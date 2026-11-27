@@ -1,5 +1,5 @@
 ---
-source_sha: "efcf8f8ad81e"
+source_sha: "67639049734c"
 title: "Authoring-Assistent"
 description: "Der Authoring-Assistent liest, was Leute negativ bewertet haben und wie Runs endeten, und schlägt Änderungen an Anweisungen, Tools, Konfiguration, Skills und Context-Dateien eines Agents vor. Über jede entscheidet ein Mensch."
 ---
@@ -28,11 +28,11 @@ Er tut drei Dinge:
 
 Im Agent Builder enthält **Bauen** die Konfiguration und **Test** öffnet das interaktive Testpanel für den Entwurf. Öffnen Sie **Evals**, um einen Entwurf mit einer veröffentlichten Version auf einem Dataset zu vergleichen oder **Verbessern** zu starten. Vor der Ausführung erscheint die Kostenschätzung. Der ältere evidenzbasierte Verify-Endpunkt bleibt für API-Kompatibilität verfügbar.
 
-**Improve** öffnet eine Verbesserungssitzung. Modell und Anweisungen stehen in den **Einstellungen** des gewählten Datasets; Helfer haben Code-Vorgaben und keine bearbeitbare Katalogseite. Der Dialog zum Verbessern einer Context-Datei wählt ein Modell direkt. Budgetprüfungen und Aktivität-Aufzeichnungen bleiben bestehen.
+**Improve** öffnet eine Verbesserungssitzung. Modell und eventuelle Dataset-Hinweise stehen in den **Einstellungen** des gewählten Datasets; die Hinweise kommen unter die Plattformregeln des Helfers und ersetzen sie nie; Helfer haben Code-Vorgaben und keine bearbeitbare Katalogseite. Der Dialog zum Verbessern einer Context-Datei wählt ein Modell direkt. Budgetprüfungen und Aktivität-Aufzeichnungen bleiben bestehen.
 
 ## Was er liest { #what-it-reads }
 
-Der Assistent hat keine Tools. Was er liest, wird für ihn zusammengestellt, aus
+Was der Assistent liest, wird für ihn zusammengestellt, aus
 den Runs des Agents der letzten 30 Tage:
 
 - negativ bewertete Antworten, die mit Kommentar zuerst;
@@ -43,6 +43,15 @@ den Runs des Agents der letzten 30 Tage:
 Ein unbewerteter, erfolgreicher Run sagt nichts aus und wird nicht gelesen.
 Ebenso wenig ein Test aus dem Testpanel des Builders oder der Run eines
 Delegierten.
+
+Der eingebaute Assistent hat keine Tools. Ein an seiner Stelle gewählter
+Hilfsagent darf `thinking`, `knowledge`, `context` oder `skills` binden und nichts, das
+weiter reicht; einer, der sucht, bekommt die Wissensdatenbanken des Agents, den
+er verbessert. Beim Verbessern eines Agents sind seine Anweisungen die
+Verbesserungsanweisungen aus den Einstellungen des Datasets oder die
+eingebauten - nie die seiner eigenen veröffentlichten Version. Eine
+Verbessern-Sitzung eines Skills führt ihn so aus, wie er veröffentlicht ist, mit
+seinen eigenen Anweisungen.
 
 **Er lernt nur aus Trainingsfällen.** Neben bewerteten Chats liest der Assistent fehlgeschlagene Trainingsantworten, bestätigte Regressionen, Bewerterbegründungen und Prüfungsnotizen aus zugänglichen [Datasets](datasets.md). Er erhält Trainingsquoten nach Tag und Bewerterkriterium sowie die Anzahl behobener und neuer Fehler. Kontrollfragen, Antworten und Bewertungen gelangen nie in seinen Prompt. Runs des Bewerters und des Assistenten bleiben ausgeschlossen.
 
@@ -157,13 +166,13 @@ benachrichtigt niemanden, und Annehmen richtet sich nach dem Urteil des Runs
 selbst. Eine Skill- oder Kontextänderung, die auf einer Suite des Agents geprüft
 wird, auf dem sie läuft, bekommt dasselbe.
 
-Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%). Vorschlagsprüfungen messen ausschließlich Kontrollfälle; eine Verbesserungssitzung teilt die Fragen für jeden ihrer Versuche im selben Anteil neu auf und misst jeden Versuch auf seinem eigenen Kontrollteil. Beide benötigen mindestens fünf bewertbare Kontrollfragen.
+Jeder Fall wird fest dem Training oder der Kontrolle zugeordnet, auch über Dataset-Versionen hinweg. Die Dataset-Einstellungen bestimmen den Kontrollanteil nur für künftige Fälle (standardmäßig 50%); die eigenen Testfragen eines Skills sind alle Kontrollfragen, und ihr Anteil lässt sich nicht senken. Vorschlagsprüfungen messen ausschließlich Kontrollfälle; eine Verbesserungssitzung teilt die Fragen für jeden ihrer Versuche mit dem Anteil neu auf, den das Dataset beim Start der Sitzung hatte, und misst jeden Versuch auf seinem eigenen Kontrollteil. Beide benötigen mindestens fünf bewertbare Kontrollfragen.
 
 Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingaben und der Quell-Run-ID ausgeschlossen, auch bei manueller Eingabe oder Generierung. Unter dem Minimum stoppt eine Sitzung mit `no_data` oder lehnt den Schritt ab, der zu wenige testen würde, und nennt die fehlende Anzahl. Der Run kennzeichnet beide Teile und ausgeschlossene Kopien. Normale Suites und Beförderungsschranken zählen weiterhin alle Fälle.
 
-Eine Verbesserungssitzung fixiert Dataset-Version und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats und Fälle ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
+Eine Verbesserungssitzung fixiert Dataset-Version, Kontrollanteil und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats, neue Fälle und ein geänderter Kontrollanteil ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
 
-Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat. Der Kontext früherer Versuche enthält begrenzte Auszüge aus höchstens sechs zuletzt gemessenen Versuchen, damit lange Änderungen an Anweisungen oder Skill-Inhalten nicht den Prompt des nächsten Vorschlags füllen.
+Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus einer nur vorgeschlagenen Fassung, die der Entwurf nicht enthält: der eines früheren Versuchs, der von einer Wissensprüfung gemessenen oder einer, die eine Skill- oder Kontextdatei-Änderung liefert. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat. Der Kontext früherer Versuche enthält begrenzte Auszüge aus höchstens sechs zuletzt gemessenen Versuchen, damit lange Änderungen an Anweisungen oder Skill-Inhalten nicht den Prompt des nächsten Vorschlags füllen.
 
 Eine Prüfung zählt als Test des Entwurfs, sobald der Entwurf genau das ist, was
 sie geprüft hat - jeder geprüfte Vorschlag angenommen und sonst nichts geändert -,
@@ -323,10 +332,12 @@ Die Aufbewahrung der Aktivität erhält die Gesamtkosten gelöschter bezahlter R
 | Einen Vorschlag anzunehmen, der etwas bindet oder erreicht | Zusätzlich den Zugriff, es von Hand zu binden |
 | Eine Skill-Änderung anzuwenden oder zu verwerfen | `skills:edit` am Skill und `runs:view` |
 | Eine Änderung an einer Context-Datei anzuwenden oder zu verwerfen | `context:edit` an der Datei und `runs:view` |
-| Mit Evals zu prüfen | Was ein [Eval Run](evals.md#access) braucht, und Bearbeitungsrechte am Agent |
+| Mit Evals zu prüfen | Was ein [Eval Run](evals.md#access) braucht, und Bearbeitungsrechte am Agent; bei einer Änderung an einem Skill oder einer Kontextdatei Bearbeitungsrechte am Skill oder an der Datei und Ausführungsrechte am Agent, auf dem sie geprüft wird |
 
 Grants zählen: Ein Mitglied mit einem Bearbeitungs-Grant an einem Agent darf
-diesen Agent verbessern.
+diesen Agent verbessern, wenn seine Rolle auch `runs:view` hat - Owner, Admin,
+Builder oder Operator. Member und Viewer haben kein `runs:view`, also lässt ein
+Grant allein sie keine Sitzung starten oder lesen.
 
 Wenn eine API-Anfrage einen Hilfsagent auswählt, brauchen Sie sowohl Lese- als
 auch Ausführungsrechte für ihn. Ein fehlender oder nicht zugänglicher Hilfsagent
@@ -385,9 +396,9 @@ oder ein unentschiedenes samt Wiederholung erscheinen im Ergebnis als Hinweis,
 dass ein weiterer Versuch kaum hilft, nicht als Halt.
 
 Wer eine Sitzung für den Agent starten darf - Bearbeitungsrechte, `runs:view` und
- -, darf auch ihren nächsten Schritt ausführen oder
-es erneut versuchen. Die Sitzung hält fest, wer das tat, und die folgenden
-Schritte laufen mit den aktuellen Rechten und Zugangsdaten dieser Person; eine
+ -, darf auch ihren nächsten Schritt ausführen,
+es erneut versuchen oder eine ihrer kostenpflichtigen Prüfungen bestätigen: der gewählten Änderungen, eines Wissensentwurfs oder dessen, was jede Änderung bewirkt hat. Die Sitzung hält fest, wer das tat, und die folgenden
+Schritte laufen mit den aktuellen Rechten und Zugangsdaten dieser Person und werden unter ihr protokolliert; eine
 vom Architekten gestartete Sitzung lässt sich daher in der Konsole weiterführen.
 
 Der Worker prüft vor jedem Übergang Entwurf, letzte Veröffentlichung, Bewertung
@@ -400,6 +411,8 @@ hat jeweils eine offene Sitzung - in der Warteschlange, laufend, wartend, fertig
 angehalten oder fehlgeschlagen -, daher beantwortet der Start einer weiteren
 `409`, bis die offene endet. Ersteller oder Organisationsadministratoren können
 `/{run_id}/cancel` aufrufen.
+
+Das Stoppen erfordert kein `runs:view`. Ohne diese Berechtigung enthält die Antwort nur `id` und `status`, ohne Budget, Dataset, Fortschritt oder Fehler-Metadaten.
 
 Wer den letzten Schritt ausgeführt hat, wird an jedem Halt und bei jedem Ende
 benachrichtigt: Analyse gelesen, Änderungen zur Prüfung bereit, geprüftes
@@ -471,7 +484,7 @@ Eine Sitzung liegt unter `/agents/<agent>/improve/<session>`; die Seite lässt s
 
 Ein Schritt öffnet sich, sobald er Arbeit zu zeigen oder eine Entscheidung zu erfragen hat. Die Seite folgt dem Schritt, auf dem die Sitzung steht; nachdem Sie einen anderen geöffnet haben, führt **Zum aktuellen Schritt** dorthin zurück. An einem Halt trägt die Fußzeile den nächsten Schritt mit seinem Preis, zum Beispiel **Nächster Schritt: Änderungen schreiben · ca. $0.04**; nichts wird ausgegeben, bevor Sie ihn drücken. Hat sich der Preis seit der Anzeige bewegt, sagt die Fußzeile das - **Der Preis hat sich auf ca. $0.05 geändert. Drücken Sie erneut, um fortzufahren.** -, und kostet der Schritt mehr, als der Sitzung bleibt, lässt sich ihr Limit gleich dort erhöhen.
 
-**Start.** Improve öffnet einen Dialog über dem Agent Builder. Wählen Sie das Dataset im Hauptformular; der eigene Testsatz des Agents ist ausgewählt, wenn er vorhanden ist. Feedback-Zähler fassen die Belege zusammen. Fehlt ein geeigneter Satz, schätzt **Testfragen für mich schreiben** zunächst die Kosten für Fragen aus bewerteten Antworten und Themen ohne Beispiele, bevor etwas geschrieben wird.
+**Start.** Improve öffnet einen Dialog über dem Agent Builder. Wählen Sie das Dataset im Hauptformular; der eigene Testsatz des Agents ist ausgewählt, wenn er vorhanden ist. Feedback-Zähler fassen die Belege zusammen. Fehlt ein geeigneter Satz, schätzt **Testfragen für mich schreiben** zunächst die Kosten für Fragen aus bewerteten Antworten und Themen ohne Beispiele, bevor etwas geschrieben wird. Hat das Dataset Hinweise für den Verbesserungshelfer, zeigt der Dialog sie mit der Person, die sie zuletzt geändert hat: ein Mitglied mit Namen, wer gegangen ist, als ehemaliges Mitglied.
 
 Analysekosten und Ausgabenlimit der gesamten Sitzung erscheinen vor **Verbesserung starten**. Jeder weitere Schritt hat eine eigene Schätzung und wartet auf Ihre Entscheidung. **Details anzeigen** enthält das Ausgabenlimit, die Fragenaufteilung, den heutigen Test und einen Link zu den Helfereinstellungen des Datasets. Nach dem Start öffnet die laufende Sitzung ihre eigene Seite. Das Schließen des Einrichtungsdialogs führt zum Agent zurück; bestehende `/improve/new`-Links öffnen denselben Dialog.
 
@@ -509,7 +522,7 @@ Eine abgeschlossene Sitzung - als Entwurf behalten, veröffentlicht, verworfen, 
 
 Eine Sitzung, die auf Sie wartet, beim Ergebnis steht, angehalten oder fehlgeschlagen ist, bleibt offen: **Verbessern** und ihr Eintrag im Verlauf führen zu ihr zurück, um ihren nächsten Schritt auszuführen, ihr Limit zu erhöhen und fortzufahren, einen Versuch zu wählen, den fehlgeschlagenen Schritt zu wiederholen oder sie zu verwerfen.
 
-Die API beantwortet jede Änderung an einer abgeschlossenen Sitzung mit `409`, außer der Wiederholung des Abbruchs oder Verwerfens, das sie beendet hat. `GET /{run_id}/changes` liest die Änderungen, die ihr gewählter Versuch gemessen hat. Eine Sitzung zu lesen braucht Lesezugriff auf den Agent und `runs:view`; sie zu ändern oder zu starten braucht zusätzlich Bearbeitungsrechte für den Agent.
+Die API beantwortet jede Änderung an einer abgeschlossenen Sitzung mit `409`, außer der Wiederholung des Abbruchs oder Verwerfens, das sie beendet hat. `GET /{run_id}/changes` liest die Änderungen, die ihr gewählter Versuch gemessen hat. Eine Sitzung zu lesen braucht Lesezugriff auf den Agent und `runs:view`; sie zu ändern oder zu starten braucht zusätzlich Bearbeitungsrechte für den Agent. Ihre Änderungen und die Vorschläge, die sie im Builder hinterlässt, entstehen aus den Fragen des Datasets, daher braucht ihr Lesen auch Lesezugriff auf das Dataset.
 
 #### Den Architekten fragen { #asking-the-architect }
 
@@ -562,17 +575,39 @@ besten Varianten. Schneidet keine Variante besser ab, hält die Sitzung mit
 
 Die Suche hat ein eigenes Budget, `search.budget_usd`, innerhalb des Limits der
 Sitzung, und die Schätzung beim Start rechnet es und die Prüfung der gefundenen
-Variante zur Summe. Eine Variante startet nur, solange ihre Schätzung in den
-Rest passt. Jede Antwort ist auf das Doppelte ihres Anteils an dieser Schätzung
+Variante zur Summe. Eine Variante startet nur, solange ihre Schätzung, samt dem, was ihre längeren
+Anweisungen zu lesen kosten, in den Rest passt. Jede Antwort ist auf das Doppelte ihres Anteils an dieser Schätzung
 begrenzt, daher kann die Suche ihr Budget höchstens um die eine gerade bewertete
 Variante überschreiten. Die Sitzung zeigt die Ausgaben der Suche getrennt vom
 Rest.
+
+Das Limit einer Antwort deckt auch ab, was die längeren Anweisungen der Variante
+zu lesen kosten, und ein Agent, dessen bisherige Antworten nichts kosteten, wird
+auf den Preis eines nicht bepreisten Falls begrenzt. Eine Antwort, die an ihrem
+eigenen Limit anhält, gilt für diese Variante als unbeantwortet; nur ein
+erschöpftes Budget der Suche, der Sitzung oder des Monats beendet die Suche.
+
+Eine Bewertungseinheit beginnt keine Antworten mehr, bevor die Zeit ihres Jobs
+abläuft, bricht eine Antwort ab, die kurz vor dem Ende des Jobs noch läuft, und
+behält, was sie beantwortet hat; die nächste fragt den Rest, sodass jede Frage
+einmal bezahlt wird. Eine behaltene Antwort auf eine inzwischen gelöschte Frage
+fällt mit ihr weg. Vor jeder Einheit prüft die Suche, ob die
+handelnde Person noch Bearbeitungsrecht am Agenten, `runs:view` und das Recht hat,
+das Dataset auszuführen; sonst hält die Sitzung an wie bei ihrem nächsten
+Schritt. Eine Notiz zu **Try again** erreicht auch den Helfer, der die Varianten
+schreibt.
 
 Den Text der Varianten, geschrieben aus den Fragen des Datasets, liest nur, wer
 die Sitzung starten könnte - mit Bearbeitungsrecht am Agenten, `runs:view` und
 dem Recht, das Dataset auszuführen; alle anderen sehen die Zahlen. Eine Frage,
 die eine Variante nicht beantworten oder nicht bewerten lassen konnte, gilt als
-nicht bestanden. Eine Suche ohne Fortschritt über eine Stunde schlägt als
+nicht bestanden.
+
+Eine Vorschlagsrunde, die das Modell nicht beantwortet - der Anbieter lehnte ab,
+überschritt die Zeit oder war nicht erreichbar -, wird bis zu dreimal erneut
+gestellt; danach endet die Suche, weil der Helfer keine weiteren Varianten
+schreiben konnte, und die Kosten der fehlgeschlagenen Runden zählen zu ihren
+Ausgaben. Eine Suche ohne Fortschritt über eine Stunde schlägt als
 `stalled` fehl und kann erneut versucht werden.
 
 Standardmäßig bewertet der Bewerter des Datasets die Varianten auf seinem eigenen
@@ -637,6 +672,10 @@ Eine neue Korrektur gilt nur als nachgewiesen, wenn der Entwurf jede bestätigen
 Manuelle Tests und die Erstellung von Testfragen benachrichtigen die anfordernde Person nach Abschluss, auch bei Fehlern. Erneute Jobzustellungen erzeugen keine doppelten Meldungen. Untergeordnete Tests einer Testsuite oder Verbesserungssitzung verwenden deren übergeordnete Benachrichtigung. Die Einstellungen stehen unter **Einstellungen → Benachrichtigungen**. Offene Test- und Datensatzseiten werden nach dem Speichern des Ergebnisses über den Änderungsstrom aktualisiert.
 
 Der Schritt Verstehen zeigt eine begrenzte Quellenstichprobe, die gespeicherte Ursache, Antwort, Bewertungskommentare und einen Gesprächslink. Unbekannte Ursachen bleiben ausdrücklich unklassifiziert. Der Schritt Testfragen liest die angeheftete Fragenversion der Sitzung und kennzeichnet Trainingsfragen sowie zurückgehaltene Fragen. Heute zeigt die Ausgangsmessung erst nach einem erfolgreich abgeschlossenen Test; teilweise oder fehlgeschlagene Tests gelten nicht als gemessener Ausgangswert. Quellenansichten erfordern `runs:view`, prüfen den aktuellen Zugriff auf Wissensbasen und entfernen Zugangsdaten aus jedem Textfeld.
+
+Die Belege, die das Modell des Helfers erhält - Fragen, Antworten, Bewertungskommentare, Argumente von Tool-Aufrufen und Fehler -, werden ebenso geschwärzt, bevor sie hinausgehen, sodass auch die Zitate geschwärzt sind, die eine Änderung behält. Früher gespeicherte Zitate und Zusammenfassungen werden bei jedem Lesen geschwärzt.
+
+Alles, was ein Vorschlag schreiben würde und Zugangsdaten zitiert - Anweisungs- oder Skill-Text, Name oder Beschreibung eines Tools, der Wert eines Felds, ein neuer Skill, eine vorgeschlagene Kontextdatei oder ein Skill-Text -, wird geschwärzt angezeigt und mit `contains_credential` markiert; Annehmen, Anwenden oder eine Prüfung wird abgelehnt. Eine vorgeschlagene Passage lässt sich ohne die Zugangsdaten bearbeiten und annehmen; eine vorgeschlagene Datei oder ein Skill-Text wird verworfen und die Änderung von Hand gemacht.
 
 
 Der Annahmeschritt nennt die nächste Versionsnummer und wiederholt das gemessene Ergebnis der ausgewählten Runde. Die automatische Prüfung wird nur für Agenten ohne Prüfungssuite angeboten. Eine Veröffentlichung speichert Versionsidentität und Nummer in der Sitzung: Nach erneutem Öffnen führt der Abschluss weiterhin zu dieser Veröffentlichung. Alte Sitzungen ohne diese Verknüpfung zeigen ihren Zustand, ohne eine Version zu erraten. Ein Lesefehler bei Vorschlägen bietet einen erneuten Versuch; ersetzte Vorschläge bleiben nicht endlos im Ladezustand. Geschützte folgende Umgebungen warten auf ihre Prüfungen, fixierte behalten ihre aktuelle Version.

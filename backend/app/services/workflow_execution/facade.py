@@ -83,6 +83,7 @@ from app.services.workflow_execution import (
     events,
     input_validation,
     limits,
+    script_calls,
 )
 from app.services.workflow_execution.exceptions import (
     WorkflowArchivedError,
@@ -647,19 +648,19 @@ class WorkflowExecutionService:
         )
 
         now = datetime.now(UTC)
-        settings = StoredWorkflowSettings.model_validate(workflow.settings)
+        workflow_settings = StoredWorkflowSettings.model_validate(workflow.settings)
         await limits.enforce_workflow_limits(
             self.db,
             organization_id=ctx.organization_id,
             workflow_id=workflow.id,
-            settings=settings,
+            settings=workflow_settings,
             mode=mode,
             now=now,
         )
-        budget_limit = limits.run_budget(budget_limit, settings)
+        budget_limit = limits.run_budget(budget_limit, workflow_settings)
         if deadline_seconds is None:
             # Nothing that started the run named a deadline: the workflow's own.
-            deadline_seconds = settings.default_deadline_seconds
+            deadline_seconds = workflow_settings.default_deadline_seconds
         deadline_at = (
             now + timedelta(seconds=deadline_seconds) if deadline_seconds is not None else None
         )
@@ -672,7 +673,13 @@ class WorkflowExecutionService:
             self.db, organization_id=ctx.organization_id, run_bytes=0, requested=initial_bytes
         )
         if storage_scope is not None:
-            raise WorkflowInlineStorageLimitError(scope=storage_scope)
+            raise WorkflowInlineStorageLimitError(
+                scope=storage_scope,
+                can_fit_when_idle=(
+                    storage_scope == "organization"
+                    and initial_bytes <= settings.WORKFLOW_ORG_MAX_INLINE_RESULT_BYTES
+                ),
+            )
         run = await workflow_run_repo.create_run(
             self.db,
             organization_id=ctx.organization_id,
@@ -706,7 +713,7 @@ class WorkflowExecutionService:
             budget_limit=budget_limit,
             node_count=node_count,
             deadline_at=deadline_at,
-            timezone=settings.timezone,
+            timezone=workflow_settings.timezone,
             root_run_id=causation.root_run_id if causation else None,
             causation_run_id=causation.causation_run_id if causation else None,
             visited_trigger_ids=causation.visited_trigger_ids if causation else [],
@@ -838,11 +845,10 @@ class WorkflowExecutionService:
         if step is None or step.workflow_run_id != locked.id:
             raise WorkflowStepNotFoundError(node_run_id=node_run_id)
         graph = await dispatcher.resolve_graph(self.db, locked)
-        definition = next(
-            (node.definition_id for node in graph.nodes if node.id == step.node_instance_id), None
-        )
+        actual = script_calls.configured_step(graph.node_by_id, step)
         if (
-            definition != "flow.await_reply"
+            actual is None
+            or actual[0] != "flow.await_reply"
             or step.resume_payload is None
             or step.status not in (NodeRunStatus.WAITING.value, NodeRunStatus.NEEDS_ATTENTION.value)
             or body.deadline > step.created_at + timedelta(days=30)
@@ -1097,11 +1103,10 @@ class WorkflowExecutionService:
 
     async def retry(self, ctx: AuthContext, run_id: UUID) -> WorkflowRunRead:
         """Run again what `run_id` ran - the same version or draft snapshot, the same
-        input - with each step that succeeded there handing on the output it had.
+        input - reusing completed outputs without repeating their side effects.
 
-        Only the failed step and what it did not reach run, so a step with a side
-        effect is never repeated. A loop runs again, its items resolved from what
-        they handed on, and a deciding step decides again on the same data.
+        A loop resolves its items again, and a deciding step decides again.
+        Resume links are generated for the new run, including calls from Python.
 
         Raises:
             WorkflowRunNotFoundError: No such run, or this caller may not see it.
@@ -1213,7 +1218,13 @@ class WorkflowExecutionService:
             for row in rows
         ):
             graph = await dispatcher.resolve_graph(self.db, run)
-            awaited = {node.id for node in graph.nodes if node.definition_id == "flow.await_reply"}
+            nodes = graph.node_by_id
+            awaited = {
+                row.id
+                for row in rows
+                if (actual := script_calls.configured_step(nodes, row)) is not None
+                and actual[0] == "flow.await_reply"
+            }
         decisions = {
             decision.node_run_id: decision
             for decision in await workflow_approval_repo.step_decisions(
@@ -1231,7 +1242,7 @@ class WorkflowExecutionService:
         for row in rows:
             read = node_run_read(row, by_run.get(row.id, []))
             read.media_operation = media.get(row.id)
-            if row.node_instance_id in awaited and row.resume_payload is not None:
+            if row.id in awaited and row.resume_payload is not None:
                 read.reply_expectation = ReplyExpectation.model_validate(row.resume_payload)
             decision = decisions.get(row.id)
             if decision is not None:
@@ -1576,7 +1587,12 @@ def node_run_read(row: NodeRun, attempts: list[NodeAttempt]) -> WorkflowNodeRunR
     return WorkflowNodeRunRead(
         id=row.id,
         node_instance_id=row.node_instance_id,
-        scope_path=row.scope_path,
+        # Call argument digests protect retry lineage and are internal, not
+        # information about a secret or another input to expose to viewers.
+        scope_path=[
+            {key: value for key, value in scope.items() if key != "arguments_digest"}
+            for scope in row.scope_path
+        ],
         status=NodeRunStatus(row.status),
         waiting_reason=row.waiting_reason,
         attempts=len(tries),

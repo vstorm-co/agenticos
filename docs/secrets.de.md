@@ -1,5 +1,5 @@
 ---
-source_sha: "5c12fce011e3"
+source_sha: "2e1c4c57c224"
 ---
 
 # Secrets und der Vault { #secrets-and-the-vault }
@@ -117,10 +117,13 @@ existieren.
 | `git_token` | Ein Zugriffstoken für git über HTTPS und der eine Host, an den es gesendet werden darf |
 | `entra_app` | Tenant-ID, Client-ID und Client Secret einer App-Registrierung in Microsoft Entra |
 | `http_credential` | Ein Token, das ein HTTP-Schritt eines Workflows sendet, ein optionaler Benutzername und die Origins, an die es gesendet werden darf |
+| `webhook_credentials` | Nur schreibbarer Benutzername und Passwort für Basic Auth eingehender Webhooks, ohne Werthinweis; kein Zugangsmittel für ausgehende HTTP-Anfragen |
 | `smtp_account` | SMTP-Server, Port, TLS, Absender und Anmeldedaten, gemeinsam für Workflow-E-Mails versiegelt |
 | `microsoft_oauth_app` | Dieselben drei Felder, für eine App-Registrierung, über die sich Menschen anmelden |
 | `openai_codex` | Eine ChatGPT-Anmeldung: ein Access-Token, ein Refresh-Token und die Account-ID |
 | `none` | Kein Secret — die Markierung für einen Endpunkt, der keine Zugangsdaten braucht |
+
+**Wiederverwendbare Ereignisquellen.** Die Quelle kann über `credentials.vault_secret_id` auf ein organisationsweit sichtbares Vault-Geheimnis verweisen. Provider-, HMAC- und API-Schlüssel-Authentifizierung verwenden `api_key`; eingehende Basic Auth verwendet `webhook_credentials`. Die Quelle liest den aktuellen Wert bei jeder Zustellung, sodass eine Vault-Rotation keine Kopien in Quellen oder Workflow-Definitionen erfordert. Die Auswahl erfordert `secrets:view`; persönliche, organisationsfremde und inkompatible Schlüssel werden abgelehnt. `webhook_credentials` ersetzt nicht das auf Origins beschränkte `http_credential` für ausgehende HTTP-Anfragen.
 
 `github_oauth_app` wird von der Plattform ausgegeben und nicht von einer Person
 ausgewählt — der GitHub-Verbindungsablauf liest es serverseitig, um den
@@ -450,3 +453,10 @@ Die Zustimmung zu externen A2A-Quellen bindet auch die Autorisierungsgeneration 
 Persönliche Copilot-OAuth-Token liegen im bestehenden benutzerverschlüsselten Modellspeicher, ohne Organisationsschlüsselersatz. Geräteautorisierung ist an Eigentümer, Mandant und Agent gebunden und läuft in Redis ab; Token erscheinen weder in API-Antworten noch Auditdetails. Neue Anmeldung, Schlüsselwechsel und Trennen ändern eine Datenbankgeneration in derselben Transaktion. Diese Metadaten bleiben nach Schlüssellöschung zur Abwehr älterer Freigaben bestehen, erscheinen ohne Generationswert im persönlichen Datenexport und werden mit Mitgliedschaft oder Benutzer gelöscht. Trennen entfernt lokale Zugangsdaten; widerrufen Sie die OAuth-App separat in GitHub.
 
 Vor jeder Modellanfrage werden persönliche Copilot-Zugangsdaten gegen die gespeicherte Verbindungsversion geprüft. Das Trennen oder Ersetzen der Verbindung blockiert weitere Anfragen eines laufenden Durchlaufs; eine bereits gesendete Anfrage kann nicht zurückgezogen werden.
+
+
+## Speicherung von MCP-OAuth-Clients { #mcp-oauth-client-storage }
+
+Der Typ `mcp_oauth_client` verschlüsselt Server-URL, öffentliche Client-ID und optionales Client-Secret zusammen. Wähle beim Anlegen im Vault den Zweck `custom`. Nur organisationsweit sichtbare Instanzen werden für die automatische MCP-Anmeldung verwendet. Die Datenbank hält eine normalisierte Serveridentität für die eindeutige Zuordnung; das Client-Secret wird niemals im Klartext gespeichert. Die organisationsweite Freigabe eines privaten Clients wird verweigert, wenn bereits ein anderer Client für diesen Server existiert.
+
+Persönliche OAuth-Autorisierungen halten Quellorganisation, Secret-ID und Autorisierungsgeneration in ihrem eigenen verschlüsselten Payload fest. Rotation, Löschung oder Verlust der organisationsweiten Sichtbarkeit der Quelle machen diese Autorisierungen ungültig. Das Verbindungsverhalten beschreiben [gemeinsame MCP-OAuth-Clients](mcp.md#shared-mcp-oauth-clients).

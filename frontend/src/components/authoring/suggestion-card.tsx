@@ -128,7 +128,11 @@ export function SuggestionCard({
           />
         )}
         <RationaleText text={hunk.rationale} evidence={hunk.evidence} />
-        <EvidenceList items={hunk.evidence} dropped={hunk.evidence_dropped} />
+        <EvidenceList
+          items={hunk.evidence}
+          dropped={hunk.evidence_dropped}
+          hidden={hunk.evidence_hidden}
+        />
         {canEdit && (
           <div className="flex flex-wrap gap-2">
             {pending && editing !== null && (

@@ -348,7 +348,12 @@ class TestTheWriter:
             )
         assert len(created.await_args.kwargs["message"]) == 2000
 
-    async def test_a_failure_with_no_graph_to_read_still_ends_the_run_and_writes_nothing(self):
+    @pytest.mark.parametrize("graph_available", [False, True])
+    async def test_a_failure_with_no_graph_step_still_ends_the_run_and_writes_nothing(
+        self, graph_available: bool
+    ) -> None:
+        entry = _step()
+        graph = WorkflowGraph(entry_node_id=entry.id, nodes=(entry,)) if graph_available else None
         logged = AsyncMock()
         ended = AsyncMock()
         with (
@@ -358,8 +363,8 @@ class TestTheWriter:
             result = await dispatcher._fail_for_good(
                 AsyncMock(),
                 run=_run(),
-                graph=None,
-                node_run=SimpleNamespace(node_instance_id=uuid.uuid4()),
+                graph=graph,
+                node_run=SimpleNamespace(node_instance_id=uuid.uuid4(), scope_path=[]),
                 error=WorkflowError(code="X", message="m"),
                 now=MagicMock(),
             )

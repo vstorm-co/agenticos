@@ -17,6 +17,7 @@ suite reads now and under the threshold it holds now.
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from unittest.mock import patch
 
 import anyio
@@ -27,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.exceptions import (
     AuthorizationError,
     BadRequestError,
+    ConcurrentChangeError,
     EvalSuiteInUseError,
     NotFoundError,
     PromotionBlockedError,
@@ -235,6 +237,46 @@ async def test_a_run_in_progress_holds_the_version_back(db) -> None:
 
     assert [g.state for g in started.gate.guards] == ["checking"]
     assert (len(started.started), again.started) == (1, [])
+
+
+@pytest.mark.security
+async def test_a_gate_run_dearer_than_its_quote_is_refused_and_one_within_it_starts(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    env_id, _ = await _guarded(db, ctx, agent, first, await _dataset(db, ctx))
+    second = await _published(db, ctx, agent)
+    gate = PromotionGateService(db)
+
+    quote = await gate.estimate(ctx, agent.id, env_id, second.id)
+    with pytest.raises(ConcurrentChangeError):
+        await gate.run(
+            ctx,
+            agent.id,
+            env_id,
+            PromotionGateRun(version_id=second.id, quoted_usd=quote.total_usd - Decimal("0.01")),
+        )
+    started = await gate.run(
+        ctx, agent.id, env_id, PromotionGateRun(version_id=second.id, quoted_usd=quote.total_usd)
+    )
+
+    assert len(quote.suite_ids) == 1
+    assert started.started == quote.suite_ids
+
+
+@pytest.mark.security
+async def test_a_member_who_may_not_run_the_gate_may_not_price_it_either(db) -> None:
+    ctx = await _owner(db)
+    agent, first = await _agent(db, ctx)
+    env_id, _ = await _guarded(db, ctx, agent, first, await _dataset(db, ctx))
+    second = await _published(db, ctx, agent)
+    member = await _member(db, ctx, OrgRoleName.MEMBER)
+    gate = PromotionGateService(db)
+
+    with pytest.raises((AuthorizationError, NotFoundError)) as estimating:
+        await gate.estimate(member, agent.id, env_id, second.id)
+    with pytest.raises((AuthorizationError, NotFoundError)) as running:
+        await gate.run(member, agent.id, env_id, PromotionGateRun(version_id=second.id))
+    assert type(estimating.value) is type(running.value)
 
 
 async def test_a_run_whose_job_was_withdrawn_leaves_checking_for_inconclusive(db) -> None:
@@ -859,6 +901,33 @@ async def test_removing_an_agent_takes_its_guards_with_it(db) -> None:
 
     assert (await db.execute(select(EnvironmentGuard))).scalars().all() == []
     assert await db.get(Agent, agent.id) is None
+
+
+@pytest.mark.security
+async def test_deleting_one_agent_preserves_other_agents_and_tenants_guards(
+    db: AsyncSession,
+) -> None:
+    ctx = await _owner(db)
+    outsider = await _owner(db)
+    retained: list[tuple[AuthContext, Agent, EvalSuite, uuid.UUID]] = []
+    for authority in (ctx, ctx, outsider):
+        agent, version = await _agent(db, authority)
+        env_id, suite = await _guarded(db, authority, agent, version, await _dataset(db, authority))
+        retained.append((authority, agent, suite, env_id))
+    deleted = retained.pop(0)[1]
+
+    await AgentRegistryService(db).delete(ctx, deleted.id)
+    await db.flush()
+
+    assert await db.get(Agent, deleted.id) is None
+    guards = (await db.execute(select(EnvironmentGuard))).scalars().all()
+    assert {(row.environment_id, row.suite_id) for row in guards} == {
+        (env_id, suite.id) for _, _, suite, env_id in retained
+    }
+    for authority, agent, suite, _ in retained:
+        with pytest.raises(EvalSuiteInUseError):
+            await EvalSuiteService(db).delete(authority, agent.id, suite.id)
+        assert await db.get(Agent, agent.id) is not None
 
 
 async def test_a_suite_that_guards_an_environment_cannot_be_deleted(db) -> None:

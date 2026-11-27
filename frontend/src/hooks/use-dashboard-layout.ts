@@ -20,6 +20,8 @@ interface UseDashboardLayoutResult {
   loadError: Error | null;
   /** Read the arrangement again, after a failed read. */
   retryLoad: () => Promise<void>;
+  error: Error | null;
+  refetch: () => void;
   save: (entries: StoredEntry[]) => Promise<void>;
   reset: () => Promise<void>;
 }
@@ -84,6 +86,10 @@ export function useDashboardLayout(): UseDashboardLayoutResult {
     // leaves the arrangement unknown. A refresh that fails after a good read keeps it.
     loadError: data === undefined ? error : null,
     retryLoad,
+    error,
+    refetch: () => {
+      void refetch();
+    },
     save,
     reset,
   };

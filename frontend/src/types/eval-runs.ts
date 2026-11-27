@@ -382,6 +382,17 @@ export interface FamilyMove {
   worse: boolean;
 }
 
+/** Why two sides cannot be compared, as a code the console puts in its own words. */
+export type InvalidReasonCode =
+  | "knowledge_not_retrieved"
+  | "too_few_held_out"
+  | "scoring_changed"
+  | "judge_changed_mid_run"
+  | "judge_instructions_changed"
+  | "judge_differs"
+  | "knowledge_draft_changed"
+  | "held_out_ungraded";
+
 export interface EvalComparison {
   candidate: ComparisonSide;
   baseline: ComparisonSide | null;
@@ -389,8 +400,11 @@ export interface EvalComparison {
   verdict: Verdict | null;
   overall: Overall | null;
   p_value: number | null;
+  /** The English sentence; the code below is what the console translates. */
   invalid_reason: string | null;
-  invalid_reason_code?: "knowledge_not_retrieved" | "too_few_held_out" | null;
+  invalid_reason_code?: InvalidReasonCode | null;
+  /** The numbers the reason names, such as `missing` for `too_few_held_out`. */
+  invalid_reason_params?: Record<string, number>;
   regressions_confirmed: number;
   regressions_unconfirmed: number;
   fixed_confirmed: number;

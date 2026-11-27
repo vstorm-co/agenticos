@@ -18,7 +18,7 @@ type Mutation = {
 
 const held = vi.hoisted(() => ({
   check: null as SkillCheck | null,
-  reading: { isLoading: false, error: null as unknown },
+  reading: { isLoading: false, error: null as unknown, refetch: vi.fn() },
   estimate: {} as Mutation,
   start: {} as Mutation,
   apply: {} as Mutation,
@@ -58,7 +58,7 @@ function mutation(overrides: Partial<Mutation> = {}): Mutation {
 
 beforeEach(() => {
   held.check = null;
-  held.reading = { isLoading: false, error: null };
+  held.reading = { isLoading: false, error: null, refetch: vi.fn() };
   held.estimate = mutation({ data: finishedCheck() });
   held.start = mutation();
   held.apply = mutation();
@@ -169,7 +169,7 @@ describe("SkillCheckDialog", () => {
   });
 
   it("says a check opened again is being read, and why it could not be", () => {
-    held.reading = { isLoading: true, error: null };
+    held.reading = { isLoading: true, error: null, refetch: vi.fn() };
     const { rerender } = render(
       <SkillCheckDialog skillId="s-1" resume="c-9" forkId={null} onOpenChange={vi.fn()} />,
     );
@@ -181,10 +181,29 @@ describe("SkillCheckDialog", () => {
       error: new ApiError(404, "Check not found", {
         error: { code: "NOT_FOUND", message: "Check not found" },
       }),
+      refetch: vi.fn(),
     };
     rerender(<SkillCheckDialog skillId="s-1" resume="c-9" forkId={null} onOpenChange={vi.fn()} />);
     expect(screen.getByRole("alert")).toHaveTextContent("Check not found");
     expect(screen.getByRole("dialog").querySelector(".animate-pulse")).toBeNull();
+  });
+
+  it("says a running check stopped updating when reading it again fails, and reads it again", async () => {
+    held.check = finishedCheck({ status: "running", verdict: null, outcomes: [] });
+    held.reading = {
+      isLoading: false,
+      error: new ApiError(502, "Bad gateway", {
+        error: { code: "BAD_GATEWAY", message: "Bad gateway" },
+      }),
+      refetch: vi.fn(),
+    };
+    render(<SkillCheckDialog skillId="s-1" resume="c-9" forkId={null} onOpenChange={vi.fn()} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "This check stopped updating and may be out of date. Bad gateway",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(held.reading.refetch).toHaveBeenCalled();
   });
 
   it("shows a check without stopping or deciding it to a reader who may not decide", () => {

@@ -92,8 +92,10 @@ class AgentVersionPin(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    agent_id: UUID
-    version_id: UUID
+    agent_id: UUID = Field(json_schema_extra={"x-resource": "agent"})
+    version_id: UUID = Field(
+        json_schema_extra={"x-resource": "agent_version", "x-resource-parent": "agent_id"}
+    )
 
 
 class AgentRunConfig(BaseModel):
@@ -103,7 +105,7 @@ class AgentRunConfig(BaseModel):
 
     agent: AgentVersionPin | None = Field(
         default=None,
-        json_schema_extra={"x-resource": "agent"},
+        json_schema_extra={"x-resource": "agent", "x-resource-object": True},
         description="An agent from the catalog, and the published version this step runs.",
     )
     inline: AgentSpec | None = Field(

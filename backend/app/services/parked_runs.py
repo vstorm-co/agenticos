@@ -55,7 +55,7 @@ from app.services.agent_runner import (
     parked_secret_request_items,
 )
 from app.services.approval_authority import may_decide_approval
-from app.services.approvals import ApprovalService
+from app.services.approvals import ApprovalService, past_own_platform_call
 from app.services.channels.continuation import continue_in_chat
 from app.services.channels.handback import chat_destination, continues_in_chat
 from app.services.channels.handback_jobs import queue_segment
@@ -222,10 +222,17 @@ class ParkedRunService:
         Resuming is the decider's act, not a reader's: a privileged decider
         may resume any run, anybody else only a run they started, from a
         signed-in session - the same rule deciding is held to, since the
-        continuation spends as the resumer.
+        continuation spends as the resumer. The run's own person may also
+        continue it past their own platform call - which nobody else may
+        continue it past.
+
+        Raises:
+            AuthorizationError: The caller is neither.
         """
         run = await self.runner.get_run(ctx, run_id)
-        if not may_decide_approval(ctx, run):
+        if not may_decide_approval(ctx, run) and not await past_own_platform_call(
+            self.db, ctx, run
+        ):
             raise AuthorizationError(
                 message="Only the person who started this run, or somebody who may decide approvals, may resume it",
                 details={"run_id": str(run_id)},

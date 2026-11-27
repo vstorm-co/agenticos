@@ -1,5 +1,5 @@
 ---
-source_sha: "ac4bfd591389"
+source_sha: "222d3fe566a0"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -290,6 +290,10 @@ Für externe Server lässt `approval: none` Aufrufe durch. `writes` fragt bei To
 ohne `readOnlyHint: true`, `all` zusätzlich bei Lesezugriffen. Der Server liefert
 den Hinweis selbst; wählen Sie `all`, wenn Sie seiner Einstufung nicht vertrauen.
 Ein externer MCP-Client wie Claude Code verwendet eigene Bestätigungseinstellungen.
+Der eigene Server von AgenticOS markiert jeden Aufruf, der in AgenticOS immer eine
+Person fragt, jeden Schreibvorgang an Aufgaben oder Tabellendatensätzen, der Agentenarbeit
+starten kann, und jedes delete, discard, end und publish mit `destructiveHint: true`,
+und seine Anweisungen sagen dem Client, diese zuerst mit seiner Person zu bestätigen.
 
 Das Plattform-Binding erzwingt mindestens `writes`. Vertrauenswürdige Vorgaben
 lassen autorisierte Lesezugriffe, Entwurfsvorbereitung, gewöhnliche Aufgaben- und
@@ -1413,7 +1417,7 @@ Verbindungsprüfungen aktualisieren erkannte Tools und den Status. Deshalb warte
 | `list_members` | `members:view` |
 | `invite_member` | `members:manage` und `roles:manage` |
 | `list_my_connections`, `test_my_connection`, `set_my_language`, `set_my_profile` | — (die eigenen des Aufrufers; ein Schlüssel braucht `agents:run` für `test_my_connection`) |
-| `list_improvements`, `get_improvement` | Lesezugriff auf den Agenten; die Wissensthemen der Sitzung brauchen außerdem `runs:view`, ebenso die Liste aller offenen Sitzungen ohne Angabe eines Agenten |
+| `list_improvements`, `get_improvement` | `runs:view` und Lesezugriff auf den Agenten |
 | `estimate_improvement`, `start_improvement`, `use_attempt`, `accept_improvement`, `estimate_next_improvement_step`, `run_next_improvement_step`, `estimate_improve_again`, `improve_again`, `end_improvement` | Bearbeitungszugriff auf den Agenten und `runs:view`; Starten zusätzlich `datasets:run`, Veröffentlichen `agents:publish` |
 | `list_datasets` | `datasets:view` |
 | `get_eval_run` | `runs:view` |
@@ -1734,3 +1738,12 @@ Konsolenformulare eingegeben. Geheimwerte und Bilddaten gelangen nicht in den
 Modellkontext. Umgebungsverwaltete Einstellungen bleiben schreibgeschützt. Wegen
 des Frontend-Caches kann eine direkte MCP-Änderung am Branding bis zu fünf Minuten
 später sichtbar werden.
+
+
+## Gemeinsame MCP-OAuth-Clients { #shared-mcp-oauth-clients }
+
+Für einen OAuth-MCP-Server ohne dynamische Clientregistrierung kann ein Administrator einen organisationsweit sichtbaren **MCP-OAuth-Client** im Vault anlegen (`mcp_oauth_client`, Zweck `custom`). Speichere die genaue MCP-Server-URL, die Client-ID und optional das Client-Secret. Pro Server ist nur ein organisationsweit sichtbarer Client erlaubt. Die URL-Identität behält den Endpunktpfad und normalisiert Host, Standardport und abschließenden Schrägstrich; Zugangsdaten, Query-Parameter und Fragmente werden nicht akzeptiert.
+
+Wählt ein Mitglied OAuth ohne Client-ID, verwendet die Verbindung diesen Client nur, wenn der Server keinen Registrierungsendpunkt anbietet. Eine ausdrücklich eingegebene Client-ID hat Vorrang; die dynamische Registrierung bleibt unverändert. Die Verfügbarkeitsprüfung liefert nur einen booleschen Wert, niemals Zugangsdaten. Fehlt die Konfiguration, erklärt die Verbindung, dass ein Administrator den Client im Vault anlegen muss.
+
+Jede persönliche Autorisierung bleibt benutzergebunden verschlüsselt und an die ausstellende Organisation, aktuelle Mitgliedschaft und genaue Secret-Generation gebunden. Rotation, Löschung oder private Sichtbarkeit des gemeinsamen Clients erfordern eine neue Verbindung, selbst bei noch gültigem Zugriffstoken. Eine über den Client einer Organisation erteilte Autorisierung kann nicht in einer anderen Organisation verwendet werden.

@@ -1,5 +1,5 @@
 ---
-source_sha: "1ff5f4e1ee1b"
+source_sha: "9004b0be9a02"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -217,6 +217,32 @@ Installationseinstellungen bieten außerdem einen optionalen Zeitpunkt **Ankünd
 
 Die Administration befindet sich im Kontomenü. Ihre Einstellungen verwenden gemeinsame Register und bewahren Entwürfe beim Abschnittswechsel. Erinnerungen und Notizen füllen den verbleibenden Arbeitsbereich, scrollen ihre eigenen Zeilen und behalten die Fußzeile **1 / 1**. Der normale Architect nutzt dieselbe Familie generierter Porträts wie andere Agenten; eigene hochgeladene Bilder bleiben erhalten. Posteingangsansichten teilen die Zeilendarstellung, und Kanban zeigt beim Ziehen die tatsächliche Karte. Spätere Einrichtungsschritte behalten den einheitlichen Aufbau aus Überschrift, Formular und Illustration; das Fortsetzen eines unveränderten Profils meldet keinen Speichervorgang.
 
+### Navigation und Produkthinweise { #console-presentation }
+
+Unter **Admin → Deployment → Identität → Verfügbarkeit der Konsole** wählt der Betreiber Navigationspunkte und optionale Produkthinweise für Organisationen. Unter **KI & Dienste → Konsole pro Rolle** wählt die Organisation eine integrierte Rolle, entwirft deren Navigation, prüft die Vorschau und speichert sie. **Einfacher Assistent** wählt Chat, Inbox, Projekte und Dokumente. Dies ist eine optionale Vorlage, kein neuer Standard für bestehende Konten.
+
+Mitglieder können diese Auswahl unter **Einstellungen → Profil → Meine Navigation** weiter einschränken. Eine leere Auswahl blendet bewusst alle primären Einträge aus; eine geerbte Auswahl folgt Organisation und Deployment. Navigationsentwürfe erfordern **Speichern** und warnen vor dem Verlassen mit ungespeicherten Änderungen. Kontoeinstellungen, Organisationswechsel und Administratorzugriff bleiben erreichbar. Das Ausblenden einer Seite entzieht keine Berechtigung: Berechtigte Personen können ihre URL weiterhin öffnen. Die normale Berechtigungsprüfung erfolgt nach dem Darstellungsfilter.
+
+Die Rollenvorschau filtert die Navigation nach der ausgewählten Rolle und den eigenen Rechten des Administrators. Sie imitiert niemanden und lädt keine privaten Inhalte. **Produkthinweise** steuert die Desktop-Einladung sowie automatische Versions- und mobile Installationshinweise getrennt, auf Deployment-, Organisations- und Mitgliedschaftsebene. Persönliche Einstellungen können übergeordnete Einschränkungen nicht aufheben. Wartungs-, Verfügbarkeits- und Sicherheitshinweise behalten ihr Verhalten; eine installierte App wird durch Ausblenden ihrer Einladung nicht deaktiviert.
+
+
+### Kataloge und Rollen-Dashboards { #console-catalogs }
+
+**Konsole für jede Rolle** steuert auch die MCP- und Skill-Galerien. Zur Wahl stehen alle verfügbaren Einträge, eine ausdrückliche Positivliste oder nur von der Organisation verbundene Server / sichtbare installierte Skills. Organisationsgrenzen gelten für Rollen ohne Katalogverwaltung; verwaltende Personen beachten weiterhin Bereitstellungs- und persönliche Grenzen. Mitglieder können ihre Galerien unter **Einstellungen → Profil → Kataloge** weiter einschränken. Eine leere Positivliste bietet bewusst nichts an.
+
+Kataloggrenzen ändern die Entdeckung, nicht die Werkzeugberechtigungen. Bestehende erreichbare Konten bleiben unter **Verbunden** verwaltbar; veröffentlichte Agentenbindungen behalten ihre Zugriffsprüfungen. Der Server filtert vor Zählung und Seiteneinteilung. Ein privater Skill einer anderen Person wird ohne Zugriff nie als installierte Kopie beworben. Eine aktualisierte Konsolenrichtlinie verwirft zwischengespeicherte Galerieergebnisse.
+
+Für das **Standard-Dashboard** einer Rolle ordnest und speicherst du zuerst dein eigenes Dashboard und kopierst es anschließend in die Rolleneinstellungen. Prüfe die datenfreie Anordnungsvorschau und speichere getrennt. Personen- oder Agentenfilter müssen vor dem Teilen entfernt werden, damit private Kennungen nicht über Organisationseinstellungen verteilt werden. Unterstützte Breiten, Höhen, Abschnitte und Darstellungsoptionen bleiben erhalten; Vektoren und Widget-Daten werden nicht kopiert.
+
+Ein konfigurierter Rollenstandard wird zur Startansicht. Persönlich gespeicherte Anordnungen haben Vorrang, auch bewusst leere. Das Zurücksetzen übernimmt wieder den Rollenstandard. Ohne Rollenstandard bleibt die normale Startansicht. Widget-Berechtigungen werden zuletzt für jede Person geprüft. Ein fehlgeschlagener Abruf zeigt Fehler und Wiederholung statt vorübergehend einer anderen Anordnung.
+
+### Kosten im Chat { #chat-cost-visibility }
+
+**Chatkosten** folgen einer strengeren Hierarchie: Deployment-Verfügbarkeit → Organisationszielgruppe → persönliche Auswahl. Das Deployment kann Kosten im gesamten Chat ausblenden. Unter **KI & Dienste** der Organisation wählst du **Alle** (Standard), **Personen mit Zugriff auf Ausgaben** (`budgets:manage` oder `runs:view`) oder **Niemand im Chat**. Unter **Einstellungen → Profil** können Mitglieder Kosten für sich ausblenden, aber keine übergeordnete Einschränkung aufheben.
+
+Die Regel gilt für Antwortpreise, Delegationskosten, Gesprächssummen und Budget-Prozentsätze, auch in gespeicherten Verläufen, laufenden und wiederverbundenen Streams, geteilten Chats und Q&A-Fortsetzungen. Verborgene Finanzmetadaten fehlen in der Chat-Antwort; Token- und Kontextwerte bleiben verfügbar. Agentenantworten und beliebige Tool-Inhalte werden nicht umgeschrieben. Abrechnung und Budget-Durchsetzung bleiben unverändert. Kosten in Activity und Dashboard behalten ihre bisherigen Berechtigungen.
+
+
 ## Das Dashboard { #the-dashboard }
 
 Die Startseite ist ein **anordenbares Raster aus Widgets**, und sie ist die
@@ -314,6 +340,8 @@ statt still den Snapshot zu überschreiben, den Sie behalten wollten.
 ## Routinen und Beobachtungen { #routines-and-watches }
 
 Neue Routinen verwenden bei der Erstellung automatisch die verfügbare Agentenkonfiguration innerhalb einer genehmigten Grenze für Zugriff und Verhalten. Eine anfängliche Zugriffsprüfung ist nicht erforderlich; fehlende optionale MCP-Konten blockieren unabhängige Arbeit nicht. Spätere Erweiterungen von Quellen oder Werkzeugen und Änderungen an Anweisungen, Skills, Kontext oder Delegierten erfordern vor der Ausführung eine Prüfung durch den Ersteller. Reine Modelländerungen und sichere Einschränkungen bleiben innerhalb der Grenze. Agentenfreigaben, verbindliche Plattformfreigaben und die Zustimmung zu lokalen Ordnern gelten weiterhin. Der Zugriffsdialog kann stattdessen einen geprüften Snapshot behalten; bestehende eingeschränkte Routinen behalten ihre Richtlinie, bis der Eigentümer sie ändert.
+
+Neue Routinen nutzen zulässige Werkzeuge standardmäßig automatisch nach den Genehmigungsregeln des Agenten und sammeln Ausführungen in einem schreibgeschützten Chat. Ein eigener Chat je Ausführung erlaubt direkte Fortsetzung; der gemeinsame Verlauf lässt sich forken. Unter **Werkzeuge der Routine** erhalten oder verschärfen **Agent folgen**, **Jedes Mal fragen** und **Aus** die Agentenregeln; erforderliche Genehmigungen bleiben bestehen. Beim Speichern von Einschränkungen einer älteren Routine werden ihre früheren dauerhaften Genehmigungen entfernt; der Dialog warnt ausdrücklich davor. Siehe [Werkzeuge der Routine](governance.md#routine-action-consent).
 
 Verhindert **Skip this run** eine überlappende Ausführung, speichert der Verlauf den Grund ohne neue Ausführung oder Kosten. Sie können eine wartende Ausführung direkt im Verlauf stoppen, wenn der Server dies erlaubt. Ihre bisherigen Kosten bleiben erhalten; der nächste geplante Termin kann wieder starten. Wiederholte Auslassungen wegen desselben unfertigen Laufs teilen sich einen Verlaufseintrag.
 
@@ -1246,6 +1274,12 @@ die die Liste zeigt.
 
 ## Wofür jeder Bereich da ist { #what-each-area-is-for }
 
+**Ereignisquellen** bleiben unter `/event-sources` verfügbar, stehen aber nicht standardmäßig in der Seitenleiste. Öffnen Sie die Verwaltung über die Quellenauswahl einer Routine oder eines Workflows. Sie können den Eintrag über die Navigationsanpassung hinzufügen; ausdrückliche Organisationsrollen- und persönliche Auswahlen bleiben erhalten.
+
+**Overview** (Dashboard), **Chat** und **Inbox** stehen oben in der Seitenleiste.
+**Build & manage** zeigt Agents, Workflows, Routines und Apps ohne Aufklappen;
+danach folgen Projects.
+
 **Home**, **Chat**, **Inbox** und **Agent messages** stehen fest oben in der
 Seitenleiste. Darunter folgen die angehefteten Einträge in der Reihenfolge des
 Anheftens; jedes Konto beginnt ohne. **More** öffnet alles, was Sie sehen dürfen,
@@ -1547,3 +1581,8 @@ Neue Konten öffnen `/onboarding` nach der Passwortregistrierung oder der ersten
 Nach den Abonnements zeigt die Modelleinrichtung zuerst den Anbieter, dann dessen Verbindung und Modell. Persönliche Abonnements bleiben im vorherigen Schritt. Werkzeuge beginnen mit vorgeschlagenen Diensten; **Alle Dienste durchsuchen** öffnet den vollständigen MCP-Katalog.
 
 Wenn ein Agent eine Frage stellt, bleiben seine Karte und der normale Editor gemeinsam sichtbar. Der Editor behält Entwurf und Anhänge; neue Nachrichten warten in der Warteschlange, während Sie über die Karte antworten. Das Stoppen einer Antwort pausiert wartende Nachrichten bis zum ausdrücklichen Fortsetzen. Ein regulärer Abschluss verarbeitet die Warteschlange weiter.
+
+
+## Flache Liste der letzten Chats { #flat-recent-chat-list }
+
+Der Chats-Kopf bietet **Neueste Aktivität zuerst (flache Liste)**. Projektchats und gewöhnliche Chats erscheinen nach letzter Aktivität in einer Liste, ohne Überschriften für Projekte, ungelesene Chats oder Favoriten. Favoriten behalten ihre Sterne, werden aber nicht vor neueren Aktivitäten angeheftet. Die Paginierung verwendet diese Reihenfolge auf dem Server, sodass alte Favoriten aktuelle Chats nicht von der ersten Seite verdrängen. Bestehende Agenten-, Archiv- und API-Filter bleiben wirksam. Die Auswahl wird in diesem Browser für jeden angemeldeten Benutzer separat gespeichert; **Chats nach Projekt gruppieren** stellt die standardmäßige Gruppierung wieder her.

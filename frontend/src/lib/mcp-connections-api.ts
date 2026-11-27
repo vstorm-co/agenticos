@@ -229,6 +229,7 @@ export async function startPolledPortalOAuth(
 export interface McpSignInProbeResult {
   sign_in: boolean;
   registers_clients: boolean;
+  organization_client_available?: boolean;
 }
 
 /**
