@@ -140,7 +140,7 @@ describe("IngestionSettings", () => {
   ] as const)("says what the OCR switch does under %s alone", (parser, says) => {
     show({ pdf_parser: parser });
 
-    expect(screen.getByText(new RegExp(says.replace(/[.()]/g, "\\$&")))).toBeInTheDocument();
+    expect(screen.getByText(says, { exact: false })).toBeInTheDocument();
     for (const other of [
       "PyMuPDF hands",
       "LiteParse reads it",
