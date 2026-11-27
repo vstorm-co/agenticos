@@ -1,5 +1,6 @@
 """A real web browser the agent works step by step, on the run's own model."""
 
+from typing import Literal
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -23,6 +24,7 @@ from app.agents.capabilities.browser_use._route import (
     route_for,
     timezone_problem,
 )
+from app.agents.capabilities.browser_use._toolset import RetainedBrowser
 from app.core.config import settings
 from app.core.sanitize import UrlRefusedError
 from app.core.secret_kinds import ApiKeySecret, SecretCondition, SecretKind, SecretRequirement
@@ -261,6 +263,25 @@ class WebBrowserConfig(BaseModel):
         json_schema_extra={"x-advanced": True},
     )
 
+    session_lifetime: Literal["run", "conversation"] = Field(
+        default="run",
+        title="Session lifetime",
+        description="In private web chat, close the app-owned remote environment after a run that uses it, or keep it between turns. Paired local devices and other surfaces keep their existing session behavior.",
+        json_schema_extra={
+            "x-enum-labels": {"run": "This run", "conversation": "This conversation"}
+        },
+    )
+    session_idle_seconds: int = Field(
+        default=900,
+        ge=60,
+        le=86400,
+        title="Idle timeout (seconds)",
+        description="End an app-owned remote web-chat environment after this much inactivity, capped by deployment policy. Passive viewing does not extend it; closing the panel only detaches its view.",
+        json_schema_extra={
+            "x-visible-when": {"field": "session_lifetime", "equals": ["conversation"]}
+        },
+    )
+
     @field_validator("timezone", "locale", mode="before")
     @classmethod
     def _blank_is_unset(cls, value: object) -> object:
@@ -490,6 +511,7 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
         ctx.secret.api_key.get_secret_value() if isinstance(ctx.secret, ApiKeySecret) else None
     )
     local_session = ctx.resources.get("local_browser_session")
+    retained = ctx.resources.get("conversation_browser")
     native_local = (
         config.prefer_native_browser
         and not config.vision
@@ -504,6 +526,11 @@ def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     return WebBrowser(
         report_tool_names=frozenset(aliases.get(tool, tool) for tool in BROWSER_REPORT_TOOLS),
         resume_local=isinstance(local_session, UUID) and native_local,
+        retained=retained
+        if isinstance(retained, RetainedBrowser)
+        and not isinstance(local_session, UUID)
+        and config.connection != "local"
+        else None,
         page_factory=local_page_factory(local_session, native=native_local)
         if isinstance(local_session, UUID)
         else None,

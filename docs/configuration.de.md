@@ -1,5 +1,5 @@
 ---
-source_sha: "94de2582bba6"
+source_sha: "57382ae4b40b"
 ---
 
 # Konfiguration { #configuration }
@@ -1818,3 +1818,14 @@ eigenes `SUBSCRIPTION_GATEWAY_TOKEN` in `.env`.
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 
 Setzen Sie `GITHUB_COPILOT_OAUTH_CLIENT_ID` (standardmäßig leer) auf die eigene GitHub OAuth App des Deployments und aktivieren Sie Device Flow. Ohne sie wird persönliche Copilot-Anmeldung abgelehnt. Dies ist getrennt von GitHub Models und GitHub-Konnektoren. GitHub-Autorisierung bestätigt keine Copilot-Berechtigung; zusätzlich muss die kontobezogene Chat-Modellprüfung bestehen. Ablaufende GitHub-App-Freigaben und eigene Enterprise-Gateways werden nicht unterstützt. Siehe [Copilot-Konten](models.md#github-copilot-accounts).
+
+## Umgebungen privater Chats { #conversation-environment-limits }
+
+| Einstellung | Standard | Bedeutung |
+| --- | --- | --- |
+| `CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS` | `900` | Deployment-Grenze der Browser-use-/Computer-use-Leerlaufaufbewahrung: 60–86400 Sekunden. Das Panel zeigt den kleineren Wert aus Grenze und `session_idle_seconds` der Capability. |
+| `CONVERSATION_ENVIRONMENTS_PER_USER` | `4` | Ausstehende Umgebungen pro Organisationsmitglied: 1–100. Bekannte Remote-Ressourcen zählen bis zur erfolgreichen Bereinigung mit. |
+
+Bindungen wählen `session_lifetime` (`run` oder `conversation`). Bestehende Bindungen ohne neue Felder behalten die Run-Laufzeit; neue Konsolenbindungen wählen ausdrücklich Unterhaltung und 900 Sekunden. Eine manuell geöffnete Run-Umgebung endet nach einem Run, der sie tatsächlich nutzt. Berücksichtigen Sie vor einer Erhöhung des Leerlauflimits die Ressourcenkosten des Anbieters. Öffnen und Betrachten benötigen keinen Modellaufruf.
+
+Der Worker muss Provisionierung, Ablaufkontrollen und dauerhafte Bereinigung ausführen können. Der ständig verbundene Browser-Eigentümer in API/Worker erzwingt die Egress-Policy; bei seinem Verlust wird der isolierte Kontext absichtlich verworfen. Ein Neustart kann den Browser daher vor Ablauf beenden, statt eine ungeschützte oder kopierte Sitzung wiederherzustellen. Siehe [Browser- und Desktop-Laufzeiten](sandbox.de.md#conversation-environments).

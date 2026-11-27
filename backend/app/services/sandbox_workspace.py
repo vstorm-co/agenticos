@@ -26,6 +26,7 @@ import asyncio
 import base64
 import contextlib
 import contextvars
+import hashlib
 import json
 import logging
 from binascii import Error as BinasciiError
@@ -99,6 +100,7 @@ from app.repositories import member as member_repo
 from app.repositories import pending_sandbox_destroy as pending_destroy_repo
 from app.repositories import project_filesystem_bindings as filesystem_binding_repo
 from app.repositories import project_repo
+from app.schemas.project_context import ProjectExecutionTarget
 from app.schemas.project_filesystem_authority import ProjectFilesystemCredential
 from app.schemas.workspace import ConversationWorkspaceOrigins, WorkspaceOriginRead
 from app.services import device_hub
@@ -1048,34 +1050,7 @@ class SandboxWorkspaceService:
         parses_documents = False
         notice = _OpeningNotice(on_wait) if on_wait is not None else None
         row = await self._row(config, identity, key, scope, connection_id=resolved.row.id)
-        filesystem = None
-        if scope in ("conversation", "run") and await self.connections.supports_project_filesystem(
-            resolved
-        ):
-            from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
-
-            # Enabling optional mounts cannot retrofit a retained ordinary session.
-            # A recorded binding must still be forwarded, including any refusal.
-            if (
-                row is None
-                or row.session_id is None
-                or (
-                    await filesystem_binding_repo.binding_for_session(
-                        self.db,
-                        organization_id=identity.organization_id,
-                        connection_id=resolved.row.id,
-                        session_name=key,
-                    )
-                )
-                is not None
-            ):
-                filesystem = await ProjectFilesystemBindingService(self.db).credential(
-                    organization_id=identity.organization_id,
-                    connection_id=resolved.row.id,
-                    session_name=key,
-                    workspace_id=None if row is None else row.id,
-                    conversation_id=identity.conversation_id,
-                )
+        filesystem = await self._filesystem_for(config, identity, key, scope, resolved, row)
         sandbox = self._service_capability(
             resolved,
             key,
@@ -1128,6 +1103,45 @@ class SandboxWorkspaceService:
             briefing=briefing,
             parses_documents=parses_documents,
         )
+
+    async def _filesystem_for(
+        self,
+        config: SandboxConfig,
+        identity: WorkspaceIdentity,
+        key: str,
+        scope: SessionScope,
+        resolved: ResolvedConnection,
+        row: AgentWorkspace | None,
+    ) -> ProjectFilesystemCredential | None:
+        filesystem = None
+        if scope in ("conversation", "run") and await self.connections.supports_project_filesystem(
+            resolved
+        ):
+            from app.services.project_filesystem_bindings import ProjectFilesystemBindingService
+
+            # Enabling optional mounts cannot retrofit a retained ordinary session.
+            # A recorded binding must still be forwarded, including any refusal.
+            if (
+                row is None
+                or row.session_id is None
+                or (
+                    await filesystem_binding_repo.binding_for_session(
+                        self.db,
+                        organization_id=identity.organization_id,
+                        connection_id=resolved.row.id,
+                        session_name=key,
+                    )
+                )
+                is not None
+            ):
+                filesystem = await ProjectFilesystemBindingService(self.db).credential(
+                    organization_id=identity.organization_id,
+                    connection_id=resolved.row.id,
+                    session_name=key,
+                    workspace_id=None if row is None else row.id,
+                    conversation_id=identity.conversation_id,
+                )
+        return filesystem
 
     @staticmethod
     def _service_capability(
@@ -1243,6 +1257,108 @@ class SandboxWorkspaceService:
             scope_key=key,
             backend=config.backend,
             connection_id=connection_id,
+        )
+
+    @staticmethod
+    def environment_connection_fingerprint(resolved: ResolvedConnection) -> str:
+        """Bind a live desktop to the exact provider endpoint, runtime and credential."""
+        return hashlib.sha256(
+            json.dumps(
+                {
+                    "connection": str(resolved.row.id),
+                    "kind": resolved.kind,
+                    "base_url": resolved.row.base_url,
+                    "runtime": resolved.row.default_runtime,
+                    "secure_access": resolved.row.secure_access,
+                    "credential": resolved.token,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+
+    async def attach_live_environment(
+        self,
+        ctx: AuthContext,
+        *,
+        spec: AgentSpec,
+        identity: WorkspaceIdentity,
+        execution_target: ProjectExecutionTarget,
+        workspace_id: UUID,
+        ref: WorkspaceRef,
+        connection_fingerprint: str,
+    ) -> OpenWorkspace:
+        """Attach an admitted environment's exact workspace, without opening a turn.
+
+        Watching a GUI is not a new workspace writer and must remain possible
+        while a real agent run owns the conversation. This path never creates a
+        workspace row, substitutes a lost ref or inherits a run-only Project lease.
+        The caller serializes actual GUI input separately from observation.
+        """
+        from app.services.conversation import ConversationService
+        from app.services.project_workspace_guard import project_for_workspace
+
+        if identity.conversation_id is None or ctx.user_id is None:
+            raise NotFoundError(message="The live workspace is unavailable", details={})
+        conversation = await ConversationService(self.db).get_conversation(
+            identity.conversation_id,
+            organization_id=ctx.organization_id,
+            user_id=ctx.user_id,
+            for_write=True,
+            turn=True,
+            include_favourite=False,
+            ctx=ctx,
+        )
+        if execution_target == "project":
+            project = await project_for_workspace(self.db, ctx, conversation.project_id)
+            config = project_sandbox(project)
+            identity = replace(
+                identity, project_id=project.id, project_workspace_id=project.workspace_generation
+            )
+            scope: SessionScope = "project"
+        else:
+            config = sandbox_config(spec)
+            if config is None or config.backend != "service":
+                raise NotFoundError(message="The live workspace is unavailable", details={})
+            scope = config.session_scope
+        if config.backend != "service":
+            raise NotFoundError(message="The live workspace is unavailable", details={})
+        resolved = await self.connections.resolve(ctx, config.connection_id, ensure_default=False)
+        if self.environment_connection_fingerprint(resolved) != connection_fingerprint:
+            raise NotFoundError(message="The live workspace connection changed", details={})
+        key = self._key(
+            identity, scope, "service", resolved.row.id, _keyed_runtime(config, resolved)
+        )
+        row = await workspace_repo.get(self.db, workspace_id, organization_id=ctx.organization_id)
+        if (
+            row is None
+            or row.scope_key != key
+            or row.backend != "service"
+            or row.connection_id != resolved.row.id
+            or row.session_id != ref.id
+        ):
+            raise NotFoundError(message="The original live workspace is unavailable", details={})
+        filesystem = await self._filesystem_for(config, identity, key, scope, resolved, row)
+        sandbox = self._service_capability(
+            resolved,
+            key,
+            runtime=config.runtime,
+            tenant=str(ctx.organization_id),
+            filesystem_binding=filesystem,
+        )
+        if ref.provider != _provider(sandbox):
+            raise NotFoundError(message="The original live workspace provider changed", details={})
+        backend = sandbox.backend(ref)
+        return OpenWorkspace(
+            workspace=Workspace(backend),
+            kind="service",
+            scope=scope,
+            scope_key=key,
+            row_id=row.id,
+            connection_id=resolved.row.id,
+            sandbox=sandbox,
+            close_transport=backend.aclose if isinstance(backend, OrgOpenSandboxBackend) else None,
+            filesystem_binding_id=None if filesystem is None else filesystem.binding_id,
         )
 
     async def open_project(self, ctx: AuthContext, project: Project) -> OpenWorkspace:

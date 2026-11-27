@@ -230,6 +230,8 @@ from app.db.models.virtual_table_trigger import (
 from app.db.models.artifact_share_request import ArtifactShareRequest
 
 __all__ = [
+    "ConversationEnvironment",
+    "ConversationEnvironmentDriver",
     "ProjectResource",
     "EventDelivery",
     "EventDispatch",
@@ -499,3 +501,8 @@ from app.db.models.event_source import (
 from app.db.models.chatgpt_registration import ChatGPTRegistration as ChatGPTRegistration
 
 from app.db.models.project_resource import ProjectResource
+
+from app.db.models.conversation_environment import (
+    ConversationEnvironment,
+    ConversationEnvironmentDriver,
+)

@@ -539,3 +539,36 @@ async def recorded_origins(
         )
         for row in result.all()
     ]
+
+
+async def record_live_session(
+    db: AsyncSession,
+    *,
+    workspace_id: UUID,
+    organization_id: UUID,
+    scope_key: str,
+    connection_id: UUID,
+    initial_session_id: str | None,
+    session_id: str,
+) -> bool:
+    """Publish an idle provision only if it did not lose its original workspace."""
+    from sqlalchemy import or_, update
+
+    previous = (
+        AgentWorkspace.session_id.is_(None)
+        if initial_session_id is None
+        else AgentWorkspace.session_id == initial_session_id
+    )
+    identity = await db.scalar(
+        update(AgentWorkspace)
+        .where(
+            AgentWorkspace.id == workspace_id,
+            AgentWorkspace.organization_id == organization_id,
+            AgentWorkspace.scope_key == scope_key,
+            AgentWorkspace.connection_id == connection_id,
+            or_(previous, AgentWorkspace.session_id == session_id),
+        )
+        .values(session_id=session_id)
+        .returning(AgentWorkspace.id)
+    )
+    return identity is not None

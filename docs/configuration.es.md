@@ -1,5 +1,5 @@
 ---
-source_sha: "94de2582bba6"
+source_sha: "57382ae4b40b"
 ---
 
 # Configuración { #configuration }
@@ -1753,3 +1753,14 @@ despliegue así al que lleguen otras personas.
 ## GitHub Copilot OAuth { #github-copilot-oauth }
 
 Establece `GITHUB_COPILOT_OAUTH_CLIENT_ID` (vacío por defecto) con la aplicación OAuth propia del despliegue y habilita device flow. Sin ella se rechaza el inicio personal Copilot. Es distinto de GitHub Models y las credenciales del conector GitHub. Autorizar GitHub no confirma acceso Copilot; también debe pasar la comprobación de modelos de chat de la cuenta. No se admiten concesiones GitHub App caducables ni gateways Enterprise propios. Consulta [cuentas Copilot](models.md#github-copilot-accounts).
+
+## Entornos del chat privado { #conversation-environment-limits }
+
+| Ajuste | Predeterminado | Significado |
+| --- | --- | --- |
+| `CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS` | `900` | Límite del despliegue para la retención inactiva de Browser use y Computer use: 60–86400 segundos. El panel muestra el menor valor entre este límite y `session_idle_seconds` de la capability. |
+| `CONVERSATION_ENVIRONMENTS_PER_USER` | `4` | Entornos pendientes por miembro de organización: 1–100. Los recursos remotos conocidos pendientes de eliminación cuentan hasta que la limpieza termine. |
+
+Los bindings eligen `session_lifetime` (`run` o `conversation`). Los existentes sin los campos nuevos conservan duración por run; los nuevos de la consola eligen expresamente conversación y 900 segundos. Un entorno por run abierto manualmente termina tras un run que realmente lo utilice. Considera el coste del recurso del proveedor antes de ampliar la inactividad. Abrir y observar un entorno no requiere llamadas al modelo.
+
+Mantén el worker disponible para aprovisionar, comprobar caducidades y realizar limpieza duradera. El propietario del navegador permanece conectado desde API/worker para aplicar la política de salida; perderlo elimina deliberadamente el contexto aislado. Un reinicio puede caducar el navegador antes del límite, en lugar de restaurar una sesión desprotegida o copiada. Consulta [duración de navegador y escritorio](sandbox.es.md#conversation-environments).

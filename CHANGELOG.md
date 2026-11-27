@@ -22,7 +22,30 @@ Two things are versioned separately from this file and worth knowing about:
 ### Security
 
 - Published container manifests receive keyless Cosign signatures from the image workflow; new builds carry BuildKit provenance. Verify the immutable digest and GitHub workflow identity before deploying. Existing unsigned releases require republication to gain signatures.
+
 - Security reports go through GitHub private advisories, and repository ownership routes security and publishing changes to the technical leads. Correct the documented OIDC SSO and identity-provider MFA support.
+
+- Without `approvals:decide`, `GET /approvals` lists the caller's own waiting platform calls and nothing else, so a call a routine asked in no conversation still reaches its person; an API key or an impersonated session lists none. On a channel, a batch mixing that call with others continues as the run's person.
+
+- Show the description of a platform call's card only to the run's person; other approvers decide from its arguments.
+
+- Accept exactly the Improve attempt an approval named: `accept_improvement` names its `attempt`, and the finish is refused when another attempt was chosen meanwhile.
+
+- Resume a run that acts for no person - a widget visitor's, an unlinked channel member's - with no platform authority.
+
+- Ask before the Architect edits a skill or a Context file that published agents read.
+
+- Hand run evidence to the improver fenced as data, so a question or an answer cannot pose as the platform's rules.
+
+- Hold paid starts to their quote: an eval run is priced at the most it may spend, reruns included; a promotion gate's guards are held from their price to their start against one baseline; a skill update check starts the plan that was priced; a quoted knowledge draft runs on the drafter and version it was priced on.
+
+- Tell a platform call by the mark its binding put on the tool, recorded on the approval when it parks, never by its name or by what its card's description says: a capability's tool renamed with the platform's `agenticos_` prefix is approved like any other call, and a platform call of a native coding runtime is its person's to answer.
+
+- Keep the authoring assistant's changes to what a person reviewed. A suggestion never adds settings its card does not show (tool overrides, a vault secret, a disabled binding, looser approval), never adds a capability whose tools reach beyond the deployment, and adding back a capability the published version binds is judged as reconfiguring it. Text holding a character a person cannot see - a control character other than a newline or a tab, a bidirectional control, a Unicode tag character - is neither proposed, checked, accepted nor applied, and every diff writes such characters out by their code.
+
+- Accept an Improve session, and decide a skill session, only on the attempt and result that were reviewed: accepting names the attempt and two fingerprints of it, a decision names the check and its result, and a review that judges a case again since then refuses the stale confirmation. Publishing draft edits the session never measured needs its own confirmation.
+
+- Require connection access when selecting a new keyed Docling parser, and exclude stale endpoint references from embedding connection Tests so a retired endpoint never receives a collection’s chunks.
 
 ### Added
 
@@ -33,33 +56,47 @@ Two things are versioned separately from this file and worth knowing about:
 - Record, grade and replay the calls a code-mode script actually made, including failures and approval resumptions. Retained call-count and byte limits remain explicit; an incomplete trajectory stays ungraded.
 
 - Chat workspace tabs for Visuals, Browser and Files retain the selected content when switching views.
+
 - Let agents inspect a conversation visual before saving it as an App with `preview_visual`: a bounded screenshot, rendering diagnostics, phone-sized viewports and light/dark checks.
+
 - Open chat visuals in a resizable side panel with Preview and Code views, preserving interactive state through expansion and closing.
+
 - Download SVG visuals as sharp PNG images from chat or full screen, with local conversion, preparation feedback and a retryable error message.
+
 - Set custom token prices per model profile in a chosen currency, including cache prices and explicit free usage. Each profile, fallback and delegate keeps its own rates; accounting receipts retain the original price and conversion snapshot.
 
 - Configure supported currencies and manual pricing rates in administration or `CURRENCY_RATES`, and choose an organization reporting currency independently of language. Costs, estimates and monetary inputs share a persisted reporting quote; pricing-rate edits do not revalue recorded USD spend or configured limits.
 
 - Enter limits in the reporting currency and retain their original amount, currency and quote on the owning resource. Agent budgets, routines, workflows and their node caps, background roles, phone routing, eval suites, Improve sessions and cost-check criteria keep compatible accounting USD fields.
 
-
-
 - Preview a role’s navigation, dashboard cards, catalog restrictions and product prompts together, without impersonating a member or loading private widget data.
+
 - Embed a knowledge base through any OpenAI-compatible endpoint your organization registers, with an optional Vault key: pick **Custom (OpenAI-compatible)**, a service connection and a typed model, then **Test** before creating. Test before saving a change to a knowledge base's embeddings or to a connection's address or key; the Test re-embeds stored chunks and compares them with the vectors already indexed.
+
 - Knowledge base search marks where a result matches the query: the exact phrase when it appears, otherwise the query's words.
+
 - Retry a failed document from the documents list (the icon beside **Failed**). A retry reads with the collection's settings as they are now, plus any changes pending for the next uploads.
+
 - A deployment admin can create a deployment-wide knowledge base, searchable by every organization, from **Create knowledge base**.
+
 - Parse a knowledge base's documents through your own Docling Serve, registered as a service connection with an optional Vault key. A **Test** checks the address and key without converting anything. Chunks keep their pages, and a conversion that is still running is collected by Retry instead of being submitted again.
+
 - Price a promotion gate run before it starts with `GET /agents/{agent_id}/environments/{environment_id}/gate/estimate` or the `estimate_promotion_gate` tool.
+
 - Read the most an eval run may spend, reruns included, as `at_most_usd` on its estimate, with the `dataset_version` it priced. The console's Start eval agrees to that price and prices again if it changed.
+
+- Open Browser and Desktop from Workspace in an owned private chat without starting a model, then let the agent adopt the same live target or desktop. Browser use and Computer use can retain that environment between turns, with an explicit End action, visible idle limit and physical input leases. Existing stored bindings keep run lifetime; new console bindings explicitly choose conversation retention.
 
 ### Changed
 
 - Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
 
 - `POST /rag/documents/{id}/retry` now parses with the collection's current settings and accepts an optional `ingestion_override` body; with no body the file keeps the changes it was uploaded with. A retry no longer replaces another document of the same file, even after an upload with `replace=true`.
+
 - The knowledge base header's **Parse options** is now **Settings** and opens the collection's own settings; one-off settings for the next uploads moved to **Upload with different settings…** on the **Upload** button, and the banner's **Clear** is now **Revert**.
+
 - A `.docx` is now read by the collection's parser when it reads Word (LiteParse, LlamaParse, Docling), and otherwise by the built-in Word reader, which now keeps headings and tables as markdown in document order instead of dropping tables; `.txt` and `.md` still use the built-in text reader. The ML document analysis and recognition services follow the same rule, and now recognise a scanned `.docx`. A `.docx`, `.pptx` or `.xlsx` over the chat archive limits is refused at parse time under every parser, so a very large `.pptx` or `.xlsx` that LiteParse or LlamaParse used to read is now refused.
+
 - A provider, key, endpoint or model change on a knowledge base, and an Ollama connection address edit, now need a passing Test or a confirmed unverified save. The Integrations tab on the Knowledge bases page shows each connection's API style and key, and local services are now called service connections.
 
 ### Fixed
@@ -77,18 +114,25 @@ Two things are versioned separately from this file and worth knowing about:
 - Put workspace expand and close controls beside its tabs in every shared chat panel, preserve focus when closing, and keep tabs usable with touch or narrow layouts.
 
 - Keep Files contained in compact chats, retain listing position and folder folds behind the reader, and clear browser selection when switching conversations.
+
 - Limit preview memory use from oversized console output by bounding browser messages and cumulative event payloads.
 
 - Send the run's own person the request for their own platform call, with a link to the conversation it was asked in, or to their Inbox when it was asked in none, for as long as that call waits, whatever audience the agent's approval alert names. The pending approval mail no longer names fixed roles.
 
 - Show a suggestion reworded at an Improve session's Changes step with that wording in the Suggestions strip, and a skill session's description change as its old and new text before it is checked or applied.
+
 - Keep a person's wording exactly as typed, audit dismissing every suggestion at once, and keep every check's run on its batch when checks start together.
+
 - Follow a suggestion's passage to a new place only when it cannot be confused with another, so a short phrase such as an amount is no longer rewritten in another sentence.
+
 - Keep a dismissed suggestion dismissed for later requests, Verify and Improve sessions until the agent is next published.
+
 - Keep a session kept as a draft accepted when a newer request replaces its suggestions, record the publish of what it measured, and reject it when its draft is discarded.
 
 - Count malformed ordinary tool arguments against the SDK retry budget, reset it after a successful call, and stop exhausted nested-agent retries before a code-mode script can execute later actions. Preserve controlled validation details without serializing skill loads.
+
 - The skills category filter no longer offers category names of skills the caller cannot see (#3282).
+
 - Keep estimates, workflow receipts and cost criteria in the organization’s
   reporting currency. Budget and periodic usage notices retain their own quote
   across delivery retries; legacy queued messages keep their USD amounts.
@@ -100,40 +144,37 @@ Two things are versioned separately from this file and worth knowing about:
 - Refuse malformed service-address ports before saving, and allow repairing a legacy invalid address without leaking its credentials into audit entries.
 
 - Require priceable usage for paid embeddings under active run caps and keyed custom endpoints under an organization cap. Missing usage is recorded as partial before stopping further batches/files without automatic job replay; uncapped and keyless endpoints retain vector compatibility. Refresh cached embedders when this payer policy changes.
+
 - Preserve input/vector pairing for indexed embedding responses: restore shuffled order, reject ambiguous indices, and retain array order for compatible endpoints that omit all indices.
+
 - Meter every keyed embedding Test call independently, refresh authority and target before each retry, retain known usage on failure or cancellation, and refuse unknown prices under dollar caps. Sub-microdollar receipts now retain precision instead of rounding each small call to zero. Embedding Tests show the maximum call count and provider-token/budget impact before starting.
+
 - Require connection access before testing a retained keyed embedding endpoint, including model-only and unchanged tests. Refuse Docling tests when a required Vault key was deleted instead of retrying without credentials.
+
 - Validate raw embedding responses before SDK coercion: every requested input needs a nonempty finite numeric vector of the configured width. Column and index precision bounds are checked, including half-precision indexes for wide vectors. Invalid responses stay controlled provider failures, with reported usage retained.
+
 - Keep Docling Test results bound to the address, credentials and ownership actually tested, including when a form changes while the request is still running.
+
 - Naming a keyed service connection for a knowledge base, a move or a Test needs `connections:view`, so a Member cannot spend a connection key that was never shared with them.
+
 - An upload or retry into an app-scoped knowledge base checks its Docling connection as the collection, so an organization's private connection cannot be reached through an upload override.
+
 - Retrying a failed document no longer removes another upload of the same file; it replaces only what its own failed attempt left.
+
 - An app-scoped knowledge base is checked as itself when it is created or edited: its parser connection and OCR server must be deployment-wide and it cannot use a LlamaParse key, because its syncs resolve them with no organization. Before, a connection only the creator's organization could see was accepted and every sync then failed to find it.
-
-### Security
-
-- Without `approvals:decide`, `GET /approvals` lists the caller's own waiting platform calls and nothing else, so a call a routine asked in no conversation still reaches its person; an API key or an impersonated session lists none. On a channel, a batch mixing that call with others continues as the run's person.
-- Show the description of a platform call's card only to the run's person; other approvers decide from its arguments.
-- Accept exactly the Improve attempt an approval named: `accept_improvement` names its `attempt`, and the finish is refused when another attempt was chosen meanwhile.
-- Resume a run that acts for no person - a widget visitor's, an unlinked channel member's - with no platform authority.
-- Ask before the Architect edits a skill or a Context file that published agents read.
-- Hand run evidence to the improver fenced as data, so a question or an answer cannot pose as the platform's rules.
-- Hold paid starts to their quote: an eval run is priced at the most it may spend, reruns included; a promotion gate's guards are held from their price to their start against one baseline; a skill update check starts the plan that was priced; a quoted knowledge draft runs on the drafter and version it was priced on.
-- Tell a platform call by the mark its binding put on the tool, recorded on the approval when it parks, never by its name or by what its card's description says: a capability's tool renamed with the platform's `agenticos_` prefix is approved like any other call, and a platform call of a native coding runtime is its person's to answer.
-
-- Keep the authoring assistant's changes to what a person reviewed. A suggestion never adds settings its card does not show (tool overrides, a vault secret, a disabled binding, looser approval), never adds a capability whose tools reach beyond the deployment, and adding back a capability the published version binds is judged as reconfiguring it. Text holding a character a person cannot see - a control character other than a newline or a tab, a bidirectional control, a Unicode tag character - is neither proposed, checked, accepted nor applied, and every diff writes such characters out by their code.
-- Accept an Improve session, and decide a skill session, only on the attempt and result that were reviewed: accepting names the attempt and two fingerprints of it, a decision names the check and its result, and a review that judges a case again since then refuses the stale confirmation. Publishing draft edits the session never measured needs its own confirmation.
-
-- Require connection access when selecting a new keyed Docling parser, and exclude stale endpoint references from embedding connection Tests so a retired endpoint never receives a collection’s chunks.
 
 ### Upgrading
 
 - Upgrade croniter to 7 after migration `0376_croniter7_schedules.py` makes stored maximum-step expressions explicit, preserving routine, workflow and eval cadences and next-fire instants. Stop old API and workers first. New and explicitly edited expressions use croniter 7 semantics: `59/15` selects minute 59; use `*/15` for every 15 minutes. Unrepresentable executable schedules refuse migration with their owning row; unfinished drafts remain editable. Downgrade keeps new maximum-only steps as single values. Nonexistent local times during daylight-saving gaps are skipped.
 
 - Migration `0375_tool_approval_platform_call` adds `tool_approvals.platform_call` and fills it for the calls already recorded: a call of no capability whose tool name starts with `agenticos_`.
+
 - Reading an Improve session now needs `runs:view`. Members and Viewers who read sessions through the API or the Architect need it granted.
+
 - A tool override that renames a capability's tool to a name starting with `agenticos_` is refused at publish. Rename that tool before the agent is published again; versions already published keep running.
+
 - `update_skill`, `add_skill_resource` and `update_context_file` always ask now, and no standing consent or `never` override releases them. A routine or unattended run that calls them waits for a person's approval.
+
 - Outside MCP clients calling `start_eval_run`, `start_skill_update_check`, `run_promotion_gate` or `draft_knowledge_topic` must pass the matching estimate's price as `quoted_usd` - `at_most_usd` for an eval run - and `start_eval_run` its `dataset_version`, `start_skill_update_check` its `base_version_id`. `accept_improvement` takes the `attempt` it accepts. The HTTP API keeps `quoted_usd` optional; accepting an Improve session requires its reviewed attempt and result fingerprints as described below.
 
 - **BREAKING:** API clients that accept an Improve session or decide a skill session must send what was reviewed:
@@ -142,10 +183,16 @@ Two things are versioned separately from this file and worth knowing about:
 
   A request without them is refused with `422`; one naming another attempt or result, with `409`.
 
+- Apply `0376_conversation_environments.py` for the live-environment ownership and cleanup journals, and keep workers available for provisioning and cleanup. Browser contexts have a continuously attached egress guard and end if their owning API/worker process or transport is lost; restart reports honest expiry rather than replaying cookies or URLs. Idle retention defaults to a 900-second deployment ceiling (`CONVERSATION_ENVIRONMENT_MAX_IDLE_SECONDS`) and four outstanding resources per person (`CONVERSATION_ENVIRONMENTS_PER_USER`), including known resources still awaiting cleanup. Desktop isolation follows its configured workspace/project scope; a shared executor still has a shared GUI, with serialized control. End environments and drain cleanup before downgrade.
+
 - Isolated eval and Improve runs now hold reads that leave the deployment, including web fetch, search and remote-agent calls. Use an approved test connection or a recorded result for those calls. Code-mode scripts still run, with each nested operation independently isolated.
+
 - Migration `0365_intercepted_call_external.py` adds the external-read isolation reason; `0367_tool_call_script_calls.py` adds retained nested calls on transcript rows. `0376_merge_script_calls.py` joins these branches without replaying the released holdout-share backfill. The merge is metadata-only: reverting it alone leaves the feature branches applied. Downgrading the script-call branch discards its retained nested recordings.
+
 - Migration `0376_skill_binary_resources` stores lossless resource encoding and versioned frontmatter, including queued Check candidates. Downgrade refuses preserved binary or metadata content instead of discarding it.
+
 - Display workflow statistics, dashboard spending, run history and conversation costs in the organization currency, independently of language. Show unknown amounts when a reporting rate is unavailable; preserve stored USD accounting and existing cap values.
+
 - Apply `0379_trigger_budget_precision.py` for routine monthly limits: six USD
   fractional digits are retained. Additional fractional precision is refused
   before storage; downgrade refuses limits that would round or overflow the
@@ -158,11 +205,17 @@ Two things are versioned separately from this file and worth knowing about:
 - Model price changes require `budgets:manage` as well as connection management. Existing USD API fields retain their units; optional `monetary_inputs` declarations are checked against the authoritative quote. Legacy float-valued agent specs retain their format and refuse declarations that cannot be represented exactly at that boundary.
 
 - A keyed custom embedding endpoint under an organization USD cap must use a catalog-priced model and report valid token usage. Fix its reporting/model or intentionally remove that cap before retrying a policy-refused ingest/search. Ingestion and sync still admit whole work windows; already admitted work may overshoot, and unknown provider fees remain partial.
+
 - Migration `0367_embedding_probe_spend_precision.py` (revision `0367_embedding_probe_spend`) widens ingestion and diagnostic receipts to 12 fractional digits, preserving the previous integer range. Historically rounded receipts cannot be reconstructed or repriced. Downgrade refuses if it would discard fractional financial data.
+
 - `/api/v1/local-services` is now `/api/v1/service-connections`, with no alias. Update scripts and API clients.
+
 - Migration `0365_service_connections.py` renames `local_services` and adds `secret_id` and `requires_key`; no data is rewritten.
+
 - Migration `0366_docling_parser.py` widens the service connection kind to include `document_parser` and adds `rag_documents.parser_task`. Downgrading is refused while a document parser connection exists.
+
 - A LlamaParse collection now uploads new `.docx` files to LlamaParse.
+
 - A LiteParse collection now needs LibreOffice to read `.docx`. The backend image ships it; a host that runs the backend outside the image must install it.
 
 ## [1.95.0] - 2026-11-26

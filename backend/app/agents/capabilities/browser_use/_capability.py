@@ -25,6 +25,7 @@ from app.agents.capabilities.browser_use._toolset import (
     BROWSER_TAB_REQUIREMENT,
     BrowserToolset,
     PageFactory,
+    RetainedBrowser,
     build_toolset,
 )
 
@@ -92,6 +93,7 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
     route: BrowserRoute | None = field(default=None, repr=False, compare=False)
     """Where the organization sends its browses (#2130), resolved by the runner."""
 
+    retained: RetainedBrowser | None = field(default=None, repr=False, compare=False)
     resume_local: bool = False
     page_factory: PageFactory | None = field(default=None, repr=False, compare=False)
     """The browser seam; `None` reaches the real `cdp-use`. A test substitutes it."""
@@ -100,6 +102,14 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
 
     def get_instructions(self) -> str:
         """Static guidance: which way to drive the browser, and to distrust its output."""
+        if self.retained is not None:
+            return _INSTRUCTIONS + (
+                " In this private chat browser_read reattaches the same live tabs when retained. "
+                "Read again for fresh element numbers. If the environment expired, report that "
+                "fact; do not claim that reloading a URL restores unsaved forms. "
+                "Use browser_tabs to list, browser_switch_tab to select, browser_new_tab "
+                "to open and browser_close_tab to explicitly close a tab."
+            )
         if self.resume_local:
             return _INSTRUCTIONS + (
                 " Use browser_new_tab to open a separate page, browser_tabs to list ids, "
@@ -165,5 +175,6 @@ class WebBrowser(AbstractCapability[AgentDepsT]):
                 step_model=self.step_model,
                 route=self.route,
                 resume_local=self.resume_local,
+                retained=self.retained,
             )
         return self._toolset

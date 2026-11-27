@@ -336,9 +336,13 @@ class TestX11:
         assert xdotool(Wait()) is None
         assert xdotool(Launch(app="Firefox")) is None
 
-    def test_typed_text_is_one_argument_whatever_it_holds(self):
+    def test_typed_text_is_absent_from_audited_arguments(self):
         text = "a'; rm -rf / #"
-        assert xdotool(TypeText(text=text)) == ["xdotool", "type", "--delay", "12", "--", text]
+        command = xdotool(TypeText(text=text))
+        assert command is not None
+        assert command[:2] == ["python3", "-c"]
+        assert text not in " ".join(command)
+        assert command == xdotool(TypeText(text="a different secret"))
 
 
 class TestTheLaunchAction:

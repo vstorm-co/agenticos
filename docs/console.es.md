@@ -1,5 +1,5 @@
 ---
-source_sha: "7248174c2cb3"
+source_sha: "7d6eef878f23"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -1370,3 +1370,15 @@ Cuando un agente hace una pregunta, su tarjeta y el editor normal permanecen vis
 ## Lista plana de chats recientes { #flat-recent-chat-list }
 
 La cabecera de Chats ofrece **Actividad más reciente (lista plana)**. Combina chats de proyectos y normales en una lista ordenada por última actividad, sin encabezados de proyectos, no leídos o favoritos. Los favoritos conservan sus estrellas, pero no se fijan por encima de actividad más reciente. La paginación utiliza este orden en el servidor, de modo que los favoritos antiguos no desplazan los chats recientes de la primera página. Se mantienen los filtros existentes de agente, archivo y API. La elección se guarda en este navegador por separado para cada usuario; **Agrupar chats por proyecto** restaura la vista agrupada predeterminada.
+
+## Navegador y escritorio en vivo { #live-environments }
+
+En un chat privado propio, **Workspace** reúne **Files**, **Browser** y **Desktop**. Navegador y escritorio aparecen cuando el agente publicado seleccionado habilita esa capability y tienes permiso para ejecutarlo. Puedes crear primero un chat de proyecto vacío sin enviar un mensaje ni llamar al modelo. **Open** inicia expresamente el entorno seleccionado; abrir el menú no inicia nada. Los dispositivos locales emparejados mantienen sus controles actuales.
+
+El panel muestra la duración por run o conversación y el tiempo de inactividad efectivo. Ocultarlo, cambiar de pestaña o desconectar el stream solo separa esa vista. **End** pide confirmación y libera el entorno. Un entorno con duración por run se cierra después de un run del agente que realmente lo utiliza; otro turno no cierra un entorno abierto manualmente que no se haya utilizado.
+
+En modo conversación, el siguiente turno autorizado del chat web privado adopta el mismo destino de navegador en vivo o la misma referencia de escritorio del proveedor, incluidos formularios sin guardar y estado de JavaScript. No es un navegador nuevo con URLs o cookies copiadas. Si desaparece el recurso original o su propietario, el panel indica que ha caducado. Cada interfaz física tiene un único controlador; el control del agente bloquea la entrada manual hasta que se libera. El destino de ejecución agente/proyecto seleccionado se incluye en lectura, creación, End y streaming, de modo que cambiar la selección nunca presenta el entorno anterior como el destino nuevo.
+
+Consulta [duración de las sesiones](sandbox.es.md#conversation-environments) para la configuración y el comportamiento ante fallos.
+
+Los contextos del navegador se aíslan por propietario y conversación. El escritorio sigue el alcance configurado del workspace o proyecto: un executor con alcance de agente o compartido tiene una interfaz física común. La concesión serializa el control; no convierte ese escritorio compartido en privado. El menú exclusivo del propietario protege el acceso a la vista del chat, no el contenido de pantalla de un executor compartido deliberadamente.

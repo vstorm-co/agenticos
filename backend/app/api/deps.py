@@ -105,6 +105,7 @@ from app.services.ml import MLService
 from app.services.sandbox_connection import SandboxConnectionService
 from app.services.sandbox_workspace import SandboxWorkspaceService
 from app.services.conversation_share import ConversationShareService
+from app.services.conversation_environments import ConversationEnvironmentService
 
 
 def get_user_service(db: DBSession) -> UserService:
@@ -181,6 +182,15 @@ def get_coding_task_change_service(db: DBSession) -> CodingTaskChangeService:
 
 
 CodingTaskChangeSvc = Annotated[CodingTaskChangeService, Depends(get_coding_task_change_service)]
+
+
+def get_conversation_environment_service(db: DBSession) -> ConversationEnvironmentService:
+    return ConversationEnvironmentService(db)
+
+
+ConversationEnvironmentSvc = Annotated[
+    ConversationEnvironmentService, Depends(get_conversation_environment_service)
+]
 
 
 def get_conversation_service(db: DBSession) -> ConversationService:

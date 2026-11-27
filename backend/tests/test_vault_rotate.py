@@ -631,3 +631,42 @@ async def test_project_mount_binding_survives_master_key_rotation_without_changi
     assert credential.binding_id == row.id
     assert credential.token.get_secret_value() == plaintext
     assert plaintext not in repr(credential)
+
+
+@pytest.mark.security
+async def test_retained_environment_cleanup_credentials_rotate_after_owner_scope_is_detached(
+    monkeypatch,
+):
+    from app.db.models.conversation_environment import ConversationEnvironment
+
+    organization_id = uuid.uuid4()
+    scope = VaultScope.organization(organization_id)
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A})
+    sealed = seal("private-provider-cleanup-credential", scope=scope)
+    row = ConversationEnvironment(
+        id=uuid.uuid4(),
+        organization_id=None,
+        user_id=None,
+        conversation_id=None,
+        vault_organization_id=organization_id,
+        kind="desktop",
+        state="expired",
+        resource_ciphertext=sealed.ciphertext,
+        resource_key_version=sealed.key_version,
+    )
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {1: KEY_A, 2: KEY_B})
+    report = Report()
+    await _rotate_table(
+        _db_returning([row]),
+        _spec("conversation_environments"),
+        target=2,
+        dry_run=False,
+        report=report,
+    )
+    assert report.rotated == 1 and not report.failures
+    monkeypatch.setattr(settings, "VAULT_MASTER_KEYS", {2: KEY_B})
+    assert row.resource_key_version == 2
+    assert (
+        unseal(row.resource_ciphertext, scope=scope, key_version=2)
+        == "private-provider-cleanup-credential"
+    )

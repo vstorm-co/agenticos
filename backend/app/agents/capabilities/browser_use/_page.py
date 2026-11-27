@@ -19,11 +19,17 @@ import json
 import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
+import anyio
 from pydantic import BaseModel, Field, ValidationError
+
+if TYPE_CHECKING:
+    # The optional browser extra supplies this SDK; the adapter below has typed
+    # application inputs/results even when its transport is not installed.
+    from cdp_use import CDPClient  # ty: ignore[import-not-found]
 
 from app.agents.browser_sign_ins import (
     SignIn,
@@ -640,6 +646,8 @@ class PagePolicy:
     candidate_cap: int
     preview_width: int
 
+    allow_blank: bool = False
+
 
 class DomainRefused(RuntimeError):
     """The browser ended up somewhere the agent's allowlist does not permit."""
@@ -770,6 +778,8 @@ class CdpPage:
         }
         result = await self._evaluate(script)
         snapshot = parse_snapshot(result.get("value"), self._policy.candidate_cap)
+        if snapshot.url == "about:blank" and self._policy.allow_blank:
+            return snapshot
         check_navigation(snapshot.url)
         if not domain_allowed(snapshot.url, self._policy.allowed_domains):
             raise DomainRefused(
@@ -1036,7 +1046,9 @@ class CdpPage:
         ):
             raise EndpointError("The browser did not describe its current location.")
         url, title = result["url"], result["title"]
-        if not domain_allowed(url, self._policy.allowed_domains):
+        if not (url == "about:blank" and self._policy.allow_blank) and not domain_allowed(
+            url, self._policy.allowed_domains
+        ):
             raise DomainRefused("This page is outside the agent's allowed domains.")
         return url, title
 
@@ -1340,36 +1352,33 @@ async def _intercept(  # pragma: no cover - needs a live browser
     )
 
 
+class BrowserTarget(BaseModel):
+    """A server-owned context and target; never accepted from the browser UI."""
+
+    context_id: str = Field(min_length=1, max_length=256)
+    target_id: str = Field(min_length=1, max_length=256)
+
+
+class _TargetInfo(BaseModel):
+    target_id: str = Field(alias="targetId")
+    context_id: str = Field(alias="browserContextId")
+    type: str
+
+
+class _TargetAnswer(BaseModel):
+    target_info: _TargetInfo = Field(alias="targetInfo")
+
+
+class _BrowserContexts(BaseModel):
+    contexts: list[str] = Field(alias="browserContextIds")
+
+
 @asynccontextmanager
-async def open_page(  # pragma: no cover - needs a live browser
-    *,
+async def _browser_client(  # pragma: no cover - optional CDP transport
     cdp_url: str,
-    start_url: str,
-    policy: PagePolicy,
-    sign_ins: Sequence[SignIn] = (),
-    route: BrowserRoute | None = None,
-) -> AsyncGenerator[CdpPage]:
-    """Attach to a browser, open one tab on `start_url`, and close it again.
-
-    The tab is created and closed by this context manager, so a browse leaves the
-    browser as it found it - a long-lived browser service accumulating one
-    abandoned tab per run is the failure mode a shared endpoint actually has.
-
-    `sign_ins` are put into the browse's own context before the first request,
-    so a site the person kept a sign-in to sees a signed-in browser from the
-    start (#2129); they leave with the context when it is disposed.
-
-    `route` is the organization's choice (#2130): a hosted browser to attach to
-    instead of `cdp_url`, a proxy the context reaches sites through, and the time
-    zone and language the browser says it has.
-
-    Raises:
-        RuntimeError: The `browser` extra is not installed.
-        DomainRefused: `start_url` is outside the agent's allowlist.
-        EndpointError: The endpoint is not a Chromium DevTools endpoint.
-    """
-    if not domain_allowed(start_url, policy.allowed_domains):
-        raise DomainRefused(f"{start_url} is outside this agent's allowed domains.")
+    route: BrowserRoute | None,
+) -> AsyncGenerator[CDPClient]:
+    """Connect to the vetted browser and release only this transport on exit."""
     try:
         import httpx
 
@@ -1401,106 +1410,211 @@ async def open_page(  # pragma: no cover - needs a live browser
             socket = websocket_url(endpoint, response.json())
 
     client = CDPClient(socket)
-    await client.start()
-    target: str | None = None
-    context_id: str | None = None
     try:
-        # A browser context of its own, disposed with the browse. Without one
-        # every browse shares the default context of a long-lived browser, so a
-        # cookie set when one person's agent signed in is still there for the
-        # next caller of the same agent - which on a shared endpoint is one
-        # tenant reading another's authenticated pages. Closing the tab does not
-        # clear that; disposing the context does.
-        #
-        # No fallback if the browser refuses one, a hosted browser's included:
-        # falling back to the default context is exactly the leak this exists to
-        # prevent. A pooled or long-lived default profile keeps what a takeover
-        # wrote - cookies, local storage, IndexedDB - for whoever attaches next.
-        context = await client.send.Target.createBrowserContext(
-            params=context_params(route, hosted=remote is not None)
-        )
-        context_id = context["browserContextId"]
-        # The tab is created empty and navigated afterwards, which is not a
-        # detail: `createTarget` with a URL starts navigating before there is a
-        # session to attach, so the first command lands in an execution context
-        # the navigation has already destroyed. Measured against a live Chromium.
-        created = await client.send.Target.createTarget(
-            params={
-                "url": "about:blank",
-                **({"browserContextId": context_id} if context_id else {}),
-            }
-        )
-        target = created["targetId"]
-        attached = await client.send.Target.attachToTarget(
-            params={"targetId": target, "flatten": True}
-        )
-        session = attached["sessionId"]
-        # `Page.enable` takes no parameters. `Runtime.enable` is deliberately not
-        # sent: nothing here reads its events, and a page can tell it was - the
-        # console serialises what is logged once it is on, which is the check bot
-        # detection runs for a driven browser (#2130).
-        await client.send.Page.enable(session_id=session)
-        # Look like the browser a person runs: no `Headless` in the user agent of
-        # a headless shell, and no `SwiftShader` in the WebGL renderer of one
-        # drawing in software.
-        locale = route.locale if route else None
-        override = user_agent_override(await client.send.Browser.getVersion(), locale)
-        if override is not None:
-            await client.send.Emulation.setUserAgentOverride(params=override, session_id=session)
-        if locale is not None:
-            await client.send.Emulation.setLocaleOverride(
-                params={"locale": locale.replace("-", "_")}, session_id=session
-            )
-        if route is not None and route.timezone is not None:
-            await client.send.Emulation.setTimezoneOverride(
-                params={"timezoneId": route.timezone}, session_id=session
-            )
-        await _intercept(client, session, route, policy.allowed_domains)
-        await client.send.Page.addScriptToEvaluateOnNewDocument(
-            params={"source": _STEALTH_JS}, session_id=session
-        )
-        # Keep every navigation in this tab. `CdpPage` is bound to one attached
-        # session, so a `target="_blank"` link or a `window.open()` opens a target
-        # the loop never sees: the next snapshot reads the unchanged opener, the
-        # repeat guard eventually stops the browse, and a page nobody looked at
-        # is left behind. Rewriting the intent is simpler and more predictable
-        # than following targets, and it keeps a browse one thing in one place.
-        await client.send.Page.addScriptToEvaluateOnNewDocument(
-            params={"source": _SAME_TAB_JS}, session_id=session
-        )
-        # The viewport, before anything is loaded. A headless Chromium defaults to
-        # 800x600, which decides more than how the pictures look: the element
-        # table holds what is *on screen*, so a short viewport hides a search box
-        # below the fold and the loop spends a step scrolling to what a person
-        # would have seen without moving. `preview_width` sets both, so the frame
-        # a person watches is the page the model was shown.
-        await client.send.Emulation.setDeviceMetricsOverride(
-            params={
-                "width": policy.preview_width,
-                "height": round(policy.preview_width * _VIEWPORT_RATIO),
-                "deviceScaleFactor": 1,
-                "mobile": False,
-            },
-            session_id=session,
-        )
-        cookies = cookie_params([cookie for sign_in in sign_ins for cookie in sign_in.cookies])
-        if cookies:
-            await client.send.Storage.setCookies(
-                params={
-                    "cookies": cookies,
-                    **({"browserContextId": context_id} if context_id else {}),
-                }
-            )
-        if any(sign_in.local_storage for sign_in in sign_ins):
-            await client.send.Page.addScriptToEvaluateOnNewDocument(
-                params={"source": restore_script(list(sign_ins))}, session_id=session
-            )
-        page = CdpPage(client, session, policy, context_id=context_id or "")
-        await page.navigate(start_url)
-        yield page
+        await client.start()
+        yield client
     finally:
-        if target is not None:
-            await client.send.Target.closeTarget(params={"targetId": target})
-        if context_id is not None:
-            await client.send.Target.disposeBrowserContext(params={"browserContextId": context_id})
-        await client.stop()
+        with anyio.move_on_after(15, shield=True):
+            await client.stop()
+
+
+async def dispose_browser_target(  # pragma: no cover - optional CDP transport
+    *,
+    cdp_url: str,
+    route: BrowserRoute | None,
+    target: BrowserTarget,
+) -> None:
+    """Dispose the owned context; an already absent context is an idempotent end."""
+    async with _browser_client(cdp_url, route) as client:
+        contexts = _BrowserContexts.model_validate(await client.send.Target.getBrowserContexts())
+        if target.context_id in contexts.contexts:
+            await client.send.Target.disposeBrowserContext(
+                params={"browserContextId": target.context_id}
+            )
+
+
+@asynccontextmanager
+async def open_page(  # pragma: no cover - needs a live browser
+    *,
+    cdp_url: str,
+    start_url: str | None,
+    policy: PagePolicy,
+    sign_ins: Sequence[SignIn] = (),
+    route: BrowserRoute | None = None,
+    retained: BrowserTarget | None = None,
+    keep: Callable[[BrowserTarget], Awaitable[None]] | None = None,
+) -> AsyncGenerator[CdpPage]:
+    """Attach to a browser, open one tab on `start_url`, and close it again.
+
+    The tab is created and closed by this context manager, so a browse leaves the
+    browser as it found it - a long-lived browser service accumulating one
+    abandoned tab per run is the failure mode a shared endpoint actually has.
+
+    `sign_ins` are put into the browse's own context before the first request,
+    so a site the person kept a sign-in to sees a signed-in browser from the
+    start (#2129); they leave with the context when it is disposed.
+
+    `route` is the organization's choice (#2130): a hosted browser to attach to
+    instead of `cdp_url`, a proxy the context reaches sites through, and the time
+    zone and language the browser says it has.
+
+    Raises:
+        RuntimeError: The `browser` extra is not installed.
+        DomainRefused: `start_url` is outside the agent's allowlist.
+        EndpointError: The endpoint is not a Chromium DevTools endpoint.
+    """
+    if start_url is None and retained is None and keep is None:
+        raise DomainRefused("Open a browser page before continuing.")
+    if start_url is not None and not domain_allowed(start_url, policy.allowed_domains):
+        raise DomainRefused(f"{start_url} is outside this agent's allowed domains.")
+    remote = route.remote_url.get_secret_value() if route and route.remote_url else None
+    async with _browser_client(cdp_url, route) as client:
+        target: str | None = None
+        context_id: str | None = None
+        kept = False
+        completed = False
+        try:
+            # A browser context of its own, disposed with the browse. Without one
+            # every browse shares the default context of a long-lived browser, so a
+            # cookie set when one person's agent signed in is still there for the
+            # next caller of the same agent - which on a shared endpoint is one
+            # tenant reading another's authenticated pages. Closing the tab does not
+            # clear that; disposing the context does.
+            #
+            # No fallback if the browser refuses one, a hosted browser's included:
+            # falling back to the default context is exactly the leak this exists to
+            # prevent. A pooled or long-lived default profile keeps what a takeover
+            # wrote - cookies, local storage, IndexedDB - for whoever attaches next.
+            if retained is None:
+                context = await client.send.Target.createBrowserContext(
+                    params={
+                        **context_params(route, hosted=remote is not None),
+                        "disposeOnDetach": True,
+                    }
+                )
+                context_id = context["browserContextId"]
+                # The tab is created empty and navigated afterwards, which is not a
+                # detail: `createTarget` with a URL starts navigating before there is a
+                # session to attach, so the first command lands in an execution context
+                # the navigation has already destroyed. Measured against a live Chromium.
+                created = await client.send.Target.createTarget(
+                    params={
+                        "url": "about:blank",
+                        **({"browserContextId": context_id} if context_id else {}),
+                    }
+                )
+                target = created["targetId"]
+            else:
+                try:
+                    info = _TargetAnswer.model_validate(
+                        await client.send.Target.getTargetInfo(
+                            params={"targetId": retained.target_id}
+                        )
+                    ).target_info
+                except (RuntimeError, ValidationError) as exc:
+                    # The optional CDP client's command error is RuntimeError.
+                    # Translate only this exact target lookup, never infer a new
+                    # identity or silently create a replacement context.
+                    raise EndpointError("The owned browser tab is no longer available.") from exc
+                if (
+                    info.context_id != retained.context_id
+                    or info.target_id != retained.target_id
+                    or info.type != "page"
+                ):
+                    raise EndpointError("The owned browser tab is no longer available.")
+                target, context_id = retained.target_id, retained.context_id
+            attached = await client.send.Target.attachToTarget(
+                params={"targetId": target, "flatten": True}
+            )
+            session = attached["sessionId"]
+            # `Page.enable` takes no parameters. `Runtime.enable` is deliberately not
+            # sent: nothing here reads its events, and a page can tell it was - the
+            # console serialises what is logged once it is on, which is the check bot
+            # detection runs for a driven browser (#2130).
+            await client.send.Page.enable(session_id=session)
+            # Look like the browser a person runs: no `Headless` in the user agent of
+            # a headless shell, and no `SwiftShader` in the WebGL renderer of one
+            # drawing in software.
+            locale = route.locale if route else None
+            override = user_agent_override(await client.send.Browser.getVersion(), locale)
+            if override is not None:
+                await client.send.Emulation.setUserAgentOverride(
+                    params=override, session_id=session
+                )
+            if locale is not None:
+                await client.send.Emulation.setLocaleOverride(
+                    params={"locale": locale.replace("-", "_")}, session_id=session
+                )
+            if route is not None and route.timezone is not None:
+                await client.send.Emulation.setTimezoneOverride(
+                    params={"timezoneId": route.timezone}, session_id=session
+                )
+            await _intercept(client, session, route, policy.allowed_domains)
+            await client.send.Page.addScriptToEvaluateOnNewDocument(
+                params={"source": _STEALTH_JS}, session_id=session
+            )
+            # Keep every navigation in this tab. `CdpPage` is bound to one attached
+            # session, so a `target="_blank"` link or a `window.open()` opens a target
+            # the loop never sees: the next snapshot reads the unchanged opener, the
+            # repeat guard eventually stops the browse, and a page nobody looked at
+            # is left behind. Rewriting the intent is simpler and more predictable
+            # than following targets, and it keeps a browse one thing in one place.
+            await client.send.Page.addScriptToEvaluateOnNewDocument(
+                params={"source": _SAME_TAB_JS}, session_id=session
+            )
+            # The viewport, before anything is loaded. A headless Chromium defaults to
+            # 800x600, which decides more than how the pictures look: the element
+            # table holds what is *on screen*, so a short viewport hides a search box
+            # below the fold and the loop spends a step scrolling to what a person
+            # would have seen without moving. `preview_width` sets both, so the frame
+            # a person watches is the page the model was shown.
+            await client.send.Emulation.setDeviceMetricsOverride(
+                params={
+                    "width": policy.preview_width,
+                    "height": round(policy.preview_width * _VIEWPORT_RATIO),
+                    "deviceScaleFactor": 1,
+                    "mobile": False,
+                },
+                session_id=session,
+            )
+            if retained is None:
+                cookies = cookie_params(
+                    [cookie for sign_in in sign_ins for cookie in sign_in.cookies]
+                )
+                if cookies:
+                    await client.send.Storage.setCookies(
+                        params={
+                            "cookies": cookies,
+                            **({"browserContextId": context_id} if context_id else {}),
+                        }
+                    )
+                if any(sign_in.local_storage for sign_in in sign_ins):
+                    await client.send.Page.addScriptToEvaluateOnNewDocument(
+                        params={"source": restore_script(list(sign_ins))}, session_id=session
+                    )
+            page = CdpPage(
+                client,
+                session,
+                replace(policy, allow_blank=retained is not None or keep is not None),
+                context_id=context_id or "",
+            )
+            if retained is None and start_url is not None:
+                await page.navigate(start_url)
+            if keep is not None:
+                if context_id is None or target is None:
+                    raise EndpointError("The browser did not create an owned tab.")
+                await keep(BrowserTarget(context_id=context_id, target_id=target))
+                kept = True
+            yield page
+            completed = True
+        finally:
+            with anyio.move_on_after(15, shield=True):
+                if retained is None and not (kept and completed):
+                    try:
+                        if target is not None:
+                            await client.send.Target.closeTarget(params={"targetId": target})
+                    finally:
+                        if context_id is not None:
+                            await client.send.Target.disposeBrowserContext(
+                                params={"browserContextId": context_id}
+                            )

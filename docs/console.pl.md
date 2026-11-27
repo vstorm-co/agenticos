@@ -1,5 +1,5 @@
 ---
-source_sha: "7248174c2cb3"
+source_sha: "7d6eef878f23"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -1332,3 +1332,15 @@ Gdy agent zadaje pytanie, karta i zwykły edytor pozostają widoczne razem. Edyt
 ## Płaska lista ostatnich chatów { #flat-recent-chat-list }
 
 Nagłówek Chatów oferuje **Ostatnią aktywność (płaską listę)**. Łączy chaty projektowe i zwykłe w jedną listę według ostatniej aktywności, bez nagłówków projektów, nieprzeczytanych i ulubionych. Ulubione zachowują gwiazdki, ale nie są przypinane ponad nowszą aktywnością. Paginacja korzysta z tej kolejności na serwerze, więc stare ulubione nie wypychają ostatnich chatów z pierwszej strony. Dotychczasowe filtry agenta, archiwum i API nadal działają. Wybór jest zapisywany w tej przeglądarce osobno dla każdego zalogowanego użytkownika; **Grupuj chaty według projektu** przywraca domyślny widok grupowany.
+
+## Żywa przeglądarka i pulpit { #live-environments }
+
+We własnym prywatnym czacie menu **Workspace** grupuje **Files**, **Browser** i **Desktop**. Przeglądarka i pulpit pojawiają się, gdy wybrany opublikowany agent ma daną capability, a Ty możesz go uruchamiać. Pusty czat projektu można najpierw utworzyć bez wysyłania wiadomości i bez uruchamiania modelu. **Open** jawnie uruchamia wybrane środowisko; samo otwarcie menu niczego nie uruchamia. Sparowane lokalne urządzenia zachowują dotychczasowe sterowanie.
+
+Panel pokazuje czas życia środowiska — run lub rozmowę — oraz efektywny limit bezczynności. Ukrycie panelu, zmiana zakładki lub rozłączenie strumienia odłącza tylko ten podgląd. **End** wymaga potwierdzenia i zwalnia środowisko. Środowisko o czasie życia run zamyka się po runie agenta, który faktycznie z niego korzystał; niezwiązana wiadomość nie zamyka nieużywanego środowiska otwartego ręcznie.
+
+W trybie rozmowy następna uprawniona tura prywatnego czatu przejmuje tę samą żywą kartę przeglądarki lub referencję pulpitu u dostawcy, wraz z niezapisanymi formularzami i stanem JavaScript. To nie jest nowa przeglądarka z przekopiowanymi adresami i cookies. Gdy oryginalny zasób lub jego właściciel przestaje istnieć, panel pokazuje wygaśnięcie zamiast obiecywać odtworzenie. Jeden fizyczny interfejs ma w danej chwili jednego sterującego; sterowanie agenta blokuje ręczne komendy do czasu zwolnienia. Wybrany cel wykonania agent/projekt jest przekazywany w odczycie, tworzeniu, zakończeniu i strumieniu, więc zmiana wyboru nie przedstawia starego środowiska jako nowego celu.
+
+Konfigurację i zachowanie przy awarii opisują [czasy życia sesji](sandbox.pl.md#conversation-environments).
+
+Konteksty przeglądarki są izolowane dla właściciela i rozmowy. Pulpit ma zakres skonfigurowanego workspace lub projektu: executor o zakresie agenta albo inny współdzielony executor ma wspólny fizyczny interfejs. Dzierżawa serializuje sterowanie, ale nie zmienia wspólnego pulpitu w prywatny. Menu dostępne tylko właścicielowi ogranicza podłączenie podglądu czatu, a nie widoczność ekranu celowo współdzielonego executora.
