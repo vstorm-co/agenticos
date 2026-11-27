@@ -4265,6 +4265,7 @@ class AgentRunnerService:
         source_run: AgentRun | None = None,
         watch_receipt: WatchReadReceipt | None = None,
         room_lead: RoomLeadPlanning | None = None,
+        room_admitted: bool = False,
     ) -> PreparedRun:
         """Assemble everything a run needs and open its row.
 
@@ -4490,6 +4491,7 @@ class AgentRunnerService:
             organization_mcp_only=organization_mcp_only,
             decision_model=decision_model,
             room_lead=room_lead,
+            room_admitted=room_admitted,
             # Passed in rather than set on the built deps like `on_compaction`:
             # whether a gap is briefed or offered as a tool decides what is built.
             request_connection=request_connection,
@@ -4707,6 +4709,7 @@ class AgentRunnerService:
         restored_channel_authors: dict[str, UUID] | None = None,
         watch_receipt: WatchReadReceipt | None = None,
         room_lead: RoomLeadPlanning | None = None,
+        room_admitted: bool = False,
     ) -> PreparedRun:
         """Build the agent for a run, opening its row unless one is being resumed.
 
@@ -5391,7 +5394,11 @@ class AgentRunnerService:
             room_key=memory_room_key,
             via_api_key=ctx.api_key_id is not None,
         )
-        if project is not None and (
+        # A room-admitted run stands down: the room worker verified the
+        # requester is a room member and the agent is pinned before executing,
+        # so the project context reaches admitted members only, not an
+        # unverified room.
+        if project is not None and not room_admitted and (
             not project_audience.private or subject_is_publisher_fallback or public_origin
         ):
             raise AuthorizationError(
@@ -8784,6 +8791,7 @@ class AgentRunnerService:
         result_context_conversation_ids: Sequence[UUID] = (),
         on_segment: Callable[[RunSegment], Awaitable[None]] | None = None,
         room_lead: RoomLeadPlanning | None = None,
+        room_admitted: bool = False,
     ) -> tuple[str, AgentRun]:
         """Run an agent to completion and return its answer.
 
@@ -8918,6 +8926,7 @@ class AgentRunnerService:
             organization_mcp_only=organization_mcp_only,
             decision_model=decision_model,
             room_lead=room_lead,
+            room_admitted=room_admitted,
             draft=draft,
             test=test,
             watch_receipt=watch_receipt,

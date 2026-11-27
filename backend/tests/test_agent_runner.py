@@ -13077,6 +13077,63 @@ async def test_project_reference_never_reaches_an_unverified_audience_before_mod
 
 @pytest.mark.anyio
 @pytest.mark.security
+async def test_a_room_admitted_run_reaches_the_project_reference() -> None:
+    """The room worker verified the requester is a room member and the agent
+    is pinned before executing, so the audience gate stands down for it."""
+    ctx = _ctx()
+    service = AgentRunnerService(_db())
+    agent = MagicMock(
+        id=uuid.uuid4(), current_version_id=uuid.uuid4(), system_key=None, kind="agent"
+    )
+    project = SimpleNamespace(
+        id=uuid.uuid4(),
+        name="Launch",
+        description=None,
+        instructions=None,
+        backend="service",
+        sandbox_connection_id=None,
+        runtime=None,
+        workspace_generation=None,
+    )
+    with (
+        patch.object(
+            service.registry,
+            "get_runnable_spec",
+            new=AsyncMock(return_value=(agent, AgentSpec(name="Writer"), agent.current_version_id)),
+        ),
+        patch.object(
+            service.models, "resolve", new=AsyncMock(return_value=_resolved_model("gpt-4.1"))
+        ),
+        patch(
+            "app.services.agent_runner.build_toolsets_for_agent",
+            new=AsyncMock(return_value=ResolvedMcpToolsets([], [])),
+        ),
+        patch(
+            "app.services.agent_runner.ProjectService.for_run", new=AsyncMock(return_value=project)
+        ),
+        patch("app.services.agent_runner._in_project") as reference,
+        patch("app.services.agent_runner.build_agent") as build,
+        patch.object(service.workspaces, "open", new=AsyncMock()) as opening,
+        patch(
+            "app.services.agent_runner.find_earlier_attachments",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
+        await service.prepare(
+            ctx,
+            agent.id,
+            conversation_id=uuid.uuid4(),
+            surface=RunSurface.WEB,
+            memory_room_key="room:mattermost:channel",
+            room_admitted=True,
+        )
+    reference.assert_called_once()
+    build.assert_called_once()
+    opening.assert_awaited_once()
+
+
+@pytest.mark.anyio
+@pytest.mark.security
 @pytest.mark.parametrize("case", ["local", "no_project", "files_only"])
 async def test_project_executor_refusal_precedes_run_and_workspace_admission(case: str) -> None:
     from app.schemas.local_target import LocalTarget
