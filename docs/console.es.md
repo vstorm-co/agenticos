@@ -1,5 +1,5 @@
 ---
-source_sha: "47df6e445448"
+source_sha: "f02085d6f5cd"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -794,6 +794,8 @@ escritura queda sobre el teclado y la conversación en su último mensaje mientr
 se abre, Enter empieza una
 línea nueva, y adjuntar un archivo o dictar están detrás de un único **+**. Los
 campos nunca son tan pequeños como para que iOS haga zoom en ellos.
+
+La consola sigue la altura y el desplazamiento vertical del área visible. Al enfocar o abandonar un campo en una pantalla táctil, también mide la transición del teclado durante un máximo de un segundo, para que un evento tardío no obligue a escribir antes de colocar el editor. El zoom con dos dedos conserva la navegación habitual de la página.
 
 **Dibujos.** Un agente con [Visuals](reference/capabilities.md#visuals) dibuja bajo
 su mensaje - un diagrama, una explicación con controles deslizantes, una escena 3D - y

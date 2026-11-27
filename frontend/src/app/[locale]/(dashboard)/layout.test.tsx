@@ -43,6 +43,7 @@ describe("the dashboard's scroll container", () => {
       (element) => element.props.className?.includes("h-[calc(var(--app-height") === true,
     );
     expect(frame).not.toBeNull();
+    expect(frame?.props.className).toContain("top-[var(--app-top,0px)]");
     render(<MainViewport>Content</MainViewport>);
     expect(screen.getByRole("main")).toHaveClass("min-h-0", "flex-1", "overflow-auto");
   });

@@ -1881,6 +1881,7 @@ function ChatUIContent({
                         />
                         <div
                           data-tour="chat-composer"
+                          data-keyboard-anchor
                           className={cn(
                             "panel composer-box chat-composer-width focus-within:border-foreground/20 rounded-2xl transition-colors",
                             composerStrip !== null && !minimalComposer && "rounded-t-none",

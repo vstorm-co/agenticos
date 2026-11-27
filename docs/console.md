@@ -757,6 +757,8 @@ the keyboard and the conversation stays on its last message while it opens,
 Enter starts a new line, and attaching a file or dictating sits behind one
 **+**. Fields are never small enough for iOS to zoom into them.
 
+The console tracks both the visible viewport’s height and its vertical offset. On touch focus and blur it also measures the keyboard transition for up to one second, so a delayed viewport event does not require typing to reposition the composer. Pinch zoom keeps its normal page navigation.
+
 **Drawings.** An agent with [Visuals](reference/capabilities.md#visuals) draws
 under its message - a diagram, an explainer with sliders, a 3D scene - and you watch
 it appear while it is written; its scripts start once it is complete. The panel shows

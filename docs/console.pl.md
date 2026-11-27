@@ -1,5 +1,5 @@
 ---
-source_sha: "47df6e445448"
+source_sha: "f02085d6f5cd"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -773,6 +773,8 @@ klawiaturą, a rozmowa przy ostatniej wiadomości, gdy klawiatura się otwiera,
 Enter zaczyna nową linię, a załącznik i
 dyktowanie są pod jednym **+**. Pola nigdy nie są na tyle małe, żeby iOS je
 przybliżał.
+
+Konsola śledzi wysokość widocznego obszaru i jego przesunięcie w pionie. Po uzyskaniu lub utracie fokusu na ekranie dotykowym mierzy też przejście klawiatury przez maksymalnie sekundę, aby opóźnione zdarzenie nie wymagało wpisania znaku do ustawienia pola wiadomości. Powiększanie gestem zachowuje zwykłą nawigację po stronie.
 
 **Rysunki.** Agent z [Wizualizacjami](reference/capabilities.md#visuals) rysuje pod
 swoją wiadomością - diagram, explainer z suwakami, scenę 3D - a ty widzisz, jak powstaje

@@ -1,5 +1,5 @@
 ---
-source_sha: "47df6e445448"
+source_sha: "f02085d6f5cd"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -821,6 +821,8 @@ Eingabefeld bleibt über der Tastatur und die Unterhaltung bei ihrer letzten
 Nachricht, wenn sie aufgeht, Enter
 beginnt eine neue Zeile, und Anhängen oder Diktieren liegen hinter einem **+**.
 Felder sind nie so klein, dass iOS hineinzoomt.
+
+Die Konsole berücksichtigt Höhe und vertikalen Versatz des sichtbaren Bereichs. Beim Fokussieren und Verlassen eines Eingabefelds auf einem Touchscreen misst sie den Tastaturübergang zusätzlich bis zu einer Sekunde lang. Ein verspätetes Viewport-Ereignis erfordert dadurch keinen Tastendruck, um das Nachrichtenfeld auszurichten. Beim Zoomen mit zwei Fingern bleibt die normale Seitennavigation erhalten.
 
 **Zeichnungen.** Ein Agent mit [Visuals](reference/capabilities.md#visuals)
 zeichnet unter seiner Nachricht - ein Diagramm, eine Erklärung mit Schiebereglern, eine
