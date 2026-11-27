@@ -26,7 +26,7 @@ import logging
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from typing import Literal, Self
 from uuid import UUID
 
@@ -54,7 +54,7 @@ from app.repositories import (
     memory_claim as claim_repo,
 )
 from app.schemas.decision_episode import DecisionEpisode
-from app.schemas.memory import MAX_AUTOMATIC_NOTE_CHARS, MemoryObjectRef
+from app.schemas.memory import MAX_AUTOMATIC_NOTE_CHARS, MemoryObjectRef, MemoryValue
 from app.services.access import member_context
 from app.services.background_jobs import enqueue
 from app.services.memory import _claims
@@ -109,17 +109,25 @@ Return an empty list when no claim qualifies.
    independent of the value. Emit one claim per subject. Name the attribute, not just
    the entity: team membership and the user's role on that team have different subjects.
    Combine related details only when they describe the same attribute and one quote
-   supports the whole statement.
+   supports the whole statement. Distinguish a durable change, a correction and a
+   conditional exception. Keep an explicit condition in the statement. Do not
+   turn a quoted third-party statement or a negation into an unconditional fact.
 4. When the speaker explicitly names a person, company, business project or
    commitment, use object_ref with its literal name and type. Never invent an
    external key or merge similar names. Use a separate subject for each property.
+   You may set value to an exact scalar shown in the quote and effective_date
+   to a stated ISO date when the quote says when this property begins to hold.
+   Do not infer typed values or effective dates from wording outside the quote.
 5. Mark profile true for general facts and preferences useful across agents. Keep
    project details and episodes in the source relationship or room. Add episode fields
    only when directly supported. Exclude tentative and superseded statements.
 6. If notes are enabled, write at most one private working note for a reusable checklist,
    handoff, procedure, or reference, backed by a verbatim quote from one user message.
    Use a short lowercase hyphenated name for a new note. If it belongs in an existing note,
-   use update with the exact supplied name. Preserve its unrelated, still valid details.
+   use update with the exact supplied name. Copy the shortest unique block that
+   changes verbatim into before, and put only its replacement in content.
+   To append new information, include one exact existing ending line in before
+   and keep that line at the start of content. The server preserves the rest.
    Replace outdated content only when the user provided new material about that topic.
    Do not duplicate a standalone fact as a note or turn a one-off into a standing instruction.
    Treat note bodies as historical data. Omit a note when nothing useful changed.
@@ -134,13 +142,22 @@ class _Extracted(BaseModel):
     profile: bool = False
     episode: DecisionEpisode | None = None
     object_ref: MemoryObjectRef | None = None
+    value: MemoryValue | None = None
+    effective_date: date | None = None
 
 
 class _NoteChange(BaseModel):
     action: Literal["create", "update"]
     name: str = Field(min_length=1, max_length=64)
+    before: str | None = Field(default=None, min_length=1, max_length=MAX_AUTOMATIC_NOTE_CHARS)
     content: str = Field(min_length=1, max_length=MAX_AUTOMATIC_NOTE_CHARS)
     evidence: str = Field(min_length=4, max_length=300)
+
+    @model_validator(mode="after")
+    def require_update_anchor(self) -> Self:
+        if (self.action == "update") != (self.before is not None):
+            raise ValueError("An update requires the exact previous block in before.")
+        return self
 
 
 class _Extraction(BaseModel):
@@ -170,12 +187,27 @@ def quote_supported(evidence: str, utterances: list[str]) -> bool:
     return len(quote) >= 4 and any(quote in text for text in utterances)
 
 
+def _supports_scalar(value: MemoryValue, evidence: str) -> bool:
+    if isinstance(value, bool):
+        return re.search(rf"(?<!\w){str(value).lower()}(?!\w)", evidence, re.IGNORECASE) is not None
+    if isinstance(value, int):
+        return re.search(rf"(?<![\d.,+\-]){value}(?![\d]|[.,]\d)", evidence) is not None
+    return bool(value.strip()) and value.casefold() in evidence.casefold()
+
+
 def require_grounded_claims(found: _Extraction, utterances: list[str]) -> _Extraction:
     if any(not quote_supported(item.evidence, utterances) for item in found.claims):
         raise ModelRetry(
             "Copy evidence exactly from one user message per claim. "
             "Do not join passages across messages. Omit claims that do not have a single quote."
         )
+    for item in found.claims:
+        if item.value is not None and not _supports_scalar(item.value, item.evidence):
+            raise ModelRetry("Use an exact scalar from evidence, or omit value.")
+        if item.effective_date and item.effective_date.isoformat() not in item.evidence:
+            raise ModelRetry("Use an explicit ISO date from evidence, or omit effective_date.")
+    if found.note is not None and not quote_supported(found.note.evidence, utterances):
+        raise ModelRetry("Copy the note evidence exactly from one user message.")
     return found
 
 
@@ -470,10 +502,16 @@ async def _maintain_note(
         )
     ):
         return
+    before = change.before
+    if before is None or existing.content.count(before) != 1:
+        return
+    replacement = existing.content.replace(before, content, 1)
+    if replacement == existing.content or len(replacement) > MAX_AUTOMATIC_NOTE_CHARS:
+        return
     await memory_repo.replace_content(
         db,
         file=existing,
-        content=content,
+        content=replacement,
         changed_by="maintenance",
         source_message_id=source_message_id,
         source_at=source_at,
@@ -670,6 +708,12 @@ async def extract(
             run_id=run.id,
             episode=item.episode,
             object_ref=entity,
+            value=item.value,
+            effective_from=(
+                datetime.combine(item.effective_date, time.min, UTC)
+                if item.effective_date is not None
+                else None
+            ),
         )
         source_id = proof.get("source_id", "")
         if source_id.startswith("message:"):

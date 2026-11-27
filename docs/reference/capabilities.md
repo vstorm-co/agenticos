@@ -482,6 +482,21 @@ are half-open. A claim with no start date remains available in current search.
 Historical queries need a dated observation. Open a completed interval in a personal object's timeline and use **Correct** to revise that interval while preserving the earlier knowledge snapshot. History of status changes starts
 with the new schema. Existing claims and their IDs remain available.
 
+Use `recall(include_notes=True)` to find active notes by name, description or
+body in the conversation's note store. Open a match with `read_memory`.
+Use `object_id` and `subject` for an exact fact lookup. Current results can
+include typed values, validity and accessible source evidence. Historical
+recall ranks claims by the status known at its cutoff. Maintenance updates
+an opted-in note by replacing one exact, uniquely matching block, with a
+version check and a recorded source.
+
+Record a typed relationship with `remember(object_ref=…, relation=…)`.
+The predicates are `client` (project to company), `responsible` (project
+to person) and `part_of` (commitment to project). Both objects stay in
+the same audience. The relationship retains the claim's dates and evidence.
+Both object timelines show it. Use `recall(related_to=…)` to find incoming
+relationships by target object ID. A reviewed share copies both objects.
+
 ### Workflow observations { #memory-gmail }
 
 A published workflow can record a verified delivery in organization memory.
@@ -515,6 +530,13 @@ compliance or privacy; the notes kept in group chats stay.
 
 Corrections keep the current typed value when you edit the wording. Change **Recorded value** in the editor or pass `value` to `correct_memory` to replace it. A new label for an existing external key keeps the object's history under the same ID.
 
+An organization owner can use `GET /memory/source-authorities` and
+`PUT /memory/source-authorities` to assign a workflow ID per object kind
+and property. Set `workflow_id` to null to clear a selection. An admitted
+observation from that workflow can advance the property at a strictly later
+effective time. A different workflow can supply evidence or a dispute. The
+rule applies to future admissions and updates are audited.
+
 ### Object aliases and backfill { #memory-object-operations }
 
 In an object's timeline, open **Object aliases** to review another object of
@@ -546,6 +568,12 @@ mailbox grant, organization membership and group access. Inbox also checks
 access each time it shows a card. Retries for the same revision, rule and
 recipient settle once. A workflow may still use its own notification step
 for a separate action.
+
+With **Compare model recommendations** enabled in Shadow, eligible changes
+also reach a budgeted job using the Memory Maintenance profile. The model
+suggests notify, digest, review or ignore. Counts compare the model with the
+deterministic rule for the selected version. The job checks the source,
+current revision and recipient access again before storing the recommendation.
 
 ### Facts, preferences and decisions { #memory-claims }
 

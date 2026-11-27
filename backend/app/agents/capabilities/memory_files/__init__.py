@@ -70,7 +70,9 @@ MEMORY_FILES_CAPABILITY_ID = "memory_files"
         ),
         CapabilityToolInfo(
             id="recall",
-            description="Find recorded facts, preferences and decisions relevant to a question.",
+            description=(
+                "Find relevant facts, preferences and decisions, optionally with working notes."
+            ),
             read_only=True,
         ),
         CapabilityToolInfo(

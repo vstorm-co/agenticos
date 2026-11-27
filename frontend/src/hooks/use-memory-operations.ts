@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getMemoryInboxDecisions,
+  getMemoryInboxModelDecisions,
   getMemoryInboxRule,
   getMemoryObjectBackfill,
   getMemoryObjectMerges,
@@ -61,6 +62,14 @@ export function useMemoryInboxDecisions(org: string, version: number) {
     queryKey: qk.memory.inboxDecisions(org, version),
     queryFn: () => getMemoryInboxDecisions(version),
     enabled: version > 0,
+  });
+}
+
+export function useMemoryInboxModelDecisions(org: string, version: number, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.memory.inboxModelDecisions(org, version),
+    queryFn: () => getMemoryInboxModelDecisions(version),
+    enabled: enabled && version > 0,
   });
 }
 

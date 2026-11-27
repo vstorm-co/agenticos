@@ -1,5 +1,5 @@
 ---
-source_sha: "b9212866947c"
+source_sha: "bff92f4c37ce"
 ---
 
 # Workflow-Knoten { #workflow-nodes }
@@ -856,6 +856,12 @@ Die Ausgabe enthält `claim_id`, `status` und `changed`. Verwende `changed`
 mit [Mitglieder benachrichtigen](#notification-send). Wiederholungen,
 Konflikte und verspätete Beobachtungen haben eigene Statuswerte. Die
 vorhandenen Zustell- und Wiederholungsregeln des Workflows gelten.
+
+Für mehrere Objekte desselben Typs und derselben Eigenschaft aktiviere
+**Allow a signed webhook namespace** und setze ein Präfix wie `crm:deals/`.
+Der signierte Inhalt enthält dann `object_name` und einen `object_key` wie
+`crm:deals/42`. Ohne diese Einstellung bleiben Schlüssel und Anzeigename
+im Workflow festgelegt. Gmail verwendet einen festen Schlüssel.
 
 ## agent.run { #agent-run }
 

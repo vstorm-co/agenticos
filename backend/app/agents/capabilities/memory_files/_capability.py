@@ -65,8 +65,11 @@ def _preamble(*, allow_personal: bool) -> str:
         )
     claims = (
         "Separately from notes, `remember` records one durable fact, preference or "
-        "decision with where it came from, and `recall` finds recorded claims by "
-        "topic without reading them all. For a case-specific decision, remember an episode "
+        "decision with where it came from. Use `recall` for relevant claims and set "
+        "`include_notes` if you need a working note whose name you do not know. "
+        "Open a matching note with `read_memory`. If a memory tool is deferred in this run, "
+        "discover it via `search_tools` before calling it. For a case-specific decision, "
+        "remember an episode "
         "with its situation, choice, alternatives and observed outcomes; never invent success "
         "or promote one episode into a general instruction. When a person corrects something, use "
         "`correct_memory` so the history is kept. Share a claim beyond this "

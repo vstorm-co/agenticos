@@ -59,6 +59,7 @@ export interface NoteRevision {
   content: string;
   changed_by: "agent" | "person" | "maintenance" | "restore";
   replaced_at: string;
+  source_conversation_id?: string | null;
 }
 
 export function getNoteRevisions(id: string, skip: number) {
@@ -352,6 +353,7 @@ export interface MemoryInboxRule {
   sources: (typeof MEMORY_INBOX_SOURCES)[number][];
   recipient_ids: string[];
   include_review: boolean;
+  shadow_model?: boolean;
 }
 
 interface MemoryInboxDecision {
@@ -373,6 +375,16 @@ export function setMemoryInboxRule({ version, ...settings }: MemoryInboxRule) {
 
 export function getMemoryInboxDecisions(version: number) {
   return apiClient.get<MemoryInboxDecision[]>(`${ROOT}/inbox-rule/decisions?version=${version}`);
+}
+
+export function getMemoryInboxModelDecisions(version: number) {
+  return apiClient.get<
+    {
+      baseline_notify: boolean;
+      recommendation: "notify" | "digest" | "review" | "ignore";
+      count: number;
+    }[]
+  >(`${ROOT}/inbox-rule/shadow-model?version=${version}`);
 }
 
 interface MemoryObjectBackfill {

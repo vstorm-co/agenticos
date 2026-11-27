@@ -19,7 +19,7 @@ comparison, run commands, the product tool path and GPT-5 cost estimates.
 | Agent tools and maintenance | `remember` handles explicit memory, `write_memory` keeps agents' notes, and maintenance extracts admissible claims from conversations and can create or refresh a private working note. External observations use `memory.observe` inside Workflows. | Run the paired maintenance and full product paths on the frozen corpus. |
 | Gmail and CRM | Existing Gmail and signed webhook triggers admit observations to a common contract. The CRM fixture exercises that contract. There are PostgreSQL tests for chat/Gmail agreement, conflicts, retry, preview and revocation. | A direct native CRM-to-memory path, real provider runs, a source operations view and end-to-end lease-loss testing. Use the signed relay for the implemented CRM path. A dedicated memory-specific connector manager was removed in favor of Workflows. |
 | Proactivity and Inbox | Workflows can route typed observations. A versioned policy sends shared commitment deadline changes through the existing queue and Inbox, including cancellation and optional review. PostgreSQL regression tests cover shadow, delivery, retry and permission changes. | Measure the full delivery flow on the enterprise holdout. |
-| Quality, scale and governance | The three TSV datasets, context packets and enterprise replay cover initial cases. This directory adds frozen comparison slices, paired metrics and a synthetic scale runner. | Published measurements, a frozen enterprise holdout with PL/EN pairs, concurrent tenant load, index rebuild and erasure after restore. An ontology or graph backend and decision models remain separate experiments. |
+| Quality, scale and governance | The three TSV datasets, context packets and enterprise replay cover initial cases. This directory adds frozen comparison slices, paired metrics and a synthetic scale runner. | Published measurements, a frozen enterprise holdout with PL/EN pairs, concurrent tenant load, index rebuild and erasure after restore. Measure the benefit of additional relationships, semantic retrieval and the shadow decision model on the holdout. |
 
 Maintenance presents up to four complete, opted-in notes of up to 4,000 characters to its model alongside one
 finished private conversation, ranked by overlap with the user's recent words. An existing note changes only with the owner's
@@ -53,6 +53,9 @@ uv run python ../evals/personal/memory_replay.py
 
 The `agenticos` TSV also runs in the personal eval stack. Use that stack's documented
 `--suite agenticos` and `--live-memory` commands for tool calls and cross-session memory.
+Run the new PostgreSQL cases by ID with `memory_replay.py --case enterprise-typed-relations`,
+`--case enterprise-property-authority`, and `--case enterprise-shadow-model`.
+The shadow replay substitutes the model response to keep it deterministic.
 The authored TSVs and context packets are regression data. Freeze new company cases by
 scenario and tenant before tuning prompts or ranking. The CRM fixture is synthetic.
 
@@ -197,7 +200,18 @@ done
 
 This uses the existing ledger SQL against synthetic rows in one scope, with deliberately
 similar distractors. It records migration revision, load time, warm query samples,
-p50/p95 and exact top-result misses. It stays in a rollback-only transaction and makes
-zero model calls. Start at 10,000 rows and keep the database disposable. A single warm
-query workload cannot establish concurrent throughput, index rebuild time or tenant
-fairness. Those remain separate scale experiments.
+p50/p95/p99 and exact top-result misses. It stays in a rollback-only transaction and makes
+zero model calls. Start at 10,000 rows and keep the database disposable. Use a mixed workload to add independent reader sessions and a writer committing
+through the memory service. Each synthetic tenant uses the same query markers
+with different source IDs, so a hit from another tenant counts as a miss.
+The large tenant uses `--rows`; the others use `--small-tenant-rows`.
+
+```sh
+uv run python "$B/scale.py" --rows 10000 --small-tenant-rows 1000 \
+  --tenants 3 --readers 4 --writes 20 --repetitions 40 --out "$OUT/mixed.json"
+```
+
+The mixed run commits synthetic rows so every lane can see them, then deletes
+its own synthetic tenants and users. A killed process can leave these rows in
+the disposable database. This workload reports write p95 in addition to read
+percentiles and misses. Index rebuild and restore remain separate workloads.

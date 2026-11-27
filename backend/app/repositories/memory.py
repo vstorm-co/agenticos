@@ -10,6 +10,7 @@ what this module used to hold - an ordered read set, a `CASE` precedence, an
 owner-kind filter for an operator listing - went with it (#1470).
 """
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -21,6 +22,7 @@ from sqlalchemy.orm import defer
 
 from app.core.memory_keys import PERSON_PREFIX
 from app.db.models.agent import Agent
+from app.db.models.conversation import Conversation, Message
 from app.db.models.memory import AgentMemoryFile, MemoryNoteRevision
 
 
@@ -204,6 +206,24 @@ async def note_revisions(
     return list(rows.all()), total or 0
 
 
+async def note_revision_sources(
+    db: AsyncSession, *, organization_id: UUID, owner_id: UUID, message_ids: Sequence[UUID]
+) -> dict[UUID, UUID]:
+    """Resolve source conversations still owned by the note's subject."""
+    if not message_ids:
+        return {}
+    rows = await db.execute(
+        select(Message.id, Conversation.id)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(
+            Message.id.in_(message_ids),
+            Conversation.organization_id == organization_id,
+            Conversation.user_id == owner_id,
+        )
+    )
+    return dict(rows.all())
+
+
 async def note_revision(
     db: AsyncSession, *, organization_id: UUID, note_id: UUID, revision_id: UUID
 ) -> MemoryNoteRevision | None:
@@ -214,6 +234,53 @@ async def note_revision(
             MemoryNoteRevision.id == revision_id,
         )
     )
+
+
+async def search_notes(
+    db: AsyncSession,
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    owner_key: str,
+    terms: list[str],
+    limit: int,
+    object_id: UUID | None = None,
+) -> list[AgentMemoryFile]:
+    """Search the active note store before limiting, without loading note bodies."""
+    if not terms and object_id is None:
+        return []
+    statement = select(AgentMemoryFile).where(
+        AgentMemoryFile.organization_id == organization_id,
+        AgentMemoryFile.agent_id == agent_id,
+        AgentMemoryFile.owner_key == owner_key,
+        AgentMemoryFile.deactivated_at.is_(None),
+    )
+    if object_id is not None:
+        statement = statement.where(AgentMemoryFile.object_id == object_id)
+    if terms:
+        search = func.to_tsquery("simple", " | ".join(terms))
+        name = func.to_tsvector("simple", AgentMemoryFile.name)
+        description = func.to_tsvector("simple", func.coalesce(AgentMemoryFile.description, ""))
+        body = func.to_tsvector("simple", AgentMemoryFile.content)
+        statement = statement.where(
+            or_(
+                name.bool_op("@@")(search),
+                description.bool_op("@@")(search),
+                body.bool_op("@@")(search),
+            )
+        ).order_by(
+            (
+                func.ts_rank(name, search) * 2
+                + func.ts_rank(description, search)
+                + func.ts_rank(body, search)
+            ).desc()
+        )
+    rows = await db.scalars(
+        statement.options(defer(AgentMemoryFile.content))
+        .order_by(_last_written().desc(), AgentMemoryFile.id)
+        .limit(limit)
+    )
+    return list(rows)
 
 
 async def automatic_notes(

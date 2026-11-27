@@ -39,7 +39,7 @@ from app.db.models.memory_claim import MemoryClaim
 from app.repositories import memory_claim as claim_repo
 from app.repositories.memory_claim import ClaimScope
 from app.schemas.decision_episode import DecisionEpisode
-from app.schemas.memory import MemoryObjectRef, MemoryValue
+from app.schemas.memory import MemoryObjectRef, MemoryRelationRef, MemoryValue
 from app.services.memory_inbox_policy import queue_inbox_change
 
 MAX_STATEMENT = 600
@@ -152,6 +152,9 @@ async def remember(
     value: MemoryValue | None = None,
     observation_source: str | None = None,
     reviewed_publication: bool = False,
+    preserve_current: bool = False,
+    relation: MemoryRelationRef | None = None,
+    related_object_id: UUID | None = None,
 ) -> Remembered:
     """Record one claim in `scope`, applying the precedence rules above.
 
@@ -162,6 +165,16 @@ async def remember(
     """
     if episode is not None and kind != "decision":
         raise BadRequestError(message="Structured episodes belong to decision claims")
+    if relation is not None and (
+        object_ref is None
+        or not relation.supports(object_ref.kind)
+        or subject is not None
+        or value is not None
+        or kind != "fact"
+    ):
+        raise BadRequestError(
+            message="A relation requires the matching pair of object types and no separate subject or value"
+        )
     await _hold_scope(db, organization_id=organization_id, scope_key=scope.scope_key)
     if effective_to is not None and (effective_from is None or effective_to <= effective_from):
         raise BadRequestError(message="Memory validity must have a start before its end")
@@ -175,9 +188,23 @@ async def remember(
             identity_key=object_ref.identity_key,
         )
         object_id = entity.id
+    if relation is not None:
+        target = relation.target
+        related = await claim_repo.put_object(
+            db,
+            organization_id=organization_id,
+            scope_key=scope.scope_key,
+            kind=target.kind,
+            name=target.name,
+            identity_key=target.identity_key,
+        )
+        related_object_id = related.id
+        subject = relation.subject
     episode_data = None if episode is None else episode.model_dump(mode="json")
     statement = statement.strip()[:MAX_STATEMENT]
     topic = normalise_subject(subject)
+    if related_object_id is not None and (object_id is None or value is not None):
+        raise BadRequestError(message="A typed relation needs two objects and no separate value")
     if object_id is not None:
         topic = topic or "description"
     live = (
@@ -197,10 +224,17 @@ async def remember(
             db, organization_id=organization_id, scope=scope, object_id=object_id
         )
     )
+    live = [
+        row
+        for row in live
+        if (row.related_object_id is not None) == (related_object_id is not None)
+    ]
     now = datetime.now(UTC)
     boundary = effective_from or now
     overlaps_observation = False
     for existing in live:
+        if existing.related_object_id != related_object_id:
+            continue
         if (
             reviewed_publication
             and object_id is not None
@@ -233,7 +267,7 @@ async def remember(
                 or existing.effective_from is None
                 or existing.effective_to > existing.effective_from
             )
-            and _same(existing.statement, statement)
+            and (_same(existing.statement, statement) or related_object_id is not None)
             and existing.episode == episode_data
             and type(existing.value) is type(value)
             and existing.value == value
@@ -288,7 +322,7 @@ async def remember(
                         db, old, "superseded", effective_to=effective_from or now
                     )
             supersedes = live[-1]
-        elif people:
+        elif people or preserve_current:
             status, disputed = "disputed", True
         else:
             for old in live:
@@ -302,6 +336,7 @@ async def remember(
         agent_id=scope.agent_id,
         subject=topic,
         object_id=object_id,
+        related_object_id=related_object_id,
         mail_event_id=mail_event_id,
         observation_source=observation_source,
         value=value,
@@ -357,6 +392,7 @@ async def correct(
         value=claim.value if value is None else value,
         subject=subject,
         object_id=claim.object_id,
+        related_object_id=claim.related_object_id,
         mail_event_id=claim.mail_event_id if origin == "agent" else None,
         kind=claim.kind,
         origin=origin,
@@ -400,6 +436,8 @@ async def amend_observation(
         raise ConflictError(message="Choose a dated observation with a completed interval")
     if episode is not None and row.kind != "decision":
         raise BadRequestError(message="Structured episodes belong to decision claims")
+    if row.related_object_id is not None and value is not None:
+        raise BadRequestError(message="A typed relation has no separate value")
     start, end = row.effective_from, row.effective_to
     await claim_repo.set_status(db, row, "superseded", effective_to=start)
     fixed = await claim_repo.create(
@@ -410,6 +448,7 @@ async def amend_observation(
         statement=statement.strip(),
         value=row.value if value is None else value,
         object_id=row.object_id,
+        related_object_id=row.related_object_id,
         subject=row.subject,
         kind=row.kind,
         status="current",
@@ -487,17 +526,19 @@ async def share(
     if {key for key in refreshed_ancestry - ancestry if is_person_key(key)}:
         raise ConflictError(message="The claim ancestry changed; retry sharing")
     claim = current
-    target_object_id: UUID | None = None
-    if claim.object_id is not None:
+
+    async def copy_object(object_id: UUID | None) -> UUID | None:
+        if object_id is None:
+            return None
         entity = await claim_repo.get_object(
             db,
             organization_id=claim.organization_id,
-            object_id=claim.object_id,
+            object_id=object_id,
             scope_keys=[claim.scope_key],
         )
         if entity is None:
             raise ConflictError(message="This memory's object is no longer available")
-        target_entity = await claim_repo.put_object(
+        copied = await claim_repo.put_object(
             db,
             organization_id=claim.organization_id,
             scope_key=to.scope_key,
@@ -506,7 +547,10 @@ async def share(
             identity_key=entity.identity_key,
             refresh_name=False,
         )
-        target_object_id = target_entity.id
+        return copied.id
+
+    target_object_id = await copy_object(claim.object_id)
+    related_object_id = await copy_object(claim.related_object_id)
     result = await remember(
         db,
         organization_id=claim.organization_id,
@@ -517,6 +561,7 @@ async def share(
         else None,
         subject=claim.subject,
         object_id=target_object_id,
+        related_object_id=related_object_id,
         kind=claim.kind,
         origin="person",
         effective_from=claim.effective_from,
@@ -619,6 +664,12 @@ async def profile(
     )
 
 
+def search_terms(query: str) -> list[str]:
+    return list(
+        dict.fromkeys(term for term in re.findall(r"[^\W_]+", query.casefold()) if len(term) >= 3)
+    )[:8]
+
+
 async def recall(
     db: AsyncSession,
     *,
@@ -628,11 +679,12 @@ async def recall(
     limit: int = 8,
     as_of: datetime | None = None,
     known_at: datetime | None = None,
+    object_id: UUID | None = None,
+    related_to: UUID | None = None,
+    subject: str | None = None,
 ) -> list[MemoryClaim]:
     """Best matches in the caller's scope, either current or explicitly historical."""
-    terms = list(
-        dict.fromkeys(term for term in re.findall(r"[^\W_]+", query.casefold()) if len(term) >= 3)
-    )[:8]
+    terms = search_terms(query)
     return await claim_repo.search(
         db,
         organization_id=organization_id,
@@ -641,6 +693,9 @@ async def recall(
         limit=limit,
         as_of=as_of,
         known_at=known_at,
+        object_id=object_id,
+        related_to=related_to,
+        subject=normalise_subject(subject),
     )
 
 
@@ -658,6 +713,9 @@ def _key(scope_key: str, agent_id: UUID | None, subject: str, ids: Sequence[UUID
     return hashlib.sha256(material.encode()).hexdigest()
 
 
+CONSOLIDATION_SUBJECTS_PER_BATCH = 100
+
+
 async def consolidate(db: AsyncSession, *, organization_id: UUID, scope_key: str) -> Consolidation:
     """Fold agreement and flag disagreement in one scope, if it changed since last time.
 
@@ -668,31 +726,22 @@ async def consolidate(db: AsyncSession, *, organization_id: UUID, scope_key: str
     state = await claim_repo.locked_state(db, organization_id=organization_id, scope_key=scope_key)
     if state is None or state.revision <= state.consolidated_revision:
         return Consolidation(ran=False)
-    revision = state.revision
-    merged = disputed = 0
-    agents = await claim_repo.agents_in_scope(
-        db, organization_id=organization_id, scope_key=scope_key
+    revision = state.consolidating_revision or state.revision
+    subjects = await claim_repo.consolidation_subjects(
+        db,
+        organization_id=organization_id,
+        scope_key=scope_key,
+        after=state.consolidation_cursor,
+        limit=CONSOLIDATION_SUBJECTS_PER_BATCH + 1,
     )
-    candidates: list[MemoryClaim] = []
-    for agent_id in agents:
-        candidates += await claim_repo.list_in_scopes(
-            db,
-            organization_id=organization_id,
-            scopes=[ClaimScope(scope_key, agent_id)],
-            statuses=("current", "disputed"),
-            limit=500,
-        )
+    page = subjects[:CONSOLIDATION_SUBJECTS_PER_BATCH]
+    merged = disputed = 0
     groups: dict[tuple[UUID | None, str], list[MemoryClaim]] = {}
-    for claim in candidates:
-        if (
-            claim.subject is not None
-            and claim.origin != "consolidation"
-            and claim.episode is None
-            and claim.object_id is None
-            and claim.effective_from is None
-            and claim.effective_to is None
-        ):
-            groups.setdefault((claim.agent_id, claim.subject), []).append(claim)
+    for claim in await claim_repo.consolidation_claims(
+        db, organization_id=organization_id, scope_key=scope_key, subjects=page
+    ):
+        assert claim.subject is not None  # The repository selects eligible named properties.
+        groups.setdefault((claim.agent_id, claim.subject), []).append(claim)
     for (agent_id, subject), claims in groups.items():
         people = [claim for claim in claims if claim.origin == "person"]
         inferred = [claim for claim in claims if claim.origin == "agent"]
@@ -731,5 +780,7 @@ async def consolidate(db: AsyncSession, *, organization_id: UUID, scope_key: str
                 for claim in inferred:
                     await claim_repo.set_status(db, claim, "merged")
                 merged += len(inferred)
-    await claim_repo.mark_consolidated(db, state, revision)
+    # Writes between batches keep a higher revision pending for a fresh pass.
+    cursor = page[-1] if len(subjects) > len(page) else None
+    await claim_repo.advance_consolidation(db, state, revision=revision, cursor=cursor)
     return Consolidation(ran=True, merged=merged, disputed=disputed)

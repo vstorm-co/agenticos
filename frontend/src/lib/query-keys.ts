@@ -126,6 +126,8 @@ export const qk = {
     inboxRule: (orgId: string) => ["memory", orgId, "inbox-rule"] as const,
     inboxDecisions: (orgId: string, version: number) =>
       ["memory", orgId, "inbox-decisions", version] as const,
+    inboxModelDecisions: (org: string, version: number) =>
+      ["memory", org, "inbox-model-decisions", version] as const,
     objectBackfill: (orgId: string) => ["memory", orgId, "object-backfill"] as const,
     objectAliases: (orgId: string, library: string, id: string, cursor: string | null) =>
       ["memory", orgId, "aliases", library, id, cursor] as const,

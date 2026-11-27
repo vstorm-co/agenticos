@@ -162,6 +162,7 @@ def production() -> Handlers:
             Handler(jobs.CONSOLIDATE_MEMORY, _each_tick(memory_tasks.consolidate_memory)),
             Handler(jobs.EXTRACT_MEMORY, memory_tasks.extract_memory),
             Handler(jobs.DELIVER_MEMORY_INBOX, memory_tasks.notify_memory_change),
+            Handler(jobs.SHADOW_MEMORY_INBOX, memory_tasks.shadow_memory_change),
             Handler(jobs.BACKFILL_MEMORY_OBJECTS, memory_tasks.backfill_memory_objects),
             Handler(jobs.DIAL_PHONE, voice_tasks.dial_phone),
             Handler(jobs.END_PHONE, voice_tasks.end_phone),

@@ -7,6 +7,7 @@ import { Button, Input, NativeSelect } from "@/components/ui";
 import { useMembers } from "@/hooks/use-members";
 import {
   useMemoryInboxDecisions,
+  useMemoryInboxModelDecisions,
   useMemoryInboxRule,
   useMemoryObjectBackfill,
 } from "@/hooks/use-memory-operations";
@@ -37,7 +38,14 @@ export function MemoryOperations() {
                 void rule.refetch();
               }}
             />
-            {rule.data.version > 0 && <InboxDecisions org={org} version={rule.data.version} />}
+            {rule.data.version > 0 && (
+              <InboxDecisions
+                key={`decisions-${rule.data.version}`}
+                org={org}
+                version={rule.data.version}
+                compareModel={Boolean(rule.data.shadow_model)}
+              />
+            )}
           </>
         )}
       </div>
@@ -72,7 +80,13 @@ function InboxRuleForm({
       aria-labelledby={formId}
       onSubmit={(event) => {
         event.preventDefault();
-        if (!invalid) save(draft);
+        if (!invalid) {
+          save(
+            draft.mode !== "shadow" && draft.shadow_model
+              ? { ...draft, shadow_model: false }
+              : draft,
+          );
+        }
       }}
     >
       <fieldset disabled={pending} className="space-y-2">
@@ -145,6 +159,17 @@ function InboxRuleForm({
           />
           {t("includeReview")}
         </label>
+        {draft.mode === "shadow" && (
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="shadow_model"
+              checked={Boolean(draft.shadow_model)}
+              onChange={(event) => setDraft({ ...draft, shadow_model: event.target.checked })}
+            />
+            {t("shadowModel")}
+          </label>
+        )}
       </fieldset>
       {invalid && <p className="text-muted-foreground text-sm">{t("ruleRequired")}</p>}
       <div className="flex flex-wrap gap-2">
@@ -166,10 +191,20 @@ function InboxRuleForm({
   );
 }
 
-function InboxDecisions({ org, version }: { org: string; version: number }) {
+function InboxDecisions({
+  org,
+  version,
+  compareModel,
+}: {
+  org: string;
+  version: number;
+  compareModel: boolean;
+}) {
   const t = useTranslations("pages.memory.operations");
   const [selected, setSelected] = useState(version);
   const results = useMemoryInboxDecisions(org, selected);
+  const showModel = compareModel || (selected > 0 && selected < version);
+  const model = useMemoryInboxModelDecisions(org, selected, showModel);
   return (
     <div className="space-y-2">
       <h3 className="text-sm font-medium">{t("outcomes")}</h3>
@@ -189,7 +224,10 @@ function InboxDecisions({ org, version }: { org: string; version: number }) {
           variant="outline"
           size="sm"
           disabled={!selected}
-          onClick={() => void results.refetch()}
+          onClick={() => {
+            void results.refetch();
+            if (showModel) void model.refetch();
+          }}
         >
           {t("reload")}
         </Button>
@@ -203,6 +241,20 @@ function InboxDecisions({ org, version }: { org: string; version: number }) {
           <li key={`${change}:${outcome}`}>{t("outcome", { change, outcome, count })}</li>
         ))}
       </ul>
+      {showModel && model.isError && <p role="alert">{t("loadFailed")}</p>}
+      {showModel && Boolean(model.data?.length) && (
+        <ul className="space-y-1 text-sm">
+          {model.data?.map(({ baseline_notify, recommendation, count }) => (
+            <li key={`${baseline_notify}:${recommendation}`}>
+              {t("modelComparison", {
+                baseline: baseline_notify ? "notify" : "ignore",
+                recommendation,
+                count,
+              })}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

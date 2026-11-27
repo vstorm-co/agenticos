@@ -105,6 +105,7 @@ class MemoryNoteRevisionRead(BaseSchema):
     content: str
     changed_by: Literal["agent", "person", "maintenance", "restore"]
     replaced_at: datetime
+    source_conversation_id: UUID | None = None
 
 
 class MemoryNoteRevisionList(BaseSchema):
@@ -135,6 +136,7 @@ class MemoryClaimRead(BaseSchema):
 
     subject: str | None = None
     object_id: UUID | None = None
+    related_object_id: UUID | None = None
     statement: str
     value: MemoryValue | None = None
     kind: str
@@ -209,6 +211,25 @@ class MemoryObjectRef(BaseSchema):
         return f"name:{' '.join(self.name.casefold().split())}"
 
 
+class MemoryRelationRef(BaseSchema):
+    """A typed, single-valued relation from an object to another object."""
+
+    model_config = ConfigDict(extra="forbid")
+    predicate: Literal["client", "responsible", "part_of"]
+    target: MemoryObjectRef
+
+    @property
+    def subject(self) -> str:
+        return f"relation_{self.predicate}"
+
+    def supports(self, source: MemoryObjectKind) -> bool:
+        return (source, self.target.kind) == {
+            "client": ("project", "company"),
+            "responsible": ("project", "person"),
+            "part_of": ("commitment", "project"),
+        }[self.predicate]
+
+
 class MemoryObjectRead(BaseSchema):
     id: UUID
     kind: MemoryObjectKind
@@ -264,12 +285,25 @@ MemoryInboxSource = Literal["gmail", "webhook", "reviewed"]
 MemoryInboxChange = Literal["changed", "cancelled", "review"]
 
 
+class MemorySourceAuthorityUpdate(BaseSchema):
+    """Select the only workflow allowed to automatically advance one property."""
+
+    object_kind: MemoryObjectKind
+    subject: str = Field(min_length=1, max_length=120)
+    workflow_id: UUID | None
+
+
+class MemorySourceAuthorityRead(MemorySourceAuthorityUpdate):
+    """An organization owner's explicit source-of-record choice."""
+
+
 class MemoryInboxRuleUpdate(BaseSchema):
     expected_version: int = Field(ge=0)
     mode: MemoryInboxMode
     recipient_ids: list[UUID] = Field(max_length=50)
     sources: list[MemoryInboxSource] = Field(max_length=3)
     include_review: bool = False
+    shadow_model: bool = False
 
 
 class MemoryInboxRuleRead(BaseSchema):
@@ -278,6 +312,20 @@ class MemoryInboxRuleRead(BaseSchema):
     recipient_ids: list[UUID]
     sources: list[MemoryInboxSource]
     include_review: bool
+    shadow_model: bool = False
+
+
+MemoryInboxRecommendation = Literal["notify", "digest", "review", "ignore"]
+
+
+class MemoryInboxShadowResult(BaseSchema):
+    recommendation: MemoryInboxRecommendation
+
+
+class MemoryInboxShadowCount(BaseSchema):
+    baseline_notify: bool
+    recommendation: MemoryInboxRecommendation
+    count: int
 
 
 class MemoryInboxDecisionCount(BaseSchema):

@@ -13,7 +13,7 @@ from app.agents.audience import RunAudience
 from app.db.session import get_db_context
 from app.repositories import memory_claim as claim_repo
 from app.services.memory import MemoryService, claims, extraction
-from app.services.memory_inbox import deliver_memory_inbox
+from app.services.memory_inbox import classify_memory_inbox, deliver_memory_inbox
 from app.worker.jobs import BackfillMemoryObjects, DeliverMemoryInbox, ExtractMemory
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,11 @@ async def extract_memory(payload: ExtractMemory, *, write_notes: bool = True) ->
 async def notify_memory_change(payload: DeliverMemoryInbox) -> int:
     async with get_db_context() as db:
         return await deliver_memory_inbox(db, payload)
+
+
+async def shadow_memory_change(payload: DeliverMemoryInbox) -> int:
+    async with get_db_context() as db:
+        return await classify_memory_inbox(db, payload)
 
 
 async def backfill_memory_objects(payload: BackfillMemoryObjects) -> int:

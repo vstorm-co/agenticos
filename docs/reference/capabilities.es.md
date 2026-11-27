@@ -1,5 +1,5 @@
 ---
-source_sha: "13c9b2043aaf"
+source_sha: "13019dd32ff1"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -517,6 +517,21 @@ fecha final. Los registros sin fecha inicial siguen en la búsqueda actual. Una
 consulta histórica requiere una observación fechada. Corrige un intervalo cerrado desde el historial personal para conservar el estado de conocimiento anterior. Los cambios de estado se
 registran desde el nuevo esquema. Los registros existentes conservan sus IDs.
 
+Usa `recall(include_notes=True)` para buscar por nombre, descripción o
+contenido en las notas activas de la conversación. Abre una coincidencia
+con `read_memory`. Usa `object_id` y `subject` para una consulta exacta.
+Los resultados actuales pueden incluir valores tipados, su vigencia y los
+indicios accesibles. Las consultas históricas se ordenan por el estado
+conocido en esa fecha. Con consentimiento, el mantenimiento reemplaza un
+bloque exacto y único, comprueba la versión y registra la fuente.
+
+Registra una relación tipada con `remember(object_ref=…, relation=…)`.
+Los predicados son `client` (proyecto a empresa), `responsible` (proyecto a
+persona) y `part_of` (compromiso a proyecto). Ambos objetos conservan el mismo
+ámbito. La relación conserva fechas e indicios y aparece en ambas cronologías.
+`recall(related_to=…)` busca relaciones por ID de destino. Una publicación
+revisada copia ambos objetos.
+
 ### Observaciones desde workflows { #memory-gmail }
 
 Un workflow publicado puede guardar entregas verificadas en la memoria
@@ -550,6 +565,13 @@ de grupo se quedan.
 
 Una corrección del texto conserva el valor tipado. Edita **Valor registrado** o pasa `value` a `correct_memory` para sustituirlo. Una etiqueta nueva para la misma clave externa conserva el historial del objeto con el mismo ID.
 
+El propietario de la organización puede asignar un flujo por tipo de objeto
+y propiedad con `GET /memory/source-authorities` y `PUT /memory/source-authorities`.
+Un valor nulo en `workflow_id` elimina la asignación. Una observación admitida
+de ese flujo puede actualizar la propiedad a partir de una fecha posterior.
+Los demás flujos pueden aportar indicios o discrepancias. La regla se aplica
+a nuevas observaciones y sus cambios quedan auditados.
+
 ### Alias de objetos y actualización del historial { #memory-object-operations }
 
 Abre **Alias del objeto** en su historial y revisa el segundo objeto del
@@ -582,6 +604,12 @@ la pertenencia a la organización y al grupo. La bandeja vuelve a comprobar
 el acceso al mostrar la tarjeta. Cada revisión, regla y destinatario se
 procesan una vez. Un workflow puede usar su propio paso de notificación para
 una acción distinta.
+
+En modo Shadow, **Comparar recomendaciones del modelo** ejecuta un trabajo
+para cambios admisibles con el perfil y presupuesto de mantenimiento.
+El modelo recomienda notificar, resumir, revisar u omitir. Los contadores
+comparan el modelo con la regla para cada versión. Antes de guardar la
+recomendación, el trabajo vuelve a comprobar fuente, revisión y acceso.
 
 ### Hechos, preferencias y decisiones { #memory-claims }
 

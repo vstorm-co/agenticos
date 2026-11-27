@@ -49,6 +49,7 @@ async def apply_observation(
     organization_id: UUID,
     observation: SourceObservation,
     mail_event: MemoryMailEvent | None = None,
+    workflow_id: UUID | None = None,
 ) -> AppliedObservation:
     """Apply one admitted record under the organization ledger's write lock.
 
@@ -118,12 +119,37 @@ async def apply_observation(
     )
     live = [claim for claim in candidates if claim.status in ("current", "disputed")]
     active = live[0] if len(live) == 1 and live[0].status == "current" else None
+    authority = (
+        await memory_claim.authoritative_workflow(
+            db, organization_id=organization_id, object_kind=ref.kind, subject=topic
+        )
+        if workflow_id is not None and mail_event is not None
+        else None
+    )
+    trusted = authority is not None and workflow_id == authority
+    preserve = (
+        authority is not None
+        and not trusted
+        and active is not None
+        and await memory_claim.workflow_supports_claim(db, claim=active, workflow_id=authority)
+    )
+    advances_authority = (
+        trusted
+        and bool(live)
+        and all(claim.effective_from is None or claim.effective_from < effective for claim in live)
+    )
     advance = (
         not late
-        and active is not None
-        and same_stream(active)
-        and active.effective_from is not None
-        and active.effective_from < effective
+        and not preserve
+        and (
+            advances_authority
+            or (
+                active is not None
+                and same_stream(active)
+                and active.effective_from is not None
+                and active.effective_from < effective
+            )
+        )
     )
     # An out-of-order revision can split the history of its own stream.
     # Independent and tied observations must go through the normal dispute rules.
@@ -136,6 +162,7 @@ async def apply_observation(
                 and claim.effective_from < effective
             ):
                 await memory_claim.set_status(db, claim, "superseded", effective_to=effective)
+    previous_accepted = next((claim for claim in reversed(live) if claim.status == "current"), None)
     stored = await _claims.remember(
         db,
         organization_id=organization_id,
@@ -148,9 +175,10 @@ async def apply_observation(
         value=observation.value,
         observation_source=observation.source_key,
         corrects=advance,
+        preserve_current=preserve,
     )
     _attach(mail_event, stored.claim, observation)
-    return AppliedObservation(stored, previous=active if advance else None, late=late)
+    return AppliedObservation(stored, previous=previous_accepted if advance else None, late=late)
 
 
 def _attach(

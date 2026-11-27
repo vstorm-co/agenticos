@@ -530,3 +530,23 @@ async def test_memory_operations_require_owner_and_expose_typed_progress() -> No
             assert (
                 await client.post(f"{ROOT}/object-backfill/advance", json={"limit": 201})
             ).status_code == 422
+
+
+async def test_memory_policy_routes_expose_owner_configuration_and_model_counts() -> None:
+    path = "app.services.memory.MemoryService"
+    async with _client() as client:
+        assert (await client.get(f"{ROOT}/source-authorities")).status_code == 403
+        assert (await client.get(f"{ROOT}/inbox-rule/shadow-model?version=1")).status_code == 403
+    authority = {"object_kind": "company", "subject": "headcount", "workflow_id": None}
+    count = {"baseline_notify": True, "recommendation": "digest", "count": 2}
+    with (
+        patch(f"{path}.source_authorities", new=AsyncMock(return_value=[authority])),
+        patch(f"{path}.update_source_authority", new=AsyncMock(return_value=authority)),
+        patch(f"{path}.inbox_shadow_counts", new=AsyncMock(return_value=[count])),
+    ):
+        async with _client() as client:
+            assert (await client.get(f"{ROOT}/source-authorities")).json() == [authority]
+            assert (
+                await client.put(f"{ROOT}/source-authorities", json=authority)
+            ).json() == authority
+            assert (await client.get(f"{ROOT}/inbox-rule/shadow-model?version=1")).json() == [count]

@@ -10,7 +10,7 @@ from uuid import UUID, uuid4, uuid5
 
 from dataset import Query
 from retrieval import Evidence, Retrieved
-from sqlalchemy import insert, make_url
+from sqlalchemy import delete, insert, make_url
 from sqlalchemy.exc import ArgumentError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
@@ -52,7 +52,7 @@ def disposable_engine(dsn: str) -> AsyncEngine:
 
 @asynccontextmanager
 async def isolated_scope(
-    engine: AsyncEngine,
+    engine: AsyncEngine, *, committed: bool = False
 ) -> AsyncGenerator[tuple[AsyncSession, UUID, ClaimScope]]:
     async with AsyncSession(engine) as db:
         user_id, org_id = uuid4(), uuid4()
@@ -71,6 +71,11 @@ async def isolated_scope(
             yield db, org_id, ClaimScope(person_owner_key(user_id))
         finally:
             await db.rollback()
+            if committed:
+                # Delete only this run's synthetic tenant and its unique test member.
+                await db.execute(delete(Organization).where(Organization.id == org_id))
+                await db.execute(delete(User).where(User.id == user_id))
+                await db.commit()
 
 
 async def insert_rows(

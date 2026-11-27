@@ -833,6 +833,14 @@ DELIVER_MEMORY_INBOX = Task(
     timeout=timedelta(minutes=1),
     priority=Priority.SCHEDULED,
 )
+SHADOW_MEMORY_INBOX = Task(
+    kind="shadow-memory-inbox",
+    payload_type=DeliverMemoryInbox,
+    pool=Pool.AGENT,
+    max_attempts=1,
+    timeout=timedelta(minutes=3),
+    priority=Priority.BULK,
+)
 BACKFILL_MEMORY_OBJECTS = Task(
     kind="backfill-memory-objects",
     payload_type=BackfillMemoryObjects,
@@ -1161,6 +1169,7 @@ TASKS: dict[str, TaskKind] = {
         THINK_FOR_PERSON,
         EXTRACT_MEMORY,
         DELIVER_MEMORY_INBOX,
+        SHADOW_MEMORY_INBOX,
         BACKFILL_MEMORY_OBJECTS,
         LOOK_THROUGH_WATCH,
         BRIEF_PERSON,

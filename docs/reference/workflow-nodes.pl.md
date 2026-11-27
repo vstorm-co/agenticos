@@ -1,5 +1,5 @@
 ---
-source_sha: "b9212866947c"
+source_sha: "bff92f4c37ce"
 ---
 
 # Węzły workflow { #workflow-nodes }
@@ -817,6 +817,12 @@ Wynik zawiera `claim_id`, `status` i `changed`. Warunek na `changed`
 może uruchomić [powiadomienie](#notification-send). Ponowienia, konflikty
 i opóźnione obserwacje mają osobne statusy. Obowiązują istniejące reguły
 dostaw i ponowień workflow.
+
+Aby obsłużyć wiele obiektów tego samego typu i o tej samej właściwości,
+włącz **Allow a signed webhook namespace** i ustaw prefiks, np.
+`crm:deals/`. Podpisane żądanie musi podać `object_name` oraz
+`object_key`, np. `crm:deals/42`. Bez tej opcji klucz i nazwa pochodzą
+z konfiguracji. Gmail używa stałego klucza.
 
 ## agent.run { #agent-run }
 

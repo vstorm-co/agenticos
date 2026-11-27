@@ -795,6 +795,12 @@ The output provides `claim_id`, `status` and `changed`. Branch on
 announce a revision. Duplicate, disputed and late observations report
 their own status. The existing workflow delivery and node retry rules apply.
 
+For multiple objects of the same type and property, enable **Allow a signed
+webhook namespace** and configure a prefix such as `crm:deals/`. The signed
+body then needs `object_name` and an `object_key` such as `crm:deals/42`.
+Without the option, the key and the display name stay fixed in the workflow.
+Gmail uses a fixed key.
+
 ## agent.run { #agent-run }
 
 Asks a published agent, at the exact version the step pins, through the same

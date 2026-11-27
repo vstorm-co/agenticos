@@ -5,7 +5,7 @@ import json
 import re
 from datetime import UTC, date, datetime
 from email.utils import parseaddr
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 from uuid import UUID
 
 from pydantic import (
@@ -16,6 +16,7 @@ from pydantic import (
     StringConstraints,
     ValidationError,
     field_validator,
+    model_validator,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +43,11 @@ class MemoryObservationConfig(BaseModel):
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)
     ] = Field(title="Object name")
     object_key: str = Field(title="Business object key", min_length=1, max_length=260)
+    use_key_prefix: bool = Field(
+        default=False,
+        title="Allow a signed webhook namespace",
+        description="Use the business object key as a namespace ending in '/', such as crm:deals/.",
+    )
     subject: str = Field(
         title="Property", min_length=1, max_length=120, description="Use deadline for Gmail."
     )
@@ -54,6 +60,17 @@ class MemoryObservationConfig(BaseModel):
             raise ValueError("Choose a valid business property")
         return topic
 
+    @model_validator(mode="after")
+    def require_namespace(self) -> Self:
+        if (
+            self.use_key_prefix
+            and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9:_.-]{0,99}/", self.object_key) is None
+        ):
+            raise ValueError(
+                "A signed webhook namespace must be a bounded key prefix ending in '/'."
+            )
+        return self
+
 
 class SignedObservation(BaseModel):
     """A signed CRM relay may deliver exactly these fields to the workflow."""
@@ -62,6 +79,10 @@ class SignedObservation(BaseModel):
 
     record_key: str = Field(min_length=1, max_length=260)
     object_key: str = Field(min_length=1, max_length=260)
+    object_name: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)]
+        | None
+    ) = None
     subject: str = Field(min_length=1, max_length=120)
     value: MemoryValue | None
     quote: str = Field(min_length=1, max_length=300)
@@ -124,6 +145,32 @@ async def _delivery(
     return original, receipt
 
 
+def _webhook_object(
+    config: MemoryObservationConfig, observation: SignedObservation
+) -> MemoryObjectRef:
+    valid_subject = observation.subject == config.subject
+    if config.use_key_prefix:
+        suffix = observation.object_key.removeprefix(config.object_key)
+        valid_key = (
+            suffix != observation.object_key
+            and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9:_.-]{0,157}", suffix) is not None
+            and observation.object_name is not None
+        )
+    else:
+        valid_key = observation.object_key == config.object_key
+    if not valid_subject or not valid_key:
+        raise BadRequestError(
+            message="The webhook observation does not match the reviewed object and property"
+        )
+    return MemoryObjectRef(
+        kind=config.object_kind,
+        name=observation.object_name or config.object_name
+        if config.use_key_prefix
+        else config.object_name,
+        external_key=observation.object_key,
+    )
+
+
 async def record_observation(
     db: AsyncSession,
     *,
@@ -140,15 +187,17 @@ async def record_observation(
         return MemoryObservationOutput(status="preview")
 
     topic = config.subject
-    ref = MemoryObjectRef(
-        kind=config.object_kind, name=config.object_name, external_key=config.object_key
-    )
     run, receipt = await _delivery(db, run)
     try:
         if run.triggered_by == WorkflowRunTrigger.GMAIL:
             grant_id = receipt.portal_grant_id
             generation = receipt.portal_authorization_generation
-            if grant_id is None or generation is None or topic != "deadline":
+            if (
+                config.use_key_prefix
+                or grant_id is None
+                or generation is None
+                or topic != "deadline"
+            ):
                 raise AuthorizationError(
                     message="Use a Gmail trigger with a full authenticated sender address and the deadline property"
                 )
@@ -168,13 +217,13 @@ async def record_observation(
                 )
             value, quote, effective, record = _gmail(run)
             provider = "gmail"
+            ref = MemoryObjectRef(
+                kind=config.object_kind, name=config.object_name, external_key=config.object_key
+            )
         elif run.triggered_by == WorkflowRunTrigger.WEBHOOK and receipt.signed_digest:
             delivery = WebhookTriggerOutput.model_validate(run.input)
             observation = SignedObservation.model_validate(delivery.body)
-            if observation.object_key != ref.external_key or observation.subject != topic:
-                raise BadRequestError(
-                    message="The webhook observation does not match the reviewed object and property"
-                )
+            ref = _webhook_object(config, observation)
             value, quote, effective, record = (
                 observation.value,
                 observation.quote,
@@ -264,6 +313,7 @@ async def record_observation(
         db,
         organization_id=organization_id,
         mail_event=event,
+        workflow_id=run.workflow_id,
         observation=SourceObservation(
             source_key=source_key,
             delivery_id=event_key,

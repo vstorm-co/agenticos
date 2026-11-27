@@ -13,7 +13,7 @@ from app.repositories import group_repo, memory_claim
 from app.repositories import member as member_repo
 from app.schemas.memory import MemoryInboxChange, MemoryInboxContext, MemoryInboxSource
 from app.services.background_jobs import enqueue
-from app.worker.jobs import DELIVER_MEMORY_INBOX, DeliverMemoryInbox
+from app.worker.jobs import DELIVER_MEMORY_INBOX, SHADOW_MEMORY_INBOX, DeliverMemoryInbox
 
 POLICY_VERSION = 1
 _CONNECTOR_SOURCES: dict[str, MemoryInboxSource] = {"gmail": "gmail", "webhook": "webhook"}
@@ -114,7 +114,11 @@ async def queue_inbox_change(
     if change is None or (claim.effective_to is not None and claim.effective_to <= now):
         return
     rule = await memory_claim.inbox_rule(db, organization_id=claim.organization_id)
-    if rule is None or rule.mode == "off" or (change == "review" and not rule.include_review):
+    if rule is None or rule.mode == "off":
+        return
+    baseline = change != "review" or rule.include_review
+    compare = rule.mode == "shadow" and rule.shadow_model
+    if not baseline and not compare:
         return
     source = await inbox_source(db, claim)
     if source is None or source not in rule.sources:
@@ -124,25 +128,36 @@ async def queue_inbox_change(
         revision_at is not None
     )  # Creation and conflict resolution persist a ledger revision first.
     key = f"memory-inbox:{claim.id}:{revision_at.isoformat()}:{POLICY_VERSION}:{rule.version}:{change}"
-    await enqueue(
-        db,
-        DELIVER_MEMORY_INBOX,
-        DeliverMemoryInbox(
-            organization_id=claim.organization_id,
-            claim_id=claim.id,
-            previous_id=previous.id,
-            rule_version=rule.version,
-            policy_version=POLICY_VERSION,
-            change=change,
-            revision_at=revision_at,
-            source=source,
-            source_event_id=claim.mail_event_id,
-        ),
+    payload = DeliverMemoryInbox(
         organization_id=claim.organization_id,
-        run_after=claim.effective_from,
-        dedupe_key=key,
-        dedupe_active=True,
+        claim_id=claim.id,
+        previous_id=previous.id,
+        rule_version=rule.version,
+        policy_version=POLICY_VERSION,
+        change=change,
+        revision_at=revision_at,
+        source=source,
+        source_event_id=claim.mail_event_id,
     )
+    if baseline:
+        await enqueue(
+            db,
+            DELIVER_MEMORY_INBOX,
+            payload,
+            organization_id=claim.organization_id,
+            run_after=claim.effective_from,
+            dedupe_key=key,
+            dedupe_active=True,
+        )
+    if compare:
+        await enqueue(
+            db,
+            SHADOW_MEMORY_INBOX,
+            payload,
+            organization_id=claim.organization_id,
+            run_after=claim.effective_from,
+            dedupe_key=f"{key}:model",
+        )
 
 
 async def current_inbox_scopes(

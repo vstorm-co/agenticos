@@ -874,6 +874,52 @@ def test_memory_extraction_requires_one_verbatim_user_quote(evidence: str) -> No
             extraction.require_grounded_claims(found, utterances)
 
 
+@pytest.mark.parametrize(
+    ("value", "effective_date", "quote", "error"),
+    [
+        (38, "2026-01-01", "Atlas had 38 employees from 2026-01-01.", None),
+        (38, None, "Atlas had 138 employees.", "exact scalar"),
+        (38, None, "Atlas reported 38.5 FTEs.", "exact scalar"),
+        (True, None, "The normalized flag is true.", None),
+        (False, None, "The normalized flag is true.", "exact scalar"),
+        ("Atlas", None, "This project belongs to Atlas.", None),
+        (38, "2026-01-02", "Atlas had 38 employees from 2026-01-01.", "explicit ISO date"),
+    ],
+)
+def test_memory_extraction_checks_typed_annotations_against_the_evidence(
+    value: str | int | bool,
+    effective_date: str | None,
+    quote: str,
+    error: str | None,
+) -> None:
+    found = extraction._Extraction.model_validate(
+        {
+            "claims": [
+                {
+                    "statement": quote,
+                    "evidence": quote,
+                    "value": value,
+                    "effective_date": effective_date,
+                }
+            ]
+        }
+    )
+    if error is None:
+        assert extraction.require_grounded_claims(found, [quote]) is found
+    else:
+        with pytest.raises(ModelRetry, match=error):
+            extraction.require_grounded_claims(found, [quote])
+
+
+def test_automatic_note_rejects_a_patch_without_an_exact_anchor_or_quote() -> None:
+    note = {"action": "update", "name": "handoff", "content": "New steps", "evidence": "True quote"}
+    with pytest.raises(ValidationError, match="exact previous block"):
+        extraction._Extraction.model_validate({"note": note})
+    patch = extraction._Extraction.model_validate({"note": {**note, "before": "Old steps"}})
+    with pytest.raises(ModelRetry, match="note evidence"):
+        extraction.require_grounded_claims(patch, ["Different source text"])
+
+
 def test_memory_extraction_accepts_an_empty_result() -> None:
     found = extraction._Extraction()
     assert extraction.require_grounded_claims(found, []) is found

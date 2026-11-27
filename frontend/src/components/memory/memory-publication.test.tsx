@@ -142,6 +142,7 @@ it("opts a note into updates and restores a previous body using the new revision
       {
         id: "revision",
         content: "The earlier note body",
+        source_conversation_id: "source-1",
         replaced_at: updatedAt,
         changed_by: "maintenance",
       },
@@ -171,6 +172,10 @@ it("opts a note into updates and restores a previous body using the new revision
     await user.click(screen.getByRole("button", { name: "noteHistory" }));
     await user.click(await screen.findByText("noteRevisionLabel"));
     expect(screen.getByText("The earlier note body")).toBeVisible();
+    expect(screen.getByRole("link", { name: "noteRevisionSource" })).toHaveAttribute(
+      "href",
+      "/chat/source-1",
+    );
     await user.click(screen.getByRole("button", { name: "noteRestoreVersion" }));
     expect(post).toHaveBeenCalledWith("/memory/mine/note/revisions/revision/restore", {
       expected_updated_at: updatedAt,

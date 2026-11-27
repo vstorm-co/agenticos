@@ -61,6 +61,7 @@ from app.repositories import (
     organization_repo,
     personal_data_repo,
 )
+from app.repositories import workflow as workflow_repo
 from app.schemas.dataset import DatasetCaseContent, DatasetCaseRead
 from app.schemas.decision_episode import DecisionEpisode, ImproveCaseReview
 from app.schemas.memory import (
@@ -77,6 +78,7 @@ from app.schemas.memory import (
     MemoryInboxDecisionCount,
     MemoryInboxRuleRead,
     MemoryInboxRuleUpdate,
+    MemoryInboxShadowCount,
     MemoryLibrary,
     MemoryNoteAutoUpdate,
     MemoryNoteEdit,
@@ -96,6 +98,8 @@ from app.schemas.memory import (
     MemoryObjectPage,
     MemoryObjectRead,
     MemoryObjectTimeline,
+    MemorySourceAuthorityRead,
+    MemorySourceAuthorityUpdate,
     SharedMemoryNotePage,
     SharedMemoryNoteRead,
 )
@@ -123,6 +127,7 @@ def _claim_read(row: MemoryClaim, names: dict[UUID, str]) -> MemoryClaimRead:
     return MemoryClaimRead(
         id=row.id,
         object_id=row.object_id,
+        related_object_id=row.related_object_id,
         agent_id=row.agent_id,
         agent_name=names.get(row.agent_id) if row.agent_id else None,
         scope=scope,
@@ -547,6 +552,59 @@ class MemoryService:
             state.completed_at = datetime.now(UTC)
         await self.db.flush()
 
+    async def source_authorities(self, ctx: AuthContext) -> list[MemorySourceAuthorityRead]:
+        self._require_memory_owner(ctx)
+        return [
+            MemorySourceAuthorityRead.model_validate(row)
+            for row in await memory_claim.source_authorities(
+                self.db, organization_id=ctx.organization_id
+            )
+        ]
+
+    async def update_source_authority(
+        self, ctx: AuthContext, data: MemorySourceAuthorityUpdate
+    ) -> MemorySourceAuthorityRead:
+        self._require_memory_owner(ctx)
+        subject = _claims.normalise_subject(data.subject)
+        if subject is None:
+            raise BadRequestError(message="Choose a valid memory property")
+        if (
+            data.workflow_id is not None
+            and await workflow_repo.get(
+                self.db, data.workflow_id, organization_id=ctx.organization_id
+            )
+            is None
+        ):
+            raise NotFoundError(message="Workflow not found")
+        await memory_claim.hold_scope_write_lock(
+            self.db,
+            organization_id=ctx.organization_id,
+            scope_key=organization_owner_key(ctx.organization_id),
+        )
+        await memory_claim.set_source_authority(
+            self.db,
+            organization_id=ctx.organization_id,
+            object_kind=data.object_kind,
+            subject=subject,
+            workflow_id=data.workflow_id,
+        )
+        await record_audit(
+            self.db,
+            actor_user_id=ctx.subject_id,
+            organization_id=ctx.organization_id,
+            action="memory.source_authority.updated",
+            target_type="organization",
+            target_id=str(ctx.organization_id),
+            details={
+                "kind": data.object_kind,
+                "subject": subject,
+                "workflow_id": str(data.workflow_id) if data.workflow_id else None,
+            },
+        )
+        return MemorySourceAuthorityRead(
+            object_kind=data.object_kind, subject=subject, workflow_id=data.workflow_id
+        )
+
     async def inbox_rule(self, ctx: AuthContext) -> MemoryInboxRuleRead:
         self._require_memory_owner(ctx)
         row = await memory_claim.inbox_rule(self.db, organization_id=ctx.organization_id)
@@ -566,6 +624,8 @@ class MemoryService:
         data: MemoryInboxRuleUpdate,
     ) -> MemoryInboxRuleRead:
         self._require_memory_owner(ctx)
+        if data.shadow_model and data.mode != "shadow":
+            raise BadRequestError(message="Model recommendations require Inbox shadow mode")
         recipient_ids = sorted(set(data.recipient_ids))
         sources = sorted({str(source) for source in data.sources})
         if data.mode != "off" and (not recipient_ids or not sources):
@@ -588,6 +648,7 @@ class MemoryService:
         rule.recipient_ids = recipient_ids
         rule.sources = sources
         rule.include_review = data.include_review
+        rule.shadow_model_owner_id = ctx.subject_id if data.shadow_model else None
         await record_audit(
             self.db,
             actor_user_id=ctx.subject_id,
@@ -598,11 +659,25 @@ class MemoryService:
             details={
                 "version": rule.version,
                 "mode": rule.mode,
+                "shadow_model": data.shadow_model,
                 "recipient_count": len(recipient_ids),
             },
         )
         await self.db.flush()
         return MemoryInboxRuleRead.model_validate(rule, from_attributes=True)
+
+    async def inbox_shadow_counts(
+        self, ctx: AuthContext, version: int
+    ) -> list[MemoryInboxShadowCount]:
+        self._require_memory_owner(ctx)
+        return [
+            MemoryInboxShadowCount.model_validate(
+                {"baseline_notify": baseline, "recommendation": recommendation, "count": count}
+            )
+            for baseline, recommendation, count in await memory_claim.inbox_shadow_counts(
+                self.db, organization_id=ctx.organization_id, version=version
+            )
+        ]
 
     async def inbox_decision_counts(
         self,
@@ -1093,8 +1168,26 @@ class MemoryService:
             skip=skip,
             limit=limit,
         )
+        sources = await memory_repo.note_revision_sources(
+            self.db,
+            organization_id=ctx.organization_id,
+            owner_id=ctx.subject_id,
+            message_ids=[
+                row.source_message_id for row in rows if row.source_message_id is not None
+            ],
+        )
         return MemoryNoteRevisionList(
-            items=[MemoryNoteRevisionRead.model_validate(row) for row in rows], total=total
+            items=[
+                MemoryNoteRevisionRead.model_validate(row).model_copy(
+                    update={
+                        "source_conversation_id": sources.get(row.source_message_id)
+                        if row.source_message_id is not None
+                        else None,
+                    }
+                )
+                for row in rows
+            ],
+            total=total,
         )
 
     async def restore_note_revision(

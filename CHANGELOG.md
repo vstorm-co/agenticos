@@ -29,7 +29,15 @@ Two things are versioned separately from this file and worth knowing about:
 - Route shared commitment deadline changes to Inbox with a versioned rule, a shadow mode and recipient access checks.
 - Merge and restore business object aliases with an audit trail, and resume an exact-identity backfill from its last completed batch.
 
+- Find working Notes and typed facts from one recall tool, with accessible evidence on current matches.
+- Use a signed, reviewed object-key namespace to record multiple CRM objects of one type and property from a workflow.
+- Record and recall dated relationships between projects, clients, responsible people and commitments.
+- Assign an authoritative Workflow per object property and compare Inbox recommendations with the deterministic rule in Shadow.
+
 ### Fixed
+
+- Rank historical memory by the status known at the requested time and resume consolidation by property after a worker interruption.
+- Preserve unrelated note content when maintenance replaces an exact block and verify literal typed values and dates against the source quote.
 
 - Preserve typed values in memory corrections, refresh external object labels, and extract the same property on distinct objects from one conversation.
 - Preserve validity dates when publishing memories and rank relevant memories before limiting the result set.

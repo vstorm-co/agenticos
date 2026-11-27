@@ -39,8 +39,12 @@ from app.schemas.memory import (
     MemoryObjectKind,
     MemoryObjectMergeCreate,
     MemoryObjectRef,
+    MemoryRelationRef,
+    MemorySourceAuthorityUpdate,
 )
 from app.schemas.notification import NotificationRead
+from app.schemas.workflow_exposure import WebhookAdmitted
+from app.services import memory_inbox
 from app.services.memory import MemoryService, claims, runtime
 from app.services.memory.sources import SourceObservation, apply_observation
 from app.services.memory.workflow import MemoryObservationConfig, record_observation
@@ -51,6 +55,7 @@ from app.services.workflow_exposure import WorkflowExposureService
 from app.worker.jobs import (
     BACKFILL_MEMORY_OBJECTS,
     DELIVER_MEMORY_INBOX,
+    SHADOW_MEMORY_INBOX,
     BackfillMemoryObjects,
     DeliverMemoryInbox,
 )
@@ -249,9 +254,14 @@ _CONFIG = MemoryObservationConfig(
 )
 
 
-def _observation_graph(entry: str, settings: dict[str, object] | None = None) -> WorkflowGraph:
+def _observation_graph(
+    entry: str,
+    settings: dict[str, object] | None = None,
+    *,
+    config: MemoryObservationConfig = _CONFIG,
+) -> WorkflowGraph:
     trigger = _step(entry, settings)
-    observe = _step("memory.observe", _CONFIG.model_dump())
+    observe = _step("memory.observe", config.model_dump())
     return WorkflowGraph(
         entry_node_id=trigger.id,
         nodes=(trigger, observe),
@@ -1050,6 +1060,7 @@ async def test_signed_crm_delivery_runs_the_workflow_action(
         admitted = await WorkflowExposureService(db).receive_webhook(
             exposure_id, body=encoded, headers=_signed(secret, encoded, delivery_id)
         )
+        assert isinstance(admitted, WebhookAdmitted)
         return admitted.run_id
 
     @asynccontextmanager
@@ -1115,6 +1126,78 @@ async def test_signed_crm_delivery_runs_the_workflow_action(
     with dispatch(bad):
         failed = await _handler.handle(_CONFIG, None)
         assert isinstance(failed, Failed) and failed.error.code == "MEMORY_OBSERVATION_REFUSED"
+
+
+async def test_signed_workflow_observes_distinct_keys_in_the_reviewed_namespace(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    org, owner, _ = await _org(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    config = MemoryObservationConfig(
+        object_kind="company",
+        object_name="CRM company",
+        object_key="crm:companies/",
+        use_key_prefix=True,
+        subject="headcount",
+    )
+    workflow = await _workflow(db, org=org, owner=owner)
+    graph = _observation_graph("trigger.webhook", config=config)
+    exposure, secret = await _webhook(db, ctx, workflow, graph)
+
+    async def observe(delivery: str, key: str, name: str, value: int):
+        body = json.dumps(
+            {
+                "record_key": delivery,
+                "object_key": key,
+                "object_name": name,
+                "subject": "headcount",
+                "value": value,
+                "quote": f"{value} employees",
+                "effective_at": "2026-10-04T09:00:00Z",
+            }
+        ).encode()
+        admission = await WorkflowExposureService(db).receive_webhook(
+            exposure, body=body, headers=_signed(secret, body, delivery)
+        )
+        assert isinstance(admission, WebhookAdmitted)
+        return await record_observation(db, auth=ctx, run_id=admission.run_id, config=config)
+
+    first = await observe("atlas", "crm:companies/42", "Atlas", 20)
+    second = await observe("velvet", "crm:companies/43", "Velvet", 40)
+    assert first.status == second.status == "applied"
+    assert first.claim_id != second.claim_id
+    with pytest.raises(BadRequestError):
+        await observe("other", "crm:projects/43", "Other", 40)
+    with pytest.raises(BadRequestError):
+        await observe("nested", "crm:companies/../43", "Other", 40)
+
+    @asynccontextmanager
+    async def current_db():
+        yield db
+
+    monkeypatch.setattr(runtime, "get_db_context", current_db)
+    scope = ClaimScope(organization_owner_key(org.id))
+    matches = await runtime.recall(
+        organization_id=org.id,
+        scopes=[scope],
+        query="Atlas",
+        subject="headcount",
+        reading_member=owner.id,
+    )
+    (match,) = matches
+    assert match.id == first.claim_id and match.value == 20 and match.object_id is not None
+    (evidence,) = match.evidence
+    assert evidence.kind == "webhook" and evidence.quote == "20 employees"
+    assert [
+        row.id
+        for row in await runtime.recall(
+            organization_id=org.id,
+            scopes=[scope],
+            query="",
+            object_id=match.object_id,
+            subject="headcount",
+        )
+    ] == [first.claim_id]
 
 
 async def test_unfiltered_gmail_run_cannot_claim_source_authority(db: AsyncSession) -> None:
@@ -1902,6 +1985,7 @@ async def test_external_identity_can_rename_without_losing_claim_links(db: Async
         statement="Atlas renewed",
     )
     # Keep the original ORM row in the session so RETURNING has to refresh it.
+    assert old.claim.object_id is not None
     old_obj = await memory_claim.get_object(
         db,
         organization_id=org.id,
@@ -1927,3 +2011,305 @@ async def test_external_identity_can_rename_without_losing_claim_links(db: Async
         ctx, library="organization", kind="company", q="Atlas Group", cursor=None, limit=10
     )
     assert [(obj.id, obj.name) for obj in page.items] == [(old_obj.id, "Atlas Group")]
+
+
+async def test_relations_validate_types_and_copy_both_objects_on_publication(
+    db: AsyncSession,
+) -> None:
+    org, owner, reader = await _org(db)
+    outsider, _, _ = await _org(db)
+    scope = ClaimScope(person_owner_key(owner.id))
+    project = MemoryObjectRef(kind="project", name="XYZ")
+    company = MemoryObjectRef(kind="company", name="Atlas")
+    person = MemoryObjectRef(kind="person", name="Anna")
+    start = datetime(2025, 1, 1, tzinfo=UTC)
+    relation = MemoryRelationRef(predicate="client", target=company)
+    with pytest.raises(BadRequestError, match="matching pair"):
+        await claims.remember(
+            db,
+            organization_id=org.id,
+            scope=scope,
+            statement="Invalid",
+            object_ref=project,
+            relation=MemoryRelationRef(predicate="client", target=person),
+        )
+
+    async def remember_client(statement: str) -> claims.Remembered:
+        return await claims.remember(
+            db,
+            organization_id=org.id,
+            scope=scope,
+            object_ref=project,
+            relation=relation,
+            effective_from=start,
+            statement=statement,
+        )
+
+    entry = (await remember_client("Atlas is the client for XYZ")).claim
+    duplicate = await remember_client("XYZ is work for Atlas")
+    assert not duplicate.created and duplicate.claim.id == entry.id
+    assert entry.related_object_id is not None and entry.object_id is not None
+    assert (
+        await claims.recall(
+            db,
+            organization_id=outsider.id,
+            scopes=[scope],
+            query="",
+            related_to=entry.related_object_id,
+        )
+        == []
+    )
+    [reverse] = await claims.recall(
+        db,
+        organization_id=org.id,
+        scopes=[scope],
+        query="",
+        as_of=start,
+        related_to=entry.related_object_id,
+    )
+    assert reverse.id == entry.id
+    corrected = await claims.correct(
+        db,
+        claim=entry,
+        statement="XYZ has Atlas as its contracting client",
+        author_user_id=owner.id,
+        effective_from=start + timedelta(days=1),
+    )
+    assert corrected.related_object_id == entry.related_object_id
+    with pytest.raises(BadRequestError, match="no separate value"):
+        await claims.amend_observation(
+            db, claim=entry, statement="Invalid", author_user_id=owner.id, value=2
+        )
+    with pytest.raises(BadRequestError, match="no separate value"):
+        await claims.correct(
+            db, claim=corrected, statement="Invalid", author_user_id=owner.id, value=2
+        )
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    copy = await MemoryService(db).publish_claim(
+        ctx, corrected.id, MemoryClaimShare(confirmed=True)
+    )
+    assert copy.related_object_id is not None and copy.related_object_id != entry.related_object_id
+    assert copy.object_id is not None and copy.object_id != entry.object_id
+    viewer = AuthContext(user_id=reader.id, organization_id=org.id, role="viewer")
+    timeline = await MemoryService(db).object_timeline(
+        viewer,
+        library="organization",
+        object_id=copy.related_object_id,
+        as_of=None,
+        known_at=None,
+        cursor=None,
+        limit=10,
+    )
+    assert timeline.object.name == "Atlas"
+    assert [row.id for row in timeline.items] == [copy.id]
+    alternative = await claims.remember(
+        db,
+        organization_id=org.id,
+        scope=scope,
+        statement="Boreal is the new contracting client",
+        object_ref=project,
+        relation=MemoryRelationRef(
+            predicate="client", target=MemoryObjectRef(kind="company", name="Boreal")
+        ),
+        effective_from=start + timedelta(days=2),
+    )
+    assert alternative.created and alternative.claim.related_object_id != entry.related_object_id
+
+
+async def test_workflow_authority_is_property_scoped_and_audited(db: AsyncSession) -> None:
+    org, owner, viewer = await _org(db)
+    other_org, other_owner, _ = await _org(db)
+    ctx = AuthContext(user_id=owner.id, organization_id=org.id, role="owner")
+    reader = AuthContext(user_id=viewer.id, organization_id=org.id, role="viewer")
+    record = await _workflow(db, org=org, owner=owner)
+    report = await _workflow(db, org=org, owner=owner)
+    outsider = await _workflow(db, org=other_org, owner=other_owner)
+    cfg = MemoryObservationConfig(
+        object_kind="company", object_name="Atlas", object_key="hris:atlas", subject="headcount"
+    )
+    graph = _observation_graph("trigger.webhook", config=cfg)
+    primary, backup = [await _webhook(db, ctx, workflow, graph) for workflow in (record, report)]
+    store = MemoryService(db)
+    policy = MemorySourceAuthorityUpdate(
+        object_kind="company", subject="Headcount", workflow_id=record.id
+    )
+    with pytest.raises(AuthorizationError):
+        await store.update_source_authority(reader, policy)
+    with pytest.raises(NotFoundError):
+        await store.update_source_authority(
+            ctx, policy.model_copy(update={"workflow_id": outsider.id})
+        )
+    with pytest.raises(BadRequestError, match="memory property"):
+        await store.update_source_authority(ctx, policy.model_copy(update={"subject": "!!!!"}))
+    assert (await store.update_source_authority(ctx, policy)).subject == "headcount"
+    assert [item.workflow_id for item in await store.source_authorities(ctx)] == [record.id]
+    now = datetime.now(UTC)
+
+    async def observe(source: tuple[uuid.UUID, str], key: str, value: int, age: int):
+        exposure_id, secret = source
+        body = json.dumps(
+            {
+                "record_key": "record-atlas",
+                "object_key": cfg.object_key,
+                "subject": cfg.subject,
+                "value": value,
+                "quote": f"{value} employees",
+                "effective_at": (now - timedelta(minutes=age)).isoformat(),
+            }
+        ).encode()
+        accepted = await WorkflowExposureService(db).receive_webhook(
+            exposure_id,
+            body=body,
+            headers=_signed(secret, body, key),
+        )
+        assert isinstance(accepted, WebhookAdmitted)
+        return await record_observation(db, auth=ctx, run_id=accepted.run_id, config=cfg)
+
+    original = await observe(primary, "official-one", 40, 40)
+    competing = await observe(backup, "backup-one", 45, 30)
+    assert original.status == "applied" and competing.status == "disputed"
+    assert original.claim_id is not None and competing.claim_id is not None
+    assert (await store.shared_claim_detail(ctx, original.claim_id)).status == "current"
+    replacement = await observe(primary, "official-two", 42, 20)
+    assert replacement.status == "changed"
+    assert (await store.shared_claim_detail(ctx, original.claim_id)).status == "superseded"
+    history = await claims.recall(
+        db,
+        organization_id=org.id,
+        scopes=[ClaimScope(organization_owner_key(org.id))],
+        query="Atlas",
+        as_of=now - timedelta(minutes=35),
+    )
+    assert [row.value for row in history] == [40]
+    await store.update_source_authority(ctx, policy.model_copy(update={"workflow_id": None}))
+    assert await store.source_authorities(ctx) == []
+    assert (await observe(backup, "backup-after-clear", 48, 10)).status == "disputed"
+
+
+async def test_shadow_model_compares_without_notifying_and_checks_revocation(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    org, owner, reader, ctx, grant = await _mail(db)
+    store = MemoryService(db)
+    draft = MemoryInboxRuleUpdate(
+        expected_version=0,
+        mode="shadow",
+        sources=["gmail"],
+        recipient_ids=[reader.id],
+        shadow_model=True,
+    )
+    with pytest.raises(BadRequestError, match="shadow mode"):
+        await store.update_inbox_rule(ctx, draft.model_copy(update={"mode": "live"}))
+    rule = await store.update_inbox_rule(ctx, draft)
+    assert rule.shadow_model
+    agent = Agent(
+        organization_id=org.id,
+        name="Memory evaluation",
+        slug="memory-eval",
+        created_by_user_id=owner.id,
+    )
+    db.add(agent)
+    await db.flush()
+    seen: list[dict[str, object]] = []
+
+    async def starter(_self, organization_id: uuid.UUID) -> Agent:
+        assert organization_id == org.id
+        return agent
+
+    async def recommend(_self, actor: AuthContext, *, prompt: str, output_type, **_values):
+        assert actor.user_id == owner.id
+        seen.append(json.loads(prompt))
+        return output_type(recommendation="digest")
+
+    monkeypatch.setattr(memory_inbox.ProactiveThinker, "starter_agent", starter)
+    monkeypatch.setattr(memory_inbox.ProactiveThinker, "think", recommend)
+    now = datetime.now(UTC)
+    await _admit(
+        db,
+        grant,
+        _delivery("shadow-a", "Deadline: 2026-12-01", received=now - timedelta(minutes=7)),
+        _delivery("shadow-b", "Deadline: 2026-12-03", received=now - timedelta(minutes=6)),
+        _delivery("shadow-c", "Deadline: 2026-12-04", received=now - timedelta(minutes=5)),
+    )
+    await _apply(db, org, ctx, "shadow-a")
+    await _apply(db, org, ctx, "shadow-b")
+
+    async def latest() -> DeliverMemoryInbox:
+        job = await db.scalar(
+            select(BackgroundJob)
+            .where(
+                BackgroundJob.organization_id == org.id,
+                BackgroundJob.kind == SHADOW_MEMORY_INBOX.kind,
+            )
+            .order_by(BackgroundJob.run_after.desc())
+        )
+        assert job is not None
+        return DeliverMemoryInbox.model_validate(job.payload)
+
+    admitted = await latest()
+    assert (
+        await memory_inbox.classify_memory_inbox(
+            db, admitted.model_copy(update={"policy_version": -1})
+        )
+        == 0
+    )
+    assert (
+        await memory_inbox.classify_memory_inbox(
+            db, admitted.model_copy(update={"rule_version": 100})
+        )
+        == 0
+    )
+    owner.is_active = False
+    await db.flush()
+    assert await memory_inbox.classify_memory_inbox(db, admitted) == 0
+    owner.is_active = True
+    reader.is_active = False
+    await db.flush()
+    assert await memory_inbox.classify_memory_inbox(db, admitted) == 0
+    reader.is_active = True
+    await db.flush()
+
+    async def no_starter(_self, _organization_id: uuid.UUID) -> None:
+        return None
+
+    monkeypatch.setattr(memory_inbox.ProactiveThinker, "starter_agent", no_starter)
+    assert await memory_inbox.classify_memory_inbox(db, admitted) == 0
+    monkeypatch.setattr(memory_inbox.ProactiveThinker, "starter_agent", starter)
+
+    @asynccontextmanager
+    async def current_db():
+        yield db
+
+    monkeypatch.setattr(memory_tasks, "get_db_context", current_db)
+    assert await memory_tasks.shadow_memory_change(admitted) == 1
+    assert await memory_inbox.classify_memory_inbox(db, admitted) == 0
+    [result] = await store.inbox_shadow_counts(ctx, rule.version)
+    assert result.baseline_notify and result.recommendation == "digest" and result.count == 1
+    assert len(seen) == 1 and seen[0]["to_deadline"] == "2026-12-03"
+    assert (await NotificationCenterService(db).list_inbox(ctx, after=None, limit=10))[0] == []
+
+    await _apply(db, org, ctx, "shadow-c")
+    pending = await latest()
+    assert pending.claim_id != admitted.claim_id
+
+    async def lose_grant(_self, actor, *, output_type, **_kwargs):
+        grant.authorization_generation = uuid.uuid4()
+        await db.flush()
+        return output_type(recommendation="notify")
+
+    monkeypatch.setattr(memory_inbox.ProactiveThinker, "think", lose_grant)
+    assert await memory_inbox.classify_memory_inbox(db, pending) == 0
+    assert await store.inbox_shadow_counts(ctx, rule.version) == [result]
+
+
+def test_signed_namespace_requires_an_explicit_separator() -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="namespace"):
+        MemoryObservationConfig(
+            object_kind="project",
+            object_name="Projects",
+            object_key="crm:projects",
+            use_key_prefix=True,
+            subject="status",
+        )

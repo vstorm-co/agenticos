@@ -40,6 +40,7 @@ from app.schemas.memory import (
     MemoryInboxDecisionCount,
     MemoryInboxRuleRead,
     MemoryInboxRuleUpdate,
+    MemoryInboxShadowCount,
     MemoryLibrary,
     MemoryNoteAutoUpdate,
     MemoryNoteEdit,
@@ -58,6 +59,8 @@ from app.schemas.memory import (
     MemoryObjectMergeRead,
     MemoryObjectPage,
     MemoryObjectTimeline,
+    MemorySourceAuthorityRead,
+    MemorySourceAuthorityUpdate,
     SharedMemoryNotePage,
     SharedMemoryNoteRead,
 )
@@ -88,6 +91,20 @@ async def memory_objects(
     )
 
 
+@router.get("/source-authorities", response_model=list[MemorySourceAuthorityRead])
+async def memory_source_authorities(service: MemorySvc, ctx: Auth) -> Any:
+    """List the organization's approved workflows for individual memory properties."""
+    return await service.source_authorities(ctx)
+
+
+@router.put("/source-authorities", response_model=MemorySourceAuthorityRead)
+async def set_memory_source_authority(
+    data: MemorySourceAuthorityUpdate, service: MemorySvc, ctx: Auth
+) -> Any:
+    """Assign or clear the workflow that can advance a specific memory property."""
+    return await service.update_source_authority(ctx, data)
+
+
 @router.get("/inbox-rule", response_model=MemoryInboxRuleRead)
 async def memory_inbox_rule(service: MemorySvc, ctx: Auth) -> Any:
     """Read the organization's versioned commitment deadline routing rule."""
@@ -108,6 +125,14 @@ async def memory_inbox_decisions(
 ) -> Any:
     """Summarize the rule's outcomes without disclosing object or source content."""
     return await service.inbox_decision_counts(ctx, version)
+
+
+@router.get("/inbox-rule/shadow-model", response_model=list[MemoryInboxShadowCount])
+async def memory_inbox_shadow_model(
+    service: MemorySvc, ctx: Auth, version: int = Query(ge=1)
+) -> Any:
+    """Compare shadow model recommendations with the deterministic decision."""
+    return await service.inbox_shadow_counts(ctx, version)
 
 
 @router.get("/object-backfill", response_model=MemoryObjectBackfillRead | None)

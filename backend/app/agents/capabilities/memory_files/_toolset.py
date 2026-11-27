@@ -26,7 +26,7 @@ from app.agents.memory_scope import claim_write_scope, memory_owner_key, readabl
 from app.core.memory_keys import INDEX_NAME as _INDEX_NAME
 from app.repositories.memory_claim import ClaimScope
 from app.schemas.decision_episode import DecisionEpisode
-from app.schemas.memory import MemoryObjectRef, MemoryValue
+from app.schemas.memory import MemoryObjectRef, MemoryRelationRef, MemoryValue
 from app.services import memory as memory_store
 from app.services.memory._runtime import ClaimView, ShareRefused
 
@@ -354,6 +354,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         object_ref: MemoryObjectRef | None = None,
         effective_to: str | None = None,
         value: MemoryValue | None = None,
+        relation: MemoryRelationRef | None = None,
     ) -> str:
         """Record one durable fact, preference or decision, with where it came from.
 
@@ -382,6 +383,9 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             object_ref: Optional person, company, business project or commitment and name.
                 A business project can exist without a Projects workspace. Supply an
                 external key only when the person provided one for this identity.
+            relation: Optional typed relationship. Use client (project to company),
+                responsible (project to person) or part_of (commitment to project).
+                Supply object_ref for its start and leave subject and value empty.
             value: Optional exact numeric, Boolean or text value for the named property.
             episode: For a decision only: observed situation, chosen action, alternatives,
                 expected and actual outcomes, and any correction. Do not invent outcomes.
@@ -398,6 +402,14 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             return _READ_ONLY
         if episode is not None and (kind != "decision" or profile):
             return "Record an episode as a decision in this case, without profile sharing."
+        if relation is not None and (
+            object_ref is None
+            or not relation.supports(object_ref.kind)
+            or subject is not None
+            or value is not None
+            or kind != "fact"
+        ):
+            return "A relation needs the matching object types, with no separate subject or value."
         target = claim_write_scope(
             audience,
             agent_id=deps.agent_id,
@@ -429,6 +441,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
                 effective_to=end,
                 object_ref=object_ref,
                 value=value,
+                relation=relation,
                 episode=episode,
             )
         except memory_store.ErasedDuringRun:
@@ -456,6 +469,10 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         query: str,
         as_of: str | None = None,
         known_at: str | None = None,
+        object_id: UUID | None = None,
+        related_to: UUID | None = None,
+        subject: str | None = None,
+        include_notes: bool = False,
     ) -> str:
         """Find recorded facts, preferences and decisions relevant to a question.
 
@@ -466,14 +483,21 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         what you are asked now.
 
         Args:
-            query: A few words about what you want to know.
+            query: A few keywords. Leave empty for an exact object or property lookup.
             as_of: Optional ISO effective date. Use it for questions about the past.
             known_at: Optional ISO knowledge cutoff, in addition to as_of. Use it
                 when asked what was known before a later correction.
+            object_id: Optional exact business object ID from a previous memory result.
+            related_to: Find relationships pointing to this exact object ID.
+            subject: Optional exact property of a fact, such as deadline or headcount.
+            include_notes: Also find relevant note names in this conversation's own store.
+                Available for current searches without an exact property. Open a match
+                with read_memory to get its body.
 
         Returns:
-            Matching claims, one per line with their id, scope and when they began to
-            hold; a `[disputed]` mark where sources disagree.
+            Facts with their scope, validity, typed value and available evidence.
+            A `[disputed]` mark means the value needs review. When asked, includes
+            names of matching working notes.
         """
         scopes = await self._claim_scopes(ctx)
         if isinstance(scopes, str):
@@ -492,14 +516,32 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
             query=query,
             as_of=when,
             known_at=cutoff,
+            object_id=object_id,
+            related_to=related_to,
+            subject=subject,
             reading_member=reader,
             include_groups=reader is not None
             and audience is not None
             and not audience.shared_transcript,
         )
-        if not found:
-            return "Nothing recorded matches."
-        return "\n".join(_line(claim) for claim in found)
+        lines = [_line(claim) for claim in found]
+        if include_notes and when is None and subject is None and related_to is None:
+            note_scope = self._scope(ctx)
+            if not isinstance(note_scope, str):
+                organization_id, agent_id, owner_key = note_scope
+                entries = await memory_store.runtime.find_notes(
+                    organization_id=organization_id,
+                    agent_id=agent_id,
+                    owner_key=owner_key,
+                    query=query,
+                    object_id=object_id,
+                    reading_member=reader,
+                )
+                lines.extend(
+                    f"- Note {entry.name}" + (f": {entry.description}" if entry.description else "")
+                    for entry in entries
+                )
+        return "\n".join(lines) if lines else "Nothing recorded matches."
 
     async def correct_memory(
         self,
@@ -634,6 +676,14 @@ def _line(claim: ClaimView) -> str:
     details = ""
     if claim.episode is not None:
         details = " · Decision evidence: " + claim.episode.model_dump_json(exclude_none=True)[:1200]
+    if claim.value is not None:
+        details += f" · Recorded value: {claim.value!r}"
+    if claim.effective_to is not None:
+        details += f" · Effective until: {claim.effective_to.isoformat()} (exclusive)"
+    if claim.related_object_id is not None:
+        details += f" · {claim.subject} → object {claim.related_object_id}"
+    if claim.evidence:
+        details += " · Sources: " + ", ".join(item.model_dump_json() for item in claim.evidence)
     object_context = f" object={claim.object_id}" if claim.object_id else ""
     return (
         f"- {claim.statement}{since} [{claim.scope}]{mark} id={claim.id}{object_context}{details}"

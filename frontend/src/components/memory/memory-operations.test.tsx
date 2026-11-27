@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import {
   getMemoryInboxDecisions,
+  getMemoryInboxModelDecisions,
   getMemoryInboxRule,
   getMemoryObjectBackfill,
   runMemoryObjectBackfill,
@@ -31,6 +32,7 @@ vi.mock("@/components/orgs/member-picker", () => ({
 vi.mock("@/lib/memory-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/memory-api")>()),
   getMemoryInboxDecisions: vi.fn(),
+  getMemoryInboxModelDecisions: vi.fn().mockResolvedValue([]),
   getMemoryInboxRule: vi.fn(),
   getMemoryObjectBackfill: vi.fn(),
   runMemoryObjectBackfill: vi.fn(),
@@ -118,6 +120,38 @@ it("refreshes a stale rule and reads outcomes from a chosen version", async () =
   await waitFor(() => expect(screen.queryByText("saveFailed")).toBeNull());
   expect(setMemoryInboxRule).toHaveBeenCalledWith(
     expect.objectContaining({ sources: ["webhook"] }),
+    expect.anything(),
+  );
+});
+
+it("enables model comparison only in shadow and renders recommendation counts", async () => {
+  vi.mocked(getMemoryInboxRule).mockResolvedValue({
+    version: 6,
+    mode: "shadow",
+    sources: ["gmail"],
+    recipient_ids: ["reviewer"],
+    include_review: false,
+  });
+  vi.mocked(getMemoryInboxDecisions).mockResolvedValue([]);
+  vi.mocked(getMemoryInboxModelDecisions).mockResolvedValue([
+    { baseline_notify: true, recommendation: "digest", count: 2 },
+  ]);
+  vi.mocked(getMemoryObjectBackfill).mockResolvedValue(null);
+  vi.mocked(setMemoryInboxRule).mockImplementation(async (rule) => ({
+    ...rule,
+    version: rule.version + 1,
+  }));
+  const user = userEvent.setup();
+  mount();
+  await user.click(await screen.findByRole("checkbox", { name: "shadowModel" }));
+  await user.click(screen.getByRole("button", { name: "save" }));
+  expect(await screen.findByText("modelComparison")).toBeVisible();
+  expect(getMemoryInboxModelDecisions).toHaveBeenCalledWith(7);
+  await user.selectOptions(screen.getByRole("combobox", { name: "modeLabel" }), "live");
+  expect(screen.queryByRole("checkbox", { name: "shadowModel" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "save" }));
+  expect(setMemoryInboxRule).toHaveBeenLastCalledWith(
+    expect.objectContaining({ mode: "live", shadow_model: false }),
     expect.anything(),
   );
 });

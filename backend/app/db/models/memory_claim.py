@@ -178,6 +178,9 @@ class MemoryClaim(Base, TimestampMixin):
     observed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+    related_object_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("memory_objects.id", ondelete="CASCADE")
+    )
     effective_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
@@ -198,6 +201,12 @@ class MemoryClaim(Base, TimestampMixin):
         Index("ix_memory_claims_scope", "organization_id", "scope_key", "status"),
         Index("ix_memory_claims_agent", "agent_id"),
         Index("ix_memory_claims_object", "object_id", "observed_at", "id"),
+        Index("ix_memory_claims_related_object", "related_object_id", "observed_at", "id"),
+        CheckConstraint(
+            "related_object_id IS NULL OR (object_id IS NOT NULL AND object_id <> related_object_id "
+            "AND subject IS NOT NULL AND subject IN ('relation_client', 'relation_responsible', 'relation_part_of'))",
+            name="typed_relation",
+        ),
         Index(
             "ix_memory_claims_object_backfill",
             "organization_id",
@@ -219,6 +228,21 @@ class MemoryClaim(Base, TimestampMixin):
         return f"<MemoryClaim({self.scope_key}, {self.subject}, {self.status})>"
 
 
+class MemorySourceAuthority(Base):
+    """The approved workflow for automatic updates to one object property."""
+
+    __tablename__ = "memory_source_authorities"
+
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), primary_key=True
+    )
+    object_kind: Mapped[str] = mapped_column(String(24), primary_key=True)
+    subject: Mapped[str] = mapped_column(String(120), primary_key=True)
+    workflow_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workflows.id", ondelete="CASCADE"), index=True
+    )
+
+
 class MemoryInboxRule(Base):
     """An editor-reviewed routing rule for changes to shared commitment deadlines."""
 
@@ -238,6 +262,14 @@ class MemoryInboxRule(Base):
     )
     sources: Mapped[list[str]] = mapped_column(ARRAY(String(16)), server_default=text("'{}'"))
     include_review: Mapped[bool] = mapped_column(server_default="false")
+
+    shadow_model_owner_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+
+    @property
+    def shadow_model(self) -> bool:
+        return self.shadow_model_owner_id is not None
 
 
 class MemoryInboxDecision(Base):
@@ -264,6 +296,31 @@ class MemoryInboxDecision(Base):
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
     outcome: Mapped[str] = mapped_column(String(16))
+
+
+class MemoryInboxShadowDecision(Base):
+    """A measured recommendation for an eligible memory transition."""
+
+    __tablename__ = "memory_inbox_shadow_decisions"
+    __table_args__ = (
+        CheckConstraint(
+            "recommendation IN ('notify', 'digest', 'review', 'ignore')", name="recommendation"
+        ),
+        Index("ix_memory_inbox_shadow_org_rule", "organization_id", "rule_version"),
+    )
+
+    claim_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("memory_claims.id", ondelete="CASCADE"), primary_key=True
+    )
+    rule_version: Mapped[int] = mapped_column(primary_key=True)
+    policy_version: Mapped[int] = mapped_column(primary_key=True)
+    revision_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), primary_key=True)
+    change: Mapped[str] = mapped_column(String(16), primary_key=True)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE")
+    )
+    baseline_notify: Mapped[bool]
+    recommendation: Mapped[str] = mapped_column(String(16))
 
 
 class MemoryClaimEvidence(Base):
@@ -337,6 +394,8 @@ class MemoryScopeState(Base):
         nullable=False, default=0, server_default="0"
     )
     consolidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    consolidation_cursor: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    consolidating_revision: Mapped[int | None] = mapped_column(nullable=True)
 
 
 class MemoryMailSource(Base, TimestampMixin):

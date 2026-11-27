@@ -499,3 +499,78 @@ async def test_typed_claim_and_dated_recall_are_passed_to_the_ledger(ledger) -> 
     await tools.recall(ctx, "Acme", as_of="2020-07-01", known_at="2026-11-15")
     assert ledger["recall"].await_args.kwargs["as_of"] == datetime(2020, 7, 1, tzinfo=UTC)
     assert ledger["recall"].await_args.kwargs["known_at"] == datetime(2026, 11, 15, tzinfo=UTC)
+
+
+async def test_recall_can_discover_notes_in_the_existing_store(
+    monkeypatch: pytest.MonkeyPatch, ledger: dict[str, AsyncMock]
+) -> None:
+    lookup = AsyncMock(
+        return_value=[memory_store.MemoryFileIndexEntry("atlas-handoff", "Next steps", "note")]
+    )
+    monkeypatch.setattr(memory_store.runtime, "find_notes", lookup)
+    ledger["recall"].return_value = []
+    tools = _tools()
+    ctx = _ctx(_deps())
+
+    result = await tools.recall(ctx, "atlas handoff", include_notes=True)
+    assert "atlas-handoff" in result and "Next steps" in result
+    assert lookup.await_args is not None
+    assert lookup.await_args.kwargs["agent_id"] == ctx.deps.agent_id
+    await tools.recall(ctx, "atlas", as_of="2024-01-01", include_notes=True)
+    lookup.assert_awaited_once()
+
+
+async def test_memory_tools_record_typed_relations_and_show_available_evidence(
+    ledger: dict[str, AsyncMock],
+) -> None:
+    from dataclasses import replace
+
+    from app.schemas.memory import MemoryClaimEvidenceRead, MemoryObjectRef, MemoryRelationRef
+
+    ctx = _ctx(_deps())
+    tools = _tools()
+    company = MemoryObjectRef(kind="company", name="Atlas")
+    related = uuid4()
+    project = MemoryObjectRef(kind="project", name="XYZ")
+    relation = MemoryRelationRef(predicate="client", target=company)
+    assert "matching object types" in await tools.remember(
+        ctx, "Invalid", object_ref=company, relation=relation
+    )
+    assert "Recorded" in await tools.remember(
+        ctx, "Atlas is the client", object_ref=project, relation=relation
+    )
+    saved = ledger["remember"].await_args
+    assert saved is not None and saved.kwargs["relation"] == relation
+    ledger["recall"].return_value = [
+        replace(
+            _view(),
+            subject="relation_client",
+            related_object_id=related,
+            effective_to=datetime(2026, 12, 3, tzinfo=UTC),
+            evidence=(
+                MemoryClaimEvidenceRead(
+                    kind="webhook",
+                    source_id="fixture-source",
+                    quote="Atlas confirmed",
+                    occurred_at=datetime(2026, 11, 2, tzinfo=UTC),
+                ),
+            ),
+        ),
+        replace(_view(statement="Headcount"), value=40),
+    ]
+    match = await tools.recall(ctx, "", related_to=related)
+    assert str(related) in match and "fixture-source" in match
+    assert "Effective until:" in match and "Recorded value: 40" in match
+
+
+async def test_recall_never_searches_private_notes_from_a_shared_chat(
+    monkeypatch: pytest.MonkeyPatch, ledger: dict[str, AsyncMock]
+) -> None:
+    lookup = AsyncMock()
+    monkeypatch.setattr(memory_store.runtime, "find_notes", lookup)
+    deps = _deps()
+    deps.audience = RunAudience(user_id=PERSON, shared_transcript=True)
+    ledger["recall"].return_value = [_view(statement="Shared claim", scope="organization")]
+    result = await _tools().recall(_ctx(deps), "Shared claim", include_notes=True)
+    assert "Shared claim" in result
+    lookup.assert_not_awaited()

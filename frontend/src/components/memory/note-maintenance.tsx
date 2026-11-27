@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { Button } from "@/components/ui";
+import { Button, LineDiff } from "@/components/ui";
 import { useNoteMaintenance } from "@/hooks/use-note-maintenance";
+import { MAX_DIFF_LINES } from "@/lib/diff";
 import type { MemoryNote } from "@/lib/memory-api";
 
 export function NoteMaintenance({
@@ -19,11 +21,13 @@ export function NoteMaintenance({
 }) {
   const t = useTranslations("pages.memory.browser");
   const common = useTranslations("common");
+  const runs = useTranslations("pages.runs");
   const format = useFormatter();
   const panelId = useId();
   const [open, setOpen] = useState(false);
   const [skip, setSkip] = useState(0);
   const { revisions, toggle, restore } = useNoteMaintenance(note, open, skip);
+  const items = revisions.data?.items ?? [];
   const busy = disabled || toggle.isPending || restore.isPending;
   const origin = {
     agent: t("noteRevisionAgent"),
@@ -56,28 +60,56 @@ export function NoteMaintenance({
         {revisions.isPending && <p role="status">{common("loading")}</p>}
         {revisions.isError && <p role="alert">{t("noteHistoryError")}</p>}
         {revisions.data?.total === 0 && <p>{t("noteHistoryEmpty")}</p>}
-        {revisions.data?.items.map((item) => (
-          <details key={item.id} className="space-y-2 rounded-md border p-3">
-            <summary className="cursor-pointer text-sm">
-              {t("noteRevisionLabel", {
-                origin: origin[item.changed_by],
-                when: format.dateTime(new Date(item.replaced_at), {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                }),
-              })}
-            </summary>
-            <pre className="max-h-52 overflow-auto text-sm whitespace-pre-wrap">{item.content}</pre>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() => restore.mutate(item.id, { onSuccess: onRestored })}
-            >
-              {t("noteRestoreVersion")}
-            </Button>
-          </details>
-        ))}
+        {items.map((item, index) => {
+          const nextBody =
+            index > 0 ? (items[index - 1]?.content ?? null) : skip === 0 ? note.content : null;
+          const tooLong =
+            item.content.split("\n").length > MAX_DIFF_LINES ||
+            (nextBody?.split("\n").length ?? 0) > MAX_DIFF_LINES;
+          return (
+            <details key={item.id} className="space-y-2 rounded-md border p-3">
+              <summary className="cursor-pointer text-sm">
+                {t("noteRevisionLabel", {
+                  origin: origin[item.changed_by],
+                  when: format.dateTime(new Date(item.replaced_at), {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }),
+                })}
+              </summary>
+              {nextBody !== null && (
+                <LineDiff
+                  before={item.content}
+                  after={nextBody}
+                  identicalLabel={t("noteRevisionIdentical")}
+                  unchangedLabel={(count) => runs("stepApprovalUnchangedLines", { count })}
+                  tooLongLabel={t("noteRevisionTooLong")}
+                />
+              )}
+              {(nextBody === null || tooLong) && (
+                <pre className="max-h-52 overflow-auto text-sm whitespace-pre-wrap">
+                  {item.content}
+                </pre>
+              )}
+              {item.source_conversation_id && (
+                <Link
+                  className="block text-sm underline"
+                  href={`/chat/${item.source_conversation_id}`}
+                >
+                  {t("noteRevisionSource")}
+                </Link>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() => restore.mutate(item.id, { onSuccess: onRestored })}
+              >
+                {t("noteRestoreVersion")}
+              </Button>
+            </details>
+          );
+        })}
         <div className="flex gap-2">
           {skip > 0 && (
             <Button size="sm" variant="ghost" onClick={() => setSkip(Math.max(0, skip - 5))}>

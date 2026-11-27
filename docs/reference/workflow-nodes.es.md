@@ -1,5 +1,5 @@
 ---
-source_sha: "b9212866947c"
+source_sha: "bff92f4c37ce"
 ---
 
 # Nodos de workflow { #workflow-nodes }
@@ -833,6 +833,12 @@ La salida proporciona `claim_id`, `status` y `changed`. Usa `changed`
 con [Notificar a miembros](#notification-send). Los duplicados, disputas
 y eventos tardíos tienen estados propios. Se aplican las reglas de entrega
 y reintento existentes del workflow.
+
+Para admitir varios objetos del mismo tipo y propiedad, activa **Allow a signed
+webhook namespace** y configura un prefijo como `crm:deals/`. El cuerpo
+firmado requiere `object_name` y un `object_key` como `crm:deals/42`.
+Con la opción desactivada, la clave y el nombre se fijan en el flujo.
+Gmail usa una clave fija.
 
 ## agent.run { #agent-run }
 

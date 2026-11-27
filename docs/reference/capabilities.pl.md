@@ -1,5 +1,5 @@
 ---
-source_sha: "13c9b2043aaf"
+source_sha: "13019dd32ff1"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -506,6 +506,21 @@ są półotwarte. Wpis bez daty początku można znaleźć w aktualnym wyszukiwa
 Odczyt historyczny wymaga daty obserwacji. Otwórz zamknięty przedział na osi czasu osobistego obiektu i wybierz korektę, aby poprawić wpis z zachowaniem wcześniejszego stanu wiedzy. Historia zmian stanu zaczyna się
 w nowym schemacie. Istniejące wpisy i ich identyfikatory pozostają dostępne.
 
+Użyj `recall(include_notes=True)`, aby wyszukać aktywne notatki rozmowy
+po nazwie, opisie lub treści. Wynik otworzysz przez `read_memory`. Dokładne
+wyszukanie faktu umożliwiają `object_id` i `subject`. Bieżące wyniki mogą
+zawierać typowaną wartość, okres obowiązywania i dostępne dowody. Odczyt
+historyczny szereguje fakty według statusu znanego w podanej chwili.
+Maintenance zamienia jeden dokładnie dopasowany, unikatowy fragment notatki
+objętej zgodą, sprawdza wersję i zapisuje źródło.
+
+Zapisz typowaną relację przez `remember(object_ref=…, relation=…)`.
+Predykaty to `client` (projekt do firmy), `responsible` (projekt do osoby)
+i `part_of` (zobowiązanie do projektu). Oba obiekty mają ten sam zakres.
+Relacja zachowuje daty i dowody. Jest widoczna na obu osiach czasu.
+`recall(related_to=…)` wyszukuje relacje według ID obiektu docelowego.
+Zatwierdzona publikacja kopiuje oba obiekty.
+
 ### Obserwacje z workflow { #memory-gmail }
 
 Opublikowany workflow może zapisać zweryfikowane zdarzenie w pamięci
@@ -539,6 +554,13 @@ zostają.
 
 Korekta samego tekstu zachowuje zapisaną wartość typowaną. Zmień pole **Zapisana wartość** w edytorze lub przekaż `value` do `correct_memory`, aby ją zastąpić. Nowa nazwa dla istniejącego klucza zewnętrznego zachowuje historię obiektu pod tym samym ID.
 
+Właściciel organizacji może przypisać Workflow do typu obiektu i właściwości
+przez `GET /memory/source-authorities` i `PUT /memory/source-authorities`.
+Wartość null w `workflow_id` usuwa regułę. Dopuszczona obserwacja z przypisanego
+Workflow może zmienić obowiązującą wartość, jeśli jej data jest późniejsza.
+Pozostałe Workflows mogą dostarczyć dowód lub spór. Reguła obejmuje nowe
+obserwacje, a zmiany konfiguracji trafiają do audytu.
+
 ### Aliasy i uzupełnianie obiektów { #memory-object-operations }
 
 W osi czasu obiektu otwórz **Aliasy obiektu** i sprawdź drugi obiekt tego
@@ -568,6 +590,12 @@ czasu obiektu. Worker sprawdza aktualną rewizję, uprawnienia do skrzynki,
 członkostwo w organizacji i dostęp grupowy. Inbox ponawia kontrolę przy każdym
 wyświetleniu karty. Ponowienia dla tej samej rewizji, reguły i odbiorcy
 rozliczają się raz. Workflow może użyć własnego kroku powiadomień do osobnej akcji.
+
+W trybie Shadow opcja **Porównuj rekomendacje modelu** uruchamia dla
+kwalifikujących się zmian job na profilu i budżecie Memory Maintenance. Model
+sugeruje powiadomienie, podsumowanie, sprawdzenie lub pominięcie. Liczniki
+porównują decyzje modelu z regułą dla wybranej wersji. Przed zapisem job
+ponownie sprawdza źródło, rewizję i dostęp odbiorcy.
 
 ### Fakty, preferencje i decyzje { #memory-claims }
 

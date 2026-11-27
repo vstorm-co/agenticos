@@ -1,5 +1,5 @@
 ---
-source_sha: "13c9b2043aaf"
+source_sha: "13019dd32ff1"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -529,6 +529,21 @@ bleiben in der aktuellen Suche sichtbar. Der historische Abruf benötigt eine
 datierte Beobachtung. Eine Korrektur auf der persönlichen Zeitachse ändert das abgeschlossene Intervall und erhält den früheren Wissensstand. Zustandsänderungen werden ab dem neuen Schema erfasst.
 Bestehende Einträge behalten ihre IDs.
 
+Mit `recall(include_notes=True)` suchst du aktive Notizen im Speicher
+der Unterhaltung nach Name, Beschreibung oder Inhalt. Öffne Treffer mit
+`read_memory`. `object_id` und `subject` ermöglichen eine genaue Faktensuche.
+Aktuelle Ergebnisse können typisierte Werte, Gültigkeit und zugängliche
+Belege enthalten. Historische Abfragen sortieren nach dem zum Stichtag
+bekannten Status. Bei Einwilligung ersetzt der Wartungsjob einen exakt und
+eindeutig passenden Textblock. Er prüft die Version und speichert die Quelle.
+
+Erfasse eine typisierte Beziehung mit `remember(object_ref=…, relation=…)`.
+Die Prädikate sind `client` (Projekt zu Firma), `responsible` (Projekt
+zu Person) und `part_of` (Verpflichtung zu Projekt). Beide Objekte behalten
+denselben Zugriffsbereich. Die Beziehung behält Zeitangaben und Belege und ist
+in beiden Zeitachsen sichtbar. `recall(related_to=…)` findet Beziehungen zur
+Zielobjekt-ID. Eine geprüfte Freigabe kopiert beide Objekte.
+
 ### Beobachtungen aus Workflows { #memory-gmail }
 
 Ein veröffentlichter Workflow kann verifizierte Zustellungen im
@@ -564,6 +579,13 @@ geführten Notizen bleiben.
 
 Eine reine Textkorrektur behält den typisierten Wert. Ändere **Gespeicherter Wert** im Editor oder übergib `value` an `correct_memory`, um ihn zu ersetzen. Eine neue Bezeichnung für denselben externen Schlüssel erhält den Objektverlauf unter derselben ID.
 
+Der Organisationseigentümer kann je Objekttyp und Eigenschaft einen Workflow
+mit `GET /memory/source-authorities` und `PUT /memory/source-authorities`
+festlegen. Null in `workflow_id` hebt die Zuweisung auf. Eine zugelassene
+Beobachtung des Workflows kann die Eigenschaft ab einem späteren Zeitpunkt
+aktualisieren. Weitere Workflows können Belege oder Widersprüche liefern.
+Die Regel gilt für neue Eingänge. Änderungen werden protokolliert.
+
 ### Objektaliase und Nachpflege { #memory-object-operations }
 
 Öffne **Objektaliase** im Verlauf und prüfe das zweite Objekt desselben
@@ -596,6 +618,12 @@ und Gruppenmitgliedschaft. Der Posteingang prüft die Rechte erneut beim
 Anzeigen. Wiederholungen für dieselbe Revision, Regel und Person werden
 einmal verarbeitet. Ein Workflow kann für eine separate Aktion weiterhin
 seinen eigenen Benachrichtigungsschritt verwenden.
+
+Im Shadow-Modus startet **Modellempfehlungen vergleichen** für geeignete
+Änderungen einen Job mit dem Profil und Budget der Gedächtniswartung. Das
+Modell empfiehlt Meldung, Übersicht, Prüfung oder Überspringen. Zähler
+vergleichen Modell und Regel je Version. Der Job prüft vor dem Speichern
+Quelle, aktuelle Revision und Empfängerzugriff erneut.
 
 ### Fakten, Vorlieben und Entscheidungen { #memory-claims }
 

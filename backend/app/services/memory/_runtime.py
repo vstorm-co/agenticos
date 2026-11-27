@@ -24,6 +24,7 @@ from app.core.memory_keys import (
     PROJECT_PREFIX,
     group_owner_key,
     organization_owner_key,
+    person_owner_key,
     project_owner_key,
 )
 from app.core.permissions import Perm, Scope
@@ -31,14 +32,23 @@ from app.db.models.conversation import Conversation
 from app.db.models.memory_claim import MemoryClaim
 from app.db.models.project import Project
 from app.db.session import get_db_context
-from app.repositories import group_repo
+from app.repositories import group_repo, memory_repo
 from app.repositories import memory_claim as claim_repo
 from app.repositories.memory_claim import ClaimScope
 from app.schemas.decision_episode import DecisionEpisode
-from app.schemas.memory import MemoryObjectRef, MemoryValue
+from app.schemas.memory import (
+    MemoryClaimEvidenceRead,
+    MemoryObjectRef,
+    MemoryRelationRef,
+    MemoryValue,
+)
 from app.services.access import PROJECT, acting_member, resolve_access
 from app.services.memory import _claims
-from app.services.memory._native import person_still_exists, refuse_if_erased_during_run
+from app.services.memory._native import (
+    MemoryFileIndexEntry,
+    person_still_exists,
+    refuse_if_erased_during_run,
+)
 
 
 @dataclass(frozen=True)
@@ -56,8 +66,10 @@ class ClaimView:
     observed_at: datetime
     episode: DecisionEpisode | None = None
     object_id: UUID | None = None
+    related_object_id: UUID | None = None
     effective_to: datetime | None = None
     value: MemoryValue | None = None
+    evidence: tuple[MemoryClaimEvidenceRead, ...] = ()
 
 
 def _view(claim: MemoryClaim) -> ClaimView:
@@ -67,6 +79,7 @@ def _view(claim: MemoryClaim) -> ClaimView:
     return ClaimView(
         id=claim.id,
         object_id=claim.object_id,
+        related_object_id=claim.related_object_id,
         effective_to=claim.effective_to,
         statement=claim.statement,
         value=claim.value,
@@ -108,6 +121,7 @@ async def remember(
     effective_to: datetime | None = None,
     object_ref: MemoryObjectRef | None = None,
     value: MemoryValue | None = None,
+    relation: MemoryRelationRef | None = None,
 ) -> tuple[ClaimView, bool, bool] | None:
     """Record a claim. `None` when its person is gone; else (claim, created, disputed).
 
@@ -135,9 +149,69 @@ async def remember(
             effective_to=effective_to,
             object_ref=object_ref,
             value=value,
+            relation=relation,
             episode=episode,
         )
         return _view(result.claim), result.created, result.disputed
+
+
+async def find_notes(
+    *,
+    organization_id: UUID,
+    agent_id: UUID,
+    owner_key: str,
+    query: str,
+    object_id: UUID | None,
+    reading_member: UUID | None,
+) -> list[MemoryFileIndexEntry]:
+    """Return only the active notes this run can open with read_memory."""
+    async with get_db_context() as db:
+        if (
+            reading_member is not None
+            and owner_key == person_owner_key(reading_member)
+            and await acting_member(db, organization_id, str(reading_member)) is None
+        ):
+            return []
+        rows = await memory_repo.search_notes(
+            db,
+            organization_id=organization_id,
+            agent_id=agent_id,
+            owner_key=owner_key,
+            terms=_claims.search_terms(query),
+            object_id=object_id,
+            limit=4,
+        )
+    return [
+        MemoryFileIndexEntry(name=row.name, description=row.description, kind=row.kind)
+        for row in rows
+    ]
+
+
+async def _evidence(
+    db: AsyncSession, row: MemoryClaim, *, reading_member: UUID | None
+) -> tuple[MemoryClaimEvidenceRead, ...]:
+    # Message IDs and quotes from another audience must never travel with its publication.
+    if reading_member is not None and row.scope_key == person_owner_key(reading_member):
+        return tuple(
+            MemoryClaimEvidenceRead(
+                kind="message",
+                source_id=f"message:{item.message_id}",
+                quote=item.quote,
+                occurred_at=item.occurred_at,
+            )
+            for item in await claim_repo.message_evidence(db, row.id, limit=2)
+        )
+    if row.observation_source is None and row.mail_event_id is None and not row.derived_from:
+        return ()
+    return tuple(
+        MemoryClaimEvidenceRead(
+            kind="webhook" if event.provider == "webhook" else "gmail",
+            source_id=str(event.id),
+            quote=event.quote,
+            occurred_at=event.received_at,
+        )
+        for event in await claim_repo.mail_evidence(db, claim=row, limit=2)
+    )
 
 
 async def recall(
@@ -149,6 +223,9 @@ async def recall(
     known_at: datetime | None = None,
     reading_member: UUID | None = None,
     include_groups: bool = False,
+    object_id: UUID | None = None,
+    related_to: UUID | None = None,
+    subject: str | None = None,
 ) -> list[ClaimView]:
     async with get_db_context() as db:
         allowed = list(scopes)
@@ -174,10 +251,16 @@ async def recall(
             query=query,
             as_of=as_of,
             known_at=known_at,
+            object_id=object_id,
+            related_to=related_to,
+            subject=subject,
         )
         views = [_view(row) for row in rows]
         if known_at is None:
-            return views
+            return [
+                replace(view, evidence=await _evidence(db, row, reading_member=reading_member))
+                for row, view in zip(rows, views, strict=True)
+            ]
         states = await claim_repo.states_known_at(db, rows=rows, known_at=known_at)
         return [
             replace(view, status=state.status, effective_to=state.effective_to)

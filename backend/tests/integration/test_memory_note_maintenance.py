@@ -1,6 +1,7 @@
 """Maintenance edits only consented Notes and leaves an undoable history."""
 
 import json
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -19,8 +20,9 @@ from app.db.models.memory import AgentMemoryFile, MemoryNoteRevision
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.user import User
 from app.repositories import memory_repo
+from app.repositories.memory_claim import ClaimScope
 from app.schemas.memory import MemoryNoteAutoUpdate, MemoryNoteEdit, MemoryNoteRestore
-from app.services.memory import MemoryService, extraction
+from app.services.memory import MemoryService, extraction, runtime
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
 
@@ -114,6 +116,7 @@ async def test_note_overwrite_requires_consent_and_restores_the_prior_body(
             {
                 "note": {
                     "action": "update",
+                    "before": "Initial content",
                     "name": note.name,
                     "content": "New checklist",
                     "evidence": QUOTE,
@@ -143,6 +146,14 @@ async def test_note_overwrite_requires_consent_and_restores_the_prior_body(
     assert page.total == 1
     assert page.items[0].content == "Initial content"
     assert page.items[0].changed_by == "maintenance"
+    assert page.items[0].source_conversation_id is not None
+    assert (
+        await memory_repo.note_revision_sources(
+            db, organization_id=data.owner.organization_id, owner_id=uuid4(), message_ids=[source]
+        )
+        == {}
+    )
+
     restored = await svc.restore_note_revision(
         data.owner,
         note.id,
@@ -196,6 +207,7 @@ async def test_maintenance_does_not_overwrite_a_change_during_the_model_call(
             {
                 "note": {
                     "action": "update",
+                    "before": "Initial content",
                     "name": note.name,
                     "content": "Obsolete version",
                     "evidence": QUOTE,
@@ -321,6 +333,7 @@ async def test_maintenance_respects_an_opt_out_during_the_model_call(
             {
                 "note": {
                     "action": "update",
+                    "before": "Initial content",
                     "name": note.name,
                     "content": "No consent",
                     "evidence": QUOTE,
@@ -429,6 +442,42 @@ async def test_one_session_can_record_the_same_property_on_distinct_projects(
     assert {claim.statement for claim in page.items} == {"Anna owns Atlas.", "Piotr owns Boreal."}
     assert len({claim.object_id for claim in page.items} - {None}) == 2
 
+    @asynccontextmanager
+    async def current_db():
+        yield db
+
+    monkeypatch.setattr(runtime, "get_db_context", current_db)
+    owner = data.owner.subject_id
+    owner_key = person_owner_key(owner)
+    hits = await runtime.recall(
+        organization_id=data.owner.organization_id,
+        scopes=[ClaimScope(owner_key, data.agent_id)],
+        query="Atlas",
+        reading_member=owner,
+    )
+    assert [item.quote for item in hits[0].evidence] == ["Anna owns Atlas."]
+    notes = await runtime.find_notes(
+        organization_id=data.owner.organization_id,
+        agent_id=data.agent_id,
+        owner_key=owner_key,
+        query="initial",
+        object_id=None,
+        reading_member=owner,
+    )
+    assert [note.name for note in notes] == [data.note.name]
+    outsider = uuid4()
+    assert (
+        await runtime.find_notes(
+            organization_id=data.owner.organization_id,
+            agent_id=data.agent_id,
+            owner_key=person_owner_key(outsider),
+            query="initial",
+            object_id=None,
+            reading_member=outsider,
+        )
+        == []
+    )
+
 
 async def test_note_consent_rejects_stale_revisions_and_oversized_bodies(db: AsyncSession) -> None:
     data = await world(db)
@@ -498,3 +547,40 @@ async def test_unchanged_note_has_no_new_revision_and_candidates_can_be_unranked
         limit=4,
     )
     assert [row.id for row in candidates] == [note.id]
+
+
+@pytest.mark.parametrize(
+    ("body", "before", "replacement"),
+    [
+        ("Initial content\nInitial content", "Initial content", "New checklist"),
+        ("Initial content", "Initial content", "Initial content"),
+        ("Initial content\nPreserve this section", "Initial content", "x" * 4000),
+    ],
+)
+async def test_maintenance_preserves_the_note_when_a_patch_is_ambiguous_or_over_budget(
+    db: AsyncSession, monkeypatch: pytest.MonkeyPatch, body: str, before: str, replacement: str
+) -> None:
+    data = await world(db)
+    note = data.note
+    note.content = body
+    note.auto_update = True
+    await db.commit()
+    run, _ = await session(db, data, at=datetime.now(UTC))
+
+    async def think(_self, _ctx, *, output_type, **_kwargs):
+        return output_type.model_validate(
+            {
+                "note": {
+                    "action": "update",
+                    "name": note.name,
+                    "before": before,
+                    "content": replacement,
+                    "evidence": QUOTE,
+                }
+            }
+        )
+
+    monkeypatch.setattr(extraction.ProactiveThinker, "think", think)
+    await extraction.extract(db, data.owner.organization_id, run)
+    assert note.content == body
+    assert await db.scalar(select(MemoryNoteRevision.id)) is None
