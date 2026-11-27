@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -96,6 +97,14 @@ async def test_only_the_original_requester_can_answer_under_room_admission(
         with (
             patch("app.core.maintenance.get_db_context", new=database),
             patch("app.repositories.deployment_settings.get", new=AsyncMock(return_value=None)),
+            patch(
+                "app.repositories.member_repo.get_active",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.repositories.organization_repo.get_by_id",
+                new=AsyncMock(return_value=SimpleNamespace(chat_cost_visibility=None)),
+            ),
             patch("app.repositories.agent_run_repo.get_run", new=AsyncMock(return_value=run)),
             patch(
                 "app.repositories.room_submission.for_run", new=AsyncMock(return_value=MagicMock())
