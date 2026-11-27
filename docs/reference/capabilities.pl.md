@@ -1,5 +1,5 @@
 ---
-source_sha: "810b0200f113"
+source_sha: "694a59388a8f"
 ---
 
 # Katalog capability { #the-capability-catalog }
@@ -228,23 +228,32 @@ wstrzymuje i zapisuje:
 
 | id | Narzędzia, które zapisują |
 | --- | --- |
+| `agent_messages` | `agent_send_message`, `agent_react` |
 | `artifacts` | `publish_artifact`, `export_artifact`, `share_artifact` |
 | `ask_user` | `ask_user_question` |
 | `background_tasks` | `start_background_task`, `list_background_tasks`, `stop_background_task` |
-| `browser_use` | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` |
+| `babysit_pr` | `babysit_pr_stop` |
+| `browser_use` | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back`, `browser_procedures`, `browser_credential_options`, `browser_fill_credential` |
+| `burst` | `run_burst` |
 | `channel_actions` | `react_to_chat_message`, `send_chat_message` |
 | `coding_agent` | `run_coding_agent` |
 | `computer_use` | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` |
+| `council` | `run_council_review` |
 | `drafts` | `write_draft` |
+| `eval_tool_tuning` | `record_eval_tool_tuning` |
 | `external_acp` | `run_acp_agent`, `inspect_acp_agent` |
 | `follow_ups` | `suggest_next_steps`, `propose_setup` |
+| `harness` | `harness_start`, `harness_prompt`, `harness_stop` |
 | `image_generation` | `generate_image` |
 | `memory_files` | `write_memory`, `edit_memory`, `delete_memory`, `remember`, `correct_memory`, `share_memory` |
 | `mirage` | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` |
 | `monitor` | `start_monitor`, `list_monitors`, `stop_monitor` |
 | `phone_calls` | `get_phone_contact_policy`, `list_phone_transfer_contacts`, `call_me`, `transfer_phone_call`, `end_phone_call` |
 | `projects` | `write_project_file`, `transfer_project_file` |
+| `proof_scenario` | `proof_scenario_record` |
 | `sandbox` | `write_file`, `edit_file`, `execute` |
+| `secret_request` | `request_secret` |
+| `sol_loop` | `run_sol_loop_review` |
 | `text_to_speech` | `generate_speech` |
 | `video_generation` | `generate_video` |
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
