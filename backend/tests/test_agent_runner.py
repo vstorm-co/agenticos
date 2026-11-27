@@ -4678,6 +4678,7 @@ class TestParking:
                 "acts_for_sender": False,
                 "audience_user_id": None,
                 "audience_room_key": None,
+                "room_admitted": False,
                 "audience_writes_memory": True,
                 "audience_searches_conversations": True,
                 "audience_browses_signed_in": False,
