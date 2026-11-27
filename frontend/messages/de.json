@@ -20570,6 +20570,10 @@
           "object_key": {
             "title": "Geschäftsobjektschlüssel"
           },
+          "use_key_prefix": {
+            "title": "Namensraum für signierten Webhook zulassen",
+            "description": "Verwende den Geschäftsobjektschlüssel als Namensraum mit '/' am Ende, etwa crm:deals/."
+          },
           "subject": {
             "title": "Eigenschaft",
             "description": "Verwende für Gmail deadline."

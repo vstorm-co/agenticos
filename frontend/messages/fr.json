@@ -20293,6 +20293,10 @@
           "object_key": {
             "title": "Clé de l’objet métier"
           },
+          "use_key_prefix": {
+            "title": "Autoriser un espace de noms pour le webhook signé",
+            "description": "Utilisez la clé de l’objet métier comme espace de noms terminé par '/', par exemple crm:deals/."
+          },
           "subject": {
             "title": "Propriété",
             "description": "Utilisez deadline pour Gmail."

@@ -16191,6 +16191,10 @@
           "object_key": {
             "title": "İş nesnesi anahtarı"
           },
+          "use_key_prefix": {
+            "title": "İmzalı webhook ad alanına izin ver",
+            "description": "İş nesnesi anahtarını '/' ile biten bir ad alanı olarak kullanın, örneğin crm:deals/."
+          },
           "subject": {
             "title": "Özellik",
             "description": "Gmail için deadline kullanın."

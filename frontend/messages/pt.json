@@ -20745,6 +20745,10 @@
           "object_key": {
             "title": "Chave do objeto de negócio"
           },
+          "use_key_prefix": {
+            "title": "Permitir um namespace para o webhook assinado",
+            "description": "Use a chave do objeto de negócio como um namespace que termina em '/', como crm:deals/."
+          },
           "subject": {
             "title": "Propriedade",
             "description": "Use deadline para Gmail."

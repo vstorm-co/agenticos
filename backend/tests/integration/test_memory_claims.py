@@ -232,10 +232,11 @@ async def test_historical_recall_ranks_status_at_the_requested_cutoff(db: AsyncS
 
 
 async def test_consolidation_reaches_agreement_hidden_by_newer_claims(db: AsyncSession) -> None:
-    org, user, *_ = await _tenant(db)
+    org, user, finance, _ = await _tenant(db)
     key = person_owner_key(user.id)
     first = await _raw(db, org, key, "Prefers email", subject="channel")
     second = await _raw(db, org, key, "prefers email", subject="channel")
+    private = await _raw(db, org, key, "Prefers phone", subject="channel", agent_id=finance.id)
     await db.execute(
         insert(MemoryClaim),
         [
@@ -259,6 +260,8 @@ async def test_consolidation_reaches_agreement_hidden_by_newer_claims(db: AsyncS
     await db.refresh(first)
     await db.refresh(second)
     assert first.status == second.status == "merged"
+    await db.refresh(private)
+    assert private.status == "current"
 
 
 async def test_consolidation_resumes_and_revisits_subjects_changed_between_batches(

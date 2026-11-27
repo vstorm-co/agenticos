@@ -20745,6 +20745,10 @@
           "object_key": {
             "title": "Sleutel bedrijfsobject"
           },
+          "use_key_prefix": {
+            "title": "Naamruimte voor ondertekende webhook toestaan",
+            "description": "Gebruik de sleutel van het bedrijfsobject als naamruimte die eindigt op '/', bijvoorbeeld crm:deals/."
+          },
           "subject": {
             "title": "Eigenschap",
             "description": "Gebruik deadline voor Gmail."

@@ -20884,6 +20884,10 @@
           "object_key": {
             "title": "Business object key"
           },
+          "use_key_prefix": {
+            "title": "Allow a signed webhook namespace",
+            "description": "Use the business object key as a namespace ending in '/', such as crm:deals/."
+          },
           "subject": {
             "title": "Property",
             "description": "Use deadline for Gmail."

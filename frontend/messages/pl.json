@@ -20657,6 +20657,10 @@
           "object_key": {
             "title": "Klucz obiektu biznesowego"
           },
+          "use_key_prefix": {
+            "title": "Zezwól podpisanemu webhookowi na przestrzeń nazw",
+            "description": "Użyj klucza obiektu biznesowego jako przestrzeni nazw zakończonej '/', np. crm:deals/."
+          },
           "subject": {
             "title": "Właściwość",
             "description": "Dla Gmaila użyj deadline."
