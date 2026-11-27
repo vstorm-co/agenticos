@@ -474,7 +474,7 @@ class MemoryToolset(FunctionToolset[AgentDeps]):
         subject: str | None = None,
         include_notes: bool = False,
     ) -> str:
-        """Find recorded facts, preferences and decisions relevant to a question.
+        """Find relevant facts, preferences and decisions, optionally with working notes.
 
         Searches what you are allowed to know here - this conversation's claims, the
         person's profile, the project's and the organization's - without reading
