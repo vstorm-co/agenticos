@@ -1507,10 +1507,9 @@ class NotificationCenterService:
             # The run's own person is likewise offered it on their own platform
             # call that always asks, which needs no permission beyond being
             # that person.
-            if (
-                may_follow_decision_link(ctx, stored_starter_id(context.get("run_user_id")))
-                or await self.answers_own_call(ctx, notification)
-            ):
+            if may_follow_decision_link(
+                ctx, stored_starter_id(context.get("run_user_id"))
+            ) or await self.answers_own_call(ctx, notification):
                 return _Gate(visible=True)
             render_context = notification.render_context or {}
             agent_name = render_context.get("agent_name", "An agent")

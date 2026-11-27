@@ -5398,8 +5398,10 @@ class AgentRunnerService:
         # requester is a room member and the agent is pinned before executing,
         # so the project context reaches admitted members only, not an
         # unverified room.
-        if project is not None and not room_admitted and (
-            not project_audience.private or subject_is_publisher_fallback or public_origin
+        if (
+            project is not None
+            and not room_admitted
+            and (not project_audience.private or subject_is_publisher_fallback or public_origin)
         ):
             raise AuthorizationError(
                 message="This conversation's project context cannot be disclosed to an unverified room or public audience. Use a linked private conversation.",
@@ -9035,11 +9037,7 @@ class AgentRunnerService:
         Raises:
             AuthorizationError: Read `for_decision` by a caller who is neither.
         """
-        if (
-            for_decision
-            and not may_decide_approval(ctx, run)
-            and not answers_for(ctx, run.user_id)
-        ):
+        if for_decision and not may_decide_approval(ctx, run) and not answers_for(ctx, run.user_id):
             raise AuthorizationError(
                 message="Reading what a run waits on needs approvals:decide",
                 details={"permission": Perm.APPROVALS_DECIDE.value},

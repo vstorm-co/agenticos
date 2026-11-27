@@ -171,10 +171,7 @@ def may_approve(
             or decides_as_starter(ctx, person_id)
             or bound_platform_call(tool_id, always_asks=always_asks, context=context)
         )
-    return (
-        ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.ALL
-        or decides_as_starter(ctx, person_id)
-    )
+    return ctx.scope_for(Perm.APPROVALS_DECIDE) is Scope.ALL or decides_as_starter(ctx, person_id)
 
 
 async def past_own_platform_call(db: AsyncSession, ctx: AuthContext, run: AgentRun) -> bool:
