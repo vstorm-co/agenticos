@@ -1,5 +1,5 @@
 ---
-source_sha: "4f9850e16b2b"
+source_sha: "318248fd4069"
 ---
 
 # Skille { #skills }
@@ -54,6 +54,41 @@ południu. Bez deployu, bez pull requesta, bez inżyniera.
 
 W kreatorze agenta wybierz **Skills → New skill**, aby napisać skill bez opuszczania panelu zdolności. Zapis tworzy wpis w bibliotece, dołącza go do bieżącego szkicu i włącza zdolność Skills. Publikacja pozostaje osobnym krokiem. Akcja wymaga uprawnień do edycji agenta i skilli.
 
+## Import kompletnego pakietu skilla { #importing-a-package }
+
+W **Skills → Importuj pakiet** wybierz folder lub ZIP z głównym `SKILL.md`, opcjonalnie w jednym folderze nadrzędnym. Podgląd pokazuje nazwę, opis, ścieżki zasobów, formaty binarne/tekstowe i liczbę bajtów. Import tworzy prywatny skill z kompletną, niezmienną pierwszą wersją. Zajęta nazwa powoduje odmowę, bez nadpisywania. Podgląd nie tworzy rekordów; zapis ponownie sprawdza bajty i odcisk podglądu.
+
+Pakiet może zawierać skrypty, dokumenty, obrazy i szablony binarne. Import wyłącznie zapisuje pliki: nie uruchamia skryptów ani testów i nie pobiera ani nie instaluje zależności. Limity: 8 MiB na plik, 32 MiB na pakiet i 1024 elementy; ZIP sprawdzamy również po dekompresji. Odrzucamy traversal, ścieżki absolutne, linki, pliki specjalne, duplikaty oraz archiwa szyfrowane lub niewspierane.
+
+`name`, `description` i instrukcje trafiają do pól skilla. Pozostały frontmatter to wersjonowane, nieaktywne metadane JSON. `SKILL.md` renderujemy jako bezpieczny kanoniczny YAML bez zachowywania komentarzy i formatowania. Niebezpieczne tagi, aliasy, duplikaty, nietekstowe klucze, wartości spoza JSON i nadmierna głębokość powodują odmowę. `allowed-tools` nie przyznaje narzędzi ani wyjątków od Approval.
+
+Zasoby binarne zachowują dokładne bajty i ich hashe w wersjach, pinach, przywracaniu i pakietach przenośnych. Otwórz zasób, aby pobrać plik; base64 nigdy nie jest edytorem tekstowym. Pobieranie wersji odczytuje wskazaną, autoryzowaną wersję. Workspace otrzymuje bajty zasobów wybranej wersji obok `SKILL.md`; brak wymaganego zasobu przerywa przygotowanie. Późniejsze uruchomienie skryptu wymaga osobno włączonego wykonywania i zwykłych uprawnień. Propozycje tekstowe zachowują zasoby binarne; zmienia się je jawnym uploadem.
+
+Forki i Check zachowują frontmatter. Catch-up łączy rozłączne zmiany metadanych, ale odmawia zgadywania przy konflikcie tego samego klucza. Rozwiąż taki konflikt jawnie przed ponowieniem. Downgrade odmawia usunięcia danych binarnych lub frontmatter.
+
+## Jak znaleźć skill w bibliotece { #finding-a-skill }
+
+Strona **Skills** domyślnie pokazuje zwykłą siatkę ze stronicowaniem, **Bez sekcji**.
+**Układ** obok wyszukiwarki pozwala opcjonalnie uporządkować bibliotekę:
+
+| Układ | Sekcje |
+|---|---|
+| **Według agenta** | Po jednej na agenta, którego opublikowana wersja używa skilla, potem **Tylko w szkicu** i **Nie używa ich żaden agent, którego widzisz** |
+| **Według pochodzenia** | **Organizacja**, **Prywatne**, **Wbudowane · Platforma** dla skilli, od których zaczyna każda organizacja, potem po jednej na branżę [galerii](#the-gallery-seventy-more-and-none-of-them-arrive-uninvited) |
+| **Według kategorii** | Po jednej na kategorię, `Security` i `security` razem, potem **Bez kategorii** |
+| **Bez sekcji** (domyślnie) | Zwykła siatka ze stronicowaniem |
+
+Skill używany przez kilku agentów jest pod każdym z nich. Każda sekcja pokazuje
+liczbę skilli i pierwsze karty, zwija się, a resztę przegląda się stronami po
+**Pokaż wszystkie**. Wyszukiwarka i filtry zawężają każdą sekcję, a wybór zostaje
+w adresie, więc ułożony widok jest linkiem, który można komuś wysłać.
+
+Układ niczego nie zmienia w dostępie. Sekcja zawiera tylko skille, które już
+widzisz, a agent, którego nie możesz otworzyć, nigdy nie jest sekcją: jego skille
+wyglądają na nieużywane. Skille z galerii są rozpoznawane po nazwie, tak jak
+znaczek **built-in**. Przez API `GET /api/v1/skills/sections?arrange=agent` zwraca
+sekcje z liczbami, a `GET /api/v1/skills?section=<key>` przegląda jedną z nich.
+
 ## Kształt { #the-shape }
 
 ```markdown
@@ -91,7 +126,8 @@ To to samo stopniowe odsłanianie, tylko poziom niżej: szczegół potrzebny tyl
 części rozmów nie musi siedzieć w treści, którą wczytuje każda istotna rozmowa.
 
 `category` to jedna z dwudziestu sugestii (`support`, `engineering`, `finance`,
-`legal`, `security`, `marketing`, …) i steruje filtrem na liście skilli. Nie ma
+`legal`, `security`, `marketing`, …) i steruje filtrem na liście skilli,
+który, tak jak sekcje kategorii, nie rozróżnia wielkości liter. Nie ma
 wpływu na to, co widzi agent — model wybiera po `description`, nigdy po
 kategorii.
 

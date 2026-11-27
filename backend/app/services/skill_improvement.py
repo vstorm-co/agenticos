@@ -33,6 +33,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
+from pydantic import JsonValue
 from pydantic.main import IncEx
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,6 +52,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm, Scope
+from app.core.skill_files import same_skill_metadata
 from app.db.models.authoring import (
     AuthoringKind,
     AuthoringRequest,
@@ -248,7 +250,15 @@ def merge_hash(
             {
                 "description": start.candidate.description,
                 "content": start.candidate.content,
-                "files": [[item.name, item.description, item.content] for item in files],
+                "files": [
+                    [
+                        item.name,
+                        item.description,
+                        item.content,
+                        *([item.encoding] if item.encoding != "utf8" else []),
+                    ]
+                    for item in files
+                ],
                 "plan": check.model_dump(mode="json", exclude=_UNPRICED),
             }
         )
@@ -261,14 +271,20 @@ def _same_skill(
     files: Sequence[SkillBodyFile],
     version: SkillVersion,
     version_files: Sequence[SkillBodyFile],
+    *,
+    manifest_metadata: Mapping[str, JsonValue] | None = None,
 ) -> bool:
-    def keyed(items: Sequence[SkillBodyFile]) -> dict[str, tuple[str | None, str]]:
-        return {item.name: (item.description, item.content) for item in items}
+    def keyed(items: Sequence[SkillBodyFile]) -> dict[str, tuple[str | None, str, str]]:
+        return {item.name: (item.description, item.content, item.encoding) for item in items}
 
     return (
         description == version.description
         and content == version.content
         and keyed(files) == keyed(version_files)
+        and (
+            manifest_metadata is None
+            or same_skill_metadata(manifest_metadata, version.manifest_metadata or {})
+        )
     )
 
 
@@ -2240,7 +2256,11 @@ class SkillImprovementService:
             (
                 SkillCheckStart(
                     fork_id=line.fork_id,
-                    candidate=CandidateText(description=merged.description, content=merged.content),
+                    candidate=CandidateText(
+                        description=merged.description,
+                        content=merged.content,
+                        manifest_metadata=merged.manifest_metadata,
+                    ),
                     mode=mode,
                 ),
                 merged.files,
@@ -2249,7 +2269,14 @@ class SkillImprovementService:
         if run.purpose == Purpose.CATCH_UP.value and main_alone:
             main = await self._main_latest(line.skill)
             files = await self._files_of(main)
-            if not _same_skill(merged.description, merged.content, merged.files, main, files):
+            if not _same_skill(
+                merged.description,
+                merged.content,
+                merged.files,
+                main,
+                files,
+                manifest_metadata=merged.manifest_metadata,
+            ):
                 starts.append(
                     (
                         SkillCheckStart(
@@ -2311,7 +2338,12 @@ class SkillImprovementService:
         """A version's files in full, as a check serves them."""
         contents = await self.versions.files_of(version)
         return tuple(
-            SkillBodyFile(name=name, description=entry["description"], content=contents[name])
+            SkillBodyFile(
+                name=name,
+                description=entry["description"],
+                content=contents[name],
+                encoding=entry.get("encoding", "utf8"),
+            )
             for name, entry in sorted(version.resources.items())
         )
 
@@ -2511,7 +2543,12 @@ class SkillImprovementService:
         merged = await self.merges.candidate_of(merge)
         main = await self._main_latest(line.skill)
         if merged is not None and _same_skill(
-            merged.description, merged.content, merged.files, main, await self._files_of(main)
+            merged.description,
+            merged.content,
+            merged.files,
+            main,
+            await self._files_of(main),
+            manifest_metadata=merged.manifest_metadata,
         ):
             return "same"
         return "off"

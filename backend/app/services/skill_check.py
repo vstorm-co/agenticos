@@ -35,6 +35,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+from pydantic import JsonValue, TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.capabilities.skills import SkillBody, SkillBodyFile
@@ -50,6 +51,7 @@ from app.core.exceptions import (
 )
 from app.core.field_errors import refused_field
 from app.core.permissions import AuthContext, Perm
+from app.core.skill_files import ResourceEncoding
 from app.db.locks import LockScope, hold_subject
 from app.db.models.agent import Agent
 from app.db.models.dataset import Dataset
@@ -152,6 +154,7 @@ class Candidate:
     replaces: bool = False
     """`resources` is the whole set of files, so the line's others are dropped."""
     described: bool = False
+    manifest_metadata: dict[str, JsonValue] | None = None
     """`resources` carry their own descriptions, as a merge's files do; otherwise a
     replaced file keeps the line's."""
 
@@ -160,18 +163,29 @@ class Candidate:
             description=self.description,
             content=self.content,
             resources=self.resources,
+            manifest_metadata=self.manifest_metadata,
             fork_id=fork_id,
             over_pin=over_pin,
         )
 
     def digest(self) -> str:
-        document = {
+        document: dict[str, JsonValue] = {
             "description": self.description,
             "content": self.content,
             "resources": None
             if self.resources is None
-            else [[item.name, item.description, item.content] for item in self.resources],
+            else [
+                [
+                    item.name,
+                    item.description,
+                    item.content,
+                    *([item.encoding] if item.encoding != "utf8" else []),
+                ]
+                for item in self.resources
+            ],
         }
+        if self.manifest_metadata:
+            document["manifest_metadata"] = self.manifest_metadata
         return hashlib.sha256(
             json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
@@ -305,12 +319,20 @@ class SkillCheckService:
         if candidate.resources is None:
             return None
         files = {
-            name: SkillBodyFile(name=name, description=entry["description"], content="")
+            name: SkillBodyFile(
+                name=name,
+                description=entry["description"],
+                content="",
+                encoding=entry.get("encoding", "utf8"),
+            )
             for name, entry in base.resources.items()
         }
         for name, content in (await self.versions.files_of(base)).items():
             files[name] = SkillBodyFile(
-                name=name, description=files[name].description, content=content
+                name=name,
+                description=files[name].description,
+                content=content,
+                encoding=files[name].encoding,
             )
         # A replaced file keeps its description, on main (`put_resources`) and on a fork
         # (`_apply_to_fork`) alike; only a merge's files bring their own.
@@ -320,6 +342,7 @@ class SkillCheckService:
                 name=item.name,
                 description=item.description if candidate.described else kept,
                 content=item.content,
+                encoding=item.encoding,
             )
         names = {item.name for item in candidate.resources} if candidate.replaces else files
         return tuple(files[name] for name in sorted(names))
@@ -409,6 +432,8 @@ class SkillCheckService:
             user, base, target = await self._pinned(ctx, skill, pinned)
             candidate = await self._version_candidate(target)
             users, served = [user], candidate.resources
+        if candidate.manifest_metadata is None:
+            candidate = replace(candidate, manifest_metadata=base.manifest_metadata or {})
         changed = candidate.description != base.description
         mode = CheckMode.THOROUGH if changed else data.mode
         runnable = await accessible_ids(
@@ -420,9 +445,23 @@ class SkillCheckService:
         )
         before = {} if served is None else await self.versions.files_of(base)
         changed_words = rules.changed_words(
-            "\n".join([base.description, base.content, *before.values()]),
             "\n".join(
-                [candidate.description, candidate.content, *(item.content for item in served or ())]
+                [
+                    base.description,
+                    base.content,
+                    *(
+                        text
+                        for name, text in before.items()
+                        if base.resources[name].get("encoding", "utf8") == "utf8"
+                    ),
+                ]
+            ),
+            "\n".join(
+                [
+                    candidate.description,
+                    candidate.content,
+                    *(item.content for item in served or () if item.encoding == "utf8"),
+                ]
             ),
         )
         body = {
@@ -430,6 +469,7 @@ class SkillCheckService:
                 description=candidate.description,
                 content=candidate.content,
                 resources=served,
+                manifest_metadata=candidate.manifest_metadata,
                 fork_id=None if fork is None else fork.id,
                 over_pin=pinned is not None,
             )
@@ -589,9 +629,11 @@ class SkillCheckService:
                     name=name,
                     description=version.resources[name]["description"],
                     content=bodies[name],
+                    encoding=version.resources[name].get("encoding", "utf8"),
                 )
                 for name in sorted(bodies)
             ),
+            manifest_metadata=version.manifest_metadata or {},
         )
 
     async def _stages(
@@ -908,6 +950,7 @@ class SkillCheckService:
                 candidate_description=plan.candidate.description,
                 candidate_content=plan.candidate.content,
                 candidate_resources=_resources_json(plan.served),
+                candidate_manifest_metadata=plan.candidate.manifest_metadata,
                 candidate_hash=plan.candidate.digest(),
                 description_changed=plan.description_changed,
                 mode=plan.mode.value,
@@ -1577,7 +1620,9 @@ class SkillCheckService:
                     agent_id=check.agent_id if check.agent_id in shown_agents else None,
                     candidate_version_id=check.candidate_version_id,
                     candidate=CandidateText(
-                        description=check.candidate_description, content=check.candidate_content
+                        description=check.candidate_description,
+                        content=check.candidate_content,
+                        manifest_metadata=check.candidate_manifest_metadata,
                     ),
                     status=status,
                     verdict=verdict,
@@ -2120,6 +2165,7 @@ class SkillCheckService:
                     base_version_id=check.base_version_id,
                     description=check.candidate_description,
                     content=check.candidate_content,
+                    manifest_metadata=check.candidate_manifest_metadata,
                 ),
             )
             version = await skill_version_repo.get_version(
@@ -2150,6 +2196,7 @@ class SkillCheckService:
             description=candidate.description,
             content=candidate.content,
             files=candidate.resources,
+            manifest_metadata=candidate.manifest_metadata,
             merged_from_id=merged_from_id,
         )
 
@@ -2302,6 +2349,7 @@ class SkillCheckService:
             fork,
             description=check.candidate_description,
             content=check.candidate_content,
+            manifest_metadata=check.candidate_manifest_metadata,
             resources=resources,
             source=version_source(proposal) if proposal is not None else _source_of(check),
             proposal_id=check.proposal_id,
@@ -2701,7 +2749,7 @@ def _refuse_update(check: SkillCheck) -> None:
 
 
 def _from_text(text: CandidateText) -> Candidate:
-    return Candidate(text.description, text.content)
+    return Candidate(text.description, text.content, manifest_metadata=text.manifest_metadata)
 
 
 def _candidate_of(check: SkillCheck) -> Candidate:
@@ -2712,9 +2760,17 @@ def _candidate_of(check: SkillCheck) -> Candidate:
         None
         if files is None
         else tuple(
-            SkillBodyFile(name=name, description=item.get("description"), content=item["content"])
+            SkillBodyFile(
+                name=name,
+                description=item.get("description"),
+                content=item["content"],
+                encoding=TypeAdapter(ResourceEncoding).validate_python(
+                    item.get("encoding", "utf8")
+                ),
+            )
             for name, item in sorted(files.items())
         ),
+        manifest_metadata=check.candidate_manifest_metadata,
     )
 
 
@@ -2724,7 +2780,12 @@ def _resources_json(
     if served is None:
         return None
     return {
-        item.name: {"description": item.description, "content": item.content} for item in served
+        item.name: {
+            "description": item.description,
+            "content": item.content,
+            **({"encoding": item.encoding} if item.encoding != "utf8" else {}),
+        }
+        for item in served
     }
 
 

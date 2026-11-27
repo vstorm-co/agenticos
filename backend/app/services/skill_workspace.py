@@ -31,14 +31,17 @@ is not ceremony.
 """
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
+import yaml
 from pydantic_ai.workspaces import Workspace
 
 from app.agents.capabilities.skills import SkillBody, served_files
+from app.core.exceptions import ExternalServiceError
+from app.core.skill_files import ResourceEncoding, decode_skill_file
 from app.db.models.skill import Skill
 from app.services.skill_library import split_frontmatter
 
@@ -113,6 +116,8 @@ class MaterialisedSkills:
 
     #: `path -> content`, exactly as written.
     written: dict[str, str] = field(default_factory=dict)
+    binary: set[str] = field(default_factory=set)
+    """Binary assets are available to scripts, never decoded into text proposals."""
     #: `directory name -> skill id`, for attributing a change back to a row.
     owners: dict[str, Any] = field(default_factory=dict)
     #: `directory name -> skill version` written, so a change applies only onto it.
@@ -135,7 +140,12 @@ def render_body(skill: Skill, body: SkillBody | None = None) -> str:
     """
     description = skill.description if body is None else body.description
     content = skill.content if body is None else body.content
-    return f"---\nname: {skill.name}\ndescription: {description}\n---\n\n{content}\n"
+    metadata = dict(skill.manifest_metadata or {})
+    if body is not None and body.manifest_metadata is not None:
+        metadata = dict(body.manifest_metadata)
+    metadata.update({"name": skill.name, "description": description})
+    header = yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False)
+    return f"---\n{header}---\n\n{content}\n"
 
 
 async def materialise(
@@ -146,9 +156,10 @@ async def materialise(
     A skill in `bodies` is written with that body instead of its stored one - the
     same candidate the capability serves, so the file and `load_capability` agree.
 
-    Never raises. A workspace that refuses a write - past its storage ceiling,
-    holding a path the backend rejects - must not stop the run: the skills are
-    still in the prompt, which is how they worked before this existed.
+    Text writes remain best-effort because instructions can still be read
+    through the skill capability. A required binary asset has no prompt fallback;
+    refusing its materialization fails preparation instead of promising a
+    sandbox file that does not exist. Cancellation always propagates.
 
     Awaited, and that matters more here than anywhere else: this runs inside
     `prepare`, once per file per skill, before the model has seen a token - so on
@@ -164,17 +175,31 @@ async def materialise(
         body = (bodies or {}).get(skill.id)
         files = {f"{skill_dir(skill.name)}/{BODY_FILE}": render_body(skill, body)}
         for file in served_files(skill, body):
-            files[f"{skill_dir(skill.name)}/{file.name}"] = file.content
+            path = f"{skill_dir(skill.name)}/{file.name}"
+            if file.encoding == "base64":
+                if not await _write(workspace, path, file.content, encoding=file.encoding):
+                    raise ExternalServiceError(
+                        message="The sandbox could not materialize a required binary skill asset",
+                        details={"skill": skill.name, "resource": file.name},
+                    )
+                state.binary.add(path)
+            else:
+                files[path] = file.content
         for path, content in files.items():
             if await _write(workspace, path, content):
                 state.written[path] = content
     return state
 
 
-async def _write(workspace: Workspace, path: str, content: str) -> bool:
+async def _write(
+    workspace: Workspace, path: str, content: str, *, encoding: ResourceEncoding = "utf8"
+) -> bool:
     """Whether the file made it. A refusal is logged rather than raised."""
     try:
-        await workspace.write_text(path, content)
+        if encoding == "base64":
+            await workspace.write_bytes(path, decode_skill_file(content, encoding))
+        else:
+            await workspace.write_text(path, content)
     except OSError as refused:
         # The workspace said no - past its storage ceiling, a path it rejects.
         logger.warning("skill_materialise_refused", extra={"path": path, "reason": str(refused)})
@@ -199,7 +224,7 @@ async def collect_changes(workspace: Workspace, state: MaterialisedSkills) -> li
     guessing wrong silently drops organizational know-how.
     """
     try:
-        present = await _read_tree(workspace)
+        present = await _read_tree(workspace, binary=state.binary)
     except Exception:
         # A remote workspace that cannot be listed is a run that proposes
         # nothing, which is the same as one that changed nothing.
@@ -224,18 +249,14 @@ async def collect_changes(workspace: Workspace, state: MaterialisedSkills) -> li
     return changes
 
 
-async def _read_tree(workspace: Workspace) -> dict[str, dict[str, str]]:
-    """Every file one level inside a skill's directory under `SKILLS_ROOT`, by skill and path.
+async def _read_tree(
+    workspace: Workspace, *, binary: Collection[str] | None = None
+) -> dict[str, dict[str, str]]:
+    """Read bounded text proposals recursively without interpreting binary assets.
 
-    Two levels and no further, because that is the format: a skill is a directory
-    of files, and `_skill_of` reads nothing deeper. Listed rather than globbed, so a
-    dot-prefixed resource - a `.gitignore` the agent gave a skill - is in the
-    proposal like any other file; a proposal is supposed to be everything the
-    agent left different.
-
-    Oversized files are dropped rather than truncated: half a script is not a
-    script, and storing it as a proposal would offer a reviewer something that
-    cannot be right.
+    Binary assets remain available in the sandbox. Their edits are not text
+    proposals: replacing undecodable bytes would corrupt templates, and unchanged
+    binary files must not make every turn appear to have rewritten a skill.
     """
     tree: dict[str, dict[str, str]] = {}
     try:
@@ -245,31 +266,57 @@ async def _read_tree(workspace: Workspace) -> dict[str, dict[str, str]]:
     for skill in sorted(skills, key=lambda entry: entry.path):
         if not skill.is_dir:
             continue
-        for entry in sorted(await workspace.list_dir(skill.path), key=lambda e: e.path):
-            if entry.is_dir:
+        pending = [(skill.path, 0)]
+        visited: set[str] = set()
+        count = 0
+        while pending:
+            directory, depth = pending.pop()
+            if directory in visited or depth > 32:
+                logger.warning("skill_proposal_tree_limit", extra={"path": directory})
                 continue
-            # A container's listing does not measure its files - its shell lists
-            # names - so an unmeasured one is asked, rather than read whole first.
-            size = entry.size if entry.size is not None else (await workspace.stat(entry.path)).size
-            if size is not None and size > MAX_PROPOSED_BYTES:
-                logger.warning("skill_proposal_too_large", extra={"path": entry.path})
-                continue
-            tree.setdefault(skill.name, {})[entry.path] = (
-                await workspace.read_bytes(entry.path)
-            ).decode("utf-8", errors="replace")
+            visited.add(directory)
+            for entry in sorted(await workspace.list_dir(directory), key=lambda e: e.path):
+                count += 1
+                if count > 1024:
+                    logger.warning("skill_proposal_file_limit", extra={"skill": skill.name})
+                    pending.clear()
+                    break
+                if entry.is_dir:
+                    pending.append((entry.path, depth + 1))
+                    continue
+                if binary is not None and entry.path in binary:
+                    continue
+                size = (
+                    entry.size
+                    if entry.size is not None
+                    else (await workspace.stat(entry.path)).size
+                )
+                if size is not None and size > MAX_PROPOSED_BYTES:
+                    logger.warning("skill_proposal_too_large", extra={"path": entry.path})
+                    continue
+                raw = await workspace.read_bytes(entry.path)
+                if len(raw) > MAX_PROPOSED_BYTES:
+                    logger.warning("skill_proposal_too_large", extra={"path": entry.path})
+                    continue
+                try:
+                    text = raw.decode("utf-8")
+                except UnicodeDecodeError:
+                    logger.warning("skill_binary_proposal_unsupported", extra={"path": entry.path})
+                    continue
+                if "\0" in text:
+                    logger.warning("skill_binary_proposal_unsupported", extra={"path": entry.path})
+                    continue
+                tree.setdefault(skill.name, {})[entry.path] = text
     return tree
 
 
 def _skill_of(path: str) -> str | None:
-    """The directory a path sits in, which is the skill's name.
-
-    `None` for anything not exactly one level deep. A skill is a directory of
-    files; nesting is not part of the format, and treating `/workspace/skills/a/b/c` as
-    belonging to `a` would flatten two files onto one name.
-    """
+    """The skill owning a direct or nested supporting file."""
     rest = path[len(SKILLS_ROOT) + 1 :] if path.startswith(f"{SKILLS_ROOT}/") else ""
-    parts = [part for part in rest.split("/") if part]
-    return parts[0] if len(parts) == 2 else None
+    parts = rest.split("/")
+    return (
+        parts[0] if len(parts) >= 2 and all(part not in ("", ".", "..") for part in parts) else None
+    )
 
 
 def _to_change(
@@ -316,6 +363,8 @@ def _to_change(
         description=description,
         content=instructions.strip(),
         resources={
-            path.rsplit("/", 1)[1]: content for path, content in files.items() if path != body_path
+            path[len(skill_dir(name)) + 1 :]: content
+            for path, content in files.items()
+            if path != body_path
         },
     )

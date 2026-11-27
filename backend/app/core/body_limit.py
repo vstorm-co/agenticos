@@ -36,6 +36,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.config import settings
+from app.core.skill_files import MAX_SKILL_PACKAGE_BYTES
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,9 @@ def max_body_bytes() -> int:
         settings.EMBED_MAX_UPLOAD_SIZE_MB,
         settings.ML_MAX_UPLOAD_SIZE_MB,
     )
-    largest = max(largest_mb * 1024 * 1024, settings.DATASET_IMPORT_MAX_BYTES)
+    largest = max(
+        largest_mb * 1024 * 1024, settings.DATASET_IMPORT_MAX_BYTES, MAX_SKILL_PACKAGE_BYTES
+    )
     return largest + _ENVELOPE_ALLOWANCE
 
 

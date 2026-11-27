@@ -5781,6 +5781,10 @@
         "title": "Por departamento",
         "body": "Restrinja a lista ao que um grupo recebeu. Um grupo indica quem é alcançado por algo, por isso também é como a lista é agrupada."
       },
+      "skills-arrange": {
+        "title": "Organizar a biblioteca",
+        "body": "Veja as skills pelo agente que as usa, pela origem ou pela categoria. Organizar não muda quem pode ver uma skill."
+      },
       "context-groups": {
         "title": "Por departamento",
         "body": "Restrinja a lista ao que um grupo recebeu. Um grupo indica quem é alcançado por algo, por isso também é como a lista é agrupada."
@@ -6412,6 +6416,10 @@
       "project-resources": {
         "title": "Reunir recursos relacionados",
         "body": "Associe agentes, workflows, Apps e tabelas existentes sem alterar as permissões. Abra-os aqui ou escolha um workflow associado como ponto de entrada do projeto."
+      },
+      "skills-import": {
+        "title": "Importar pacote",
+        "body": "Escolha uma pasta de habilidade ou ZIP com SKILL.md. Ficheiros e metadados são preservados. A importação não executa scripts, testes ou instalações."
       }
     },
     "chooseLanguage": "Idioma",
@@ -8597,6 +8605,13 @@
     },
     "skills": {
       "allCategories": "Todas as categorias",
+      "arrange": {
+        "agent": "Por agente",
+        "origin": "Por origem",
+        "category": "Por categoria",
+        "none": "Sem seções"
+      },
+      "arrangeBy": "Organizar por",
       "askAdministratorAccessSkills": "Peça a um administrador acesso às skills.",
       "categoryCount": "{count, plural, =1 {1 categoria} other {# categorias}}",
       "clearFilter": "Limpar filtro",
@@ -8611,6 +8626,17 @@
       "nobodyHasWrittenSkill": "Ninguém escreveu uma skill para esta organização ainda.",
       "recentlyUpdated": "Atualizadas recentemente",
       "searchSkills": "Pesquisar skills…",
+      "section": {
+        "drafted": "Só em rascunho",
+        "unused": "Não usadas por um agente que você vê",
+        "org": "Organização",
+        "private": "Privadas",
+        "platform": "Integradas · Plataforma",
+        "gallery": "Integradas · {industry}",
+        "uncategorized": "Sem categoria"
+      },
+      "showAll": "{count, plural, =1 {Mostrar 1} other {Mostrar todas (#)}}",
+      "showFewer": "Mostrar menos",
       "skillCount": "{count, plural, =1 {1 skill} other {# skills}}",
       "skillKnowHowWritten": "Uma skill é um conhecimento escrito uma vez e compartilhado por todo agente que precisa dele, como o tratamento de reembolsos ou o padrão de estilo da casa. Edite-a aqui e cada agente vinculado a ela estará atualizado na próxima execução.",
       "skills": "Skills",
@@ -9952,6 +9978,23 @@
       "hiddenAgents": "{count, plural, one {# outro agente} other {# outros agentes}}",
       "testOptionalShort": "Testar (opcional)",
       "compareShort": "Mudanças"
+    },
+    "package": {
+      "title": "Importar pacote",
+      "description": "Escolha uma pasta de habilidade ou ZIP com SKILL.md. Ficheiros e metadados são preservados. A importação não executa scripts, testes ou instalações.",
+      "directory": "Escolher pasta",
+      "zip": "Escolher ZIP",
+      "limits": "8 MiB por ficheiro · 32 MiB por pacote · 1.024 ficheiros.",
+      "reading": "A ler o pacote…",
+      "summary": "{count} ficheiros de recursos · {size}",
+      "private": "Cria uma habilidade privada com a primeira versão completa. As habilidades existentes não são substituídas.",
+      "apply": "Importar habilidade",
+      "cancel": "Cancelar",
+      "imported": "Habilidade importada",
+      "binary": "Binário",
+      "text": "Texto",
+      "download": "Descarregar ficheiro",
+      "binaryHelp": "Os ficheiros binários são preservados. Descarregue este ficheiro ou substitua-o por um envio."
     }
   },
   "states": {

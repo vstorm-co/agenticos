@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { downloadSkillFile } from "@/lib/skill-package-api";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 
 import { FilePane, FileTree, NewFileForm, UploadButton, formatSize } from "./skill-files";
@@ -17,11 +18,20 @@ import type { SkillResourceSummary } from "@/types/providers";
  * the listing - so Save and Discard have something to be about.
  */
 
-const loaded = { content: undefined as string | undefined, isLoading: false };
+vi.mock("@/lib/skill-package-api", () => ({ downloadSkillFile: vi.fn() }));
+
+const loaded = {
+  content: undefined as string | undefined,
+  encoding: undefined as "utf8" | "base64" | undefined,
+  isLoading: false,
+};
 
 vi.mock("@/hooks", () => ({
   useSkillResource: () => ({
-    resource: loaded.content === undefined ? undefined : { content: loaded.content },
+    resource:
+      loaded.content === undefined
+        ? undefined
+        : { content: loaded.content, encoding: loaded.encoding },
     isLoading: loaded.isLoading,
   }),
 }));
@@ -40,6 +50,7 @@ beforeEach(() => {
   useUnsavedChangesStore.setState({ sources: {}, prompt: null, saving: false });
   loaded.content = "# Body";
   loaded.isLoading = false;
+  loaded.encoding = undefined;
 });
 
 describe("formatSize", () => {
@@ -416,4 +427,42 @@ describe("the upload button", () => {
 
     expect(screen.getByLabelText("Add a folder")).toHaveAttribute("webkitdirectory");
   });
+});
+
+it("binary files never expose encoded bodies as editable text", async () => {
+  loaded.content = "SECRET_BASE64_BODY";
+  render(
+    <FilePane
+      skillId="skill"
+      resource={{ ...resource("assets/template.xlsx"), encoding: "base64" }}
+      canEdit
+      busy={false}
+      onSave={vi.fn()}
+      onDelete={vi.fn()}
+    />,
+  );
+  expect(screen.queryByText("SECRET_BASE64_BODY")).not.toBeInTheDocument();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Download file" }));
+  expect(downloadSkillFile).toHaveBeenCalledWith("skill", "assets/template.xlsx", {
+    resourceId: "assets/template.xlsx",
+  });
+});
+
+it("a freshly loaded binary body is never displayed through an older text listing", () => {
+  loaded.content = "SECRET_BASE64_BODY";
+  loaded.encoding = "base64";
+  render(
+    <FilePane
+      skillId="skill"
+      resource={resource("assets/template.xlsx")}
+      canEdit
+      busy={false}
+      onSave={vi.fn()}
+      onDelete={vi.fn()}
+    />,
+  );
+  expect(screen.queryByText("SECRET_BASE64_BODY")).not.toBeInTheDocument();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Download file" })).toBeInTheDocument();
 });

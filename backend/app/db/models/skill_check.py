@@ -27,6 +27,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Any
 
+from pydantic import JsonValue
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -198,6 +199,9 @@ class SkillCheck(Base):
     """The main version a pinned agent's update would move it to; `None` for a new text."""
     candidate_description: Mapped[str] = mapped_column(String(500), nullable=False)
     candidate_content: Mapped[str] = mapped_column(Text, nullable=False)
+    candidate_manifest_metadata: Mapped[dict[str, JsonValue] | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     candidate_resources: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB(none_as_null=True), nullable=True
     )
@@ -280,6 +284,10 @@ class SkillCheck(Base):
             "ix_skill_checks_running",
             "status",
             postgresql_where=text(f"status = '{CheckStatus.RUNNING.value}'"),
+        ),
+        CheckConstraint(
+            "candidate_manifest_metadata IS NULL OR jsonb_typeof(candidate_manifest_metadata) = 'object'",
+            name="ck_skill_check_manifest_metadata",
         ),
         CheckConstraint(f"mode IN ({_values(CheckMode)})", name="ck_skill_check_mode"),
         CheckConstraint(f"source IN ({_values(CheckSource)})", name="ck_skill_check_source"),

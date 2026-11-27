@@ -160,17 +160,24 @@ def binds(spec: AgentSpec, kind: DependencyKind, resource_id: UUID) -> bool:
     collections change that version's answers as much as the parent's do. A
     delegate is another agent, with suites of its own.
     """
+    return resource_id in bound_ids(spec, kind)
+
+
+def bound_ids(spec: AgentSpec, kind: DependencyKind) -> set[UUID]:
+    """Every skill, knowledge base or context file a version reads - its own and those
+    of the specialists it defines, as `binds` asks of one."""
     field = _BOUND_FIELD[kind]
-    if resource_id in getattr(spec, field):
-        return True
+    ids: set[UUID] = set(getattr(spec, field))
     binding = delegation_binding(spec)
     if binding is None:
-        return False
+        return ids
     try:
         config = SubagentsConfig.model_validate(binding.config)
     except ValidationError:
-        return False
-    return any(resource_id in getattr(specialist, field) for specialist in config.inline)
+        return ids
+    for specialist in config.inline:
+        ids.update(getattr(specialist, field))
+    return ids
 
 
 def reads_skill_line(spec: AgentSpec, skill_id: UUID, fork_id: UUID | None) -> bool:

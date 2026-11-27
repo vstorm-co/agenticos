@@ -136,6 +136,7 @@ _SERVICE_DEPS = (
     deps.get_agent_runner_service,
     deps.get_approval_service,
     deps.get_skill_service,
+    deps.get_skill_package_service,
     deps.get_context_service,
     deps.get_virtual_table_service,
     deps.get_durable_task_service,
@@ -220,6 +221,7 @@ class Call:
     """Appended verbatim, so it carries its own `?` - there is no route here that
     needs one twice and no reason for this to guess."""
 
+    upload_field: str = "file"
     upload: bool = False
     """A multipart route, which is sent a token file rather than a JSON body.
 
@@ -239,7 +241,7 @@ async def _send(client: AsyncClient, call: Call) -> Any:
         return await client.request(
             call.method,
             _url(call.path, call.query),
-            files={"file": ("probe.pdf", b"%PDF-1.4", "application/pdf")},
+            files={call.upload_field: ("probe.pdf", b"%PDF-1.4", "application/pdf")},
             data=call.body or {},
         )
     return await client.request(call.method, _url(call.path, call.query), json=call.body)
@@ -394,7 +396,24 @@ CALLS: tuple[Call, ...] = (
         Perm.RUNS_VIEW,
         query="?from=2020-01-01T00:00:00&to=2020-01-02T00:00:00",
     ),
+    Call(
+        "POST",
+        "/skills/import/preview",
+        Perm.SKILLS_EDIT,
+        body={"format": "zip"},
+        upload=True,
+        upload_field="files",
+    ),
+    Call(
+        "POST",
+        "/skills/import",
+        Perm.SKILLS_EDIT,
+        body={"format": "zip", "fingerprint": "a" * 64},
+        upload=True,
+        upload_field="files",
+    ),
     Call("GET", "/skills", Perm.SKILLS_VIEW),
+    Call("GET", "/skills/sections", Perm.SKILLS_VIEW, query="?arrange=agent"),
     Call("GET", "/skills/gallery", Perm.SKILLS_VIEW),
     Call("GET", "/skills/gallery/preview", Perm.SKILLS_VIEW, query="?key=healthcare/consent"),
     Call("GET", "/skills/behind-main", Perm.SKILLS_VIEW),

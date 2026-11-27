@@ -5776,6 +5776,10 @@
         "title": "Nach Abteilung",
         "body": "Schränken Sie die Liste auf das ein, was eine Gruppe bekommen hat. Eine Gruppe entscheidet, wen etwas erreicht, und gruppiert damit auch die Liste."
       },
+      "skills-arrange": {
+        "title": "Bibliothek anordnen",
+        "body": "Zeigen Sie Skills nach dem Agenten, der sie nutzt, nach Herkunft oder nach Kategorie. Die Anordnung ändert nichts daran, wer einen Skill sieht."
+      },
       "context-groups": {
         "title": "Nach Abteilung",
         "body": "Schränken Sie die Liste auf das ein, was eine Gruppe bekommen hat. Eine Gruppe entscheidet, wen etwas erreicht, und gruppiert damit auch die Liste."
@@ -6407,6 +6411,10 @@
       "project-resources": {
         "title": "Zusammengehörige Ressourcen bündeln",
         "body": "Verknüpfe vorhandene Agenten, Workflows, Apps und Tabellen, ohne ihre Berechtigungen zu ändern. Öffne sie hier oder wähle einen verknüpften Workflow als Einstiegspunkt des Projekts."
+      },
+      "skills-import": {
+        "title": "Paket importieren",
+        "body": "Wähle einen Skill-Ordner oder ein ZIP mit SKILL.md. Dateien und Metadaten bleiben erhalten. Der Import führt keine Skripte, Tests oder Installationen aus."
       }
     },
     "chooseLanguage": "Sprache",
@@ -7983,6 +7991,13 @@
     },
     "skills": {
       "allCategories": "Alle Kategorien",
+      "arrange": {
+        "agent": "Nach Agent",
+        "origin": "Nach Herkunft",
+        "category": "Nach Kategorie",
+        "none": "Ohne Abschnitte"
+      },
+      "arrangeBy": "Anordnen nach",
       "askAdministratorAccessSkills": "Bitten Sie einen Administrator um Zugriff auf die Skills.",
       "categoryCount": "{count, plural, =1 {1 Kategorie} other {# Kategorien}}",
       "clearFilter": "Filter zurücksetzen",
@@ -7997,6 +8012,17 @@
       "nobodyHasWrittenSkill": "Noch hat niemand einen Skill für diese Organisation geschrieben.",
       "recentlyUpdated": "Kürzlich aktualisiert",
       "searchSkills": "Skills suchen …",
+      "section": {
+        "drafted": "Nur im Entwurf",
+        "unused": "Von keinem Agenten genutzt, den Sie sehen",
+        "org": "Organisation",
+        "private": "Privat",
+        "platform": "Mitgeliefert · Plattform",
+        "gallery": "Mitgeliefert · {industry}",
+        "uncategorized": "Ohne Kategorie"
+      },
+      "showAll": "{count, plural, =1 {1 anzeigen} other {Alle # anzeigen}}",
+      "showFewer": "Weniger anzeigen",
       "skillCount": "{count, plural, =1 {1 Skill} other {# Skills}}",
       "skillKnowHowWritten": "Ein Skill ist Know-how, einmal geschrieben und von jedem Agent geteilt, der es braucht – wie Rückerstattungen gehandhabt werden, was der Hausstil ist. Bearbeiten Sie ihn hier, und jeder daran gebundene Agent ist beim nächsten Run auf dem Stand.",
       "skills": "Skills",
@@ -9947,6 +9973,23 @@
       "hiddenAgents": "{count, plural, one {# weiterer Agent} other {# weitere Agenten}}",
       "testOptionalShort": "Test (optional)",
       "compareShort": "Änderungen"
+    },
+    "package": {
+      "title": "Paket importieren",
+      "description": "Wähle einen Skill-Ordner oder ein ZIP mit SKILL.md. Dateien und Metadaten bleiben erhalten. Der Import führt keine Skripte, Tests oder Installationen aus.",
+      "directory": "Ordner wählen",
+      "zip": "ZIP wählen",
+      "limits": "8 MiB pro Datei · 32 MiB pro Paket · 1.024 Dateien.",
+      "reading": "Paket wird gelesen…",
+      "summary": "{count} Ressourcendateien · {size}",
+      "private": "Erstellt einen privaten Skill mit einer vollständigen ersten Version. Vorhandene Skills werden nicht überschrieben.",
+      "apply": "Skill importieren",
+      "cancel": "Abbrechen",
+      "imported": "Skill importiert",
+      "binary": "Binär",
+      "text": "Text",
+      "download": "Datei herunterladen",
+      "binaryHelp": "Binärdateien bleiben unverändert. Lade die Datei herunter oder ersetze sie durch einen Upload."
     }
   },
   "states": {

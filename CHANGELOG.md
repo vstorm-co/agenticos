@@ -25,6 +25,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- The skills category filter no longer offers category names of skills the caller cannot see (#3282).
+
 - Refuse malformed service-address ports before saving, and allow repairing a legacy invalid address without leaking its credentials into audit entries.
 
 - Require priceable usage for paid embeddings under active run caps and keyed custom endpoints under an organization cap. Missing usage is recorded as partial before stopping further batches/files without automatic job replay; uncapped and keyless endpoints retain vector compatibility. Refresh cached embedders when this payer policy changes.
@@ -47,6 +49,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Migration `0376_skill_binary_resources` stores lossless resource encoding and versioned frontmatter, including queued Check candidates. Downgrade refuses preserved binary or metadata content instead of discarding it.
+
 - A keyed custom embedding endpoint under an organization USD cap must use a catalog-priced model and report valid token usage. Fix its reporting/model or intentionally remove that cap before retrying a policy-refused ingest/search. Ingestion and sync still admit whole work windows; already admitted work may overshoot, and unknown provider fees remain partial.
 - Migration `0367_embedding_probe_spend_precision.py` (revision `0367_embedding_probe_spend`) widens ingestion and diagnostic receipts to 12 fractional digits, preserving the previous integer range. Historically rounded receipts cannot be reconstructed or repriced. Downgrade refuses if it would discard fractional financial data.
 - `/api/v1/local-services` is now `/api/v1/service-connections`, with no alias. Update scripts and API clients.
@@ -56,6 +60,10 @@ Two things are versioned separately from this file and worth knowing about:
 - A LiteParse collection now needs LibreOffice to read `.docx`. The backend image ships it; a host that runs the backend outside the image must install it.
 
 ### Added
+
+- Import complete skill folders or ZIP packages with a reviewed preview, preserved inert frontmatter and exact binary resources across versions, workspace files and portable exports. Import never executes code or installs dependencies.
+
+- **Arrange the Skills page** by agent, by origin or by category, or keep the plain grid. The default is **No sections**; By agent has a section per agent whose published version uses a skill, then **Drafted only** and **Not used by an agent you can see**; a skill several agents use sits under each. By origin splits the organization's skills, private ones, the platform library and each skill gallery industry. Each section shows its count, folds closed and pages through the rest with **Show all**, under the same search and filters; the choice stays in the address as `?arrange=`. Arranging grants nothing: a section holds only skills the reader can already see. Over the API, `GET /api/v1/skills/sections?arrange=agent|origin|category` returns the counted sections, `GET /api/v1/skills?section=<key>` pages through one, and skill summaries carry `gallery_industry`. The category filter and its choices now ignore letter case, so `Security` and `security` are one shelf (#3281).
 
 - Preview a role’s navigation, dashboard cards, catalog restrictions and product prompts together, without impersonating a member or loading private widget data.
 - Embed a knowledge base through any OpenAI-compatible endpoint your organization registers, with an optional Vault key: pick **Custom (OpenAI-compatible)**, a service connection and a typed model, then **Test** before creating. Test before saving a change to a knowledge base's embeddings or to a connection's address or key; the Test re-embeds stored chunks and compares them with the vectors already indexed.

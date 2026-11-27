@@ -27,7 +27,7 @@ from app.services.skills import (
     SUGGESTED_CATEGORIES,
     SkillService,
     _clean_resource_path,
-    _decode_text,
+    _encode_resource,
 )
 
 SKILLS_PATH = "app.services.skills"
@@ -633,20 +633,6 @@ class TestSkillManagement:
             SkillCreate(name="x", description="d", category=name)
 
     @pytest.mark.anyio
-    async def test_the_category_choices_come_from_the_whole_organization(self):
-        """The chips must not shrink to what the current page happens to show."""
-        ctx = _ctx()
-
-        with patch(
-            "app.services.skills.skill_repo.list_categories",
-            new=AsyncMock(return_value=["devops", "marketing"]),
-        ) as list_categories:
-            categories = await SkillService(_db()).list_categories(ctx)
-
-        assert categories == ["devops", "marketing"]
-        assert list_categories.call_args.kwargs["organization_id"] == ctx.organization_id
-
-    @pytest.mark.anyio
     async def test_a_skill_is_created_on_the_shelf_it_was_given(self):
         with (
             patch("app.services.skills.skill_repo.get_by_name", new=AsyncMock(return_value=None)),
@@ -1129,22 +1115,18 @@ class TestResourceNames:
 class TestResourceContents:
     """The other half of the guard: what a file may contain."""
 
-    def test_a_file_the_model_could_not_read_is_refused_rather_than_stored_as_noise(self):
-        """A skill's files are handed to the model as text. A PDF stored here
-        arrives as mojibake - a file the agent is told it has and cannot use,
-        which is worse than not having it - so the refusal names the file and
-        says what to do instead."""
-        with pytest.raises(BadRequestError) as refused:
-            _decode_text("report.pdf", b"%PDF-1.7\n\xff\xfe\x00\x01")
+    def test_binary_files_are_lossless_encoded_assets(self):
+        from app.core.skill_files import decode_skill_file
 
-        assert "not text" in refused.value.message
-        assert "URL" in refused.value.message
-        assert refused.value.details == {"name": "report.pdf"}
+        raw = b"%PDF-1.7\n\xff\xfe\x00\x01"
+        body = _encode_resource("report.pdf", raw)
+        assert body.encoding == "base64"
+        assert decode_skill_file(body.content, body.encoding) == raw
 
     def test_the_guard_is_utf_8_and_not_ascii(self):
         """A checklist written in Polish is an ordinary skill file, and the
         bytes that make it non-ASCII must not read as a binary."""
-        assert _decode_text("kroki.md", "Zwrot 50 zł - sprawdź ✓".encode()) == (
+        assert _encode_resource("kroki.md", "Zwrot 50 zł - sprawdź ✓".encode()).content == (
             "Zwrot 50 zł - sprawdź ✓"
         )
 
@@ -1153,10 +1135,13 @@ class TestResourceContents:
         is what keeps one dropped archive from filling an agent's context. The
         last byte that fits still fits - a limit that refused it would be a
         different limit than the message states."""
-        assert _decode_text("big.md", b"a" * MAX_RESOURCE_BYTES) == "a" * MAX_RESOURCE_BYTES
+        assert (
+            _encode_resource("big.md", b"a" * MAX_RESOURCE_BYTES).content
+            == "a" * MAX_RESOURCE_BYTES
+        )
 
-        with pytest.raises(BadRequestError, match="512 KB") as refused:
-            _decode_text("big.md", b"a" * (MAX_RESOURCE_BYTES + 1))
+        with pytest.raises(BadRequestError, match="8 MiB") as refused:
+            _encode_resource("big.md", b"a" * (MAX_RESOURCE_BYTES + 1))
 
         assert refused.value.details == {"name": "big.md"}
 
@@ -1297,7 +1282,7 @@ class TestSkillFiles:
         assert written == [existing, added]
         assert repo.update_resource.await_args.kwargs == {
             "resource": existing,
-            "update_data": {"content": "new"},
+            "update_data": {"content": "new", "encoding": "utf8"},
         }
         assert repo.create_resource.await_count == 1
 
@@ -1341,25 +1326,23 @@ class TestSkillFiles:
                 ctx, skill.id, [("notes.md", b"fine"), ("../../etc/passwd", b"root:x:0:0")]
             )
 
-        assert [call.kwargs["name"] for call in repo.create_resource.await_args_list] == [
-            "notes.md"
-        ]
+        repo.create_resource.assert_not_awaited()
         repo.update.assert_not_awaited()
         audit.assert_not_awaited()
 
     @pytest.mark.anyio
-    async def test_a_binary_file_refuses_the_upload_rather_than_storing_noise(
+    async def test_a_binary_file_upload_preserves_exact_bytes(
         self, service, ctx, repo, audit, skill
     ):
-        """What the model receives is a string, so a PNG would arrive as noise
-        the agent is told it has and cannot read."""
-        with pytest.raises(BadRequestError, match="not text") as refused:
-            await service.put_resources(ctx, skill.id, [("logo.png", b"\x89PNG\r\n\x1a\n\xff\xfe")])
+        from app.core.skill_files import decode_skill_file
 
-        assert refused.value.details == {"name": "logo.png"}
-        repo.create_resource.assert_not_awaited()
-        repo.update.assert_not_awaited()
-        audit.assert_not_awaited()
+        raw = b"\x89PNG\r\n\x1a\n\xff\xfe"
+        await service.put_resources(ctx, skill.id, [("logo.png", raw)])
+        values = repo.create_resource.await_args.kwargs
+        assert values["name"] == "logo.png"
+        assert values["encoding"] == "base64"
+        assert decode_skill_file(values["content"], values["encoding"]) == raw
+        audit.assert_awaited()
 
     @pytest.mark.anyio
     async def test_uploading_to_a_skill_you_may_read_but_not_edit_writes_nothing(
@@ -1434,7 +1417,10 @@ class TestSkillFiles:
         )
 
         assert updated is stored
-        assert repo.update_resource.await_args.kwargs["update_data"] == {"content": "# New"}
+        assert repo.update_resource.await_args.kwargs["update_data"] == {
+            "content": "# New",
+            "encoding": "utf8",
+        }
         recorded.assert_awaited_once_with(
             ctx, skill, source=SkillVersionSource.RESOURCES, proposal_id=None
         )

@@ -28,6 +28,7 @@ from pydantic_ai_backends import StateBackend
 
 from app.agents.capabilities.sandbox._capped import CappedStateBackend
 from app.agents.capabilities.skills import SkillBody, SkillBodyFile
+from app.core.skill_files import ResourceEncoding, encode_skill_file
 from app.services.skill_workspace import (
     SKILLS_ROOT,
     collect_changes,
@@ -40,10 +41,11 @@ pytestmark = pytest.mark.anyio
 
 
 class _Resource:
-    def __init__(self, name: str, content: str) -> None:
+    def __init__(self, name: str, content: str, encoding: ResourceEncoding = "utf8") -> None:
         self.name = name
         self.description: str | None = None
         self.content = content
+        self.encoding = encoding
 
 
 class _Skill:
@@ -55,6 +57,7 @@ class _Skill:
         resources: list[_Resource] | None = None,
         version: int = 1,
     ) -> None:
+        self.manifest_metadata = {}
         self.id = uuid4()
         self.version = version
         self.latest_version_id = uuid4()
@@ -94,6 +97,25 @@ class _ListingFails(WrapperWorkspace):
 
 
 class TestWritingSkillsIntoTheWorkspace:
+    async def test_binary_assets_are_written_as_bytes_and_never_text_proposals(self):
+        document, workspace = _document()
+        raw = b"PK\x03\x04template\x00\xff"
+        body = encode_skill_file(raw)
+        skill = _Skill(resources=[_Resource("assets/template.xlsx", body.content, body.encoding)])
+        state = await materialise(workspace, [skill])
+        path = f"{SKILLS_ROOT}/refunds/assets/template.xlsx"
+        assert await workspace.read_bytes(path) == raw
+        assert await collect_changes(workspace, state) == []
+        _write(
+            document,
+            f"{SKILLS_ROOT}/refunds/SKILL.md",
+            "---\nname: refunds\ndescription: How refunds work.\n---\nChanged instructions",
+        )
+        [change] = await collect_changes(workspace, state)
+        assert change.content == "Changed instructions"
+        assert "assets/template.xlsx" not in change.resources
+        assert await workspace.read_bytes(path) == raw
+
     async def test_the_body_and_every_resource_land_beside_each_other(self):
         """Beside each other because that is the whole feature: a script the model
         could previously only quote is now a path its shell can run."""
@@ -291,15 +313,14 @@ class TestCollectingWhatTheAgentChanged:
         assert change.description == ""
         assert change.content == "Ask for the receipt."
 
-    async def test_a_file_nested_deeper_than_a_skill_belongs_to_no_skill(self):
-        """A skill is a directory of files. Treating `/workspace/skills/a/b/c` as `a`'s
-        would flatten two paths onto one resource name."""
+    async def test_nested_resource_paths_are_preserved_without_flattening(self):
         document, workspace = _document()
         state = await materialise(workspace, [_Skill()])
 
-        _write(document, f"{SKILLS_ROOT}/refunds/deep/nested.md", "hidden")
-
-        assert await collect_changes(workspace, state) == []
+        _write(document, f"{SKILLS_ROOT}/refunds/deep/nested.md", "deep text")
+        _write(document, f"{SKILLS_ROOT}/refunds/nested.md", "top text")
+        [change] = await collect_changes(workspace, state)
+        assert change.resources == {"deep/nested.md": "deep text", "nested.md": "top text"}
 
     async def test_a_loose_file_beside_the_skills_belongs_to_no_skill(self):
         """A skill is a directory; a file the agent left directly under the skills

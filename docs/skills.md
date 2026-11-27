@@ -48,6 +48,41 @@ Tuesday afternoon. No deploy, no pull request, no engineer.
 
 In the Agent Builder, open **Skills → New skill** to write a skill without leaving the capability panel. Saving creates the library entry, attaches it to the current draft and enables the Skills capability. Publishing remains a separate step. The action requires permission to edit both the agent and skills.
 
+## Import a complete skill package { #importing-a-package }
+
+In **Skills → Import package**, choose a folder or a ZIP containing a root `SKILL.md`, optionally inside one enclosing folder. The preview shows the skill name, description, resource paths, binary/text formats and byte totals. **Import skill** creates a private skill and its complete immutable first version; an existing name is refused rather than overwritten. Preview creates no rows. Applying reparses the original bytes and verifies the preview fingerprint.
+
+The package may contain scripts, reference documents, images and binary templates. Import only stores files: it never executes scripts or tests, downloads dependencies or installs packages. Limits are 8 MiB per file, 32 MiB per package and 1,024 members; ZIP limits apply before and after decompression. Traversal, absolute paths, links, special files, duplicates and unsupported/encrypted archives are refused.
+
+`name`, `description` and instructions become the skill's owned fields. Remaining frontmatter is versioned inert JSON metadata. Rendering `SKILL.md` uses canonical safe YAML, so comments and original formatting are not retained. Unsafe tags, aliases, duplicate/non-text keys, non-JSON values and unbounded nesting are refused. `allowed-tools` is preserved as metadata and grants no platform tools or approval exemption.
+
+Binary assets retain their exact bytes and raw-byte digests through versions, pins, restore and portable bundles. Open a binary resource to download it; it is never shown as editable base64. Version downloads always read the selected authorized immutable version. With a workspace, the selected version's assets are written as bytes beside `SKILL.md`; unavailable required assets fail preparation. Running a stored script later requires the agent's separately configured execution capability and its usual permissions. Text proposals preserve binary resources; binary changes use an explicit upload, not a generated text proposal.
+
+Fork and Check snapshots retain frontmatter. Catch-up merges unchanged or disjoint top-level metadata changes, and refuses conflicting edits to the same key rather than guessing which license or other metadata to keep. Resolve that metadata explicitly before retrying. A downgrade refuses binary files or preserved frontmatter instead of discarding them.
+
+## Finding a skill in the library { #finding-a-skill }
+
+**Skills** opens as a plain paged grid with **No sections**. **Arrange by**,
+beside the search, optionally organizes the library:
+
+| Arrange by | Sections |
+|---|---|
+| **By agent** | One per agent whose published version uses a skill, then **Drafted only** and **Not used by an agent you can see** |
+| **By origin** | **Organization**, **Private**, **Built-in · Platform** for the skills every organization starts with, then one per [gallery](#the-gallery-seventy-more-and-none-of-them-arrive-uninvited) industry |
+| **By category** | One per category, `Security` and `security` together, then **Uncategorized** |
+| **No sections** (the default) | The plain paged grid |
+
+A skill several agents use sits under each of them. Each section shows its count
+and its first cards, folds closed, and pages through the rest with **Show all**.
+The search and the filters narrow every section, and the choice stays in the
+address, so an arranged view is a link somebody can send.
+
+Arranging changes nothing about access. A section holds only skills you can
+already see, and an agent you cannot open is never a section: its skills read as
+not used. Gallery skills are recognised by name, as the **built-in** badge is.
+Over the API, `GET /api/v1/skills/sections?arrange=agent` returns the sections
+with their counts, and `GET /api/v1/skills?section=<key>` pages through one.
+
 ## The shape
 
 ```markdown
@@ -85,7 +120,8 @@ conversations need does not have to sit in the body every relevant conversation
 loads.
 
 `category` is one of twenty suggestions (`support`, `engineering`, `finance`,
-`legal`, `security`, `marketing`, …) and drives the filter on the skills listing.
+`legal`, `security`, `marketing`, …) and drives the filter on the skills listing,
+which, like the category sections, ignores letter case.
 It has no effect on what the agent sees — the model chooses by `description`, never
 by category.
 

@@ -857,6 +857,23 @@
       "reason": {
         "too_few_questions": "Kontrol edilmedi: değişikliği doğrulamak için çok az test sorusu var."
       }
+    },
+    "package": {
+      "title": "Paketi içe aktar",
+      "description": "SKILL.md içeren bir beceri klasörü veya ZIP seçin. Dosyalar ve üst veriler korunur. İçe aktarma betik, test veya bağımlılık kurulumu çalıştırmaz.",
+      "directory": "Klasör seç",
+      "zip": "ZIP seç",
+      "limits": "Dosya başına 8 MiB · Paket başına 32 MiB · 1.024 dosya.",
+      "reading": "Paket okunuyor…",
+      "summary": "{count} kaynak dosyası · {size}",
+      "private": "Tam ilk sürümü olan özel bir beceri oluşturur. Mevcut becerilerin üzerine yazılmaz.",
+      "apply": "Beceriyi içe aktar",
+      "cancel": "İptal",
+      "imported": "Beceri içe aktarıldı",
+      "binary": "İkili",
+      "text": "Metin",
+      "download": "Dosyayı indir",
+      "binaryHelp": "İkili dosyalar aynen korunur. Dosyayı indirin veya yükleyerek değiştirin."
     }
   },
   "workflows": {
@@ -3918,6 +3935,13 @@
     "skills": {
       "agentsBoundSkillWill": "Bu skill’e bağlanan agentlar, bir sonraki runlarından itibaren skillsiz çalışır. Bu işlem geri alınamaz.",
       "allCategories": "Tüm kategoriler",
+      "arrange": {
+        "agent": "Agent'a göre",
+        "origin": "Kaynağa göre",
+        "category": "Kategoriye göre",
+        "none": "Bölümsüz"
+      },
+      "arrangeBy": "Düzen",
       "askAdministratorAccessSkills": "Skill erişimi için yöneticiden izin isteyin.",
       "categoryCount": "{count, plural, =1 {1 kategori} other {# kategori}}",
       "clearFilter": "Filtreyi temizle",
@@ -3932,6 +3956,17 @@
       "nobodyHasWrittenSkill": "Bu kuruluş için henüz kimse skill yazmadı.",
       "recentlyUpdated": "Yakın zamanda güncellendi",
       "searchSkills": "Skill ara…",
+      "section": {
+        "drafted": "Yalnızca taslakta",
+        "unused": "Görebildiğiniz hiçbir agent kullanmıyor",
+        "org": "Organizasyon",
+        "private": "Özel",
+        "platform": "Yerleşik · Platform",
+        "gallery": "Yerleşik · {industry}",
+        "uncategorized": "Kategorisiz"
+      },
+      "showAll": "{count, plural, =1 {1 göster} other {Tümünü göster (#)}}",
+      "showFewer": "Daha az göster",
       "skillCount": "{count, plural, =1 {1 skill} other {# skill}}",
       "skillKnowHowWritten": "Skill; geri ödemelerin nasıl işlendiği veya kurumun yazım biçimi gibi, bir kez yazılıp ihtiyacı olan agentlarla paylaşılan bilgidir. Burada düzenlerseniz, bu skill’e bağlı her agent sonraki runında güncel hâlini kullanır.",
       "skills": "Skills",
@@ -8910,6 +8945,10 @@
         "title": "Departmana göre",
         "body": "Listeyi bir grubun erişimine açılanlarla daraltın. Grup, bir öğenin kimlere ulaştığını belirlediği için listeyi gruba göre de düzenler."
       },
+      "skills-arrange": {
+        "title": "Kütüphaneyi düzenle",
+        "body": "Skill'leri kullanan agent'a, kaynağına veya kategorisine göre görün. Düzen, bir skill'i kimin görebileceğini değiştirmez."
+      },
       "context-groups": {
         "title": "Departmana göre",
         "body": "Listeyi bir grubun erişimine açılanlarla daraltın. Grup, bir öğenin kimlere ulaştığını belirlediği için listeyi gruba göre de düzenler."
@@ -9209,6 +9248,10 @@
       "project-resources": {
         "title": "İlgili kaynakları bir arada tutun",
         "body": "Mevcut ajanları, iş akışlarını, Apps ve tabloları izinlerini değiştirmeden bağlayın. Buradan açın veya bağlı bir iş akışını projenin giriş noktası olarak seçin."
+      },
+      "skills-import": {
+        "title": "Paketi içe aktar",
+        "body": "SKILL.md içeren bir beceri klasörü veya ZIP seçin. Dosyalar ve üst veriler korunur. İçe aktarma betik, test veya bağımlılık kurulumu çalıştırmaz."
       }
     }
   },

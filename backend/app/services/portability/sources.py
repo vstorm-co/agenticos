@@ -291,7 +291,10 @@ class BundleSources:
         bodies = await versions.files_of(version)
         files = tuple(
             SkillFileContent(
-                name=name, description=version.resources[name]["description"], content=body
+                name=name,
+                description=version.resources[name]["description"],
+                content=body,
+                encoding=version.resources[name].get("encoding", "utf8"),
             )
             for name, body in bodies.items()
         )
@@ -299,6 +302,7 @@ class BundleSources:
             "name": skill.name,
             "description": version.description,
             "content": version.content,
+            "manifest_metadata": version.manifest_metadata or {},
             "category": skill.category,
             "files": files,
         }

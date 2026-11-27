@@ -963,6 +963,7 @@ from app.services.skill_agents import SkillAgentService
 from app.services.skill_catch_up import SkillCatchUpService
 from app.services.skill_versions import SkillVersionService
 from app.services.skills import SkillService
+from app.services.skill_package import SkillPackageService
 
 
 def get_skill_service(db: DBSession) -> SkillService:
@@ -971,6 +972,13 @@ def get_skill_service(db: DBSession) -> SkillService:
 
 
 SkillSvc = Annotated[SkillService, Depends(get_skill_service)]
+
+
+def get_skill_package_service(db: DBSession) -> SkillPackageService:
+    return SkillPackageService(db)
+
+
+SkillPackageSvc = Annotated[SkillPackageService, Depends(get_skill_package_service)]
 
 
 def get_skill_version_service(db: DBSession) -> SkillVersionService:

@@ -50,6 +50,7 @@ export interface SkillVersionSummary {
 }
 
 export interface SkillVersionResource {
+  encoding?: "utf8" | "base64";
   name: string;
   description: string | null;
   size_bytes: number;
@@ -59,6 +60,7 @@ export interface SkillVersionResource {
 
 /** One file with its body, as one version holds it. */
 export interface SkillVersionFile {
+  encoding?: "utf8" | "base64";
   name: string;
   description: string | null;
   content: string;

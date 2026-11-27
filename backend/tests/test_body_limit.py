@@ -60,6 +60,21 @@ class TestTheCapItself:
 
         assert max_body_bytes() > 100 * 1024 * 1024
 
+    def test_complete_skill_packages_remain_reachable_with_lower_unrelated_upload_caps(
+        self, monkeypatch
+    ):
+        from app.core.skill_files import MAX_SKILL_PACKAGE_BYTES
+
+        for name in (
+            "MAX_UPLOAD_SIZE_MB",
+            "CHAT_MAX_UPLOAD_SIZE_MB",
+            "EMBED_MAX_UPLOAD_SIZE_MB",
+            "ML_MAX_UPLOAD_SIZE_MB",
+        ):
+            monkeypatch.setattr(settings, name, 1)
+        monkeypatch.setattr(settings, "DATASET_IMPORT_MAX_BYTES", 1024)
+        assert max_body_bytes() > MAX_SKILL_PACKAGE_BYTES
+
     def test_it_leaves_room_for_the_envelope_around_a_file(self, monkeypatch):
         """A multipart body is the file plus boundaries, part headers and any other
         field the form carries. A cap at exactly the file size refuses an upload at

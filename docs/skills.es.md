@@ -1,5 +1,5 @@
 ---
-source_sha: "4f9850e16b2b"
+source_sha: "318248fd4069"
 ---
 
 # Skills { #skills }
@@ -55,6 +55,42 @@ request, sin ingeniero.
 
 En Agent Builder, **Skills → New skill** permite escribir un skill sin salir del panel de capacidades. Al guardar se crea la entrada de biblioteca, se vincula al borrador actual y se activa la capacidad Skills. La publicación sigue siendo un paso separado. La acción requiere permisos para editar tanto el agente como los skills.
 
+## Importar un paquete de habilidad completo { #importing-a-package }
+
+En **Skills → Importar paquete**, elige una carpeta o ZIP con un `SKILL.md` raíz, opcionalmente dentro de una carpeta envolvente. La vista previa muestra nombre, descripción, rutas, formatos binarios/de texto y bytes. Importar crea una habilidad privada con su primera versión inmutable completa. Un nombre existente se rechaza sin sobrescribir. La vista previa no crea filas; aplicar vuelve a validar los bytes originales y la huella revisada.
+
+Los scripts, documentos, imágenes y plantillas binarias solo se almacenan. Importar nunca ejecuta scripts o pruebas ni descarga o instala dependencias. Límites: 8 MiB por archivo, 32 MiB por paquete y 1.024 entradas; ZIP también tras descomprimir. Se rechazan traversal, rutas absolutas, enlaces, archivos especiales, duplicados y archivos cifrados o no compatibles.
+
+`name`, `description` e instrucciones pasan a campos propios; el resto del frontmatter son metadatos JSON inertes y versionados. La representación YAML segura y canónica no conserva comentarios ni formato original. Se rechazan etiquetas inseguras, alias, claves duplicadas/no textuales, valores ajenos a JSON y profundidad excesiva. `allowed-tools` no concede herramientas ni exenciones de aprobación.
+
+Los recursos binarios conservan bytes y hashes exactos en versiones, pins, restauraciones y paquetes portables. Ábrelos para descargarlos; base64 nunca aparece como texto editable. Cada descarga comprueba acceso a la versión inmutable seleccionada. El workspace recibe sus recursos como bytes junto a `SKILL.md`; la ausencia de un recurso obligatorio hace fallar la preparación. Ejecutar un script después requiere herramientas y permisos configurados por separado. Las propuestas de texto conservan binarios; se modifican mediante una carga explícita.
+
+Forks y Checks conservan frontmatter. Catch-up combina cambios separados, pero rechaza conflictos sobre la misma clave en lugar de adivinar. Resuélvelos explícitamente antes de reintentar. El downgrade rechaza descartar archivos binarios o metadatos conservados.
+
+## Encontrar un skill en la biblioteca { #finding-a-skill }
+
+**Skills** se abre como una cuadrícula paginada, **No sections**, por defecto.
+**Arrange by**, junto a la búsqueda, permite organizar la biblioteca:
+
+| Arrange by | Secciones |
+|---|---|
+| **By agent** | Una por cada agent cuya versión publicada usa un skill, luego **Drafted only** y **Not used by an agent you can see** |
+| **By origin** | **Organization**, **Private**, **Built-in · Platform** para los skills con los que empieza toda organización, luego una por sector de la [galería](#the-gallery-seventy-more-and-none-of-them-arrive-uninvited) |
+| **By category** | Una por categoría, `Security` y `security` juntas, luego **Uncategorized** |
+| **No sections** (la opción por defecto) | La cuadrícula paginada de siempre |
+
+Un skill que usan varios agents aparece bajo cada uno. Cada sección muestra su
+número y sus primeras tarjetas, se pliega y recorre el resto por páginas con
+**Show all**. La búsqueda y los filtros acotan cada sección, y la elección queda en
+la dirección, así que una vista ordenada es un enlace que se puede enviar.
+
+Ordenar no cambia nada del acceso. Una sección solo contiene skills que ya puedes
+ver, y un agent que no puedes abrir nunca es una sección: sus skills aparecen como
+no usados. Los skills de la galería se reconocen por el nombre, igual que la
+insignia **built-in**. Por la API, `GET /api/v1/skills/sections?arrange=agent`
+devuelve las secciones con sus números, y `GET /api/v1/skills?section=<key>`
+recorre una de ellas.
+
 ## La forma { #the-shape }
 
 ```markdown
@@ -93,7 +129,8 @@ algunas conversaciones necesitan no tiene por qué estar en el cuerpo que carga
 cada conversación relevante.
 
 `category` es una de veinte sugerencias (`support`, `engineering`, `finance`,
-`legal`, `security`, `marketing`, …) y alimenta el filtro del listado de skills.
+`legal`, `security`, `marketing`, …) y alimenta el filtro del listado de skills,
+que, como las secciones por categoría, no distingue mayúsculas de minúsculas.
 No tiene ningún efecto sobre lo que ve el agent — el modelo elige por
 `description`, nunca por categoría.
 

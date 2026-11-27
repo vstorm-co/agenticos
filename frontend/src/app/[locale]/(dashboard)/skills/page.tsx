@@ -9,10 +9,13 @@ import { BookOpen, ChevronDown, Library, ListFilter, Lock, Plus } from "lucide-r
 import { ListFilters } from "@/components/ui/list-filters";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ProposedChanges } from "@/components/skills/proposed-changes";
+import { ImportSkillPackageDialog } from "@/components/skills/import-skill-package-dialog";
 import { CreateSkillDialog } from "@/components/skills/create-skill-dialog";
 import { SkillGalleryDialog } from "@/components/skills/skill-gallery-dialog";
 import { SkillDetailDialog } from "@/components/skills/skill-detail-dialog";
-import { SkillCard } from "@/components/skills/skill-card";
+import { ArrangeMenu, parseArrangement } from "@/components/skills/arrange-menu";
+import { SkillGrid } from "@/components/skills/skill-grid";
+import { SkillSections } from "@/components/skills/skill-sections";
 import { categoryLabel } from "@/components/skills/category-input";
 import { CatalogLoading } from "@/components/states/catalog-loading";
 import { EmptyState, ErrorState } from "@/components/states";
@@ -32,7 +35,7 @@ import {
   useDebounced,
 } from "@/components/ui";
 import { GroupFilter, NothingSharedWithGroup } from "@/components/groups/group-filter";
-import { usePermissions, useSkills, useUrlState } from "@/hooks";
+import { usePermissions, useSkillSections, useSkills, useUrlState } from "@/hooks";
 import { useUrlOverlay } from "@/hooks/use-url-state";
 import type { SkillSort } from "@/hooks/use-skills";
 import { getErrorMessage } from "@/lib/api-error";
@@ -78,6 +81,7 @@ function Chip({
 export default function SkillsPage() {
   const [selectedSkill, skillView] = useUrlOverlay("skill");
   const t = useTranslations("pages.skills");
+  const tPackage = useTranslations("skills.package");
   const tc = useTranslations("common");
   const tErrors = useTranslations("errors");
   const [query, setQuery] = useState("");
@@ -89,17 +93,33 @@ export default function SkillsPage() {
   const search = useDebounced(query);
   // In the address, so a group's skills are a link somebody can send.
   const [groupId, setGroupId] = useUrlState("group");
-  const { skills, total, categories, isLoading, error, refetch } = useSkills({
+  const [arrangeParam, setArrangeParam] = useUrlState("arrange");
+  const arrange = parseArrangement(arrangeParam);
+  const arranged = arrange !== "none";
+  const flat = useSkills({
     search,
     categories: selectedCategories,
     sort,
     skip: page * PAGE_SIZE,
     limit: PAGE_SIZE,
     groupId,
+    enabled: !arranged,
   });
+  const sectioned = useSkillSections({
+    arrange: arranged ? arrange : "agent",
+    search,
+    categories: selectedCategories,
+    sort,
+    groupId,
+    enabled: arranged,
+  });
+  const { categories, isLoading, error, refetch } = arranged ? sectioned : flat;
+  const total = arranged ? sectioned.total : flat.total;
+  const skills = arranged ? sectioned.sections.flatMap((section) => section.items) : flat.skills;
   const { can, isLoading: isLoadingPermissions } = usePermissions();
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const tGallery = useTranslations("skills.gallery");
 
@@ -123,10 +143,19 @@ export default function SkillsPage() {
       description={t("skillKnowHowWritten")}
       secondaryActions={
         canCreate ? (
-          <Button variant="outline" data-tour="skills-gallery" onClick={() => setGalleryOpen(true)}>
-            <Library className="h-4 w-4" />
-            {tGallery("browse")}
-          </Button>
+          <>
+            <Button variant="outline" data-tour="skills-import" onClick={() => setImportOpen(true)}>
+              {tPackage("title")}
+            </Button>
+            <Button
+              variant="outline"
+              data-tour="skills-gallery"
+              onClick={() => setGalleryOpen(true)}
+            >
+              <Library className="h-4 w-4" />
+              {tGallery("browse")}
+            </Button>
+          </>
         ) : undefined
       }
       actions={
@@ -168,6 +197,13 @@ export default function SkillsPage() {
         }}
         placeholder={t("searchSkills")}
         className="min-w-0 flex-1 sm:w-56 sm:flex-none"
+      />
+      <ArrangeMenu
+        value={arrange}
+        onChange={(next) => {
+          setArrangeParam(next === "none" ? null : next);
+          setPage(0);
+        }}
       />
       <ListFilters
         compact
@@ -331,13 +367,15 @@ export default function SkillsPage() {
                   : undefined
               }
             />
+          ) : arranged ? (
+            <SkillSections
+              sections={sectioned.sections}
+              filters={{ search, categories: selectedCategories, sort, groupId }}
+              onOpen={skillView.open}
+            />
           ) : (
             <>
-              <div className="rise-in grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {skills.map((entry) => (
-                  <SkillCard key={entry.id} skill={entry} onOpen={() => skillView.open(entry.id)} />
-                ))}
-              </div>
+              <SkillGrid skills={skills} onOpen={skillView.open} />
               <Pager
                 page={page}
                 pageCount={pageCount}
@@ -359,6 +397,11 @@ export default function SkillsPage() {
           onClose={skillView.close}
         />
       )}
+      <ImportSkillPackageDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImported={skillView.open}
+      />
       <CreateSkillDialog open={createOpen} onOpenChange={setCreateOpen} />
       <SkillGalleryDialog open={galleryOpen} onOpenChange={setGalleryOpen} />
     </div>
