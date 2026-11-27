@@ -19,9 +19,38 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Price a promotion gate run before it starts with `GET /agents/{agent_id}/environments/{environment_id}/gate/estimate` or the `estimate_promotion_gate` tool.
+- Read the most an eval run may spend, reruns included, as `at_most_usd` on its estimate, with the `dataset_version` it priced. The console's Start eval agrees to that price and prices again if it changed.
+
 ### Changed
 
 - Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
+
+### Fixed
+
+- Send the run's own person the request for their own platform call, with a link to the conversation it was asked in, or to their Inbox when it was asked in none, for as long as that call waits, whatever audience the agent's approval alert names. The pending approval mail no longer names fixed roles.
+
+### Security
+
+- Without `approvals:decide`, `GET /approvals` lists the caller's own waiting platform calls and nothing else, so a call a routine asked in no conversation still reaches its person; an API key or an impersonated session lists none. On a channel, a batch mixing that call with others continues as the run's person.
+- Show the description of a platform call's card only to the run's person; other approvers decide from its arguments.
+- Accept exactly the Improve attempt an approval named: `accept_improvement` names its `attempt`, and the finish is refused when another attempt was chosen meanwhile.
+- Resume a run that acts for no person - a widget visitor's, an unlinked channel member's - with no platform authority.
+- Ask before the Architect edits a skill or a Context file that published agents read.
+- Hand run evidence to the improver fenced as data, so a question or an answer cannot pose as the platform's rules.
+- Hold paid starts to their quote: an eval run is priced at the most it may spend, reruns included; a promotion gate's guards are held from their price to their start against one baseline; a skill update check starts the plan that was priced; a quoted knowledge draft runs on the drafter and version it was priced on.
+- Tell a platform call by the mark its binding put on the tool, recorded on the approval when it parks, never by its name or by what its card's description says: a capability's tool renamed with the platform's `agenticos_` prefix is approved like any other call, and a platform call of a native coding runtime is its person's to answer.
+
+### Upgrading
+
+- Migration `0375_tool_approval_platform_call` adds `tool_approvals.platform_call` and fills it for the calls already recorded: a call of no capability whose tool name starts with `agenticos_`.
+- Stop old API and workers before migration `0375_tool_approval_platform_call`, then start only updated code, as for `0374_case_from_conversation`. An old process parks a platform call without its mark, and any approver could then release it; mixed-version writes during this upgrade are unsupported.
+- Reading an Improve session now needs `runs:view`. Members and Viewers who read sessions through the API or the Architect need it granted.
+- A tool override that renames a capability's tool to a name starting with `agenticos_` is refused at publish. Rename that tool before the agent is published again; versions already published keep running.
+- `update_skill`, `add_skill_resource` and `update_context_file` always ask now, and no standing consent or `never` override releases them. A routine or unattended run that calls them waits for a person's approval.
+- Outside MCP clients calling `start_eval_run`, `start_skill_update_check`, `run_promotion_gate` or `draft_knowledge_topic` must pass the matching estimate's price as `quoted_usd` - `at_most_usd` for an eval run - and `start_eval_run` its `dataset_version`, `start_skill_update_check` its `base_version_id`. `accept_improvement` takes the `attempt` it accepts. The HTTP API keeps `quoted_usd` and `attempt` optional.
 
 ## [1.95.0] - 2026-11-26
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "617b957f6b31"
+source_sha: "098a09be674f"
 ---
 
 # Der Capability-Katalog { #the-capability-catalog }
@@ -3615,7 +3615,7 @@ einwirken.
     still entfernt und ein Aufruf mit Seiteneffekten dann unbeaufsichtigt läuft,
     ohne dass etwas es meldet. Eine id, die keine solche Capability bereitstellt,
 
-wird beim Veröffentlichen abgelehnt, und ebenso ein Name, den kein Modell aufrufen könnte, oder einer, den schon ein anderes Tool des Agenten trägt - das einer anderen Capability oder eines, das die Plattform selbst hinzufügt, etwa `request_capability`.
+wird beim Veröffentlichen abgelehnt, und ebenso ein Name, den kein Modell aufrufen könnte, oder einer, den schon ein anderes Tool des Agenten trägt - das einer anderen Capability oder eines, das die Plattform selbst hinzufügt, etwa `request_capability`. Auch darf ein neuer Name nicht mit `agenticos_` beginnen, dem Präfix der eigenen Tools der Plattform. Wer einen Aufruf freigeben darf, hängt nie von seinem Namen ab: Das Binding der Plattform markiert ihre eigenen Tools, und ein Aufruf hält diese Markierung fest, wenn er auf eine Freigabe wartet.
 
 ## Scopes { #scopes }
 

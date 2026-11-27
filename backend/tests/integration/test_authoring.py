@@ -322,7 +322,7 @@ class QuotingImprover(Improver):
 
     def _answer(self, prompt: str) -> dict[str, Any]:
         answer = super()._answer(prompt)
-        said = re.search(r"^Reader comment: (.+)$", prompt, flags=re.MULTILINE)
+        said = re.search(r"^Reader comment:\n`{3,}\n(.+)$", prompt, flags=re.MULTILINE)
         if said and "instructions" in answer:
             run_id = _RUN.findall(prompt)[0]
             answer["instructions"][0]["evidence"] = [{"run_id": run_id, "quote": said.group(1)}]

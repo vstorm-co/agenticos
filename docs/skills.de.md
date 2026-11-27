@@ -1,5 +1,5 @@
 ---
-source_sha: "4f9850e16b2b"
+source_sha: "3a101a6043b9"
 ---
 
 # Skills { #skills }
@@ -740,7 +740,10 @@ an Agentenentwürfe binden sowie Skills lesen, bearbeiten und Textressourcen
 hinzufügen. Context verwendet `inject` für ständige Prompt-Inhalte und `link` zum
 Lesen bei Bedarf. Änderungen einer gebundenen Datei gelten beim nächsten Lauf;
 eine geänderte Entwurfsbindung muss veröffentlicht werden. Berechtigungen und
-Freigaben gelten weiterhin.
+Freigaben gelten weiterhin. Einen Skill bearbeiten, ihm eine Ressource hinzufügen
+und eine Context-Datei bearbeiten fragt immer zuerst die Person: Jeder Agent auf
+der Linie des Skills oder mit der gebundenen Datei liest die Änderung beim
+nächsten Lauf.
 
 Der Dokument-Skill enthält LaTeX-Ausgangsdateien und ein Build-/Render-Verfahren.
 HTML-Apps und Browserfolien sind keine kompilierten PDFs oder editierbaren PPTX.

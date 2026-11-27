@@ -370,12 +370,12 @@ class ClassifyGaps(Payload):
 class DraftTopic(Payload):
     """One knowledge gap topic drafted, as the person - or through the key - that asked."""
 
-    quoted_usd: Decimal | None = Field(default=None, ge=0)
-
     organization_id: UUID
     topic_id: UUID
     user_id: UUID | None
     api_key_id: UUID | None = None
+    quoted_usd: Decimal | None = Field(default=None, ge=0)
+    """The price the person agreed to, rechecked before the drafter runs."""
 
 
 class DispatchWorkflowNode(Payload):

@@ -51,6 +51,8 @@ export interface EvalRunRequest {
    * neither a paired baseline nor an earlier run.
    */
   stability?: boolean;
+  /** The estimate's `at_most_usd` agreed to; a start that could now cost more is refused (409). */
+  quoted_usd?: string | null;
 }
 
 /**
@@ -105,6 +107,8 @@ export interface ArmEstimate {
 /** The spend a run asks consent for, and what each budget keeps after it. */
 export interface EvalRunEstimate {
   cases: number;
+  /** The dataset version priced, to pin on the start. */
+  dataset_version?: number;
   arms: ArmEstimate[];
   judge_usd: string;
   /** What a check of the authoring assistant's proposal would measure; absent otherwise. */
@@ -113,6 +117,8 @@ export interface EvalRunEstimate {
   judge_model_profile_id: string | null;
   total_usd: string;
   rerun_ceiling_usd: string;
+  /** The most the run may cost: its first answers, the judge and every rerun. */
+  at_most_usd?: string;
   /** What the run most likely costs: its first answers and the reruns a compared run usually asks. */
   expected_usd: string;
   agent_remaining_usd: string | null;

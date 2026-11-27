@@ -159,12 +159,14 @@ reused baseline. Actual spending can differ from this estimate. Each model
 request still observes the monthly budgets; exhausting one ends the eval as
 `budget_exceeded`.
 
-A start may carry the estimate's `total_usd` back as `quoted_usd`, and the
-estimate's `dataset_version` with it. Starting refuses with `409` if the current
-start estimate is higher than that quote. The Architect passes both, and its
-approval card shows the quote. This compares estimates, not a hard cap on the
-provider's eventual bill. Skill update checks, knowledge drafts and promotion
-guards accept `quoted_usd` too; `GET .../gate/estimate` prices the due guards.
+A start may carry the estimate's `at_most_usd` - its first answers, the judge and
+every rerun - back as `quoted_usd`, and the estimate's `dataset_version` with it.
+Starting then refuses with `409` once the run could cost more than that quote. The
+console's start dialog and the Architect always pass both, and the Architect's
+approval card shows that price. This compares estimates, not a hard cap on the
+provider's eventual bill. Skill update checks, knowledge drafts and a promotion
+gate's guards take a `quoted_usd` the same way, and `GET .../gate/estimate` prices
+the guards a gate run would start.
 
 A queued knowledge draft retains its quote. Its worker checks the estimate
 again before retrieval or model work, and refuses a higher or unknown price.

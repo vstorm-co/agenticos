@@ -2462,9 +2462,8 @@ export function useChat(options: UseChatOptions = {}) {
         (calls.length === 0 && message.runWaitingFor !== "approval")
       )
         return [];
-      // Without `approvals:decide` a person answers only their own platform call, so
-      // a turn showing only other calls is not asked about. One showing none - a
-      // delegated child's approval - is, and the rows say whose it is.
+      // Without `approvals:decide` a person answers only their own platform call; a turn
+      // showing no calls (a delegated child's approval) is still asked, and its rows say whose.
       if (!canDecide && calls.length > 0 && !calls.some((call) => isPlatformTool(call.name)))
         return [];
       const key = JSON.stringify([
@@ -2499,8 +2498,6 @@ export function useChat(options: UseChatOptions = {}) {
           offeredApprovalBatchesRef.current.add(key);
           const actionable = parked.filter((call) => !decidedApprovalIdsRef.current.has(call.id));
           if (actionable.length === 0) continue;
-          // Without `approvals:decide` the only call a person answers is their own
-          // platform call; a run holding none of those stays with its Stop.
           if (!canDecide && !actionable.some((call) => call.may_decide === true)) continue;
           setPendingApproval({
             actionRequests: actionable.map((call) => ({
@@ -2515,6 +2512,7 @@ export function useChat(options: UseChatOptions = {}) {
               account: call.account,
               content_hidden: call.content_hidden,
               always_asks: call.always_asks,
+              platform_call: call.platform_call,
               may_decide: call.may_decide,
               may_approve: call.may_approve,
             })),
@@ -2728,6 +2726,7 @@ export function useChat(options: UseChatOptions = {}) {
             account: call.account,
             content_hidden: call.content_hidden,
             always_asks: call.always_asks,
+            platform_call: call.platform_call,
             may_decide: call.may_decide,
             may_approve: call.may_approve,
           })),

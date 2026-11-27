@@ -20,9 +20,12 @@ const SHOWN = 5;
 export function ApprovalsWaiting({
   tools,
   steps,
+  decidesAll,
 }: {
   tools: ToolApproval[];
   steps: WorkflowApprovalRead[];
+  /** False for a reader whose only calls here are their own: the queue is not theirs. */
+  decidesAll: boolean;
 }) {
   const t = useTranslations("inbox.approvals");
   const router = useRouter();
@@ -38,13 +41,15 @@ export function ApprovalsWaiting({
         <h2 id="inbox-approvals" className="text-muted-foreground text-xs font-medium">
           {t("title")}
         </h2>
-        <Link
-          href={queue}
-          className="text-muted-foreground hover:text-foreground touch:min-h-11 inline-flex min-h-6 items-center gap-1 rounded-sm text-xs focus-visible:outline-2 focus-visible:outline-offset-4"
-        >
-          {t("open")}
-          <ChevronRight className="size-3.5" aria-hidden />
-        </Link>
+        {decidesAll && (
+          <Link
+            href={queue}
+            className="text-muted-foreground hover:text-foreground touch:min-h-11 inline-flex min-h-6 items-center gap-1 rounded-sm text-xs focus-visible:outline-2 focus-visible:outline-offset-4"
+          >
+            {t("open")}
+            <ChevronRight className="size-3.5" aria-hidden />
+          </Link>
+        )}
       </div>
       <ul className="divide-y">
         {shownSteps.map((approval) => (
@@ -66,7 +71,11 @@ export function ApprovalsWaiting({
             approval={approval}
             deciding={deciding}
             onDecide={(approved, note) => decideTool.mutate({ id: approval.id, approved, note })}
-            onOpenRun={() => router.push(`${queue}&run=${encodeURIComponent(approval.run_id)}`)}
+            onOpenRun={
+              decidesAll
+                ? () => router.push(`${queue}&run=${encodeURIComponent(approval.run_id)}`)
+                : undefined
+            }
           />
         ))}
       </ul>

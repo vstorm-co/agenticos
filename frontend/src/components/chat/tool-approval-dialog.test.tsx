@@ -450,7 +450,7 @@ it("shows the price a paid platform call was quoted at", () => {
     action("a-1", {
       tool_name: "agenticos_start_eval_run",
       args: { quoted_usd: "0.40" },
-      context: { platform_tool: "true" },
+      platform_call: true,
       always_asks: true,
     }),
   ]);

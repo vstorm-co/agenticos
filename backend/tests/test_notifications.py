@@ -84,7 +84,7 @@ def _approvals(*tool_ids: str) -> list[MagicMock]:
         approval.account = None
         approval.tool_id = tool_id
         approval.always_asks = tool_id.startswith("agenticos_")
-        approval.context = {"platform_tool": "true"} if approval.always_asks else None
+        approval.platform_call = tool_id.startswith("agenticos_")
         approvals.append(approval)
     return approvals
 
@@ -719,14 +719,14 @@ class TestApprovalRequested:
         [
             (("agenticos_accept_improvement", "send_email"), True, True),
             (("send_email",), True, False),
-            (("agenticos_accept_improvement",), False, False),
+            (("agenticos_accept_improvement",), False, True),
         ],
     )
     async def test_the_runs_person_gets_their_own_notice_beside_their_own_platform_call(
         self, written, tools: tuple[str, ...], in_a_conversation: bool, named: bool
     ):
         """Their notice opens the conversation the call was asked in, where its card comes
-        back; everyone else's opens the queue."""
+        back, or their Inbox for a run asked in none; everyone else's opens the queue."""
         person, admin = uuid.uuid4(), uuid.uuid4()
         run = _run(user_id=person)
         run.conversation_id = uuid.uuid4() if in_a_conversation else None
@@ -747,16 +747,60 @@ class TestApprovalRequested:
         own, queue = by_recipient[(person,)], by_recipient[(admin,)]
         assert own["render_context"][APPROVABLE_BY] == str(person)
         assert own["render_context"][APPROVABLE_CALLS] == [str(approvals[0].id)]
-        assert f"/chat?id={run.conversation_id}" in own["context_url"]
-        assert f"/chat?id={run.conversation_id}" in own["render_context"]["approvals_url"]
+        where = f"/chat?id={run.conversation_id}" if in_a_conversation else "/inbox"
+        assert where in own["context_url"]
+        assert where in own["render_context"]["approvals_url"]
         assert APPROVABLE_BY not in queue["render_context"]
         assert "tab=approvals" in queue["context_url"]
 
     @pytest.mark.anyio
     @pytest.mark.security
-    async def test_the_only_recipient_gets_one_personal_notice_without_a_queue_duplicate(
-        self, written
+    @pytest.mark.parametrize(
+        "alert",
+        [AlertSpec(enabled=False), AlertSpec(to=[AlertAudience.ADMINS])],
+        ids=["switched-off", "admins-only"],
+    )
+    async def test_the_runs_person_is_told_of_their_platform_call_whatever_the_alert_names(
+        self, written, alert: AlertSpec
     ):
+        """Nobody else may approve it, so an audience leaving them out would leave it unseen."""
+        person = uuid.uuid4()
+        run = _run(user_id=person)
+        run.conversation_id = uuid.uuid4()
+        approvals = _approvals("agenticos_publish_agent")
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members(person)),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run, agent=_agent(), spec=_spec(approvals=alert), approvals=approvals
+            )
+
+        [call] = written.calls
+        assert call["recipients"] == [person]
+        assert call["render_context"][APPROVABLE_CALLS] == [str(approvals[0].id)]
+        assert f"/chat?id={run.conversation_id}" in call["context_url"]
+
+    @pytest.mark.anyio
+    @pytest.mark.security
+    async def test_a_runs_person_who_left_is_not_told_of_their_platform_call(self, written):
+        run = _run(user_id=uuid.uuid4())
+        run.conversation_id = uuid.uuid4()
+        with (
+            patch(f"{MODULE}.member_repo.list_member_ids_by_role", new=_roles()),
+            patch(f"{MODULE}.member_repo.list_member_ids_for", new=_members()),
+        ):
+            await NotificationService(MagicMock()).approval_requested(
+                run,
+                agent=_agent(),
+                spec=_spec(approvals=AlertSpec(enabled=False)),
+                approvals=_approvals("agenticos_publish_agent"),
+            )
+
+        assert written.calls == []
+
+    @pytest.mark.anyio
+    async def test_a_person_who_is_the_whole_audience_gets_only_their_own_notice(self, written):
         person = uuid.uuid4()
         run = _run(user_id=person)
         run.conversation_id = uuid.uuid4()

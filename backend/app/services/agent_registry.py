@@ -703,6 +703,19 @@ def _tool_override_problems(binding: CapabilityBindingSpec, definition: Capabili
             "framework provides itself - two tools of that name abort the turn"
         )
 
+    # The platform's prefix marks its own tools, on every card and wherever who may
+    # approve a call is decided, so no capability's tool may wear it.
+    platform = sorted(
+        override.name
+        for override in binding.tool_overrides.values()
+        if override.name is not None and override.name.startswith(f"{PLATFORM_MCP_PREFIX}_")
+    )
+    if platform:
+        problems.append(
+            f"Capability '{binding.id}' renames a tool to {', '.join(platform)}: names starting "
+            f"with {PLATFORM_MCP_PREFIX}_ belong to this platform's own tools"
+        )
+
     # A media tool's name is read as that tool's everywhere a step is shown, so
     # another tool may not take it. Its own tool keeping it is no rename at all.
     impostors = sorted(

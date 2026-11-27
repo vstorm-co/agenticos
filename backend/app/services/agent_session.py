@@ -1260,20 +1260,20 @@ class AgentSession:
                                 "context": parked.context,
                                 "account": parked.account,
                                 "always_asks": parked.always_asks,
+                                "platform_call": parked.platform_call,
                                 "may_decide": may_decide(
                                     decider,
-                                    tool_id=parked.tool_name,
                                     always_asks=parked.always_asks,
+                                    platform_call=parked.platform_call,
                                     person_id=self.user.id,
-                                    context=parked.context,
                                 ),
                                 "may_approve": may_approve(
                                     decider,
                                     tool_id=parked.tool_name,
                                     always_asks=parked.always_asks,
+                                    platform_call=parked.platform_call,
                                     person_id=self.user.id,
                                     content_hidden=False,
-                                    context=parked.context,
                                 ),
                             }
                             for parked in turn.parked

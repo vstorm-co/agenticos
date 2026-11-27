@@ -171,8 +171,8 @@ def _parked_platform_call(*, of: uuid.UUID) -> list[Any]:
                 MagicMock(
                     status=ApprovalStatus.PENDING.value,
                     tool_id="agenticos_accept_improvement",
-                    context={"platform_tool": "true"},
                     always_asks=True,
+                    platform_call=True,
                 ),
             ),
             ("get_run", MagicMock(id=RUN, user_id=of, status=RunStatus.AWAITING_APPROVAL.value)),

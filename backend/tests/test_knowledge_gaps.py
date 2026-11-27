@@ -1029,15 +1029,16 @@ async def test_a_queued_quote_is_rechecked_before_retrieval_or_model_work(
     current: Decimal | None,
 ) -> None:
     from app.core.exceptions import ConcurrentChangeError
-    from app.schemas.knowledge_gap import KnowledgeGapDraftEstimate
 
     ctx = AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role="owner")
     service = KnowledgeGapService(MagicMock())
     with (
+        patch.object(service, "_topic", AsyncMock(return_value=MagicMock())),
+        patch.object(service, "_knowledge_base", AsyncMock(return_value=MagicMock())),
         patch.object(
             service,
-            "draft_estimate",
-            AsyncMock(return_value=KnowledgeGapDraftEstimate(total_usd=current)),
+            "_priced_helper",
+            AsyncMock(return_value=(MagicMock(), MagicMock(), current)),
         ),
         patch(
             "app.services.knowledge_gaps.knowledge_gap_repo.drafting_material", AsyncMock()
@@ -1061,7 +1062,7 @@ async def test_a_draft_quote_accepts_an_unchanged_or_lower_estimate(price: Decim
         "draft_estimate",
         AsyncMock(return_value=KnowledgeGapDraftEstimate(total_usd=price)),
     ):
-        await service._check_draft_quote(
+        await service._within_quote(
             AuthContext(user_id=uuid.uuid4(), organization_id=ORG, role="owner"),
             uuid.uuid4(),
             Decimal("0.40"),

@@ -616,7 +616,6 @@ async def answer_run(
 @router.get(
     "/approvals",
     response_model=ApprovalList,
-    dependencies=[Depends(require(Perm.APPROVALS_DECIDE))],
 )
 async def list_approvals(
     service: ApprovalSvc,
@@ -645,6 +644,10 @@ async def list_approvals(
     Oldest first by default, and the default is load-bearing. Nothing expires a
     parked call, so the oldest row can be from months ago; a newest-first queue
     would bury exactly the row somebody needs to see.
+
+    Needs `approvals:decide` for the organization's queue. Without it, the
+    caller's own pending platform calls that always ask, the ones only they may
+    answer, signed in as themselves; `status` does not widen that.
     """
     items, total = await service.list_approvals(
         ctx,
@@ -725,7 +728,11 @@ async def decide_approval(
         **({"remember_scope": data.remember_scope} if data.remember_scope else {}),
     )
     read = ApprovalRead.model_validate(decided.approval)
-    tool_args, context = withhold(decided.hidden, tool_args=read.tool_args, context=read.context)
+    tool_args, context = withhold(
+        decided.hidden,
+        tool_args=read.tool_args,
+        context=read.context if decided.described else None,
+    )
     return read.model_copy(
         update={
             "continues_in_chat": decided.continues_in_chat,

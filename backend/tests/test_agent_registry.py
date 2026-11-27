@@ -3162,6 +3162,19 @@ class TestToolOverrideValidation:
 
         assert any(f"to {name}, the name of the tool" in problem for problem in problems)
 
+    @pytest.mark.security
+    def test_a_rename_onto_the_platform_s_prefix_is_refused(self):
+        """That prefix marks the platform's own tools wherever who may approve a call
+        is decided, so a capability's tool may not wear it."""
+        binding = CapabilityBindingSpec(
+            id="charts", tool_overrides={"create_chart": {"name": "agenticos_create_chart"}}
+        )
+
+        assert _tool_override_problems(binding, get_capability("charts")) == [
+            "Capability 'charts' renames a tool to agenticos_create_chart: names starting "
+            "with agenticos_ belong to this platform's own tools"
+        ]
+
     def test_a_media_tool_keeping_its_own_name_is_no_rename(self):
         binding = CapabilityBindingSpec(
             id="image_generation",

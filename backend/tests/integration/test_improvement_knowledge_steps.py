@@ -21,7 +21,7 @@ from app.core.exceptions import (
     SystemAgentOutputError,
 )
 from app.core.permissions import OrgRoleName, Perm
-from app.db.models.agent import AgentVersion
+from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun
 from app.db.models.api_key import ApiKey
 from app.db.models.authoring import AuthoringRequest
@@ -45,6 +45,7 @@ from app.services.embedding_resolution import EmbeddingKeySource, ResolvedEmbedd
 from app.services.improvement_pipeline import ImprovementPipelineService
 from app.services.knowledge_gaps import KnowledgeGapService
 from app.services.model_profile import ModelProfileService
+from app.services.system_agent_runner import SystemAgentRunner
 from app.worker.jobs import ClassifyGaps, DraftTopic
 from app.worker.tasks.knowledge_gap_tasks import classify_knowledge_gaps, draft_knowledge_gap
 from tests.integration.test_authoring import Improver, _answering, _published, _sessions, _setup
@@ -538,9 +539,58 @@ async def test_a_draft_dearer_than_its_quote_is_refused_and_one_within_it_is_que
             await service.request_draft(ctx, gap.id, quoted_usd=price - Decimal("0.000001"))
         assert await _draft_jobs(db) == []
         queued = await service.request_draft(ctx, gap.id, quoted_usd=price)
+        [job] = await _draft_jobs(db)
+        # The worker holds the draft to the same price, should the drafter change meanwhile.
+        assert DraftTopic.model_validate(job.payload).quoted_usd == price
+        with pytest.raises(ConcurrentChangeError):
+            await service.draft(ctx, gap.id, quoted_usd=price - Decimal("0.000001"))
     assert queued.drafting
-    [job] = await _draft_jobs(db)
-    assert DraftTopic.model_validate(job.payload).quoted_usd == price
+
+
+@pytest.mark.security
+async def test_the_drafter_priced_is_the_drafter_that_runs(db, knowledge_search):
+    """Another drafter named while the draft searches does not run in place of the one
+    the quote priced: the run is pinned to that drafter and its published version."""
+    ctx, agent, kb, dataset, _ = await _world(db)
+    with _providers(db, ctx):
+        gap = await _gap(db, ctx, agent, dataset)
+        service = KnowledgeGapService(db)
+        drafter = await SystemAgentRunner(db).require_runnable(
+            ctx, key=KNOWLEDGE_GAP_DRAFTER.key, agent_id=kb.gap_drafter_agent_id
+        )
+        other = Agent(
+            id=uuid4(),
+            organization_id=ctx.organization_id,
+            slug=f"other-{uuid4().hex[:8]}",
+            name="Another drafter",
+            draft_spec={},
+        )
+        db.add(other)
+        await db.flush()
+        searched = KnowledgeGapService._search_now
+        run = SystemAgentRunner.run
+        asked: list[dict[str, object]] = []
+
+        async def search_then_swap(self: KnowledgeGapService, *args: object, **kwargs: object):
+            found = await searched(self, *args, **kwargs)
+            kb.gap_drafter_agent_id = other.id
+            return found
+
+        async def recorded(self: SystemAgentRunner, *args: object, **kwargs: object):
+            asked.append(kwargs)
+            return await run(self, *args, **kwargs)
+
+        with (
+            patch.object(KnowledgeGapService, "_search_now", search_then_swap),
+            patch.object(SystemAgentRunner, "run", recorded),
+        ):
+            quote = (await service.draft_estimate(ctx, gap.id)).total_usd
+            assert quote is not None
+            await service.draft(ctx, gap.id, quoted_usd=quote)
+
+    assert [(call["agent_id"], call["version_id"]) for call in asked] == [
+        (drafter.id, drafter.current_version_id)
+    ]
 
 
 async def test_a_draft_asked_for_runs_once_reads_the_knowledge_base_now_and_goes_stale(

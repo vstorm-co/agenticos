@@ -1,5 +1,5 @@
 ---
-source_sha: "d9973864c59a"
+source_sha: "dab83ef866c1"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -192,7 +192,7 @@ Załączniki pozostają wewnątrz pola wiadomości w jednym przewijanym wierszu.
 
 Nowy czat pokazuje pod polem wiadomości do czterech promptów bieżącego agenta, w dwóch kolumnach, gdy jest miejsce. Kliknięcie dodaje prompt do edytowalnego szkicu. Pisanie ukrywa propozycje bez przesuwania pola wiadomości; wyczyszczenie szkicu je przywraca. Fokus w pustym polu pozostawia widoczną stałą wskazówkę o komendach `/` i zasobach `@`. Zatwierdzenie znaku za pomocą IME nie wysyła wiadomości.
 
-Oś czasu pokazuje do dwóch pozycji z Inboxa, wliczając link do oczekujących zgód, i prowadzi do pełnego Inboxa. Ładowanie rezerwuje miejsce na podgląd. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
+Oś czasu pokazuje do dwóch pozycji z Inboxa, wliczając link do oczekujących zgód, i prowadzi do pełnego Inboxa. Osobę, której jedynymi zgodami są jej własne wywołania platformy, link do zgód prowadzi do Inboxa. Ładowanie rezerwuje miejsce na podgląd. Skrzynka i kolejki zatwierdzeń od razu korzystają z pamięci podręcznej podczas nawigacji; dane pozostają świeże przez 30 sekund, a nieużywane wpisy są przechowywane przez 30 minut. Błąd odświeżania pozostawia widoczne zapisane elementy wraz z ostrzeżeniem. Zmiana konta lub organizacji nadal czyści pamięć podręczną.
 
 Główny czat ma szerokie pole wiadomości. Biblioteka modeli pokazuje najpierw podłączonych dostawców, z logotypami i nazwami od wielkiej litery, z jedną listą Models i osobną zakładką konta lub klucza. Kliknięcie modelu od razu go wybiera. Brakujące poświadczenia można dodać w formularzach Vaulta z poziomu wyboru modelu, również dla dostawców wymagających kilku pól; nadal obowiązują dotychczasowe uprawnienia i walidacja modeli. Mikrofon i przycisk wysyłania płynnie zmieniają stan podczas pisania.
 

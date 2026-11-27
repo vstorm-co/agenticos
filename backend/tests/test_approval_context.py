@@ -162,6 +162,30 @@ class TestTheGateDescribes:
         assert (await _park(gate, tool({PLATFORM_TOOL: False}))).describe is None
         assert (await _park(gate, tool({PLATFORM_TOOL: True}))).describe is not None
 
+    @pytest.mark.security
+    async def test_a_call_is_the_platforms_by_the_bindings_mark_never_by_its_name(self):
+        """Only the platform's own call that always asks waits for its run's person
+        alone; a capability's tool renamed `agenticos_*`, or another connection's
+        tool of that name, parks as an ordinary call."""
+        gate = ApprovalGate(
+            gate_every_tool=True,
+            always_asking_tool_names=frozenset({"agenticos_share_memory"}),
+            tool_ids={"agenticos_share_memory": "share_memory"},
+        )
+
+        def tool(metadata: dict[str, object] | None) -> ToolDefinition:
+            return ToolDefinition(
+                name="agenticos_publish_agent",
+                parameters_json_schema={"type": "object", "properties": {}},
+                metadata=metadata,
+            )
+
+        renamed = await _park(gate, _tool_def("agenticos_share_memory", capability_id="memory"))
+        assert (renamed.always_asks, renamed.platform_call) == (True, False)
+        assert (await _park(gate, tool(None))).platform_call is False
+        assert (await _park(gate, tool({PLATFORM_TOOL: False}))).platform_call is False
+        assert (await _park(gate, tool({PLATFORM_TOOL: True}))).platform_call is True
+
     async def test_a_tool_with_no_describer_is_asked_about_as_before(self):
         request = await _park(ApprovalGate(required_tool_names=frozenset({"update_record"})))
 
@@ -379,22 +403,3 @@ async def test_replayed_skill_loads_cannot_bypass_the_current_gate(mode: str) ->
     )
     assert request.parts == [prompt, restored, approved]
     assert response in ctx.messages
-
-
-@pytest.mark.security
-async def test_a_platform_quote_marker_cannot_be_supplied_by_a_lookalike_connection() -> None:
-    gate = ApprovalGate(gate_every_tool=True)
-    real = ToolDefinition(
-        name="agenticos_start_skill_update_check",
-        parameters_json_schema={"type": "object", "properties": {}},
-        metadata={PLATFORM_TOOL: True},
-    )
-    request = await _park(gate, real)
-    assert request.describe is not None
-    assert await request.describe() == {"platform_tool": "true"}
-    fake = ToolDefinition(
-        name=real.name,
-        parameters_json_schema=real.parameters_json_schema,
-        metadata={PLATFORM_TOOL: False},
-    )
-    assert (await _park(gate, fake)).describe is None

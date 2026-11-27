@@ -1,5 +1,5 @@
 ---
-source_sha: "5d54063f1700"
+source_sha: "b23ee95de918"
 ---
 
 # Permisos { #permissions }
@@ -114,6 +114,10 @@ propia sesión, puede aprobarla, y no necesita ningún permiso para ello. Cualqu
 otra persona con `approvals:decide` puede rechazarla, y ni una clave de API ni una
 sesión mediante suplantación pueden aprobarla. La cola indica en esa llamada quién
 puede aprobarla.
+
+Sin `approvals:decide`, la cola solo lista esas llamadas propias de
+la persona, que también muestra su bandeja de entrada, así que la llamada de una
+rutina le llega aunque no se pidiera en ninguna conversación.
 
 `promotions:override` promociona una versión a un
 [entorno que guardan sus suites de evals](environments.md#guarding-a-promotion-with-evals)

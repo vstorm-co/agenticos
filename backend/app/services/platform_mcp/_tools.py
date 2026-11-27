@@ -3317,10 +3317,17 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         }
 
     async def accept_improvement(
-        agent_id: UUID, session_id: UUID, publish: bool, automatic_check: bool = False
+        agent_id: UUID,
+        session_id: UUID,
+        attempt: int,
+        publish: bool,
+        automatic_check: bool = False,
     ) -> dict[str, Any]:
         """Accept a ready session's chosen attempt into the agent: as a draft, or published.
         Needs `agents:edit` and `runs:view`; `publish` also needs `agents:publish`.
+
+        `attempt` is the number of the attempt get_improvement marks `chosen`, the
+        one the person agreed to; it is refused when another has been chosen since.
 
         Publish only when the person asked for exactly that; otherwise accept as a
         draft they publish themselves. An environment guarded by an automatic
@@ -3331,7 +3338,12 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         finished = await api.request(
             "POST",
             f"/agents/{agent_id}/improvements/{session_id}/finish",
-            json={"confirmed": True, "publish": publish, "automatic_check": automatic_check},
+            json={
+                "confirmed": True,
+                "attempt": attempt,
+                "publish": publish,
+                "automatic_check": automatic_check,
+            },
         )
         return {
             "status": finished["session"]["status"],
@@ -4086,19 +4098,30 @@ def platform_tools(api: PlatformApi) -> tuple[PlatformTool, ...]:
         """
         return await api.request("GET", f"/knowledge-gaps/{topic_id}/draft/estimate")
 
-    async def draft_knowledge_topic(topic_id: UUID, quoted_usd: Decimal) -> dict[str, Any]:
+    async def draft_knowledge_topic(
+        topic_id: UUID, quoted_usd: Decimal | None = None
+    ) -> dict[str, Any]:
         """Draft a document for a question the knowledge base could not answer, only when asked.
         Needs `runs:view`, edit access to the topic's knowledge base, a model and budget.
 
         Price it with estimate_knowledge_draft first and pass its `total_usd` as
-        `quoted_usd`; a draft that now costs more is refused, so estimate again.
+        `quoted_usd`, or leave it out when the estimate has no price; a draft that
+        now costs more is refused, so estimate again.
         It is written in the background and kept on the topic for a person to
         review; nothing is added to the knowledge base. Asking again while one is
         being written changes nothing, and asking again later redrafts it from the
         knowledge base as it is then.
         """
+        if quoted_usd is None:
+            estimate = await api.request("GET", f"/knowledge-gaps/{topic_id}/draft/estimate")
+            if estimate.get("total_usd") is not None:
+                raise ToolError(
+                    "This draft has a price: estimate it first and pass its total_usd as quoted_usd"
+                )
         topic = await api.request(
-            "POST", f"/knowledge-gaps/{topic_id}/draft", json={"quoted_usd": str(quoted_usd)}
+            "POST",
+            f"/knowledge-gaps/{topic_id}/draft",
+            json=None if quoted_usd is None else {"quoted_usd": str(quoted_usd)},
         )
         return _untrusted(
             {

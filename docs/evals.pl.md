@@ -1,5 +1,5 @@
 ---
-source_sha: "80da2d54c72a"
+source_sha: "f31d1e7d7b11"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -176,12 +176,14 @@ powtórzenia baseline'u, także użytego ponownie. Rzeczywisty koszt może się 
 Każde żądanie do modelu nadal podlega budżetom miesięcznym; wyczerpanie budżetu
 kończy run jako `budget_exceeded`.
 
-Start może odesłać `total_usd` z wyceny jako `quoted_usd` i wskazać jej
-`dataset_version`. Jeśli aktualny szacunek startu jest wyższy od tej kwoty,
-serwer zwraca `409`. Architekt przekazuje oba pola, a karta zatwierdzenia pokazuje
-wycenę. To porównanie szacunków, a nie twardy limit końcowego rachunku dostawcy.
-Sprawdzenia aktualizacji skilla, szkice wiedzy i strażnicy promocji też przyjmują
-`quoted_usd`; `GET .../gate/estimate` wycenia strażników oczekujących na start.
+Start może odesłać `at_most_usd` z wyceny (pierwsze odpowiedzi, ocenę i wszystkie
+powtórzenia) jako `quoted_usd`, a razem z nim `dataset_version` z wyceny. Start
+odmawia wtedy kodem `409`, gdy run mógłby kosztować więcej niż ta kwota. Dialog
+startu w konsoli i Architekt zawsze przekazują oba pola, a karta zatwierdzenia
+Architekta pokazuje tę cenę. To porównanie szacunków, a nie twardy limit końcowego
+rachunku dostawcy. Sprawdzenia aktualizacji skilla, szkice wiedzy i strażnicy
+bramki promocji przyjmują `quoted_usd` tak samo, a `GET .../gate/estimate` wycenia
+strażników, których uruchomiłby run bramki.
 
 Szkic wiedzy w kolejce zachowuje uzgodnioną wycenę. Worker sprawdza ją ponownie
 przed pobieraniem danych lub pracą modelu i odmawia przy cenie wyższej albo

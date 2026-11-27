@@ -1314,8 +1314,7 @@ class TestWhatAQueueReaderMaySeeOfAFact:
         return org, owner, asker, reader
 
     async def _read_as(self, db: AsyncSession, org: Organization, user: User, role: str):
-        ctx = AuthContext(user_id=user.id, organization_id=org.id, role=role)
-        [row], _ = await ApprovalService(db).list_approvals(ctx)
+        [row], _ = await ApprovalService(db).list_approvals(_approver(org, user, role))
         return row
 
     async def test_a_member_who_cannot_see_the_run_reads_only_the_audience(self, db) -> None:

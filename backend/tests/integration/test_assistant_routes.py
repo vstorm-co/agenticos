@@ -368,7 +368,7 @@ async def test_the_architect_s_improve_writes_wait_for_a_card_and_its_reads_do_n
 
 @pytest.mark.security
 @pytest.mark.parametrize("policy", ["writes", "all", "required"])
-async def test_architect_skill_drafts_are_free_by_default_but_strict_policies_still_ask(
+async def test_architect_creates_a_skill_freely_but_every_skill_edit_asks(
     db: AsyncSession, served: None, policy: str
 ) -> None:
     from app.agents.mcp import NEEDS_APPROVAL
@@ -401,7 +401,7 @@ async def test_architect_skill_drafts_are_free_by_default_but_strict_policies_st
 
     skill_tools = [tool for tool in platform_tool_catalog() if "skill" in tool.name]
     assert skill_tools
-    default_free_drafts = {"create_skill", "update_skill", "add_skill_resource"}
+    default_free_drafts = {"create_skill"}
     assert all(
         held(tool.name)
         is (

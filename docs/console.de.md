@@ -1,5 +1,5 @@
 ---
-source_sha: "d9973864c59a"
+source_sha: "dab83ef866c1"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -364,7 +364,7 @@ Dashboard-Karten verwenden einheitliche kompakte Zeilen, Dienstsymbole und Statu
 
 Ein neuer Chat begrüßt nach lokaler Tageszeit und zeigt ein kompaktes Eingabefeld. Dateien stehen neben dem Agenten, Chat-Einstellungen und Berechtigungsschild neben dem Modell. Die Kontextnutzung bleibt bis zum Öffnen ein Symbol.
 
-Die Zeitleiste über dem Eingabefeld zeigt Einträge mit Priorität zuerst. Innerhalb jeder Gruppe stehen die neuesten Einträge oben. Jede Zeile zeigt die Quelle, ohne Datum. Ein Klick bereitet eine bearbeitbare Handlungsanfrage im Eingabefeld vor; Inbox öffnen führt zur vollständigen Liste. Der Genehmigungszähler führt zur Entscheidungswarteschlange. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
+Die Zeitleiste über dem Eingabefeld zeigt Einträge mit Priorität zuerst. Innerhalb jeder Gruppe stehen die neuesten Einträge oben. Jede Zeile zeigt die Quelle, ohne Datum. Ein Klick bereitet eine bearbeitbare Handlungsanfrage im Eingabefeld vor; Inbox öffnen führt zur vollständigen Liste. Der Genehmigungszähler führt zur Entscheidungswarteschlange oder, für eine Person, deren einzige Genehmigungen ihre eigenen Plattform-Aufrufe sind, zum Posteingang. Laden, Fehler und leere Listen bleiben getrennte Zustände. Diktat und Anrufe verwenden dieselbe leichte Oberfläche wie das Eingabefeld. Beim Architect-Widget stehen dieselbe Hauptaktion und dieselben Diktierfunktionen zur Verfügung.
 
 Vor der ersten Nachricht bleiben Dateien und Kontextnutzung sichtbar, aber deaktiviert. Das Anhangsmenü zeigt verfügbare Aktionen direkt. Die Chat-Einstellungen verwenden kompakte Abschnitte für Verbindungen und gespeicherte Freigaben; die Inbox-Vorschau zeigt Quelle und Priorität.
 

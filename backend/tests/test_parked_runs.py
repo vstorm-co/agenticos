@@ -85,6 +85,7 @@ class _Patched:
 
         self.approvals.decide = AsyncMock(side_effect=decide)
         self.approvals.hidden_fields = AsyncMock(return_value=frozenset())
+        self.approvals.described_to = AsyncMock(return_value=True)
 
         async def claim(*args: Any, **kwargs: Any) -> Any:
             self.events.append("claim run")

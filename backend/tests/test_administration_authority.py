@@ -135,8 +135,8 @@ def test_deployment_approval_flags_require_the_runs_application_administrator(
             tool_id="agenticos_change_deployment",
             always_asks=True,
             person_id=ctx.user_id,
+            platform_call=True,
             content_hidden=False,
-            context={"platform_tool": "true"},
         )
         is app_admin
     )

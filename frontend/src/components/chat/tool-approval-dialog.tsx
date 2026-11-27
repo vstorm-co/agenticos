@@ -189,7 +189,7 @@ export function ToolApprovalDialog({
                     <ApprovalDetails
                       toolName={action.tool_name}
                       args={args}
-                      context={action.context}
+                      platformCall={action.platform_call}
                     />
                   )}
                 </div>

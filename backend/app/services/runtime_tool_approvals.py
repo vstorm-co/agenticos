@@ -22,8 +22,9 @@ from app.agents.runtime_questions import (
 from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, Perm
 from app.db.session import get_db_context
+from app.repositories import agent_run_repo
 from app.services.access import member_context
-from app.services.approvals import ApprovalService
+from app.services.approvals import ApprovalService, answers_for, runs_as_its_person
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,11 +40,23 @@ of that window is left for the approved action itself to run and answer.
 """
 
 
-async def _decider(db: AsyncSession, organization_id: UUID, user_id: UUID) -> AuthContext:
-    ctx = await member_context(db, organization_id=organization_id, user_id=user_id)
-    if ctx is None or not ctx.has(Perm.APPROVALS_DECIDE):
-        raise AuthorizationError(message="This member may no longer decide tool approvals")
-    return ctx
+async def _decider(
+    db: AsyncSession, channel: ApprovalChannel, user_id: UUID, request: ApprovalRequest
+) -> AuthContext:
+    """The member deciding this action: `approvals:decide`, or the run's own person
+    answering their own platform call, as the approvals queue decides it."""
+    ctx = await member_context(db, organization_id=channel.organization_id, user_id=user_id)
+    if ctx is not None and ctx.has(Perm.APPROVALS_DECIDE):
+        return ctx
+    if ctx is not None and runs_as_its_person(
+        always_asks=request.always_asks, platform_call=request.platform_call
+    ):
+        run = await agent_run_repo.get_run(
+            db, channel.run_id, organization_id=channel.organization_id
+        )
+        if run is not None and answers_for(ctx, run.user_id):
+            return ctx
+    raise AuthorizationError(message="This member may no longer decide tool approvals")
 
 
 async def decide_live(
@@ -60,7 +73,7 @@ async def decide_live(
     replay. Standing consent still uses the run channel's ordinary audit path.
     """
     async with get_db_context() as db:
-        await _decider(db, channel.organization_id, user_id)
+        await _decider(db, channel, user_id, request)
     decision = await channel(request)
     if not isinstance(decision, ApprovalPending):
         return decision
@@ -88,8 +101,9 @@ async def decide_live(
                 subagent_name=parked.subagent,
                 subagent_agent_id=parked.subagent_agent_id,
                 always_asks=parked.always_asks,
+                platform_call=parked.platform_call,
             )
-            ctx = await _decider(db, channel.organization_id, user_id)
+            ctx = await _decider(db, channel, user_id, request)
             hidden = await service.hidden_fields(ctx, row)
         if hidden:
             return ApprovalRejected("This member cannot review the complete action")
@@ -125,7 +139,7 @@ async def decide_live(
             return ApprovalRejected("No explicit approval was received; the action did not run")
         approved = answer.selected == ["Yes"]
         async with get_db_context() as db:
-            ctx = await _decider(db, channel.organization_id, user_id)
+            ctx = await _decider(db, channel, user_id, request)
             await ApprovalService(db).decide(ctx, parked.approval_id, approved=approved)
         settled = True
         return (

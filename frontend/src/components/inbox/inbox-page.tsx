@@ -195,7 +195,13 @@ export function InboxPage() {
         }
       >
         {showsQuestions && <QuestionsWaiting questions={questions} />}
-        {showsApprovals && <ApprovalsWaiting tools={pending.tools} steps={pending.steps} />}
+        {showsApprovals && (
+          <ApprovalsWaiting
+            tools={pending.tools}
+            steps={pending.steps}
+            decidesAll={pending.decidesAll}
+          />
+        )}
         {filter === "done" ? (
           <Decided />
         ) : isLoading || (showsUrgent && questions.isLoading) ? (

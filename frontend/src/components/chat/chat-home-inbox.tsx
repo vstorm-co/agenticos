@@ -8,6 +8,7 @@ import { SuggestionPriority } from "./suggestion-priority";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSuggestions } from "@/hooks/use-suggestions";
 import { usePendingApprovals } from "@/hooks/use-pending-approvals";
+import { ROUTES } from "@/lib/constants";
 import { SuggestionMark, urgentFirst, useSuggestionSource } from "./suggestion-actions";
 
 import { suggestionChatPrompt } from "@/lib/suggestion-chat-prompt";
@@ -39,7 +40,7 @@ export function ChatHomeInbox({ onDiscuss }: { onDiscuss: (prompt: string) => vo
     <section className={INBOX_FRAME} aria-label={t("title")} aria-busy={loading}>
       {!loading && pending.count > 0 && (
         <Link
-          href="/runs?tab=approvals"
+          href={pending.decidesAll ? "/runs?tab=approvals" : ROUTES.INBOX}
           aria-label={t("approvals", { count: pending.count })}
           className="text-muted-foreground hover:text-foreground mb-2 inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 text-xs pointer-coarse:min-h-11"
         >

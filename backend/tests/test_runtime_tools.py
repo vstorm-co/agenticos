@@ -11,6 +11,7 @@ from pydantic_ai.toolsets import FunctionToolset
 from pydantic_ai.usage import RunUsage
 
 from app.agents.deps import AgentDeps
+from app.agents.mcp import PLATFORM_TOOL
 from app.agents.runtime_tools import RuntimeTools
 
 pytestmark = [pytest.mark.anyio, pytest.mark.security]
@@ -408,3 +409,56 @@ async def test_a_plain_tool_return_is_unwrapped_for_the_text_bridge() -> None:
     runtime, _seen = await _custom_bridge(build)
     result = await _call(runtime, "act", {})
     assert result["isError"] is False and "done" in result["content"][0]["text"]
+
+
+@pytest.mark.parametrize(
+    ("capability_id", "metadata", "platform"),
+    [
+        (None, {PLATFORM_TOOL: True}, True),
+        ("memory", {PLATFORM_TOOL: True}, False),
+        ("memory", None, False),
+        (None, None, False),
+    ],
+    ids=["platform", "capability-carrying-the-mark", "renamed-capability", "unmarked"],
+)
+async def test_a_native_call_is_the_platforms_only_by_its_bindings_mark(
+    capability_id: str | None, metadata: dict[str, object] | None, platform: bool
+) -> None:
+    """Every native approval always asks, so only the platform binding's mark on a
+    tool of no capability may make the call one its run's person alone approves."""
+    from unittest.mock import AsyncMock, MagicMock
+    from uuid import uuid4
+
+    from app.agents.approval import ApprovalRejected
+
+    tools = FunctionToolset[AgentDeps]()
+
+    @tools.tool_plain(name="agenticos_publish_agent")
+    def publish(value: int) -> dict[str, int]:
+        """Record an admitted integer."""
+        return {"value": value}
+
+    ctx = RunContext(deps=AgentDeps(), model=TestModel(), usage=RunUsage())
+    found = await tools.get_tools(ctx)
+    tool = found["agenticos_publish_agent"]
+    found["agenticos_publish_agent"] = replace(
+        tool,
+        tool_def=replace(
+            tool.tool_def, kind="unapproved", capability_id=capability_id, metadata=metadata
+        ),
+    )
+    ctx.tool_manager = ToolManager(
+        toolset=tools, root_capability=AbstractCapability(), ctx=ctx, tools=found
+    )
+    ctx.deps.user_id = str(uuid4())
+    ctx.deps.runtime_questions = AsyncMock()
+    approvals = MagicMock()
+    approvals.live = AsyncMock(return_value=ApprovalRejected())
+    ctx.deps.request_approval = approvals
+
+    await RuntimeTools(ctx).dispatch(
+        "_agenticos/tools/call", {"name": "agenticos_publish_agent", "arguments": {"value": 1}}
+    )
+
+    [request] = approvals.live.call_args.args
+    assert (request.always_asks, request.platform_call) == (True, platform)

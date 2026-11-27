@@ -1849,7 +1849,12 @@ class TestActingOnASession:
 
         accepted = await server.call_tool(
             "accept_improvement",
-            {"agent_id": str(AGENT), "session_id": str(SESSION), "publish": publish},
+            {
+                "agent_id": str(AGENT),
+                "session_id": str(SESSION),
+                "attempt": 2,
+                "publish": publish,
+            },
         )
 
         assert api.request.await_args.args == (
@@ -1857,7 +1862,7 @@ class TestActingOnASession:
             f"/agents/{AGENT}/improvements/{SESSION}/finish",
         )
         assert api.request.await_args.kwargs == {
-            "json": {"confirmed": True, "publish": publish, "automatic_check": False}
+            "json": {"confirmed": True, "attempt": 2, "publish": publish, "automatic_check": False}
         }
         assert accepted.structured_content["version"] == 4
 
@@ -1947,6 +1952,32 @@ class TestDraftingKnowledge:
         assert api.request.await_args.kwargs["json"] == {"quoted_usd": "0.02"}
         assert topic["drafting"] is True
         assert "questions" not in topic
+
+    @pytest.mark.security
+    async def test_a_draft_with_a_price_needs_its_quote_and_one_without_runs_unquoted(
+        self, server: FastMCP, api: MagicMock
+    ) -> None:
+        estimate = f"/knowledge-gaps/{TOPIC}/draft/estimate"
+        drafted = {"id": TOPIC, "label": "Gift cards?", "drafting": True}
+        api.request = _responder(
+            {
+                ("GET", estimate): {"total_usd": "0.02"},
+                ("POST", f"/knowledge-gaps/{TOPIC}/draft"): drafted,
+            }
+        )
+        with pytest.raises(ToolError, match="quoted_usd"):
+            await _call(server, "draft_knowledge_topic", topic_id=TOPIC)
+        assert [call.args[0] for call in api.request.await_args_list] == ["GET"]
+
+        api.request = _responder(
+            {
+                ("GET", estimate): {"total_usd": None},
+                ("POST", f"/knowledge-gaps/{TOPIC}/draft"): drafted,
+            }
+        )
+        await _call(server, "draft_knowledge_topic", topic_id=TOPIC)
+        assert api.request.await_args.args == ("POST", f"/knowledge-gaps/{TOPIC}/draft")
+        assert api.request.await_args.kwargs["json"] is None
 
 
 READS = {

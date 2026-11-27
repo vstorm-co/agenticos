@@ -429,6 +429,8 @@ export interface ToolApproval {
    * the server refuses an approval from this reader, so only Reject is offered.
    */
   always_asks?: boolean;
+  /** One of the platform's own tools, as the platform binding marked it - never by its name. */
+  platform_call?: boolean;
   /**
    * Whether the server would accept an approval from this reader. False with
    * `content_hidden` on a call that always asks, and for a platform call that
@@ -619,6 +621,8 @@ export interface ParkedCall {
   content_hidden?: boolean;
   /** As `ToolApproval.always_asks`. */
   always_asks?: boolean;
+  /** As `ToolApproval.platform_call`. */
+  platform_call?: boolean;
   /** Whether the caller may answer this call at all. */
   may_decide?: boolean;
   /** As `ToolApproval.may_approve`. */
