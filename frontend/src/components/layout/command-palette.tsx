@@ -48,7 +48,6 @@ import { cn, isAppAdmin } from "@/lib/utils";
 import { useUnsavedChangesStore } from "@/stores/unsaved-changes-store";
 import type { AgentList } from "@/types/agents";
 import type { KnowledgeBaseList } from "@/types";
-import { Perm } from "@/types/permissions";
 
 /**
  * ⌘K: every destination the product has, plus the things you would name rather
@@ -106,6 +105,7 @@ export function CommandPalette() {
   const showAgents = visibleHrefs.has(ROUTES.AGENTS);
   const showKnowledge = visibleHrefs.has(ROUTES.RAG);
   const showChat = visibleHrefs.has(ROUTES.CHAT);
+  const showProjects = visibleHrefs.has(ROUTES.PROJECTS);
   const invoker = useRef<HTMLElement | null>(null);
   const openRef = useRef(false);
   const restoreTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -152,7 +152,7 @@ export function CommandPalette() {
   const projects = useProjects({
     search: projectSearch,
     limit: MAX_ENTITIES,
-    enabled: open && can(Perm.projectsView),
+    enabled: open && showProjects,
   });
   const agents = useQuery({
     queryKey: qk.agents.list(),
@@ -178,7 +178,7 @@ export function CommandPalette() {
   const kbItems = showKnowledge ? (kbs.data?.slice(0, MAX_ENTITIES) ?? []) : [];
   const conversationItems = showChat ? (conversations.data?.items ?? []) : [];
   const failedQueries = [
-    ...(can(Perm.projectsView)
+    ...(showProjects
       ? [{ isError: projects.error !== null, refetch: projects.refetch }]
       : []),
     ...(showAgents ? [agents] : []),
@@ -312,7 +312,7 @@ export function CommandPalette() {
           );
         })}
 
-        {can(Perm.projectsView) && projects.projects.length > 0 && (
+        {showProjects && projects.projects.length > 0 && (
           <Group heading={t("projects")}>
             {projects.projects.map((project) => (
               <PaletteItem

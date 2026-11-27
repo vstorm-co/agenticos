@@ -165,7 +165,7 @@ describe("the palette's destinations", () => {
 
 describe("the palette's named entities", () => {
   it("does not fetch or offer shortcuts for hidden sections", async () => {
-    navigation.hiddenItems = ["agents", "knowledgeBases", "chat"];
+    navigation.hiddenItems = ["agents", "knowledgeBases", "chat", "allProjects"];
     await openPalette();
 
     for (const name of [
@@ -176,6 +176,7 @@ describe("the palette's named entities", () => {
       "Getting Started",
       "E2E Handbook",
       "Refund policy",
+      "Launch",
     ]) {
       expect(screen.queryByRole("option", { name })).not.toBeInTheDocument();
     }
