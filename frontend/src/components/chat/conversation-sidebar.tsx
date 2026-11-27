@@ -1393,7 +1393,10 @@ export function ConversationSidebar({ className, onSelectSearchResult }: Convers
         <CollapsedSidebar
           {...listProps}
           toolbar={toolbar(undefined, true)}
-          onExpand={() => setIsCollapsed(false)}
+          onExpand={() => {
+            setIsCollapsed(false);
+            setSourcesOverride(true);
+          }}
           className={className}
         />
       ) : (
