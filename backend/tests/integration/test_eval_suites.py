@@ -1757,7 +1757,6 @@ async def test_after_an_incomparable_result_a_pair_runs_only_within_the_suites_c
     *_, third = await _results(db, suite.id)
     assert third.status == "passed" and third.eval_run_id is not None
     run = await service.evals.get(ctx, third.eval_run_id)
-    # The run is held to the ceiling while it runs, not only compared with it at start.
     stored = await db.get(EvalRun, third.eval_run_id)
     assert stored is not None and stored.quoted_usd == Decimal(ceiling)
     told = [n for n in await _notifications(db, ctx.user_id) if "Not compared" in n.summary]

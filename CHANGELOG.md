@@ -24,8 +24,13 @@ Two things are versioned separately from this file and worth knowing about:
 - Price a promotion gate run before it starts with `GET /agents/{agent_id}/environments/{environment_id}/gate/estimate` or the `estimate_promotion_gate` tool.
 - Read the most an eval run may spend, reruns included, as `at_most_usd` on its estimate, with the `dataset_version` it priced. The console's Start eval agrees to that price and prices again if it changed.
 
+### Changed
+
+- Hold an eval run to the price it was started at while it runs, not only when it starts. It starts no answer, judge grading or confirming reruns that would take it past a person's accepted quote, an eval suite's ceiling or what is left of a skill check's accepted most, and ends `budget_exceeded` with the price in its error, keeping what it answered and graded. Answers already under way finish, so what it spent can pass the price by what they cost. A test started by hand says it stopped at the price you accepted.
+
 ### Fixed
 
+- End a skill check's agent when its stage's eval run ran out of budget, instead of leaving the check running until it expires.
 - Send the run's own person the request for their own platform call, with a link to the conversation it was asked in, or to their Inbox when it was asked in none, for as long as that call waits, whatever audience the agent's approval alert names. The pending approval mail no longer names fixed roles.
 
 ### Security
@@ -41,6 +46,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Upgrading
 
+- Migration `0378_eval_run_quoted_usd` adds `eval_runs.quoted_usd`, the price a run was started at. Runs started before it keep no price and run as before.
 - Migration `0375_tool_approval_platform_call` adds `tool_approvals.platform_call` and fills it for the calls already recorded: a call of no capability whose tool name starts with `agenticos_`.
 - Stop old API and workers before migration `0375_tool_approval_platform_call`, then start only updated code, as for `0374_case_from_conversation`. An old process parks a platform call without its mark, and any approver could then release it; mixed-version writes during this upgrade are unsupported.
 - Reading an Improve session now needs `runs:view`. Members and Viewers who read sessions through the API or the Architect need it granted.

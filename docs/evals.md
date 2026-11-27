@@ -168,14 +168,28 @@ provider's eventual bill. Skill update checks, knowledge drafts and a promotion
 gate's guards take a `quoted_usd` the same way, and `GET .../gate/estimate` prices
 the guards a gate run would start.
 
+The run keeps that price, and its worker holds the run to it while it runs.
+Before each answer it counts the answers already under way, and the next, at
+the estimate's price per answer and its grading, and starts none that would
+take the run past the price. A judge does not grade an answer that has already
+taken it past, and confirming reruns that would are not queued. A suite's run is
+held to the suite's ceiling the same way, and a skill check's stage to what its
+earlier stage left of the agent's accepted most.
+
+A run held there ends `budget_exceeded` and keeps what it answered and graded.
+Its error names the price, and a test started by hand tells its starter that it
+stopped at the price they accepted, not at a budget. The price is not a hard
+ceiling on one request: answers already under way finish, so what the run spent
+can pass the price by what they cost.
+
 A queued knowledge draft retains its quote. Its worker checks the estimate
 again before retrieval or model work, and refuses a higher or unknown price.
 Existing clients and jobs without a quote retain their previous behavior.
 
 A suite's estimated spend cap also includes confirming reruns and both sides
 when paired. Its first publish estimate includes the existing version as the
-next publication's baseline even when only one version exists. This estimate
-cap only decides whether to start; it never stops an eval already in progress.
+next publication's baseline even when only one version exists. The run keeps
+the cap as its price and is held to it while it runs, as a quoted run is.
 A cost-per-pass or latency percentage ceiling is exceeded by any positive
 increase from a zero baseline.
 
@@ -316,8 +330,8 @@ Every attempt comes out one of four ways (`state` on the attempt):
   limit, a loop, a guardrail, a request the provider refused - which fails a
   suite outright, even when the case's reruns pass;
 - **incomplete** when the provider failed after its retries (an error 5xx, 408
-  or 429, or no answer at all), a scorer raised, the run was cancelled or ran
-  out of budget, or its tries tied;
+  or 429, or no answer at all), a scorer raised, the run was cancelled, ran
+  out of budget or reached the price it was started at, or its tries tied;
 - **ungraded** when no required scorer applies to the answer.
 
 Neither of the last two is ever a pass; the summary counts them apart
