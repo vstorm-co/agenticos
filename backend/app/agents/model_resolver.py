@@ -49,21 +49,24 @@ itself, and a credential without one is refused rather than built to fail on its
 second run.
 """
 
+import hashlib
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 import httpx2
 from openai import AsyncOpenAI
-from pydantic_ai.models import Model, infer_model
+from pydantic_ai.models import Model, get_user_agent, infer_model
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.providers import Provider, infer_provider_class
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.providers.openai_compatible import OpenAICompatibleProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 
+from app import __version__
 from app.core.exceptions import BadRequestError
 from app.core.secret_kinds import (
     ApiKeySecret,
@@ -270,6 +273,61 @@ class _StavProvider(OpenAIProvider):
         if not isinstance(client, httpx2.AsyncClient):
             raise TypeError("Stav requires an httpx2 client")
         return _StavClient(
+            base_url=base_url, api_key=api_key, http_client=client, default_headers=default_headers
+        )
+
+
+OPENCODE_SESSION_HEADER = "x-opencode-session"
+USER_AGENT = f"agenticos/{__version__}"
+"""How AgenticOS names itself to a provider that asks every client to."""
+
+
+def provider_session(*key: object) -> str:
+    """An opaque, stable session id for a provider that routes by conversation.
+
+    The same key always gives the same id, so every request of one conversation
+    reaches the provider under one session; the key is hashed so the provider
+    never sees a conversation or run id of this deployment.
+    """
+    return hashlib.sha256("/".join(str(part) for part in key).encode()).hexdigest()[:32]
+
+
+class _OpenCodeGoClient(AsyncOpenAI):
+    async def _prepare_request(self, request: httpx2.Request) -> None:
+        await super()._prepare_request(request)
+        # Pydantic AI writes its own user agent into every request's headers,
+        # which outrank the client's defaults. Replace only that one, so a user
+        # agent a profile sets in its `extra_headers` still wins.
+        if request.headers.get("user-agent") == get_user_agent():
+            request.headers["user-agent"] = USER_AGENT
+
+
+class _OpenCodeGoProvider(OpenAICompatibleProvider):
+    """OpenCode Go, which refuses a request without a session (`MissingSessionID`).
+
+    Go asks every client for a stable `x-opencode-session` per conversation and a
+    user agent of its own rather than an SDK's
+    (https://opencode.ai/docs/console/go). The session is a client default, so
+    the `extra_headers` a profile sets overrides it key by key, and one that
+    names other headers leaves it in place.
+    """
+
+    def __init__(self, *, api_key: str, base_url: str, session: str) -> None:
+        super().__init__("opencode_go", base_url=base_url, api_key=api_key)
+        self._client = self._client.with_options(default_headers={OPENCODE_SESSION_HEADER: session})
+
+    def _create_openai_client(
+        self,
+        *,
+        base_url: str | None,
+        api_key: str | Callable[[], Awaitable[str]] | None,
+        http_client: httpx2.AsyncClient | httpx.AsyncClient | None,
+        default_headers: Mapping[str, str] | None = None,
+    ) -> AsyncOpenAI:
+        client = self._get_http_client(http_client)
+        if not isinstance(client, httpx2.AsyncClient):
+            raise TypeError("OpenCode Go requires an httpx2 client")
+        return _OpenCodeGoClient(
             base_url=base_url, api_key=api_key, http_client=client, default_headers=default_headers
         )
 
@@ -610,8 +668,13 @@ class ResolvedCredential:
     profile_id: UUID | None = None
 
 
-def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provider[Any]:
+def _build_provider(
+    spec: ProviderSpec, credential: ResolvedCredential, session: str | None = None
+) -> Provider[Any]:
     """Construct the provider client for one credential.
+
+    `session` is the conversation's id for a provider that routes by one (OpenCode
+    Go). Without it the client gets a fresh one, stable for that client's life.
 
     The only place that knows a credential's shape. Each branch spreads the
     fields the SDK actually names, which is what makes an AWS key pair reach
@@ -686,8 +749,6 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
     if credential.base_url is not None and spec.base_url_param is not None:
         endpoint[spec.base_url_param] = credential.base_url
     if spec.personal_gateway:
-        from pydantic_ai.providers.openai_compatible import OpenAICompatibleProvider
-
         # Bound to one person's gateway scope by `ModelProfileService.resolve`;
         # anything that skipped it has nobody whose accounts to spend.
         if credential.base_url is None or not isinstance(secret, ApiKeySecret):
@@ -699,10 +760,14 @@ def _build_provider(spec: ProviderSpec, credential: ResolvedCredential) -> Provi
             spec.id, base_url=credential.base_url, api_key=secret.api_key.get_secret_value()
         )
     if (default := COMPATIBLE_ENDPOINTS.get(spec.id)) is not None:
-        from pydantic_ai.providers.openai_compatible import OpenAICompatibleProvider
-
         if not isinstance(secret, ApiKeySecret):
             raise BadRequestError(message=f"{spec.name} requires a vault API key")
+        if spec.id == "opencode_go":
+            return _OpenCodeGoProvider(
+                api_key=secret.api_key.get_secret_value(),
+                base_url=credential.base_url or default,
+                session=session or uuid4().hex,
+            )
         # A compatible API is a different history authority, not an OpenAI proxy.
         return OpenAICompatibleProvider(
             spec.id,
@@ -800,13 +865,16 @@ whole setting for that request, as Pydantic AI defines it.
 """
 
 
-def build_model(credential: ResolvedCredential, model: str) -> Model:
+def build_model(credential: ResolvedCredential, model: str, session: str | None = None) -> Model:
     """Build a provider client for one model.
+
+    `session` identifies the conversation to a provider that routes by one; see
+    :func:`_build_provider`.
 
     Raises:
         BadRequestError: If the provider has no catalog entry.
     """
-    model_client = _build_model(credential, model)
+    model_client = _build_model(credential, model, session)
     if credential.provider == "llmtr" and credential.custom_pricing is None:
         from app.agents.llmtr import LlmtrModel
 
@@ -827,7 +895,7 @@ def build_model(credential: ResolvedCredential, model: str) -> Model:
     return model_client
 
 
-def _build_model(credential: ResolvedCredential, model: str) -> Model:
+def _build_model(credential: ResolvedCredential, model: str, session: str | None) -> Model:
     spec = get_provider(credential.provider)
     if is_decision_api(credential.provider, credential.api):
         return _build_decision_model(credential, model)
@@ -846,7 +914,7 @@ def _build_model(credential: ResolvedCredential, model: str) -> Model:
         # `openai_store` to true.
         return OpenAIResponsesModel(
             model,
-            provider=_build_provider(spec, credential),
+            provider=_build_provider(spec, credential, session),
             settings=OpenAIResponsesModelSettings(openai_store=False),
         )
     if (spec.personal_gateway or spec.id == "cliproxyapi") and model.rsplit("/", 1)[-1].startswith(
@@ -860,14 +928,14 @@ def _build_model(credential: ResolvedCredential, model: str) -> Model:
         # their arguments locally, without requesting strict schemas upstream.
         return OpenAIChatModel(
             model,
-            provider=_build_provider(spec, credential),
+            provider=_build_provider(spec, credential, session),
             profile=OpenAIModelProfile(openai_supports_strict_tool_definition=False),
         )
     if spec.prefix == "openrouter":
         return _openrouter_model(spec, credential, model)
     return infer_model(
         f"{spec.prefix}:{model}",
-        provider_factory=lambda _: _build_provider(spec, credential),
+        provider_factory=lambda _: _build_provider(spec, credential, session),
     )
 
 
@@ -941,20 +1009,22 @@ def _openrouter_model(spec: ProviderSpec, credential: ResolvedCredential, model:
 def build_with_fallbacks(
     primary: tuple[ResolvedCredential, str],
     fallbacks: list[tuple[ResolvedCredential, str]],
+    session: str | None = None,
 ) -> Model:
     """Build a model that fails over to the next profile in order.
 
     A single provider outage should not take an organization's agents down when
-    they have a second key or a second provider configured.
+    they have a second key or a second provider configured. Every model in the
+    chain gets the same `session`, so a fallback continues the conversation.
     """
     if fallbacks and any(entry[0].provider == "openai_chatgpt" for entry in [primary, *fallbacks]):
         raise BadRequestError(
             message="Official ChatGPT plan usage cannot participate in automatic model fallbacks"
         )
-    model = build_model(*primary)
+    model = build_model(*primary, session)
     if not fallbacks:
         return model
-    return FallbackModel(model, *(build_model(*entry) for entry in fallbacks))
+    return FallbackModel(model, *(build_model(*entry, session) for entry in fallbacks))
 
 
 @dataclass(frozen=True)
@@ -988,6 +1058,13 @@ class ModelRequestSpec:
     # nothing, and the pricing snapshot the alternative reads is wrong for
     # Sonnet-class Anthropic models in the direction that breaks a run (#773).
     context_length: int | None = None
+    # The conversation, for a provider that routes requests by one (OpenCode Go).
+    # Set by whoever knows it - the agent factory, from the run's conversation -
+    # and otherwise `None`, which gives every built model a session of its own:
+    # stable for that model's requests, but not across a conversation's runs.
+    provider_session: str | None = None
 
     def build(self) -> Model:
-        return build_with_fallbacks((self.credential, self.model), self.fallbacks)
+        return build_with_fallbacks(
+            (self.credential, self.model), self.fallbacks, self.provider_session
+        )

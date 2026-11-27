@@ -1,5 +1,5 @@
 ---
-source_sha: "1d353dca3f8e"
+source_sha: "610012f84d9c"
 ---
 
 # Modele i providery { #models-and-providers }
@@ -418,6 +418,10 @@ Dla **Z.AI GLM Coding Plan** wybierz **Z.AI** i ustaw **Endpoint** na `https://a
 | Ollama Cloud | `https://ollama.com/v1` | Modele chmurowe Twojego konta Ollama |
 
 Klucz planu nie jest zamienny z kluczem zwykłego API rozliczanego według użycia. Niektórzy dostawcy ograniczają klucze planów do narzędzi programistycznych; użycie ich z platformy agentów to Twoja decyzja i może skutkować ograniczeniem lub zawieszeniem planu. Budżety AgenticOS traktują to zużycie jako niewycenione użycie subskrypcji.
+
+**Sesje OpenCode Go.** Go odrzuca żądanie bez nagłówka `x-opencode-session` (`MissingSessionID`) i prosi każdego klienta, by przedstawiał się własną nazwą, a nie nazwą SDK. AgenticOS wysyła oba w każdym żądaniu do Go: user agent `agenticos/<wersja>` i nieprzejrzysty identyfikator sesji wyprowadzony z rozmowy i nazwy agenta. Agent, każdy recenzent przebiegu i każdy subagent zachowują więc jedną sesję przez wszystkie przebiegi rozmowy. Przebieg poza rozmową używa swojego identyfikatora przebiegu. Model zbudowany bez żadnego z nich, na przykład krok workflow, ingestia lub model kroków przeglądarki, dostaje nową sesję przy każdym zbudowaniu. Wpis `extra_headers` w parametrach profilu nadpisuje każdy z tych nagłówków.
+
+OpenCode Go jest przeznaczone do typowego ruchu agentów programistycznych. Nagłówki routingu nie zmieniają dozwolonego użycia subskrypcji; konfiguracja profilu Go nie daje nieograniczonego API ogólnego przeznaczenia.
 
 **Kolejne konta zgodne z OpenAI.** Nous Portal, Inception, Cline, Chutes i Synthetic przyjmują klucz z konsoli danej usługi. Puste pole Endpoint używa domyślnego adresu poniżej, a lista modeli pochodzi z katalogu klucza. Subskrypcje Nous Portal, Chutes i Synthetic są traktowane jako niewyceniane; kredyty Cline i użycie Inception są wyceniane tylko tam, gdzie AgenticOS zna cenę modelu.
 

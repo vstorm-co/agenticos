@@ -407,6 +407,10 @@ For a **Z.AI GLM Coding Plan**, select **Z.AI** and explicitly set **Endpoint** 
 
 A plan key is not interchangeable with the vendor's metered API key. Some vendors restrict plan keys to coding tools; using one from an agent platform is your decision and may limit or suspend the plan. AgenticOS budgets treat this usage as unpriced subscription use.
 
+**OpenCode Go sessions.** Go refuses a request without an `x-opencode-session` header (`MissingSessionID`) and asks each client to identify itself rather than send an SDK's name. AgenticOS sends both on every Go request: the user agent `agenticos/<version>` and an opaque session ID derived from the conversation and the agent's name. The agent, each run reviewer and each subagent therefore keep one session across the conversation's runs. A run outside a conversation uses its run ID. A model built with neither, such as a workflow step, ingestion or the browser's step model, gets a new session each time it is built. An `extra_headers` entry in the profile's parameters overrides either header.
+
+OpenCode Go is intended for typical coding-agent traffic. These routing headers do not change the subscription's permitted use; configuring a Go profile does not make it unrestricted general-purpose inference.
+
 **More OpenAI-compatible accounts.** Nous Portal, Inception, Cline, Chutes and Synthetic take the key from that service's own console. An empty Endpoint uses its default below, and the model list comes from the key's catalog. Nous Portal, Chutes and Synthetic subscriptions are treated as unpriced; Cline credits and Inception usage are priced only where AgenticOS knows the model's price.
 
 | Provider | Default endpoint |
