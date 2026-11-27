@@ -136,7 +136,13 @@ export function SuggestionCard({
         />
         {pending && hunk.contains_credential && (
           <p className="text-sm text-amber-700 dark:text-amber-400">
-            {t(canEdit && rewordable ? "quotesCredential" : "quotesCredentialDismiss")}
+            {t(
+              !canEdit
+                ? "quotesCredentialHeld"
+                : rewordable
+                  ? "quotesCredential"
+                  : "quotesCredentialDismiss",
+            )}
           </p>
         )}
         {canEdit && (

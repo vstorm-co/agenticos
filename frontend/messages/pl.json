@@ -16762,7 +16762,8 @@
       "dismiss": "Odrzuć",
       "undo": "Cofnij",
       "quotesCredential": "Ta sugestia cytuje poświadczenie, więc nie można jej przyjąć w tej postaci. Usuń poświadczenie w edycji albo ją odrzuć.",
-      "quotesCredentialDismiss": "Ta sugestia cytuje poświadczenie, więc nie można jej przyjąć. Odrzuć ją i wprowadź zmianę ręcznie."
+      "quotesCredentialDismiss": "Ta sugestia cytuje poświadczenie, więc nie można jej przyjąć. Odrzuć ją i wprowadź zmianę ręcznie.",
+      "quotesCredentialHeld": "Ta sugestia cytuje poświadczenie, więc nie można jej przyjąć."
     },
     "field": {
       "editLabel": "Twoja wartość",

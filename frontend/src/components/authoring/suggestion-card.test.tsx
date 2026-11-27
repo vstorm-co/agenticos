@@ -81,6 +81,20 @@ describe("SuggestionCard", () => {
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled();
   });
 
+  it("states why a credential-quoting suggestion is held, without advice, where nothing can be decided", () => {
+    render(
+      <SuggestionCard
+        hunk={hunk({ contains_credential: true })}
+        canEdit={false}
+        busy={false}
+        onDecide={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/quotes a credential, so it can't be accepted\.$/)).toBeVisible();
+    expect(screen.queryByText(/Dismiss it|Edit the credential out/)).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
   it("can leave the edit without deciding", async () => {
     render(<SuggestionCard hunk={hunk()} canEdit busy={false} onDecide={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));

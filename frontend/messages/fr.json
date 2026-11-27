@@ -16524,7 +16524,8 @@
       "dismiss": "Écarter",
       "undo": "Annuler",
       "quotesCredential": "Cette suggestion cite un identifiant : elle ne peut pas être acceptée telle quelle. Retirez l’identifiant en la modifiant, ou ignorez-la.",
-      "quotesCredentialDismiss": "Cette suggestion cite un identifiant : elle ne peut pas être acceptée. Ignorez-la et faites la modification vous-même."
+      "quotesCredentialDismiss": "Cette suggestion cite un identifiant : elle ne peut pas être acceptée. Ignorez-la et faites la modification vous-même.",
+      "quotesCredentialHeld": "Cette suggestion cite un identifiant : elle ne peut pas être acceptée."
     },
     "field": {
       "editLabel": "Votre valeur",

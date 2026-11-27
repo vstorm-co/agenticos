@@ -16873,7 +16873,8 @@
       "dismiss": "Descartar",
       "undo": "Desfazer",
       "quotesCredential": "Esta sugestão cita uma credencial, então não pode ser aceita como está. Remova a credencial editando-a ou descarte a sugestão.",
-      "quotesCredentialDismiss": "Esta sugestão cita uma credencial, então não pode ser aceita. Descarte-a e faça a alteração manualmente."
+      "quotesCredentialDismiss": "Esta sugestão cita uma credencial, então não pode ser aceita. Descarte-a e faça a alteração manualmente.",
+      "quotesCredentialHeld": "Esta sugestão cita uma credencial, então não pode ser aceita."
     },
     "field": {
       "editLabel": "Seu valor",

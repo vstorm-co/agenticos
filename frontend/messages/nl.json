@@ -16873,7 +16873,8 @@
       "dismiss": "Verwerpen",
       "undo": "Ongedaan maken",
       "quotesCredential": "Deze suggestie citeert inloggegevens en kan zo niet worden geaccepteerd. Haal de inloggegevens eruit door te bewerken, of wijs de suggestie af.",
-      "quotesCredentialDismiss": "Deze suggestie citeert inloggegevens en kan niet worden geaccepteerd. Wijs haar af en breng de wijziging zelf aan."
+      "quotesCredentialDismiss": "Deze suggestie citeert inloggegevens en kan niet worden geaccepteerd. Wijs haar af en breng de wijziging zelf aan.",
+      "quotesCredentialHeld": "Deze suggestie citeert inloggegevens en kan niet worden geaccepteerd."
     },
     "field": {
       "editLabel": "Jouw waarde",

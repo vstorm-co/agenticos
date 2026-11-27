@@ -16675,7 +16675,8 @@
       "dismiss": "Verwerfen",
       "undo": "Rückgängig",
       "quotesCredential": "Dieser Vorschlag zitiert ein Credential und kann so nicht übernommen werden. Entfernen Sie das Credential beim Bearbeiten oder verwerfen Sie den Vorschlag.",
-      "quotesCredentialDismiss": "Dieser Vorschlag zitiert ein Credential und kann nicht übernommen werden. Verwerfen Sie ihn und nehmen Sie die Änderung von Hand vor."
+      "quotesCredentialDismiss": "Dieser Vorschlag zitiert ein Credential und kann nicht übernommen werden. Verwerfen Sie ihn und nehmen Sie die Änderung von Hand vor.",
+      "quotesCredentialHeld": "Dieser Vorschlag zitiert ein Credential und kann nicht übernommen werden."
     },
     "field": {
       "editLabel": "Dein Wert",
