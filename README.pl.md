@@ -46,7 +46,8 @@
   <a href="README.md">English</a> &middot;
   <b>Polski</b> &middot;
   <a href="README.de.md">Deutsch</a> &middot;
-  <a href="README.es.md">Español</a>
+  <a href="README.es.md">Español</a> &middot;
+  <a href="README.tr.md">Türkçe</a>
 </p>
 
 </div>

@@ -13,7 +13,7 @@
 </p>
 
 <p>
-  <a href="#-iş-başında-görün">Görün</a> &middot;
+  <a href="#-i̇ş-başında-görün">Görün</a> &middot;
   <a href="#-öne-çıkanlar">Öne çıkanlar</a> &middot;
   <a href="#-agenticos-nedir">Nedir?</a> &middot;
   <a href="#-hızlı-başlangıç">Hızlı başlangıç</a> &middot;
