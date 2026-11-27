@@ -398,3 +398,18 @@ async def test_ready_observer_cannot_substitute_browser_or_independent_desktop_p
     with pytest.raises(NotFoundError, match="manual desktop identity changed"):
         await attach(case, ready)
     case.provider.backend.assert_not_called()
+
+
+@pytest.mark.parametrize("scope", ["run", "channel", "project"])
+async def test_manual_key_refuses_non_retained_scope_in_both_identity_and_service(case, scope):
+    identity = WorkspaceIdentity(
+        organization_id=case.ctx.organization_id,
+        agent_id=case.agent.id,
+        conversation_id=case.conversation.id,
+        user_id=str(case.ctx.user_id),
+        run_id=None,
+    )
+    with pytest.raises(identities.WorkspaceScopeUnavailable, match="persistent workspace scope"):
+        identities.retained_scope_key(identity, scope, "service")
+    with pytest.raises(BadRequestError, match="persistent workspace scope"):
+        case.service._retained_key(identity, scope, "service")

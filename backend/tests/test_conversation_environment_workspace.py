@@ -233,3 +233,43 @@ async def test_effect_free_execution_scope_checks_actual_selected_project_before
         assert result.key != case.row.scope_key
         workspaces.workspace_repo.get.assert_not_awaited()
     project.assert_awaited_once_with(case.service.db, case.ctx, selected.id)
+
+
+@pytest.mark.parametrize("backend", ["state", "local"])
+async def test_project_observation_refuses_non_service_executor_before_connection_lookup(
+    case, monkeypatch, backend
+):
+    from app.db.models.project import Project
+    from app.services import project_workspace_guard
+
+    project = Project(
+        id=uuid4(), organization_id=case.ctx.organization_id, name="Other executor", backend=backend
+    )
+    monkeypatch.setattr(
+        project_workspace_guard, "project_for_workspace", AsyncMock(return_value=project)
+    )
+    with pytest.raises(NotFoundError, match="live workspace is unavailable"):
+        await case.service.resolve_live_execution(
+            case.ctx, spec=case.spec, identity=case.identity, execution_target="project"
+        )
+    SandboxConnectionService.resolve.assert_not_awaited()
+
+
+async def test_manual_metadata_without_conversation_refuses_before_environment_lookup(
+    case, monkeypatch
+):
+    from app.services.conversation_environments import ConversationEnvironmentService
+
+    live = AsyncMock()
+    monkeypatch.setattr(ConversationEnvironmentService, "live", live)
+    with pytest.raises(NotFoundError, match="manual desktop identity"):
+        await case.service.resolve_live_workspace(
+            case.ctx,
+            spec=case.spec,
+            identity=replace(case.identity, run_id=None, conversation_id=None),
+            execution_target="agent",
+            workspace_id=case.row.id,
+            connection_fingerprint="captured",
+            environment_id=uuid4(),
+        )
+    live.assert_not_awaited()

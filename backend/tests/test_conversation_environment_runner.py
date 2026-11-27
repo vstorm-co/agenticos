@@ -171,3 +171,26 @@ async def test_project_mount_is_lazy_and_only_retained_desktop_gets_the_environm
         assert selector.environment_project_directory is None
         assert selector.finish_environment_project_directory is None
     acquire.assert_not_awaited()
+
+
+@pytest.mark.parametrize("computer", [False, True])
+async def test_paired_browser_and_screen_keep_native_lifecycle_in_private_web_chat(
+    case, monkeypatch, computer
+):
+    from app.schemas.local_target import LocalTarget
+
+    session = uuid4()
+    monkeypatch.setattr(case.service, "_browser_session", AsyncMock(return_value=session))
+    await case.service.prepare(
+        _ctx(),
+        uuid4(),
+        surface=RunSurface.WEB,
+        conversation_id=uuid4(),
+        local=LocalTarget(browser=True, computer=computer),
+    )
+    resources = case.build_agent.call_args.kwargs["resources"]
+    assert resources["local_browser_session"] == session
+    assert "conversation_browser" not in resources
+    assert ("conversation_desktop" in resources) is not computer
+    if computer:
+        assert resources["local_computer_session"] == session
