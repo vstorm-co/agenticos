@@ -490,3 +490,28 @@ it("switches browser cards without closing a different selected page", async () 
   await userEvent.click(screen.getByRole("button", { name: "Docs" }));
   expect(useBrowserPanelStore.getState().openCallId).toBeNull();
 });
+
+it("opens an owned desktop beside the chat without a second live socket inside the message", async () => {
+  const desktop = browse({
+    environmentId: "22222222-2222-4222-8222-222222222222",
+    navigable: false,
+  });
+  render(
+    <ChatWorkspaceProvider shared environmentPanels={["desktop"]}>
+      <DesktopRouting />
+      <BrowserCards browses={[desktop]} calls={[{ ...call(), name: "computer_screenshot" }]} />
+    </ChatWorkspaceProvider>,
+  );
+  expect(live.calls).toEqual([]);
+  await userEvent.click(screen.getByRole("button", { name: "Used a computer" }));
+  expect(screen.getByLabelText("Desktop routing")).toHaveTextContent("desktop:desktop");
+  expect(useBrowserPanelStore.getState().openCallId).toBeNull();
+});
+function DesktopRouting() {
+  const workspace = useRequiredChatWorkspace();
+  return (
+    <output aria-label="Desktop routing">
+      {workspace.activePanel}:{workspace.environment}
+    </output>
+  );
+}

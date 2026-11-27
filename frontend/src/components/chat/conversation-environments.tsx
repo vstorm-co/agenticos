@@ -13,7 +13,8 @@ import {
 } from "@/components/ui";
 import { useConversationEnvironments } from "@/hooks/use-conversation-environments";
 import type { EnvironmentExecutionTarget } from "@/lib/conversation-environments-api";
-import type { Browse } from "@/lib/browse";
+import { isRunning, type Browse } from "@/lib/browse";
+import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { useRequiredChatWorkspace, type WorkspaceEnvironment } from "./chat-workspace-context";
 import { ChatWorkspaceFrame } from "./chat-workspace-frame";
 import { ConversationEnvironmentView } from "./conversation-environment-view";
@@ -97,6 +98,43 @@ export function ConversationEnvironments({
     refresh,
   ]);
 
+  const desktopActivity = browses.findLast(
+    (browse) => browse.environmentId && !browse.navigable && !browse.nativeId && isRunning(browse),
+  );
+  const desktopEnvironmentId = desktopActivity?.environmentId;
+  const desktopCallId = desktopActivity?.callId;
+  const openedDesktop = useRef(new Set<string>());
+  const showDesktop = useEffectEvent(() => {
+    if (workspace.activePanel === null && !useSourcesPanelStore.getState().isOpen)
+      workspace.openEnvironment("desktop");
+  });
+  useEffect(() => {
+    if (
+      conversationId === null ||
+      !panels.includes("desktop") ||
+      !desktopEnvironmentId ||
+      openedDesktop.current.has(desktopEnvironmentId)
+    )
+      return;
+    let current = true;
+    void refresh().then((result) => {
+      const owned = result?.data?.items.find((item) => item.kind === "desktop");
+      if (
+        current &&
+        result &&
+        !result.error &&
+        owned?.id === desktopEnvironmentId &&
+        (owned.state === "ready" || owned.state === "starting")
+      ) {
+        openedDesktop.current.add(desktopEnvironmentId);
+        showDesktop();
+      }
+    });
+    return () => {
+      current = false;
+    };
+  }, [conversationId, agentId, target, panels, desktopEnvironmentId, desktopCallId, refresh]);
+
   async function open(kind: WorkspaceEnvironment) {
     setFailed(false);
     workspace.openEnvironment(kind, trigger.current);
@@ -107,7 +145,6 @@ export function ConversationEnvironments({
     }
   }
 
-  const environment = environments.items?.find((item) => item.kind === selected);
   return (
     <>
       {buttonSlot &&
@@ -158,53 +195,59 @@ export function ConversationEnvironments({
           </DropdownMenu>,
           buttonSlot,
         )}
-      {selected !== null && panels.includes(selected) && (
-        <ChatWorkspaceFrame panel={selected} environment>
-          {() =>
-            visible &&
-            (failed || environments.error ? (
-              <div role="alert" className="space-y-3 p-4 text-sm">
-                <p>{status("loadFailed")}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setFailed(false);
-                    if (conversationId === null) void open(selected);
-                    else void environments.refresh();
+      {panels.map((kind) => {
+        const environment = environments.items?.find((item) => item.kind === kind);
+        const active = visible && selected === kind;
+        return (
+          <ChatWorkspaceFrame key={kind} panel={kind} environment>
+            {() =>
+              failed || environments.error ? (
+                <div role="alert" className="space-y-3 p-4 text-sm">
+                  <p>{status("loadFailed")}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setFailed(false);
+                      if (conversationId === null) void open(kind);
+                      else void environments.refresh();
+                    }}
+                  >
+                    {common("retry")}
+                  </Button>
+                </div>
+              ) : environment && conversationId !== null ? (
+                <ConversationEnvironmentView
+                  conversationId={conversationId}
+                  environment={environment}
+                  visible={active}
+                  onState={environments.remember}
+                  onStart={async () => {
+                    await environments.start({
+                      conversation: conversationId,
+                      agent: agentId,
+                      kind,
+                    });
                   }}
-                >
-                  {common("retry")}
-                </Button>
-              </div>
-            ) : environment && conversationId !== null ? (
-              <ConversationEnvironmentView
-                conversationId={conversationId}
-                environment={environment}
-                visible
-                onState={environments.remember}
-                onStart={async () => {
-                  await environments.start({
-                    conversation: conversationId,
-                    agent: agentId,
-                    kind: selected,
-                  });
-                }}
-                onEnd={() =>
-                  environments.end({ conversation: conversationId, agent: agentId, kind: selected })
-                }
-                onRefresh={() => void environments.refresh()}
-                isStarting={environments.isStarting}
-                isEnding={environments.isEnding}
-              />
-            ) : (
-              <div role="status" className="text-muted-foreground p-4 text-sm">
-                {status("loading")}
-              </div>
-            ))
-          }
-        </ChatWorkspaceFrame>
-      )}
+                  onEnd={() =>
+                    environments.end({ conversation: conversationId, agent: agentId, kind })
+                  }
+                  onRefresh={async () => {
+                    const result = await environments.refresh();
+                    if (result?.error) throw result.error;
+                  }}
+                  isStarting={environments.isStarting}
+                  isEnding={environments.isEnding}
+                />
+              ) : (
+                <div role="status" className="text-muted-foreground p-4 text-sm">
+                  {status("loading")}
+                </div>
+              )
+            }
+          </ChatWorkspaceFrame>
+        );
+      })}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { useState, type ComponentProps } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import type { ConversationEnvironmentView } from "./conversation-environment-view";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -12,25 +12,48 @@ import {
   type WorkspaceEnvironment,
 } from "./chat-workspace-context";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
+import { useSourcesPanelStore } from "@/stores/sources-panel-store";
 import { ConversationEnvironments } from "./conversation-environments";
 
 vi.mock("@/hooks/use-conversation-environments", () => ({ useConversationEnvironments: vi.fn() }));
+const lifetime = vi.hoisted(() => ({
+  mounts: [] as string[],
+  unmounts: [] as string[],
+  errors: [] as unknown[],
+}));
 vi.mock("./conversation-environment-view", () => ({
   ConversationEnvironmentView: ({
+    visible,
     onStart,
     onEnd,
     onState,
     onRefresh,
     environment: current,
-  }: ComponentProps<typeof ConversationEnvironmentView>) => (
-    <>
-      <div data-testid="environment-target">{current.id}</div>
-      <button onClick={() => void onStart()}>Prepare test environment</button>
-      <button onClick={() => void onEnd()}>End test environment</button>
-      <button onClick={() => void onState(current)}>Receive test state</button>
-      <button onClick={onRefresh}>Refresh test state</button>
-    </>
-  ),
+  }: ComponentProps<typeof ConversationEnvironmentView>) => {
+    useEffect(() => {
+      lifetime.mounts.push(current.kind);
+      return () => {
+        lifetime.unmounts.push(current.kind);
+      };
+    }, [current.kind]);
+    return visible ? (
+      <>
+        <div data-testid="environment-target">{current.id}</div>
+        <button onClick={() => void onStart()}>Prepare test environment</button>
+        <button onClick={() => void onEnd()}>End test environment</button>
+        <button onClick={() => void onState(current)}>Receive test state</button>
+        <button
+          onClick={() =>
+            void Promise.resolve()
+              .then(onRefresh)
+              .catch((error: unknown) => lifetime.errors.push(error))
+          }
+        >
+          Refresh test state
+        </button>
+      </>
+    ) : null;
+  },
 }));
 const agent = "11111111-1111-4111-8111-111111111111";
 const panels = ["browser", "desktop"] as const;
@@ -41,6 +64,7 @@ function activity(callId: string, environmentId: string | null = ownedId): Brows
     call_id: callId,
     step: 0,
     environment_id: environmentId,
+    navigable: true,
   });
 }
 const environment: ConversationEnvironment = {
@@ -101,6 +125,10 @@ function RoutingControls() {
   );
 }
 beforeEach(() => {
+  useSourcesPanelStore.setState({ isOpen: false });
+  lifetime.errors = [];
+  lifetime.mounts = [];
+  lifetime.unmounts = [];
   useBrowserPanelStore.setState({ openCallId: null, openRequest: 0, automatic: false });
   api = {
     items: [environment, { ...environment, kind: "desktop" }],
@@ -379,5 +407,105 @@ it("falls back to legacy activity when the selected agent no longer offers the r
   expect(
     screen.queryByRole("button", { name: "Prepare test environment" }),
   ).not.toBeInTheDocument();
+  expect(api.start).not.toHaveBeenCalled();
+});
+
+it("retains the same owned view mounts across tab changes and the next message", async () => {
+  const desktop = {
+    ...environment,
+    kind: "desktop" as const,
+    id: ownedId,
+    state: "ready" as const,
+  };
+  api.items = [environment, desktop];
+  const frames = activity("desktop-call").map((entry) => ({ ...entry, navigable: false }));
+  vi.mocked(api.refresh).mockResolvedValue(readResult());
+  const view = render(<Harness browses={frames} />);
+  await waitFor(() => expect(screen.getByTestId("routing")).toHaveTextContent("desktop:desktop"));
+  expect(lifetime.mounts).toEqual(["browser", "desktop"]);
+  view.rerender(<Harness browses={[]} />);
+  expect(screen.getByTestId("routing")).toHaveTextContent("desktop:desktop");
+  await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
+  await userEvent.click(screen.getByRole("button", { name: "Desktop tab" }));
+  expect(lifetime.mounts).toEqual(["browser", "desktop"]);
+  expect(lifetime.unmounts).toEqual([]);
+  expect(api.start).not.toHaveBeenCalled();
+});
+
+it("does not replace a reader's selection while desktop authority is being checked", async () => {
+  const answer = Promise.withResolvers<Awaited<ReturnType<typeof api.refresh>>>();
+  vi.mocked(api.refresh).mockReturnValue(answer.promise);
+  const frames = activity("desktop-call").map((entry) => ({ ...entry, navigable: false }));
+  render(<Harness browses={frames} />);
+  await userEvent.click(screen.getByRole("button", { name: "Show visual" }));
+  await act(async () =>
+    answer.resolve(readResult([{ ...environment, kind: "desktop", id: ownedId, state: "ready" }])),
+  );
+  expect(screen.getByTestId("routing")).toHaveTextContent("visuals:activity");
+  expect(api.start).not.toHaveBeenCalled();
+});
+
+it("refuses an unrelated desktop environment identity", async () => {
+  vi.mocked(api.refresh).mockResolvedValue(
+    readResult([{ ...environment, kind: "desktop", id: "foreign", state: "ready" }]),
+  );
+  const frames = activity("desktop-call").map((entry) => ({ ...entry, navigable: false }));
+  render(<Harness browses={frames} />);
+  await act(async () => {});
+  expect(screen.getByTestId("routing")).toHaveTextContent(":activity");
+  expect(api.start).not.toHaveBeenCalled();
+});
+
+it.each(["failed", "expired", "not_started"] as const)(
+  "does not auto-open a %s desktop",
+  async (state) => {
+    vi.mocked(api.refresh).mockResolvedValue(
+      readResult([{ ...environment, kind: "desktop", id: ownedId, state }]),
+    );
+    render(
+      <Harness
+        browses={activity("desktop-call").map((entry) => ({ ...entry, navigable: false }))}
+      />,
+    );
+    await act(async () => {});
+    expect(screen.getByTestId("routing")).toHaveTextContent(":activity");
+  },
+);
+
+it("does not reopen a dismissed desktop on the next tool action in the same environment", async () => {
+  const owned = { ...environment, kind: "desktop" as const, id: ownedId, state: "ready" as const };
+  api.items = [environment, owned];
+  vi.mocked(api.refresh).mockResolvedValue(readResult());
+  const frames = (id: string) => activity(id).map((entry) => ({ ...entry, navigable: false }));
+  const view = render(<Harness browses={frames("first")} />);
+  await waitFor(() => expect(screen.getByTestId("routing")).toHaveTextContent("desktop:desktop"));
+  await userEvent.click(screen.getByRole("button", { name: "Close workspace" }));
+  view.rerender(<Harness browses={frames("second")} />);
+  await act(async () => {});
+  expect(screen.getByTestId("routing")).toHaveTextContent(":desktop");
+  expect(api.refresh).toHaveBeenCalledOnce();
+});
+
+it("propagates an explicit refresh refusal to the view rather than reporting success", async () => {
+  const error = new Error("Controlled refresh refusal");
+  vi.mocked(api.refresh).mockResolvedValue({ data: undefined, error });
+  render(<Harness />);
+  await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
+  await userEvent.click(screen.getByRole("button", { name: "Refresh test state" }));
+  await waitFor(() => expect(lifetime.errors).toEqual([error]));
+});
+
+it("keeps sources open when a desktop becomes ready in the background", async () => {
+  const answer = Promise.withResolvers<Awaited<ReturnType<typeof api.refresh>>>();
+  vi.mocked(api.refresh).mockReturnValue(answer.promise);
+  const frames = activity("desktop-call").map((entry) => ({ ...entry, navigable: false }));
+  render(<Harness browses={frames} />);
+  await act(async () => useSourcesPanelStore.setState({ isOpen: true }));
+  await act(async () =>
+    answer.resolve(readResult([{ ...environment, kind: "desktop", id: ownedId, state: "ready" }])),
+  );
+  expect(useSourcesPanelStore.getState().isOpen).toBe(true);
+  expect(screen.getByTestId("routing")).toHaveTextContent(":activity");
   expect(api.start).not.toHaveBeenCalled();
 });

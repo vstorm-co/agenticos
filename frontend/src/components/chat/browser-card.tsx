@@ -43,6 +43,8 @@ export const LiveBrowsesProvider = LiveBrowses.Provider;
 /** Browser transcript links and computer previews associated with this turn. */
 export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
   const { browses: live, onComment } = useContext(LiveBrowses);
+  const workspace = useChatWorkspace();
+  const t = useTranslations("chat");
   const visits = turnBrowseVisits(calls, live);
   if (visits.length === 0) return null;
   return (
@@ -54,7 +56,20 @@ export function TurnBrowses({ calls }: { calls: ToolCall[] }) {
     >
       {visits.map(({ id, call, browse }) =>
         browse ? (
-          browse.navigable || browse.nativeId ? (
+          browse.environmentId &&
+          !browse.navigable &&
+          !browse.nativeId &&
+          workspace?.environmentPanels.includes("desktop") ? (
+            <button
+              key={id}
+              type="button"
+              onClick={(event) => workspace.openEnvironment("desktop", event.currentTarget)}
+              className="text-muted-foreground hover:text-foreground flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+            >
+              <Monitor className="size-4" aria-hidden />
+              {t("computerLineUsed")}
+            </button>
+          ) : browse.navigable || browse.nativeId ? (
             <BrowserLink key={id} browse={browse} />
           ) : (
             <InlineBrowser key={id} browse={browse} onComment={onComment} />
