@@ -22,7 +22,9 @@ laptop, where the override file builds the image locally under another name.
     publishes, at the `AGENTICOS_VERSION` interpolation and nothing hard-coded.
 """
 
+import os
 import re
+import subprocess
 from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
@@ -330,3 +332,98 @@ def test_frontend_container_omits_tests_that_require_the_monorepo() -> None:
         )
     # Excluding tests must not exclude the production desktop bridge itself.
     assert not any(fnmatchcase("src/components/desktop/desktop-bridge.tsx", p) for p in patterns)
+
+
+class TestPublishedImageSignatures:
+    def test_only_the_publish_job_can_request_signing_identity(
+        self, workflow: dict[str, Any]
+    ) -> None:
+        jobs = workflow["jobs"]
+        assert {
+            name
+            for name, job in jobs.items()
+            if job.get("permissions", {}).get("id-token") == "write"
+        } == {"publish"}
+        steps = jobs["publish"]["steps"]
+        join = next(
+            i
+            for i, step in enumerate(steps)
+            if step.get("name") == "Join the digests into one manifest list per tag"
+        )
+        sign = next(
+            i for i, step in enumerate(steps) if step.get("name") == "Sign the published manifest"
+        )
+        assert sign > join
+        install = next(step for step in steps if "cosign-installer@" in step.get("uses", ""))
+        assert re.fullmatch(r"sigstore/cosign-installer@[0-9a-f]{40}", install["uses"])
+        assert install["with"]["cosign-release"] == "v3.1.6"
+        build = next(step for step in jobs["build"]["steps"] if step.get("id") == "build")
+        assert build["with"]["provenance"] == "mode=max"
+
+    @pytest.mark.parametrize("failure", [None, "digest", "sign", "verify"])
+    def test_signature_is_digest_bound_and_failures_fail_publication(
+        self, workflow: dict[str, Any], tmp_path: Path, failure: str | None
+    ) -> None:
+        steps = workflow["jobs"]["publish"]["steps"]
+        script = next(
+            step["run"] for step in steps if step.get("name") == "Sign the published manifest"
+        )
+        digest = "sha256:" + "a" * 64
+        (tmp_path / "docker").write_text(
+            '#!/bin/bash\nif [ "$FAILURE" = digest ]; then echo \'{"digest":"untrusted"}\'; else echo \'{"digest":"'
+            + digest
+            + "\"}'; fi\n"
+        )
+        (tmp_path / "cosign").write_text(
+            '#!/bin/bash\nprintf "%s\\n" "$*" >> "$CALLS"\n[ "$1" != "$FAILURE" ]\n'
+        )
+        for binary in ("docker", "cosign"):
+            (tmp_path / binary).chmod(0o755)
+        calls = tmp_path / "calls"
+        env = {
+            **os.environ,
+            "PATH": str(tmp_path) + os.pathsep + os.environ["PATH"],
+            "FAILURE": failure or "",
+            "CALLS": str(calls),
+            "IMAGE": "ghcr.io/vstorm-co/agenticos-backend",
+            "SHORT": "1234567",
+            "SOURCE_SHA": "b" * 40,
+            "GITHUB_REPOSITORY": "vstorm-co/agenticos",
+            "GITHUB_REF": "refs/tags/v1.96.0",
+        }
+        result = subprocess.run(
+            ["/bin/bash", "-c", script], env=env, capture_output=True, text=True
+        )
+        assert (result.returncode == 0) is (failure is None)
+        recorded = calls.read_text().splitlines() if calls.exists() else []
+        if failure == "digest":
+            assert not recorded
+            return
+        assert (
+            recorded[0]
+            == "sign --yes -a publication-commit="
+            + "b" * 40
+            + " ghcr.io/vstorm-co/agenticos-backend@"
+            + digest
+        )
+        if failure == "sign":
+            assert len(recorded) == 1
+        else:
+            assert len(recorded) == 2
+            assert (
+                "--certificate-oidc-issuer https://token.actions.githubusercontent.com"
+                in recorded[1]
+            )
+            assert (
+                "--certificate-identity https://github.com/vstorm-co/agenticos/.github/workflows/images.yml@refs/tags/v1.96.0"
+                in recorded[1]
+            )
+            assert recorded[1].endswith("ghcr.io/vstorm-co/agenticos-backend@" + digest)
+
+
+def test_security_and_publishing_changes_have_explicit_team_owners() -> None:
+    owners = (REPO_ROOT / ".github" / "CODEOWNERS").read_text().splitlines()
+    entries = [line.split() for line in owners if line.strip() and not line.startswith("#")]
+    assert entries[0] == ["*", "@vstorm-co/engineers"]
+    for pattern in ("/.github/CODEOWNERS", "/.github/workflows/", "/SECURITY*", "/docs/security*"):
+        assert [pattern, "@vstorm-co/tech-leads"] in entries

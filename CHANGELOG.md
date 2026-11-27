@@ -19,6 +19,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Security
+
+- Published container manifests receive keyless Cosign signatures from the image workflow; new builds carry BuildKit provenance. Verify the immutable digest and GitHub workflow identity before deploying. Existing unsigned releases require republication to gain signatures.
+- Security reports go through GitHub private advisories, and repository ownership routes security and publishing changes to the technical leads. Correct the documented OIDC SSO and identity-provider MFA support.
+
 ### Added
 
 - Import complete skill folders or ZIP packages with a reviewed preview, preserved inert frontmatter and exact binary resources across versions, workspace files and portable exports. Import never executes code or installs dependencies.

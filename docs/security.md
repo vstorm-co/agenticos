@@ -461,3 +461,19 @@ rather than a suggestion.
   [`SECURITY.md`](https://github.com/vstorm-co/agenticos/blob/main/SECURITY.md);
   read [Data protection](data-protection.md) and [Licences](licenses.md) beside
   this page.
+
+## Verifying published images
+
+The image publication workflow signs each published multi-platform manifest digest with keyless Cosign using GitHub Actions OIDC. New builds include BuildKit provenance; reusing an existing image preserves its original build provenance. A signature attests publication by this workflow, not that a reused image was rebuilt. Historical unsigned images remain unsigned until republished through the updated workflow.
+
+Verify the digest you intend to deploy, the GitHub issuer and the exact workflow identity. For a release run, replace `refs/heads/main` with its `refs/tags/vX.Y.Z`. Never accept an arbitrary certificate identity or verify only a mutable tag.
+
+```bash
+IMAGE_DIGEST=sha256:...
+cosign verify \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity https://github.com/vstorm-co/agenticos/.github/workflows/images.yml@refs/heads/main \
+  "ghcr.io/vstorm-co/agenticos-backend@$IMAGE_DIGEST"
+```
+
+Compose and the deployment script do not enforce signature verification automatically. Verification failure must stop your operator-controlled deployment. The existing release SBOMs remain separate inventory documents.
