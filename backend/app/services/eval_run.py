@@ -1826,6 +1826,7 @@ class EvalRunService:
         baseline_contexts: Mapping[UUID, ContextBody] | None = None,
         suite: EvalSuiteCheck | None = None,
         proposal_check: ProposalCheckRecord | None = None,
+        hold_usd: Decimal | None = None,
     ) -> EvalRunRead:
         """Write a run and hand it to the worker - or refuse it before anything is spent.
 
@@ -1833,6 +1834,10 @@ class EvalRunService:
         as it stands now so its read can hold the run to that suite's threshold.
         `proposal_check` is what a check of the authoring assistant's proposal
         measures; the run then sends nothing to review by itself.
+
+        The run keeps the price it is started at - the request's `quoted_usd`, or
+        `hold_usd`, a ceiling its caller has already compared with the estimate -
+        and its worker starts no work that would take it past that price.
 
         Raises:
             PaymentRequiredError: The estimate is more than the agent or the
@@ -1912,6 +1917,10 @@ class EvalRunService:
             judge_pinned=plan.judge_pinned,
             estimate_usd=estimate.total_usd,
             rerun_ceiling_usd=estimate.rerun_ceiling_usd,
+            quoted_usd=min(
+                (price for price in (request.quoted_usd, hold_usd) if price is not None),
+                default=None,
+            ),
             excluded_case_ids=plan.excluded_case_ids,
             suite_check=None if suite is None else suite.model_dump(mode="json"),
             proposal_check=(

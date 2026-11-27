@@ -186,6 +186,9 @@ class EvalRun(Base):
     rerun_ceiling_usd: Mapped[Decimal] = mapped_column(
         Numeric(12, 6), nullable=False, default=Decimal(0)
     )
+    # The price the run was started at - a person's accepted quote, an eval suite's
+    # ceiling, a skill check's accepted most - which its worker starts no work past.
+    quoted_usd: Mapped[Decimal | None] = mapped_column(Numeric(12, 6), nullable=True)
     # Cases taken from the evidence of the proposal being checked are left out; listed
     # so a smaller sample says why.
     excluded_case_ids: Mapped[list[uuid.UUID]] = mapped_column(
