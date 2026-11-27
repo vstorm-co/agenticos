@@ -252,10 +252,7 @@ function ConnectionForm({
   const sharedClient =
     signIn !== null && signIn !== "checking" && signIn.organization_client_available === true;
   const googleClient =
-    ownClient &&
-    draft.googleAppMissing === true &&
-    needsGoogleOAuthClient(url) &&
-    !sharedClient;
+    ownClient && draft.googleAppMissing === true && needsGoogleOAuthClient(url) && !sharedClient;
   const needsClient =
     !sharedClient &&
     (googleClient ||

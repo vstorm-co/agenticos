@@ -2,7 +2,16 @@
 
 import { ProjectAvatar } from "@/components/projects/project-avatar";
 
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useAgents, useConversations } from "@/hooks";
@@ -678,9 +687,10 @@ function useBands(
     const ordinaryShared = sharedRemaining.filter(
       (conversation) => conversation.is_favourite !== true,
     );
-    const { inProjects, outside: rest } = isArchivedView || !groupProjects
-      ? { inProjects: [], outside: remaining.slice(ownStarred.length) }
-      : byProject(remaining.slice(ownStarred.length), names, ts("unnamedProject"));
+    const { inProjects, outside: rest } =
+      isArchivedView || !groupProjects
+        ? { inProjects: [], outside: remaining.slice(ownStarred.length) }
+        : byProject(remaining.slice(ownStarred.length), names, ts("unnamedProject"));
     return [
       ...(unread.length > 0
         ? [{ key: "unread", heading: ts("unreadHeading"), icon: "unread" as const, rows: unread }]

@@ -217,9 +217,7 @@ function reconcileTranscript(
   const drawn = new Set(local.map(savedId));
   const landedRuns = new Set(
     history
-      .filter(
-        (message) => message.role === "assistant" && message.runId && !drawn.has(message.id),
-      )
+      .filter((message) => message.role === "assistant" && message.runId && !drawn.has(message.id))
       .map((message) => message.runId),
   );
   // The run of the question each dropped bubble answers: its own when it has

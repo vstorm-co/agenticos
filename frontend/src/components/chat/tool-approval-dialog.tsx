@@ -95,8 +95,7 @@ export function ToolApprovalDialog({
   // can only narrow, never widen: a `can_decide: false` vetoes even a holder.
   const decidesAll = can(Perm.approvalsDecide);
   const yours = actionRequests.filter(
-    (action) =>
-      action.can_decide !== false && (decidesAll || action.may_decide === true),
+    (action) => action.can_decide !== false && (decidesAll || action.may_decide === true),
   );
   const partial = yours.length < actionRequests.length;
   // An empty batch still offers the resume when the role check passes: every
