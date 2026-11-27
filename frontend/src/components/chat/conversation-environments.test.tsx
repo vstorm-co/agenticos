@@ -5,7 +5,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useConversationEnvironments } from "@/hooks/use-conversation-environments";
 import type { ConversationEnvironment } from "@/lib/conversation-environments-api";
-import { ChatWorkspaceProvider, useRequiredChatWorkspace } from "./chat-workspace-context";
+import {
+  ChatWorkspaceProvider,
+  useRequiredChatWorkspace,
+  type WorkspaceEnvironment,
+} from "./chat-workspace-context";
 import { useBrowserPanelStore } from "@/stores/browser-panel-store";
 import { ConversationEnvironments } from "./conversation-environments";
 
@@ -47,19 +51,21 @@ let prepare: () => Promise<string | null>;
 function Harness({
   conversation = "chat",
   preparing = false,
+  availablePanels = panels,
 }: {
   conversation?: string | null;
   preparing?: boolean;
+  availablePanels?: readonly WorkspaceEnvironment[];
 }) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   return (
-    <ChatWorkspaceProvider shared conversationId={conversation} environmentPanels={panels}>
+    <ChatWorkspaceProvider shared conversationId={conversation} environmentPanels={availablePanels}>
       <div ref={setSlot} />
       <RoutingControls />
       <ConversationEnvironments
         conversationId={conversation}
         agentId={agent}
-        panels={panels}
+        panels={availablePanels}
         target="agent"
         buttonSlot={slot}
         prepareConversation={prepare}
@@ -315,5 +321,21 @@ it("keeps legacy activity when the refresh was cancelled by a scope change", asy
   render(<Harness />);
   await act(async () => {});
   expect(screen.getByTestId("routing")).toHaveTextContent("browser:activity");
+  expect(api.start).not.toHaveBeenCalled();
+});
+
+it("falls back to legacy activity when the selected agent no longer offers the remembered browser", async () => {
+  vi.mocked(api.refresh).mockResolvedValue(readResult());
+  useBrowserPanelStore.getState().open("legacy-call", true);
+  const view = render(<Harness />);
+  await userEvent.click(screen.getByRole("button", { name: "Open workspace" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Browser" }));
+  expect(screen.getByTestId("routing")).toHaveTextContent("browser:browser");
+  view.rerender(<Harness availablePanels={[]} />);
+  await userEvent.click(screen.getByRole("button", { name: "Browser tab" }));
+  expect(screen.getByTestId("routing")).toHaveTextContent("browser:activity");
+  expect(
+    screen.queryByRole("button", { name: "Prepare test environment" }),
+  ).not.toBeInTheDocument();
   expect(api.start).not.toHaveBeenCalled();
 });

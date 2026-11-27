@@ -108,7 +108,7 @@ export function ChatWorkspaceProvider({
       setActivePanel(panel);
       if (panel === "desktop" && environmentPanels.includes(panel)) setEnvironment(panel);
       else if (panel === "browser") {
-        if (browserEnvironment || (browserId === null && environmentPanels.includes(panel)))
+        if (environmentPanels.includes(panel) && (browserEnvironment || browserId === null))
           setEnvironment(panel);
         else setEnvironment(null);
       }
