@@ -13,6 +13,7 @@ import {
 } from "@/components/ui";
 import { useConversationEnvironments } from "@/hooks/use-conversation-environments";
 import type { EnvironmentExecutionTarget } from "@/lib/conversation-environments-api";
+import type { Browse } from "@/lib/browse";
 import { useRequiredChatWorkspace, type WorkspaceEnvironment } from "./chat-workspace-context";
 import { ChatWorkspaceFrame } from "./chat-workspace-frame";
 import { ConversationEnvironmentView } from "./conversation-environment-view";
@@ -21,6 +22,7 @@ interface Props {
   conversationId: string | null;
   agentId: string;
   panels: readonly WorkspaceEnvironment[];
+  browses: readonly Browse[];
   target: EnvironmentExecutionTarget;
   buttonSlot: HTMLElement | null;
   prepareConversation: () => Promise<string | null>;
@@ -32,6 +34,7 @@ export function ConversationEnvironments({
   conversationId,
   agentId,
   panels,
+  browses,
   target,
   buttonSlot,
   prepareConversation,
@@ -58,6 +61,9 @@ export function ConversationEnvironments({
     target,
   );
   const { refresh } = environments;
+  const activityEnvironmentId = browses.find(
+    (browse) => browse.callId === workspace.browserId,
+  )?.environmentId;
   const selectOwnedBrowser = useEffectEvent(() => {
     if (workspace.activePanel === "browser" && workspace.environment === null)
       workspace.openEnvironment("browser");
@@ -73,6 +79,7 @@ export function ConversationEnvironments({
         !result.error &&
         owned !== undefined &&
         owned.id !== null &&
+        owned.id === activityEnvironmentId &&
         (owned.state === "ready" || owned.state === "starting")
       )
         selectOwnedBrowser();
@@ -80,7 +87,15 @@ export function ConversationEnvironments({
     return () => {
       current = false;
     };
-  }, [browserActive, conversationId, agentId, target, workspace.browserId, refresh]);
+  }, [
+    browserActive,
+    conversationId,
+    agentId,
+    target,
+    workspace.browserId,
+    activityEnvironmentId,
+    refresh,
+  ]);
 
   async function open(kind: WorkspaceEnvironment) {
     setFailed(false);

@@ -37,6 +37,7 @@ export function MonetaryInput({
   const money = useMoney();
   const locale = useLocale();
   const t = useTranslations("currencies");
+  const common = useTranslations("common");
   const errorId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const canonical = value == null || value === "" ? "" : String(value);
@@ -71,6 +72,13 @@ export function MonetaryInput({
         ref={inputRef}
         type="text"
         inputMode="decimal"
+        placeholder={
+          money.available
+            ? props.placeholder
+            : money.currency === null
+              ? common("loading")
+              : t("rateUnavailable", { currency: money.currency })
+        }
         disabled={disabled || !money.available}
         value={draft.text}
         aria-invalid={Boolean(props["aria-invalid"] || error)}

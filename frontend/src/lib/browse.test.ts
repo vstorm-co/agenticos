@@ -20,6 +20,18 @@ function fold(...frames: BrowserFrame[]): Browse[] {
 }
 
 describe("applyBrowserFrame - one browse per call_id", () => {
+  it("keeps only validated owned identity and resets it for a new legacy opening", () => {
+    const ownedId = "22222222-2222-4222-8222-222222222222";
+    const owned = fold(frame({ kind: "browser_opened", environment_id: ownedId }));
+    expect(owned[0]?.environmentId).toBe(ownedId);
+    const legacy = applyBrowserFrame(owned, frame({ kind: "browser_opened" }));
+    expect(legacy[0]?.environmentId).toBeNull();
+    expect(
+      fold(frame({ kind: "browser_opened", environment_id: "not-an-environment" }))[0]
+        ?.environmentId,
+    ).toBeNull();
+  });
+
   it("opens a browse with its goal and its ceiling", () => {
     const [browse] = fold(
       frame({

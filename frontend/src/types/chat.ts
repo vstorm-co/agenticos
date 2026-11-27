@@ -409,6 +409,8 @@ export interface BrowserFrame {
     | "browser_control_error";
   /** Which `browse_web` call this belongs to; one turn can browse twice. */
   call_id: string;
+  /** The actual retained target, when this activity adopted an owned environment. */
+  environment_id?: string | null;
   step: number;
   url?: string | null;
   title?: string | null;

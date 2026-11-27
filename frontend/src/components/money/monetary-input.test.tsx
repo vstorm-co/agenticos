@@ -12,9 +12,21 @@ import { MonetaryInput } from "./monetary-input";
 let context: CurrencyContext | undefined;
 vi.mock("@/hooks/use-currencies", () => ({ useCurrencies: () => ({ data: context }) }));
 const save = vi.fn();
-function Form({ maxUsd }: { maxUsd?: string } = {}) {
+function Form({
+  maxUsd,
+  initialValue = "25",
+  placeholder,
+  positive = false,
+  retainInvalid = false,
+}: {
+  maxUsd?: string;
+  initialValue?: string;
+  placeholder?: string;
+  positive?: boolean;
+  retainInvalid?: boolean;
+} = {}) {
   const monetary = useMonetaryInputs();
-  const [value, setValue] = useState("25");
+  const [value, setValue] = useState(initialValue);
   const [error, setError] = useState(false);
   return (
     <>
@@ -24,6 +36,9 @@ function Form({ maxUsd }: { maxUsd?: string } = {}) {
         field="budget_usd"
         monetary={monetary}
         maxUsd={maxUsd}
+        placeholder={placeholder}
+        positive={positive}
+        onInvalidValueChange={retainInvalid ? setValue : undefined}
         value={value}
         onValueChange={setValue}
       />
@@ -148,4 +163,74 @@ it("uses the reader's locale in the rendered monetary control", async () => {
     budget_usd: "25.125",
     monetary_inputs: { budget_usd: { amount: "100.5", currency: "PLN" } },
   });
+});
+
+it.each(["loading", "missing quote"] as const)(
+  "never presents a known 5 USD cap as uncapped while %s",
+  async (state) => {
+    context = state === "loading" ? undefined : { ...context!, reporting_units_per_usd: null };
+    const view = render(
+      <CurrencyProvider>
+        <Form initialValue="5" placeholder="No limit" />
+      </CurrencyProvider>,
+    );
+    const input = screen.getByLabelText("Budget");
+    expect(input).toBeDisabled();
+    expect(input).toHaveValue("");
+    expect(input).not.toHaveAttribute("placeholder", "No limit");
+    expect(input).toHaveAttribute(
+      "placeholder",
+      state === "loading" ? "Loading..." : "PLN (exchange rate unavailable)",
+    );
+    await userEvent.click(screen.getByText("Save"));
+    expect(save).toHaveBeenLastCalledWith({ budget_usd: "5" });
+    context = {
+      currency: "PLN",
+      default_currency: "PLN",
+      inherited: true,
+      reporting_units_per_usd: "4",
+      rates: { USD: "1", PLN: "4" },
+    };
+    view.rerender(
+      <CurrencyProvider>
+        <Form initialValue="5" placeholder="No limit" />
+      </CurrencyProvider>,
+    );
+    expect(input).toBeEnabled();
+    expect(input).toHaveValue("20");
+    await userEvent.click(screen.getByText("Save"));
+    expect(save).toHaveBeenLastCalledWith({ budget_usd: "5" });
+  },
+);
+
+it("keeps the caller's uncapped placeholder for a genuinely empty available limit", () => {
+  render(
+    <CurrencyProvider>
+      <Form initialValue="" placeholder="No limit" />
+    </CurrencyProvider>,
+  );
+  const input = screen.getByLabelText("Budget");
+  expect(input).toBeEnabled();
+  expect(input).toHaveValue("");
+  expect(input).toHaveAttribute("placeholder", "No limit");
+});
+
+it("distinguishes an invalid zero cap from a genuinely cleared limit", async () => {
+  render(
+    <CurrencyProvider>
+      <Form initialValue="5" placeholder="No limit" positive retainInvalid />
+    </CurrencyProvider>,
+  );
+  const input = screen.getByLabelText("Budget");
+  fireEvent.change(input, { target: { value: "0" } });
+  fireEvent.blur(input);
+  expect(input).toHaveValue("0");
+  expect(input).toBeInvalid();
+  expect(screen.getByText("Enter an amount greater than zero.")).toBeVisible();
+  await userEvent.click(screen.getByText("Save"));
+  expect(save).not.toHaveBeenCalled();
+  fireEvent.change(input, { target: { value: "" } });
+  fireEvent.blur(input);
+  expect(input).toBeValid();
+  expect(input).toHaveAttribute("placeholder", "No limit");
 });

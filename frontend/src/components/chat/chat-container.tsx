@@ -2136,6 +2136,7 @@ function ChatUIContent({
             conversationId={conversationId}
             agentId={environmentControls.agentId}
             panels={environmentControls.panels}
+            browses={browses}
             target={environmentControls.target}
             buttonSlot={filesSlot}
             prepareConversation={environmentControls.prepare}
