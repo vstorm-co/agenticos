@@ -21,6 +21,7 @@ from app.schemas.organization import ReceivedInvitation
 from app.services.deployment_settings import DeploymentSettingsService
 from app.services.email.service import get_email_service
 from app.services.invitation_admission import admits_anyone
+from app.services.notifications import NotificationService
 from app.services.proactive import ProactiveService
 from app.services.session import SessionService
 
@@ -186,6 +187,27 @@ class InvitationService:
             role,
             requester_id,
         )
+        if existing_user is not None:
+            # The invitation reaches an existing account as a notification as
+            # well as an email, so a signed-in invitee sees it in their inbox
+            # instead of only on a deep link whose accept request may error
+            # for their account. A notification failure must not fail the
+            # invitation - the row exists and the link is the caller's copy -
+            # so it is written on a savepoint, the same way the email below
+            # never fails the request.
+            org = await organization_repo.get_by_id(self.db, organization_id)
+            requester_user = await user_repo.get_by_id(self.db, requester_id)
+            await NotificationService(self.db).invitation_received(
+                recipient_id=existing_user.id,
+                organization_id=organization_id,
+                invitation_id=invite.id,
+                organization_name=org.name if org else "the organization",
+                role=role,
+                inviter_name=(requester_user.full_name or requester_user.email)
+                if requester_user
+                else "A team member",
+                actor_user_id=requester_id,
+            )
         delivered = False
         try:
             org = await organization_repo.get_by_id(self.db, organization_id)

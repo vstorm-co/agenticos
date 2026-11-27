@@ -220,6 +220,22 @@ def test_a_workflow_approval_hands_over_its_title_and_a_step_s_own_notice_nothin
             {"wording": "room_thread_reply", "sender": "Alex", "title": "Design"},
         ),
         (
+            NotificationEventType.INVITATION_RECEIVED,
+            {
+                "wording": "invitation_received",
+                "inviter_name": "Ann",
+                "organization_name": "Acme",
+                "role": "member",
+                "invitation_id": "i1",
+            },
+            {
+                "wording": "invitation_received",
+                "inviter_name": "Ann",
+                "organization_name": "Acme",
+                "role": "member",
+            },
+        ),
+        (
             NotificationEventType.CONFIGURATION_CHANGED,
             {"wording": "configuration_changed", "action": "settings.update", "url": "/admin"},
             {"wording": "configuration_changed"},

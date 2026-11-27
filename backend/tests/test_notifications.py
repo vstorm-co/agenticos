@@ -2637,3 +2637,41 @@ async def test_department_warning_keeps_a_sub_cent_limit() -> None:
         await service.department_budget_warnings(_run())
     assert write.await_args.kwargs["render_context"]["limit"] == "0.0005"
     assert write.await_args.kwargs["render_context"]["share"] == 80
+
+
+@pytest.mark.anyio
+async def test_an_invitation_reaches_its_recipient_as_a_notification():
+    """An invitation to an existing account is a notification row, not only an
+    email: a signed-in invitee sees it in their inbox instead of only on a
+    deep link whose accept request may error for their account."""
+    service = NotificationService(MagicMock())
+    recipient = uuid.uuid4()
+    org_id = uuid.uuid4()
+    invitation_id = uuid.uuid4()
+    with patch.object(service._center, "write", AsyncMock()) as write:
+        await service.invitation_received(
+            recipient_id=recipient,
+            organization_id=org_id,
+            invitation_id=invitation_id,
+            organization_name="Acme",
+            role="member",
+            inviter_name="Ann",
+            actor_user_id=uuid.uuid4(),
+        )
+    kwargs = write.await_args.kwargs
+    assert kwargs["recipients"] == [recipient]
+    assert kwargs["event_type"] is NotificationEventType.INVITATION_RECEIVED
+    assert kwargs["occurrence_id"] == f"invitation:{invitation_id}"
+    assert kwargs["summary"] == "Ann invited you to join Acme as member."
+    # The link opens chat, where the received-invitations notice lists the
+    # invitation with a Join button - and it carries no `?org=`, because the
+    # recipient is not a member of the inviting organization yet.
+    assert kwargs["context_url"] == "/chat"
+    assert kwargs["render_context"] == {
+        "wording": "invitation_received",
+        "inviter_name": "Ann",
+        "organization_name": "Acme",
+        "role": "member",
+    }
+    assert kwargs["organization_id"] == org_id
+    assert kwargs["use_savepoint"] is True

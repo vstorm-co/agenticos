@@ -8,6 +8,7 @@ import {
   GitPullRequest,
   Hand,
   ListChecks,
+  MailPlus,
   ShieldAlert,
   Lightbulb,
   Megaphone,
@@ -73,6 +74,12 @@ export const PREFERENCE_EVENTS: readonly PreferenceEvent[] = [
     eventType: "resource_shared",
     words: "prefResourceShared",
     icon: Share2,
+    channels: ["in_app", "email", "push"],
+  },
+  {
+    eventType: "invitation_received",
+    words: "prefInvitationReceived",
+    icon: MailPlus,
     channels: ["in_app", "email", "push"],
   },
   {

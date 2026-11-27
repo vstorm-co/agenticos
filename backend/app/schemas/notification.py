@@ -149,6 +149,7 @@ _WORDINGS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "artifact_owner_taken": (("by_name", "title", "new_owner_name"), ()),
     "resource_shared": (("resource_name", "group_name"), ()),
     "conversation_shared": (("shared_by",), ("conversation_title",)),
+    "invitation_received": (("inviter_name", "organization_name", "role"), ()),
     "room_mention": (("sender", "title"), ()),
     "room_thread_reply": (("sender", "title"), ()),
     "mcp_server_down": (("server_name",), ()),

@@ -91,6 +91,14 @@ describe("wordedSummary", () => {
     expect(say({ wording: "resource_shared", resource_name: "Q3", group_name: "Sales" })).toBe(
       "“Q3” was shared with Sales.",
     );
+    expect(
+      say({
+        wording: "invitation_received",
+        inviter_name: "Ann",
+        organization_name: "Acme",
+        role: "member",
+      }),
+    ).toBe("Ann invited you to join Acme as member.");
     expect(say({ wording: "conversation_shared", shared_by: "Ann" })).toBe(
       "Ann shared a conversation with you.",
     );
@@ -298,6 +306,12 @@ describe("every sentence", () => {
     { wording: "briefing", count: "1" },
     { wording: "sync_failed", collection_name: "", error: "x" },
     { wording: "conversation_shared", shared_by: "Ann", conversation_title: "Q3" },
+    {
+      wording: "invitation_received",
+      inviter_name: "Ann",
+      organization_name: "Acme",
+      role: "member",
+    },
     { wording: "room_mention", sender: "Alex", title: "Design" },
     { wording: "room_thread_reply", sender: "Alex", title: "Design" },
     { wording: "shared_change_applied", kind: "context", name: "FAQ", agent_name: "Clerk" },

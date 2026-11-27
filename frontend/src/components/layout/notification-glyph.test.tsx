@@ -58,6 +58,15 @@ describe("NotificationGlyph", () => {
     expect(container.querySelector(".text-success")).toBeNull();
   });
 
+  it("draws an envelope for an invitation to an organization", () => {
+    const { container } = render(
+      <NotificationGlyph item={notification({ event_type: "invitation_received" })} />,
+    );
+
+    expect(screen.queryByTestId("face")).toBeNull();
+    expect(container.querySelector(".lucide-mail-plus")).not.toBeNull();
+  });
+
   it("draws a neutral bell for a kind this console does not know yet", () => {
     const { container } = render(
       <NotificationGlyph item={notification({ event_type: "something_new", agent: null })} />,

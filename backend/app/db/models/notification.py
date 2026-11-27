@@ -67,6 +67,10 @@ class NotificationEventType(enum.StrEnum):
     ARTIFACT_OWNER_CHANGED = "artifact_owner_changed"
     # Somebody asked a page's owner to share it, or to confirm a version (#1974).
     ARTIFACT_SHARE_REQUESTED = "artifact_share_requested"
+    # Somebody invited you to join their organization: the row is how the
+    # invitation reaches a signed-in invitee, instead of the accept request
+    # erroring on the deep link.
+    INVITATION_RECEIVED = "invitation_received"
     CAPABILITY_REQUESTED = "capability_requested"
     SUGGESTION = "suggestion"
     FINDING = "finding"
@@ -204,7 +208,7 @@ class Notification(Base, TimestampMixin):
             "'artifact_owner_changed', 'artifact_share_requested', "
             "'capability_requested', 'suggestion', 'finding', 'improvement_finished', "
             "'eval_suite_reevaluated', 'eval_run_finished', 'case_generation_finished', "
-            "'workflow_log_alert', 'room_mention', 'room_thread_reply')",
+            "'workflow_log_alert', 'room_mention', 'room_thread_reply', 'invitation_received')",
             name="ck_notifications_event_type",
         ),
         # The dedup guarantee (Decision 2): a retried trigger for the same fact,

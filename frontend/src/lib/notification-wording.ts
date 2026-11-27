@@ -216,6 +216,12 @@ export function wordedSummary(params: Record<string, string>, t: Translate): str
       });
     case "resource_shared":
       return t("kind.resourceShared", { name: v("resource_name"), group: v("group_name") });
+    case "invitation_received":
+      return t("kind.invitationReceived", {
+        inviter: v("inviter_name"),
+        organization: v("organization_name"),
+        role: v("role"),
+      });
     case "conversation_shared":
       return t("kind.conversationShared", {
         by: v("shared_by"),

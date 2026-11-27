@@ -172,6 +172,7 @@ this plan does not add it.
 | `security_event` | the `record_audit` call sites in section 0 | the `AppAdminAuditLog` id | `org_admins` when the entry carries an `organization_id` (`organization_secret.py`, `sandbox_connection.py`), otherwise deployment app admins (`impersonation.py`) | current owner/admin role in the row's organization, or current `is_app_admin` for an app-admin-audience row | yes |
 | `configuration_changed` | same, for `deployment.settings_updated` | the `AppAdminAuditLog` id | deployment app admins (no organization — see Decision 2) | current `is_app_admin` | yes |
 | `announcement` | the composer (Decision 5) | the announcement id | explicit, chosen by the sender — see Decision 5 for the multi-organization and role-narrowed cases | current membership (with the selected role, if narrowed) in at least one organization from the announcement's own audience spec | no |
+| `invitation_received` | `InvitationService.invite`, after the invitation is created and audited | the invitation id | the invitee, when the invitation's address belongs to an existing account | the row is addressed to that account alone — no other account sees it | no |
 
 `run_completed` is deliberately scoped to the surfaces nobody is watching —
 the same distinction `NotificationService`'s own docstring already draws

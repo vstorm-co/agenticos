@@ -32,6 +32,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Members can answer their own verified platform approval cards without organization-wide approval authority; approval cards name the affected agent/skill/version/dataset and show trusted quoted estimates.
 - Provider-only sign-in controls in deployment settings; steering corrections to a running agent by conversation ID (`"steer": true`); agent dependency export as YAML/JSON/ZIP.
 - Eval/Improve hardening: dataset import limits, stronger secret redaction, judge prompt v5, live Project mounts fix on isolated Compose hosts.
+- An invitation to an existing account now also arrives as a notification naming the inviter, the organization and the role, linking to chat where the received-invitations notice offers a Join button. A signed-in invitee no longer only has the invitation deep link, whose accept request errors whenever the invitation cannot be accepted for their account. Genuine refusals on the deep link itself are unchanged. Migration `0376_invitation_received_notification` admits the new `invitation_received` event type.
 
 ### Changed
 

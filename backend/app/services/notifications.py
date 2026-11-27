@@ -1596,6 +1596,47 @@ class NotificationService:
             use_savepoint=True,
         )
 
+    async def invitation_received(
+        self,
+        *,
+        recipient_id: UUID,
+        organization_id: UUID,
+        invitation_id: UUID,
+        organization_name: str,
+        role: str,
+        inviter_name: str,
+        actor_user_id: UUID,
+    ) -> None:
+        """Somebody invited an existing account to join their organization.
+
+        One occurrence per invitation, so the row is how the invitation reaches
+        a signed-in invitee: the deep link's accept request errors whenever the
+        invitation cannot be accepted for their account - a different address,
+        an expired invitation, a seat limit - and the page has nothing to offer
+        them but the error. The link opens chat, where the received-invitations
+        notice lists the invitation with a Join button; it carries no `?org=`
+        because the recipient is not a member of the inviting organization yet,
+        and adopting it would scope their console to an organization they
+        cannot read. The token itself is never in the row: the notice accepts
+        by invitation id, and the token stays a bearer credential.
+        """
+        await self._center.write(
+            recipients=[recipient_id],
+            event_type=NotificationEventType.INVITATION_RECEIVED,
+            occurrence_id=f"invitation:{invitation_id}",
+            summary=f"{inviter_name} invited you to join {organization_name} as {role}.",
+            context_url="/chat",
+            render_context={
+                "wording": "invitation_received",
+                "inviter_name": inviter_name,
+                "organization_name": organization_name,
+                "role": role,
+            },
+            organization_id=organization_id,
+            actor_user_id=actor_user_id,
+            use_savepoint=True,
+        )
+
     async def conversation_shared(
         self,
         *,

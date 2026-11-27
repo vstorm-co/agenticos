@@ -958,6 +958,111 @@ class TestInvitationService:
         assert invite.token == "tok"
 
     @pytest.mark.anyio
+    async def test_inviting_an_existing_account_writes_a_notification(self, service):
+        """The invitation reaches a signed-in invitee as a notification as well
+        as an email, so they see it in their inbox instead of only on a deep
+        link whose accept request may error for their account."""
+        requester_id = uuid.uuid4()
+        org_id = uuid.uuid4()
+        existing = MagicMock()
+        existing.id = uuid.uuid4()
+        created = MagicMock()
+        created.id = uuid.uuid4()
+        created.token = "tok"
+        requester = MagicMock()
+        requester.role = "owner"
+        org = MagicMock()
+        org.name = "Acme"
+        accepted = AsyncMock(return_value=SendResult(provider_message_id="1", accepted=True))
+        email_service = MagicMock()
+        email_service.send_invitation = accepted
+        email_service.delivers = True
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                patch(
+                    "app.services.invitation.member_repo.get",
+                    new=AsyncMock(
+                        side_effect=lambda *args, **kwargs: (
+                            requester if kwargs.get("user_id") == requester_id else None
+                        )
+                    ),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "app.services.invitation.user_repo.get_by_email",
+                    new=AsyncMock(return_value=existing),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "app.services.invitation.invitation_repo.get_pending_for_org_email",
+                    new=AsyncMock(return_value=None),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "app.services.invitation.invitation_repo.create",
+                    new=AsyncMock(return_value=created),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "app.services.invitation.organization_repo.get_by_id",
+                    new=AsyncMock(return_value=org),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "app.services.invitation.user_repo.get_by_id",
+                    new=AsyncMock(return_value=MagicMock(full_name="Owner", email="o@example.com")),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "app.services.invitation.DeploymentSettingsService.effective_app_name",
+                    new=AsyncMock(return_value="AgenticOS"),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "app.services.invitation.get_email_service",
+                    new=MagicMock(return_value=email_service),
+                )
+            )
+            notify = stack.enter_context(
+                patch("app.services.invitation.NotificationService", autospec=True)
+            )
+            await service.invite(org_id, "user@example.com", "member", requester_id=requester_id)
+
+        notify.return_value.invitation_received.assert_awaited_once()
+        kwargs = notify.return_value.invitation_received.await_args.kwargs
+        assert kwargs["recipient_id"] == existing.id
+        assert kwargs["organization_id"] == org_id
+        assert kwargs["invitation_id"] == created.id
+        assert kwargs["organization_name"] == "Acme"
+        assert kwargs["role"] == "member"
+        assert kwargs["inviter_name"] == "Owner"
+        assert kwargs["actor_user_id"] == requester_id
+
+    @pytest.mark.anyio
+    async def test_inviting_a_new_email_writes_no_notification(self, service):
+        """Nobody to notify: the invitee has no account yet, so the email link
+        is the only way in."""
+        accepted = AsyncMock(return_value=SendResult(provider_message_id="1", accepted=True))
+        with contextlib.ExitStack() as stack:
+            for context in self._invited(send=accepted):
+                stack.enter_context(context)
+            notify = stack.enter_context(
+                patch("app.services.invitation.NotificationService", autospec=True)
+            )
+            await service.invite(
+                uuid.uuid4(), "new@example.com", "member", requester_id=uuid.uuid4()
+            )
+
+        notify.assert_not_called()
+
+    @pytest.mark.anyio
     async def test_accept_raises_on_missing_token(self, service):
         with (
             patch(
