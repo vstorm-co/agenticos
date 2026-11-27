@@ -1,5 +1,5 @@
 ---
-source_sha: "ae26ea67fe6f"
+source_sha: "7bdfd9f43aad"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -260,7 +260,7 @@ pago exige una respuesta nueva. Incluye pruebas, evaluaciones y pasos de mejora,
 ingestión/sync, pruebas de conexión, definiciones de automatización y ejecuciones
 inmediatas de rutinas, entornos de agents, cambios de perfil/modelos/embeddings,
 invitaciones y ajustes administrativos/de proactividad. Aprobar todo, decisiones
-recordadas y consentimiento permanente de rutinas no eliminan estos requisitos.
+recordadas y el ajuste **Run freely** de una rutina no eliminan estos requisitos.
 El idioma propio y las preferencias de interfaz siguen sin necesitar aprobación.
 
 En el Builder, usa el escudo de una herramienta o el control del grupo para exigir
@@ -1542,7 +1542,7 @@ Una cuenta de Google conectada mediante el cliente OAuth de una organización so
 
 La migración `0293_connected_account_sources.py` exige renovar el consentimiento de cuentas personales antiguas sin origen verificable. Revertirla elimina autorizaciones personales porque las versiones anteriores no pueden imponer la organización de origen; conserva las conexiones MCP normales.
 
-Las pausas de aprobación de Mirage fijan identidades de cuentas y generaciones de secretos. Cambiarlas durante la espera requiere una ejecución nueva con aprobación. Las revisiones de fuentes de rutinas fijan las mismas generaciones; escrituras y comandos del terminal requieren consentimiento para efectos de la rutina incluso con las aprobaciones de escritura del montaje desactivadas.
+Las pausas de aprobación de Mirage fijan identidades de cuentas y generaciones de secretos. Cambiarlas durante la espera requiere una ejecución nueva con aprobación. Las revisiones de acceso de rutinas fijan las mismas generaciones, y las escrituras y comandos del terminal cuentan como cambios para una rutina: preguntan salvo que su revisión les permita ejecutarse libremente, incluso con las aprobaciones de escritura del montaje desactivadas.
 
 Eliminar a un miembro revoca permanentemente sus autorizaciones personales emitidas mediante esta organización; volver a invitarlo requiere un nuevo consentimiento.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: "ae26ea67fe6f"
+source_sha: "7bdfd9f43aad"
 ---
 
 # MCP — narzędzia, których nikt tutaj nie musi pisać { #mcp-the-tools-nobody-here-has-to-write }
@@ -253,7 +253,7 @@ publiczny link App, rozstrzygnięcie Inboxa, wykonanie lub płatna operacja wyma
 nowej odpowiedzi. Dotyczy to testów, ewaluacji i kroków ulepszania, ingestii/sync,
 testów połączeń, definicji automatyzacji i uruchamiania rutyn, środowisk agentów,
 zmian profilu/modeli/embeddingów, zaproszeń oraz ustawień administracji i proaktywności.
-Tryb zatwierdzania wszystkiego, zapamiętane decyzje i stałe zgody rutyn nie omijają
+Tryb zatwierdzania wszystkiego, zapamiętane decyzje i ustawienie rutyny **Bez pytania** nie omijają
 tego minimum. Własny język i preferencje interfejsu nadal nie wymagają zgody.
 
 W Builderze użyj tarczy narzędzia lub kontroli grupy, aby wymagać zgody na operację
@@ -1490,7 +1490,7 @@ Konto Google połączone przez klienta OAuth organizacji działa wyłącznie w t
 
 Migracja `0293_connected_account_sources.py` wymaga ponownej zgody dla starszych kont osobistych bez potwierdzonego źródła. Jej cofnięcie usuwa zgody kont osobistych, ponieważ starsza wersja nie potrafi egzekwować organizacji źródłowej; zwykłe połączenia MCP pozostają.
 
-Pauzy akceptacji Mirage przypinają tożsamość kont i generacje sekretów. Ich zmiana podczas oczekiwania wymaga nowego uruchomienia i zgody. Przegląd źródeł rutyny wiąże te same generacje, a zapis i komendy terminala wymagają zgody na skutki rutyny nawet przy wyłączonych akceptacjach zapisu dla montowania.
+Pauzy akceptacji Mirage przypinają tożsamość kont i generacje sekretów. Ich zmiana podczas oczekiwania wymaga nowego uruchomienia i zgody. Przegląd dostępu rutyny wiąże te same generacje, a zapis i komendy terminala liczą się dla rutyny jako zmiany: pytają, chyba że jej przegląd pozwala im działać bez pytania, nawet przy wyłączonych akceptacjach zapisu dla montowania.
 
 Usunięcie członka trwale odwołuje jego osobiste zgody wydane przez tę organizację; ponowne zaproszenie wymaga nowej zgody.
 

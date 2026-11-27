@@ -1,5 +1,5 @@
 ---
-source_sha: "9f7bdb001aef"
+source_sha: "c5c2d154f76b"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -308,7 +308,9 @@ instantánea que querías conservar.
 
 ## Rutinas y seguimientos { #routines-and-watches }
 
-Las rutinas nuevas usan automáticamente la configuración disponible del agente al crearlas, dentro de un límite aprobado de acceso y comportamiento. No requieren una revisión inicial; las cuentas MCP opcionales ausentes no bloquean trabajo independiente. Las ampliaciones posteriores de fuentes o herramientas y los cambios de instrucciones, skills, contexto o delegados requieren revisión del creador antes de ejecutarse. Los cambios solo de modelo y las reducciones seguras permanecen dentro del límite. Siguen vigentes las aprobaciones del agente, las obligatorias de la plataforma y el permiso de carpetas locales. El diálogo puede conservar un snapshot revisado; las rutinas restringidas existentes mantienen su política hasta que el propietario la cambie.
+Crear una rutina revisa su acceso de inmediato: las lecturas se ejecutan, las herramientas que cambian algo se ejecutan libremente solo cuando puedes permitirlo, y todo lo demás pregunta. El escudo de la fila de una rutina abre **Routine access**: una pestaña **Tools** con **Run freely**, **Ask first** u **Off** para cada herramienta y una fila para los agentes delegados, y una pestaña **Sources** con lo que la rutina puede alcanzar.
+
+El crecimiento más allá de las fuentes revisadas, una vinculación modificada o un prompt modificado bloquean la rutina hasta que la revises; las eliminaciones y los cambios de instrucciones o de modelo no. Siguen vigentes las aprobaciones del agente, las obligatorias de la plataforma y el permiso de carpetas locales. Donde está permitido, **Trust the agent** deja que un horario siga a su agente y muestra la insignia **Trusts agent**. Consulta [Acceso de la rutina](governance.md#routine-access).
 
 Si **Skip this run** evita una ejecución simultánea, el historial registra el motivo sin iniciar ni cobrar otra ejecución. Puedes detener una ejecución en espera desde el historial cuando el servidor lo permita. Se conserva su coste acumulado y se desbloquea la siguiente ejecución programada. Las omisiones repetidas por la misma ejecución pendiente comparten una entrada del historial.
 

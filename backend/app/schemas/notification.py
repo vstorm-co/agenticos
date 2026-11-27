@@ -132,6 +132,7 @@ _WORDINGS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     "run_failed": (("agent_name",), ("error",)),
     "routine_budget_paused": (("routine_kind", "limit", "spent"), ("routine_name",)),
     "routine_blocked": (("routine_detail",), ("routine_name", "failures")),
+    "routine_access_expanded": (("sources",), ("routine_name",)),
     "capability_requested": (
         ("requester_name", "capability_name", "agent_name", "reason"),
         (),

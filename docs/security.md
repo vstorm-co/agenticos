@@ -267,6 +267,32 @@ can do is bounded by controls the page cannot change:
   references and the first line of an error, at most 200 characters, only for a run
   that page started for that person.
 
+## A routine that acts unattended { #unattended-routines }
+
+A routine runs with its creator's authority, but its agent can be published by somebody
+else. If the routine simply followed the agent, whoever may publish it could widen what
+runs on the creator's credentials and permissions without the creator seeing it: a
+confused deputy. The [access review](governance.md#routine-access) bounds that:
+
+- **Growth waits for the creator.** By default a routine is blocked when its agent gains
+  a source, account, MCP tool, capability, skill, context file or delegate, or changes a
+  binding, until the creator reviews it. Removals and instruction or model changes pass,
+  because they reach nothing new.
+- **A routine never releases an approval.** It can make a tool ask or turn it off. It
+  lets a tool that changes something run without asking only on the consent of a
+  creator who holds `approvals:decide`, in an organization that allows standing consent,
+  rechecked at each call and recorded as an approved row.
+- **Trusting the agent is a deliberate exception.** A creator who could approve the
+  calls anyway may let a schedule follow its agent, in an organization that turned this
+  on. Event routines cannot: their input comes from outside, so a sender could steer
+  a routine whose tools nobody reviewed. The creator's personal accounts, terminal
+  accounts and platform identity are still reviewed, and organization sources that grow
+  are audited and reported to the creator.
+- **The person, not their key, widens authority.** An agent or an impersonated session
+  cannot save a review. A key the creator issued with `personal:consent` may make tools ask,
+  turn them off or let reads run; letting changes run freely or trusting the agent needs
+  the creator's console session.
+
 ## Controls matrix
 
 One row per control, the mechanism that satisfies it, and the test that holds it

@@ -1,5 +1,5 @@
 ---
-source_sha: "9f7bdb001aef"
+source_sha: "c5c2d154f76b"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -300,7 +300,9 @@ migawkę, którą chciałeś zachować.
 
 ## Rutyny i obserwacje { #routines-and-watches }
 
-Nowe rutyny automatycznie korzystają z dostępnej konfiguracji agenta przy tworzeniu, w zatwierdzonej granicy dostępu i zachowania. Wstępny przegląd dostępu nie jest wymagany; brak opcjonalnego konta MCP nie blokuje niezwiązanej z nim pracy. Późniejsze rozszerzenia źródeł lub narzędzi oraz zmiany instrukcji, skills, kontekstu albo delegatów wymagają przeglądu twórcy przed uruchomieniem. Zmiany samego modelu i bezpieczne ograniczenia pozostają w zatwierdzonej granicy. Nadal obowiązują zgody agenta, obowiązkowe zgody platformy i zgoda na lokalny folder. Okno dostępu pozwala też zachować zatwierdzony snapshot; istniejące ograniczone rutyny zachowują swoją politykę do zmiany przez właściciela.
+Utworzenie rutyny od razu przegląda jej dostęp: odczyty działają, narzędzia zmieniające coś działają bez pytania tylko wtedy, gdy możesz na to pozwolić, a wszystko inne pyta. Ikona tarczy w wierszu rutyny otwiera **Dostęp rutyny** (**Routine access**): zakładkę **Narzędzia** z ustawieniem **Bez pytania**, **Najpierw zapytaj** lub **Wyłączone** dla każdego narzędzia i jednym wierszem dla agentów delegowanych oraz zakładkę **Źródła** z tym, do czego rutyna może sięgać.
+
+Przyrost poza zatwierdzone źródła, zmienione powiązanie lub zmieniony prompt blokują rutynę do czasu Twojego przeglądu; usunięcia oraz zmiany instrukcji lub modelu jej nie blokują. Nadal obowiązują zgody agenta, obowiązkowe zgody platformy i zgoda na lokalny folder. Tam, gdzie to dozwolone, **Zaufaj agentowi** pozwala harmonogramowi podążać za agentem i pokazuje oznaczenie **Ufa agentowi**. Zobacz [Dostęp rutyny](governance.md#routine-access).
 
 Gdy **Skip this run** pomija termin z powodu trwającego uruchomienia, historia zapisuje przyczynę bez nowego uruchomienia ani opłat. Jeśli serwer przyznaje Ci prawo do zatrzymania oczekującego uruchomienia, możesz zrobić to bezpośrednio w historii. Zatrzymanie zachowuje naliczone koszty i odblokowuje kolejny termin harmonogramu. Kolejne pominięcia przez ten sam niedokończony przebieg mają jeden wspólny wpis w historii.
 

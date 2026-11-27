@@ -70,13 +70,13 @@ Approving personal routines and watches requires the explicit `personal:consent`
 **Setting up work that acts as you is yours to do with a key you issued.** A
 key you created, or an MCP client's token you authorized, may create and change
 your own [routines](https://vstorm-co.github.io/agenticos/triggers/) that act as you (`runs_as_creator`) and your
-[watches](https://vstorm-co.github.io/agenticos/console/), review a routine's sources, and publish an agent without
+[watches](https://vstorm-co.github.io/agenticos/console/), review a routine's access, and publish an agent without
 withdrawing the consent of routines you made to act as you. The run those
-routines start is still the routine's, under its selected source policy, current permissions and budget.
+routines start is still the routine's, under its access review, current permissions and budget.
 An agent's own run credential cannot do this outside your private chat, and
 neither can an administrator impersonating you.
 
-For routines, `source_mode=follow_agent` makes initial setup automatic within the creator's authority; it does not approve later source or behavior expansions. The owner can explicitly consent to the current configuration through the token-bound sources endpoint. Source review metadata separates `required_unavailable_sources` from optional MCP gaps in `unavailable_sources`. A legacy following policy without behavior proof requires review; existing restricted policies retain their rules.
+Creating a routine reviews its access within the creator's authority; it does not approve later source growth. `GET /agents/{agent_id}/triggers/{trigger_id}/access` returns the routine's [access review](https://vstorm-co.github.io/agenticos/governance/#routine-access): its sources, each tool's setting and a `review_token`. `PUT` the same path with that token saves a new one, and is refused with 409 if the sources, tools or routine changed since. A key you issued with `personal:consent` may set `ask`, `off` and `allow` on reads. `allow` on a tool that changes something, `delegates: allow` and `mode: trust_agent` need a console session, so a routine created through a key starts with those tools set to ask. The review separates `required_unavailable_sources` from optional MCP gaps in `unavailable_sources`.
 
 Conversations are public too: `GET /api/v1/conversations` lists the issuer's
 chats (`runs:view`), and `POST /api/v1/conversations` with a `title` and

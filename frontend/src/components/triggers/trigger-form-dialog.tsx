@@ -5,7 +5,7 @@ import { NativeDisclosure } from "@/components/ui/native-disclosure";
 import { sameLocalTarget } from "@/lib/desktop/local-target-content";
 import { ZoneField, isTimeZone } from "./zone-field";
 import { RoutineDialogFrame } from "./routine-dialog-frame";
-import { ActionConsentsDialog } from "./action-consents-dialog";
+import { RoutineAccessDialog } from "./routine-access-dialog";
 
 import type { RoutineResultMode } from "@/types/triggers";
 import { RoutineOptions } from "./routine-options";
@@ -14,9 +14,9 @@ import { WebhookSignatureFields, webhookSignatureValid } from "./webhook-signatu
 import { FILTER_COPY } from "./portal-trigger-dialog";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Hand, ShieldCheck, SlidersHorizontal } from "lucide-react";
 
 import { useRoutineLocalWork } from "@/hooks/use-routine-local-work";
+import { useRoutineAccessCheck } from "@/hooks/use-routine-access";
 import { coveredByAllRoutines } from "@/lib/desktop/routine-work";
 import { useOrgStore } from "@/stores/org-store";
 import { ShellError } from "@/lib/desktop/shell";
@@ -233,6 +233,7 @@ export function TriggerFormDialog({
   const effectiveAgentId = agentId ?? seededAgentId ?? null;
 
   const { create, update, runNow, rotateSecret } = useTriggers(effectiveAgentId);
+  const accessStale = useRoutineAccessCheck();
   const { environments } = useAgentEnvironments(effectiveAgentId);
   const namedEnvironments = environments.filter((environment) => !environment.is_default);
   // Named on the default item rather than offered as a second row: binding to
@@ -382,9 +383,6 @@ export function TriggerFormDialog({
   // losing it here is losing it forever (no read ever returns it).
   const [created, setCreated] = useState<TriggerCreated | null>(null);
   const [reviewBeforeActivation, setReviewBeforeActivation] = useState(false);
-  const [approvalChoice, setApprovalChoice] = useState<"automatic" | "manual" | "custom" | null>(
-    null,
-  );
   const [reviewing, setReviewing] = useState<Trigger | null>(null);
   const [activateAfterReview, setActivateAfterReview] = useState(false);
 
@@ -537,19 +535,8 @@ export function TriggerFormDialog({
       ...(end ? { ends_at: end } : {}),
       // Send the explicit choice, including an opt-out from creator identity.
       runs_as_creator: runsAsCreator,
-      action_mode:
-        approvalChoice === "manual"
-          ? ("manual" as const)
-          : approvalChoice === "custom"
-            ? ("per_tool" as const)
-            : ("agent" as const),
-      source_mode: reviewBeforeActivation ? ("restricted" as const) : ("follow_agent" as const),
-      ...(reviewBeforeActivation || approvalChoice === "custom" || (runsAsCreator && localTarget)
-        ? { is_active: false }
-        : {}),
-      ...(reviewBeforeActivation || approvalChoice === "custom"
-        ? { review_before_activation: true }
-        : {}),
+      ...(reviewBeforeActivation || (runsAsCreator && localTarget) ? { is_active: false } : {}),
+      ...(reviewBeforeActivation ? { review_before_activation: true } : {}),
       ...(teamsPost !== NO_TEAMS_POST ? { teams_conversation_id: teamsPost } : {}),
       chat_mode: chatMode,
       ...(budgetLimit !== null && budgetLimit !== undefined
@@ -639,13 +626,6 @@ export function TriggerFormDialog({
         // it is sent, so echoing `environment_id` back on a prompt-only edit
         // would overwrite an environment somebody rebound in between.
         const patch: TriggerUpdate = {};
-        if (approvalChoice !== null)
-          patch.action_mode =
-            approvalChoice === "automatic"
-              ? "agent"
-              : approvalChoice === "manual"
-                ? "manual"
-                : "per_tool";
         if (maxFailures !== (trigger.max_failures === undefined ? 3 : trigger.max_failures))
           patch.max_failures = maxFailures;
         if (prompt !== trigger.prompt) patch.prompt = prompt;
@@ -715,10 +695,13 @@ export function TriggerFormDialog({
             };
           }
         }
-        await update.mutateAsync({ triggerId: trigger.id, patch });
-        if (approvalChoice === "custom") {
+        const saved = await update.mutateAsync({ triggerId: trigger.id, patch });
+        // An edit to what the routine does - its prompt, who it runs as, where it
+        // delivers - needs a new review before it runs again; offer it at once.
+        if (isCreator && (await accessStale(trigger.agent_id, trigger.id))) {
+          if (!stillHere()) return;
           setActivateAfterReview(false);
-          setReviewing({ ...trigger, ...patch });
+          setReviewing({ ...trigger, ...saved });
         } else onOpenChange(false);
       } else {
         let result = preparedLocal ?? (await create.mutateAsync(buildCreate()));
@@ -740,12 +723,7 @@ export function TriggerFormDialog({
           result = { ...result, ...updated };
         }
         if (!stillHere()) return;
-        if (
-          runsAsCreator &&
-          localTarget &&
-          !reviewBeforeActivation &&
-          approvalChoice !== "custom"
-        ) {
+        if (runsAsCreator && localTarget && !reviewBeforeActivation) {
           const activated = await update.mutateAsync({
             triggerId: result.id,
             patch: { is_active: true },
@@ -754,7 +732,7 @@ export function TriggerFormDialog({
           if (!stillHere()) return;
         }
         onCreated?.(result);
-        if (reviewBeforeActivation || approvalChoice === "custom") {
+        if (reviewBeforeActivation) {
           setActivateAfterReview(true);
           if (result.trigger_type === "event") setCreated(result);
           setReviewing(result);
@@ -834,69 +812,9 @@ export function TriggerFormDialog({
     if (stepIdx > 0) setStep(steps[stepIdx - 1]!.id as WizardStepId);
   }
 
-  const approvalField = (
-    <FormField
-      label={t("approvalMode.label")}
-      htmlFor="routine-approval-mode"
-      description={t("approvalMode.hint")}
-    >
-      <Select
-        disabled={!isCreator}
-        value={
-          approvalChoice ??
-          (trigger
-            ? trigger.action_mode === "agent"
-              ? "automatic"
-              : trigger.action_mode === "manual"
-                ? "manual"
-                : trigger.action_mode === "per_tool"
-                  ? "custom"
-                  : "existing"
-            : "automatic")
-        }
-        onValueChange={(value) => {
-          if (value === "automatic" || value === "manual" || value === "custom")
-            setApprovalChoice(value);
-        }}
-      >
-        <SelectTrigger id="routine-approval-mode">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {trigger && !trigger.action_mode && (
-            <SelectItem value="existing">
-              <span className="inline-flex items-center gap-2">
-                <ShieldCheck className="size-4 shrink-0" aria-hidden />
-                {t("approvalMode.existing")}
-              </span>
-            </SelectItem>
-          )}
-          <SelectItem value="automatic">
-            <span className="inline-flex items-center gap-2">
-              <ShieldCheck className="size-4 shrink-0" aria-hidden />
-              {t("approvalMode.automatic")}
-            </span>
-          </SelectItem>
-          <SelectItem value="manual">
-            <span className="inline-flex items-center gap-2">
-              <Hand className="size-4 shrink-0" aria-hidden />
-              {t("approvalMode.manual")}
-            </span>
-          </SelectItem>
-          <SelectItem value="custom">
-            <span className="inline-flex items-center gap-2">
-              <SlidersHorizontal className="size-4 shrink-0" aria-hidden />
-              {t("approvalMode.custom")}
-            </span>
-          </SelectItem>
-        </SelectContent>
-      </Select>
-    </FormField>
-  );
-
   if (reviewing !== null) {
     return (
-      <ActionConsentsDialog
+      <RoutineAccessDialog
         trigger={reviewing}
         onSaved={
           activateAfterReview
@@ -1059,7 +977,6 @@ export function TriggerFormDialog({
                 <p className="text-muted-foreground text-xs">{t("linearSecretRotation")}</p>
               )}
 
-              {approvalField}
               <ChatModeField value={chatMode} onChange={setChatMode} />
               <RoutineOptions invalid={invalidEnd || !versionValid || budgetLimit === undefined}>
                 {namedEnvironments.length > 0 && (
@@ -1235,7 +1152,6 @@ export function TriggerFormDialog({
             {type === "schedule" && (
               <PromptField value={prompt} onChange={setPrompt} rows={5} disabled={pending} />
             )}
-            {approvalField}
             {type === "schedule" && scheduleFields}
             <ChatModeField value={chatMode} onChange={setChatMode} />
             <p role="note" className="text-muted-foreground text-sm">

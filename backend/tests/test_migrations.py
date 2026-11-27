@@ -3031,7 +3031,9 @@ def test_routine_chat_mode_migration_maps_destinations_without_changing_authorit
                 assert all(
                     not row.is_active
                     and row.prompt == "Unchanged prompt"
-                    and row.approved_sources == policy
+                    # 0366_routine_access_review.py converts the review itself; the
+                    # consent it records is retained.
+                    and {key: row.approved_sources[key] for key in policy} == policy
                     for row in rows
                 )
                 assert (
@@ -3040,5 +3042,208 @@ def test_routine_chat_mode_migration_maps_destinations_without_changing_authorit
                     ).scalar_one()
                     == "routine"
                 )
+    finally:
+        engine.dispose()
+
+
+def test_routine_access_review_converts_each_routine_and_its_parked_run_and_back() -> None:
+    """0366_routine_access_review.py: no routine gains authority and none stops."""
+    from app.db.models.agent import Agent
+    from app.schemas.routine_sources import RoutineSourcePolicy
+
+    previous = "0365_routine_tool_settings"
+    assert _alembic("upgrade", "head").returncode == 0
+    result = _alembic("downgrade", previous)
+    assert result.returncode == 0, result.stderr
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    version = str(uuid4())
+
+    def legacy(mode: str) -> dict[str, object]:
+        policy: dict[str, object] = {
+            "mode": mode,
+            "id": str(uuid4()),
+            "consented_by": str(uuid4()),
+            "reviewed_at": datetime.now(UTC).isoformat(),
+            "version_id": version,
+            "scope_hash": "a" * 64,
+            "spec_hash": "b" * 64,
+            "behavior": {"capability:sandbox": "c" * 64} if mode == "follow_agent" else None,
+        }
+        if mode == "follow_agent":
+            policy["approved_ceiling"] = dict(policy)
+        return policy
+
+    def consent(tool: str, bound: str) -> dict[str, object]:
+        return {
+            "capability_id": "sandbox",
+            "tool_id": tool,
+            "id": str(uuid4()),
+            "consented_by": str(uuid4()),
+            "version_id": bound,
+            "intent_hash": "e" * 64,
+        }
+
+    rows = {
+        "agent": (legacy("restricted"), "agent", [], []),
+        "follow": (
+            legacy("follow_agent"),
+            None,
+            [],
+            [{"capability_id": "sandbox", "tool_id": "execute", "setting": "off"}],
+        ),
+        "per_tool": (
+            legacy("restricted"),
+            "per_tool",
+            [consent("execute", version), consent("write_file", str(uuid4()))],
+            [],
+        ),
+        "manual": (legacy("restricted"), "manual", [consent("execute", version)], []),
+        "pending": (
+            {"pending_review": True, "mode": "follow_agent", "unavailable_sources": ["Notion"]},
+            None,
+            [],
+            [],
+        ),
+    }
+    try:
+        with DatabaseSession(engine, expire_on_commit=False) as db:
+            user_id, org_id = uuid4(), uuid4()
+            db.execute(_HISTORICAL_USER_INSERT, {"id": user_id, "email": f"{user_id}@example.com"})
+            db.execute(
+                _HISTORICAL_ORGANIZATION_INSERT,
+                {"id": org_id, "name": "Access", "slug": f"access-{org_id}", "owner": user_id},
+            )
+            agent = Agent(
+                organization_id=org_id,
+                owner_user_id=user_id,
+                name="Worker",
+                slug=f"worker-{uuid4()}",
+            )
+            db.add(agent)
+            db.flush()
+            agent_id = agent.id
+            for label, (policy, action_mode, consents, settings) in rows.items():
+                db.execute(
+                    text(
+                        "INSERT INTO agent_triggers (id, organization_id, agent_id, created_by_user_id, name, prompt, interval_seconds, next_fire_at, is_active, trigger_type, schedule_kind, event_config, approved_sources, action_mode, action_consents, tool_settings) "
+                        "VALUES (:id, :org, :agent, :person, :name, 'Unchanged prompt', 86400, :next_fire, true, 'schedule', 'interval', '{}', CAST(:policy AS jsonb), :action_mode, CAST(:consents AS jsonb), CAST(:settings AS jsonb))"
+                    ),
+                    {
+                        "id": uuid4(),
+                        "org": org_id,
+                        "agent": agent_id,
+                        "person": user_id,
+                        "name": label,
+                        "next_fire": datetime.now(UTC),
+                        "policy": json.dumps(policy),
+                        "action_mode": action_mode,
+                        "consents": json.dumps(consents),
+                        "settings": json.dumps(settings),
+                    },
+                )
+            parked = uuid4()
+            db.execute(
+                text(
+                    "INSERT INTO agent_runs (id, organization_id, agent_id, surface, status, "
+                    "input_tokens, output_tokens, cost_usd, cost_is_partial, routine_kind, routine_policy) "
+                    "VALUES (:id, :org, :agent, 'schedule', 'awaiting_approval', 0, 0, 0, false, "
+                    "'trigger', CAST(:policy AS jsonb))"
+                ),
+                {
+                    "id": parked,
+                    "org": org_id,
+                    "agent": agent_id,
+                    "policy": json.dumps(
+                        {
+                            "acts_as_creator": True,
+                            "approved_sources": legacy("restricted"),
+                            "action_mode": "per_tool",
+                            "action_consents": [consent("execute", version)],
+                            "tool_settings": [],
+                        }
+                    ),
+                },
+            )
+            db.commit()
+
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            stored = {
+                row.name: row.approved_sources
+                for row in db.execute(
+                    text(
+                        "SELECT name, approved_sources FROM agent_triggers WHERE organization_id = :org"
+                    ),
+                    {"org": org_id},
+                )
+            }
+            snapshot = db.execute(
+                text("SELECT routine_policy FROM agent_runs WHERE id = :id"), {"id": parked}
+            ).scalar_one()
+            trust = db.execute(
+                text("SELECT routines_may_trust_agent FROM organizations WHERE id = :id"),
+                {"id": org_id},
+            ).scalar_one()
+        assert trust is False
+        assert stored["pending"] == {"pending_review": True, "unavailable_sources": ["Notion"]}
+        reviews = {
+            name: RoutineSourcePolicy.model_validate(value)
+            for name, value in stored.items()
+            if name != "pending"
+        }
+        assert {name: review.mode for name, review in reviews.items()} == dict.fromkeys(
+            reviews, "reviewed"
+        )
+        assert {name: review.grandfathered for name, review in reviews.items()} == {
+            "agent": True,
+            "follow": True,
+            "per_tool": False,
+            "manual": False,
+        }
+        assert {name: review.delegates for name, review in reviews.items()} == {
+            "agent": "allow",
+            "follow": "allow",
+            "per_tool": "ask",
+            "manual": "ask",
+        }
+        assert {
+            name: sorted((tool.tool_id, tool.setting) for tool in review.tools)
+            for name, review in reviews.items()
+        } == {
+            "agent": [],
+            "follow": [("execute", "off")],
+            "per_tool": [("execute", "allow")],
+            "manual": [],
+        }
+        assert reviews["follow"].approved_ceiling is not None
+        assert "action_mode" not in snapshot and "action_consents" not in snapshot
+        parked_review = RoutineSourcePolicy.model_validate(snapshot["approved_sources"])
+        assert [(tool.tool_id, tool.setting) for tool in parked_review.tools] == [
+            ("execute", "allow")
+        ]
+
+        result = _alembic("downgrade", previous)
+        assert result.returncode == 0, result.stderr
+        with engine.connect() as db:
+            restored = {
+                row.name: (row.approved_sources["mode"], row.action_mode, row.action_consents)
+                for row in db.execute(
+                    text(
+                        "SELECT name, approved_sources, action_mode, action_consents FROM agent_triggers WHERE organization_id = :org"
+                    ),
+                    {"org": org_id},
+                )
+            }
+        # Grandfathered reviews run as the agent allows again; every other allow is lost.
+        assert restored == {
+            "agent": ("restricted", "agent", []),
+            "follow": ("follow_agent", "agent", []),
+            "per_tool": ("restricted", "per_tool", []),
+            "manual": ("restricted", "per_tool", []),
+            "pending": ("restricted", "agent", []),
+        }
+        result = _alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
     finally:
         engine.dispose()

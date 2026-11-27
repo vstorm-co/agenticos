@@ -11,6 +11,7 @@ export type RoutineBlockerCode =
   | "sources_review"
   | "routine_changed"
   | "platform_identity"
+  | "trust_not_allowed"
   | "awaiting_approval"
   | "awaiting_answer"
   | "budget_exhausted"

@@ -11,15 +11,20 @@ import {
 } from "@/lib/routine-readiness-api";
 import { cn } from "@/lib/utils";
 import { useRetryRoutineReadiness } from "@/hooks/use-routine-readiness";
+import type { RoutineAccessTab } from "@/components/triggers/routine-access-dialog";
 
-/** Fixed in the routine's own access review, which only its creator may open. */
-const REVIEWED = new Set<RoutineBlockerCode>([
-  "sources_setup",
-  "sources_review",
-  "routine_changed",
-  "platform_identity",
-  "actions_need_approval",
-]);
+/**
+ * Fixed in the routine's own access review, which only its creator may open,
+ * and the tab of it each one concerns.
+ */
+const REVIEWED: Partial<Record<RoutineBlockerCode, RoutineAccessTab>> = {
+  sources_setup: "tools",
+  sources_review: "sources",
+  routine_changed: "sources",
+  platform_identity: "sources",
+  trust_not_allowed: "tools",
+  actions_need_approval: "tools",
+};
 
 /**
  * Why the next activation will not run, or will stop on a person - one line each,
@@ -37,7 +42,8 @@ export function RoutineBlockers({
   paused: boolean;
   /** Whether the caller is the creator, who alone reviews sources and consent. */
   canReview: boolean;
-  onReview: () => void;
+  /** Open the access review on the tab the blocker concerns. */
+  onReview: (tab: RoutineAccessTab) => void;
   onOpenRuns: () => void;
 }) {
   const t = useTranslations("triggers.blockers");
@@ -45,7 +51,7 @@ export function RoutineBlockers({
   const retry = useRetryRoutineReadiness();
   if (blockers.length === 0) return null;
   // Every reviewed reason is fixed in the same dialog, so only the first offers it.
-  const reviewAt = blockers.find((blocker) => REVIEWED.has(blocker.code))?.code;
+  const reviewAt = blockers.find((blocker) => REVIEWED[blocker.code] !== undefined)?.code;
   return (
     <ul className="basis-full space-y-1" aria-label={t("label")}>
       {paused && blockers.some((blocker) => blocker.severity === "blocked") && (
@@ -77,7 +83,12 @@ export function RoutineBlockers({
             )}
             {blocker.code === reviewAt &&
               (canReview ? (
-                <Button variant="outline" size="sm" className="h-7" onClick={onReview}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7"
+                  onClick={() => onReview(REVIEWED[blocker.code] ?? "tools")}
+                >
                   {t("review")}
                 </Button>
               ) : (

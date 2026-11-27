@@ -50,7 +50,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 from urllib.parse import urlencode
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,6 +62,7 @@ from app.core.config import settings
 from app.core.permissions import OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_run import AgentRun, RunStatus, ToolApproval
+from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.artifact import Artifact
 from app.db.models.audit_log import AppAdminAuditLog
 from app.db.models.case_generation import CaseGeneration, GenerationStatus
@@ -821,6 +822,46 @@ class NotificationService:
             },
             organization_id=organization_id,
             channels=None if external_delivery else {NotificationChannel.IN_APP},
+            use_savepoint=True,
+        )
+
+    async def routine_access_expanded(self, trigger: AgentTrigger, *, sources: list[str]) -> None:
+        """A routine that trusts its agent now reaches more than its creator last saw.
+
+        Told to the creator alone, once per expansion: the ceiling moves with it.
+        `sources` are the names the routine's own review shows, never content.
+        """
+        if trigger.created_by_user_id is None:
+            return
+        recipients = await member_repo.list_member_ids_for(
+            self.db,
+            organization_id=trigger.organization_id,
+            user_ids=[trigger.created_by_user_id],
+        )
+        if not recipients:
+            return
+        named = ", ".join(sources[:5]) + (
+            f" and {len(sources) - 5} more" if len(sources) > 5 else ""
+        )
+        path = self._link("/routines", trigger.organization_id)
+        await self._center.write(
+            recipients=list(recipients),
+            event_type=NotificationEventType.SHARED_CHANGE_APPLIED,
+            occurrence_id=f"routine-access:{trigger.id}:{uuid4()}",
+            summary=(
+                f"{trigger.name or 'Your routine'} trusts its agent and now also reaches: {named}"
+            ),
+            context_url=path,
+            render_context={
+                "wording": "routine_access_expanded",
+                "sources": named,
+                **({"routine_name": trigger.name} if trigger.name else {}),
+                "routine_origin_id": str(trigger.id),
+                "routine_kind": "trigger",
+                "app_name": settings.PROJECT_NAME,
+                "run_url": absolute_context_url(path),
+            },
+            organization_id=trigger.organization_id,
             use_savepoint=True,
         )
 

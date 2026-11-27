@@ -9,6 +9,7 @@ import { TriggerFormDialog } from "./trigger-form-dialog";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores/auth-store";
 import { useOrgStore } from "@/stores/org-store";
+import { routineAccessFixture } from "@/test-utils/routine-access";
 
 const native = vi.hoisted(() => ({ allow: vi.fn(), pick: vi.fn(), grants: [] as unknown[] }));
 vi.mock("@/lib/api-client", async (original) => ({
@@ -58,17 +59,7 @@ beforeEach(() => {
     },
   });
   vi.mocked(apiClient.get).mockImplementation(async (path) => {
-    if (path.endsWith("/sources"))
-      return {
-        current: true,
-        review_token: "sources",
-        version_id: "v1",
-        resources: ["Skill instructions"],
-        accounts: [],
-        unavailable_sources: [],
-      };
-    if (path.endsWith("/action-consents"))
-      return { can_waive: true, review_token: "actions", items: [] };
+    if (path.endsWith("/access")) return routineAccessFixture();
     return path === "/me/permissions"
       ? { role: "viewer", permissions: [] }
       : { items: [], total: 0 };

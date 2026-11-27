@@ -14,11 +14,14 @@ from app.core.permissions import AuthContext
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_trigger import AgentTrigger
 from app.db.models.mcp_connection import McpConnection
-from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceItem
+from app.schemas.routine_access import RoutineAccessReview, RoutineAccessUpdate
+from app.schemas.routine_sources import RoutineSourceItem, RoutineSourcePolicy
 from app.services.agent_trigger import AgentTriggerService
+from app.services.routine_access import RoutineAccessService
 from app.services.routine_authority import RoutineAuthority
 from app.services.routine_sources import (
     PLATFORM_NEEDS_CREATOR,
+    PlatformRoutineIdentityRequired,
     RoutineSourceService,
     RoutineSourcesRequired,
     read_policy,
@@ -28,6 +31,37 @@ from app.worker.jobs import FireTrigger
 from tests.integration.workflow_run_support import seed_member
 
 pytestmark = pytest.mark.anyio
+
+
+async def reviewed(
+    db: AsyncSession, ctx: AuthContext, trigger: AgentTrigger
+) -> RoutineSourcePolicy:
+    """The review a routine is created with."""
+    return await RoutineAccessService(db).initial(ctx, trigger)
+
+
+async def access_review(
+    db: AsyncSession, ctx: AuthContext, trigger: AgentTrigger
+) -> RoutineAccessReview:
+    return await RoutineAccessService(db).review(ctx, trigger)
+
+
+async def save(
+    db: AsyncSession, ctx: AuthContext, trigger: AgentTrigger, token: str, **update: object
+) -> RoutineAccessReview:
+    return await RoutineAccessService(db).replace(
+        ctx, trigger, RoutineAccessUpdate.model_validate({"review_token": token, **update})
+    )
+
+
+async def trust(db: AsyncSession, ctx: AuthContext, *, allowed: bool = True) -> None:
+    """Let `ctx`'s organization's routines trust their agent."""
+    from app.db.models.organization import Organization
+
+    organization = await db.get(Organization, ctx.organization_id)
+    assert organization is not None
+    organization.routines_may_trust_agent = allowed
+    await db.flush()
 
 
 def delegating(spec: AgentSpec, **update: object) -> AgentSpec:
@@ -99,7 +133,7 @@ async def world(
     )
     db.add(trigger)
     await db.flush()
-    policy = await RoutineSourceService(db).initial(ctx, trigger)
+    policy = await reviewed(db, ctx, trigger)
     trigger.approved_sources = policy.model_dump(mode="json")
     await db.flush()
     return ctx, trigger, spec, account
@@ -107,8 +141,9 @@ async def world(
 
 async def test_review_is_metadata_only_and_current(db: AsyncSession):
     ctx, trigger, _, _ = await world(db, mcp=True)
-    options = await RoutineSourceService(db).options(ctx, trigger)
-    assert options.current and len(options.accounts) == 1 and options.unavailable_sources == []
+    options = await access_review(db, ctx, trigger)
+    assert options.current and options.unavailable_sources == []
+    assert [source.kind for source in options.sources].count("mcp_account") == 1
     policy = read_policy(trigger.approved_sources)
     assert policy.mcp_sources
     assert (
@@ -116,7 +151,7 @@ async def test_review_is_metadata_only_and_current(db: AsyncSession):
     ).id == policy.id
 
 
-@pytest.mark.parametrize("change", ["generation", "endpoint", "tools", "disabled", "audience"])
+@pytest.mark.parametrize("change", ["generation", "endpoint", "tools", "audience"])
 async def test_source_changes_require_review_before_provider_io(db: AsyncSession, change: str):
     ctx, trigger, _, account = await world(db, mcp=True)
     assert account is not None
@@ -127,13 +162,23 @@ async def test_source_changes_require_review_before_provider_io(db: AsyncSession
         account.url = "https://another.example.com"
     elif change == "tools":
         account.last_tools = [*account.last_tools, {"name": "send", "description": "Send"}]
-    elif change == "disabled":
-        account.is_enabled = False
     else:
         trigger.delivery_mode = "manual"
     await db.flush()
     with pytest.raises(RoutineSourcesRequired):
         await RoutineSourceService(db).require_current(ctx, trigger, expected_id=policy.id)
+
+
+async def test_a_disabled_optional_account_is_left_out_of_the_run(db: AsyncSession):
+    ctx, trigger, _, account = await world(db, mcp=True)
+    assert account is not None
+    policy = read_policy(trigger.approved_sources)
+    account.is_enabled = False
+    await db.flush()
+    admitted = await RoutineSourceService(db).require_current(ctx, trigger, expected_id=policy.id)
+    assert admitted.id == policy.id and account.id not in admitted.mcp_sources
+    assert admitted.approved_ceiling is not None
+    assert account.id in admitted.approved_ceiling.mcp_sources
 
 
 async def test_model_and_instructions_can_change_but_knowledge_cannot(db: AsyncSession):
@@ -158,23 +203,20 @@ async def test_only_console_owner_can_review(db: AsyncSession, identity: str):
     else:
         ctx = replace(ctx, subject_is_publisher_fallback=True)
     with pytest.raises(AuthorizationError):
-        await RoutineSourceService(db).options(ctx, trigger)
+        await access_review(db, ctx, trigger)
 
 
 async def test_stale_token_cannot_grant_changed_sources(db: AsyncSession):
     ctx, trigger, _, account = await world(db, mcp=True)
-    service = RoutineSourceService(db)
-    reviewed = await service.options(ctx, trigger)
+    reviewed = await access_review(db, ctx, trigger)
     assert account is not None
     account.authorization_generation = uuid4()
     await db.flush()
     with pytest.raises(ConflictError):
-        await service.replace(
-            ctx, trigger, RoutineSourceConsent(review_token=reviewed.review_token)
-        )
-    fresh = await service.options(ctx, trigger)
+        await save(db, ctx, trigger, reviewed.review_token)
+    fresh = await access_review(db, ctx, trigger)
     old = read_policy(trigger.approved_sources).id
-    await service.replace(ctx, trigger, RoutineSourceConsent(review_token=fresh.review_token))
+    await save(db, ctx, trigger, fresh.review_token)
     assert read_policy(trigger.approved_sources).id != old
 
 
@@ -182,7 +224,7 @@ async def test_legacy_routine_refuses_without_silent_opt_in(db: AsyncSession):
     ctx, trigger, _, _ = await world(db)
     trigger.approved_sources = None
     await db.flush()
-    assert not (await RoutineSourceService(db).options(ctx, trigger)).current
+    assert not (await access_review(db, ctx, trigger)).current
     with pytest.raises(RoutineSourcesRequired):
         await RoutineSourceService(db).require_current(ctx, trigger, expected_id=None)
     assert (
@@ -194,9 +236,8 @@ async def test_legacy_routine_refuses_without_silent_opt_in(db: AsyncSession):
 async def test_queued_old_review_cannot_borrow_replacement(db: AsyncSession):
     ctx, trigger, _, _ = await world(db)
     old = read_policy(trigger.approved_sources).id
-    service = RoutineSourceService(db)
-    options = await service.options(ctx, trigger)
-    await service.replace(ctx, trigger, RoutineSourceConsent(review_token=options.review_token))
+    options = await access_review(db, ctx, trigger)
+    await save(db, ctx, trigger, options.review_token)
     triggers = AgentTriggerService(db)
     with patch.object(triggers, "fire", new_callable=AsyncMock) as fire:
         await triggers.fire_job(FireTrigger(trigger_id=trigger.id, source_policy_id=old))
@@ -222,9 +263,8 @@ async def test_old_review_invalidates_live_authority_and_spec_widening(db: Async
     authority.require_spec(spec)
     with pytest.raises(RoutineSourcesRequired):
         authority.require_spec(spec.model_copy(update={"context_ids": [uuid4()]}))
-    service = RoutineSourceService(db)
-    options = await service.options(ctx, trigger)
-    await service.replace(ctx, trigger, RoutineSourceConsent(review_token=options.review_token))
+    options = await access_review(db, ctx, trigger)
+    await save(db, ctx, trigger, options.review_token)
     with pytest.raises(RoutineSourcesRequired):
         await authority.check_in(db, trigger.agent_id)
 
@@ -239,23 +279,22 @@ async def test_invalid_or_missing_inventory_is_visible_and_never_consented(
     assert account is not None
     account.last_tools = inventory
     await db.flush()
-    service = RoutineSourceService(db)
-    offered = await service.options(ctx, trigger)
-    assert not offered.current and offered.unavailable_sources
-    with pytest.raises(RoutineSourcesRequired):
-        await service.initial(ctx, trigger)
-    with pytest.raises(ConflictError):
-        await service.replace(ctx, trigger, RoutineSourceConsent(review_token=offered.review_token))
+    offered = await access_review(db, ctx, trigger)
+    assert offered.unavailable_sources == ["Source"]
+    assert offered.required_unavailable_sources == []
+    # An optional account that cannot be listed is left out, never consented to.
+    assert account.id not in (await reviewed(db, ctx, trigger)).mcp_sources
+    await save(db, ctx, trigger, offered.review_token)
+    assert account.id not in read_policy(trigger.approved_sources).mcp_sources
 
 
 async def test_following_version_keeps_sources_for_model_only_publication(db: AsyncSession):
     ctx, trigger, _, _ = await world(db)
     trigger.pinned_version_id = None
     await db.flush()
-    service = RoutineSourceService(db)
-    trigger.approved_sources = (await service.initial(ctx, trigger)).model_dump(mode="json")
+    trigger.approved_sources = (await reviewed(db, ctx, trigger)).model_dump(mode="json")
     await db.flush()
-    assert (await service.options(ctx, trigger)).current
+    assert (await access_review(db, ctx, trigger)).current
 
 
 async def test_missing_input_account_can_be_reviewed_as_unavailable(db: AsyncSession):
@@ -263,7 +302,7 @@ async def test_missing_input_account_can_be_reviewed_as_unavailable(db: AsyncSes
     # This transient invalid source is never written through the trigger mutation API.
     trigger.connection_id = uuid4()
     with db.no_autoflush:
-        offered = await RoutineSourceService(db).options(ctx, trigger)
+        offered = await access_review(db, ctx, trigger)
     assert not offered.current and offered.unavailable_sources == ["event source"]
     trigger.connection_id = None
 
@@ -275,7 +314,7 @@ async def test_input_grant_generation_is_checked_before_continuing(db: AsyncSess
     assert account is not None
     trigger.connection_id = account.id
     with db.no_autoflush:
-        policy = await RoutineSourceService(db).initial(ctx, trigger)
+        policy = await reviewed(db, ctx, trigger)
     trigger.connection_id = None
     await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
     account.authorization_generation = uuid4()
@@ -318,8 +357,7 @@ async def test_personal_accounts_are_explicit_and_do_not_follow_new_defaults(db:
         update={"mcp_servers": [PersonalMcpServerRef(account="personal", catalog_key="github")]}
     ).model_dump(mode="json")
     await db.flush()
-    service = RoutineSourceService(db)
-    policy = await service.initial(ctx, trigger)
+    policy = await reviewed(db, ctx, trigger)
     assert policy.mcp_sources[first.id].tool_prefix == "github"
     assert policy.mcp_sources[second.id].tool_prefix == "github_home"
     trigger.approved_sources = policy.model_dump(mode="json")
@@ -327,11 +365,11 @@ async def test_personal_accounts_are_explicit_and_do_not_follow_new_defaults(db:
     await db.flush()
     second.is_default = True
     await db.flush()
-    assert not (await service.options(ctx, trigger)).current
+    assert not (await access_review(db, ctx, trigger)).current
     assert policy.mcp_sources[first.id].tool_prefix == "github"
     trigger.runs_as_creator = False
     await db.flush()
-    assert not (await service.initial(ctx, trigger)).mcp_sources
+    assert not (await reviewed(db, ctx, trigger)).mcp_sources
 
 
 async def test_unconnected_personal_source_is_not_silently_approved(db: AsyncSession):
@@ -344,7 +382,7 @@ async def test_unconnected_personal_source_is_not_silently_approved(db: AsyncSes
         update={"mcp_servers": [PersonalMcpServerRef(account="personal", catalog_key="github")]}
     ).model_dump(mode="json")
     await db.flush()
-    offered = await RoutineSourceService(db).options(ctx, trigger)
+    offered = await access_review(db, ctx, trigger)
     assert offered.unavailable_sources == ["github"]
 
 
@@ -371,7 +409,7 @@ async def test_tool_allowlists_intersect_and_unreviewed_tools_are_hidden(db: Asy
     )
     version.spec = constrained.model_dump(mode="json")
     await db.flush()
-    policy = await RoutineSourceService(db).initial(ctx, trigger)
+    policy = await reviewed(db, ctx, trigger)
     trigger.approved_sources = policy.model_dump(mode="json")
     await db.flush()
     authority = await RoutineAuthority.capture(
@@ -423,8 +461,7 @@ async def test_remote_agent_card_and_endpoint_cannot_retarget_a_routine(db: Asyn
         spec, external_agents=[ExternalAgentRef(external_agent_id=remote.id)]
     ).model_dump(mode="json")
     await db.flush()
-    service = RoutineSourceService(db)
-    policy = await service.initial(ctx, trigger)
+    policy = await reviewed(db, ctx, trigger)
     await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
     remote.endpoint_url = "https://another.example.com/rpc"
     await db.flush()
@@ -434,7 +471,7 @@ async def test_remote_agent_card_and_endpoint_cannot_retarget_a_routine(db: Asyn
     await db.flush()
     with pytest.raises(RoutineSourcesRequired):
         await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
-    offered = await service.options(ctx, trigger)
+    offered = await access_review(db, ctx, trigger)
     assert offered.unavailable_sources
 
 
@@ -467,31 +504,16 @@ async def test_source_metadata_export_and_erasure_follow_the_exact_owner(db: Asy
     assert await personal_data_repo.routine_source_export_size(db, uuid4()) == 0
     from app.schemas.personal_data import RoutineSourceExport
 
-    before = await personal_data_repo.routine_source_export_size(db, ctx.subject_id)
-    consent = {
-        "id": str(uuid4()),
-        "consented_by": str(ctx.subject_id),
-        "version_id": str(uuid4()),
-        "intent_hash": "a" * 64,
-        "instructions_hash": "b" * 64,
-        "capability_id": "web_fetch",
-        "tool_id": "web_fetch",
-    }
-    trigger.action_consents = [consent]
-    trigger.tool_settings = [
-        {"capability_id": "web_fetch", "tool_id": "web_fetch", "setting": "off"}
-    ]
-    await db.flush()
     exported = RoutineSourceExport.model_validate(trigger)
-    assert exported.action_consents[0].consented_by == ctx.subject_id
-    assert await personal_data_repo.routine_source_export_size(db, ctx.subject_id) > before + 200
+    assert exported.approved_sources is not None
+    assert exported.approved_sources.consented_by == ctx.subject_id
+    assert exported.approved_sources.tools == read_policy(trigger.approved_sources).tools
     await personal_data_repo.purge_routine_authority(db, ctx.subject_id)
     await db.refresh(trigger)
     await db.refresh(run)
     await db.refresh(foreign_trigger)
     await db.refresh(foreign_run)
     assert trigger.approved_sources is None and run.routine_policy is None
-    assert trigger.action_consents == [] and trigger.tool_settings == []
     assert foreign_trigger.approved_sources is not None and foreign_run.routine_policy is not None
 
 
@@ -550,11 +572,11 @@ async def test_review_follows_published_delegate_authority_without_a_new_direct_
     viewer = replace(ctx, role="viewer")
     with pytest.raises((AuthorizationError, NotFoundError)):
         await AgentRegistryService(db).get(viewer, child.id, perm=Perm.AGENTS_RUN)
-    reviewed = await RoutineSourceService(db).initial(viewer, trigger)
-    assert account.id in reviewed.mcp_sources and reviewed.root_mcp_ids == ()
+    policy = await reviewed(db, viewer, trigger)
+    assert account.id in policy.mcp_sources and policy.root_mcp_ids == ()
     assert any(
-        "Delegate" in resource
-        for resource in (await RoutineSourceService(db).options(viewer, trigger)).resources
+        source.kind == "delegate" and source.id == str(child.id)
+        for source in (await access_review(db, viewer, trigger)).sources
     )
 
 
@@ -569,19 +591,19 @@ async def test_review_refuses_a_withdrawn_pinned_delegate(db: AsyncSession):
     ).model_dump(mode="json")
     await db.flush()
     with pytest.raises(RoutineSourcesRequired):
-        await RoutineSourceService(db).initial(ctx, trigger)
+        await reviewed(db, ctx, trigger)
 
 
 async def test_deleted_parent_and_stale_expected_identity_refuse_consent(db: AsyncSession):
     ctx, trigger, _, _ = await world(db)
     service = RoutineSourceService(db)
-    offered = await service.options(ctx, trigger)
+    offered = await access_review(db, ctx, trigger)
     with pytest.raises(RoutineSourcesRequired):
         await service.require_current(ctx, trigger, expected_id=uuid4())
     await db.delete(trigger)
     await db.flush()
-    with pytest.raises(RoutineSourcesRequired):
-        await service.replace(ctx, trigger, RoutineSourceConsent(review_token=offered.review_token))
+    with pytest.raises(AuthorizationError, match="no longer available"):
+        await save(db, ctx, trigger, offered.review_token)
 
 
 def test_input_identity_cannot_be_half_present():
@@ -679,7 +701,7 @@ async def test_source_review_is_bounded_before_provider_io(db: AsyncSession, kin
     version.spec = updated.model_dump(mode="json")
     await db.flush()
     with pytest.raises(RoutineSourcesRequired):
-        await RoutineSourceService(db).initial(ctx, trigger)
+        await reviewed(db, ctx, trigger)
 
 
 async def test_shared_delegate_sources_are_unioned_and_cycles_do_not_expand_review(
@@ -712,7 +734,7 @@ async def test_shared_delegate_sources_are_unioned_and_cycles_do_not_expand_revi
     assert root_version is not None
     root_version.spec = delegating(spec, subagents=[reference]).model_dump(mode="json")
     await db.flush()
-    policy = await RoutineSourceService(db).initial(ctx, trigger)
+    policy = await reviewed(db, ctx, trigger)
     assert policy.mcp_sources[account.id].tool_ids == ("read",)
     assert len(policy.mcp_sources) == 1
 
@@ -740,8 +762,7 @@ async def test_mail_poll_admission_does_not_borrow_later_review_or_another_accou
     trigger.next_fire_at = None
     trigger.interval_seconds = None
     await db.flush()
-    service = RoutineSourceService(db)
-    policy = await service.initial(ctx, trigger)
+    policy = await reviewed(db, ctx, trigger)
     trigger.approved_sources = policy.model_dump(mode="json")
     await db.flush()
     triggers = AgentTriggerService(db)
@@ -760,8 +781,8 @@ async def test_mail_poll_admission_does_not_borrow_later_review_or_another_accou
     assert not await triggers.polled_source_admissions(
         organization_id=ctx.organization_id, event_source="gmail", connection=other
     )
-    offered = await service.options(ctx, trigger)
-    await service.replace(ctx, trigger, RoutineSourceConsent(review_token=offered.review_token))
+    offered = await access_review(db, ctx, trigger)
+    await save(db, ctx, trigger, offered.review_token)
     assert (
         await triggers.queue_fire(
             trigger.id,
@@ -809,7 +830,7 @@ async def test_remote_source_review_fences_credential_rotation_but_not_label_cha
         spec, external_agents=[ExternalAgentRef(external_agent_id=remote.id)]
     ).model_dump(mode="json")
     await db.flush()
-    policy = await RoutineSourceService(db).initial(ctx, trigger)
+    policy = await reviewed(db, ctx, trigger)
     await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
     generation = secret.authorization_generation
     await secrets.update(ctx, secret.id, name="Renamed bearer")
@@ -819,8 +840,8 @@ async def test_remote_source_review_fences_credential_rotation_but_not_label_cha
     assert secret.authorization_generation != generation
     with pytest.raises(RoutineSourcesRequired):
         await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
-    reviewed = await RoutineSourceService(db).initial(ctx, trigger)
-    await require_bound_sources(db, organization_id=ctx.organization_id, policy=reviewed)
+    again = await reviewed(db, ctx, trigger)
+    await require_bound_sources(db, organization_id=ctx.organization_id, policy=again)
 
 
 @pytest.mark.security
@@ -850,7 +871,7 @@ async def test_budgeted_event_fires_share_one_worker_concurrency_key(db: AsyncSe
 
 
 @pytest.mark.security
-@pytest.mark.parametrize("mode", ["restricted", "follow_agent"])
+@pytest.mark.parametrize("mode", ["reviewed", "trust_agent"])
 async def test_mirage_secret_generation_is_part_of_source_consent(db: AsyncSession, mode):
     from app.db.models.organization_secret import OrganizationSecret
 
@@ -889,14 +910,22 @@ async def test_mirage_secret_generation_is_part_of_source_consent(db: AsyncSessi
     assert version is not None
     version.spec = spec.model_dump(mode="json")
     await db.flush()
-    policy = await RoutineSourceService(db).initial(ctx, trigger, mode=mode)
+    policy = (await reviewed(db, ctx, trigger)).model_copy(update={"mode": mode})
     assert policy.secret_sources == {secret.id: secret.authorization_generation}
     trigger.approved_sources = policy.model_dump(mode="json")
-    await db.flush()
+    await trust(db, ctx)
     secret.authorization_generation = uuid4()
     await db.flush()
-    with pytest.raises(RoutineSourcesRequired):
-        await RoutineSourceService(db).require_current(ctx, trigger, expected_id=policy.id)
+    service = RoutineSourceService(db)
+    if mode == "reviewed":
+        with pytest.raises(RoutineSourcesRequired):
+            await service.require_current(ctx, trigger, expected_id=policy.id)
+        return
+    # An organization credential rotated under a trusting routine is reported, not blocked.
+    admitted = await service.require_current(ctx, trigger, expected_id=policy.id)
+    assert admitted.secret_sources == {secret.id: secret.authorization_generation}
+    assert admitted.approved_ceiling is not None
+    assert admitted.approved_ceiling.secret_sources == admitted.secret_sources
 
 
 @pytest.mark.parametrize("owner", ["organization", "personal"])
@@ -961,14 +990,13 @@ async def test_terminal_account_source_review_fences_exact_owner_and_client_gene
     assert version is not None
     version.spec = AgentSpec.model_validate(stored).model_dump(mode="json")
     await db.flush()
-    service = RoutineSourceService(db)
-    review = await service.options(ctx, trigger)
+    review = await access_review(db, ctx, trigger)
     if state != "active":
         assert review.unavailable_sources
         with pytest.raises(RoutineSourcesRequired):
-            await service.initial(ctx, trigger)
+            await reviewed(db, ctx, trigger)
     else:
-        policy = await service.initial(ctx, trigger)
+        policy = await reviewed(db, ctx, trigger)
         assert policy.mirage_accounts == {account.id: account.authorization_generation}
         assert policy.secret_sources == {secret.id: secret.authorization_generation}
         await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
@@ -1149,23 +1177,21 @@ async def test_platform_mcp_requires_an_explicit_creator_identity(
     await db.flush()
     service = RoutineSourceService(db)
     if runs_as_creator:
-        policy = await service.initial(ctx, trigger)
+        policy = await reviewed(db, ctx, trigger)
         trigger.approved_sources = policy.model_dump(mode="json")
-        assert (await service.options(ctx, trigger)).current
+        assert (await access_review(db, ctx, trigger)).current
         assert (await service.require_current(ctx, trigger, expected_id=policy.id)).id == policy.id
     else:
-        options = await service.options(ctx, trigger)
+        options = await access_review(db, ctx, trigger)
         assert not options.current
         assert PLATFORM_NEEDS_CREATOR in options.required_unavailable_sources
         # A source is a name the console puts inside its own sentence.
         assert not any(source.endswith(".") for source in options.unavailable_sources)
         with pytest.raises(RoutineSourcesRequired) as refused:
-            await service.initial(ctx, trigger)
+            await reviewed(db, ctx, trigger)
         assert refused.value.details == {"unavailable_sources": options.unavailable_sources}
-        with pytest.raises(ConflictError):
-            await service.replace(
-                ctx, trigger, RoutineSourceConsent(review_token=options.review_token)
-            )
+        with pytest.raises(PlatformRoutineIdentityRequired):
+            await save(db, ctx, trigger, options.review_token)
         assert not trigger.runs_as_creator
         # An old policy could have been saved before this compatibility check.
         snapshot = await service.snapshot(ctx, trigger)
@@ -1209,7 +1235,7 @@ async def test_routine_chat_grants_are_recorded_and_live_revocation_requires_rev
     )
     db.add(binding)
     await db.flush()
-    policy = await RoutineSourceService(db).initial(ctx, trigger)
+    policy = await reviewed(db, ctx, trigger)
     assert policy.channel_sources == {binding.id: grant_fingerprint(binding, bot)}
     await require_bound_sources(db, organization_id=ctx.organization_id, policy=policy)
     if change == "tools":
@@ -1248,11 +1274,8 @@ async def test_deferred_setup_must_be_reviewed_before_resume(db: AsyncSession) -
     assert not created.is_active and created.setup_required
     with pytest.raises(RoutineSourcesRequired):
         await service.update(ctx, created.agent_id, created.id, TriggerUpdate(is_active=True))
-    source_service = RoutineSourceService(db)
-    options = await source_service.options(ctx, created)
-    await source_service.replace(
-        ctx, created, RoutineSourceConsent(review_token=options.review_token)
-    )
+    options = await access_review(db, ctx, created)
+    await save(db, ctx, created, options.review_token)
     resumed = await service.update(ctx, created.agent_id, created.id, TriggerUpdate(is_active=True))
     assert resumed.is_active and not resumed.setup_required
 
@@ -1316,8 +1339,8 @@ async def test_the_review_names_each_source_and_never_another_organizations(db: 
     ).model_dump(mode="json")
     await db.flush()
 
-    review = await RoutineSourceService(db).options(ctx, trigger)
-    named = {(item.kind, item.id): (item.name, item.detail) for item in review.items}
+    review = await access_review(db, ctx, trigger)
+    named = {(item.kind, item.id): (item.name, item.detail) for item in review.sources}
     assert named[("skill", str(skill.id))] == ("deck-review", None)
     assert named[("skill", str(gone))] == (None, None)
     assert named[("knowledge", str(mine.id))] == ("Notes", None)
@@ -1325,14 +1348,12 @@ async def test_the_review_names_each_source_and_never_another_organizations(db: 
     assert named[("capability", "thinking")] == ("Thinking", None)
     assert named[("table", str(table))] == (None, "read/create")
     # Grouped by kind, each kind's sources by name.
-    assert [item.kind for item in review.items] == sorted(item.kind for item in review.items)
+    assert [item.kind for item in review.sources] == sorted(item.kind for item in review.sources)
     # A skill's model-facing handle is behavior, unlike the list's grouping.
-    # Switching to follow must vouch for the effective skill the owner saw.
+    # Saving must vouch for the effective skill the owner saw.
     skill.name = "deck-check"
     await db.flush()
-    assert (
-        await RoutineSourceService(db).options(ctx, trigger)
-    ).review_token != review.review_token
+    assert (await access_review(db, ctx, trigger)).review_token != review.review_token
 
 
 @pytest.mark.security
@@ -1362,13 +1383,11 @@ async def test_switched_off_delegation_context_and_knowledge_are_not_sources(
     )
     version.spec = off.model_dump(mode="json")
     await db.flush()
-    service = RoutineSourceService(db)
 
-    review = await service.options(ctx, trigger)
-    assert review.items == []
-    assert review.resources == []
+    review = await access_review(db, ctx, trigger)
+    assert review.sources == []
     assert review.unavailable_sources == []
-    await service.initial(ctx, trigger)
+    await reviewed(db, ctx, trigger)
 
     version.spec = off.model_copy(
         update={
@@ -1380,7 +1399,7 @@ async def test_switched_off_delegation_context_and_knowledge_are_not_sources(
     ).model_dump(mode="json")
     await db.flush()
     with pytest.raises(RoutineSourcesRequired):
-        await service.initial(ctx, trigger)
+        await reviewed(db, ctx, trigger)
 
 
 @pytest.mark.security
@@ -1417,12 +1436,9 @@ async def test_the_review_lists_only_what_a_run_can_reach_and_switching_skills_o
     await db.flush()
     service = RoutineSourceService(db)
 
-    review = await service.options(ctx, trigger)
-    assert [item for item in review.items if item.kind in {"skill", "capability"}] == []
-    assert not [name for name in review.resources if name.startswith(("Skill", "Capability"))]
-    await service.replace(
-        ctx, trigger, RoutineSourceConsent(review_token=review.review_token, mode="follow_agent")
-    )
+    review = await access_review(db, ctx, trigger)
+    assert [item for item in review.sources if item.kind in {"skill", "capability"}] == []
+    await save(db, ctx, trigger, review.review_token)
     policy = read_policy(trigger.approved_sources)
     assert policy.behavior is not None
     assert not [key for key in policy.behavior if ":skill:" in key]
@@ -1435,7 +1451,7 @@ async def test_the_review_lists_only_what_a_run_can_reach_and_switching_skills_o
     with pytest.raises(RoutineSourcesRequired):
         await service.require_current(ctx, trigger, expected_id=policy.id)
     named = {
-        (item.kind, item.id): item.name for item in (await service.options(ctx, trigger)).items
+        (item.kind, item.id): item.name for item in (await access_review(db, ctx, trigger)).sources
     }
     assert named[("skill", str(skill.id))] == "visual-design"
     assert named[("capability", "skills")] is not None
@@ -1657,8 +1673,9 @@ async def test_many_collection_labels_use_one_grant_lookup_and_preserve_scope_ru
 
 
 @pytest.mark.security
-async def test_follow_agent_omits_missing_optional_personal_mcp_but_keeps_the_gap_visible(db):
+async def test_missing_optional_personal_mcp_is_left_out_but_the_gap_stays_visible(db):
     from app.agents.spec import PersonalMcpServerRef
+    from app.services.routine_sources import activation_intent
 
     ctx, trigger, spec, _ = await world(db)
     version = await db.get(AgentVersion, trigger.pinned_version_id)
@@ -1668,31 +1685,28 @@ async def test_follow_agent_omits_missing_optional_personal_mcp_but_keeps_the_ga
     ).model_dump(mode="json")
     await db.flush()
     service = RoutineSourceService(db)
-    with pytest.raises(RoutineSourcesRequired):
-        await service.initial(ctx, trigger, mode="restricted")
-    policy = await service.initial(ctx, trigger, mode="follow_agent")
+    policy = await reviewed(db, ctx, trigger)
     trigger.approved_sources = policy.model_dump(mode="json")
     await db.flush()
-    review = await service.options(ctx, trigger)
-    assert review.current and review.mode == "follow_agent"
-    assert review.unavailable_sources == ["github"]
+    review = await access_review(db, ctx, trigger)
+    assert review.current and review.mode == "reviewed"
+    assert review.unavailable_sources == ["github"] and review.required_unavailable_sources == []
     assert policy.mcp_sources == {} and policy.root_mcp_ids == ()
-    from app.services.routine_actions import activation_intent
-
     intent = activation_intent(trigger)
     refreshed = await service.require_current(ctx, trigger, expected_id=policy.id)
-    assert refreshed.id == policy.id and refreshed.mode == "follow_agent"
+    assert refreshed.id == policy.id and refreshed.mode == "reviewed"
     assert refreshed.reviewed_at == policy.reviewed_at
     assert activation_intent(trigger) == intent
 
 
 @pytest.mark.security
-async def test_follow_agent_refreshes_between_fires_but_keeps_an_admitted_run_snapshot(db):
+async def test_removed_sources_refresh_between_fires_but_keep_an_admitted_run_snapshot(db):
+    from app.services.routine_sources import require_bound_sources
+
     ctx, trigger, spec, account = await world(db, mcp=True)
     assert account is not None
     service = RoutineSourceService(db)
-    before = await service.initial(ctx, trigger, mode="follow_agent")
-    trigger.approved_sources = before.model_dump(mode="json")
+    before = read_policy(trigger.approved_sources)
     version = await db.get(AgentVersion, trigger.pinned_version_id)
     assert version is not None
     changed = spec.model_copy(update={"mcp_servers": []})
@@ -1702,15 +1716,17 @@ async def test_follow_agent_refreshes_between_fires_but_keeps_an_admitted_run_sn
     after = await service.require_current(ctx, trigger, expected_id=before.id)
     assert after.id == before.id and after.spec_hash == spec_fingerprint(changed)
     assert after.mcp_sources == {} and after.root_mcp_ids == ()
+    assert read_policy(trigger.approved_sources) == after
+    # The ceiling is what was reviewed, not what the run reaches now.
+    assert after.approved_ceiling == before.approved_ceiling
+    assert after.tools == before.tools and after.intent_hash == before.intent_hash
     assert before.mcp_sources and before.spec_hash == spec_fingerprint(spec)
-    from app.services.routine_sources import require_bound_sources
-
     with pytest.raises(RoutineSourcesRequired):
         await require_bound_sources(db, organization_id=ctx.organization_id, policy=before)
 
 
 @pytest.mark.security
-async def test_owner_can_explicitly_switch_missing_source_setup_to_follow_agent(db):
+async def test_saving_a_pending_setup_review_admits_the_routine_without_enabling_it(db):
     from app.agents.spec import PersonalMcpServerRef
 
     ctx, trigger, spec, _ = await world(db)
@@ -1720,22 +1736,19 @@ async def test_owner_can_explicitly_switch_missing_source_setup_to_follow_agent(
         update={"mcp_servers": [PersonalMcpServerRef(account="personal", catalog_key="github")]}
     ).model_dump(mode="json")
     trigger.approved_sources = {"pending_review": True, "unavailable_sources": ["github"]}
+    trigger.is_active = False
     await db.flush()
-    service = RoutineSourceService(db)
-    before = await service.options(ctx, trigger)
-    assert not before.current and before.mode == "restricted"
-    after = await service.replace(
-        ctx, trigger, RoutineSourceConsent(review_token=before.review_token, mode="follow_agent")
-    )
-    assert after.current and after.mode == "follow_agent"
+    before = await access_review(db, ctx, trigger)
+    assert not before.current and before.review_reason == "setup" and before.mode == "reviewed"
+    after = await save(db, ctx, trigger, before.review_token)
+    assert after.current and after.review_reason is None and after.mode == "reviewed"
     assert after.unavailable_sources == ["github"]
-    assert not trigger.setup_required
+    assert not trigger.setup_required and not trigger.is_active
 
 
 @pytest.mark.security
-async def test_follow_agent_does_not_borrow_creator_identity_for_platform_mcp(db):
+async def test_platform_mcp_never_borrows_the_creator_identity(db):
     from app.agents.spec import PlatformMcpServerRef
-    from app.services.routine_sources import PlatformRoutineIdentityRequired
 
     ctx, trigger, spec, _ = await world(db)
     version = await db.get(AgentVersion, trigger.pinned_version_id)
@@ -1746,11 +1759,11 @@ async def test_follow_agent_does_not_borrow_creator_identity_for_platform_mcp(db
     trigger.runs_as_creator = False
     await db.flush()
     with pytest.raises(PlatformRoutineIdentityRequired):
-        await RoutineSourceService(db).initial(ctx, trigger, mode="follow_agent")
+        await reviewed(db, ctx, trigger)
 
 
 @pytest.mark.security
-async def test_follow_agent_still_requires_its_event_input_even_with_a_matching_optional_label(db):
+async def test_an_event_input_is_required_even_with_a_matching_optional_label(db):
     ctx, trigger, _, account = await world(db, mcp=True)
     assert account is not None
     account.name = "event source"
@@ -1758,56 +1771,60 @@ async def test_follow_agent_still_requires_its_event_input_even_with_a_matching_
     trigger.connection_id = account.id
     await db.flush()
     with pytest.raises(RoutineSourcesRequired) as refusal:
-        await RoutineSourceService(db).initial(ctx, trigger, mode="follow_agent")
+        await reviewed(db, ctx, trigger)
     assert refusal.value.details == {"unavailable_sources": ["event source"]}
 
 
-async def test_new_routine_follows_available_agent_settings_without_an_access_review(db):
+async def test_a_new_routine_is_reviewed_as_it_is_created(db):
     from app.schemas.agent_trigger import TriggerCreate
+    from app.services.routine_sources import routine_intent
 
-    ctx, original, _, _ = await world(db)
+    ctx, original, _, _ = await world(db, mcp=True)
     created = await AgentTriggerService(db).create(
         ctx,
         original.agent_id,
         TriggerCreate(prompt="Research the web", interval_seconds=300, runs_as_creator=True),
     )
     assert created.is_active and not created.setup_required
-    assert read_policy(created.approved_sources).mode == "follow_agent"
-    assert not created.action_consents
+    policy = read_policy(created.approved_sources)
+    assert policy.mode == "reviewed" and not policy.grandfathered
+    assert policy.intent_hash == routine_intent(created)
+    assert policy.approved_ceiling is not None and policy.approved_ceiling.tools == ()
+    assert policy.approved_ceiling.mcp_sources == policy.mcp_sources
+    assert {(setting.tool_id, setting.setting) for setting in policy.tools} == {("read", "allow")}
 
 
 @pytest.mark.security
-async def test_switching_mode_cannot_consent_to_an_account_changed_after_its_token_snapshot(
+async def test_saving_cannot_consent_to_an_account_changed_after_its_token_snapshot(
     db, monkeypatch
 ):
-    from app.schemas.routine_sources import RoutineSourceMode
     from app.services.routine_sources import RoutineSourceSnapshot
 
     ctx, trigger, _, account = await world(db, mcp=True)
     assert account is not None
-    service = RoutineSourceService(db)
-    offered = await service.options(ctx, trigger)
+    offered = await access_review(db, ctx, trigger)
     generation = account.authorization_generation
-    original_review = service._review
+    original_review = RoutineSourceService._review
     reads = 0
 
     async def review_then_rotate(
-        actor: AuthContext, current: AgentTrigger, *, mode: RoutineSourceMode | None = None
+        self: RoutineSourceService,
+        actor: AuthContext,
+        current: AgentTrigger,
+        *,
+        version_id: UUID | None = None,
     ) -> RoutineSourceSnapshot:
         nonlocal reads
-        snapshot = await original_review(actor, current, mode=mode)
+        snapshot = await original_review(self, actor, current, version_id=version_id)
         reads += 1
         if reads == 1:
             account.authorization_generation = uuid4()
             await db.flush()
         return snapshot
 
-    monkeypatch.setattr(service, "_review", review_then_rotate)
-    response = await service.replace(
-        ctx, trigger, RoutineSourceConsent(review_token=offered.review_token, mode="follow_agent")
-    )
+    monkeypatch.setattr(RoutineSourceService, "_review", review_then_rotate)
+    response = await save(db, ctx, trigger, offered.review_token)
     saved = read_policy(trigger.approved_sources)
-    assert saved.mode == "follow_agent"
     assert saved.mcp_sources[account.id].authorization_generation == generation
     assert (
         saved.mcp_sources[account.id].authorization_generation != account.authorization_generation
@@ -1817,7 +1834,7 @@ async def test_switching_mode_cannot_consent_to_an_account_changed_after_its_tok
 
 @pytest.mark.security
 @pytest.mark.parametrize("tool_binding", [True, False])
-async def test_follow_agent_cannot_borrow_new_event_authorization_after_a_mailbox_read(
+async def test_a_review_cannot_borrow_new_event_authorization_after_a_mailbox_read(
     db: AsyncSession, tool_binding: bool
 ) -> None:
     ctx, trigger, spec, account = await world(db, mcp=True)
@@ -1829,7 +1846,7 @@ async def test_follow_agent_cannot_borrow_new_event_authorization_after_a_mailbo
     trigger.connection_id = account.id
     await db.flush()
     service = RoutineSourceService(db)
-    admitted = await service.initial(ctx, trigger, mode="follow_agent")
+    admitted = await reviewed(db, ctx, trigger)
     trigger.approved_sources = admitted.model_dump(mode="json")
     await db.flush()
     account.authorization_generation = uuid4()
@@ -1840,7 +1857,7 @@ async def test_follow_agent_cannot_borrow_new_event_authorization_after_a_mailbo
 
 
 @pytest.mark.security
-async def test_follow_agent_mcp_action_keeps_live_connection_allowlists(db, monkeypatch):
+async def test_an_mcp_action_keeps_live_connection_allowlists(db, monkeypatch):
     from collections.abc import AsyncIterator
     from contextlib import asynccontextmanager
 
@@ -1851,7 +1868,7 @@ async def test_follow_agent_mcp_action_keeps_live_connection_allowlists(db, monk
 
     ctx, trigger, spec, account = await world(db, mcp=True)
     assert account is not None
-    policy = await RoutineSourceService(db).initial(ctx, trigger, mode="follow_agent")
+    policy = await reviewed(db, ctx, trigger)
     trigger.approved_sources = policy.model_dump(mode="json")
     await db.flush()
     authority = await RoutineAuthority.capture(
@@ -1882,7 +1899,9 @@ async def test_follow_agent_mcp_action_keeps_live_connection_allowlists(db, monk
             )
         },
     )
-    assert not (await authority.action_policy(trigger.agent_id, spec, tool)).required
+    # Allowed when the routine was created: it runs on its creator's standing consent.
+    decision = await authority.action_policy(trigger.agent_id, spec, tool)
+    assert decision.consented_by == ctx.user_id
     account.allowed_tools = []
     await db.flush()
     with pytest.raises(AuthorizationError):
@@ -1946,7 +1965,7 @@ async def test_shared_publisher_cannot_expand_a_creators_automatic_routine_autho
     trigger.pinned_version_id = None
     await db.flush()
     service = RoutineSourceService(db)
-    approved = await service.initial(ctx, trigger, mode="follow_agent")
+    approved = await reviewed(db, ctx, trigger)
     trigger.approved_sources = approved.model_dump(mode="json")
     if attack == "new_sources":
         altered = initial.model_copy(
@@ -1977,22 +1996,26 @@ async def test_shared_publisher_cannot_expand_a_creators_automatic_routine_autho
     await db.flush()
     agent.current_version_id = published.id
     await db.flush()
+    if attack in {"instructions_only", "variables"}:
+        # Instructions and variables are not sources: the review still holds.
+        assert (await service.require_current(ctx, trigger, expected_id=approved.id)).id == (
+            approved.id
+        )
+        return
     with pytest.raises(RoutineSourcesRequired):
         await service.require_current(ctx, trigger, expected_id=approved.id)
     assert read_policy(trigger.approved_sources) == approved
     assert trigger.last_run_id is None
-    offered = await service.options(ctx, trigger)
+    offered = await access_review(db, ctx, trigger)
     assert not offered.current
-    await service.replace(
-        ctx, trigger, RoutineSourceConsent(review_token=offered.review_token, mode="follow_agent")
-    )
+    await save(db, ctx, trigger, offered.review_token)
     explicitly_approved = read_policy(trigger.approved_sources)
     assert (
         await service.require_current(ctx, trigger, expected_id=explicitly_approved.id)
     ).id == explicitly_approved.id
 
 
-async def test_follow_agent_preserves_its_initial_ceiling_across_safe_removal_and_reintroduction(
+async def test_a_review_preserves_its_ceiling_across_safe_removal_and_reintroduction(
     db,
 ):
     ctx, trigger, spec, account = await world(db, mcp=True)
@@ -2000,7 +2023,7 @@ async def test_follow_agent_preserves_its_initial_ceiling_across_safe_removal_an
     trigger.pinned_version_id = None
     await db.flush()
     service = RoutineSourceService(db)
-    approved = await service.initial(ctx, trigger, mode="follow_agent")
+    approved = await reviewed(db, ctx, trigger)
     trigger.approved_sources = approved.model_dump(mode="json")
     agent = await db.get(Agent, trigger.agent_id)
     assert agent is not None
@@ -2046,33 +2069,66 @@ async def test_follow_agent_preserves_its_initial_ceiling_across_safe_removal_an
 
 
 @pytest.mark.security
-async def test_unproved_legacy_follow_requires_review_but_legacy_restricted_still_reads(db):
-    ctx, trigger, _, _ = await world(db)
+async def test_a_legacy_review_without_behavior_compares_its_spec_hash(db):
+    ctx, trigger, spec, _ = await world(db)
     stored = dict(trigger.approved_sources)
-    stored.pop("behavior", None)
-    stored.pop("mode", None)
+    for legacy in ("behavior", "approved_ceiling", "mode", "tools", "intent_hash"):
+        stored.pop(legacy, None)
     trigger.approved_sources = stored
+    version = await db.get(AgentVersion, trigger.pinned_version_id)
+    assert version is not None
+    version.spec = spec.model_copy(update={"instructions": "Revised"}).model_dump(mode="json")
     await db.flush()
     service = RoutineSourceService(db)
-    assert (
-        await service.require_current(ctx, trigger, expected_id=read_policy(stored).id)
-    ).mode == "restricted"
-    await service.require_behavior(ctx, trigger, read_policy(stored))
-    for behavior in (None, {}):
-        trigger.approved_sources = {**stored, "mode": "follow_agent", "behavior": behavior}
-        await db.flush()
-        with pytest.raises(RoutineSourcesRequired):
-            await service.require_current(ctx, trigger, expected_id=read_policy(stored).id)
-        with pytest.raises(RoutineSourcesRequired):
-            await service.require_behavior(ctx, trigger, read_policy(trigger.approved_sources))
+    policy = read_policy(stored)
+    admitted = await service.require_current(ctx, trigger, expected_id=policy.id)
+    assert admitted.mode == "reviewed" and admitted.behavior is not None
+    # The legacy review is still its own ceiling, by its spec hash.
+    assert admitted.approved_ceiling is not None
+    assert admitted.approved_ceiling.behavior is None
+    await service.require_behavior(ctx, trigger, policy)
+    version.spec = spec.model_copy(update={"collection_ids": [uuid4()]}).model_dump(mode="json")
+    trigger.approved_sources = stored
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        await service.require_current(ctx, trigger, expected_id=policy.id)
+
+
+@pytest.mark.security
+async def test_a_prompt_change_needs_a_new_review_unless_the_review_predates_intent(db):
+    ctx, trigger, _, _ = await world(db)
+    policy = read_policy(trigger.approved_sources)
+    service = RoutineSourceService(db)
+    trigger.prompt = "Delete everything instead"
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        await service.require_current(ctx, trigger, expected_id=policy.id)
+    review = await access_review(db, ctx, trigger)
+    assert not review.current and review.review_reason == "routine_changed"
+    # Migrated without an intent, a review cannot tell; it is saved again to.
+    trigger.approved_sources = policy.model_copy(update={"intent_hash": None}).model_dump(
+        mode="json"
+    )
+    await db.flush()
+    assert (await service.require_current(ctx, trigger, expected_id=policy.id)).id == policy.id
+
+
+@pytest.mark.security
+async def test_a_scope_change_needs_a_new_review(db):
+    ctx, trigger, _, _ = await world(db)
+    policy = read_policy(trigger.approved_sources)
+    trigger.runs_as_creator = False
+    await db.flush()
+    with pytest.raises(RoutineSourcesRequired):
+        await RoutineSourceService(db).require_current(ctx, trigger, expected_id=policy.id)
+    review = await access_review(db, ctx, trigger)
+    assert review.review_reason == "routine_changed"
 
 
 @pytest.mark.security
 @pytest.mark.parametrize("kind", ["skill", "context"])
 @pytest.mark.parametrize("topology", ["root", "published_delegate", "inline"])
-async def test_follow_agent_requires_review_for_changed_materialized_instruction_resources(
-    db, kind, topology
-):
+async def test_changed_materialized_instruction_resources_require_review(db, kind, topology):
     from app.db.models.context import ContextFile
     from app.db.models.skill import Skill
 
@@ -2162,7 +2218,7 @@ async def test_follow_agent_requires_review_for_changed_materialized_instruction
         version.spec = resource_spec.model_dump(mode="json")
     await db.flush()
     service = RoutineSourceService(db)
-    policy = await service.initial(ctx, trigger, mode="follow_agent")
+    policy = await reviewed(db, ctx, trigger)
     trigger.approved_sources = policy.model_dump(mode="json")
     await db.flush()
     authority = await RoutineAuthority.capture(
@@ -2204,10 +2260,9 @@ async def test_follow_agent_requires_review_for_changed_materialized_instruction
         )
 
 
-@pytest.mark.parametrize("mode", ["follow_agent", "restricted"])
 @pytest.mark.parametrize("runs_as_creator", [True, False])
 async def test_source_review_distinguishes_optional_mcp_from_required_creator_identity(
-    db, mode, runs_as_creator
+    db, runs_as_creator
 ):
     from app.agents.spec import PersonalMcpServerRef
 
@@ -2223,9 +2278,9 @@ async def test_source_review_distinguishes_optional_mcp_from_required_creator_id
         }
     ).model_dump(mode="json")
     trigger.runs_as_creator = runs_as_creator
-    trigger.approved_sources = {"pending_review": True, "mode": mode}
+    trigger.approved_sources = {"pending_review": True}
     await db.flush()
-    review = await RoutineSourceService(db).options(ctx, trigger)
+    review = await access_review(db, ctx, trigger)
     if runs_as_creator:
         assert review.unavailable_sources == ["github"]
         assert review.required_unavailable_sources == []
@@ -2238,7 +2293,7 @@ async def test_source_review_distinguishes_optional_mcp_from_required_creator_id
 
 @pytest.mark.security
 @pytest.mark.parametrize("expansion", ["new_account", "new_tool", "rotated_account"])
-async def test_follow_agent_never_silently_admits_new_account_or_tool_authority(db, expansion):
+async def test_a_review_never_silently_admits_new_account_or_tool_authority(db, expansion):
     from app.agents.spec import PersonalMcpServerRef
 
     ctx, trigger, spec, account = await world(db, mcp=expansion != "new_account")
@@ -2250,7 +2305,7 @@ async def test_follow_agent_never_silently_admits_new_account_or_tool_authority(
             update={"mcp_servers": [PersonalMcpServerRef(account="personal", catalog_key="github")]}
         ).model_dump(mode="json")
         await db.flush()
-    policy = await service.initial(ctx, trigger, mode="follow_agent")
+    policy = await reviewed(db, ctx, trigger)
     trigger.approved_sources = policy.model_dump(mode="json")
     await db.flush()
     if expansion == "new_account":
@@ -2280,12 +2335,12 @@ async def test_follow_agent_never_silently_admits_new_account_or_tool_authority(
 
 @pytest.mark.security
 @pytest.mark.parametrize("refusal", ["bad_request", "not_found"])
-async def test_follow_agent_materialization_turns_unavailable_review_into_owner_review(db, refusal):
+async def test_materialization_turns_an_unavailable_review_into_owner_review(db, refusal):
     from app.core.exceptions import BadRequestError, NotFoundError
 
     ctx, trigger, _, _ = await world(db)
     service = RoutineSourceService(db)
-    policy = await service.initial(ctx, trigger, mode="follow_agent")
+    policy = await reviewed(db, ctx, trigger)
     error = (
         BadRequestError(message="Configuration no longer valid")
         if refusal == "bad_request"
@@ -2296,7 +2351,7 @@ async def test_follow_agent_materialization_turns_unavailable_review_into_owner_
         pytest.raises(RoutineSourcesRequired),
     ):
         await service.require_behavior(ctx, trigger, policy)
-    review.assert_awaited_once_with(ctx, trigger, mode="follow_agent", version_id=policy.version_id)
+    review.assert_awaited_once_with(ctx, trigger, version_id=policy.version_id)
 
 
 async def test_disabled_mcp_binding_adds_no_behavior_authority(db):
@@ -2340,7 +2395,7 @@ async def test_historical_starter_hash_is_canonicalized_without_regranting_sourc
         mode="json"
     )
     await db.flush()
-    assert (await RoutineSourceService(db).options(ctx, trigger)).current
+    assert (await access_review(db, ctx, trigger)).current
     after = await RoutineSourceService(db).require_current(ctx, trigger, expected_id=before.id)
     assert after.id == before.id and after.spec_hash == spec_fingerprint(spec)
     assert read_policy(trigger.approved_sources) == after
@@ -2380,8 +2435,6 @@ async def test_run_bound_mcp_publication_deduplicates_and_stops_after_pause(db: 
         routine_policy={
             "acts_as_creator": True,
             "approved_sources": trigger.approved_sources,
-            "action_consents": [],
-            "action_mode": None,
         },
     )
     run.status = "running"
@@ -2433,7 +2486,6 @@ async def test_reporting_limit_preserves_idempotent_retries_and_existing_case_re
         routine_policy={
             "acts_as_creator": True,
             "approved_sources": trigger.approved_sources,
-            "action_mode": None,
         },
     )
     run.status = "running"
@@ -2472,10 +2524,8 @@ async def test_following_sources_ignore_only_starter_visibility_in_historical_be
     ctx, trigger, spec, _ = await world(db)
     trigger.pinned_version_id = None
     service = RoutineSourceService(db)
-    review = await service.options(ctx, trigger)
-    await service.replace(
-        ctx, trigger, RoutineSourceConsent(review_token=review.review_token, mode="follow_agent")
-    )
+    review = await access_review(db, ctx, trigger)
+    await save(db, ctx, trigger, review.review_token)
     policy = read_policy(trigger.approved_sources)
     material = spec.model_dump(
         mode="json",

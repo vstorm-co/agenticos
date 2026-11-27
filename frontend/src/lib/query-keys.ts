@@ -297,10 +297,9 @@ export const qk = {
       ["triggers", agentId, "activation", triggerId, activationId, jobId] as const,
     attempts: (agentId: string, triggerId: string, page: number) =>
       ["triggers", agentId, "attempts", triggerId, page] as const,
-    sources: (agentId: string, triggerId: string) =>
-      ["triggers", agentId, "sources", triggerId] as const,
-    actionConsents: (agentId: string, triggerId: string) =>
-      ["triggers", agentId, "action-consents", triggerId] as const,
+    // Under `all()`, so a connection check or a trigger write reads it again.
+    access: (agentId: string, triggerId: string) =>
+      ["triggers", agentId, "access", triggerId] as const,
     // Every routine one screen shows, read together; the prefix is what a run,
     // an agent or a membership change refreshes without touching the listings.
     readinessAll: () => ["triggers", "readiness"] as const,

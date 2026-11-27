@@ -236,7 +236,7 @@ App link, Inbox settlement, execution or paid operation requires a fresh answer.
 This includes tests, evaluations and improvement steps, ingestion/sync, connection
 tests, automation definitions and immediate routine runs, agent environments,
 profile/model/embedding changes, invitations and administrative/proactivity settings.
-Approve everything, remembered decisions and routine standing consent cannot waive
+Approve everything, remembered decisions and a routine's **Run freely** setting cannot waive
 these floors. Self-only language and interface preferences remain ungated.
 
 In the Builder, use each tool's shield or group control to require approval for a
@@ -1438,7 +1438,7 @@ A Google account connected through an organization's OAuth client can only be us
 
 Migration `0293_connected_account_sources.py` leaves unverifiable older personal grants disconnected until reconsent. Downgrading it removes personal connected-account grants because older versions cannot enforce their source tenant; ordinary MCP connections remain.
 
-Mirage approval pauses pin account identities and credential generations. Changing either while a run waits requires a new run and approval. Routine source reviews bind the same generations, and terminal writes and commands require routine effect consent even when per-mount write approvals are disabled.
+Mirage approval pauses pin account identities and credential generations. Changing either while a run waits requires a new run and approval. Routine access reviews bind the same generations, and terminal writes and commands count as changes for a routine: they ask unless its review lets them run freely, even when per-mount write approvals are disabled.
 
 Removing a member permanently revokes their personal grants issued through this organization; inviting them back requires new consent.
 

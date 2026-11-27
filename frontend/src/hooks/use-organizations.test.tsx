@@ -334,6 +334,18 @@ describe("useOrganizations", () => {
     await waitFor(() => expect(result.current.orgs[0]?.chat_may_waive_approvals).toBe(true));
   });
 
+  it("sends whether routines may trust their agent and keeps the answer", async () => {
+    const result = await hook();
+    vi.mocked(apiClient.patch).mockResolvedValue(org({ routines_may_trust_agent: true }));
+
+    await result.current.setRoutinesMayTrustAgent("org-1", true);
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/orgs/org-1", {
+      routines_may_trust_agent: true,
+    });
+    await waitFor(() => expect(result.current.orgs[0]?.routines_may_trust_agent).toBe(true));
+  });
+
   it("persists an explicit footer opt-out and updates the organization cache", async () => {
     const result = await hook();
     vi.mocked(apiClient.patch).mockResolvedValue(org({ public_agenticos_attribution: false }));

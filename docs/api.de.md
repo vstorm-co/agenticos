@@ -1,5 +1,5 @@
 ---
-source_sha: "58aaa4e50b4b"
+source_sha: "c1e6cc1e217a"
 ---
 
 # Die HTTP-API { #the-http-api }
@@ -84,13 +84,13 @@ Für das Genehmigen persönlicher Routinen und Watches ist der ausdrückliche Sc
 Schlüssel ein.** Ein Schlüssel, den Sie erstellt haben, oder das Token eines
 MCP-Clients, den Sie autorisiert haben, darf Ihre eigenen [Routinen](triggers.md),
 die als Sie handeln (`runs_as_creator`), und Ihre [Watches](console.md) anlegen und
-ändern, die Quellen einer Routine prüfen und einen Agenten veröffentlichen, ohne
+ändern, den Zugriff einer Routine prüfen und einen Agenten veröffentlichen, ohne
 die Zustimmung Ihrer als Sie handelnden Routinen zu entziehen. Der Lauf einer
-solchen Routine bleibt an ihre gewählte Quellenrichtlinie, aktuelle Berechtigungen und ihr Budget gebunden. Die
+solchen Routine bleibt an ihre Zugriffsprüfung, aktuelle Berechtigungen und ihr Budget gebunden. Die
 Laufberechtigung eines Agenten außerhalb Ihres privaten Chats kann das nicht,
 ebenso wenig ein Administrator, der Sie imitiert.
 
-Bei Routinen automatisiert `source_mode=follow_agent` die Ersteinrichtung innerhalb der Erstellerbefugnisse; spätere Quellen- oder Verhaltenserweiterungen werden dadurch nicht genehmigt. Der Eigentümer kann die aktuelle Konfiguration ausdrücklich über den durch Prüftoken geschützten Quellenendpunkt bestätigen. Die Metadaten trennen `required_unavailable_sources` von optionalen MCP-Lücken in `unavailable_sources`. Eine ältere folgende Richtlinie ohne Verhaltensnachweis erfordert eine Prüfung; bestehende eingeschränkte Richtlinien behalten ihre Regeln.
+Das Erstellen einer Routine prüft ihren Zugriff innerhalb der Befugnisse des Erstellers; spätere Quellenerweiterungen genehmigt es nicht. `GET /agents/{agent_id}/triggers/{trigger_id}/access` liefert die [Zugriffsprüfung](governance.md#routine-access) der Routine: ihre Quellen, die Einstellung jedes Tools und ein `review_token`. `PUT` auf denselben Pfad mit diesem Token speichert eine neue und wird mit 409 abgelehnt, wenn sich Quellen, Tools oder die Routine seitdem geändert haben. Ein von Ihnen mit `personal:consent` ausgestellter Schlüssel darf `ask`, `off` und `allow` für lesende Tools setzen. `allow` für ein Tool, das etwas ändert, `delegates: allow` und `mode: trust_agent` brauchen eine Konsolensitzung; eine über einen Schlüssel erstellte Routine beginnt daher mit diesen Tools auf Fragen. Die Prüfung trennt `required_unavailable_sources` von optionalen MCP-Lücken in `unavailable_sources`.
 
 Auch Unterhaltungen sind öffentlich: `GET /api/v1/conversations` listet die Chats
 des Ausstellers (`runs:view`), `POST /api/v1/conversations` mit `title` und

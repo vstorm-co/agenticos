@@ -199,6 +199,26 @@ def test_a_workflow_approval_hands_over_its_title_and_a_step_s_own_notice_nothin
             },
         ),
         (
+            NotificationEventType.SHARED_CHANGE_APPLIED,
+            {
+                "wording": "routine_access_expanded",
+                "sources": "Linear, Sales drive",
+                "routine_name": "Weekly digest",
+                "routine_origin_id": str(uuid4()),
+                "run_url": "https://console.example/routines",
+            },
+            {
+                "wording": "routine_access_expanded",
+                "sources": "Linear, Sales drive",
+                "routine_name": "Weekly digest",
+            },
+        ),
+        (
+            NotificationEventType.SHARED_CHANGE_APPLIED,
+            {"wording": "routine_access_expanded", "sources": "Linear"},
+            {"wording": "routine_access_expanded", "sources": "Linear"},
+        ),
+        (
             NotificationEventType.CONFIGURATION_CHANGED,
             {"wording": "configuration_changed", "action": "settings.update", "url": "/admin"},
             {"wording": "configuration_changed"},

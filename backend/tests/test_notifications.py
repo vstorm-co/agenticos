@@ -2540,6 +2540,68 @@ async def test_watch_terminal_results_do_not_report_an_obsolete_attempt(monkeypa
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize("count", [1, 7])
+async def test_a_trusting_routines_growth_is_told_to_its_creator_alone(monkeypatch, written, count):
+    from app.db.models.agent_trigger import AgentTrigger
+
+    owner, org = uuid.uuid4(), uuid.uuid4()
+    members = _members(owner)
+    monkeypatch.setattr(f"{MODULE}.member_repo.list_member_ids_for", members)
+    trigger = AgentTrigger(
+        id=uuid.uuid4(), organization_id=org, created_by_user_id=owner, name="Weekly digest"
+    )
+    sources = [f"Source {index}" for index in range(count)]
+    service = NotificationService(MagicMock())
+    await service.routine_access_expanded(trigger, sources=sources)
+    await service.routine_access_expanded(trigger, sources=sources)
+    assert members.await_args.kwargs == {"organization_id": org, "user_ids": [owner]}
+    [first, second] = written.calls
+    assert first["recipients"] == [owner]
+    # Each expansion is its own notice: the ceiling moved, so it is not repeated.
+    assert first["occurrence_id"] != second["occurrence_id"]
+    named = (
+        "Source 0" if count == 1 else "Source 0, Source 1, Source 2, Source 3, Source 4 and 2 more"
+    )
+    assert first["summary"] == f"Weekly digest trusts its agent and now also reaches: {named}"
+    context = first["render_context"]
+    assert (context["wording"], context["sources"], context["routine_name"]) == (
+        "routine_access_expanded",
+        named,
+        "Weekly digest",
+    )
+    assert context["routine_origin_id"] == str(trigger.id)
+    assert first["context_url"].startswith("/routines")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("who", ["no_creator", "left"])
+async def test_a_trusting_routines_growth_is_told_to_nobody_else(monkeypatch, written, who):
+    from app.db.models.agent_trigger import AgentTrigger
+
+    monkeypatch.setattr(f"{MODULE}.member_repo.list_member_ids_for", _members())
+    trigger = AgentTrigger(
+        id=uuid.uuid4(),
+        organization_id=uuid.uuid4(),
+        created_by_user_id=None if who == "no_creator" else uuid.uuid4(),
+    )
+    await NotificationService(MagicMock()).routine_access_expanded(trigger, sources=["Linear"])
+    assert written.calls == []
+
+
+@pytest.mark.anyio
+async def test_an_unnamed_routines_growth_reads_as_your_routine(monkeypatch, written):
+    from app.db.models.agent_trigger import AgentTrigger
+
+    owner = uuid.uuid4()
+    monkeypatch.setattr(f"{MODULE}.member_repo.list_member_ids_for", _members(owner))
+    trigger = AgentTrigger(id=uuid.uuid4(), organization_id=uuid.uuid4(), created_by_user_id=owner)
+    await NotificationService(MagicMock()).routine_access_expanded(trigger, sources=["Linear"])
+    [call] = written.calls
+    assert call["summary"].startswith("Your routine trusts its agent")
+    assert "routine_name" not in call["render_context"]
+
+
+@pytest.mark.anyio
 async def test_a_routine_without_a_recipient_does_not_invent_one(written):
     await NotificationService(MagicMock()).routine_blocked(
         organization_id=uuid.uuid4(),

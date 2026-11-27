@@ -1,4 +1,4 @@
-import type { RoutineSourceMode } from "@/lib/routine-sources-api";
+import type { RoutineAccessMode } from "@/lib/routine-access-api";
 import type { RoutineNotificationChannel } from "@/types/routines";
 /**
  * Types for agent triggers - when an agent runs with nobody at the keyboard.
@@ -80,8 +80,9 @@ export interface Trigger {
   pinned_version_id?: string | null;
   /** The Teams channel or group chat each fire's answer is also posted to (#1985). */
   teams_conversation_id?: string | null;
+  /** `trust_agent` when the routine follows its agent without review; null before setup. */
+  access_mode?: RoutineAccessMode | null;
   /** Where each fire's answer is delivered to its person, beside the run log (#2575). */
-  action_mode?: "agent" | "manual" | "per_tool" | null;
   result_mode?: "report" | "inbox";
   chat_mode?: RoutineChatMode;
   answer_to?: TriggerAnswerTo;
@@ -166,7 +167,6 @@ export type RoutineChatMode = "per_run" | "shared";
 export type TriggerAnswerTo = "run_log" | "primary" | "conversation";
 
 export interface TriggerCreate {
-  source_mode?: RoutineSourceMode;
   review_before_activation?: boolean;
   max_failures?: number | null;
   is_active?: boolean;
@@ -178,7 +178,6 @@ export interface TriggerCreate {
   environment_id?: string | null;
   pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
-  action_mode?: "agent" | "manual" | "per_tool" | null;
   result_mode?: "report" | "inbox";
   chat_mode?: RoutineChatMode;
   answer_to?: TriggerAnswerTo;
@@ -247,7 +246,6 @@ export interface TriggerUpdate {
   environment_id?: string | null;
   pinned_version_id?: string | null;
   teams_conversation_id?: string | null;
-  action_mode?: "agent" | "manual" | "per_tool" | null;
   result_mode?: "report" | "inbox";
   chat_mode?: RoutineChatMode;
   answer_to?: TriggerAnswerTo;

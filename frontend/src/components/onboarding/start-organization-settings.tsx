@@ -10,6 +10,7 @@ import { rememberStartQuestion } from "./start-position";
 import { useTranslations } from "next-intl";
 import {
   OrgApprovalWaiver,
+  OrgRoutineTrust,
   OrgPublicLiveData,
   OrgVoiceSettings,
   OrgProactivity,
@@ -80,6 +81,7 @@ export function StartOrganizationSettings({
             </summary>
             <div>
               {can(Perm.approvalsDecide) && <OrgApprovalWaiver org={org} />}
+              {can(Perm.approvalsDecide) && <OrgRoutineTrust org={org} />}
               {can(Perm.orgSettings) && <OrgPublicLiveData org={org} />}
               <Link
                 href={`/orgs/${org.id}/members?tab=governance`}

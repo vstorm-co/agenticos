@@ -53,6 +53,7 @@ def _org_row(*, name: str) -> Organization:
         # never flushed - so an unset boolean reaches the response schema as None
         # and fails it, which is the honest failure rather than one to coerce away.
         chat_may_waive_approvals=False,
+        routines_may_trust_agent=False,
         ai_assistance_enabled=True,
         public_live_data=False,
         public_agenticos_attribution=True,
@@ -512,6 +513,68 @@ class TestOrganizationService:
             set_impersonator(None)
 
         assert org.public_live_data is False
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("role", ["owner", "admin", "operator"])
+    async def test_whoever_decides_approvals_lets_routines_trust_their_agent_and_it_is_audited(
+        self, service, mock_db, role
+    ):
+        org = _org_row(name="Acme")
+        requester = uuid.uuid4()
+
+        with (
+            patch.object(
+                service, "get_for_user", new=AsyncMock(return_value=(org, MagicMock(role=role)))
+            ),
+            patch("app.services.organization.organization_repo.update", new=AsyncMock()),
+            patch("app.services.organization.record_audit", new=AsyncMock()) as audit,
+        ):
+            await service.update(
+                org.id, OrganizationUpdate(routines_may_trust_agent=True), requester_id=requester
+            )
+            assert org.routines_may_trust_agent is True
+            audit.assert_awaited_once()
+            assert audit.await_args.kwargs["action"] == "organization.routine_trust_changed"
+            assert audit.await_args.kwargs["details"] == {"from": False, "to": True}
+            assert audit.await_args.kwargs["actor_user_id"] == requester
+
+            # Naming the value it already has changes, and records, nothing.
+            await service.update(
+                org.id, OrganizationUpdate(routines_may_trust_agent=True), requester_id=requester
+            )
+            assert audit.await_count == 1
+        assert _org_read(org, member_count=1, role=role).routines_may_trust_agent is True
+
+    @pytest.mark.security
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("role", ["member", "builder", "viewer"])
+    async def test_nobody_without_approvals_decide_lets_routines_trust_their_agent(
+        self, service, mock_db, role
+    ):
+        org = _org_row(name="Acme")
+
+        with (
+            patch.object(
+                service, "get_for_user", new=AsyncMock(return_value=(org, MagicMock(role=role)))
+            ),
+            patch("app.services.organization.record_audit", new=AsyncMock()) as audit,
+            pytest.raises(AuthorizationError, match="approvals:decide"),
+        ):
+            await service.update(
+                org.id, OrganizationUpdate(routines_may_trust_agent=True), requester_id=uuid.uuid4()
+            )
+
+        assert org.routines_may_trust_agent is False
+        audit.assert_not_awaited()
+
+    def test_routines_do_not_trust_their_agent_until_someone_allows_it(self):
+        assert OrganizationUpdate().routines_may_trust_agent is None
+        assert "routines_may_trust_agent" not in OrganizationUpdate().model_fields_set
+        assert (
+            _org_read(_org_row(name="Acme"), member_count=1, role="owner").routines_may_trust_agent
+            is False
+        )
+        assert Organization.__table__.c.routines_may_trust_agent.server_default.arg == "false"
 
     @pytest.mark.anyio
     async def test_saving_the_switch_it_already_has_passes_under_impersonation(

@@ -114,10 +114,8 @@ from app.schemas.agent_trigger import (
 from app.schemas.change_event import ChangeEvent
 from app.schemas.local_target import LocalTarget
 from app.schemas.portal import PortalPresetRead, PortalRead
-from app.schemas.routine_actions import RoutineActionOptions, RoutineActions
+from app.schemas.routine_access import RoutineAccessReview, RoutineAccessUpdate
 from app.schemas.routine_readiness import TriggerReadiness
-from app.schemas.routine_sources import RoutineSourceConsent, RoutineSourceReview
-from app.schemas.routine_tools import RoutineToolOptions, RoutineToolSettings
 from app.services import (
     change_feed,
     device_hub,
@@ -141,7 +139,7 @@ from app.services.portal_catalog import DeliveryMode
 from app.services.portals.github_app import GitHubAppPortalAdapter
 from app.services.primary_conversation import PrimaryConversationService
 from app.services.project import ProjectService
-from app.services.routine_actions import RoutineActionService, activation_intent
+from app.services.routine_access import RoutineAccessService
 from app.services.routine_devices import (
     RoutineActivationObsolete,
     RoutineDeviceOffline,
@@ -154,9 +152,9 @@ from app.services.routine_sources import (
     PlatformRoutineIdentityRequired,
     RoutineSourceService,
     RoutineSourcesRequired,
+    activation_intent,
     read_policy,
 )
-from app.services.routine_tools import RoutineToolService
 from app.services.spend import month_start
 from app.worker.jobs import FIRE_TRIGGER, ROUTINE_CHAT_ANSWER, FireTrigger, RoutineChatAnswer
 
@@ -379,7 +377,6 @@ _WHAT_IT_DOES = (
     "answer_to",
     "chat_mode",
     "result_mode",
-    "action_mode",
     "delivery_conversation_id",
 )
 """The edits that change what a fire does or who reads its answer, and so end its acting as the creator."""
@@ -1152,7 +1149,6 @@ class AgentTriggerService:
             teams_conversation_id=data.teams_conversation_id,
             result_mode=data.result_mode,
             chat_mode=data.chat_mode,
-            action_mode=data.action_mode,
             answer_to=data.answer_to,
             delivery_conversation_id=data.delivery_conversation_id,
             ends_at=data.ends_at,
@@ -1161,7 +1157,7 @@ class AgentTriggerService:
             monthly_budget_usd=data.monthly_budget_usd,
         )
         try:
-            policy = await self.sources.initial(ctx, trigger, mode=data.source_mode)
+            policy = await RoutineAccessService(self.db).initial(ctx, trigger)
         except RoutineSourcesRequired as refusal:
             # Preserve the requested responsibility without granting incomplete
             # sources or queueing a fire. Source review is still required before
@@ -1171,7 +1167,6 @@ class AgentTriggerService:
             unavailable = details.get("unavailable_sources", [])
             trigger.approved_sources = {
                 "pending_review": True,
-                "mode": data.source_mode,
                 "unavailable_sources": [name for name in unavailable if isinstance(name, str)]
                 if isinstance(unavailable, list)
                 else [],
@@ -1180,11 +1175,7 @@ class AgentTriggerService:
         else:
             if data.review_before_activation:
                 trigger.is_active = False
-                trigger.approved_sources = {
-                    "pending_review": True,
-                    "mode": data.source_mode,
-                    "unavailable_sources": [],
-                }
+                trigger.approved_sources = {"pending_review": True, "unavailable_sources": []}
             else:
                 trigger.approved_sources = policy.model_dump(mode="json")
         await self.db.flush()
@@ -1431,14 +1422,6 @@ class AgentTriggerService:
         if "answer_to" in changes and "chat_mode" not in changes:
             changes["chat_mode"] = "shared" if changes["answer_to"] == "run_log" else "per_run"
 
-        if "action_mode" in changes and not _acts_as_themselves(ctx, trigger.created_by_user_id):
-            raise AuthorizationError(
-                message="Only the routine's creator may change its tool approval policy"
-            )
-        if "action_mode" in changes and (
-            changes["action_mode"] == "manual" or changes["action_mode"] != trigger.action_mode
-        ):
-            changes["action_consents"] = []
         if changes.get("is_active", trigger.is_active):
             await require_organization_agent(
                 self.db,
@@ -1684,39 +1667,17 @@ class AgentTriggerService:
         if not acting and trigger.local_target is not None:
             changes["local_target"] = None
 
-    async def source_options(
+    async def access(
         self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
-    ) -> RoutineSourceReview:
-        return await self.sources.options(ctx, await self._owned(ctx, agent_id, trigger_id))
-
-    async def set_source_consents(
-        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: RoutineSourceConsent
-    ) -> RoutineSourceReview:
-        return await self.sources.replace(ctx, await self._owned(ctx, agent_id, trigger_id), data)
-
-    async def action_options(
-        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
-    ) -> RoutineActionOptions:
+    ) -> RoutineAccessReview:
         trigger = await self._owned(ctx, agent_id, trigger_id)
-        return await RoutineActionService(self.db).options(ctx, trigger)
+        return await RoutineAccessService(self.db).review(ctx, trigger)
 
-    async def set_action_consents(
-        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: RoutineActions
-    ) -> RoutineActionOptions:
+    async def set_access(
+        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: RoutineAccessUpdate
+    ) -> RoutineAccessReview:
         trigger = await self._owned(ctx, agent_id, trigger_id)
-        return await RoutineActionService(self.db).replace(ctx, trigger, data)
-
-    async def tool_options(
-        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID
-    ) -> RoutineToolOptions:
-        trigger = await self._owned(ctx, agent_id, trigger_id)
-        return await RoutineToolService(self.db).tool_options(ctx, trigger)
-
-    async def set_tool_settings(
-        self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID, data: RoutineToolSettings
-    ) -> RoutineToolOptions:
-        trigger = await self._owned(ctx, agent_id, trigger_id)
-        return await RoutineToolService(self.db).replace_settings(ctx, trigger, data)
+        return await RoutineAccessService(self.db).replace(ctx, trigger, data)
 
     async def delete(self, ctx: AuthContext, agent_id: UUID, trigger_id: UUID) -> None:
         """Remove a schedule entirely - the agent stops running itself."""

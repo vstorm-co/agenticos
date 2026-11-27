@@ -13,21 +13,21 @@ from app.core.exceptions import AuthorizationError
 from app.core.permissions import AuthContext, OrgRoleName
 from app.db.models.agent import Agent, AgentVersion
 from app.db.models.agent_trigger import AgentTrigger
-from app.db.models.organization import Organization
+from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.routine_device_wait import RoutineDeviceWait
 from app.db.models.session import Session
 from app.db.models.user import User
 from app.repositories import agent_trigger_repo, personal_data_repo, retention_repo
 from app.repositories import routine_device_wait as repo
 from app.schemas.local_target import LocalTarget
-from app.services.routine_actions import activation_intent
+from app.services.routine_access import RoutineAccessService
 from app.services.routine_devices import (
     RoutineActivationObsolete,
     RoutineDeviceOffline,
     RoutineLocalConsentRequired,
     admit_activation,
 )
-from tests.routine_source_support import reviewed_sources
+from app.services.routine_sources import activation_intent
 
 pytestmark = pytest.mark.anyio
 
@@ -90,7 +90,16 @@ async def world(db: AsyncSession, *, event: bool = False) -> World:
     )
     db.add(trigger)
     await db.flush()
-    policy = reviewed_sources(trigger, spec=spec, version_id=version.id)
+    # Reviewed as the console saves it, so admission has nothing to refresh. The
+    # membership is only the reviewer's; each test decides whether one remains.
+    member = OrganizationMember(organization_id=org.id, user_id=user.id, role=OrgRoleName.OWNER)
+    db.add(member)
+    await db.flush()
+    policy = await RoutineAccessService(db).initial(
+        AuthContext(user_id=user.id, organization_id=org.id, role=OrgRoleName.OWNER), trigger
+    )
+    trigger.approved_sources = policy.model_dump(mode="json")
+    await db.delete(member)
     await db.flush()
     ctx = AuthContext(
         routine_source_policy_id=policy.id,
@@ -641,7 +650,6 @@ async def test_device_wait_sweep_never_replays_or_spends_model_work_before_readi
     from unittest.mock import AsyncMock
 
     from app.db.models.background_job import BackgroundJob
-    from app.db.models.organization import OrganizationMember
     from app.services import agent_trigger as module
     from app.services.agent_trigger import AgentTriggerService
 

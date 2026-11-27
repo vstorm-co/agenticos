@@ -1,5 +1,5 @@
 ---
-source_sha: "75494f696b30"
+source_sha: "f7c1afa5e3a5"
 ---
 
 # Słownik { #glossary }
@@ -67,6 +67,8 @@ skrypt napisany pod nie nie przestał działać po zmianie nazwy.
 | Grupa | Dział albo zespół, któremu udostępnia się agentów, skille i wiedzę | `group` |
 | Lider | Członek grupy, który decyduje, kto jeszcze do niej należy | `is_lead` |
 | Zatwierdzenie | Wywołanie narzędzia czekające, aż człowiek na nie pozwoli | `approval` |
+| Dostęp rutyny | Do czego rutyna może sięgać i, dla każdego narzędzia, Bez pytania, Najpierw zapytaj lub Wyłączone | `GET`/`PUT /agents/{id}/triggers/{trigger_id}/access` |
+| Zaufaj agentowi | Harmonogram, który podąża za źródłami swojego agenta bez nowego przeglądu | `mode: trust_agent`, `routines_may_trust_agent` |
 | Budget | Limit wydatków, który zatrzymuje runy po osiągnięciu | `budget` |
 | Zabezpieczenia | Kontrole, które redagują albo blokują to, co przepływa przez run | `guardrails` |
 | Vault | Miejsce na klucze i tokeny, zapieczętowane i nigdy więcej niepokazywane | `secret` |

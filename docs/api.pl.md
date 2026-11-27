@@ -1,5 +1,5 @@
 ---
-source_sha: "58aaa4e50b4b"
+source_sha: "c1e6cc1e217a"
 ---
 
 # API HTTP { #the-http-api }
@@ -77,13 +77,13 @@ Zatwierdzanie osobistych routines i watchy wymaga jawnego scope’u `personal:co
 **Pracę, która działa jako ty, ustawiasz też kluczem, który sam wydałeś.** Klucz,
 który utworzyłeś, albo token klienta MCP, który autoryzowałeś, może tworzyć i
 zmieniać twoje [routines](triggers.md) działające jako ty (`runs_as_creator`) i
-twoje [watche](console.md), przeglądać źródła routine oraz publikować agenta bez
+twoje [watche](console.md), przeglądać dostęp routine oraz publikować agenta bez
 cofania zgody routines, które działają jako ty. Przebieg takiej routine nadal
-podlega wybranej polityce źródeł, aktualnym uprawnieniom i budżetowi. Nie może tego zrobić credential
+podlega jej przeglądowi dostępu, aktualnym uprawnieniom i budżetowi. Nie może tego zrobić credential
 uruchomionego agenta poza twoim prywatnym czatem ani administrator, który się pod
 ciebie podszywa.
 
-Dla rutyn `source_mode=follow_agent` automatyzuje początkową konfigurację w granicach uprawnień twórcy; nie zatwierdza późniejszych rozszerzeń źródeł lub zmian zachowania. Właściciel może jawnie zatwierdzić bieżącą konfigurację przez endpoint źródeł chroniony tokenem przeglądu. Metadane rozdzielają wymagane braki `required_unavailable_sources` od opcjonalnych braków MCP w `unavailable_sources`. Starsza polityka podążania bez dowodu zachowania wymaga przeglądu; istniejące polityki ograniczone zachowują swoje zasady.
+Utworzenie rutyny przegląda jej dostęp w granicach uprawnień twórcy; nie zatwierdza późniejszego przyrostu źródeł. `GET /agents/{agent_id}/triggers/{trigger_id}/access` zwraca [przegląd dostępu](governance.md#routine-access) rutyny: jej źródła, ustawienie każdego narzędzia i `review_token`. `PUT` na tę samą ścieżkę z tym tokenem zapisuje nowy przegląd i jest odrzucany kodem 409, jeśli od tego czasu zmieniły się źródła, narzędzia lub rutyna. Klucz wydany przez Ciebie z `personal:consent` może ustawiać `ask`, `off` i `allow` dla odczytów. `allow` dla narzędzia, które coś zmienia, `delegates: allow` i `mode: trust_agent` wymagają sesji konsoli, więc rutyna utworzona kluczem zaczyna z takimi narzędziami ustawionymi na pytanie. Przegląd oddziela `required_unavailable_sources` od opcjonalnych braków MCP w `unavailable_sources`.
 
 Rozmowy też są publiczne: `GET /api/v1/conversations` wypisuje czaty wydawcy
 klucza (`runs:view`), a `POST /api/v1/conversations` z `title` i

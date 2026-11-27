@@ -19,7 +19,7 @@ The capability inventory also includes the selectable per-conversation desktop c
 
 Personal-data exports include coding-task filenames and patches from the conversations in the export; their JSON payload counts toward the preflight size limit. Ending organization membership removes that person’s coding connections in the same transaction. Rejoining requires a new connection and fresh consent; it cannot revive the previous grant.
 
-Personal-data exports also include private task boards, their record values, retained change history and column schemas, plus standing routine action consents. These JSON payloads count toward the export preflight size limit. Shared project, group and organization task tables are not included merely because the person created a task in them.
+Personal-data exports also include private task boards, their record values, retained change history and column schemas, plus the access reviews of their routines, with each tool's setting. These JSON payloads count toward the export preflight size limit. Shared project, group and organization task tables are not included merely because the person created a task in them.
 
 ## What leaves by default { #nothing-leaves-by-default }
 

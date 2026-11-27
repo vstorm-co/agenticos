@@ -1,5 +1,5 @@
 ---
-source_sha: "75494f696b30"
+source_sha: "f7c1afa5e3a5"
 ---
 
 # Glossar { #glossary }
@@ -68,6 +68,8 @@ nicht bricht.
 | Gruppe | Eine Abteilung oder ein Team, mit dem Agents, Skills und Wissen geteilt werden | `group` |
 | Leitung | Ein Gruppenmitglied, das bestimmt, wer noch dazugehört | `is_lead` |
 | Freigabe | Ein Tool-Aufruf, der darauf wartet, dass ein Mensch ihn erlaubt | `approval` |
+| Routinezugriff | Was eine Routine erreichen darf und, pro Tool, Ohne Rückfrage, Erst fragen oder Off | `GET`/`PUT /agents/{id}/triggers/{trigger_id}/access` |
+| Dem Agent vertrauen | Ein Zeitplan, der den Quellen seines Agents ohne neue Prüfung folgt | `mode: trust_agent`, `routines_may_trust_agent` |
 | Budget | Ein Ausgabenlimit, das Runs stoppt, sobald es erreicht ist | `budget` |
 | Schutzregeln | Prüfungen, die schwärzen oder blockieren, was durch einen Run fließt | `guardrails` |
 | Vault | Wo Schlüssel und Tokens liegen, versiegelt und nie wieder angezeigt | `secret` |

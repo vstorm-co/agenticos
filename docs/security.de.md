@@ -1,5 +1,5 @@
 ---
-source_sha: "79536bb10996"
+source_sha: "843d4fbc5f0b"
 ---
 
 # Sicherheit { #security }
@@ -304,6 +304,37 @@ die die Seite nicht ändern kann:
 - **Die Seite erfährt wenig.** Den Status eines Runs, den Antworttext, die strukturierte
   Antwort ohne Dateiverweise und die erste Zeile eines Fehlers, höchstens 200 Zeichen,
   nur für einen Run, den diese Seite für diese Person gestartet hat.
+
+## Eine Routine, die unbeaufsichtigt handelt { #unattended-routines }
+
+Eine Routine läuft mit der Befugnis ihres Erstellers, aber ihren Agent kann jemand
+anderes veröffentlichen. Folgte die Routine einfach dem Agent, könnte jeder, der ihn
+veröffentlichen darf, erweitern, was mit den Zugangsdaten und Berechtigungen des
+Erstellers läuft, ohne dass der Ersteller es sieht: ein Confused Deputy. Die
+[Zugriffsprüfung](governance.md#routine-access) begrenzt das:
+
+- **Wachstum wartet auf den Ersteller.** Standardmäßig wird eine Routine blockiert, wenn
+  ihr Agent eine Quelle, ein Konto, ein MCP-Tool, eine Capability, einen Skill, eine
+  Kontextdatei oder einen Delegaten hinzugewinnt oder ein Binding ändert, bis der
+  Ersteller sie prüft. Entfernungen sowie Anweisungs- oder Modelländerungen gehen durch,
+  weil sie nichts Neues erreichen.
+- **Eine Routine hebt nie eine Freigabe auf.** Sie kann ein Tool fragen lassen oder
+  abschalten. Ein Tool, das etwas ändert, läuft ohne Rückfrage nur mit Zustimmung eines
+  Erstellers, der `approvals:decide` hat, in einer Organisation, die dauerhafte
+  Zustimmung erlaubt; das wird bei jedem Aufruf erneut geprüft und als genehmigter
+  Eintrag festgehalten.
+- **Dem Agent zu vertrauen ist eine bewusste Ausnahme.** Ein Ersteller, der die Aufrufe
+  ohnehin genehmigen dürfte, kann einen Zeitplan seinem Agent folgen lassen, in einer
+  Organisation, die das eingeschaltet hat. Ereignisroutinen können das nicht: Ihre
+  Eingabe kommt von außen, sodass ein Absender eine Routine steuern könnte, deren Tools
+  niemand geprüft hat. Persönliche Konten, Terminal-Konten und die Plattformidentität des
+  Erstellers werden weiterhin geprüft, und wachsende Organisationsquellen werden
+  protokolliert und dem Ersteller gemeldet.
+- **Die Person, nicht ihr Schlüssel, erweitert die Befugnis.** Ein Agent oder eine
+  Sitzung mit Identitätsübernahme kann keine Prüfung speichern. Ein Schlüssel, den der
+  Ersteller mit `personal:consent` ausgestellt hat, darf Tools fragen lassen, abschalten
+  oder lesende Tools laufen lassen; ändernde Tools ohne Rückfrage laufen zu lassen oder
+  dem Agent zu vertrauen, braucht die Konsolensitzung des Erstellers.
 
 ## Kontrollmatrix { #controls-matrix }
 

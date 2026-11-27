@@ -184,30 +184,27 @@ async def test_worker_dispatch_requires_the_original_source_review_ticket(monkey
     assert clear.await_count == int(not valid)
 
 
-@pytest.mark.parametrize(
-    "action", ["source_options", "set_source_consents", "action_options", "set_action_consents"]
-)
-async def test_source_and_action_review_use_the_owned_routine_boundary(monkeypatch, action):
-    from app.schemas.routine_actions import RoutineActions
-    from app.schemas.routine_sources import RoutineSourceConsent
+@pytest.mark.parametrize("action", ["access", "set_access"])
+async def test_the_access_review_uses_the_owned_routine_boundary(monkeypatch, action):
+    from app.schemas.routine_access import RoutineAccessUpdate
 
     service, trigger, ctx = _service(), _trigger(), _ctx()
     service._owned = AsyncMock(return_value=trigger)
-    options, replace = AsyncMock(return_value="options"), AsyncMock(return_value="updated")
-    if action.startswith("source") or action == "set_source_consents":
-        service.sources.options, service.sources.replace = options, replace
-    else:
-        monkeypatch.setattr(module.RoutineActionService, "options", options)
-        monkeypatch.setattr(module.RoutineActionService, "replace", replace)
+    review, replace = AsyncMock(return_value="review"), AsyncMock(return_value="updated")
+    monkeypatch.setattr(module.RoutineAccessService, "review", review)
+    monkeypatch.setattr(module.RoutineAccessService, "replace", replace)
     args = [ctx, trigger.agent_id, trigger.id]
-    if action == "set_source_consents":
-        args.append(RoutineSourceConsent(review_token="a" * 64))
-    elif action == "set_action_consents":
-        args.append(RoutineActions())
+    if action == "set_access":
+        update = RoutineAccessUpdate(review_token="a" * 64)
+        args.append(update)
     assert await getattr(service, action)(*args) == (
-        "updated" if action.startswith("set_") else "options"
+        "updated" if action == "set_access" else "review"
     )
     service._owned.assert_awaited_once_with(ctx, trigger.agent_id, trigger.id)
+    if action == "set_access":
+        assert replace.await_args.args == (ctx, trigger, update)
+    else:
+        assert review.await_args.args == (ctx, trigger)
 
 
 async def test_a_polled_source_loses_admission_when_its_creator_leaves(monkeypatch):
@@ -300,7 +297,7 @@ async def test_a_native_fire_keeps_its_durable_device_admission(monkeypatch, cha
 
     from app.schemas.local_target import LocalTarget
     from app.services.agent_runner import AgentRunnerService
-    from app.services.routine_actions import activation_intent
+    from app.services.routine_sources import activation_intent
 
     service, trigger = _service(), _trigger()
     service._stop_for_monthly_budget = AsyncMock(return_value=False)

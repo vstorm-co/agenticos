@@ -1,34 +1,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { apiClient } from "./api-client";
-import { routineActionsApi, routineActionIdentity } from "./routine-actions-api";
 import { updateDurableTask, type DurableTask } from "./tasks-api";
 import { reviewDecisionCase } from "./memory-api";
 vi.mock("./api-client", () => ({ apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }));
 beforeEach(() => vi.clearAllMocks());
-it("keeps routine review identity and human consent together in the write", async () => {
-  const action = {
-    connection_id: "account",
-    authorization_generation: "generation",
-    endpoint_hash: "a".repeat(64),
-    tool_id: "send_mail",
-  };
-  const review = {
-    ...action,
-    name: "Send mail",
-    consented: false,
-    waivable: true,
-    account_name: "My mail",
-    account_scope: "personal" as const,
-  };
-  await routineActionsApi.get("agent", "routine");
-  expect(apiClient.get).toHaveBeenCalledWith("/agents/agent/triggers/routine/action-consents");
-  await routineActionsApi.replace("agent", "routine", [action], "review-token");
-  expect(apiClient.put).toHaveBeenCalledWith("/agents/agent/triggers/routine/action-consents", {
-    actions: [action],
-    review_token: "review-token",
-  });
-  expect(JSON.parse(routineActionIdentity(review))).toEqual(action);
-});
 it("preserves rich notes, assignees, dates and optimistic revision when changing task status", async () => {
   const task: DurableTask = {
     id: "task",

@@ -1,5 +1,5 @@
 ---
-source_sha: "d9d30f54c654"
+source_sha: "54b57c511e4f"
 ---
 
 # Ochrona danych { #data-protection }
@@ -23,7 +23,7 @@ Inwentarz capability uwzględnia też lokalnego coding agenta wybieranego dla ko
 
 Eksport danych osobowych zawiera nazwy plików i patche zadań kodujących z rozmów objętych eksportem; ich JSON wlicza się do limitu rozmiaru przed pobraniem. Zakończenie członkostwa w organizacji usuwa osobiste połączenia kodujące w tej samej transakcji. Ponowne dołączenie wymaga nowego połączenia i nowej zgody; nie przywraca poprzedniego uprawnienia.
 
-Eksport danych osobowych obejmuje także prywatne tablice zadań, wartości rekordów, zachowaną historię zmian i schematy kolumn oraz stałe zgody na działania rutyn. Te dane JSON wliczają się do limitu rozmiaru eksportu. Wspólne tabele projektów, grup i organizacji nie są eksportowane tylko dlatego, że osoba utworzyła w nich zadanie.
+Eksport danych osobowych obejmuje także prywatne tablice zadań, wartości rekordów, zachowaną historię zmian i schematy kolumn oraz przeglądy dostępu ich rutyn z ustawieniem każdego narzędzia. Te dane JSON wliczają się do limitu rozmiaru eksportu. Wspólne tabele projektów, grup i organizacji nie są eksportowane tylko dlatego, że osoba utworzyła w nich zadanie.
 
 ## Co wychodzi domyślnie { #nothing-leaves-by-default }
 

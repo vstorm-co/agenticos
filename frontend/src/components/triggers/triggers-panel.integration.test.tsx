@@ -8,6 +8,7 @@ import { useAuthStore } from "@/stores";
 import { TriggersPanel } from "./triggers-panel";
 import { apiClient } from "@/lib/api-client";
 import type { Trigger } from "@/types/triggers";
+import { routineAccessFixture } from "@/test-utils/routine-access";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -81,17 +82,7 @@ function trigger(overrides: Partial<Trigger> = {}): Trigger {
 
 function serve(triggers: Trigger[]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
-    if (path.endsWith("/sources"))
-      return {
-        current: true,
-        review_token: "sources",
-        version_id: "v1",
-        resources: [],
-        accounts: [],
-        unavailable_sources: [],
-      };
-    if (path.endsWith("/action-consents"))
-      return { can_waive: true, review_token: "actions", items: [] };
+    if (path.endsWith("/access")) return routineAccessFixture();
     if (path === `/agents/${AGENT_ID}/triggers`) {
       return { items: triggers, total: triggers.length };
     }
@@ -284,8 +275,6 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      source_mode: "follow_agent",
-      action_mode: "agent",
       chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Do the thing",
@@ -705,8 +694,6 @@ describe("TriggersPanel", () => {
     // `*/2` on day-of-month resets at each month boundary; an interval repeats
     // continuously, which is what "every 2 days" promises. Two days, in seconds.
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      source_mode: "follow_agent",
-      action_mode: "agent",
       chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Every couple of days",
@@ -853,8 +840,6 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      source_mode: "follow_agent",
-      action_mode: "agent",
       chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Daily digest",
@@ -886,8 +871,6 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      source_mode: "follow_agent",
-      action_mode: "agent",
       chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Morning digest",
@@ -959,8 +942,6 @@ describe("TriggersPanel", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers`, {
-      source_mode: "follow_agent",
-      action_mode: "agent",
       chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Sweep the queue",
@@ -1088,27 +1069,70 @@ describe("TriggersPanel", () => {
   });
 });
 
-it("switches an existing custom approval policy to the distinct manual mode", async () => {
-  serve([trigger({ created_by_user_id: "me", action_mode: "per_tool" })]);
+it("marks a routine that trusts its agent", async () => {
+  serve([trigger({ access_mode: "trust_agent" }), trigger({ id: "t2", access_mode: "reviewed" })]);
   await mount();
-  await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
-  const dialog = within(await screen.findByRole("dialog"));
-  await userEvent.click(dialog.getByRole("combobox", { name: "Tool approvals" }));
-  await userEvent.click(screen.getByRole("option", { name: "Ask before actions" }));
-  await userEvent.click(dialog.getByRole("button", { name: "Save" }));
-  await waitFor(() =>
-    expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
-      action_mode: "manual",
-    }),
-  );
+  expect(await screen.findAllByText("Trusts agent")).toHaveLength(1);
 });
 
-it("reopens a saved manual policy without showing it as custom permissions", async () => {
-  serve([trigger({ created_by_user_id: "me", action_mode: "manual" })]);
+it("opens the routine's access from the shield, for its creator only", async () => {
+  serve([
+    trigger({ created_by_user_id: "me" }),
+    trigger({ id: "t2", created_by_user_id: "other" }),
+  ]);
+  await mount();
+  const shields = await screen.findAllByRole("button", { name: "Routine access" });
+  expect(shields).toHaveLength(1);
+  await userEvent.click(shields[0]!);
+  expect(await screen.findByRole("dialog", { name: "Routine access" })).toBeVisible();
+  expect(screen.getByRole("tab", { name: "Tools" })).toHaveAttribute("aria-selected", "true");
+});
+
+it("offers the access review after an edit that made it stale", async () => {
+  serve([trigger({ created_by_user_id: "me" })]);
+  const normal = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
+    path.endsWith("/access")
+      ? routineAccessFixture({ current: false, review_reason: "routine_changed" })
+      : normal(path, options),
+  );
+  vi.mocked(apiClient.patch).mockResolvedValue(trigger({ created_by_user_id: "me" }));
   await mount();
   await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
   const dialog = within(await screen.findByRole("dialog"));
-  expect(dialog.getByRole("combobox", { name: "Tool approvals" })).toHaveTextContent(
-    "Ask before actions",
-  );
+  await userEvent.type(dialog.getByLabelText("Message"), " and the week");
+  await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+  expect(await screen.findByRole("dialog", { name: "Routine access" })).toBeVisible();
+  expect(apiClient.patch).toHaveBeenCalledWith(`/agents/${AGENT_ID}/triggers/t1`, {
+    prompt: "Summarise the day and the week",
+  });
+  expect(await screen.findByText(/The routine changed since the last review/)).toBeVisible();
+});
+
+it("closes after an edit that leaves the review current", async () => {
+  serve([trigger({ created_by_user_id: "me" })]);
+  vi.mocked(apiClient.patch).mockResolvedValue(trigger({ created_by_user_id: "me" }));
+  await mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+  const dialog = within(await screen.findByRole("dialog"));
+  await userEvent.type(dialog.getByLabelText("Message"), "!");
+  await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(vi.mocked(apiClient.get).mock.calls.some(([path]) => path.endsWith("/access"))).toBe(true);
+});
+
+it("closes after an edit whose access check fails, since the edit itself saved", async () => {
+  serve([trigger({ created_by_user_id: "me" })]);
+  const normal = vi.mocked(apiClient.get).getMockImplementation()!;
+  vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+    if (path.endsWith("/access")) throw new Error("offline");
+    return normal(path, options);
+  });
+  vi.mocked(apiClient.patch).mockResolvedValue(trigger({ created_by_user_id: "me" }));
+  await mount();
+  await userEvent.click(await screen.findByRole("button", { name: "Edit" }));
+  const dialog = within(await screen.findByRole("dialog"));
+  await userEvent.type(dialog.getByLabelText("Message"), "!");
+  await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 });

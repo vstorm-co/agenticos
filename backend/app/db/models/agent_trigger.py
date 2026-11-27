@@ -245,12 +245,20 @@ class AgentTrigger(Base, TimestampMixin):
     # sandbox. Only with `runs_as_creator` - a fire nobody is behind reaches
     # nobody's computer - and cleared with it.
     local_target: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # The routine's access review (`RoutineSourcePolicy`): the sources it may reach
+    # and a setting for each of its agent's tools (`docs/design/routine-access.md`).
     approved_sources: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
 
     @property
     def setup_required(self) -> bool:
         """A saved schedule whose source review has not been admitted."""
         return (self.approved_sources or {}).get("pending_review") is True
+
+    @property
+    def access_mode(self) -> str | None:
+        """How the access review treats the agent's changes; null before it is set up."""
+        mode = (self.approved_sources or {}).get("mode")
+        return None if self.setup_required or not isinstance(mode, str) else mode
 
     @property
     def setup_issues(self) -> list[str]:
@@ -260,19 +268,6 @@ class AgentTrigger(Base, TimestampMixin):
 
     chat_mode: Mapped[str] = mapped_column(
         String(16), nullable=False, default="shared", server_default="shared"
-    )
-
-    action_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    """Null retains the historical source-mode policy; new routines choose explicitly."""
-
-    action_consents: Mapped[list[dict[str, object]]] = mapped_column(
-        JSONB, nullable=False, default=list, server_default="[]"
-    )
-
-    # The owner's narrowing of the agent's own tool settings for this routine:
-    # `ask` or `off` per tool, never a release (`app/services/routine_tools.py`).
-    tool_settings: Mapped[list[dict[str, object]]] = mapped_column(
-        JSONB, nullable=False, default=list, server_default="[]"
     )
 
     # A human label for this trigger, shown where it is listed away from a form.
@@ -478,10 +473,6 @@ class AgentTrigger(Base, TimestampMixin):
     # schema from the models, so a constraint stated only in the migration would
     # be absent from exactly the tests written to prove it rejects a row.
     __table_args__ = (
-        CheckConstraint(
-            "action_mode IS NULL OR action_mode IN ('agent', 'manual', 'per_tool')",
-            name="ck_trigger_action_mode",
-        ),
         CheckConstraint("result_mode IN ('report', 'inbox')", name="ck_trigger_result_mode"),
         CheckConstraint(
             "max_failures IS NULL OR max_failures BETWEEN 1 AND 20", name="ck_routine_max_failures"

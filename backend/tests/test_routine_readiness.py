@@ -3,7 +3,6 @@
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from typing import Literal
 from unittest.mock import ANY, AsyncMock, MagicMock
 
 import anyio
@@ -15,7 +14,11 @@ from app.schemas.routine_readiness import RoutineBlocker, TriggerReadiness
 from app.schemas.routine_sources import RoutineSourcePolicy
 from app.services import routine_readiness
 from app.services.agent_trigger import AgentTriggerService
-from app.services.routine_sources import PlatformRoutineIdentityRequired, RoutineSourcesRequired
+from app.services.routine_sources import (
+    PlatformRoutineIdentityRequired,
+    RoutineSourcesRequired,
+    RoutineTrustRefused,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -24,34 +27,15 @@ _CREATOR = uuid.uuid4()
 _CREATOR_CTX = AuthContext(user_id=_CREATOR, organization_id=_ORG, role=OrgRoleName.MEMBER)
 
 
-def _policy(mode: Literal["restricted", "follow_agent"] = "restricted") -> RoutineSourcePolicy:
-    ceiling = (
-        {
-            "approved_ceiling": RoutineSourcePolicy(
-                mode="follow_agent",
-                id=uuid.uuid4(),
-                consented_by=_CREATOR,
-                reviewed_at=datetime.now(UTC),
-                version_id=uuid.uuid4(),
-                scope_hash="a" * 64,
-                spec_hash="b" * 64,
-                behavior={},
-            )
-        }
-        if mode == "follow_agent"
-        else {}
-    )
+def _policy(**update: object) -> RoutineSourcePolicy:
     return RoutineSourcePolicy(
-        mode=mode,
         id=uuid.uuid4(),
         consented_by=_CREATOR,
         reviewed_at=datetime.now(UTC),
         version_id=uuid.uuid4(),
         scope_hash="a" * 64,
         spec_hash="b" * 64,
-        behavior={} if mode == "follow_agent" else None,
-        **ceiling,
-    )
+    ).model_copy(update=update)
 
 
 def _trigger(**overrides: object) -> MagicMock:
@@ -71,6 +55,7 @@ def _trigger(**overrides: object) -> MagicMock:
         "overlap": "skip",
         "one_shot": False,
         "scope": "a" * 64,
+        "intent": "d" * 64,
     }
     fields.update(overrides)
     return MagicMock(**fields)
@@ -84,14 +69,15 @@ def engine(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     checks.agents.get_pinned_spec = AsyncMock()
     checks.agents.get_runnable_spec = AsyncMock()
     checks.sources.current = AsyncMock()
-    checks.actions.review = AsyncMock(return_value=MagicMock(can_waive=True, items=[]))
+    checks.access.waiting = AsyncMock(return_value=0)
     checks.runs.get_run = AsyncMock(return_value=None)
     checks.runs.latest_parked_run_for_conversation = AsyncMock(return_value=None)
     monkeypatch.setattr(routine_readiness, "AgentRegistryService", lambda db: checks.agents)
     monkeypatch.setattr(routine_readiness, "RoutineSourceService", lambda db: checks.sources)
-    monkeypatch.setattr(routine_readiness, "RoutineActionService", lambda db: checks.actions)
+    monkeypatch.setattr(routine_readiness, "RoutineAccessService", lambda db: checks.access)
     monkeypatch.setattr(routine_readiness, "agent_run_repo", checks.runs)
     monkeypatch.setattr(routine_readiness, "source_scope", lambda trigger: trigger.scope)
+    monkeypatch.setattr(routine_readiness, "routine_intent", lambda trigger: trigger.intent)
     return checks
 
 
@@ -159,12 +145,14 @@ async def test_a_routine_awaiting_its_first_review_is_not_reviewed_again(
 ) -> None:
     assert await _codes(_trigger(setup_required=True)) == ["sources_setup"]
     engine.sources.current.assert_not_awaited()
+    engine.access.waiting.assert_not_awaited()
 
 
 @pytest.mark.parametrize(
     ("refusal", "code"),
     [
         (PlatformRoutineIdentityRequired(), "platform_identity"),
+        (RoutineTrustRefused(details={"reason": "organization"}), "trust_not_allowed"),
         (RoutineSourcesRequired(), "sources_review"),
         (NotFoundError(message="project gone"), "sources_review"),
         (BadRequestError(message="delegate gone"), "sources_review"),
@@ -183,6 +171,17 @@ async def test_editing_the_routine_itself_is_named_apart_from_a_changed_agent(
     """Switching who it runs as is what the person did, not something the agent did."""
     engine.sources.current.side_effect = RoutineSourcesRequired()
     assert await _codes(_trigger(scope="c" * 64)) == ["routine_changed"]
+
+
+async def test_a_changed_prompt_is_the_routine_changing_where_the_review_recorded_one(
+    engine: MagicMock,
+) -> None:
+    engine.sources.current.side_effect = RoutineSourcesRequired()
+    reviewed = _policy(intent_hash="d" * 64).model_dump(mode="json")
+    assert await _codes(_trigger(approved_sources=reviewed)) == ["sources_review"]
+    assert await _codes(_trigger(approved_sources=reviewed, intent="e" * 64)) == ["routine_changed"]
+    # Migrated without an intent: a prompt edit is not detected until the review is saved.
+    assert await _codes(_trigger(intent="e" * 64)) == ["sources_review"]
 
 
 async def test_a_stored_review_that_does_not_parse_needs_reviewing(engine: MagicMock) -> None:
@@ -221,20 +220,8 @@ async def test_a_finished_or_missing_previous_run_holds_nothing(
     assert await _codes(_trigger(last_run_id=uuid.uuid4())) == []
 
 
-def _action(*, waivable: bool, consented: bool) -> MagicMock:
-    return MagicMock(waivable=waivable, consented=consented)
-
-
-async def test_actions_without_standing_consent_are_counted(engine: MagicMock) -> None:
-    engine.actions.review.return_value = MagicMock(
-        can_waive=True,
-        items=[
-            _action(waivable=True, consented=False),
-            _action(waivable=True, consented=True),
-            _action(waivable=False, consented=False),
-            _action(waivable=True, consented=False),
-        ],
-    )
+async def test_tools_the_review_makes_wait_are_counted(engine: MagicMock) -> None:
+    engine.access.waiting.return_value = 2
     trigger = _trigger()
     [blocker] = await routine_readiness.blockers(
         MagicMock(), trigger, creator=_CREATOR_CTX, paused_for_budget=False
@@ -244,47 +231,26 @@ async def test_actions_without_standing_consent_are_counted(engine: MagicMock) -
         "attention",
         2,
     )
-    engine.actions.review.assert_awaited_once_with(_CREATOR_CTX, trigger)
-
-
-async def test_consent_the_creator_may_not_waive_covers_nothing(engine: MagicMock) -> None:
-    engine.actions.review.return_value = MagicMock(
-        can_waive=False,
-        items=[_action(waivable=True, consented=True), _action(waivable=False, consented=False)],
-    )
-    found = await routine_readiness.blockers(
-        MagicMock(), _trigger(), creator=_CREATOR_CTX, paused_for_budget=False
-    )
-    assert [(blocker.code, blocker.count) for blocker in found] == [("actions_need_approval", 1)]
+    engine.access.waiting.assert_awaited_once_with(_CREATOR_CTX, trigger)
 
 
 @pytest.mark.parametrize(
     "refusal",
     [NotFoundError(message="x"), BadRequestError(message="x"), AuthorizationError(message="x")],
 )
-async def test_an_action_review_that_cannot_be_made_adds_no_blocker(
+async def test_a_tool_count_that_cannot_be_made_adds_no_blocker(
     engine: MagicMock, refusal: Exception
 ) -> None:
-    engine.actions.review.side_effect = refusal
+    engine.access.waiting.side_effect = refusal
     assert await _codes(_trigger()) == []
 
 
-async def test_a_following_review_leaves_consent_to_the_agents_own_gate(
-    engine: MagicMock,
-) -> None:
-    trigger = _trigger(approved_sources=_policy("follow_agent").model_dump(mode="json"))
-    assert await _codes(trigger) == []
-    engine.actions.review.assert_not_awaited()
-
-
-async def test_a_stale_following_review_asks_for_the_review_and_counts_no_consent(
-    engine: MagicMock,
-) -> None:
-    """Publishing a new prompt makes a following review stale; its actions stay the agent's."""
+async def test_a_stale_review_still_counts_the_tools_it_makes_wait(engine: MagicMock) -> None:
+    """Re-reviewing fixes the sources; the tools it asks for are a separate, standing fact."""
     engine.sources.current.side_effect = AuthorizationError(message="stale")
-    trigger = _trigger(approved_sources=_policy("follow_agent").model_dump(mode="json"))
-    assert await _codes(trigger) == ["sources_review"]
-    engine.actions.review.assert_not_awaited()
+    engine.access.waiting.return_value = 1
+    trigger = _trigger(approved_sources=_policy(mode="trust_agent").model_dump(mode="json"))
+    assert await _codes(trigger) == ["sources_review", "actions_need_approval"]
 
 
 def _row(**overrides: object) -> MagicMock:

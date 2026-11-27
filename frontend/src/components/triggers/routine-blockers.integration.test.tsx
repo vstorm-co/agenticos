@@ -20,8 +20,10 @@ vi.mock("@/lib/api-client", async () => {
   };
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("./action-consents-dialog", () => ({
-  ActionConsentsDialog: () => <div role="dialog" aria-label="Access review" />,
+vi.mock("./routine-access-dialog", () => ({
+  RoutineAccessDialog: ({ initialTab }: { initialTab: string }) => (
+    <div role="dialog" aria-label="Access review" data-tab={initialTab} />
+  ),
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -109,7 +111,35 @@ it("marks an active routine that will not run red, says why and lets its creator
   expect(row().className).toContain("border-destructive/40");
   expect(screen.getByRole("button", RUN_NOW)).toBeDisabled();
   await user.click(screen.getByRole("button", { name: "Review access" }));
-  expect(screen.getByRole("dialog", { name: "Access review" })).toBeInTheDocument();
+  // A changed source is fixed on the review's Sources tab.
+  expect(screen.getByRole("dialog", { name: "Access review" })).toHaveAttribute(
+    "data-tab",
+    "sources",
+  );
+});
+
+it.each([
+  ["actions_need_approval", "attention", "tools"],
+  ["routine_changed", "blocked", "sources"],
+  ["platform_identity", "blocked", "sources"],
+  ["sources_setup", "blocked", "tools"],
+  ["trust_not_allowed", "blocked", "tools"],
+] as const)("opens the review on the tab %s concerns", async (code, severity, tab) => {
+  serve([blocker({ code, severity, count: 1 })]);
+  const user = userEvent.setup();
+  render(<Listed triggers={[trigger()]} />, { wrapper });
+  await user.click(await screen.findByRole("button", { name: "Review access" }));
+  expect(screen.getByRole("dialog", { name: "Access review" })).toHaveAttribute("data-tab", tab);
+});
+
+it("says a routine that may no longer trust its agent needs a review", async () => {
+  serve([blocker({ code: "trust_not_allowed" })]);
+  render(<Listed triggers={[trigger()]} />, { wrapper });
+  expect(
+    await screen.findByText(
+      "It trusts its agent, which its creator or organization no longer allows. Review its access again.",
+    ),
+  ).toBeVisible();
 });
 
 it("offers the review once when several reasons are fixed in it", async () => {
@@ -119,7 +149,9 @@ it("offers the review once when several reasons are fixed in it", async () => {
   ]);
   render(<Listed triggers={[trigger()]} />, { wrapper });
   expect(
-    await screen.findByText("2 actions have no standing consent and will need approval if used."),
+    await screen.findByText(
+      "2 tools ask before they run, so a run that uses them waits for approval.",
+    ),
   ).toBeVisible();
   expect(screen.getAllByRole("button", { name: "Review access" })).toHaveLength(1);
 });
@@ -172,10 +204,14 @@ it("holds a schedule behind a run waiting for approval and opens it from the row
 it("marks runs that will stop on approval amber and still lets them be run", async () => {
   serve([blocker({ code: "actions_need_approval", severity: "attention", count: 2 })]);
   render(<Listed triggers={[trigger()]} />, { wrapper });
-  await screen.findByText("2 actions have no standing consent and will need approval if used.");
+  await screen.findByText(
+    "2 tools ask before they run, so a run that uses them waits for approval.",
+  );
   const reasons = screen.getByRole("list", { name: "Routine readiness" });
   expect(
-    within(reasons).getByText("2 actions have no standing consent and will need approval if used."),
+    within(reasons).getByText(
+      "2 tools ask before they run, so a run that uses them waits for approval.",
+    ),
   ).toBeVisible();
   expect(row()).toHaveAttribute("data-state", "attention");
   expect(screen.getByRole("button", RUN_NOW)).toBeEnabled();

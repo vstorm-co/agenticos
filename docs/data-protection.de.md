@@ -1,5 +1,5 @@
 ---
-source_sha: "d9d30f54c654"
+source_sha: "54b57c511e4f"
 ---
 
 # Datenschutz { #data-protection }
@@ -25,7 +25,7 @@ Das Capability-Inventar enthält auch den pro Konversation auswählbaren lokalen
 
 Personendatenexporte enthalten Dateinamen und Patches der Coding-Aufgaben aus den exportierten Unterhaltungen; deren JSON zählt zur vorab geprüften Größenbegrenzung. Das Ende einer Organisationsmitgliedschaft entfernt die persönlichen Coding-Verbindungen in derselben Transaktion. Ein erneuter Beitritt erfordert eine neue Verbindung und Zustimmung; die bisherige Freigabe lebt nicht wieder auf.
 
-Personendatenexporte enthalten auch private Aufgabentafeln, Datensatzwerte, erhaltene Änderungshistorien und Spaltenschemata sowie dauerhafte Zustimmungen zu Routineaktionen. Diese JSON-Daten zählen zum Größenlimit der Exportvorprüfung. Gemeinsame Projekt-, Gruppen- und Organisationstabellen werden nicht allein deshalb exportiert, weil die Person darin eine Aufgabe erstellt hat.
+Personendatenexporte enthalten auch private Aufgabentafeln, Datensatzwerte, erhaltene Änderungshistorien und Spaltenschemata sowie die Zugriffsprüfungen ihrer Routinen mit der Einstellung jedes Tools. Diese JSON-Daten zählen zum Größenlimit der Exportvorprüfung. Gemeinsame Projekt-, Gruppen- und Organisationstabellen werden nicht allein deshalb exportiert, weil die Person darin eine Aufgabe erstellt hat.
 
 ## Was standardmäßig das System verlässt { #nothing-leaves-by-default }
 

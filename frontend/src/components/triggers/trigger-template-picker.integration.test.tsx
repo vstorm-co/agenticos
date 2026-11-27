@@ -8,6 +8,7 @@ import { TriggerFormDialog } from "./trigger-form-dialog";
 import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/stores";
 import type { TriggerTemplate } from "@/types/trigger-templates";
+import { routineAccessFixture } from "@/test-utils/routine-access";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -46,17 +47,7 @@ const WEEKLY: TriggerTemplate = {
 function serve(templates: TriggerTemplate[] = [DAILY, WEEKLY]) {
   vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
     if (path === "/me/permissions") return { permissions: [] };
-    if (path.endsWith("/sources"))
-      return {
-        current: true,
-        review_token: "sources",
-        version_id: "v1",
-        resources: [],
-        accounts: [],
-        unavailable_sources: [],
-      };
-    if (path.endsWith("/action-consents"))
-      return { can_waive: true, review_token: "actions", items: [] };
+    if (path.endsWith("/access")) return routineAccessFixture();
     if (path === "/trigger-templates") return { items: templates, total: templates.length };
     if (path === "/agents") {
       return { items: [{ id: "a1", name: "Analyst", status: "published" }], total: 1 };
@@ -98,8 +89,6 @@ describe("New-schedule template picker", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
-      source_mode: "follow_agent",
-      action_mode: "agent",
       chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Summarise what happened overnight.",
@@ -130,8 +119,6 @@ describe("New-schedule template picker", () => {
     await user.click(dialog.getByRole("button", { name: "Create" }));
 
     expect(apiClient.post).toHaveBeenCalledWith("/agents/a1/triggers", {
-      source_mode: "follow_agent",
-      action_mode: "agent",
       chat_mode: "shared",
       runs_as_creator: true,
       prompt: "Write this week's report.",

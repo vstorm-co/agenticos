@@ -173,6 +173,12 @@ class Organization(Base, TimestampMixin):
     chat_may_waive_approvals: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
+    # Whether a routine's creator may let it follow its agent's future access
+    # without a new review (`docs/design/routine-access.md`). Off by default:
+    # it accepts changes nobody has seen yet, unlike a waiver of a named tool.
+    routines_may_trust_agent: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     # Off is enforced by the service that would start each model-backed run, not
     # by the client; deterministic checks and people's verdicts stay available.

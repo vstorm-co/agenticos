@@ -12,6 +12,7 @@ import { useAuthStore } from "@/stores";
 import { qk } from "@/lib/query-keys";
 import { useTriggers } from "@/hooks/use-triggers";
 import type { Trigger, TriggerAttempt, TriggerAttemptList } from "@/types/triggers";
+import { routineAccessFixture } from "@/test-utils/routine-access";
 
 vi.mock("@/lib/api-client", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
@@ -558,17 +559,7 @@ it("reopens pending setup from Resume without enabling an unreviewed routine", a
   vi.mocked(apiClient.patch).mockClear();
   vi.mocked(apiClient.get).mockImplementation(async (path) => {
     if (path.includes("/activations/")) return { state: "pending" };
-    if (path.endsWith("/sources"))
-      return {
-        current: false,
-        review_token: "sources",
-        version_id: "v1",
-        resources: [],
-        accounts: [],
-        unavailable_sources: [],
-      };
-    if (path.endsWith("/action-consents"))
-      return { can_waive: false, review_token: "actions", items: [] };
+    if (path.endsWith("/access")) return routineAccessFixture();
     return { items: [], total: 0 };
   });
   render(
@@ -578,7 +569,7 @@ it("reopens pending setup from Resume without enabling an unreviewed routine", a
     { wrapper },
   );
   await userEvent.click(screen.getByRole("button", { name: "Resume" }));
-  expect(await screen.findByRole("dialog", { name: "Review routine access" })).toBeVisible();
+  expect(await screen.findByRole("dialog", { name: "Routine access" })).toBeVisible();
   expect(apiClient.patch).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole("button", { name: "Finish later" }));
   expect(screen.queryByRole("dialog")).toBeNull();
@@ -600,24 +591,13 @@ it("finishes deferred setup before enabling the routine", async () => {
     setup_required: true,
     is_active: false,
   });
-  const sources = {
-    current: true,
-    review_token: "sources",
-    version_id: "v1",
-    resources: [],
-    accounts: [],
-    unavailable_sources: [],
-  };
-  const actions = { can_waive: false, review_token: "actions", items: [] };
+  const review = routineAccessFixture({ current: false, review_reason: "setup" });
   vi.mocked(apiClient.get).mockImplementation(async (path) => {
     if (path.includes("/activations/")) return { state: "pending" };
-    if (path.endsWith("/sources")) return sources;
-    if (path.endsWith("/action-consents")) return actions;
+    if (path.endsWith("/access")) return review;
     return { items: [], total: 0 };
   });
-  vi.mocked(apiClient.put).mockImplementation(async (path) =>
-    path.endsWith("/sources") ? sources : actions,
-  );
+  vi.mocked(apiClient.put).mockResolvedValue({ ...review, current: true, review_reason: null });
   vi.mocked(apiClient.patch).mockResolvedValue({
     ...pending,
     setup_required: false,
@@ -625,13 +605,15 @@ it("finishes deferred setup before enabling the routine", async () => {
   });
   render(<TriggerRow trigger={pending} />, { wrapper });
   await userEvent.click(screen.getByRole("button", { name: "Resume" }));
-  await userEvent.click(await screen.findByRole("button", { name: "Enable routine" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Save and enable" }));
   await waitFor(() =>
     expect(apiClient.patch).toHaveBeenCalledWith("/agents/a1/triggers/t1", { is_active: true }),
   );
-  expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/triggers/t1/sources", {
-    review_token: "sources",
-    mode: "restricted",
+  expect(apiClient.put).toHaveBeenCalledWith("/agents/a1/triggers/t1/access", {
+    review_token: "access",
+    mode: "reviewed",
+    tools: [],
+    delegates: "ask",
   });
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 });

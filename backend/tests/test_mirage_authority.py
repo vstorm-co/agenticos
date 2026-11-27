@@ -16,7 +16,7 @@ from app.services import mcp_connection, mirage_mounts
 from app.services.agent_runner import AgentRunnerService, PausedRunState
 from app.services.mcp_connection import McpConnectionService
 from app.services.mirage_mounts import MirageMountService
-from app.services.routine_actions import routine_effect
+from app.services.routine_access import routine_effect
 from app.services.routine_sources import RoutineSourcesRequired, require_bound_sources
 from tests.test_connected_accounts import (
     SOURCE_GENERATION,

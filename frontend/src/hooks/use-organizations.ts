@@ -243,6 +243,17 @@ export function useOrganizations() {
     [writeCache],
   );
 
+  const setRoutinesMayTrustAgent = useCallback(
+    async (id: string, allowed: boolean): Promise<Organization> => {
+      const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
+        routines_may_trust_agent: allowed,
+      });
+      writeCache((prev) => prev.map((o) => (o.id === id ? updated : o)));
+      return updated;
+    },
+    [writeCache],
+  );
+
   const setPublicAttribution = useCallback(
     async (id: string, enabled: boolean): Promise<Organization> => {
       const updated = await apiClient.patch<Organization>(`/orgs/${id}`, {
@@ -327,6 +338,7 @@ export function useOrganizations() {
     setProactivity,
     setWelcomeDm,
     setChatApprovalWaiver,
+    setRoutinesMayTrustAgent,
     setPublicAttribution,
     setPublicLiveData,
     setVoiceSettings,

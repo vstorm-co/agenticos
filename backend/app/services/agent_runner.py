@@ -433,7 +433,6 @@ from app.services.rag.overlay import with_overlay
 from app.services.routine_authority import MCP_SOURCES, RoutineAuthority
 from app.services.routine_health import RoutineHealthService
 from app.services.routine_sources import RoutineSourcesRequired
-from app.services.routine_tools import tool_settings_of
 from app.services.run_heartbeat import run_heartbeat
 from app.services.run_project_workspace import RunProjectWorkspace
 from app.services.sandbox_workspace import (
@@ -4828,17 +4827,17 @@ class AgentRunnerService:
         spec = _with_account_notes(spec, resolved.accounts)
         if routine is not None and routine.routine_kind == "trigger":
             assert routine.source_policy is not None
-            if (
-                (
-                    not set(resolved.sources).issubset(routine.source_policy.root_mcp_ids)
-                    if routine.source_policy.mode == "follow_agent"
-                    else set(resolved.sources) != set(routine.source_policy.root_mcp_ids)
-                )
-                or (resolved.unavailable and routine.source_policy.mode == "restricted")
-                or any(
-                    identity != (routine.mcp_sources or {}).get(identifier)
-                    for identifier, identity in resolved.sources.items()
-                )
+            # A trusting routine leaves out the creator's own accounts nobody
+            # reviewed; `allows_tool` below drops their tools from the run.
+            checked = {
+                identifier: identity
+                for identifier, identity in resolved.sources.items()
+                if routine.source_policy.mode != "trust_agent"
+                or identifier in routine.source_policy.mcp_sources
+            }
+            if not set(checked).issubset(routine.source_policy.root_mcp_ids) or any(
+                identity != (routine.mcp_sources or {}).get(identifier)
+                for identifier, identity in checked.items()
             ):
                 raise RoutineSourcesRequired(message="A reviewed routine source is unavailable")
             routine_check = routine.check
@@ -4891,7 +4890,6 @@ class AgentRunnerService:
                         if ctx.routine_dispatch_id is None
                         else str(ctx.routine_dispatch_id),
                         "acts_as_creator": routine.acts_as_creator,
-                        "action_mode": routine.action_mode,
                         "result_mode": routine.result_mode,
                         "chat_mode": routine.chat_mode,
                         "approved_sources": None
@@ -4901,13 +4899,6 @@ class AgentRunnerService:
                         "mcp_sources": MCP_SOURCES.dump_python(
                             routine.mcp_sources or {}, mode="json"
                         ),
-                        "action_consents": [
-                            consent.model_dump(mode="json") for consent in routine.action_consents
-                        ],
-                        "tool_settings": [
-                            setting.model_dump(mode="json")
-                            for setting in tool_settings_of(routine.tool_settings or {})
-                        ],
                     }
                 ),
                 routine_activation_at=None
