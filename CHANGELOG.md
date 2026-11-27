@@ -55,6 +55,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Changed
 
+- Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
+
 - `POST /rag/documents/{id}/retry` now parses with the collection's current settings and accepts an optional `ingestion_override` body; with no body the file keeps the changes it was uploaded with. A retry no longer replaces another document of the same file, even after an upload with `replace=true`.
 - The knowledge base header's **Parse options** is now **Settings** and opens the collection's own settings; one-off settings for the next uploads moved to **Upload with different settings…** on the **Upload** button, and the banner's **Clear** is now **Revert**.
 - A `.docx` is now read by the collection's parser when it reads Word (LiteParse, LlamaParse, Docling), and otherwise by the built-in Word reader, which now keeps headings and tables as markdown in document order instead of dropping tables; `.txt` and `.md` still use the built-in text reader. The ML document analysis and recognition services follow the same rule, and now recognise a scanned `.docx`. A `.docx`, `.pptx` or `.xlsx` over the chat archive limits is refused at parse time under every parser, so a very large `.pptx` or `.xlsx` that LiteParse or LlamaParse used to read is now refused.

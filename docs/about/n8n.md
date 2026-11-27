@@ -12,7 +12,7 @@ They fit together well. n8n moves data between systems on a schedule. AgenticOS 
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. n8n scope: its pricing page, documentation and licence at n8n@2.44.5, not a tested cloud plan or self-hosted Enterprise licence.
 
-AgenticOS feature statements refreshed on 2 November 2026 against v1.35.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
 
 Native-agent availability and self-hosted knowledge setup were rechecked in the official n8n documentation on 2 November 2026. Native agents are in preview on Cloud and self-hosted plans from 2.32.3. This does not renew the pricing audit above.
 
@@ -64,7 +64,7 @@ n8n builds retrieval from nodes: loaders, embeddings and a vector store you choo
 
 - The job is moving data between many systems, with branches, retries and schedules.
 - You prefer this product's particular node library, integrations and workflow editing experience. AgenticOS also has a visual workflow builder; available nodes and execution semantics differ.
-- You need its review channels such as Microsoft Teams, WhatsApp or Gmail, or its evaluation metrics. AgenticOS has neither yet.
+- You need its human-review channels such as WhatsApp or Gmail, or its library of integration nodes. AgenticOS has [Microsoft Teams](../channels.md#microsoft-teams), [email](../channels.md#email) and [eval runs](../evals.md), but no WhatsApp channel and far fewer ready-made integrations.
 
 ## Use them together
 

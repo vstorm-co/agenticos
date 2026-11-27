@@ -12,6 +12,8 @@ They are not either-or. AgenticOS can run Claude models through the Anthropic AP
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Claude scope: Anthropic's pricing, product and Help Center pages for the Team and Enterprise plans, not a tested account.
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | Claude Team / Enterprise | AgenticOS |
@@ -21,8 +23,8 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 | Source | Proprietary | Apache-2.0 |
 | Models | Claude only | 28 providers, Claude included, and local models |
 | What you build | Projects, skills and plugins for people who chat | Published agents, each a versioned spec |
-| Who uses it | Employees with a seat | Employees, customers and systems, on eight surfaces |
-| Surfaces | Web, desktop, mobile, Chrome, Microsoft 365, Slack through Claude Tag in beta | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Who uses it | Employees with a seat | Employees, customers and systems, on over a dozen surfaces |
+| Surfaces | Web, desktop, mobile, Chrome, Microsoft 365, Slack through Claude Tag in beta | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, email, iMessage, telephone calls |
 | Spend control | Organization and user spend caps | A budget per agent and per organization, checked before each model request |
 | Approvals | The acting user, or an automatic mode the organization may allow | A run parks until a person with `approvals:decide` decides |
 | Audit log | Enterprise; 180 days of events as CSV | Every plan; tamper-evident, exported as CSV or JSONL |

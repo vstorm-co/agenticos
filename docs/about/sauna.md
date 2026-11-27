@@ -12,6 +12,8 @@ If you want one personal assistant that starts working on your inbox in ten minu
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. Sauna scope: its public pricing, security and privacy pages (the privacy policy updated 6 October 2026), not a tested account or negotiated contract.
 
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
+
 ## At a glance
 
 | Area | Sauna | AgenticOS |
@@ -21,7 +23,7 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 | Source | Proprietary | Apache-2.0 |
 | Models | The Sauna Lite model on Lite; all models from Basic; custom models from Pro | 28 providers, including Ollama and LiteLLM on your own hardware |
 | Knowledge | Files you drop in, memory it learns, and the tools you connect | Document collections in your Postgres, with parsing and chunking you choose, and five sync connectors |
-| Surfaces | Web app, iOS app, iMessage, Slack, Gmail, Superhuman, email | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost |
+| Surfaces | Web app, iOS app, iMessage, Slack, Gmail, Superhuman, email | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, email, iMessage, telephone calls |
 | Sharing | Private by default; share with chosen people, and a company-wide shared brain on Team | Six roles, 33 permissions and per-resource grants, per organization |
 | Autonomy | Configurable, from suggesting actions to acting on its own | Approvals per capability, per tool and per MCP connection, decided by a person with `approvals:decide` |
 | Pricing | Free with 10 credits a day, or 20 with a verified card; Lite $29, Basic $99, Pro $299 and Team $999 a month, monthly only | No licence fee; you pay model providers and infrastructure |
