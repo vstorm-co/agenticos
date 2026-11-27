@@ -27,6 +27,10 @@ Two things are versioned separately from this file and worth knowing about:
 - Keep a dismissed suggestion dismissed for later requests, Verify and Improve sessions until the agent is next published.
 - Keep a session kept as a draft accepted when a newer request replaces its suggestions, record the publish of what it measured, and reject it when its draft is discarded.
 
+### Changed
+
+- Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
+
 ### Security
 
 - Keep the authoring assistant's changes to what a person reviewed. A suggestion never adds settings its card does not show (tool overrides, a vault secret, a disabled binding, looser approval), never adds a capability whose tools reach beyond the deployment, and adding back a capability the published version binds is judged as reconfiguring it. Text holding a character a person cannot see - a control character other than a newline or a tab, a bidirectional control, a Unicode tag character - is neither proposed, checked, accepted nor applied, and every diff writes such characters out by their code.

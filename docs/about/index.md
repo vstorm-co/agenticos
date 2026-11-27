@@ -48,7 +48,7 @@ comparing it against.
 | Access control | A [permission catalog](../permissions.md) in code, roles composed from it, per-resource grants that widen and never narrow. `approval: required` is the `sudo` — the run parks and waits for a person |
 | Drivers | [28 model providers](../models.md) behind a model profile, and [any MCP server by URL](../mcp.md). Change the profile and every agent using it moves, without one being republished |
 | Filesystem | [Collections, skills and context](../file-processing.md) in your own Postgres, embeddings keyed per organization |
-| Shell | One runner behind [web chat, the API, Slack, Telegram, a widget, a hosted page and a schedule](../channels.md) |
+| Shell | One runner behind [web chat, the API, Slack, Microsoft Teams, Telegram, email, SMS, a phone line, a widget, a hosted page and a schedule](../channels.md) |
 | Audit log | Every run, every approval decision, every secret rotation — with values, never rows, and never a plaintext key |
 
 !!! info "Why the test is written to be applied to us too"
@@ -66,9 +66,10 @@ history, cost and status rather than a trend you can act on. It is on
 [the roadmap](https://github.com/vstorm-co/agenticos/blob/main/docs/ROADMAP.md) as R11.
 
 Two more gaps worth knowing before you compare: there is no SAML or SCIM yet —
-sign-in is JWT, API keys, Google OAuth and magic links — and there is no
-evaluation harness, so testing an agent before publishing it is something you
-do by hand.
+sign-in is OIDC single sign-on, LDAP, Kerberos, Google and email, and a SAML-only
+identity provider goes through a broker such as Keycloak — and roles are the six
+built-in ones, with no custom roles. Testing an agent before publishing it is
+covered by [eval runs](../evals.md) against versioned datasets.
 
 ## Who it is for
 

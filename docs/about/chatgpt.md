@@ -1,16 +1,18 @@
 ---
 title: "AgenticOS vs ChatGPT"
 seo_title: "AgenticOS vs ChatGPT Enterprise: a self-hosted alternative"
-description: "Compare ChatGPT Business, Enterprise and workspace agents with AgenticOS: self-hosted, any model, eight surfaces, per-agent budgets and audit logs."
+description: "Compare ChatGPT Business, Enterprise and workspace agents with AgenticOS: self-hosted, any model, over a dozen surfaces, per-agent budgets and audit logs."
 ---
 
 # AgenticOS vs ChatGPT
 
 ChatGPT Business and Enterprise give employees OpenAI's assistant, and in 2026 added workspace agents: shared agents built in ChatGPT and run in ChatGPT, Slack, on a schedule or from an API trigger. They are OpenAI's closest match to AgenticOS. The differences are where they run, which models they use and who can reach them.
 
-AgenticOS runs on your infrastructure, uses the model you choose and publishes one agent to eight surfaces. That includes a website widget and an API that returns the answer.
+AgenticOS runs on your infrastructure, uses the model you choose and publishes one agent to over a dozen surfaces. That includes a website widget and an API that returns the answer.
 
 Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS baseline: v1.10.0. ChatGPT scope: OpenAI's pricing, business-data, Help Center and developer pages, not a tested workspace. Workspace agents are a research preview, so check the current state before deciding.
+
+AgenticOS feature statements refreshed on 27 November 2026 against v1.95.0. The vendor source-check date above is unchanged; this is not a fresh vendor pricing audit.
 
 ## At a glance
 
@@ -20,7 +22,7 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 | Source | Proprietary | Apache-2.0 |
 | Models | OpenAI only | 28 providers, OpenAI included, and local models |
 | Building agents | Workspace agents, in research preview, with versions and sharing | Published agents with versions, environments and YAML export |
-| Surfaces for an agent | ChatGPT, Slack, schedules, an API trigger | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Telegram, Mattermost, schedules and event triggers |
+| Surfaces for an agent | ChatGPT, Slack, schedules, an API trigger | Web chat, widget, hosted page, HTTP API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, email, iMessage, telephone calls, schedules and event triggers |
 | API | The trigger returns `202 Accepted` and a conversation link; run status polling is in beta, and the answer cannot be retrieved | `POST /agents/{id}/run` returns the run and its answer |
 | Spend control | Credit pools and overage limits per workspace or group | A budget per agent and per organization, checked before each model request |
 | Identity | SAML SSO on Business; SCIM, role-based access controls and key management on Enterprise | OIDC SSO, LDAP and Kerberos with group mappings, and per-resource grants, in every deployment |
@@ -33,7 +35,7 @@ Maintained by the AgenticOS team. Sources checked 21 October 2026. AgenticOS bas
 
 OpenAI's developer page says the workspace-agent API trigger "returns 202 Accepted with a link to the ChatGPT conversation", and that "the agent's response cannot currently be retrieved through the API". Polling a run's status is in beta. Its pages list no widget, Telegram or Mattermost surface for an agent.
 
-An AgenticOS agent answers through the [HTTP API](../channels.md#the-public-api) with the result, streams over a [WebSocket](../channels.md#the-raw-websocket), and embeds in your site as a [widget](../channels.md#the-website-widget). A [hosted page](../channels.md#a-hosted-page) is a link for anyone. [Slack, Telegram and Mattermost](../channels.md#slack) bots run as the linked person who asked.
+An AgenticOS agent answers through the [HTTP API](../channels.md#the-public-api) with the result, streams over a [WebSocket](../channels.md#the-raw-websocket), and embeds in your site as a [widget](../channels.md#the-website-widget). A [hosted page](../channels.md#a-hosted-page) is a link for anyone. [Slack](../channels.md#slack), [Microsoft Teams](../channels.md#microsoft-teams), Telegram, Mattermost, [Discord](../channels.md#discord) and [Matrix](../channels.md#matrix) bots run as the linked person who asked, and the same agent takes [SMS](../channels.md#sms), [email](../channels.md#email) and [telephone calls](../voice.md#telephone-calls).
 
 ### The model is your decision
 
@@ -70,7 +72,7 @@ Build the [shared document agent](../howto/first-document-agent.md) as a workspa
 
 ### Is AgenticOS a self-hosted alternative to ChatGPT Enterprise?
 
-For agents your organization owns, yes. It runs on your infrastructure, uses OpenAI or any other provider, and publishes each agent to eight surfaces with its own budget and run history. It does not replace ChatGPT as an assistant for every employee.
+For agents your organization owns, yes. It runs on your infrastructure, uses OpenAI or any other provider, and publishes each agent to over a dozen surfaces with its own budget and run history. It does not replace ChatGPT as an assistant for every employee.
 
 ### Can AgenticOS use OpenAI models?
 
