@@ -300,3 +300,19 @@ async def test_shared_step_noop_and_explicit_clear_preserve_completion_semantics
     )
     assert cleared.scopes[1].current_step is None and not cleared.scopes[1].completed
     assert cleared.scopes[1].updated_at is not None
+
+
+@pytest.mark.parametrize("payload", [{}, {"completed": None}, {"current_step": None}])
+async def test_personal_scope_adapter_preserves_omitted_and_explicit_null(
+    start: StartFixture, payload: dict[str, None]
+) -> None:
+    ctx, member, _, service = start
+    member.onboarding_goal = "meeting"
+    member.onboarding_current_step = "member.tools"
+    member.onboarding_dismissed_at = datetime.now(UTC)
+    dismissed = member.onboarding_dismissed_at
+    await service.update_scope(ctx, "personal", OnboardingScopeUpdate.model_validate(payload))
+    assert member.onboarding_goal == "meeting"
+    assert member.onboarding_dismissed_at == dismissed
+    assert member.onboarding_completed_at is None
+    assert member.onboarding_current_step == (None if "current_step" in payload else "member.tools")

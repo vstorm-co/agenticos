@@ -71,19 +71,13 @@ for (const theme of ["light", "dark"] as const) {
         const composer = page.locator(".composer-box");
         if (width === 390) {
           const actions = composer.locator(".chat-input-actions");
-          const model = actions.locator("[data-chat-model]");
-          await expect(model).toBeVisible();
-          await expect
-            .poll(async () => (await model.boundingBox())?.width ?? 0)
-            .toBeGreaterThanOrEqual(180);
+          const floating = page.locator("[data-chat-floating-controls]");
+          const controls = floating.getByRole("button", { name: "Chat controls", exact: true });
           const requiredControls = [
             actions.getByRole("button", { name: "Add to message", exact: true }),
             actions.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true }),
             actions.getByRole("button", { name: "Open workspace", exact: true }),
-            actions.getByRole("button", { name: "Chat controls", exact: true }),
-            actions.getByRole("button", { name: /^Permission mode:/ }),
-            actions.getByRole("button", { name: "Usage of this conversation", exact: true }),
-            model,
+            controls,
           ];
           // Resolve each required control through hydration rather than taking a
           // one-shot collection snapshot while its context row is changing.
@@ -96,6 +90,16 @@ for (const theme of ["light", "dark"] as const) {
               .poll(async () => (await control.boundingBox())?.height ?? 0)
               .toBeGreaterThanOrEqual(43.5);
           }
+          await expect(actions.locator("[data-chat-model]")).toBeHidden();
+          await controls.click();
+          const settings = page.locator("[data-chat-settings-panel]");
+          await expect(settings.getByRole("button", { name: "Model", exact: true })).toBeVisible();
+          await expect(settings.getByRole("button", { name: /^Permission mode:/ })).toBeVisible();
+          await expect(
+            settings.getByRole("button", { name: "Usage of this conversation", exact: true }),
+          ).toBeVisible();
+          await settings.getByRole("button", { name: "Close", exact: true }).click();
+          await expect(settings).toHaveCount(0);
         }
         await expect(scroller.getByText(/^History fixture 6\./)).toBeVisible();
         const draft = composer.getByRole("textbox");
@@ -277,8 +281,10 @@ for (const theme of ["light", "dark"] as const) {
     const inbox = page.locator(".chat-home-inbox");
     await expect(inbox).toHaveAttribute("aria-busy", "false");
     await expect(inbox.locator("li")).toHaveCount(2);
-    const model = page.locator("[data-chat-model]");
-    await expect(model).toBeVisible();
+    const controls = page
+      .locator("[data-chat-floating-controls]")
+      .getByRole("button", { name: "Chat controls", exact: true });
+    await expect(controls).toBeInViewport();
     const composer = page.locator(".composer-box");
     await expect
       .poll(async () => {
@@ -286,9 +292,14 @@ for (const theme of ["light", "dark"] as const) {
         return box ? box.y >= 0 && box.y + box.height <= 725 : false;
       })
       .toBe(true);
-    const modelBox = await model.boundingBox();
-    expect(modelBox?.width).toBeGreaterThanOrEqual(180);
-    expect(modelBox?.height).toBeGreaterThanOrEqual(43.5);
+    const controlsBox = await controls.boundingBox();
+    expect(controlsBox?.width).toBeGreaterThanOrEqual(43.5);
+    expect(controlsBox?.height).toBeGreaterThanOrEqual(43.5);
+    await controls.click();
+    const settings = page.locator("[data-chat-settings-panel]");
+    await expect(settings.getByRole("button", { name: "Model", exact: true })).toBeVisible();
+    await settings.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(settings).toHaveCount(0);
     const populated = await composer.boundingBox();
     showInbox = false;
     await page.reload();

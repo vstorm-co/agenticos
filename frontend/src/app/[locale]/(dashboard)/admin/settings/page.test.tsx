@@ -121,7 +121,7 @@ describe("deployment settings loading", () => {
     const { container, rerender } = render(<DeploymentSettingsPage />, { wrapper: queryWrapper() });
     // Only form surfaces matter here; a decorative header may change freely.
     const formCards = () =>
-      Array.from(container.querySelectorAll(".shadow-card")).filter(
+      Array.from(container.querySelectorAll('[data-slot="service-card"]')).filter(
         (card) => card.querySelector("input,textarea,button[role=combobox]") !== null,
       );
     const cards = formCards();

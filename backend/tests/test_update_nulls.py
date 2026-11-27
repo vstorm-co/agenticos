@@ -112,7 +112,7 @@ from app.schemas.memory import MemoryNoteUpdate
 from app.schemas.model_profile import ModelProfileUpdate
 from app.schemas.notification import NotificationPreferenceUpdate
 from app.schemas.notification_route import NotificationRouteUpdate
-from app.schemas.onboarding import OnboardingUpdate
+from app.schemas.onboarding import OnboardingScopeUpdate, OnboardingUpdate
 from app.schemas.organization import OrganizationMemberUpdate, OrganizationUpdate
 from app.schemas.project import ProjectUpdate
 from app.schemas.project_resource import ProjectEntrypointUpdate
@@ -205,6 +205,9 @@ UPDATE_TARGETS: dict[type[BaseModel], type[DeclarativeBase] | None] = {
     OrganizationMemberUpdate: OrganizationMember,
     # Renames goal and maps dismissed to a timestamp; repository tests pin explicit-null behaviour.
     OnboardingUpdate: OrganizationMember,
+    # A scoped command maps completion to timestamps on deployment, organization,
+    # or member rows; it has no single column-patch target.
+    OnboardingScopeUpdate: None,
     OrganizationUpdate: Organization,
     PortalPollIntervalUpdate: McpConnection,
     ProjectUpdate: Project,
@@ -339,6 +342,7 @@ class TestEveryUpdateSchemaIsAccountedFor:
             "CodingAccountUpdate",
             "TaskUpdate",
             "NotificationPreferenceUpdate",
+            "OnboardingScopeUpdate",
             "RecordUpdate",
             "SchemaUpdate",
             "PushFocusUpdate",

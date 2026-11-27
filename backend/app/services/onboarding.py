@@ -15,6 +15,7 @@ from app.db.models.deployment_settings import DeploymentSettings
 from app.db.models.organization import Organization, OrganizationMember, OrganizationOnboardingStep
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
+from app.db.updates import writable
 from app.repositories import (
     agent_repo,
     deployment_settings_repo,
@@ -267,7 +268,7 @@ class OnboardingService:
         """
         if scope == "personal":
             return await self.update(
-                ctx, OnboardingUpdate.model_validate(data.model_dump(exclude_unset=True))
+                ctx, OnboardingUpdate.model_validate(writable(data, over=OrganizationMember))
             )
         member = await self._member(ctx)
         person = await user_repo.get_by_id(self.db, member.user_id)

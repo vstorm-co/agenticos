@@ -20,10 +20,30 @@ for (const width of [1440, 390]) {
     await expect(
       page.getByRole("button", { name: `Agent: ${SEEDED_AGENT_NAME}`, exact: true }),
     ).toBeVisible();
-    await page.locator("[data-chat-model]").click();
+    const model =
+      width < 768
+        ? page
+            .locator("[data-chat-settings-panel]")
+            .getByRole("button", { name: "Model", exact: true })
+        : page.locator("[data-chat-model]");
+    if (width < 768) {
+      await page
+        .locator("[data-chat-floating-controls]")
+        .getByRole("button", { name: "Chat controls", exact: true })
+        .click();
+    }
+    await model.click();
     const picker = page.locator("[data-chat-popover]");
     const providers = picker.getByRole("group", { name: "Provider", exact: true });
-    await providers.getByRole("button", { name: "OpenAI", exact: true }).click();
+    const providerSelector = picker.getByRole("combobox", { name: "Provider", exact: true });
+    if (width < 640) {
+      await expect(providers).toBeHidden();
+      await providerSelector.click();
+      await page.getByRole("option", { name: "OpenAI", exact: true }).click();
+      await expect(providerSelector).toHaveText("OpenAI");
+    } else {
+      await providers.getByRole("button", { name: "OpenAI", exact: true }).click();
+    }
     const search = picker.getByRole("combobox", { name: "Search models…", exact: true });
     await expect(search).toBeHidden();
     const toolbar = picker.locator("[data-model-toolbar]");
@@ -43,14 +63,21 @@ for (const width of [1440, 390]) {
       .toBeLessThanOrEqual(1);
     const initialSearch = await search.boundingBox();
     if (!initialSearch) throw new Error("Expected the model search in the open picker");
+    const initialProvider = width < 640 ? await providerSelector.boundingBox() : null;
     await list.evaluate((element) => {
       element.scrollTop = element.scrollHeight;
     });
     await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
     await expect(list.getByRole("option").last()).toBeInViewport();
-    await providers.evaluate((element) => {
-      element.scrollTop = element.scrollHeight;
-    });
+    if (width < 640) {
+      await expect(providerSelector).toBeInViewport();
+      if (!initialProvider) throw new Error("Expected the mobile provider selector");
+      expect((await providerSelector.boundingBox())?.y).toBeCloseTo(initialProvider.y, 0);
+    } else {
+      await providers.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+      });
+    }
     expect((await search.boundingBox())?.y).toBeCloseTo(initialSearch.y, 0);
     expect(await picker.evaluate((element) => element.scrollTop)).toBe(0);
     await expect(picker.getByRole("button", { name: "Close", exact: true })).toBeInViewport();
@@ -61,6 +88,6 @@ for (const width of [1440, 390]) {
     ).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(picker).toHaveCount(0);
-    await expect(page.locator("[data-chat-model]")).toBeFocused();
+    await expect(model).toBeFocused();
   });
 }

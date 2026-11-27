@@ -561,7 +561,7 @@ describe("organization settings tabs", () => {
       headers.push(header!);
       expect(header!.querySelector('[data-slot="service-icon"] > svg')).not.toBeNull();
       if (title === "AI Architect") {
-        expect(within(card).getByRole("link", { name: "Open in Agent Builder" })).toBeVisible();
+        expect(within(card).queryByRole("link", { name: "Open in Agent Builder" })).toBeNull();
         expect(within(header!).queryByRole("link", { name: "Open in Agent Builder" })).toBeNull();
         expect(within(header!).queryByRole("button", { name: title })).toBeNull();
         expect(within(header!).getByRole("switch")).toBeVisible();
@@ -602,7 +602,13 @@ describe("organization settings tabs", () => {
     expect(screen.queryByRole("heading", { name: "Voice" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "AI Architect" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Speech to text" })).not.toBeInTheDocument();
-    expect(document.querySelectorAll('[data-slot="service-card"]')).toHaveLength(3);
+    const services = screen.getByRole("tabpanel", { name: "AI & services" });
+    const cards = services.querySelectorAll('[data-slot="service-card"]');
+    expect(Array.from(cards, (card) => card.getAttribute("aria-label"))).toEqual([
+      "Daily briefing & suggestions",
+      "Allow read-only monitoring routines",
+      "Memory maintenance",
+    ]);
   });
 
   it("shows actionable Voice setup without warning about disabled services", async () => {
