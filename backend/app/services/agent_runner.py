@@ -1373,6 +1373,15 @@ class ApprovalChannel:
     run_id: UUID
     decided: dict[str, ApprovalDecision] = field(default_factory=dict)
     parked: dict[str, str] = field(default_factory=dict)
+    continuing: set[str] = field(default_factory=set)
+    """The `task` calls of delegations this resume continues.
+
+    Each already passed its gate - its delegate ran, and parked inside it - so the
+    replay that reaches it again is the same call carrying on, not a new act. Its
+    approval belonged to an earlier park and is not in `decided`, which holds only
+    this park's verdicts; asking again would park the run on the delegation, drop
+    the delegate's place, and start it over to ask its own question again - for as
+    long as somebody keeps approving. Consumed on use, like `decided`."""
 
     standing_consent_by: UUID | None = None
     """Who granted every gated call on this run in advance, or `None`.
@@ -1416,6 +1425,11 @@ class ApprovalChannel:
         decision = self.decided.pop(request.tool_call_id, None)
         if decision is not None:
             return decision
+        if request.tool_call_id in self.continuing:
+            self.continuing.discard(request.tool_call_id)
+            # The replayed call's own arguments: the history it is replayed from
+            # holds the call exactly as it was approved and ran.
+            return ApprovalGranted(request.tool_args)
         # Described only now that a row will be written - parked, or recorded under
         # standing consent - and never for a call the resume already decided.
         context = None if request.describe is None else await request.describe()
@@ -5483,6 +5497,8 @@ class AgentRunnerService:
             agent_id=agent.id,
             run_id=run.id,
             decided=decided,
+            # One entry per delegation the run parked inside, nested ones included.
+            continuing=set(already_started),
             tool_consent=(
                 tool_consent
                 if approval_mode is ApprovalMode.FOLLOW_AGENT
