@@ -2821,7 +2821,8 @@
       "failure": {
         "start": "De omgeving kon niet worden geopend. Controleer de beschikbaarheid en probeer opnieuw.",
         "end": "De omgeving kon niet worden beëindigd. Ze draait mogelijk nog.",
-        "state": "Gereedheid kon niet worden bijgewerkt. Controleer de beschikbaarheid voordat je doorgaat."
+        "state": "Gereedheid kon niet worden bijgewerkt. Controleer de beschikbaarheid voordat je doorgaat.",
+        "refresh": "De beschikbaarheid kon niet worden gecontroleerd. Probeer het opnieuw."
       },
       "phase": {
         "expired": {
@@ -2863,7 +2864,11 @@
       "loading": "Omgeving laden…",
       "runLifetime": "Sluit na een run van de agent die deze omgeving gebruikt.",
       "idleMinutes": "Bewaard gedurende maximaal {minutes, plural, one {# minuut} other {# minuten}} inactiviteit.",
-      "idleSeconds": "Bewaard gedurende maximaal {seconds, plural, one {# seconde} other {# seconden}} inactiviteit."
+      "idleSeconds": "Bewaard gedurende maximaal {seconds, plural, one {# seconde} other {# seconden}} inactiviteit.",
+      "options": "Omgevingsopties",
+      "lifetime": "Wanneer deze sluit",
+      "checked": "Beschikbaarheid gecontroleerd: {status}.",
+      "ready": "Gereed"
     }
   },
   "approvalFeedback": {

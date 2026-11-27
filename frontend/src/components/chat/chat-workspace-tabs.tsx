@@ -30,7 +30,7 @@ export function ChatWorkspaceTabs({
           : true,
   );
   return (
-    <header className="bg-background flex min-w-0 shrink-0 items-center gap-2 border-b px-2">
+    <header className="bg-muted/25 flex min-w-0 shrink-0 items-center gap-1 border-b px-1.5">
       <div
         role="tablist"
         tabIndex={-1}
@@ -55,8 +55,7 @@ export function ChatWorkspaceTabs({
           );
         }}
       >
-        {PANELS.map((one) => {
-          if (one === "desktop" && !workspace.environmentPanels.includes("desktop")) return null;
+        {available.map((one) => {
           const Icon = ICONS[one];
           return (
             <button
@@ -66,13 +65,12 @@ export function ChatWorkspaceTabs({
               id={`${workspace.id}-tab-${one}`}
               aria-controls={`${workspace.id}-panel-${one}`}
               aria-selected={panel === one}
-              disabled={!available.includes(one)}
               tabIndex={panel === one ? 0 : -1}
               onClick={() => workspace.openPanel(one)}
               className={cn(
-                "focus-visible:ring-ring inline-flex shrink-0 items-center gap-2 rounded-t-lg border-b-2 border-transparent px-3 py-2 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none disabled:opacity-40 pointer-coarse:min-h-11",
+                "focus-visible:ring-ring inline-flex shrink-0 items-center gap-2 rounded-lg border border-transparent px-3 py-2 text-xs font-medium focus-visible:ring-2 focus-visible:outline-none pointer-coarse:min-h-11",
                 panel === one
-                  ? "border-foreground bg-muted text-foreground"
+                  ? "border-border bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:bg-muted/60",
               )}
             >

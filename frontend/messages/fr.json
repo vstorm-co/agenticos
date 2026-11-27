@@ -2784,7 +2784,8 @@
       "failure": {
         "start": "Impossible d’ouvrir l’environnement. Vérifiez sa disponibilité et réessayez.",
         "end": "Impossible de terminer l’environnement. Il fonctionne peut-être encore.",
-        "state": "Impossible d’actualiser la disponibilité. Vérifiez-la avant de continuer."
+        "state": "Impossible d’actualiser la disponibilité. Vérifiez-la avant de continuer.",
+        "refresh": "Impossible de vérifier la disponibilité. Réessayez."
       },
       "phase": {
         "expired": {
@@ -2826,7 +2827,11 @@
       "loading": "Chargement de l’environnement…",
       "runLifetime": "Se ferme après un run de l’agent qui utilise cet environnement.",
       "idleMinutes": "Conservé pendant au plus {minutes, plural, one {# minute} other {# minutes}} d’inactivité.",
-      "idleSeconds": "Conservé pendant au plus {seconds, plural, one {# seconde} other {# secondes}} d’inactivité."
+      "idleSeconds": "Conservé pendant au plus {seconds, plural, one {# seconde} other {# secondes}} d’inactivité.",
+      "options": "Options de l’environnement",
+      "lifetime": "Quand il se ferme",
+      "checked": "Disponibilité vérifiée : {status}.",
+      "ready": "Prêt"
     }
   },
   "common": {

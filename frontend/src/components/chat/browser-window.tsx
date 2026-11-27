@@ -2,7 +2,7 @@
 
 import { NATIVE_CHOICE } from "@/components/ui/control-styles";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ExternalLink,
   Globe,
@@ -29,6 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
+import { useChanged } from "@/hooks/use-changed";
 import { useAuthStore } from "@/stores";
 import { BrowserNavigation } from "./browser-navigation";
 import { BrowserCommentLayer, type PageComment } from "./browser-comment";
@@ -105,16 +106,17 @@ function ChromeButton({
  * the agent finishes the step in flight first, and a button that stayed live
  * through that would be pressed again.
  */
-function useHold(browse: Browse, control: BrowseControl | null) {
+function useHold(browse: Browse, control: BrowseControl | null, active: boolean) {
   const user = useAuthStore((state) => state.user);
   const [asked, setAsked] = useState(false);
+  if (useChanged(active) && !active) setAsked(false);
   // By id: two viewers can share a name, and each would read the other's hold
   // as their own and get the page's live controls.
   const holding = Boolean(browse.heldById) && browse.heldById === user?.id;
   return {
     holding,
     someoneElse: Boolean(browse.heldBy) && !holding,
-    waiting: asked && !browse.heldBy && isRunning(browse),
+    waiting: asked && !browse.heldBy && !browse.controlError && isRunning(browse),
     takeOver: () => {
       setAsked(true);
       control?.send({ type: "take_over" });
@@ -291,6 +293,8 @@ export function BrowserWindow({
   newTabHref,
   waitForFit = false,
   onComment,
+  menuItems,
+  active = true,
 }: {
   browse: Browse;
   surface?: "browser" | "desktop";
@@ -305,18 +309,25 @@ export function BrowserWindow({
   waitForFit?: boolean;
   /** Where a comment on a spot of the page goes - the chat's composer; none, no button. */
   onComment?: (comment: PageComment) => void;
+  menuItems?: ReactNode;
+  /** The frame owns visibility; hiding it dismisses portalled controls. */
+  active?: boolean;
 }) {
   const t = useTranslations("chat");
   const tb = useTranslations("browse");
+  const menuLabel = menuItems === undefined ? t("browserMenu") : t("environmentView.options");
   const heading = surface === "desktop" ? t("environmentView.desktopTitle") : t("browserHeading");
+  const [menuOpen, setMenuOpen] = useState(false);
+  if (useChanged(active) && !active) setMenuOpen(false);
   const [showSteps, setShowSteps] = useState(false);
   const [remember, setRemember] = useState(false);
   const [commenting, setCommenting] = useState(false);
-  const hold = useHold(browse, control);
+  const hold = useHold(browse, control, active);
   const running = isRunning(browse);
   const host = hostOf(browse.url);
   const secure = browse.url?.startsWith("https:") ?? false;
-  const canDrive = running && control !== null && control.canControl;
+  const canDrive = active && running && control !== null && control.canControl;
+  const showNavigation = browse.navigable && (canDrive || menuItems !== undefined);
   const { ref: pageRef, asked } = useFitPage(canDrive ? control : null);
   const fitted = useFitted(browse.image, asked, waitForFit && canDrive);
   // Pointing at the page and driving it are two gestures on one picture; while
@@ -332,11 +343,15 @@ export function BrowserWindow({
         <div
           className={cn(
             "flex min-w-0 flex-1 items-center",
-            browse.navigable && canDrive && "basis-full @min-[420px]/browser-window:basis-auto",
+            showNavigation && "basis-full @min-[420px]/browser-window:basis-auto",
           )}
         >
-          {browse.navigable && canDrive ? (
-            <BrowserNavigation url={browse.url} holding={hold.holding} send={control.send} />
+          {showNavigation ? (
+            <BrowserNavigation
+              url={browse.url}
+              holding={hold.holding && canDrive}
+              send={control?.send}
+            />
           ) : (
             <div
               className="bg-muted/80 flex h-9 min-w-0 flex-1 items-center justify-center gap-2 rounded-full px-3 text-xs"
@@ -385,7 +400,7 @@ export function BrowserWindow({
                   // take-over asks again rather than inheriting a tick.
                   setRemember(false);
                 }}
-                className="bg-foreground text-background hover:bg-foreground/90 flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium"
+                className="bg-foreground text-background hover:bg-foreground/90 flex h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-medium pointer-coarse:min-h-11 pointer-coarse:min-w-11"
               >
                 <Undo2 className="size-4" aria-hidden />
               </button>
@@ -396,7 +411,7 @@ export function BrowserWindow({
                 onClick={hold.takeOver}
                 disabled={hold.waiting}
                 title={tb("takeOverHint")}
-                className="bg-foreground text-background hover:bg-foreground/90 flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium disabled:opacity-60"
+                className="bg-foreground text-background hover:bg-foreground/90 flex h-8 min-w-8 shrink-0 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-medium disabled:opacity-60 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
               >
                 <Hand className="size-4" aria-hidden />
               </button>
@@ -410,18 +425,19 @@ export function BrowserWindow({
               <MessageSquarePlus className="size-4" />
             </ChromeButton>
           )}
-          <DropdownMenu>
+          <DropdownMenu open={active && menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                aria-label={t("browserMenu")}
-                title={t("browserMenu")}
-                className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-full"
+                aria-label={menuLabel}
+                title={menuLabel}
+                className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-8 shrink-0 items-center justify-center rounded-full pointer-coarse:size-11"
               >
                 <MoreHorizontal className="size-4" aria-hidden />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {menuItems}
               <DropdownMenuCheckboxItem checked={showSteps} onCheckedChange={setShowSteps}>
                 <ListChecks className="mr-2 size-4" aria-hidden />
                 {t("browserShowSteps", { count: browse.steps.length })}
@@ -455,9 +471,7 @@ export function BrowserWindow({
         </div>
       </div>
 
-      {browse.navigable && canDrive && (
-        <h2 className="sr-only">{browse.title || host || heading}</h2>
-      )}
+      {showNavigation && <h2 className="sr-only">{browse.title || host || heading}</h2>}
       {browse.controlError && (
         <p role="alert" className="text-destructive border-b px-3 py-2 text-sm">
           {browse.controlError}
@@ -507,7 +521,7 @@ export function BrowserWindow({
             <div className="relative">
               <LiveViewport
                 browse={browse}
-                holding={hold.holding}
+                holding={hold.holding && canDrive}
                 onCommand={(command) => control?.send(command)}
                 flush
                 overlay={

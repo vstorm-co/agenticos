@@ -468,3 +468,13 @@ it("does not invent a card when a new tab is refused or has not opened yet", () 
   ];
   expect(turnBrowseVisits(calls, [])).toEqual([]);
 });
+
+it("clears a refused takeover after a later ownership acknowledgement succeeds", () => {
+  const [browse] = fold(
+    frame({ kind: "browser_opened" }),
+    frame({ kind: "browser_control_error", detail: "The environment is unavailable." }),
+    frame({ kind: "browser_held", by: "Ada", by_user_id: "u1" }),
+  );
+  expect(browse?.heldById).toBe("u1");
+  expect(browse?.controlError).toBeNull();
+});

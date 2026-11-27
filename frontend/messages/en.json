@@ -2821,7 +2821,8 @@
       "failure": {
         "start": "Could not open the environment. Check availability and try again.",
         "end": "Could not end the environment. It may still be running.",
-        "state": "Could not update readiness. Check availability before continuing."
+        "state": "Could not update readiness. Check availability before continuing.",
+        "refresh": "Could not check availability. Try again."
       },
       "phase": {
         "expired": {
@@ -2863,7 +2864,11 @@
       "loading": "Loading environment…",
       "runLifetime": "Closes after an agent run that uses this environment.",
       "idleMinutes": "Retained for up to {minutes, plural, one {# minute} other {# minutes}} of inactivity.",
-      "idleSeconds": "Retained for up to {seconds, plural, one {# second} other {# seconds}} of inactivity."
+      "idleSeconds": "Retained for up to {seconds, plural, one {# second} other {# seconds}} of inactivity.",
+      "options": "Environment options",
+      "lifetime": "When it closes",
+      "checked": "Availability checked: {status}.",
+      "ready": "Ready"
     }
   },
   "approvalFeedback": {

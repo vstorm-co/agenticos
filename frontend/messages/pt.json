@@ -2821,7 +2821,8 @@
       "failure": {
         "start": "Não foi possível abrir o ambiente. Verifique a disponibilidade e tente novamente.",
         "end": "Não foi possível terminar o ambiente. Pode continuar em execução.",
-        "state": "Não foi possível atualizar a prontidão. Verifique a disponibilidade antes de continuar."
+        "state": "Não foi possível atualizar a prontidão. Verifique a disponibilidade antes de continuar.",
+        "refresh": "Não foi possível verificar a disponibilidade. Tente novamente."
       },
       "phase": {
         "expired": {
@@ -2863,7 +2864,11 @@
       "loading": "Carregando ambiente…",
       "runLifetime": "Fecha após um run do agente que utiliza este ambiente.",
       "idleMinutes": "Mantido por até {minutes, plural, one {# minuto} other {# minutos}} de inatividade.",
-      "idleSeconds": "Mantido por até {seconds, plural, one {# segundo} other {# segundos}} de inatividade."
+      "idleSeconds": "Mantido por até {seconds, plural, one {# segundo} other {# segundos}} de inatividade.",
+      "options": "Opções do ambiente",
+      "lifetime": "Quando é fechado",
+      "checked": "Disponibilidade verificada: {status}.",
+      "ready": "Pronto"
     }
   },
   "approvalFeedback": {

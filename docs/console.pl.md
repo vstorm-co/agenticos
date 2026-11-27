@@ -1,5 +1,5 @@
 ---
-source_sha: "f02085d6f5cd"
+source_sha: "c30c46c5183f"
 ---
 
 Selektor modeli utrzymuje nagłówek, karty dostawcy i wyszukiwarkę na miejscu, a listy modeli i dostawców przewijają się niezależnie. Zmiana karty dashboardu zachowuje krótkie przejście; wejście na dashboard ani przywrócenie historii przeglądarki nie animuje całego panelu. Karuzela avatarów w onboardingu pozostaje dostępna także obok wgranego zdjęcia, z wyjaśnieniem, że wybór koloru dotyczy avatara pokazywanego, gdy zdjęcie jest niedostępne.
@@ -1339,7 +1339,9 @@ Nagłówek Chatów oferuje **Ostatnią aktywność (płaską listę)**. Łączy 
 
 We własnym prywatnym czacie menu **Workspace** grupuje **Files**, **Browser** i **Desktop**. Przeglądarka i pulpit pojawiają się, gdy wybrany opublikowany agent ma daną capability, a Ty możesz go uruchamiać. Pusty czat projektu można najpierw utworzyć bez wysyłania wiadomości i bez uruchamiania modelu. **Open** jawnie uruchamia wybrane środowisko; samo otwarcie menu niczego nie uruchamia. Sparowane lokalne urządzenia zachowują dotychczasowe sterowanie.
 
-Panel pokazuje czas życia środowiska — run lub rozmowę — oraz efektywny limit bezczynności. Ukrycie panelu, zmiana zakładki lub rozłączenie strumienia odłącza tylko ten podgląd. **End** wymaga potwierdzenia i zwalnia środowisko. Środowisko o czasie życia run zamyka się po runie agenta, który faktycznie z niego korzystał; niezwiązana wiadomość nie zamyka nieużywanego środowiska otwartego ręcznie.
+Kompaktowy pasek zakładek zbiera dostępne widoki nad obrazem środowiska. W menu **Opcje środowiska** znajdziesz zasady czasu życia, **Sprawdź dostępność** i **Zakończ środowisko**. Zakończenie wymaga potwierdzenia. Otwieranie i sprawdzanie pokazują postęp albo kontrolowaną odmowę. Ukryty panel zachowuje zamontowany widok i szkic adresu; podczas ponownego łączenia zapisany obraz pozostaje ukryty do uzyskania aktualnej gotowości.
+
+Ukrycie panelu, zmiana zakładki lub rozłączenie strumienia odłącza tylko ten podgląd. Środowisko o czasie życia run zamyka się po runie agenta, który faktycznie z niego korzystał; niezwiązana wiadomość nie zamyka nieużywanego środowiska otwartego ręcznie.
 
 W trybie rozmowy następna uprawniona tura prywatnego czatu przejmuje tę samą żywą kartę przeglądarki lub referencję pulpitu u dostawcy, wraz z niezapisanymi formularzami i stanem JavaScript. To nie jest nowa przeglądarka z przekopiowanymi adresami i cookies. Gdy oryginalny zasób lub jego właściciel przestaje istnieć, panel pokazuje wygaśnięcie zamiast obiecywać odtworzenie. Jeden fizyczny interfejs ma w danej chwili jednego sterującego; sterowanie agenta blokuje ręczne komendy do czasu zwolnienia. Wybrany cel wykonania agent/projekt jest przekazywany w odczycie, tworzeniu, zakończeniu i strumieniu, więc zmiana wyboru nie przedstawia starego środowiska jako nowego celu.
 

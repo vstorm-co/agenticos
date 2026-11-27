@@ -147,6 +147,7 @@ function applyTo(browse: Browse, frame: BrowserFrame): Browse {
       return {
         ...browse,
         needs: null,
+        controlError: null,
         heldBy: frame.by ?? null,
         heldById: frame.by_user_id ?? null,
         pointer: null,

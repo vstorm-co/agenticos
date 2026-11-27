@@ -119,7 +119,7 @@ it.each([false, true])(
     view.rerender(content("b"));
     expect(screen.getByLabelText("Selected browser")).toBeEmptyDOMElement();
     await user.click(screen.getByRole("button", { name: "Show files" }));
-    expect(screen.getByRole("tab", { name: "Browser" })).toBeDisabled();
+    expect(screen.queryByRole("tab", { name: "Browser" })).not.toBeInTheDocument();
     view.rerender(content("b", [browse({ callId: "new", runId: "run-b", navigable: true })]));
     expect(screen.getByLabelText("Selected browser")).toHaveTextContent("new");
     expect(screen.getByLabelText("Active workspace")).toHaveTextContent("files");

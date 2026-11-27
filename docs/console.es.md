@@ -1,5 +1,5 @@
 ---
-source_sha: "f02085d6f5cd"
+source_sha: "c30c46c5183f"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -1377,7 +1377,9 @@ La cabecera de Chats ofrece **Actividad más reciente (lista plana)**. Combina c
 
 En un chat privado propio, **Workspace** reúne **Files**, **Browser** y **Desktop**. Navegador y escritorio aparecen cuando el agente publicado seleccionado habilita esa capability y tienes permiso para ejecutarlo. Puedes crear primero un chat de proyecto vacío sin enviar un mensaje ni llamar al modelo. **Open** inicia expresamente el entorno seleccionado; abrir el menú no inicia nada. Los dispositivos locales emparejados mantienen sus controles actuales.
 
-El panel muestra la duración por run o conversación y el tiempo de inactividad efectivo. Ocultarlo, cambiar de pestaña o desconectar el stream solo separa esa vista. **End** pide confirmación y libera el entorno. Un entorno con duración por run se cierra después de un run del agente que realmente lo utiliza; otro turno no cierra un entorno abierto manualmente que no se haya utilizado.
+La barra compacta de pestañas reúne las vistas disponibles sobre la imagen en vivo. **Opciones del entorno** contiene la política de duración, **Comprobar disponibilidad** y **Finalizar entorno**. Finalizar requiere confirmación. Abrir y comprobar muestran progreso o una denegación controlada. Una vista oculta conserva su componente y el borrador de dirección; al reconectar, la imagen guardada permanece oculta hasta recibir la disponibilidad actual.
+
+Ocultar el panel, cambiar de pestaña o desconectar el stream solo separa esa vista. Un entorno con duración por run se cierra después de un run del agente que realmente lo utiliza; otro turno no cierra un entorno abierto manualmente que no se haya utilizado.
 
 En modo conversación, el siguiente turno autorizado del chat web privado adopta el mismo destino de navegador en vivo o la misma referencia de escritorio del proveedor, incluidos formularios sin guardar y estado de JavaScript. No es un navegador nuevo con URLs o cookies copiadas. Si desaparece el recurso original o su propietario, el panel indica que ha caducado. Cada interfaz física tiene un único controlador; el control del agente bloquea la entrada manual hasta que se libera. El destino de ejecución agente/proyecto seleccionado se incluye en lectura, creación, End y streaming, de modo que cambiar la selección nunca presenta el entorno anterior como el destino nuevo.
 

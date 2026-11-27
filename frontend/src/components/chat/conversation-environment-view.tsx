@@ -1,10 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Globe, Monitor, RefreshCw, Square } from "lucide-react";
+import { Clock3, Globe, Monitor, MoreHorizontal, RefreshCw, Square } from "lucide-react";
 import { useTranslations } from "next-intl";
 
-import { Button, ConfirmDialog } from "@/components/ui";
+import {
+  Button,
+  ConfirmDialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  IconButton,
+} from "@/components/ui";
+import { useChanged } from "@/hooks/use-changed";
 import { useLiveConversationEnvironment } from "@/hooks/use-live-conversation-environment";
 import type { ConversationEnvironment } from "@/lib/conversation-environments-api";
 import { BrowserWindow } from "./browser-window";
@@ -14,9 +25,9 @@ interface Props {
   environment: ConversationEnvironment;
   visible: boolean;
   onState: (value: ConversationEnvironment) => Promise<void>;
-  onStart: () => Promise<void>;
+  onStart: () => Promise<ConversationEnvironment>;
   onEnd: () => Promise<void>;
-  onRefresh: () => void;
+  onRefresh: () => Promise<void>;
   isStarting: boolean;
   isEnding: boolean;
 }
@@ -25,7 +36,7 @@ interface Props {
 export function ConversationEnvironmentView(props: Props) {
   return (
     <EnvironmentView
-      key={`${props.conversationId}:${props.environment.agent_id}:${props.environment.id}:${props.environment.execution_target}:${props.visible}`}
+      key={`${props.conversationId}:${props.environment.agent_id}:${props.environment.id}:${props.environment.execution_target}`}
       {...props}
     />
   );
@@ -44,9 +55,12 @@ function EnvironmentView({
 }: Props) {
   const t = useTranslations("chat.environmentView");
   const live = useLiveConversationEnvironment(conversationId, environment, visible);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
-  const [action, setAction] = useState<"start" | "end" | null>(null);
-  const [failure, setFailure] = useState<"start" | "end" | "state" | null>(null);
+  const [action, setAction] = useState<"start" | "end" | "refresh" | null>(null);
+  const [failure, setFailure] = useState<"start" | "end" | "state" | "refresh" | null>(null);
+  const [startRefusal, setStartRefusal] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
   const authority = live.environment ?? environment;
   const busy = isStarting || isEnding || action !== null;
 
@@ -61,12 +75,24 @@ function EnvironmentView({
     };
   }, [visible, live.environment, onState]);
 
+  if (useChanged(visible) && !visible) setOptionsOpen(false);
+
   async function changeLifetime(next: "start" | "end") {
     setAction(next);
     setFailure(null);
+    setStartRefusal(null);
+    setChecked(false);
     try {
-      await (next === "start" ? onStart() : onEnd());
-      if (next === "end") setConfirmEnd(false);
+      if (next === "start") {
+        const result = await onStart();
+        if (result.refusal !== null || !["starting", "ready"].includes(result.state)) {
+          setStartRefusal(result.refusal?.message ?? null);
+          setFailure("start");
+        }
+      } else {
+        await onEnd();
+        setConfirmEnd(false);
+      }
     } catch {
       setFailure(next);
     } finally {
@@ -74,7 +100,20 @@ function EnvironmentView({
     }
   }
 
-  if (!visible) return null;
+  async function refresh() {
+    setAction("refresh");
+    setFailure(null);
+    setStartRefusal(null);
+    setChecked(false);
+    try {
+      await onRefresh();
+      setChecked(true);
+    } catch {
+      setFailure("refresh");
+    } finally {
+      setAction(null);
+    }
+  }
 
   const hasView =
     authority.state === "ready" &&
@@ -91,6 +130,8 @@ function EnvironmentView({
     );
   const canEnd =
     authority.id !== null && authority.state !== "expired" && live.status !== "forbidden";
+  const endAllowed = visible && canEnd;
+  if (useChanged(endAllowed) && !endAllowed) setConfirmEnd(false);
   const retryStream =
     authority.state === "ready" && ["unavailable", "malformed", "forbidden"].includes(live.status);
   const phase =
@@ -98,7 +139,7 @@ function EnvironmentView({
       ? "forbidden"
       : authority.state === "expired" || live.status === "gone"
         ? "expired"
-        : authority.state === "failed"
+        : authority.state === "failed" || blocked
           ? "failed"
           : authority.state === "not_started"
             ? "notStarted"
@@ -111,74 +152,124 @@ function EnvironmentView({
                   : "connecting";
   const Icon = authority.kind === "browser" ? Globe : Monitor;
 
+  const lifetime =
+    authority.session_lifetime === "run"
+      ? t("runLifetime")
+      : authority.idle_seconds % 60 === 0
+        ? t("idleMinutes", { minutes: authority.idle_seconds / 60 })
+        : t("idleSeconds", { seconds: authority.idle_seconds });
+  const refreshButton = (
+    <IconButton
+      type="button"
+      aria-label={t("refresh")}
+      title={t("refresh")}
+      className="size-8 shrink-0 pointer-coarse:size-11"
+      disabled={busy}
+      aria-busy={action === "refresh"}
+      onClick={() => void refresh()}
+    >
+      <RefreshCw className={action === "refresh" ? "size-4 animate-spin" : "size-4"} aria-hidden />
+    </IconButton>
+  );
+  const controlHint =
+    authority.control === "agent"
+      ? t("agentDriving")
+      : authority.control === "human"
+        ? t("humanDriving")
+        : authority.can_control
+          ? t("canTakeOver")
+          : t("watchOnly");
+  const menuItems = (
+    <>
+      <DropdownMenuLabel className="text-muted-foreground max-w-72 space-y-1 text-xs font-normal whitespace-normal">
+        <span className="text-foreground flex items-center gap-2 font-medium">
+          <Clock3 className="size-3.5" aria-hidden />
+          {t("lifetime")}
+        </span>
+        <span className="block leading-relaxed">{lifetime}</span>
+        {hasView && <span className="block border-t pt-2 leading-relaxed">{controlHint}</span>}
+      </DropdownMenuLabel>
+      <DropdownMenuItem disabled={busy} onSelect={() => void refresh()}>
+        <RefreshCw
+          className={action === "refresh" ? "size-4 animate-spin" : "size-4"}
+          aria-hidden
+        />
+        {t("refresh")}
+      </DropdownMenuItem>
+      {canEnd && (
+        <DropdownMenuItem disabled={busy} onSelect={() => setConfirmEnd(true)}>
+          <Square className="size-4" aria-hidden />
+          {t("end")}
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuSeparator />
+    </>
+  );
+
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
-        {authority.state === "ready" && (
-          <p className="text-muted-foreground min-w-0 text-xs">
-            {authority.control === "agent"
-              ? t("agentDriving")
-              : authority.control === "human"
-                ? t("humanDriving")
-                : authority.can_control
-                  ? t("canTakeOver")
-                  : t("watchOnly")}
+    <div
+      hidden={!visible}
+      inert={!visible}
+      className={
+        visible ? "flex h-full min-h-0 min-w-0 flex-col" : "hidden h-full min-h-0 min-w-0 flex-col"
+      }
+    >
+      {!hasView && (
+        <div className="bg-muted/25 flex min-w-0 shrink-0 items-center gap-2 border-b px-2 py-1.5">
+          <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
+          <p className="min-w-0 flex-1 truncate text-xs font-medium">
+            {t(authority.kind === "desktop" ? "desktopTitle" : "browserTitle")}
           </p>
-        )}
-        <div className="ml-auto flex shrink-0 flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="touch:min-h-11"
-            disabled={busy}
-            onClick={onRefresh}
-          >
-            <RefreshCw className="size-3.5" aria-hidden />
-            {t("refresh")}
-          </Button>
-          {canEnd && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="touch:min-h-11"
-              disabled={busy}
-              onClick={() => setConfirmEnd(true)}
-            >
-              <Square className="size-3.5" aria-hidden />
-              {t("end")}
-            </Button>
-          )}
+          {refreshButton}
+          <DropdownMenu open={visible && optionsOpen} onOpenChange={setOptionsOpen}>
+            <DropdownMenuTrigger asChild>
+              <IconButton
+                aria-label={t("options")}
+                title={t("options")}
+                className="size-8 pointer-coarse:size-11"
+              >
+                <MoreHorizontal className="size-4" aria-hidden />
+              </IconButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">{menuItems}</DropdownMenuContent>
+          </DropdownMenu>
         </div>
-      </div>
-      <p className="text-muted-foreground border-b px-3 py-2 text-xs">
-        {authority.session_lifetime === "run"
-          ? t("runLifetime")
-          : authority.idle_seconds % 60 === 0
-            ? t("idleMinutes", { minutes: authority.idle_seconds / 60 })
-            : t("idleSeconds", { seconds: authority.idle_seconds })}
-      </p>
-      {failure !== null && (failure !== "end" || !confirmEnd) && (
-        <p role="alert" className="text-destructive border-b px-3 py-2 text-sm">
-          {t(`failure.${failure}`)}
+      )}
+      {checked && (
+        <p role="status" className="text-muted-foreground border-b px-3 py-1.5 text-xs">
+          {t("checked", { status: hasView ? t("ready") : t(`phase.${phase}.title`) })}
         </p>
       )}
-      {hasView && live.browse !== null ? (
-        <div className="min-h-0 min-w-0 flex-1">
-          <BrowserWindow
-            surface={environment.kind}
-            browse={
-              authority.kind === "desktop" ? { ...live.browse, navigable: false } : live.browse
-            }
-            control={
-              authority.can_control && authority.control !== "agent"
-                ? { canControl: true, canRemember: false, send: live.send }
-                : null
-            }
-          />
-        </div>
-      ) : (
+      {failure !== null && (failure !== "end" || !confirmEnd) && (
+        <p role="alert" className="text-destructive border-b px-3 py-2 text-sm">
+          {failure === "start" && startRefusal !== null ? startRefusal : t(`failure.${failure}`)}
+        </p>
+      )}
+      {live.browse !== null &&
+        authority.state === "ready" &&
+        authority.refusal === null &&
+        live.status !== "forbidden" && (
+          <div
+            hidden={!hasView}
+            inert={!hasView}
+            className={hasView ? "min-h-0 min-w-0 flex-1" : "hidden min-h-0 min-w-0 flex-1"}
+          >
+            <BrowserWindow
+              surface={environment.kind}
+              active={visible && hasView}
+              browse={
+                authority.kind === "desktop" ? { ...live.browse, navigable: false } : live.browse
+              }
+              menuItems={menuItems}
+              control={
+                authority.can_control && authority.control !== "agent"
+                  ? { canControl: true, canRemember: false, send: live.send }
+                  : null
+              }
+            />
+          </div>
+        )}
+      {!hasView && (
         <div
           className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 overflow-y-auto p-5 text-center sm:p-8"
           aria-busy={phase === "starting" || (phase === "connecting" && !blocked)}
@@ -215,7 +306,7 @@ function EnvironmentView({
         </div>
       )}
       <ConfirmDialog
-        open={confirmEnd}
+        open={endAllowed && confirmEnd}
         onOpenChange={(open) => {
           if (!busy) setConfirmEnd(open);
         }}

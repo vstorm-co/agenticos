@@ -411,12 +411,12 @@ describe("shared workspace tabs", () => {
     expect(useBrowserPanelStore.getState().openCallId).toBe("browse");
   });
 
-  it("disables unavailable tabs and supports keyboard selection without losing focus", async () => {
+  it("hides unavailable tabs and supports keyboard selection without losing focus", async () => {
     render(<Harness shared />);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Open files" }));
-    expect(screen.getByRole("tab", { name: "Visuals" })).toBeDisabled();
-    expect(screen.getByRole("tab", { name: "Browser" })).toBeDisabled();
+    expect(screen.queryByRole("tab", { name: "Visuals" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Browser" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Open one" }));
     screen.getByRole("tab", { name: "Visuals" }).focus();
     await user.keyboard("{ArrowRight}");

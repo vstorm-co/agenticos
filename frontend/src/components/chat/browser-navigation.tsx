@@ -38,18 +38,19 @@ export function BrowserNavigation({
 }: {
   url: string | null;
   holding: boolean;
-  send: (command: NavigationCommand) => void;
+  send?: (command: NavigationCommand) => void;
 }) {
   const t = useTranslations("browse");
+  const interactive = holding && send !== undefined;
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
   return (
     <form
       className="flex min-w-0 flex-1 items-center gap-0.5"
-      title={!holding ? t("browserNavigationHint") : undefined}
+      title={!interactive ? t("browserNavigationHint") : undefined}
       onSubmit={(event) => {
         event.preventDefault();
-        if (!holding) return;
+        if (!holding || !send) return;
         const value = (draft ?? url ?? "").trim();
         const target = websiteAddress(value);
         if (target === null) {
@@ -73,9 +74,9 @@ export function BrowserNavigation({
           type="button"
           aria-label={t(label)}
           title={t(label)}
-          disabled={!holding}
-          className="hover:bg-muted flex size-8 shrink-0 items-center justify-center rounded-lg disabled:opacity-40"
-          onClick={() => send({ type })}
+          disabled={!interactive}
+          className="hover:bg-muted flex size-8 shrink-0 items-center justify-center rounded-lg disabled:opacity-40 pointer-coarse:size-11"
+          onClick={() => send?.({ type })}
         >
           <Icon className="size-4" aria-hidden />
         </button>
@@ -88,10 +89,10 @@ export function BrowserNavigation({
         inputMode="url"
         autoComplete="off"
         spellCheck={false}
-        readOnly={!holding}
-        className="h-8 flex-1 px-2.5 @min-[480px]/browser-window:text-sm"
+        readOnly={!interactive}
+        className="h-8 flex-1 px-2.5 @min-[480px]/browser-window:text-sm pointer-coarse:min-h-11"
         value={
-          holding
+          interactive
             ? (draft ?? url ?? "")
             : (url ?? "").replace(/^https?:\/\//, "").replace(/\/$/, "")
         }
@@ -100,12 +101,12 @@ export function BrowserNavigation({
           setInvalid(false);
         }}
       />
-      {holding && (
+      {interactive && (
         <button
           type="submit"
           aria-label={t("browserGo")}
           title={t("browserGo")}
-          className="hover:bg-muted flex size-8 shrink-0 items-center justify-center rounded-lg"
+          className="hover:bg-muted flex size-8 shrink-0 items-center justify-center rounded-lg pointer-coarse:size-11"
         >
           <CornerDownLeft className="size-4" aria-hidden />
         </button>

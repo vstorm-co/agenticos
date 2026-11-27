@@ -10779,7 +10779,8 @@
       "failure": {
         "start": "Ortam açılamadı. Kullanılabilirliği kontrol edip yeniden deneyin.",
         "end": "Ortam sonlandırılamadı. Hâlâ çalışıyor olabilir.",
-        "state": "Hazır olma durumu güncellenemedi. Devam etmeden kullanılabilirliği kontrol edin."
+        "state": "Hazır olma durumu güncellenemedi. Devam etmeden kullanılabilirliği kontrol edin.",
+        "refresh": "Kullanılabilirlik kontrol edilemedi. Tekrar deneyin."
       },
       "phase": {
         "expired": {
@@ -10821,7 +10822,11 @@
       "loading": "Ortam yükleniyor…",
       "runLifetime": "Bu ortamı kullanan bir agent run işleminden sonra kapanır.",
       "idleMinutes": "En fazla {minutes, plural, other {# dakika}} boşta kalma süresince korunur.",
-      "idleSeconds": "En fazla {seconds, plural, other {# saniye}} boşta kalma süresince korunur."
+      "idleSeconds": "En fazla {seconds, plural, other {# saniye}} boşta kalma süresince korunur.",
+      "options": "Ortam seçenekleri",
+      "lifetime": "Ne zaman kapanır",
+      "checked": "Kullanılabilirlik kontrol edildi: {status}.",
+      "ready": "Hazır"
     }
   },
   "admin": {

@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DropdownMenuItem } from "@/components/ui";
 import { BrowserWindow, hostOf, type BrowseControl } from "./browser-window";
 import type { BrowserCommand } from "@/hooks/use-live-browse";
 import type { Browse } from "@/lib/browse";
@@ -522,4 +523,91 @@ it("offers address navigation only for browser tabs, with server refusals visibl
   expect(screen.getByRole("heading", { name: "example.test" })).toBeInTheDocument();
   rerender(<BrowserWindow browse={browse({ navigable: false })} control={live} />);
   expect(screen.queryByRole("textbox", { name: "Website address" })).toBeNull();
+});
+
+it("composes owned environment actions in the existing menu without adding another toolbar", async () => {
+  const stop = vi.fn();
+  render(
+    <BrowserWindow
+      browse={browse()}
+      control={control()}
+      menuItems={<DropdownMenuItem onSelect={stop}>End environment</DropdownMenuItem>}
+    />,
+  );
+  expect(screen.queryByRole("button", { name: "Browser options" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Environment options" }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "End environment" }));
+  expect(stop).toHaveBeenCalledOnce();
+  expect(screen.getAllByRole("region", { name: "Browser" })).toHaveLength(1);
+});
+
+it("dismisses its portalled menu when the retained frame becomes inactive", async () => {
+  const live = browse();
+  const view = render(<BrowserWindow browse={live} control={null} />);
+  const image = screen.getByRole("img", { name: "The agent's browser, as it is now" });
+  await userEvent.click(screen.getByRole("button", { name: "Browser options" }));
+  expect(screen.getByRole("menu")).toBeInTheDocument();
+  view.rerender(<BrowserWindow browse={live} control={null} active={false} />);
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  view.rerender(<BrowserWindow browse={live} control={null} active />);
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  expect(screen.getByRole("img", { name: "The agent's browser, as it is now" })).toBe(image);
+});
+
+it("keeps the owned address draft while driver authority is temporarily unavailable", async () => {
+  const send = vi.fn<(command: BrowserCommand) => void>();
+  const held = browse({ navigable: true, heldBy: "Ada", heldById: "u1" });
+  const view = render(
+    <BrowserWindow
+      browse={held}
+      control={{ canControl: true, send }}
+      menuItems={<span>Lifetime</span>}
+    />,
+  );
+  const input = screen.getByRole("textbox", { name: "Website address" });
+  await userEvent.clear(input);
+  await userEvent.type(input, "https://example.test/unfinished");
+  view.rerender(<BrowserWindow browse={held} control={null} menuItems={<span>Lifetime</span>} />);
+  expect(screen.getByRole("textbox", { name: "Website address" })).toBe(input);
+  expect(input).toHaveAttribute("readonly");
+  view.rerender(
+    <BrowserWindow
+      browse={held}
+      control={{ canControl: true, send }}
+      menuItems={<span>Lifetime</span>}
+    />,
+  );
+  expect(input).toHaveValue("https://example.test/unfinished");
+  expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "navigate" }));
+});
+
+it("drops an unacknowledged takeover intent when its frame becomes inactive", async () => {
+  const live = browse();
+  const controlled = control();
+  const view = render(<BrowserWindow browse={live} control={controlled} />);
+  await userEvent.click(screen.getByRole("button", { name: "Take over" }));
+  expect(
+    screen.getByRole("button", { name: "Taking over after the current step…" }),
+  ).toBeDisabled();
+  view.rerender(<BrowserWindow browse={live} control={controlled} active={false} />);
+  view.rerender(<BrowserWindow browse={live} control={controlled} active />);
+  expect(screen.getByRole("button", { name: "Take over" })).toBeEnabled();
+  expect(
+    controlled.send.mock.calls.filter(([command]) => command.type === "take_over"),
+  ).toHaveLength(1);
+});
+
+it("allows an explicit retry after a takeover was refused", async () => {
+  const live = browse();
+  const controlled = control();
+  const view = render(<BrowserWindow browse={live} control={controlled} />);
+  await userEvent.click(screen.getByRole("button", { name: "Take over" }));
+  view.rerender(
+    <BrowserWindow
+      browse={{ ...live, controlError: "The environment is currently unavailable." }}
+      control={controlled}
+    />,
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("The environment is currently unavailable.");
+  expect(screen.getByRole("button", { name: "Take over" })).toBeEnabled();
 });

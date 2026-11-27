@@ -2821,7 +2821,8 @@
       "failure": {
         "start": "Die Umgebung konnte nicht geöffnet werden. Prüfe die Verfügbarkeit und versuche es erneut.",
         "end": "Die Umgebung konnte nicht beendet werden. Sie läuft möglicherweise noch.",
-        "state": "Bereitschaft konnte nicht aktualisiert werden. Prüfe die Verfügbarkeit, bevor du fortfährst."
+        "state": "Bereitschaft konnte nicht aktualisiert werden. Prüfe die Verfügbarkeit, bevor du fortfährst.",
+        "refresh": "Die Verfügbarkeit konnte nicht geprüft werden. Versuche es erneut."
       },
       "phase": {
         "expired": {
@@ -2863,7 +2864,11 @@
       "loading": "Umgebung wird geladen…",
       "runLifetime": "Wird nach einem Agent-Run geschlossen, der diese Umgebung verwendet.",
       "idleMinutes": "Bei Inaktivität bis zu {minutes, plural, one {# Minute} other {# Minuten}} verfügbar.",
-      "idleSeconds": "Bei Inaktivität bis zu {seconds, plural, one {# Sekunde} other {# Sekunden}} verfügbar."
+      "idleSeconds": "Bei Inaktivität bis zu {seconds, plural, one {# Sekunde} other {# Sekunden}} verfügbar.",
+      "options": "Umgebungsoptionen",
+      "lifetime": "Wann sie geschlossen wird",
+      "checked": "Verfügbarkeit geprüft: {status}.",
+      "ready": "Bereit"
     }
   },
   "approvalFeedback": {

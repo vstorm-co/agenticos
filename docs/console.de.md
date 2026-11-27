@@ -1,5 +1,5 @@
 ---
-source_sha: "f02085d6f5cd"
+source_sha: "c30c46c5183f"
 ---
 
 **Refresh models** im Anbieterkatalog lädt die Liste erneut und behält Suche und Auswahl bei. Bei gespeicherten Organisationsmodellen werden stattdessen die gespeicherten Profile neu geladen. Aktualisieren speichert kein Modell und startet keinen Agenten. Endpoint, Vault-Schlüssel, API-Typ und Region erscheinen entsprechend den Fähigkeiten des Anbieters; persönliche Abonnements verwenden die Einstellungen ihres verbundenen Kontos.
@@ -1426,7 +1426,9 @@ Der Chats-Kopf bietet **Neueste Aktivität zuerst (flache Liste)**. Projektchats
 
 Im eigenen privaten Chat bündelt **Workspace** die Bereiche **Files**, **Browser** und **Desktop**. Browser und Desktop erscheinen, wenn der ausgewählte veröffentlichte Agent die Capability aktiviert hat und Sie ihn ausführen dürfen. Ein leerer Projektchat lässt sich ohne Nachricht und ohne Modellaufruf anlegen. **Open** startet die gewählte Umgebung ausdrücklich; das Öffnen des Menüs startet nichts. Gekoppelte lokale Geräte behalten ihre bisherigen Bedienelemente.
 
-Das Panel zeigt die Laufzeit pro Run oder Unterhaltung und das wirksame Leerlauflimit. Ausblenden, Tabwechsel und Trennen des Streams lösen nur diese Ansicht. **End** verlangt eine Bestätigung und gibt die Umgebung frei. Eine Umgebung mit Run-Laufzeit endet nach einem Agenten-Run, der sie tatsächlich verwendet; eine andere Nachricht beendet keine unbenutzte, manuell geöffnete Umgebung.
+Die kompakte Tableiste bündelt verfügbare Ansichten über dem Live-Bild. **Umgebungsoptionen** enthält die Laufzeitregel, **Verfügbarkeit prüfen** und **Umgebung beenden**. Das Beenden erfordert eine Bestätigung. Öffnen und Prüfen zeigen Fortschritt oder eine kontrollierte Ablehnung. Eine ausgeblendete Ansicht bleibt mit ihrem Adressentwurf gemountet; beim Wiederverbinden bleibt das gespeicherte Bild bis zur aktuellen Bereitschaft verborgen.
+
+Ausblenden, Tabwechsel und Trennen des Streams lösen nur diese Ansicht. Eine Umgebung mit Run-Laufzeit endet nach einem Agenten-Run, der sie tatsächlich verwendet; eine andere Nachricht beendet keine unbenutzte, manuell geöffnete Umgebung.
 
 Im Unterhaltungsmodus übernimmt der nächste berechtigte private Webchat-Turn dasselbe Live-Browserziel oder dieselbe Desktop-Referenz des Anbieters, einschließlich ungespeicherter Formulare und JavaScript-Zustand. Es wird kein neuer Browser mit kopierten URLs oder Cookies aufgebaut. Geht die ursprüngliche Ressource oder ihr Eigentümer verloren, meldet das Panel den Ablauf. Eine physische Oberfläche hat jeweils einen steuernden Akteur; während der Agent steuert, sind manuelle Eingaben gesperrt. Das gewählte Ausführungsziel Agent/Projekt wird bei Lesen, Start, End und Streaming mitgeführt; eine geänderte Auswahl zeigt die alte Umgebung nicht als neues Ziel.
 

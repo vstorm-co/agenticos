@@ -1821,7 +1821,8 @@
       "failure": {
         "start": "Nie udało się otworzyć środowiska. Sprawdź dostępność i spróbuj ponownie.",
         "end": "Nie udało się zakończyć środowiska. Może nadal działać.",
-        "state": "Nie udało się zaktualizować gotowości. Sprawdź dostępność przed kontynuacją."
+        "state": "Nie udało się zaktualizować gotowości. Sprawdź dostępność przed kontynuacją.",
+        "refresh": "Nie udało się sprawdzić dostępności. Spróbuj ponownie."
       },
       "phase": {
         "expired": {
@@ -1863,7 +1864,11 @@
       "loading": "Wczytywanie środowiska…",
       "runLifetime": "Zamyka się po runie agenta, który korzysta z tego środowiska.",
       "idleMinutes": "Sesja jest zachowywana przez maksymalnie {minutes, plural, one {# minutę} few {# minuty} many {# minut} other {# minuty}} bezczynności.",
-      "idleSeconds": "Sesja jest zachowywana przez maksymalnie {seconds, plural, one {# sekundę} few {# sekundy} many {# sekund} other {# sekundy}} bezczynności."
+      "idleSeconds": "Sesja jest zachowywana przez maksymalnie {seconds, plural, one {# sekundę} few {# sekundy} many {# sekund} other {# sekundy}} bezczynności.",
+      "options": "Opcje środowiska",
+      "lifetime": "Kiedy się zamyka",
+      "checked": "Sprawdzono dostępność: {status}.",
+      "ready": "Gotowe"
     }
   },
   "errors": {

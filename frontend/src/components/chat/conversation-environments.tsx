@@ -223,7 +223,7 @@ export function ConversationEnvironments({
                   visible={active}
                   onState={environments.remember}
                   onStart={async () => {
-                    await environments.start({
+                    return await environments.start({
                       conversation: conversationId,
                       agent: agentId,
                       kind,

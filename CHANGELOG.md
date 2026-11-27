@@ -107,6 +107,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Keep owned Browser and Desktop views attached to the conversation across messages and workspace tab changes; show computer activity as a link to its persistent Desktop view.
 
+- Keep browser and desktop views in compact workspace tabs, with lifecycle controls in the environment menu and explicit feedback for refused starts. Hidden views retain their address drafts and dismiss transient menus and confirmations.
+
 - Show persisted-resource Delete actions in red consistently, including project deletion and quiet table controls, while keeping Cancel and unlink actions neutral.
 
 - Acknowledge live Browser and Desktop takeover only to the socket that acquired control, and avoid repeated viewport resizing when environment expiry updates.
