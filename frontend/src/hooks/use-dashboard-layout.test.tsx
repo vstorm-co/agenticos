@@ -127,6 +127,17 @@ describe("useDashboardLayout", () => {
     expect(result.current.storedEntries).toEqual([{ widget: "runs", span: "s8" }]);
   });
 
+  it("reads the arrangement again through refetch", async () => {
+    vi.mocked(api.getLayout).mockResolvedValue({ entries: [{ widget: "runs", span: "s8" }] });
+    const result = await hook();
+
+    act(() => {
+      result.current.refetch();
+    });
+
+    await waitFor(() => expect(api.getLayout).toHaveBeenCalledTimes(2));
+  });
+
   it("keeps the arrangement already read when a later refresh fails", async () => {
     // Once a read has succeeded the arrangement is known; a failed refresh must not
     // hide it or turn it into the default.
