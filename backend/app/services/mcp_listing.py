@@ -170,8 +170,15 @@ async def _connected(
     service = McpConnectionService(db)
     connections: list[McpConnection] = []
     if organization_only or ctx.has(Perm.MCP_MANAGE):
-        organization, _ = await service.list_for_org(ctx)
-        connections.extend(organization)
+        # The gallery asks which approved org servers exist, not which ones
+        # this caller may administer: discovery must not require org
+        # management, so it reads the usable set (org rows unconditionally,
+        # the rest narrowed by `mcp:use`) instead of the administer-only list.
+        if organization_only:
+            connections.extend(await service.list_usable(ctx))
+        else:
+            organization, _ = await service.list_for_org(ctx)
+            connections.extend(organization)
     if not organization_only and ctx.user_id is not None and ctx.key_allows(Perm.AGENTS_RUN):
         personal, _ = await service.list_for_user(user_id=ctx.user_id)
         connections.extend(personal)
