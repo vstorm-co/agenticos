@@ -132,8 +132,12 @@ it.each(["note", "claim"] as const)(
 
 it("opts a note into updates and restores a previous body using the new revision", async () => {
   const updatedAt = "2026-11-27T00:00:00Z";
+  const sharedContext = Array.from({ length: 16 }, (_, index) => `Plan item ${index + 1}`).join(
+    "\n",
+  );
+  const currentNote = { ...note, content: `${sharedContext}\nThe current note body` };
   const patch = vi.spyOn(apiClient, "patch").mockResolvedValue({
-    ...note,
+    ...currentNote,
     updated_at: updatedAt,
     auto_update: true,
   });
@@ -141,7 +145,7 @@ it("opts a note into updates and restores a previous body using the new revision
     items: [
       {
         id: "revision",
-        content: "The earlier note body",
+        content: `${sharedContext}\nThe earlier note body`,
         source_conversation_id: "source-1",
         replaced_at: updatedAt,
         changed_by: "maintenance",
@@ -155,7 +159,13 @@ it("opts a note into updates and restores a previous body using the new revision
   try {
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <NoteDetail note={note} onClose={close} update={noop} setActive={noop} remove={noop} />
+        <NoteDetail
+          note={currentNote}
+          onClose={close}
+          update={noop}
+          setActive={noop}
+          remove={noop}
+        />
       </QueryClientProvider>,
     );
     const user = userEvent.setup();
@@ -172,6 +182,7 @@ it("opts a note into updates and restores a previous body using the new revision
     await user.click(screen.getByRole("button", { name: "noteHistory" }));
     await user.click(await screen.findByText("noteRevisionLabel"));
     expect(screen.getByText("The earlier note body")).toBeVisible();
+    expect(screen.getByText("stepApprovalUnchangedLines")).toBeVisible();
     expect(screen.getByRole("link", { name: "noteRevisionSource" })).toHaveAttribute(
       "href",
       "/chat/source-1",
