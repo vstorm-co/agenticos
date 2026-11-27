@@ -18163,7 +18163,7 @@
       "verifyReport": "Asistanın düzenlemeleriniz hakkındaki değerlendirmesi",
       "skillCreated": "{name} adlı skill oluşturuldu ve taslağa eklendi",
       "working": "Run'lar okunuyor…",
-      "checkQuotesCredential": "Önerilerden biri kimlik bilgisi alıntılıyor, bu yüzden bu öneriler kontrol edilemez. Düzenleyerek kimlik bilgisini çıkarın veya öneriyi reddedin."
+      "checkQuotesCredential": "Önerilerden biri kimlik bilgisi alıntılıyor, bu yüzden bu öneriler kontrol edilemez. Mümkünse düzenleyerek kimlik bilgisini çıkarın veya o öneriyi reddedin."
     },
     "suggestion": {
       "tool": "{tool} tool'u",
@@ -18181,7 +18181,8 @@
       "edit": "Düzenle",
       "dismiss": "Reddet",
       "undo": "Geri al",
-      "quotesCredential": "Bu öneri bir kimlik bilgisi alıntılıyor, bu yüzden olduğu gibi kabul edilemez. Düzenleyerek kimlik bilgisini çıkarın veya öneriyi reddedin."
+      "quotesCredential": "Bu öneri bir kimlik bilgisi alıntılıyor, bu yüzden olduğu gibi kabul edilemez. Düzenleyerek kimlik bilgisini çıkarın veya öneriyi reddedin.",
+      "quotesCredentialDismiss": "Bu öneri bir kimlik bilgisi alıntılıyor, bu yüzden kabul edilemez. Öneriyi reddedin ve değişikliği elle yapın."
     },
     "field": {
       "editLabel": "Değeriniz",

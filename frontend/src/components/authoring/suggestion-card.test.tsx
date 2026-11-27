@@ -57,6 +57,30 @@ describe("SuggestionCard", () => {
     expect(onDecide).toHaveBeenCalledWith({ action: "accept", text: "Thirty days." });
   });
 
+  it("says to dismiss a suggestion quoting a credential that offers no Edit", () => {
+    render(
+      <SuggestionCard
+        hunk={hunk({
+          kind: "tool_override",
+          capability_id: "charts",
+          tool_id: "create_chart",
+          new_name: "draw_chart",
+          new_description: "Draw a chart of the numbers asked about.",
+          base_description: null,
+          contains_credential: true,
+        })}
+        canEdit
+        busy={false}
+        onDecide={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Dismiss it and make the change by hand/)).toBeVisible();
+    expect(screen.queryByText(/Edit the credential out/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Accept" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled();
+  });
+
   it("can leave the edit without deciding", async () => {
     render(<SuggestionCard hunk={hunk()} canEdit busy={false} onDecide={vi.fn()} />);
     await userEvent.click(screen.getByRole("button", { name: "Edit" }));

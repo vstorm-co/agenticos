@@ -16743,7 +16743,7 @@
       "verifyReport": "Co asystent sądzi o Twoich zmianach",
       "skillCreated": "Utworzono skill {name} i dodano go do wersji roboczej",
       "working": "Czytam runy…",
-      "checkQuotesCredential": "Jedna z sugestii cytuje poświadczenie, więc tych sugestii nie można sprawdzić. Usuń z niej poświadczenie w edycji albo ją odrzuć."
+      "checkQuotesCredential": "Jedna z sugestii cytuje poświadczenie, więc tych sugestii nie można sprawdzić. Usuń poświadczenie w edycji, jeśli się da, albo odrzuć tę sugestię."
     },
     "suggestion": {
       "tool": "Narzędzie {tool}",
@@ -16761,7 +16761,8 @@
       "edit": "Edytuj",
       "dismiss": "Odrzuć",
       "undo": "Cofnij",
-      "quotesCredential": "Ta sugestia cytuje poświadczenie, więc nie można jej przyjąć w tej postaci. Usuń poświadczenie w edycji albo ją odrzuć."
+      "quotesCredential": "Ta sugestia cytuje poświadczenie, więc nie można jej przyjąć w tej postaci. Usuń poświadczenie w edycji albo ją odrzuć.",
+      "quotesCredentialDismiss": "Ta sugestia cytuje poświadczenie, więc nie można jej przyjąć. Odrzuć ją i wprowadź zmianę ręcznie."
     },
     "field": {
       "editLabel": "Twoja wartość",

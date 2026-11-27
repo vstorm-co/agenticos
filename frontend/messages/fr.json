@@ -16505,7 +16505,7 @@
       "verifyReport": "Ce que l’assistant a retenu de vos modifications",
       "skillCreated": "Skill {name} créé et ajouté au brouillon",
       "working": "Lecture des runs…",
-      "checkQuotesCredential": "Une suggestion cite un identifiant : ces suggestions ne peuvent pas être vérifiées. Retirez-en l’identifiant en la modifiant, ou ignorez-la."
+      "checkQuotesCredential": "Une suggestion cite un identifiant : ces suggestions ne peuvent pas être vérifiées. Retirez l’identifiant en la modifiant si c’est possible, ou ignorez cette suggestion."
     },
     "suggestion": {
       "tool": "Outil {tool}",
@@ -16523,7 +16523,8 @@
       "edit": "Modifier",
       "dismiss": "Écarter",
       "undo": "Annuler",
-      "quotesCredential": "Cette suggestion cite un identifiant : elle ne peut pas être acceptée telle quelle. Retirez l’identifiant en la modifiant, ou ignorez-la."
+      "quotesCredential": "Cette suggestion cite un identifiant : elle ne peut pas être acceptée telle quelle. Retirez l’identifiant en la modifiant, ou ignorez-la.",
+      "quotesCredentialDismiss": "Cette suggestion cite un identifiant : elle ne peut pas être acceptée. Ignorez-la et faites la modification vous-même."
     },
     "field": {
       "editLabel": "Votre valeur",

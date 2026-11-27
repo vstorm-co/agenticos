@@ -16656,7 +16656,7 @@
       "verifyReport": "Was der Assistent zu Ihren Änderungen sagt",
       "skillCreated": "Skill {name} erstellt und zum Entwurf hinzugefügt",
       "working": "Lese die Runs…",
-      "checkQuotesCredential": "Ein Vorschlag zitiert ein Credential, daher lassen sich diese Vorschläge nicht prüfen. Entfernen Sie das Credential daraus oder verwerfen Sie ihn."
+      "checkQuotesCredential": "Ein Vorschlag zitiert ein Credential, daher lassen sich diese Vorschläge nicht prüfen. Entfernen Sie das Credential beim Bearbeiten, wo das geht, oder verwerfen Sie diesen Vorschlag."
     },
     "suggestion": {
       "tool": "Tool {tool}",
@@ -16674,7 +16674,8 @@
       "edit": "Bearbeiten",
       "dismiss": "Verwerfen",
       "undo": "Rückgängig",
-      "quotesCredential": "Dieser Vorschlag zitiert ein Credential und kann so nicht übernommen werden. Entfernen Sie das Credential beim Bearbeiten oder verwerfen Sie den Vorschlag."
+      "quotesCredential": "Dieser Vorschlag zitiert ein Credential und kann so nicht übernommen werden. Entfernen Sie das Credential beim Bearbeiten oder verwerfen Sie den Vorschlag.",
+      "quotesCredentialDismiss": "Dieser Vorschlag zitiert ein Credential und kann nicht übernommen werden. Verwerfen Sie ihn und nehmen Sie die Änderung von Hand vor."
     },
     "field": {
       "editLabel": "Dein Wert",

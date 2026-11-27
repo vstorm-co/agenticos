@@ -16970,7 +16970,7 @@
       "verifyReport": "What the assistant made of your edits",
       "skillCreated": "Skill {name} created and added to the draft",
       "working": "Reading the runs…",
-      "checkQuotesCredential": "A suggestion quotes a credential, so these suggestions can't be checked. Edit the credential out of it, or dismiss it."
+      "checkQuotesCredential": "A suggestion quotes a credential, so these suggestions can't be checked. Edit the credential out where you can, or dismiss that suggestion."
     },
     "suggestion": {
       "tool": "Tool {tool}",
@@ -16988,7 +16988,8 @@
       "edit": "Edit",
       "dismiss": "Dismiss",
       "undo": "Undo",
-      "quotesCredential": "This suggestion quotes a credential, so it can't be accepted as written. Edit the credential out, or dismiss it."
+      "quotesCredential": "This suggestion quotes a credential, so it can't be accepted as written. Edit the credential out, or dismiss it.",
+      "quotesCredentialDismiss": "This suggestion quotes a credential, so it can't be accepted. Dismiss it and make the change by hand."
     },
     "field": {
       "editLabel": "Your value",

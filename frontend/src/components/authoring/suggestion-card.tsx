@@ -46,6 +46,7 @@ export function SuggestionCard({
   const field = hunk.kind === "spec_field";
   const pending = hunk.status === "pending";
   const editableAs = newSkill ? null : field ? editable(hunk.path) : "text";
+  const rewordable = hunk.applies && !tool && editableAs !== null;
   const proposed = field ? String(hunk.new_value ?? "") : hunk.new_text;
   const placed =
     hunk.kind === "instructions" && instructions !== undefined
@@ -134,7 +135,9 @@ export function SuggestionCard({
           hidden={hunk.evidence_hidden}
         />
         {pending && hunk.contains_credential && (
-          <p className="text-sm text-amber-700 dark:text-amber-400">{t("quotesCredential")}</p>
+          <p className="text-sm text-amber-700 dark:text-amber-400">
+            {t(canEdit && rewordable ? "quotesCredential" : "quotesCredentialDismiss")}
+          </p>
         )}
         {canEdit && (
           <div className="flex flex-wrap gap-2">
@@ -168,7 +171,7 @@ export function SuggestionCard({
                     {t("accept")}
                   </Button>
                 )}
-                {hunk.applies && !tool && editableAs !== null && (
+                {rewordable && (
                   <Button
                     size="sm"
                     variant="outline"
