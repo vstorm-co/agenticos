@@ -131,6 +131,33 @@ describe("McpAppFrame", () => {
     expect(box.style.height).toBe("900px");
   });
 
+  it("takes the frame down when the page navigates away", async () => {
+    await shown();
+    act(() => {
+      frameOf().dispatchEvent(new Event("load"));
+    });
+    expect(document.querySelector("iframe")).not.toBeNull();
+
+    act(() => {
+      frameOf().dispatchEvent(new Event("load"));
+    });
+
+    expect(document.querySelector("iframe")).toBeNull();
+    expect(screen.getByText("This result's page could not be loaded.")).toBeInTheDocument();
+  });
+
+  it("takes the frame down when a page introduces itself a second time", async () => {
+    await shown();
+    say({ jsonrpc: "2.0", id: 1, method: "ui/initialize", params: {} });
+    const source = frameOf().contentWindow;
+
+    say({ jsonrpc: "2.0", id: 2, method: "ui/initialize", params: {} }, source);
+    say({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "widget_data" } }, source);
+
+    expect(document.querySelector("iframe")).toBeNull();
+    expect(api.mcpAppCallTool).not.toHaveBeenCalled();
+  });
+
   it("says so when the page cannot be had", async () => {
     api.mcpAppFrameUrl.mockRejectedValue(new Error("404"));
     render(<McpAppFrame conversationId="conv-1" call={call()} />);

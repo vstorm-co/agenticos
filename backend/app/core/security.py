@@ -306,9 +306,9 @@ def create_mcp_app_view_token(
 ) -> str:
     """A short-lived address for the MCP Apps page shown with one tool call (#3450).
 
-    Like an artifact's: the page is served where no cookie reaches, so access is
-    decided when the address is minted - to somebody who may read the
-    conversation - and the content route checks the rest afresh on every load.
+    Like an artifact's: the page is served where no cookie reaches, so access to
+    the conversation is decided when the address is minted, for its few minutes.
+    The content route checks the connection afresh on every load.
     """
     return jwt.encode(
         {

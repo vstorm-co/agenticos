@@ -322,7 +322,8 @@ def _check_tool(
 
     A tool the server offers to pages alone is never on a binding's list - the
     model never sees it to pick - so it is held to the page instead: it must
-    belong to the same page as the call it was asked from.
+    belong to the same page as the call it was asked from, and the tool that
+    brought the page must still be on the connection's list.
     """
     refused = AuthorizationError(message="This page may not use that tool", details={"tool": name})
     ui = _ui(meta)
@@ -333,7 +334,9 @@ def _check_tool(
         for allowed in (record["allowed_tools"], connection.allowed_tools):
             if allowed is not None and name not in allowed:
                 raise refused
-    elif ui.get("resourceUri") != record["resource_uri"]:
+    elif ui.get("resourceUri") != record["resource_uri"] or (
+        connection.allowed_tools is not None and record["tool_name"] not in connection.allowed_tools
+    ):
         raise refused
     own = record["tool_approval"].get(name, "default")
     if approval_needed(record["approval"], read_only=read_only, own=own):

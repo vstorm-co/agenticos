@@ -40,6 +40,7 @@ from app.repositories.conversation import Attributed
 from app.services.transcript import (
     RecordedToolCall,
     TranscriptService,
+    settled_apps_in,
     settled_calls_in,
     tool_calls_in,
 )
@@ -143,6 +144,36 @@ class TestReadingToolCallsOffARun:
         [call] = tool_calls_in([_called("charts_data_query", "c1"), returned])
 
         assert call.mcp_app == record
+
+    def test_a_resumed_calls_page_record_is_read_with_its_result(self):
+        """A parked call's return arrives without its call, and so does its page."""
+        record = {
+            "resource_uri": "ui://charts/viewer.html",
+            "tool_input": {},
+            "result": {"content": [], "isError": False},
+            "connection_id": "6f1c1f4e-1111-4c8a-9a54-0d1e1c1f4e11",
+            "tool_name": "data_query",
+            "allowed_tools": None,
+            "approval": "all",
+            "tool_approval": {},
+        }
+        resumed = ModelRequest(
+            parts=[
+                ToolReturnPart(
+                    tool_name="charts_data_query",
+                    content="5 rows",
+                    tool_call_id="parked",
+                    metadata={"mcp_app": record},
+                ),
+                ToolReturnPart(tool_name="clock", content="noon", tool_call_id="plain"),
+            ]
+        )
+        made_now = [
+            _called("charts_data_query", "fresh"),
+            _returned("charts_data_query", "fresh", "x"),
+        ]
+
+        assert settled_apps_in([resumed, *made_now]) == {"parked": record}
 
     def test_a_call_the_model_was_told_to_retry_records_a_notice_not_its_text(self, caplog):
         """It happened and it failed, so dropping it would read as "still
@@ -879,6 +910,26 @@ class TestWritingTheTranscript:
         assert (looked_up["run_id"], looked_up["tool_call_id"]) == (run.id, "c1")
         completed = conversations.complete_tool_call.await_args.kwargs
         assert (completed["db_tool_call"], completed["result"]) == (row, "6 sheets")
+
+    async def test_an_approved_call_gets_its_mcp_apps_page_with_its_result(self, conversations):
+        """The page record arrives with the resume, like the result (#3450)."""
+        row = MagicMock(id=uuid.uuid4())
+        conversations.get_open_tool_call_in_run = AsyncMock(return_value=row)
+        record = {"resource_uri": "ui://charts/viewer.html"}
+
+        await TranscriptService(_session()).record(
+            _run(),
+            prompt=None,
+            answer="Six sheets.",
+            settled={"c1": "6 sheets", "c2": "done"},
+            settled_apps={"c1": record},  # type: ignore[dict-item]
+        )
+
+        by_call = {
+            call.kwargs["result"]: call.kwargs["mcp_app"]
+            for call in conversations.complete_tool_call.await_args_list
+        }
+        assert by_call == {"6 sheets": record, "done": None}
 
     async def test_a_result_for_a_call_nothing_recorded_writes_no_row(self, conversations):
         """A return with no step in the transcript belongs to a call that was

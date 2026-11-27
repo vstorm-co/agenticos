@@ -531,6 +531,8 @@ async def mark_conversation_read(
     "/{conversation_id}/tool-calls/{tool_call_id}/app",
     response_model=McpAppFrameRead,
     openapi_extra=INTERNAL,
+    # Each address may load the page a few times, so minting them is counted too.
+    dependencies=[Depends(limit_mcp_app_relay)],
 )
 async def mcp_app_frame(
     conversation_id: UUID, tool_call_id: str, ctx: Auth, service: McpAppSvc

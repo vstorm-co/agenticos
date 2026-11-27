@@ -106,6 +106,40 @@ async def test_a_call_stored_without_a_page_is_not_one_to_read_a_page_through(db
     assert await conversation_repo.get_app_tool_call_by_id(db, plain.id) is None
 
 
+async def test_a_parked_call_gets_its_page_when_it_completes(db) -> None:
+    """The row was written open when the run parked; the resume brings the page."""
+    conversation = await _conversation(db)
+    parked = await _call(db, conversation, at=_START, mcp_app=None)
+
+    await conversation_repo.complete_tool_call(
+        db, db_tool_call=parked, result="5 rows", completed_at=_START, mcp_app=_record("late")
+    )
+
+    found = await conversation_repo.get_app_tool_call(
+        db, conversation_id=conversation.id, tool_call_id="toolu_01"
+    )
+    assert found is not None and found.id == parked.id
+
+
+async def test_a_fork_keeps_the_call_but_not_its_page(db) -> None:
+    """The record carries the source run's connection and allowances, which the
+    fork's owner may not hold."""
+    conversation = await _conversation(db)
+    shown = await _call(db, conversation, at=_START, mcp_app=_record("page"))
+    through = await db.get(Message, shown.message_id)
+
+    fork = await conversation_repo.fork_conversation(
+        db, source=conversation, through=through, copy_bytes=0
+    )
+
+    assert (
+        await conversation_repo.get_app_tool_call(
+            db, conversation_id=fork.id, tool_call_id="toolu_01"
+        )
+        is None
+    )
+
+
 async def test_a_call_with_a_page_is_found_by_its_row(db) -> None:
     conversation = await _conversation(db)
     shown = await _call(db, conversation, at=_START, mcp_app=_record("page"))

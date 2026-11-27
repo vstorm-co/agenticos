@@ -232,6 +232,28 @@ def settled_calls_in(messages: Sequence[ModelMessage]) -> dict[str, str]:
     }
 
 
+def settled_apps_in(messages: Sequence[ModelMessage]) -> dict[str, McpAppRecord]:
+    """The MCP Apps page records of :func:`settled_calls_in`'s returns, by tool call id.
+
+    A parked call's row was written before the call ran, so its page record
+    arrives with the resume, like its result.
+    """
+    called = {
+        part.tool_call_id
+        for message in messages
+        for part in message.parts
+        if isinstance(part, ToolCallPart)
+    }
+    return {
+        part.tool_call_id: app
+        for message in messages
+        for part in message.parts
+        if isinstance(part, ToolReturnPart)
+        and part.tool_call_id not in called
+        and (app := app_record(part.metadata)) is not None
+    }
+
+
 def what_arrived(attachments: Sequence[ChatFile]) -> str:
     """The user turn's body when files arrived with no words around them.
 
@@ -290,6 +312,7 @@ class TranscriptService:
         model_content: str | None = None,
         tool_calls: Sequence[RecordedToolCall] = (),
         settled: Mapping[str, str] | None = None,
+        settled_apps: Mapping[str, McpAppRecord] | None = None,
         steers: Mapping[str | None, list[str]] | None = None,
         parked: Collection[str] = (),
         question_tool_call_ids: Collection[str] = (),
@@ -399,7 +422,12 @@ class TranscriptService:
                     )
                     await self._attach(asked.id, attachments)
                 for tool_call_id, result in (settled or {}).items():
-                    await self._settle(run, tool_call_id=tool_call_id, result=result)
+                    await self._settle(
+                        run,
+                        tool_call_id=tool_call_id,
+                        result=result,
+                        mcp_app=(settled_apps or {}).get(tool_call_id),
+                    )
                 if answer or tool_calls or steers:
                     return await self._answer(
                         run.conversation_id,
@@ -461,7 +489,14 @@ class TranscriptService:
         except Exception:
             logger.exception("transcript_file_link_failed", extra={"message_id": str(message_id)})
 
-    async def _settle(self, run: AgentRun, *, tool_call_id: str, result: str) -> None:
+    async def _settle(
+        self,
+        run: AgentRun,
+        *,
+        tool_call_id: str,
+        result: str,
+        mcp_app: McpAppRecord | None = None,
+    ) -> None:
         """Close a call this run left open, if the row is still open.
 
         Silent when there is no such row. A return with no call in the transcript
@@ -475,7 +510,11 @@ class TranscriptService:
         if row is None:
             return
         await conversation_repo.complete_tool_call(
-            self.db, db_tool_call=row, result=result, completed_at=datetime.now(UTC)
+            self.db,
+            db_tool_call=row,
+            result=result,
+            completed_at=datetime.now(UTC),
+            mcp_app=mcp_app,
         )
 
     async def _answer(

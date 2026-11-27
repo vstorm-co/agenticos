@@ -40,6 +40,16 @@ export function McpAppFrame({ conversationId, call }: { conversationId: string; 
   const [link, setLink] = useState<string | null>(null);
   const asking = useAskingGate();
   const app = call.mcp_app;
+  // The page answered once. A frame that loads again, or a page that introduces
+  // itself again, has navigated away from the server's page: whatever runs there
+  // now is not the page this host relays for, so the frame is taken down.
+  const loads = useRef(0);
+  const introduced = useRef(false);
+  const gone = useRef(false);
+  const leave = () => {
+    gone.current = true;
+    setFailed(true);
+  };
 
   useEffect(() => {
     let current = true;
@@ -66,10 +76,19 @@ export function McpAppFrame({ conversationId, call }: { conversationId: string; 
     if (url === null) return;
     const post = (message: unknown) => frame.current?.contentWindow?.postMessage(message, "*");
     const listen = (event: MessageEvent) => {
+      if (gone.current) return;
       if (frame.current === null || event.source !== frame.current.contentWindow) return;
       const message = asMessage(event.data);
       if (message === null) return;
       const { method, id, params = {} } = message;
+      if (method === "ui/initialize") {
+        if (introduced.current) {
+          gone.current = true;
+          setFailed(true);
+          return;
+        }
+        introduced.current = true;
+      }
       if (method === "ui/notifications/initialized") {
         const data = latest.current.app;
         if (!data) return;
@@ -92,7 +111,9 @@ export function McpAppFrame({ conversationId, call }: { conversationId: string; 
             // Dropped while the console is already asking about something else.
             if (asking.take("link")) setLink(href);
           },
-        }).then(post);
+        }).then((reply) => {
+          if (!gone.current) post(reply);
+        });
       }
     };
     window.addEventListener("message", listen);
@@ -120,6 +141,10 @@ export function McpAppFrame({ conversationId, call }: { conversationId: string; 
         <iframe
           ref={frame}
           src={url}
+          onLoad={() => {
+            loads.current += 1;
+            if (loads.current > 1) leave();
+          }}
           title={t("title", { tool: call.name })}
           sandbox={ARTIFACT_SANDBOX}
           referrerPolicy="no-referrer"

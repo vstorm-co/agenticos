@@ -349,6 +349,19 @@ class TestToolCall:
 
         assert world.server.called == ("widget_data", {})
 
+    async def test_a_page_only_tool_is_refused_once_its_pages_tool_is_off_the_connection(
+        self, world
+    ):
+        """Narrowing the connection's list takes the page's own calls with it."""
+        world.connection.allowed_tools = ["chart_show"]
+        world.server.tools = [
+            _tool("widget_data", meta={"ui": {"resourceUri": PAGE, "visibility": ["app"]}})
+        ]
+
+        with pytest.raises(AuthorizationError):
+            await _relay(world, name="widget_data")
+        assert world.server.called is None
+
     async def test_a_page_only_tool_of_another_page_is_refused(self, world):
         world.server.tools = [
             _tool(
