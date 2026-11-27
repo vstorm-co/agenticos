@@ -5115,7 +5115,9 @@
       "showFeatured": "Önerilen hizmetlere dönün",
       "customServer": "Özel bir MCP bağlayın",
       "manage": "Yönet"
-    }
+    },
+    "trustReadOnlyHints": "Bu sunucunun salt okunur ve kapalı dünya (closed-world) olarak işaretlediği araçları değerlendirmelerin çağırmasına izin ver",
+    "trustReadOnlyHintsHint": "Değerlendirmeler, güvenmediğiniz sürece üretim sunucusuna yapılan her çağrıyı durdurur; güvendiğinizde yalnızca sunucunun hem salt okunur hem kapalı dünya (closed-world) olarak işaretlediği, bu sunucudan başka hiçbir yere ulaşmayan araçları çalıştırır. İki işaret de sunucunun kendi beyanıdır. {count, plural, =0 {Buradaki hiçbir araç salt okunur olduğunu beyan etmiyor.} =1 {Buradaki 1 araç salt okunur olduğunu beyan ediyor.} other {Buradaki # araç salt okunur olduğunu beyan ediyor.}}"
   },
   "sandboxes": {
     "activityLogUnreadable": "Etkinlik günlüğü okunamadı",
@@ -19547,7 +19549,8 @@
       "usageUnknown": "{count, plural, =1 {1 yanıt, skill yüklemelerinin kaydedilmeye başlanmasından önceye ait ve sayılmaz.} other {# yanıt, skill yüklemelerinin kaydedilmeye başlanmasından önceye ait ve sayılmaz.}}",
       "agent": "{name} ({runs})",
       "occursIn": "{runs, plural, =1 {1 yanıtta} other {# yanıtta}}; {agents}{hidden, plural, =0 {} =1 { ve göremediğiniz 1 agent} other { ve göremediğiniz # agent}} üzerinde.",
-      "hiddenExamples": "{count, plural, =1 {+1 gizli örnek} other {+# gizli örnek}}"
+      "hiddenExamples": "{count, plural, =1 {+1 gizli örnek} other {+# gizli örnek}}",
+      "seedWithheld": "{count, plural, =1 {Agent'ın oturumundan aktarılan 1 problem dışarıda bırakıldı: bu skill'in kontrolünün değerlendirdiği bir soruya verilen yanıtı alıntılıyor.} other {Agent'ın oturumundan aktarılan # problem dışarıda bırakıldı: bu skill'in kontrolünün değerlendirdiği sorulara verilen yanıtları alıntılıyorlar.}}"
     },
     "checkEstimate": {
       "agents": "{count, plural, =0 {Bu sürüm hattındaki hiçbir agent kontrol edilemez.} =1 {1 agent üzerinde kontrol edilecek: {names}.} other {# agent üzerinde kontrol edilecek: {names}.}}",
@@ -19806,7 +19809,10 @@
     },
     "maskedConversation": "Kaynak kullanılamıyor veya kökeni doğrulanmamış",
     "scoring": {
-      "maskedConversation": "Kaynak kullanılamıyor veya kökeni doğrulanmamış"
+      "maskedConversation": "Kaynak kullanılamıyor veya kökeni doğrulanmamış",
+      "reason": {
+        "scriptCallsNotKept": "Kod modundaki bir betik, run'ın sakladığından daha fazla çağrı yaptı; bu yüzden araç çağrıları değerlendirilmedi."
+      }
     }
   },
   "stepFailure": {

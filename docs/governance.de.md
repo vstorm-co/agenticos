@@ -1,5 +1,5 @@
 ---
-source_sha: "d5135d02dba7"
+source_sha: "3af154e11e95"
 ---
 
 # Governance { #governance }
@@ -1514,6 +1514,8 @@ ein einziges `run_code`-Tool gefaltet: Das Modell schreibt ein kurzes
 Python-Skript, das in der Monty-Sandbox läuft und die Tools in Schleifen und
 parallel aufruft, bis zu `max_tool_calls` pro Skript.
 
+Ungültige Argumente eines gewöhnlichen Tool-Aufrufs verbrauchen dessen SDK-Wiederholungsbudget; standardmäßig erhält das Modell eine Korrekturmöglichkeit, bevor weitere ungültige Aufrufe den Run beenden. Ein erfolgreicher Aufruf setzt das Budget dieses Tools zurück. Aufrufe innerhalb eines Skripts behalten die SDK-Validierungsregeln und die Grenze `max_tool_calls`. Ein Skript kann ein erschöpftes Wiederholungsbudget eines separaten Agents nicht abfangen, um weitere Tools auszuführen.
+
 Höchstens vier Aufrufe eines Skripts laufen gleichzeitig, der Rest wartet, sodass
 ein Skript, das Hunderte Sandbox-Aufrufe auffächert, sie nicht alle zugleich
 öffnet.
@@ -1526,6 +1528,20 @@ speichert. Nach der Entscheidung kann jeder Worker das Skript fortsetzen, ohne
 einen weiteren Modell-Turn oder abgeschlossene Operationen zu wiederholen.
 Eine Ablehnung löst im Skript einen `RuntimeError` aus; der Tool-Handler läuft
 nicht. Die Freigabe von `run_code` selbst genehmigt keine verschachtelte Operation.
+
+In einem Eval und in jedem anderen isolierten Run läuft `run_code`, und über
+jeden Aufruf des Skripts entscheiden einzeln die
+[Isolationsregeln](environments.md#in-an-eval): Ein Lesezugriff auf die eigenen
+Daten dieses Deployments läuft, ein Lesezugriff nach außen oder ein Schreibzugriff
+wird angehalten und mit seinen Argumenten aufgezeichnet. Das Ausführen des Skripts
+lässt nichts durch, was ein direkter Aufruf nicht bekäme.
+
+Jeder Aufruf des Skripts wird mit dem Run aufbewahrt, unter dem Skript: sein
+Tool, seine Argumente und sein Ergebnis, bis zu 100 Aufrufe und etwa 1 MB pro Skript. Ein Eval
+bewertet diese Aufrufe an Stelle des Skripts und führt sie darunter auf
+([erwartete Tool-Aufrufe](datasets.md#trajectory)). Eine Aufzeichnung des Runs
+beantwortet jeden von ihnen, wenn ein Eval das Skript erneut ausführt, sodass
+auch die Wiedergabe sie aufführt.
 
 Der gespeicherte Zustand gehört dem Server und hat eine Größenbegrenzung. Der
 rohe Interpreterzustand ist auf 512 kB begrenzt, alle Code-Checkpoints eines Runs

@@ -73,7 +73,7 @@ async def _invoke(
         ToolErrorEnvelope.model_validate_json(part.content)
         for message in result.all_messages()
         for part in message.parts
-        if isinstance(part, ToolReturnPart) and part.outcome == "failed"
+        if isinstance(part, ToolReturnPart) and part.outcome in {"failed", "retried"}
     ]
 
 

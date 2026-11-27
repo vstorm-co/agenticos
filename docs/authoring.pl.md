@@ -1,5 +1,5 @@
 ---
-source_sha: "cf9e03c95f84"
+source_sha: "ccaeb7fcb33e"
 title: "Asystent tworzenia"
 description: "Asystent tworzenia czyta, co ludzie ocenili negatywnie i jak kończyły się runy, i sugeruje zmiany w instrukcjach agenta, jego narzędziach, konfiguracji, skillach i plikach kontekstowych. O każdej decyduje człowiek."
 ---
@@ -181,7 +181,9 @@ Kopie pytań treningowych lub materiału źródłowego są wykluczane według zn
 
 Sesja poprawy przypina wersję datasetu, udział kontroli i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy, przypadki ani zmieniony udział kontroli nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
 
-Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji tylko zaproponowanej, której szkic nie zawiera: wcześniejszej próby, mierzonej przez test wiedzy ani takiej, która podaje zmianę skilla lub pliku kontekstu. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła. Kontekst wcześniejszych prób zawiera ograniczone fragmenty z najwyżej sześciu ostatnich zmierzonych prób, aby długie zmiany instrukcji lub treści skilla nie wypełniały promptu następnej propozycji.
+Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji tylko zaproponowanej, której szkic nie zawiera: wcześniejszej próby, mierzonej przez test wiedzy ani takiej, która podaje zmianę skilla lub pliku kontekstu. Z każdej wcześniejszej próby czyta werdykt i tylko liczbę pytań odłożonych, które naprawiła i zepsuła, nigdy to, co próba zmieniła: każda próba odkłada własne pytania, losowane od nowa, więc wcześniejsza zmiana mogła powstać z pytań, na których mierzy się ta próba.
+
+Kryteria, które przesunęła wcześniejsza próba, liczą się tylko na pytaniach treningowych tej próby; gdy jej test nie ocenił żadnego z nich, helper dostaje tę informację zamiast zer. Czytanych jest najwyżej sześć ostatnich zmierzonych prób.
 
 Sprawdzenie liczy się jako test wersji roboczej, gdy wersja robocza jest
 dokładnie tym, co sprawdzało - każda sprawdzona sugestia przyjęta i nic poza tym
@@ -406,6 +408,14 @@ materiału; próba pisze nowe zmiany i zatrzymuje się po **Zmianach**, bo
 ramach budżetu. Dwa wyniki z rzędu bez zmiany albo nierozstrzygnięty wynik i
 jego powtórzenie pokazują się na wyniku jako podpowiedź, że kolejna próba raczej
 nie pomoże, a nie jako zatrzymanie.
+
+Notatka cytująca pytanie, na którym mierzy się nowa próba, jest odrzucana na
+polu `note`, tak samo jak notatka w sesji skilla cytująca pytanie, które może
+ocenić jego następny test: pomocnik czytałby to, co test potem mierzy.
+Porównanie pomija wielkość liter i odstępy i łapie kopię, a nie parafrazę,
+dlatego Architekt w ogóle nie dostaje treści pytań odłożonych. Porównywane są tylko
+pytania, które osoba wywołująca może czytać: odrzucenie notatki z powodu pytania,
+którego nie widzi, potwierdzałoby jej domysł.
 
 Kto może rozpocząć sesję dla agenta - prawo edycji, `runs:view` i  - może też wykonać jej następny krok, spróbować ponownie albo zatwierdzić jeden z jej płatnych testów: wybranych zmian, szkicu wiedzy albo tego, co dała każda zmiana. Sesja
 zapisuje, kto to zrobił, a dalsze kroki idą z aktualnymi uprawnieniami i
@@ -643,6 +653,8 @@ Kryterium należy do skilla tylko wtedy, gdy linia skilla podaje złą wartość
 Gdy skill tylko milczy albo tylko zabrania dodawania innych sekcji, a fakty potrzebne kryterium są w instrukcjach, kontekście lub wiedzy agenta, kryterium zostaje przy agencie: pomocnik proponuje zmianę agenta i może nadal zgłosić problem skilla jako radę. Werdykt odkłada na bok i liczy w **Wciąż blokowane przez skill** tylko kryteria samego skilla.
 
 Krok Changes pokazuje te problemy w sekcji **Należy do skilla**. Każda karta zawiera problemy z cytatami oraz liczbę agentów czytających tę samą linię skilla. **Popraw X** otwiera Improve samego skilla z problemami z tej sesji jako dowodami startowymi. Jeśli agent korzysta z forka, ten Improve pracuje na forku; problemy przypiętego agenta trafiają do main. Bez prawa edycji skilla karta mówi, kogo poprosić.
+
+Problem jest przekazywany tylko wtedy, gdy test skilla nie oceni żadnej z odpowiedzi, które cytuje: problem cytujący odpowiedź na pytanie zapisane w odłożonej części swojego datasetu albo na dowolne z własnych pytań testowych skilla w ogóle nie jest przekazywany, bo jego treść powstała także z tej odpowiedzi. Pomocnik skilla nigdy więc nie czyta tego, co jego test potem mierzy, a sesja skilla podaje, ile problemów pominięto (`seed_withheld`).
 
 Dowodami skilla są też przeczytane przez sesję błędne odpowiedzi treningowe z jego użyciem: pytania testowe z zapisanej części treningowej datasetu tej sesji, na której sprawdzenie skilla nigdy nie mierzy. Tak uruchomiony Improve nie potrzebuje już do startu negatywnie ocenionych odpowiedzi z rozmów; kto nie może uruchamiać tego datasetu, żadnej z nich nie czyta.
 

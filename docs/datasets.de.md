@@ -1,5 +1,5 @@
 ---
-source_sha: "a4c2f48f28ee"
+source_sha: "5e293badfee9"
 title: "Datasets"
 description: "Datasets enthalten die Fragen, an denen ein Agent getestet wird: versionierte Fälle, von Hand geschrieben, aus CSV oder JSONL importiert oder aus einer bewerteten Antwort übernommen."
 ---
@@ -542,6 +542,16 @@ hat, zählt weiterhin als Aufruf, den der Agent gemacht hat.
 Ein Aufruf wird über den Tool-Namen abgeglichen, den der Run aufgezeichnet hat,
 also den Namen nach einer etwaigen Überschreibung im Spec. Ein Fall, der vor der
 Umbenennung eines Tools geschrieben wurde, erwartet den alten Namen.
+
+Ein Agent im [Code-Modus](governance.md#code-mode) ruft ein einziges Tool auf,
+`run_code`, und sein Skript ruft die übrigen auf. An Stelle des Skripts werden
+seine Aufrufe abgeglichen, in der Reihenfolge, in der das Skript sie angefordert
+hat, und ein Skript, das nichts aufgerufen hat, wird als `run_code` abgeglichen.
+Ein Run behält die ersten 100 Aufrufe jedes Skripts, bis etwa 1 MB; hat ein Skript mehr gemacht,
+werden seine erwarteten Tool-Aufrufe nicht bewertet, weil die ausgelassenen
+Aufrufe den Fall bestehen oder durchfallen lassen könnten. Ein Fall, der mit **Zum Dataset hinzufügen** aus
+einer Antwort im Code-Modus angelegt wurde, erwartet die Aufrufe des Skripts,
+nicht `run_code`.
 
 ### Der Bewerter { #judge }
 Der Bewerter ist ein im Code definierter Evaluierungshelfer. Modell, Anweisungen, Kriterien, Skala und Bestehensgrenze gehören zum Tab **Einstellungen** dieses Datasets. Modellauswahl und Markdown-Editor entsprechen Agent Builder. Bearbeiten benötigt `datasets:edit`, das Hinzufügen eines Modells `connections:manage`. Ein separater Agent muss weder erstellt noch veröffentlicht werden.

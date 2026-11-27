@@ -1,5 +1,5 @@
 ---
-source_sha: "f31d1e7d7b11"
+source_sha: "5a47cc875ed7"
 title: "Eval runs"
 description: "Un eval run responde a cada caso de un dataset con una versión de un agent o su borrador, puntúa cada respuesta y compara el resultado con un baseline."
 ---
@@ -218,7 +218,9 @@ Se excluyen copias de preguntas de entrenamiento o evidencia mediante el texto n
 
 Una sesión de mejora fija la versión del dataset, la proporción de control y las identidades de los chats fuente. Un intento posterior aprende de los resultados de entrenamiento de su propio reparto, así que una pregunta que un intento apartó puede ayudar a escribir el siguiente; ni nuevos chats, ni nuevos casos, ni un cambio de la proporción de control cambian lo que mide la sesión. Los intentos medidos con preguntas distintas se comparan por lo que cambió cada uno frente a su propia base, no por su tasa de aprobados.
 
-Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de la versión propuesta por un intento anterior, que el borrador no contiene. También lee lo que cambió cada intento anterior: su veredicto, los criterios que se movieron en las preguntas de las que aprendió, y solo cuántas preguntas apartadas arregló y rompió. El contexto de intentos anteriores incluye extractos limitados de un máximo de seis intentos medidos recientes, para que los cambios largos de instrucciones o del contenido de una skill no llenen el prompt de la siguiente propuesta.
+Un intento posterior aprende de las respuestas que dio el propio agente - las de su borrador, de la base de la última comprobación -, nunca de la versión propuesta por un intento anterior, que el borrador no contiene. De cada intento anterior lee el veredicto y solo cuántas preguntas apartadas arregló y rompió, nunca lo que cambió el intento: cada intento aparta sus propias preguntas, sorteadas de nuevo, así que un cambio anterior pudo escribirse a partir de preguntas con las que se mide este intento.
+
+Los criterios que movió un intento anterior se cuentan solo en las preguntas de entrenamiento de este intento; cuando su comprobación no calificó ninguna, el asistente lo sabe en vez de ver ceros. Se leen como máximo seis intentos medidos recientes.
 
 Una decisión humana y **Retirar decisión** invalidan comparaciones dependientes y recalculan resultados guardados de suites en la misma transacción. El run, la suite, la puerta del entorno y el diálogo de promoción muestran el veredicto corregido y quién lo revisó. La auditoría registra estados y cantidades anteriores y nuevos; un cambio de veredicto envía otra notificación. Los nombres se resuelven desde la pertenencia actual a la organización, sin copiarlos a resultados retenidos.
 
@@ -239,12 +241,21 @@ Ese rol se vuelve a leer antes de cada caso. Si quien inició el eval ha dejado
 la organización, ha perdido el acceso al agent o al dataset, o se ha revocado su
 clave, el run falla antes de responder otro caso.
 
-Cada caso se ejecuta **aislado**, como describe [Entornos](environments.md):
-una herramienta con una conexión de prueba en el entorno del run se ejecuta
-contra ella, una herramienta de la que se sabe que solo lee se ejecuta en la
-conexión normal, y todo lo que escribe sin conexión de prueba no se ejecuta: la
-llamada y sus argumentos se guardan como una llamada prevista, que la
-puntuación de trayectoria sigue juzgando.
+Cada caso se ejecuta **aislado**, como describe
+[Entornos](environments.md#in-an-eval): una herramienta con una conexión de
+prueba en el entorno del run se ejecuta contra ella, una lectura de datos
+propios de este despliegue se ejecuta en la conexión normal, y todo lo que
+escribe, o lee de fuera del despliegue, no se ejecuta: la llamada y sus
+argumentos se guardan como una llamada prevista, que la puntuación de
+trayectoria sigue juzgando.
+
+Eso incluye la web. **Un eval de un agent que obtiene páginas, busca en la web o
+delega en el agent de otro sistema no hace nada de eso en vivo**: al modelo se le
+dice que la herramienta no está disponible en un run aislado y responde sin
+ella. Un caso respondido desde su grabación, más abajo, sigue recibiendo lo que
+obtuvo el run original. El juez no se ve afectado: solo lee las bases de
+conocimiento, los archivos de contexto y los skills que le entrega la
+plataforma, y todo eso se queda dentro.
 
 Cada intento aislado utiliza un workspace temporal para su propio run, aunque
 el agent normalmente comparta archivos por conversación, usuario o agent. No
@@ -255,7 +266,9 @@ Un caso tomado de una conversación puede responderse **desde la grabación** de
 run del que salió (`from_recordings`): una llamada que coincide con la
 grabación recibe el resultado grabado, y una que no coincide se retiene y se
 marca como divergente. Un caso sin grabación utilizable se ejecuta aislado sin
-ella.
+ella. El script de un agent en modo código se ejecuta de nuevo, y cada llamada
+que hace se responde desde la grabación; el caso enumera esas llamadas bajo el
+script.
 
 ### Un borrador nunca cuenta como versión { #a-draft-is-never-counted-as-a-version }
 

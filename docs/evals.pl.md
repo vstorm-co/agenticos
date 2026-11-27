@@ -1,5 +1,5 @@
 ---
-source_sha: "f31d1e7d7b11"
+source_sha: "5a47cc875ed7"
 title: "Runy ewaluacji"
 description: "Run ewaluacji odpowiada na każdy przypadek datasetu wersją agenta albo jego wersją roboczą, ocenia każdą odpowiedź i porównuje wynik z baseline'em."
 ---
@@ -223,7 +223,9 @@ Kopie pytań treningowych lub materiału źródłowego są wykluczane według zn
 
 Sesja poprawy przypina wersję datasetu, udział kontroli i identyfikatory rozmów źródłowych. Kolejna próba uczy się na wynikach treningowych własnego podziału, więc pytanie odłożone przez jedną próbę może pomóc napisać następną; nowe rozmowy, przypadki ani zmieniony udział kontroli nie zmieniają tego, co sesja mierzy. Próby mierzone na różnych pytaniach porównuje się po tym, co każda zmieniła względem własnej wersji wyjściowej, a nie po odsetku zaliczeń.
 
-Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Czyta też, co zmieniła każda wcześniejsza próba: jej werdykt, kryteria, które się przesunęły na pytaniach, na których się uczyła, i tylko liczbę pytań odłożonych, które naprawiła i zepsuła. Kontekst wcześniejszych prób zawiera ograniczone fragmenty z najwyżej sześciu ostatnich zmierzonych prób, aby długie zmiany instrukcji lub treści skilla nie wypełniały promptu następnej propozycji.
+Kolejna próba uczy się na odpowiedziach, których udzielił sam agent - jego szkicu, z wersji wyjściowej ostatniego testu - a nigdy na wersji zaproponowanej przez wcześniejszą próbę, której szkic nie zawiera. Z każdej wcześniejszej próby czyta werdykt i tylko liczbę pytań odłożonych, które naprawiła i zepsuła, nigdy to, co próba zmieniła: każda próba odkłada własne pytania, losowane od nowa, więc wcześniejsza zmiana mogła powstać z pytań, na których mierzy się ta próba.
+
+Kryteria, które przesunęła wcześniejsza próba, liczą się tylko na pytaniach treningowych tej próby; gdy jej test nie ocenił żadnego z nich, helper dostaje tę informację zamiast zer. Czytanych jest najwyżej sześć ostatnich zmierzonych prób.
 
 Decyzja człowieka i **Wycofaj decyzję** unieważniają zależne porównania runów i przeliczają zapisane wyniki suit w tej samej transakcji. Run, suita, bramka środowiska i dialog promocji pokazują poprawiony werdykt oraz osobę, która go przejrzała. Audyt zapisuje poprzednie i nowe statusy oraz liczby; zmiana werdyktu suity wysyła nowe powiadomienie. Nazwy osób są odczytywane z aktualnego członkostwa organizacji, bez kopiowania do zachowanych wyników.
 
@@ -245,12 +247,20 @@ uruchomiła ewaluację, opuściła organizację, straciła dostęp do agenta alb
 datasetu albo jej klucz został unieważniony, run kończy się błędem, zanim
 odpowie na kolejny przypadek.
 
-Każdy przypadek działa **w izolacji**, jak opisują [Środowiska](environments.md):
-narzędzie z testowym połączeniem w środowisku runa działa na nim, narzędzie, o
-którym wiadomo, że tylko czyta, działa na zwykłym połączeniu, a wszystko, co
-zapisuje bez testowego połączenia, nie jest wykonywane - wywołanie i jego
-argumenty są zachowywane jako zamierzone wywołanie, które ocenianie trajektorii
-nadal ocenia.
+Każdy przypadek działa **w izolacji**, jak opisują
+[Środowiska](environments.md#in-an-eval): narzędzie z testowym połączeniem w
+środowisku runa działa na nim, odczyt własnych danych tego wdrożenia działa na
+zwykłym połączeniu, a wszystko, co zapisuje albo czyta spoza wdrożenia, nie jest
+wykonywane - wywołanie i jego argumenty są zachowywane jako zamierzone
+wywołanie, które ocenianie trajektorii nadal ocenia.
+
+Dotyczy to także sieci. **Ewaluacja agenta, który pobiera strony, przeszukuje
+sieć albo deleguje do agenta innego systemu, nie robi niczego z tego na żywo**:
+model dowiaduje się, że narzędzie nie jest dostępne w runie w izolacji, i
+odpowiada bez niego. Przypadek, na który odpowiada się z nagrania, opisany
+niżej, nadal dostaje to, co pobrał oryginalny run. Sędziego to nie dotyczy:
+czyta tylko bazy wiedzy, pliki kontekstowe i skille, które przekazuje mu
+platforma, a wszystkie one zostają w środku.
 
 Każda izolowana próba korzysta z tymczasowego workspace przypisanego do własnego
 runu, nawet gdy agent zwykle współdzieli pliki według rozmowy, użytkownika lub
@@ -260,7 +270,9 @@ zwalniany po zakończeniu runu.
 Na przypadek wzięty z konwersacji można odpowiadać **z nagrania** runa, z
 którego pochodzi (`from_recordings`): wywołanie zgodne z nagraniem dostaje
 nagrany wynik, a niezgodne jest wstrzymywane i oznaczane jako rozbieżne.
-Przypadek bez użytecznego nagrania działa w izolacji bez niego.
+Przypadek bez użytecznego nagrania działa w izolacji bez niego. Skrypt agenta w
+trybie kodu działa ponownie, a każde jego wywołanie dostaje odpowiedź z nagrania;
+przypadek wymienia te wywołania pod skryptem.
 
 ### Wersja robocza nigdy nie liczy się jako wersja { #a-draft-is-never-counted-as-a-version }
 

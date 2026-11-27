@@ -37,9 +37,9 @@ const PROBLEMS: SkillProblems = {
   usage_unknown: 5,
 };
 
-function mount() {
+function mount(session = skillSession()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<SkillUnderstand session={skillSession()} />, {
+  render(<SkillUnderstand session={session} />, {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
@@ -65,6 +65,7 @@ describe("SkillUnderstand", () => {
       ),
     ).toBeVisible();
     expect(screen.getByText(/5 answers are from before skill loads/)).toBeVisible();
+    expect(screen.queryByText(/handed over from the agent's session/)).toBeNull();
     expect(apiClient.get).toHaveBeenCalledWith("/skills/k1/improvements/s1/evidence");
   });
 
@@ -80,6 +81,18 @@ describe("SkillUnderstand", () => {
 
     expect(await screen.findByText("No problem with the skill found.")).toBeVisible();
     expect(screen.queryByText(/before skill loads/)).toBeNull();
+  });
+
+  it("counts the handed-over problems left out for quoting what the check grades", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue(PROBLEMS);
+    mount(skillSession({ seed_withheld: 2 }));
+
+    expect(
+      await screen.findByText(
+        "2 problems handed over from the agent's session are left out: they quote answers " +
+          "to questions this skill's check grades.",
+      ),
+    ).toBeVisible();
   });
 
   it("says when the problems cannot be read", async () => {

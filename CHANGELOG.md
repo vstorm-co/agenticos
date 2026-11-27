@@ -19,14 +19,14 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
-
 ### Added
+
+- Record, grade and replay the calls a code-mode script actually made, including failures and approval resumptions. Retained call-count and byte limits remain explicit; an incomplete trajectory stays ungraded.
 
 - Chat workspace tabs for Visuals, Browser and Files retain the selected content when switching views.
 - Let agents inspect a conversation visual before saving it as an App with `preview_visual`: a bounded screenshot, rendering diagnostics, phone-sized viewports and light/dark checks.
 - Open chat visuals in a resizable side panel with Preview and Code views, preserving interactive state through expansion and closing.
 - Download SVG visuals as sharp PNG images from chat or full screen, with local conversion, preparation feedback and a retryable error message.
-
 
 - Preview a role’s navigation, dashboard cards, catalog restrictions and product prompts together, without impersonating a member or loading private widget data.
 - Embed a knowledge base through any OpenAI-compatible endpoint your organization registers, with an optional Vault key: pick **Custom (OpenAI-compatible)**, a service connection and a typed model, then **Test** before creating. Test before saving a change to a knowledge base's embeddings or to a connection's address or key; the Test re-embeds stored chunks and compares them with the vectors already indexed.
@@ -51,10 +51,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Keep Files contained in compact chats, retain listing position and folder folds behind the reader, and clear browser selection when switching conversations.
 - Limit preview memory use from oversized console output by bounding browser messages and cumulative event payloads.
 
-
-
 - Send the run's own person the request for their own platform call, with a link to the conversation it was asked in, or to their Inbox when it was asked in none, for as long as that call waits, whatever audience the agent's approval alert names. The pending approval mail no longer names fixed roles.
-
 
 - Show a suggestion reworded at an Improve session's Changes step with that wording in the Suggestions strip, and a skill session's description change as its old and new text before it is checked or applied.
 - Keep a person's wording exactly as typed, audit dismissing every suggestion at once, and keep every check's run on its batch when checks start together.
@@ -62,6 +59,7 @@ Two things are versioned separately from this file and worth knowing about:
 - Keep a dismissed suggestion dismissed for later requests, Verify and Improve sessions until the agent is next published.
 - Keep a session kept as a draft accepted when a newer request replaces its suggestions, record the publish of what it measured, and reject it when its draft is discarded.
 
+- Count malformed ordinary tool arguments against the SDK retry budget, reset it after a successful call, and stop exhausted nested-agent retries before a code-mode script can execute later actions. Preserve controlled validation details without serializing skill loads.
 
 - Refuse malformed service-address ports before saving, and allow repairing a legacy invalid address without leaking its credentials into audit entries.
 
@@ -87,10 +85,8 @@ Two things are versioned separately from this file and worth knowing about:
 - Hold paid starts to their quote: an eval run is priced at the most it may spend, reruns included; a promotion gate's guards are held from their price to their start against one baseline; a skill update check starts the plan that was priced; a quoted knowledge draft runs on the drafter and version it was priced on.
 - Tell a platform call by the mark its binding put on the tool, recorded on the approval when it parks, never by its name or by what its card's description says: a capability's tool renamed with the platform's `agenticos_` prefix is approved like any other call, and a platform call of a native coding runtime is its person's to answer.
 
-
 - Keep the authoring assistant's changes to what a person reviewed. A suggestion never adds settings its card does not show (tool overrides, a vault secret, a disabled binding, looser approval), never adds a capability whose tools reach beyond the deployment, and adding back a capability the published version binds is judged as reconfiguring it. Text holding a character a person cannot see - a control character other than a newline or a tab, a bidirectional control, a Unicode tag character - is neither proposed, checked, accepted nor applied, and every diff writes such characters out by their code.
 - Accept an Improve session, and decide a skill session, only on the attempt and result that were reviewed: accepting names the attempt and two fingerprints of it, a decision names the check and its result, and a review that judges a case again since then refuses the stale confirmation. Publishing draft edits the session never measured needs its own confirmation.
-
 
 - Require connection access when selecting a new keyed Docling parser, and exclude stale endpoint references from embedding connection Tests so a retired endpoint never receives a collection’s chunks.
 
@@ -98,13 +94,11 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Upgrade croniter to 7 after migration `0376_croniter7_schedules.py` makes stored maximum-step expressions explicit, preserving routine, workflow and eval cadences and next-fire instants. Stop old API and workers first. New and explicitly edited expressions use croniter 7 semantics: `59/15` selects minute 59; use `*/15` for every 15 minutes. Unrepresentable executable schedules refuse migration with their owning row; unfinished drafts remain editable. Downgrade keeps new maximum-only steps as single values. Nonexistent local times during daylight-saving gaps are skipped.
 
-
 - Migration `0375_tool_approval_platform_call` adds `tool_approvals.platform_call` and fills it for the calls already recorded: a call of no capability whose tool name starts with `agenticos_`.
 - Reading an Improve session now needs `runs:view`. Members and Viewers who read sessions through the API or the Architect need it granted.
 - A tool override that renames a capability's tool to a name starting with `agenticos_` is refused at publish. Rename that tool before the agent is published again; versions already published keep running.
 - `update_skill`, `add_skill_resource` and `update_context_file` always ask now, and no standing consent or `never` override releases them. A routine or unattended run that calls them waits for a person's approval.
 - Outside MCP clients calling `start_eval_run`, `start_skill_update_check`, `run_promotion_gate` or `draft_knowledge_topic` must pass the matching estimate's price as `quoted_usd` - `at_most_usd` for an eval run - and `start_eval_run` its `dataset_version`, `start_skill_update_check` its `base_version_id`. `accept_improvement` takes the `attempt` it accepts. The HTTP API keeps `quoted_usd` optional; accepting an Improve session requires its reviewed attempt and result fingerprints as described below.
-
 
 - **BREAKING:** API clients that accept an Improve session or decide a skill session must send what was reviewed:
   - `POST /api/v1/agents/{agent_id}/improvements/{run_id}/finish` requires `attempt`, `candidate_spec_hash` and `result_hash` of the attempt being accepted, from `ImprovementRead.iterations[]`; with `publish: true` on a session that reads `unmeasured_draft_edits`, also `publish_unmeasured_edits: true`.
@@ -112,6 +106,8 @@ Two things are versioned separately from this file and worth knowing about:
 
   A request without them is refused with `422`; one naming another attempt or result, with `409`.
 
+- Isolated eval and Improve runs now hold reads that leave the deployment, including web fetch, search and remote-agent calls. Use an approved test connection or a recorded result for those calls. Code-mode scripts still run, with each nested operation independently isolated.
+- Migration `0365_intercepted_call_external.py` adds the external-read isolation reason; `0367_tool_call_script_calls.py` adds retained nested calls on transcript rows. `0376_merge_script_calls.py` joins these branches without replaying the released holdout-share backfill. The merge is metadata-only: reverting it alone leaves the feature branches applied. Downgrading the script-call branch discards its retained nested recordings.
 
 - A keyed custom embedding endpoint under an organization USD cap must use a catalog-priced model and report valid token usage. Fix its reporting/model or intentionally remove that cap before retrying a policy-refused ingest/search. Ingestion and sync still admit whole work windows; already admitted work may overshoot, and unknown provider fees remain partial.
 - Migration `0367_embedding_probe_spend_precision.py` (revision `0367_embedding_probe_spend`) widens ingestion and diagnostic receipts to 12 fractional digits, preserving the previous integer range. Historically rounded receipts cannot be reconstructed or repriced. Downgrade refuses if it would discard fractional financial data.

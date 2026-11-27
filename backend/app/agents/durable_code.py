@@ -56,7 +56,13 @@ from pydantic_monty import (
     MontyTypingError,
 )
 
-from app.agents.code_checkpoint import CodeApprovalPause, CodeCheckpoint, CodeHostCall
+from app.agents.code_checkpoint import (
+    CodeApprovalPause,
+    CodeCheckpoint,
+    CodeContinuations,
+    CodeHostCall,
+    ScriptCall,
+)
 from app.agents.deps import AgentDeps
 from app.agents.mcp import NEEDS_APPROVAL, tool_origin
 
@@ -162,11 +168,32 @@ class DurableCodeToolset(CodeModeToolset[AgentDeps]):
         tool: _RunCodeTool[AgentDeps],
         execution: RunCodeExecution,
     ) -> object:
-        state = self._run_state
-        assert state is not None
+        """Run the script, then report each call it settled - on success, failure or park.
+
+        A delegate's script reports nothing: the delegate's calls are not this run's
+        transcript. A resumed script skips what settled before its park, which the
+        parked segment already reported.
+        """
         saved = ctx.deps.code_continuations.checkpoints.get(
             checkpoint_key(execution.parent_tool_call_id)
         )
+        reported = _settled_before(saved)
+        try:
+            return await self._execute(code, ctx, tool, execution, saved)
+        finally:
+            if code_owner() is None:
+                _report(ctx.deps.code_continuations, execution, skip=reported)
+
+    async def _execute(
+        self,
+        code: str,
+        ctx: RunContext[AgentDeps],
+        tool: _RunCodeTool[AgentDeps],
+        execution: RunCodeExecution,
+        saved: CodeCheckpoint | None,
+    ) -> object:
+        state = self._run_state
+        assert state is not None
         if saved is None and not any(
             definition.name in self.required_tool_names
             or (definition.metadata or {}).get(NEEDS_APPROVAL) is True
@@ -223,6 +250,48 @@ class DurableCodeToolset(CodeModeToolset[AgentDeps]):
 
 def _hash(code: str) -> str:
     return hashlib.sha256(code.encode()).hexdigest()
+
+
+def script_position(tool_call_id: str) -> int:
+    """Where a script's call came in the order the script asked: `<run_code id>__<n>`."""
+    return int(tool_call_id.rsplit("__", 1)[1])
+
+
+def _settled_before(saved: CodeCheckpoint | None) -> frozenset[str]:
+    if saved is None:
+        return frozenset()
+    waiting = {call.tool_call_id for call in saved.calls if not call.settled}
+    return frozenset(
+        part.tool_call_id
+        for message in ModelMessagesTypeAdapter.validate_python(saved.history)
+        for part in message.parts
+        if isinstance(part, ToolCallPart) and part.tool_call_id not in waiting
+    )
+
+
+def _report(
+    continuations: CodeContinuations, execution: RunCodeExecution, *, skip: frozenset[str]
+) -> None:
+    """Add each call the script settled, in the order it asked for them.
+
+    A call still waiting for a decision is left for the segment that settles it.
+    """
+    settled: list[ScriptCall] = []
+    for call_id, part in sorted(
+        execution.nested_calls.items(), key=lambda item: script_position(item[0])
+    ):
+        if call_id in skip:
+            continue
+        returned = execution.nested_returns.get(call_id)
+        error = execution.nested_errors.get(call_id)
+        if returned is None and error is not None:
+            returned = ToolReturnPart(
+                part.tool_name, str(error), tool_call_id=call_id, outcome="failed"
+            )
+        if returned is not None:
+            settled.append(ScriptCall(call=part, returned=returned))
+    if settled:
+        continuations.script_calls.setdefault(execution.parent_tool_call_id, []).extend(settled)
 
 
 def _definition_hash(definition: ToolDefinition) -> str:

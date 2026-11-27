@@ -1,5 +1,5 @@
 ---
-source_sha: "dff5ab15feb7"
+source_sha: "df44e6848720"
 ---
 
 # Skills { #skills }
@@ -907,7 +907,9 @@ esa sesión informó. Solo un problema que cita una línea del skill con el valo
 la regla equivocados se lleva los criterios del agente; cuando el skill solo
 calla, el problema es un consejo y el agente sigue respondiendo de esos
 criterios - consulta [Cuando el fallo está en un
-skill](authoring.md#when-the-fault-is-in-a-skill).
+skill](authoring.md#when-the-fault-is-in-a-skill). Un problema que cita una
+respuesta que calificará la comprobación de esta sesión no se entrega: se
+cuenta.
 
 Lo que escribe una sesión - el título y el resumen de cada problema, y el texto
 que propone - sale de todas las respuestas que pudo leer la persona como la que se ejecuta

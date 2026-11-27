@@ -1,5 +1,5 @@
 ---
-source_sha: "72df014ede75"
+source_sha: "fa4ee25fb961"
 ---
 
 # El catálogo de capabilities { #the-capability-catalog }
@@ -137,7 +137,6 @@ contabilidad. El modo de código mantiene esas paradas al cruzar el límite del 
 | `browser_use` | Navegador web | research | `browse_web`, `browser_open`, `browser_new_tab`, `browser_tabs`, `browser_switch_tab`, `browser_close_tab`, `browser_read`, `browser_click`, `browser_type`, `browser_select`, `browser_scroll`, `browser_back` | `web:browse` | mediante el extra `browser` | delegada |
 | `computer_use` | Computer use | research | `computer_screenshot`, `computer_act`, `computer_apps`, `computer_save_screenshot` | `computer:use` | para un daemon | delegada |
 | `code_execution` | Cálculos | analysis | `run_python` | `code:execute` | — | tal cual |
-| `sandbox` | Sandbox | analysis | `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file`, `execute`, `select_project_workspace`, `select_execution_target` | `sandbox:execute` | para Daytona | delegada |
 | `mirage` | Terminal virtual | analysis | `mirage_ls`, `mirage_read_file`, `mirage_glob`, `mirage_grep`, `mirage_write_file`, `mirage_edit_file`, `mirage_execute` | — | por carpeta, con el extra `mirage` | delegada |
 | `charts` | Gráficos | analysis | `create_chart` | — | — | tal cual |
 | `visuals` | Visuals | analysis | `draw`, `revise_visual`, `read_visual`, `preview_visual` | — | — | tal cual |
@@ -217,7 +216,7 @@ que intente llevarla — consulta
 ## Qué ejecuta un eval { #what-an-eval-runs }
 
 Un eval ejecuta el agent de verdad, así que ejecuta una herramienta solo cuando
-no cambia nada fuera del run, o llega a una conexión de prueba del
+lee datos propios de este despliegue, o llega a una conexión de prueba del
 [entorno](../environments.md#in-an-eval). Cada capability declara cuáles de sus
 herramientas solo leen — `read_only`, junto a `side_effecting` — y una
 herramienta que no declara nada escribe. Estas son las herramientas que escriben,
@@ -247,12 +246,37 @@ y que un eval retiene y registra:
 | `visuals` | `draw`, `revise_visual`, `read_visual` |
 | `workflows` | `run_workflow` |
 
-Todas las demás herramientas de arriba solo leen. Delegar cuenta como leer: las
-herramientas propias de un delegado se rigen por sus propias declaraciones.
+Todas las demás herramientas de arriba solo leen, pero leer no basta para
+ejecutarse en un eval. Un eval ejecuta texto que nadie ha revisado todavía — las
+variantes de Improve, un cambio de skill en comprobación — y una lectura todavía
+puede sacar del despliegue lo que el modelo ponga en ella. Por eso un eval
+ejecuta una lectura solo cuando está en una lista escrita de lecturas que se
+quedan dentro (`LIVE_IN_ISOLATION` en `app/agents/isolation.py`), y retiene
+estas, registradas con el motivo `external`:
+
+| id | Herramientas que solo leen y aun así se retienen |
+| --- | --- |
+| `artifacts` | `preview_artifact` |
+| `channel_actions` | `list_chat_connections`, `find_chat_channels`, `read_chat_messages` |
+| `channel_tools` | `get_channel_info`, `list_channel_members`, `search_channels`, `read_channel_history`, `send_channel_file` |
+| `web_fetch` | `web_fetch`, sean cuales sean sus `allowed_domains` |
+| `web_research` | `web_search` |
+
+Un binding de `web_fetch` o `web_research` que pasa la llamada al provider del
+modelo (`native`, o `auto` para una obtención) se construye en un eval con el
+método propio de este despliegue, así que la llamada llega al guardián y se
+retiene. Una herramienta añadida al registro se retiene hasta que se pone en la
+lista.
+
+La delegación sigue en la lista: un delegado de este despliegue se ejecuta bajo
+el mismo aislamiento, y sus propias herramientas se rigen por sus propias
+declaraciones. Un delegado que es el agent de otro sistema
+([A2A](#remote-agents)) no lo está: una tarea para él se retiene con el motivo
+`external`, y el propio delegado se construye sin su endpoint ni su clave.
 `side_effecting` y `read_only` responden a preguntas distintas: la primera es
-sobre qué pregunta la aprobación por defecto, la segunda qué puede ejecutar un
-eval, y una herramienta sin declarar queda sin aprobación con la primera y
-bloqueada con la segunda.
+sobre qué pregunta la aprobación por defecto, la segunda si una herramienta
+cambia algo en absoluto, y una herramienta sin declarar queda sin aprobación con
+la primera y bloqueada con la segunda.
 
 Un entorno puede sustituir la clave del vault de una capability por una de
 prueba, pero una clave sustituida no hace segura una escritura por sí sola: la
@@ -2550,6 +2574,14 @@ coste del run dice que es parcial. Cada petición pasa por las comprobaciones de
 direcciones del despliegue, de modo que ni una card ni un endpoint pueden apuntar la
 plataforma a su propia red. Publicar rechaza una referencia a un registro que no
 existe, y un run cuyo registro se eliminó entretanto falla nombrándolo.
+
+Un [eval](#what-an-eval-runs), y cualquier otro run aislado, no envía nada a un
+agent remoto. Una tarea para él se retiene y se registra con el motivo
+`external`, y al modelo se le dice que el agent no está disponible en un run
+aislado. El delegado se construye sin su endpoint, y su clave no se desella, así
+que una llamada que le llegara por otra vía tampoco podría salir. Esto se cumple
+en todos los niveles del árbol de delegación: un delegado de este despliegue que
+delega en un agent remoto se retiene de la misma forma.
 
 Para ver qué cuesta una delegación y qué fila de run la registra, consulta
 [Gobernanza](../governance.md#delegation-spends-the-parents-budget). Para ver quién

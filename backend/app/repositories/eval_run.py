@@ -468,6 +468,29 @@ async def cases_of_agent_runs(
     return list(result.scalars().all())
 
 
+async def answers_to_measured_questions(
+    db: AsyncSession, agent_run_ids: Sequence[UUID], *, organization_id: UUID
+) -> set[UUID]:
+    """The agent runs among these that answered a question a check measures on.
+
+    That is a case stored in the held-out part of its dataset, or any question of
+    a skill's own test set, every one of which a skill check keeps aside.
+    """
+    if not agent_run_ids:
+        return set()
+    result = await db.execute(
+        select(EvalRunCase.agent_run_id)
+        .join(DatasetCase, DatasetCase.id == EvalRunCase.case_revision_id)
+        .join(Dataset, Dataset.id == DatasetCase.dataset_id)
+        .where(
+            EvalRunCase.agent_run_id.in_(agent_run_ids),
+            EvalRunCase.organization_id == organization_id,
+            or_(DatasetCase.improvement_partition == "holdout", Dataset.skill_id.is_not(None)),
+        )
+    )
+    return {run_id for run_id in result.scalars() if run_id is not None}
+
+
 async def get_many(
     db: AsyncSession, eval_run_ids: Sequence[UUID], *, organization_id: UUID
 ) -> dict[UUID, EvalRun]:

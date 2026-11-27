@@ -57,6 +57,14 @@ from app.agents.tool_errors import (
 CODE_TOOL = "run_code"
 """The one tool code mode offers the model, as `CodeMode` names it."""
 
+CODE_MODE_ID = "code_mode"
+"""The capability id code mode stamps on `run_code`, which no other tool can carry.
+
+A tool's name is the model's to see and a server's to choose; the capability id
+is assigned when the run's capabilities are set up, so it is what tells the
+script tool apart from an MCP tool that happens to be called `run_code`.
+"""
+
 PARKING_CAPABILITIES = frozenset({"ask_user", "subagents"})
 """Capabilities whose tools can end the run waiting on a person, so stay out of scripts."""
 
@@ -87,6 +95,7 @@ class _Running:
 
     record: dict[str, Any]
     gate: asyncio.Semaphore
+    run_id: str | None
 
 
 _script: ContextVar[_Running | None] = ContextVar("code_mode_script", default=None)
@@ -106,7 +115,10 @@ def code_mode(
         return tool.capability_id not in PARKING_CAPABILITIES | SHOWN_CAPABILITIES
 
     return DurableCodeMode(
-        tools=foldable, max_tool_calls=max_tool_calls, required_tool_names=approval_required
+        tools=foldable,
+        max_tool_calls=max_tool_calls,
+        required_tool_names=approval_required,
+        id=CODE_MODE_ID,
     )
 
 
@@ -139,7 +151,7 @@ class CodeCalls(AbstractCapability[AgentDeps]):
             )
             if len(self.recorder.code_runs) < RECORDED_SCRIPTS:
                 self.recorder.code_runs.append(script)
-            token = _script.set(_Running(script, asyncio.Semaphore(CONCURRENT_CALLS)))
+            token = _script.set(_Running(script, asyncio.Semaphore(CONCURRENT_CALLS), ctx.run_id))
             try:
                 with capture_tool_errors() as errors:
                     return await handler(args)
@@ -187,6 +199,16 @@ class CodeCalls(AbstractCapability[AgentDeps]):
             raise
         made["status"] = "returned"
         return result
+
+
+def in_code_run(run_id: str | None) -> bool:
+    """Whether this SDK run owns the active script's raw nested-call boundary.
+
+    A separately invoked agent inherits context variables, but has its own run
+    identity and must keep the ordinary SDK validation retry policy.
+    """
+    running = _script.get()
+    return run_id is not None and running is not None and running.run_id == run_id
 
 
 def current_code_record() -> dict[str, JsonValue]:

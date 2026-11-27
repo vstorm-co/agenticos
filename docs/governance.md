@@ -1339,6 +1339,8 @@ agent's tools are folded into one `run_code` tool: the model writes a short Pyth
 script that runs in the Monty sandbox and calls the tools in loops and in
 parallel, up to `max_tool_calls` per script.
 
+Invalid arguments on an ordinary tool call consume its SDK retry budget; under the default limit the model gets one correction before repeated invalid calls stop the run. A successful call resets that tool’s budget. Calls inside a script retain the SDK’s raw-validation policy and `max_tool_calls` bound. An exhausted retry budget in a separate agent cannot be caught by a script to continue executing tools.
+
 At most four of a script's calls run at once, and the rest wait, so a script
 fanning out over hundreds of sandboxed calls cannot open them all together.
 
@@ -1349,6 +1351,20 @@ results, manifest and call counter. After the decision, any worker can continue
 the script without another model request or repeating completed operations.
 Rejecting the call raises a `RuntimeError` inside the script; its handler never
 runs. Approving `run_code` itself does not approve any nested operation.
+
+In an eval, and in every other isolated run, `run_code` runs, and each call the
+script makes is decided on its own by the
+[isolation rules](environments.md#in-an-eval): a read of this deployment's own
+data runs, a read from outside it or a write is held and recorded with its
+arguments. Running the script lets nothing through that a direct call would not
+get.
+
+Each call the script makes is kept with the run, under the script: its tool,
+arguments and result, up to 100 calls and
+about 1 MB a script. An eval grades those calls in
+the script's place and lists them under it
+([expected tool calls](datasets.md#trajectory)). A recording of the run answers
+each of them when an eval runs the script again, so the replay lists them too.
 
 The checkpoint is server-owned and bounded. A raw interpreter snapshot may be
 at most 512 kB; all code checkpoints in one run may occupy at most 1 MB of JSON.

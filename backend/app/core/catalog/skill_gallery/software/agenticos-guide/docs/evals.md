@@ -206,7 +206,9 @@ Copies of training questions or source evidence are excluded using normalized in
 
 An improvement session pins its dataset version, its held-out share and chat evidence identities. A later attempt learns from the training results of its own split, so a question one attempt kept aside may help write the next; new chats, new dataset cases and a changed held-out share cannot change what the session measures. Attempts measured on different questions are compared by what each changed against its own baseline, not by their pass rates.
 
-A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. It also reads what each earlier attempt changed, with its verdict, the criteria that moved on the questions it learned from, and only how many held-out questions it fixed and broke. Earlier-attempt context uses bounded excerpts from at most six recent measured attempts, so long instruction or skill replacements do not fill the next proposal's prompt.
+A later attempt learns from the answers the agent itself gave - its draft's, from the last check's baseline - never from an earlier attempt's proposed version, which the draft does not hold. Of each earlier attempt it reads the verdict and only how many held-out questions it fixed and broke, never what the attempt changed: every attempt keeps its own questions aside, drawn afresh, so an earlier change may have been written from questions this attempt is measured on.
+
+The criteria an earlier attempt moved are counted only on this attempt's training questions; where its check graded none of them, the helper is told so rather than shown zeros. At most six recent measured attempts are read.
 
 A human decision and **Undo** invalidate dependent run comparisons and recompute the stored suite results in the same transaction. The run, suite, environment guard and promotion dialog show the corrected verdict and who reviewed it. Audit entries record previous and new statuses and counts; a changed suite verdict sends a new notification. Reviewer names are resolved from current organization membership rather than copied into retained results.
 
@@ -227,11 +229,19 @@ That role is read again before each case. When the starter has left the
 organization, lost access to the agent or the dataset, or had their key revoked,
 the run fails before it answers another case.
 
-Each case runs **isolated**, as [Environments](https://vstorm-co.github.io/agenticos/environments/) describes: a
-tool with a test connection on the run's environment runs against it, a tool
-known to only read runs on the normal connection, and anything that writes without
-a test connection is not executed - the call and its arguments are kept as an
-intended call, which the trajectory scorer still judges.
+Each case runs **isolated**, as [Environments](https://vstorm-co.github.io/agenticos/environments/#in-an-eval)
+describes: a tool with a test connection on the run's environment runs against
+it, a read of this deployment's own data runs on the normal connection, and
+anything that writes, or reads from outside the deployment, is not executed -
+the call and its arguments are kept as an intended call, which the trajectory
+scorer still judges.
+
+That includes the web. **An eval of an agent that fetches pages, searches the web
+or delegates to another system's agent does not do any of it live**: the model
+is told the tool is not available in an isolated run and answers without it. A
+case answered from its recording, below, still gets what the original run
+fetched. The judge is unaffected: it reads only the knowledge bases, context
+files and skills the platform hands it, all of which stay inside.
 
 Every isolated attempt uses a disposable workspace scoped to its own run, even
 when the agent normally shares files by conversation, user or agent. It needs
@@ -241,7 +251,9 @@ released when the run finishes.
 A case taken from a conversation can be answered **from the recording** of the
 run it came from (`from_recordings`): a call that matches the recording gets the
 recorded result, and one that does not is held and marked divergent. A case
-without a usable recording runs isolated without one.
+without a usable recording runs isolated without one. A code-mode agent's
+script runs again, and each call it makes is answered from the recording; the
+case lists those calls under the script.
 
 ### A draft is never counted as a version { #a-draft-is-never-counted-as-a-version }
 

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 
 import anyio
 import pytest
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.capabilities import AbstractCapability
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
@@ -25,6 +25,7 @@ from app.agents.code_mode import (
     code_mode,
 )
 from app.agents.deps import AgentDeps
+from app.agents.durable_code import script_position
 from app.agents.manifest import RECORDED_SCRIPTS, RunRecorder, as_payload
 from app.agents.mcp import NEEDS_APPROVAL
 
@@ -394,3 +395,167 @@ async def test_manifest_marks_a_nested_approval_pause_before_saving() -> None:
             handler=execute,
         )
     assert calls.recorder.code_runs[0]["calls"][0]["status"] == "awaiting_approval"
+
+
+class TestScriptCalls:
+    """What each script called, reported for the transcript an eval and a recording read."""
+
+    async def test_each_call_is_reported_in_the_order_the_script_asked(self) -> None:
+        agent, _, _ = _agent(TEN_UPDATES, [])
+        deps = AgentDeps()
+
+        await agent.run("Update records 0 to 9.", deps=deps)
+
+        ((parent, calls),) = deps.code_continuations.script_calls.items()
+        assert [script.call.tool_call_id for script in calls] == [
+            f"{parent}__{n}" for n in range(1, 11)
+        ]
+        assert [script.call.args for script in calls] == [{"n": n} for n in range(10)]
+        assert [script.returned.content for script in calls] == [f"updated {n}" for n in range(10)]
+
+    async def test_a_call_that_raised_is_reported_as_failed(self) -> None:
+        agent = Agent[AgentDeps, str](
+            FunctionModel(_writes("await broken()", [])),
+            capabilities=[
+                code_mode(approval_required=frozenset(), asking=frozenset(), max_tool_calls=5)
+            ],
+        )
+
+        @agent.tool_plain
+        def broken() -> str:
+            """Always fails."""
+            raise RuntimeError("database is down")
+
+        deps = AgentDeps()
+        await agent.run("Try it.", deps=deps)
+
+        ((script,),) = deps.code_continuations.script_calls.values()
+        assert (script.call.tool_name, script.returned.outcome) == ("broken", "failed")
+
+    async def test_a_call_made_before_the_script_failed_is_still_reported(self) -> None:
+        agent, _, updated = _agent("await update_record(n=7)\nraise ValueError('stop')", [])
+        deps = AgentDeps()
+
+        await agent.run("Update record 7.", deps=deps)
+
+        assert updated == [7]
+        ((script,),) = deps.code_continuations.script_calls.values()
+        assert (script.call.args, script.returned.content) == ({"n": 7}, "updated 7")
+
+    async def test_a_delegates_script_reports_nothing(self, monkeypatch) -> None:
+        """A delegate's calls belong to the delegate, not to this run's transcript."""
+        from app.agents import durable_code
+
+        monkeypatch.setattr(durable_code, "code_owner", lambda: "delegate-a")
+        agent, _, updated = _agent(TEN_UPDATES, [])
+        deps = AgentDeps()
+
+        await agent.run("Update records 0 to 9.", deps=deps)
+
+        assert sorted(updated) == list(range(10))
+        assert deps.code_continuations.script_calls == {}
+
+    def test_a_script_call_is_placed_by_its_counter_not_as_text(self) -> None:
+        assert sorted(["c__10", "c__2", "c__1"], key=script_position) == ["c__1", "c__2", "c__10"]
+
+
+@pytest.mark.security
+async def test_a_script_cannot_catch_validation_retry_exhaustion_and_keep_writing() -> None:
+    from pydantic_ai.exceptions import UnexpectedModelBehavior
+
+    from app.agents.code_mode import current_code_record, in_code_run
+    from app.agents.tool_errors import ToolErrors
+
+    requests = 0
+
+    def malformed(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
+        nonlocal requests
+        requests += 1
+        return ModelResponse(
+            parts=[ToolCallPart("strict_check", {}, tool_call_id=f"bad_{requests}")]
+        )
+
+    inner = Agent(
+        FunctionModel(malformed), deps_type=AgentDeps, retries=1, capabilities=[ToolErrors()]
+    )
+
+    @inner.tool_plain
+    def strict_check(id: str) -> str:
+        return id
+
+    script = (
+        "try:\n"
+        "    await update_record(n=-1)\n"
+        "except Exception:\n"
+        "    pass\n"
+        "await update_record(n=42)"
+    )
+    recorder = RunRecorder()
+    agent = Agent[AgentDeps, str](
+        FunctionModel(_writes(script, [])),
+        capabilities=[
+            ToolErrors(),
+            code_mode(approval_required=frozenset(), asking=frozenset(), max_tool_calls=20),
+            CodeCalls(recorder=recorder),
+        ],
+    )
+    updated: list[int] = []
+
+    @agent.tool
+    async def update_record(ctx: RunContext[AgentDeps], n: int) -> str:
+        assert in_code_run(ctx.run_id)
+        if n < 0:
+            await inner.run("validate", deps=AgentDeps())
+        updated.append(n)
+        return "updated"
+
+    with anyio.fail_after(5), pytest.raises(UnexpectedModelBehavior, match="strict_check"):
+        await agent.run("update", deps=AgentDeps())
+    assert requests == 2
+    assert updated == []
+    assert current_code_record() == {}
+    assert [call["status"] for call in recorder.code_runs[0]["calls"]] == ["failed"]
+
+
+async def test_code_validation_boundary_restores_the_parent_after_a_nested_run_fails() -> None:
+    from pydantic_ai.models.test import TestModel
+    from pydantic_ai.usage import RunUsage
+
+    from app.agents.code_mode import in_code_run
+
+    outer = RunContext(deps=AgentDeps(), model=TestModel(), usage=RunUsage(), run_id="outer")
+    inner = RunContext(deps=AgentDeps(), model=TestModel(), usage=RunUsage(), run_id="inner")
+    calls = CodeCalls(recorder=RunRecorder())
+
+    async def child(args: dict[str, object]) -> object:
+        assert in_code_run("inner")
+        assert not in_code_run("outer")
+        assert not in_code_run(None)
+        raise RuntimeError("nested failed")
+
+    async def parent(args: dict[str, object]) -> object:
+        assert in_code_run("outer")
+        assert not in_code_run("inner")
+        with pytest.raises(RuntimeError, match="nested failed"):
+            await calls.wrap_tool_execute(
+                inner,
+                call=ToolCallPart("run_code", {"code": "child"}),
+                tool_def=ToolDefinition(name="run_code"),
+                args={"code": "child"},
+                handler=child,
+            )
+        assert in_code_run("outer")
+        assert not in_code_run("inner")
+        return "done"
+
+    assert not in_code_run("outer")
+    result = await calls.wrap_tool_execute(
+        outer,
+        call=ToolCallPart("run_code", {"code": "parent"}),
+        tool_def=ToolDefinition(name="run_code"),
+        args={"code": "parent"},
+        handler=parent,
+    )
+    assert result == "done"
+    assert not in_code_run("outer")
+    assert not in_code_run("inner")

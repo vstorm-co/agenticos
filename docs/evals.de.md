@@ -1,5 +1,5 @@
 ---
-source_sha: "f31d1e7d7b11"
+source_sha: "5a47cc875ed7"
 title: "Eval-Runs"
 description: "Ein Eval-Run beantwortet jeden Fall eines Datasets mit einer Agent-Version oder ihrem Entwurf, bewertet jede Antwort und vergleicht das Ergebnis mit einer Baseline."
 ---
@@ -236,7 +236,9 @@ Kopien von Trainingsfragen oder Quellbelegen werden anhand normalisierter Eingab
 
 Eine Verbesserungssitzung fixiert Dataset-Version, Kontrollanteil und Chat-Belegidentitäten. Ein späterer Versuch lernt aus den Trainingsergebnissen seiner eigenen Aufteilung, sodass eine Frage, die ein Versuch zurückgelegt hat, beim Schreiben des nächsten helfen kann; neue Chats, neue Fälle und ein geänderter Kontrollanteil ändern nicht, was die Sitzung misst. Auf verschiedenen Fragen gemessene Versuche werden danach verglichen, was jeder gegenüber seiner eigenen Ausgangsfassung geändert hat, nicht nach ihren Bestehensquoten.
 
-Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Er liest auch, was jeder frühere Versuch geändert hat: sein Urteil, die Kriterien, die sich auf seinen Lernfragen bewegt haben, und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat. Der Kontext früherer Versuche enthält begrenzte Auszüge aus höchstens sechs zuletzt gemessenen Versuchen, damit lange Änderungen an Anweisungen oder Skill-Inhalten nicht den Prompt des nächsten Vorschlags füllen.
+Ein späterer Versuch lernt aus den Antworten, die der Agent selbst gegeben hat - denen seines Entwurfs, aus der Ausgangsfassung der letzten Prüfung -, nie aus der vorgeschlagenen Fassung eines früheren Versuchs, die der Entwurf nicht enthält. Von jedem früheren Versuch liest er das Urteil und nur, wie viele zurückgelegte Fragen er behoben und beschädigt hat, nie, was der Versuch geändert hat: Jeder Versuch legt seine eigenen Fragen zurück, neu gezogen, sodass eine frühere Änderung aus Fragen entstanden sein kann, an denen dieser Versuch gemessen wird.
+
+Die Kriterien, die ein früherer Versuch bewegt hat, zählen nur auf den Lernfragen dieses Versuchs; hat seine Prüfung keine davon bewertet, erfährt der Helfer das, statt Nullen zu sehen. Gelesen werden höchstens sechs zuletzt gemessene Versuche.
 
 Eine menschliche Entscheidung und **Entscheidung zurücknehmen** verwerfen abhängige Run-Vergleiche und berechnen gespeicherte Suite-Ergebnisse in derselben Transaktion neu. Run, Suite, Umgebungsschranke und Beförderungsdialog zeigen das korrigierte Urteil und die prüfende Person. Das Audit hält alte und neue Zustände sowie Zählwerte fest; ein geändertes Suite-Urteil erzeugt eine neue Benachrichtigung. Namen werden aus der aktuellen Organisationsmitgliedschaft aufgelöst und nicht in aufbewahrte Ergebnisse kopiert.
 
@@ -260,12 +262,22 @@ Organisation verlassen, den Zugriff auf den Agent oder das Dataset verloren oder
 wurde ihr Schlüssel widerrufen, schlägt der Run fehl, bevor er einen weiteren
 Fall beantwortet.
 
-Jeder Fall läuft **isoliert**, wie [Umgebungen](environments.md) beschreibt:
-Ein Tool mit einer Testverbindung in der Umgebung des Runs läuft gegen diese,
-ein Tool, von dem bekannt ist, dass es nur liest, läuft auf der normalen
-Verbindung, und alles, was ohne Testverbindung schreibt, wird nicht ausgeführt
-- der Aufruf und seine Argumente werden als beabsichtigter Aufruf behalten, den
-das Trajektorie-Scoring trotzdem bewertet.
+Jeder Fall läuft **isoliert**, wie [Umgebungen](environments.md#in-an-eval)
+beschreibt: Ein Tool mit einer Testverbindung in der Umgebung des Runs läuft
+gegen diese, ein Lesezugriff auf die eigenen Daten dieses Deployments läuft auf
+der normalen Verbindung, und alles, was schreibt oder von außerhalb des
+Deployments liest, wird nicht ausgeführt - der Aufruf und seine Argumente werden
+als beabsichtigter Aufruf behalten, den das Trajektorie-Scoring trotzdem
+bewertet.
+
+Das gilt auch für das Web. **Ein Eval eines Agents, der Seiten abruft, im Web
+sucht oder an den Agent eines anderen Systems delegiert, tut nichts davon
+live**: Das Modell erfährt, dass das Tool in einem isolierten Run nicht
+verfügbar ist, und antwortet ohne es. Ein Fall, der aus seiner Aufzeichnung
+beantwortet wird (siehe unten), bekommt weiterhin, was der ursprüngliche Run
+abgerufen hat. Der Bewerter ist nicht betroffen: Er liest nur die Wissensbasen,
+Context-Dateien und Skills, die die Plattform ihm übergibt, und all das bleibt
+drinnen.
 
 Jeder isolierte Versuch erhält einen temporären Workspace für seinen eigenen
 Run, auch wenn der Agent Dateien sonst pro Unterhaltung, Benutzer oder Agent
@@ -276,7 +288,9 @@ Ein Fall aus einer Conversation kann **aus der Aufzeichnung** des Runs
 beantwortet werden, aus dem er stammt (`from_recordings`): Ein Aufruf, der zur
 Aufzeichnung passt, bekommt das aufgezeichnete Ergebnis, einer, der nicht
 passt, wird zurückgehalten und als abweichend markiert. Ein Fall ohne
-verwendbare Aufzeichnung läuft isoliert ohne sie.
+verwendbare Aufzeichnung läuft isoliert ohne sie. Das Skript eines Agents im
+Code-Modus läuft erneut, und jeder Aufruf, den es macht, wird aus der
+Aufzeichnung beantwortet; der Fall führt diese Aufrufe unter dem Skript auf.
 
 ### Ein Entwurf zählt nie als Version { #a-draft-is-never-counted-as-a-version }
 
