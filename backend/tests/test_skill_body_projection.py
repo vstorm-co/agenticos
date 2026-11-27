@@ -21,11 +21,15 @@ _CTX = MagicMock()
 
 
 def _stored() -> Skill:
-    resource = SimpleNamespace(name="old.md", description=None, content="old")
+    resource = SimpleNamespace(name="old.md", description=None, content="old", encoding="utf8")
     return cast(
         Skill,
         SimpleNamespace(
-            name="refunds", description="Stored.", content="Stored body.", resources=[resource]
+            name="refunds",
+            description="Stored.",
+            content="Stored body.",
+            manifest_metadata={},
+            resources=[resource],
         ),
     )
 
