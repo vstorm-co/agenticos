@@ -12,6 +12,7 @@ from app.db.models.agent import Agent, AgentStatus
 from app.db.models.organization import Organization, OrganizationMember
 from app.db.models.resource_grant import Visibility
 from app.db.models.user import User
+from app.repositories import agent_repo
 from app.repositories.agent import BoundResourceField
 from app.services.resource_usage import (
     agents_drafting_skills,
@@ -177,6 +178,25 @@ async def test_a_draft_that_only_mentions_a_skill_does_not_draft_it(db: AsyncSes
     drafted = await agents_drafting_skills(db, owner, skill_ids=[refunds])
 
     assert drafted[refunds] == []
+
+
+async def test_the_first_pass_finds_a_nested_id_and_skips_one_quoted_in_text(
+    db: AsyncSession,
+) -> None:
+    _, owner = await _organization(db)
+    refunds, quoted = uuid.uuid4(), uuid.uuid4()
+    await _agent(db, owner, "Support", skill_ids=[refunds], specialist=True)
+    talker = await _agent(db, owner, "Talker")
+    talker.draft_spec = AgentSpec(name="Talker", instructions=f"Never load {quoted}.").model_dump(
+        mode="json"
+    )
+    await db.flush()
+
+    found = await agent_repo.drafts_mentioning(
+        db, [str(refunds), str(quoted), str(uuid.uuid4())], organization_id=owner.organization_id
+    )
+
+    assert [agent.name for agent in found] == ["Support"]
 
 
 async def test_a_draft_that_does_not_parse_drafts_nothing(db: AsyncSession) -> None:

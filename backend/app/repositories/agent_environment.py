@@ -4,13 +4,14 @@ from collections.abc import Collection, Sequence
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Text, cast, or_, select
 from sqlalchemy import delete as sql_delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.locks import LockScope, hold_subject_shared
 from app.db.models.agent import AgentVersion
 from app.db.models.agent_environment import AgentEnvironment, AgentEnvironmentConnection
+from app.repositories.agent import spec_names_any
 
 
 async def lock(db: AsyncSession, environment_id: UUID) -> None:
@@ -221,20 +222,19 @@ async def served(
 async def served_mentioning(
     db: AsyncSession, needles: Collection[str], *, organization_id: UUID
 ) -> list[tuple[AgentEnvironment, AgentVersion]]:
-    """The environments whose served spec contains any of `needles` anywhere in its text.
+    """The environments whose served spec holds any of `needles` as a value.
 
-    A cheap first pass, as `agent_repo.drafts_mentioning` is for drafts: an id an inline
-    specialist binds sits deep in a capability's config, where no JSON path reaches.
+    A cheap first pass, as `agent_repo.drafts_mentioning` is for drafts; see
+    `agent_repo.spec_names_any`.
     """
     if not needles:
         return []
-    text = cast(AgentVersion.spec, Text)
     result = await db.execute(
         select(AgentEnvironment, AgentVersion)
         .join(AgentVersion, AgentVersion.id == AgentEnvironment.version_id)
         .where(
             AgentEnvironment.organization_id == organization_id,
-            or_(*(text.contains(needle, autoescape=True) for needle in needles)),
+            spec_names_any(AgentVersion.spec, needles),
         )
         .order_by(AgentEnvironment.agent_id, AgentEnvironment.created_at)
     )
