@@ -629,7 +629,12 @@ def _bare(script: dict[str, Any]) -> dict[str, Any]:
         **script,
         "code": _clipped(script.get("code"), _TEXT_CLIP),
         "calls": [
-            {"tool": call.get("tool"), "args": "", "status": call.get("status")}
+            {
+                "tool": call.get("tool"),
+                "args": "",
+                "status": call.get("status"),
+                **({"reason": call["reason"]} if call.get("reason") else {}),
+            }
             for call in script.get("calls", [])
         ],
     }

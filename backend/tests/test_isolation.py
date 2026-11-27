@@ -1228,6 +1228,58 @@ class TestCodeMode:
             ("charge", "awaiting_approval")
         ]
 
+    async def test_a_replayed_failure_reads_as_from_the_recording_in_the_run_view(self):
+        isolation = RunIsolation(
+            recording=ToolRecording(
+                [
+                    RecordedCall(
+                        "tool:crm_find",
+                        normalized_args({"name": "Ada"}),
+                        "The tool failed.",
+                        failed=True,
+                    )
+                ]
+            )
+        )
+        built = _isolated(
+            AgentSpec(name="Scripter", code_mode={"enabled": True}),
+            isolation,
+            extra_toolsets=[_World().toolset("crm_find", test=False, read_only=True)],
+        )
+        code = "try:\n    await crm_find(name='Ada')\nexcept Exception:\n    pass\n1"
+
+        with built.agent.override(model=_scripting(code)):
+            await built.agent.run("go", deps=built.deps)
+
+        (script,) = as_payload(built.recorder)["code_runs"]
+        assert [(call["tool"], call["status"]) for call in script["calls"]] == [
+            ("crm_find", "replayed")
+        ]
+
+    async def test_a_script_answered_whole_from_a_recording_is_not_listed_as_run(self):
+        """A recording made before script calls were kept answers the script itself."""
+        code = "await crm_find(name='Ada')"
+        isolation = RunIsolation(
+            recording=ToolRecording(
+                [RecordedCall("tool:run_code", normalized_args({"code": code}), "Ada")]
+            )
+        )
+        world = _World()
+        built = _isolated(
+            AgentSpec(name="Scripter", code_mode={"enabled": True}),
+            isolation,
+            extra_toolsets=[world.toolset("crm_find", test=False, read_only=True)],
+        )
+
+        with built.agent.override(model=_scripting(code)):
+            await built.agent.run("go", deps=built.deps)
+
+        assert world.effects == []
+        assert [(call.tool_name, call.outcome) for call in isolation.intercepted] == [
+            ("run_code", InterceptionOutcome.REPLAYED)
+        ]
+        assert as_payload(built.recorder)["code_runs"] == []
+
     def test_only_code_modes_own_tool_is_a_script(self):
         """A server can call its tool `run_code`; it cannot stamp it as code mode's."""
         from app.agents.code_mode import CODE_MODE_ID

@@ -88,7 +88,7 @@ from app.agents.capabilities.system_reminders import (
 )
 from app.agents.capabilities.tool_search import ConfiguredToolSearch, ToolSearchConfig
 from app.agents.capabilities.visuals import WEB_REACH_RESOURCE, web_reach
-from app.agents.code_mode import CodeCalls, code_mode
+from app.agents.code_mode import CodeCallArguments, CodeCalls, code_mode
 from app.agents.computer_on_use import REQUEST_COMPUTER_ACCESS, RequestComputerOnUse
 from app.agents.connect_on_use import CONNECT_ACCOUNT, ConnectOnUse
 from app.agents.deps import AgentDeps, ApprovalCallback
@@ -616,7 +616,8 @@ def build_agent(
                     approval_required=approval_required,
                     asking=asking,
                     max_tool_calls=spec.code_mode.max_tool_calls,
-                )
+                ),
+                CodeCallArguments(),
             ]
             if scripts_run
             else []
