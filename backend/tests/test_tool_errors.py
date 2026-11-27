@@ -45,7 +45,7 @@ def _errors(messages: list[ModelMessage]) -> list[ToolErrorEnvelope]:
         ToolErrorEnvelope.model_validate_json(part.content)
         for message in messages
         for part in message.parts
-        if isinstance(part, ToolReturnPart) and part.outcome == "failed"
+        if isinstance(part, ToolReturnPart) and part.outcome in {"failed", "retried"}
     ]
 
 
@@ -362,3 +362,28 @@ def test_type_hints_handle_partial_or_unrepresentable_advertised_schemas(
 ) -> None:
     """A schema hint can be incomplete; it must still never echo a rejected value."""
     assert _expected_type(_field_schema(schema, location), code) == expected
+
+
+@pytest.mark.security
+async def test_invalid_mcp_arguments_consume_the_native_tool_retry_budget() -> None:
+    from pydantic_ai.exceptions import UnexpectedModelBehavior
+
+    tools = _McpSchemaTools(
+        {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+        }
+    )
+    agent = Agent(
+        _model(
+            *(ToolCallPart("remote", {"attempt": n}, tool_call_id=f"bad_{n}") for n in range(8))
+        ),
+        deps_type=AgentDeps,
+        retries=1,
+        toolsets=[tools],
+        capabilities=[ToolErrors()],
+    )
+    with pytest.raises(UnexpectedModelBehavior, match="remote"):
+        await agent.run("read", deps=AgentDeps())
+    assert tools.executed == []

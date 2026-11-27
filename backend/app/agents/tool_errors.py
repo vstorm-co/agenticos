@@ -16,7 +16,7 @@ from typing import Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
-from pydantic_ai import AgentRunResult, RunContext
+from pydantic_ai import AgentRunResult, ModelRetry, RunContext
 from pydantic_ai.capabilities import (
     AbstractCapability,
     RawToolArgs,
@@ -25,7 +25,7 @@ from pydantic_ai.capabilities import (
     WrapToolExecuteHandler,
     WrapToolValidateHandler,
 )
-from pydantic_ai.exceptions import ToolFailed, UsageLimitExceeded
+from pydantic_ai.exceptions import ToolFailed, UnexpectedModelBehavior, UsageLimitExceeded
 from pydantic_ai.messages import ModelMessage, ToolCallPart, ToolReturnPart
 from pydantic_ai.tools import ToolDefinition
 
@@ -52,7 +52,13 @@ type Recovery = Literal[
 
 TOOL_ERROR_METADATA = "agenticos_tool_error"
 
-RUN_STOP_ERRORS = (BudgetExceeded, GuardrailBlocked, ToolLoopStopped, UsageLimitExceeded)
+RUN_STOP_ERRORS = (
+    BudgetExceeded,
+    GuardrailBlocked,
+    ToolLoopStopped,
+    UsageLimitExceeded,
+    UnexpectedModelBehavior,
+)
 """Run outcomes the runner accounts for, never recoverable tool failures."""
 
 
@@ -323,7 +329,7 @@ class ToolErrors(AbstractCapability[AgentDeps]):
                 schema = _field_schema(tool_def.parameters_json_schema, location)
                 expected = _expected_type(schema, code)
                 issues.append(self._issue(name, code, expected, schema=schema))
-            raise ToolFailed(self._invalid_arguments(call.tool_name, issues)) from error
+            raise self._validation_failure(ctx, call.tool_name, issues) from error
         # MCPToolset validates the JSON container, leaving its advertised input
         # schema to the remote server. Check that schema before approval or dispatch
         # so a remote type refusal has the same actionable, local contract.
@@ -361,7 +367,7 @@ class ToolErrors(AbstractCapability[AgentDeps]):
                     )
                 ) from error
             if issues:
-                raise ToolFailed(self._invalid_arguments(call.tool_name, issues))
+                raise self._validation_failure(ctx, call.tool_name, issues)
         return validated
 
     def _issue(
@@ -461,6 +467,17 @@ class ToolErrors(AbstractCapability[AgentDeps]):
             if lookup is not None:
                 message += f" Use an ID returned by `{lookup}`."
         return ToolArgumentIssue(field=name, code=code, expected_type=expected, message=message)
+
+    def _validation_failure(
+        self, ctx: RunContext[AgentDeps], tool: str, issues: list[ToolArgumentIssue]
+    ) -> ModelRetry | ToolFailed:
+        # Imported here because code-mode execution already depends on this module.
+        from app.agents.code_mode import in_code_run
+
+        message = self._invalid_arguments(tool, issues)
+        # The SDK runs Monty's nested calls with raw validation errors; its
+        # per-model-step retry counter does not charge these local calls.
+        return ToolFailed(message) if in_code_run(ctx.run_id) else ModelRetry(message)
 
     @staticmethod
     def _invalid_arguments(tool: str, issues: list[ToolArgumentIssue]) -> ControlledToolError:

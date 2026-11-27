@@ -104,7 +104,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents import prompt_variables
-from app.agents.a2a_delegate import a2a_delegate
+from app.agents.a2a_delegate import a2a_delegate, held_a2a_delegate
 from app.agents.ask_user import (
     QUESTION_DEFERRED_KIND,
     QuestionItem,
@@ -315,7 +315,7 @@ from app.db.models.agent_run import (
     RunSurface,
 )
 from app.db.models.chat_file import ChatFile
-from app.db.models.conversation import Message
+from app.db.models.conversation import Message, ToolCall
 from app.db.models.credential import ModelProfile
 from app.db.models.intercepted_tool_call import InterceptedToolCall
 from app.db.models.knowledge_base import KnowledgeBase
@@ -508,6 +508,31 @@ _ORIGIN_KINDS: dict[
     AgentKind.EXTRACTOR.value: "key_drafts",
     AgentKind.COVERAGE.value: "key_coverage",
 }
+
+
+def _answers_of(call: ToolCall) -> list[CallRow]:
+    """What a recorded row can answer: itself, or the calls its script made."""
+    script = call.script_calls
+    if script is not None and script["calls"] and not script["omitted"]:
+        return [
+            CallRow(
+                tool_name=entry["tool_name"],
+                args=entry["args"],
+                result=entry["result"],
+                failed=entry["outcome"] != "success",
+            )
+            for entry in script["calls"]
+        ]
+    if call.result is None:
+        return []
+    return [
+        CallRow(
+            tool_name=call.tool_name,
+            args=call.args,
+            result=call.result,
+            omitted_script_calls=script["omitted"] if script is not None else 0,
+        )
+    ]
 
 
 def _preview(text: str) -> str:
@@ -6334,6 +6359,9 @@ class AgentRunnerService:
         a pin to a vanished version does: delegating to "whatever is there now"
         is not what was published. Its credential is unsealed now, like every
         secret a run holds, and goes nowhere but its own endpoint.
+
+        An isolated run unseals nothing and builds each one held: the task would
+        leave the deployment, and the remote side is held to no isolation.
         """
         ctx = delegation.ctx
         rows = await external_agent_repo.get_many(
@@ -6345,8 +6373,9 @@ class AgentRunnerService:
                 message="A remote agent this agent delegates to is no longer registered",
                 details={"external_agent_ids": missing},
             )
+        held = delegation.isolation is not None
         secret_ids = [row.secret_id for row in rows.values() if row.secret_id is not None]
-        secrets = await self.secrets.resolve_for_bindings(ctx, secret_ids)
+        secrets = {} if held else await self.secrets.resolve_for_bindings(ctx, secret_ids)
         resolved: list[ResolvedSubagent] = []
         for ref in refs:
             row = rows[ref.external_agent_id]
@@ -6356,13 +6385,16 @@ class AgentRunnerService:
                 ResolvedSubagent(
                     name=row.slug,
                     description=row.description or row.name,
-                    build=a2a_delegate(
+                    build=held_a2a_delegate(handle=row.slug)
+                    if held
+                    else a2a_delegate(
                         handle=row.slug,
                         endpoint=row.endpoint_url,
                         card_url=row.card_url,
                         bearer=bearer,
                     ),
                     preferred_mode=ref.preferred_mode,
+                    remote=True,
                 )
             )
         return resolved
@@ -7217,6 +7249,11 @@ class AgentRunnerService:
         that renamed a tool still matches its own recorded calls. A call that
         never returned is left out: there is nothing to answer it with.
 
+        A code-mode script is offered as the calls it made, never as itself: a
+        replay runs the script again and each of its calls is answered from here,
+        so the replay's trajectory lists them too. A script recorded before its
+        calls were kept, or one that made more than its row kept, is offered whole.
+
         The manifest is the check that no row is missing. Its request waterfall
         names every call the model asked for, and survives every trim; a call it
         names that has no row means the transcript lost part of the run. A row
@@ -7256,11 +7293,7 @@ class AgentRunnerService:
                 tools = capability_tools(AgentSpec.model_validate(version.spec))
         return ToolRecording(
             recorded_calls(
-                [
-                    CallRow(tool_name=call.tool_name, args=call.args, result=call.result)
-                    for call, _ in rows
-                    if call.result is not None
-                ],
+                [answer for call, _ in rows for answer in _answers_of(call)],
                 tools=tools,
             )
         )
@@ -9493,6 +9526,8 @@ class AgentRunnerService:
                 new_messages,
                 identities=prepared.built.deps.tool_identities,
                 definitions=prepared.built.deps.tool_definitions,
+                scripts=prepared.built.deps.code_continuations.script_calls,
+                omitted_scripts=prepared.built.deps.code_continuations.omitted_script_calls,
             )
             # And what the *inherited* calls returned. On a resume the approved
             # call was made by the previous execution, so only its return is new -
@@ -9610,6 +9645,8 @@ class AgentRunnerService:
                         ),
                         tool_calls=called,
                         settled=settled,
+                        scripts=prepared.built.deps.code_continuations.script_calls,
+                        omitted_scripts=prepared.built.deps.code_continuations.omitted_script_calls,
                         # So the step the run stopped on reads "awaiting approval" when
                         # the conversation is read back, not as a call that ran (#601).
                         parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),

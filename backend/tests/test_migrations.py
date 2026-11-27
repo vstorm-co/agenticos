@@ -3490,3 +3490,55 @@ def test_embedding_receipt_precision_downgrade_refuses_financial_data_loss() -> 
             )
     finally:
         engine.dispose()
+
+
+def test_code_mode_calls_upgrade_from_the_released_history_and_downgrade_without_replaying_it() -> (
+    None
+):
+    released = "0375_merge_service_connections"
+    assert _alembic("upgrade", released).returncode == 0
+    engine = create_engine(_url(MIGRATION_DATABASE))
+    try:
+        with engine.connect() as connection:
+            assert "script_calls" not in {
+                col["name"] for col in inspect(connection).get_columns("tool_calls")
+            }
+            assert "holdout_share" in {
+                col["name"] for col in inspect(connection).get_columns("improvement_runs")
+            }
+        upgraded = _alembic("upgrade", "head")
+        assert upgraded.returncode == 0, upgraded.stderr
+        with engine.connect() as connection:
+            assert "script_calls" in {
+                col["name"] for col in inspect(connection).get_columns("tool_calls")
+            }
+            constraints = connection.scalars(
+                text(
+                    "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+                    "WHERE conrelid = 'intercepted_tool_calls'::regclass AND contype = 'c'"
+                )
+            ).all()
+            assert any(isinstance(value, str) and "external" in value for value in constraints)
+            assert (
+                connection.scalar(text("SELECT version_num FROM alembic_version"))
+                == "0376_merge_script_calls"
+            )
+        for target in (
+            released,
+            "0367_tool_call_script_calls@-1",
+            "0365_intercepted_call_external@-1",
+        ):
+            down = _alembic("downgrade", target)
+            assert down.returncode == 0, down.stderr
+        with engine.connect() as connection:
+            assert "script_calls" not in {
+                col["name"] for col in inspect(connection).get_columns("tool_calls")
+            }
+            assert "holdout_share" in {
+                col["name"] for col in inspect(connection).get_columns("improvement_runs")
+            }
+            assert connection.scalar(text("SELECT version_num FROM alembic_version")) == released
+        upgraded_again = _alembic("upgrade", "head")
+        assert upgraded_again.returncode == 0, upgraded_again.stderr
+    finally:
+        engine.dispose()

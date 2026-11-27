@@ -97,7 +97,9 @@ class WebResearchConfig(BaseModel):
         # Keenable works keyless; a bound key switches it to the keyed endpoint.
         optional_when=SecretCondition(field="method", equals=("keenable",)),
     ),
-    provider_executed=ProviderExecuted(tools=("web_search",), field="method", equals=("native",)),
+    provider_executed=ProviderExecuted(
+        tools=("web_search",), field="method", equals=("native",), kept_local="duckduckgo"
+    ),
 )
 def _build(ctx: CapabilityBuildContext) -> AbstractCapability[object]:
     config = ctx.config if isinstance(ctx.config, WebResearchConfig) else WebResearchConfig()

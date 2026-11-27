@@ -4861,8 +4861,8 @@
     "cardYoursAndOrganizations": "Van jou en van de organisatie",
     "accountActions": "Meer voor {name}",
     "watch": "Bewaken",
-    "trustReadOnlyHints": "Evals tools laten aanroepen die deze server als alleen-lezen markeert",
-    "trustReadOnlyHintsHint": "Evals houden elke aanroep naar een productieserver tegen, tenzij je hem vertrouwt: de alleen-lezenmarkering is de eigen bewering van de server. {count, plural, =0 {Geen tool hier beweert het.} =1 {1 tool hier beweert het.} other {# tools hier beweren het.}}",
+    "trustReadOnlyHints": "Evals tools laten aanroepen die deze server als alleen-lezen en closed-world markeert",
+    "trustReadOnlyHintsHint": "Evals houden elke aanroep naar een productieserver tegen, tenzij je hem vertrouwt, en voeren dan alleen tools uit die hij als alleen-lezen én closed-world markeert: ze bereiken niets behalve deze server. Beide markeringen zijn de eigen bewering van de server. {count, plural, =0 {Geen tool hier beweert alleen te lezen.} =1 {1 tool hier beweert alleen te lezen.} other {# tools hier beweren alleen te lezen.}}",
     "googleOAuthClientRequired": "Google vereist een client-ID en clientgeheim uit Google Cloud voordat je kunt koppelen.",
     "googleOAuthSetupGuide": "Configuratiegids van Google openen",
     "oauthRequiredClient": "Google Cloud OAuth-client",
@@ -15573,7 +15573,8 @@
         "judgeGradedTwice": "De beoordelaar heeft dit criterium meer dan eens beoordeeld, dus geen van beide beoordelingen telt.",
         "judgeUngraded": "De beoordelaar gaf geen score op de schaal voor dit criterium.",
         "judgeReasonEcho": "De beoordelaar herhaalde het criterium in plaats van te zeggen waarom het antwoord eraan voldoet.",
-        "judgeCounterUnsupported": "De beoordelaar keurde het antwoord goed als verschillend van het tegenvoorbeeld, hoewel het antwoord het herhaalt of de beoordelaar alleen citeerde wat de twee gemeen hebben."
+        "judgeCounterUnsupported": "De beoordelaar keurde het antwoord goed als verschillend van het tegenvoorbeeld, hoewel het antwoord het herhaalt of de beoordelaar alleen citeerde wat de twee gemeen hebben.",
+        "scriptCallsNotKept": "Een script in codemodus deed meer aanroepen dan zijn run bewaarde, dus zijn toolaanroepen zijn niet beoordeeld."
       },
       "scoreRun": "Toetsen aan een testgeval",
       "scoreRunBody": "Voer elke scorer die de dataset instelt uit op het antwoord van deze run. Het resultaat wordt bij de dataset bewaard.",
@@ -18963,6 +18964,7 @@
       "loading": "Lezen wat er misging…",
       "summary": "{count, plural, =0 {Geen probleem met de skill gevonden} =1 {1 probleem met de skill} other {# problemen met de skill}}{elsewhere, plural, =0 {} other {, # antwoorden waarvan het probleem elders ligt}}{fine, plural, =0 {} other {, # die in orde waren}}.",
       "usageUnknown": "{count, plural, =1 {1 antwoord dateert van voordat het laden van skills werd vastgelegd en wordt niet meegeteld.} other {# antwoorden dateren van voordat het laden van skills werd vastgelegd en worden niet meegeteld.}}",
+      "seedWithheld": "{count, plural, =1 {1 probleem uit de sessie van de agent is weggelaten: het citeert een antwoord op een vraag die de controle van deze skill beoordeelt.} other {# problemen uit de sessie van de agent zijn weggelaten: ze citeren antwoorden op vragen die de controle van deze skill beoordeelt.}}",
       "agent": "{name} ({runs})",
       "occursIn": "In {runs, plural, =1 {1 antwoord} other {# antwoorden}}, bij {agents}{hidden, plural, =0 {} =1 { en 1 agent die je niet kunt zien} other { en # agents die je niet kunt zien}}.",
       "hiddenExamples": "{count, plural, =1 {+1 verborgen voorbeeld} other {+# verborgen voorbeelden}}"

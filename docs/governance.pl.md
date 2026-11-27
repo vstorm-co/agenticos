@@ -1,5 +1,5 @@
 ---
-source_sha: "822050191fb7"
+source_sha: "9d0278ec2f71"
 ---
 
 # Governance { #governance }
@@ -1422,6 +1422,8 @@ limitów w Builderze) narzędzia agenta są zwijane w jedno narzędzie `run_code
 model pisze krótki skrypt Pythona, który działa w sandboksie Monty i wywołuje
 narzędzia w pętlach i równolegle, do `max_tool_calls` na skrypt.
 
+Nieprawidłowe argumenty zwykłego wywołania narzędzia zużywają jego budżet ponowień SDK; domyślnie model ma jedną możliwość poprawienia argumentów, zanim kolejne błędne wywołanie zatrzyma run. Poprawne wywołanie resetuje budżet tego narzędzia. Wywołania wewnątrz skryptu zachowują politykę walidacji SDK i ograniczenie `max_tool_calls`. Skrypt nie może przechwycić wyczerpania budżetu ponowień osobnego agenta, aby dalej wykonywać narzędzia.
+
 Naraz działają najwyżej cztery wywołania skryptu, a reszta czeka, więc skrypt
 rozsyłający setki wywołań w sandboksie nie otworzy ich wszystkich jednocześnie.
 
@@ -1432,6 +1434,20 @@ zapisze interpreter, wyniki, manifest i licznik wywołań. Po decyzji dowolny wo
 może kontynuować skrypt bez nowej tury modelu i powtarzania zakończonych operacji.
 Odrzucenie zgody podnosi `RuntimeError` wewnątrz skryptu; kod narzędzia nie działa.
 Zgoda na samo `run_code` nie zatwierdza operacji wewnątrz skryptu.
+
+W ewaluacji, i w każdym innym runie w izolacji, `run_code` działa, a o każdym
+wywołaniu ze skryptu decydują osobno
+[zasady izolacji](environments.md#in-an-eval): odczyt własnych danych tego
+wdrożenia działa, a odczyt spoza wdrożenia albo zapis jest wstrzymywany i
+zapisywany z argumentami. Uruchomienie skryptu nie przepuszcza niczego, czego
+nie dostałoby bezpośrednie wywołanie.
+
+Każde wywołanie skryptu jest zachowywane z runem, pod skryptem: narzędzie,
+argumenty i wynik, do 100 wywołań i około 1 MB na skrypt. Ewaluacja ocenia te wywołania w
+miejsce skryptu i wymienia je pod nim
+([oczekiwane wywołania narzędzi](datasets.md#trajectory)). Nagranie runu
+odpowiada na każde z nich, gdy ewaluacja uruchamia skrypt ponownie, więc
+odtworzenie też je wymienia.
 
 Surowy stan interpretera ma limit 512 kB, a wszystkie checkpointy kodu jednego
 runu — łącznie 1 MB JSON. Atomowe rezerwacje w bazie ograniczają przechowywane
