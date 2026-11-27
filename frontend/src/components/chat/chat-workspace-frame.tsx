@@ -64,7 +64,7 @@ function Frame({ children, panel: kind = "browser", contained = false }: FramePr
           className="hover:bg-foreground/10 focus-visible:bg-foreground/10 absolute inset-y-0 left-0 z-30 hidden w-3 -translate-x-1/2 cursor-col-resize touch-none bg-transparent focus-visible:outline-none @min-[1000px]/browser-layout:block"
         />
       )}
-      <ChatWorkspaceTabs panel={kind} />
+      <ChatWorkspaceTabs panel={kind} canExpand={!contained} />
       {children({ fullscreen, toggleFullscreen: () => setFullscreen(!fullscreen) })}
     </aside>
   );

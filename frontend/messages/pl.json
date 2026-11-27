@@ -1357,7 +1357,8 @@
       "resize": "Zmień szerokość obszaru roboczego",
       "expand": "Rozwiń obszar roboczy",
       "dock": "Przypnij obszar roboczy",
-      "allFiles": "Wróć do wszystkich plików"
+      "allFiles": "Wróć do wszystkich plików",
+      "close": "Zamknij workspace"
     },
     "visuals": {
       "drawing": "Rysuje…",

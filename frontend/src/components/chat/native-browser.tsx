@@ -12,12 +12,14 @@ export function NativeBrowser({
   onCloseTab,
   fullscreen = false,
   onToggleFullscreen,
+  showPanelClose = true,
 }: {
   id: string;
   onClose: () => void;
   onCloseTab?: () => void;
   fullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  showPanelClose?: boolean;
 }) {
   const t = useTranslations("browse");
   const chat = useTranslations("chat");
@@ -78,15 +80,17 @@ export function NativeBrowser({
               )}
             </button>
           )}
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground hover:bg-muted flex size-8 items-center justify-center rounded-lg"
-            aria-label={chat("browserClose")}
-            title={chat("browserClose")}
-            onClick={onClose}
-          >
-            <PanelRightClose className="size-4" aria-hidden />
-          </button>
+          {showPanelClose && (
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground hover:bg-muted flex size-8 items-center justify-center rounded-lg"
+              aria-label={chat("browserClose")}
+              title={chat("browserClose")}
+              onClick={onClose}
+            >
+              <PanelRightClose className="size-4" aria-hidden />
+            </button>
+          )}
         </div>
       </header>
       {error && (

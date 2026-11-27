@@ -2800,7 +2800,8 @@
       "resize": "Grootte van workspace wijzigen",
       "expand": "Workspace vergroten",
       "dock": "Workspace vastzetten",
-      "allFiles": "Terug naar alle bestanden"
+      "allFiles": "Terug naar alle bestanden",
+      "close": "Workspace sluiten"
     }
   },
   "approvalFeedback": {

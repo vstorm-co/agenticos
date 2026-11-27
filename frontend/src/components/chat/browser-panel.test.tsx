@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -60,6 +60,29 @@ beforeEach(() => {
   live.calls = [];
   useAuthStore.setState({ user: { id: "u1", full_name: "Ada", email: "ada@acme.test" } as never });
   useBrowserPanelStore.setState({ openCallId: null });
+});
+
+it("keeps global controls beside tabs and returns focus without discarding the browser", async () => {
+  render(
+    <ChatWorkspaceProvider shared conversationId="conversation">
+      <button onClick={() => useBrowserPanelStore.getState().open("c1")}>Open browser</button>
+      <BrowserPanel browses={[browse()]} />
+    </ChatWorkspaceProvider>,
+  );
+  const trigger = screen.getByRole("button", { name: "Open browser" });
+  await userEvent.click(trigger);
+  const tabs = screen.getByRole("tablist", { name: "Workspace" });
+  expect(within(tabs).queryByRole("button", { name: "Expand workspace" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Close the browser panel" })).toBeNull();
+  await userEvent.click(screen.getByRole("button", { name: "Expand workspace" }));
+  expect(screen.getByRole("tabpanel", { name: "Browser" })).toHaveAttribute(
+    "data-browser-panel",
+    "fullscreen",
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Close workspace" }));
+  await waitFor(() => expect(trigger).toHaveFocus());
+  expect(screen.queryByRole("tabpanel", { name: "Browser" })).toBeNull();
+  expect(useBrowserPanelStore.getState().openCallId).toBe("c1");
 });
 
 describe("BrowserPanel - a browse beside the chat", () => {

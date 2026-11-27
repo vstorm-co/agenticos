@@ -118,7 +118,8 @@ function OpenBrowser({
                   close();
                 }}
                 fullscreen={fullscreen}
-                onToggleFullscreen={toggleFullscreen}
+                onToggleFullscreen={workspace?.shared ? undefined : toggleFullscreen}
+                showPanelClose={!workspace?.shared}
               />
             );
           if (browse.nativeId)
@@ -141,9 +142,9 @@ function OpenBrowser({
                   : null
               }
               maximized={fullscreen}
-              onMaximize={toggleFullscreen}
+              onMaximize={workspace?.shared ? undefined : toggleFullscreen}
               maximizeLabel={chat(fullscreen ? "browserDock" : "browserMaximize")}
-              onClose={close}
+              onClose={workspace?.shared ? undefined : close}
               newTabHref={
                 streamed.runId ? `/browse/${streamed.runId}/${streamed.callId}` : undefined
               }
@@ -169,15 +170,17 @@ function OpenBrowser({
                     {chat("browserResume")}
                   </button>
                 )}
-                <button
-                  type="button"
-                  aria-label={chat("browserClose")}
-                  title={chat("browserClose")}
-                  onClick={close}
-                  className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-7 shrink-0 items-center justify-center rounded-md"
-                >
-                  <X className="size-3.5" aria-hidden />
-                </button>
+                {!workspace?.shared && (
+                  <button
+                    type="button"
+                    aria-label={chat("browserClose")}
+                    title={chat("browserClose")}
+                    onClick={close}
+                    className="text-muted-foreground hover:bg-muted hover:text-foreground flex size-7 shrink-0 items-center justify-center rounded-md"
+                  >
+                    <X className="size-3.5" aria-hidden />
+                  </button>
+                )}
               </BrowserTabs>
             )}
             <div

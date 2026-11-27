@@ -46,6 +46,8 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
+- Put workspace expand and close controls beside its tabs in every shared chat panel, preserve focus when closing, and keep tabs usable with touch or narrow layouts.
+
 - Keep Files contained in compact chats, retain listing position and folder folds behind the reader, and clear browser selection when switching conversations.
 - Limit preview memory use from oversized console output by bounding browser messages and cumulative event payloads.
 

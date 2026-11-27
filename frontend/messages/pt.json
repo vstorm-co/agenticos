@@ -2800,7 +2800,8 @@
       "resize": "Redimensionar workspace",
       "expand": "Expandir workspace",
       "dock": "Acoplar workspace",
-      "allFiles": "Voltar para todos os arquivos"
+      "allFiles": "Voltar para todos os arquivos",
+      "close": "Fechar workspace"
     }
   },
   "approvalFeedback": {

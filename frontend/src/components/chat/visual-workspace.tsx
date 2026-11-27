@@ -114,7 +114,7 @@ export function VisualWorkspace({
               <Shapes className="text-muted-foreground size-4 shrink-0" aria-hidden />
               <h2 className="min-w-0 flex-1 truncate text-sm font-medium">{title}</h2>
               {actions}
-              {(docked || workspace.fullscreen) && (
+              {!workspace.shared && (docked || workspace.fullscreen) && (
                 <IconButton
                   aria-label={workspace.fullscreen ? t("dockWorkspace") : t("fullScreen")}
                   title={workspace.fullscreen ? t("dockWorkspace") : t("fullScreen")}
@@ -123,9 +123,11 @@ export function VisualWorkspace({
                   {workspace.fullscreen ? <Minimize2 /> : <Maximize2 />}
                 </IconButton>
               )}
-              <IconButton aria-label={t("closeWorkspace")} onClick={dismiss}>
-                <X />
-              </IconButton>
+              {!workspace.shared && (
+                <IconButton aria-label={t("closeWorkspace")} onClick={dismiss}>
+                  <X />
+                </IconButton>
+              )}
             </header>
           )}
           <Tabs

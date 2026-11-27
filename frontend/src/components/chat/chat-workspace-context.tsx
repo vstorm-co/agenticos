@@ -50,18 +50,35 @@ export function ChatWorkspaceProvider({
   shared?: boolean;
 }) {
   const id = useId();
+  const opener = useRef<HTMLElement | null>(null);
+  const rememberOpener = useCallback(() => {
+    const focused = document.activeElement;
+    if (
+      focused instanceof HTMLElement &&
+      !focused.closest(
+        '[role="tablist"], [data-workspace-panel], [data-visual-workspace="docked"], [data-visual-workspace="fullscreen"]',
+      )
+    )
+      opener.current = focused;
+  }, []);
   const [selection, setSelection] = useState<Selection>(null);
   const browserId = useBrowserPanelStore((state) => state.openCallId);
   const browserRequest = useBrowserPanelStore((state) => state.openRequest);
   const automaticBrowser = useBrowserPanelStore((state) => state.automatic);
   const closeBrowser = useBrowserPanelStore((state) => state.close);
+  useLayoutEffect(() => {
+    if (browserId !== null && !automaticBrowser) rememberOpener();
+  }, [browserRequest, browserId, automaticBrowser, rememberOpener]);
   const browserConversation = useRef(conversationId);
   useLayoutEffect(() => {
     const previous = browserConversation.current;
     browserConversation.current = conversationId;
     // Reset before the new conversation's auto-open effects inspect the store.
     // A draft receiving its first id still owns the same browser.
-    if (previous !== null && previous !== conversationId) closeBrowser();
+    if (previous !== null && previous !== conversationId) {
+      opener.current = null;
+      closeBrowser();
+    }
   }, [conversationId, closeBrowser]);
   const sourcesOpen = useSourcesPanelStore((state) => state.isOpen);
   const closeSources = useSourcesPanelStore((state) => state.close);
@@ -69,22 +86,29 @@ export function ChatWorkspaceProvider({
     browserId ? "browser" : null,
   );
   const [fullscreen, setFullscreen] = useState(false);
-  const close = useCallback(() => setActivePanel(null), []);
+  const close = useCallback(() => {
+    setActivePanel(null);
+    requestAnimationFrame(() => {
+      if (opener.current?.isConnected) opener.current.focus();
+    });
+  }, []);
   const openPanel = useCallback(
     (panel: WorkspacePanel) => {
+      rememberOpener();
       closeSources();
       setActivePanel(panel);
     },
-    [closeSources],
+    [closeSources, rememberOpener],
   );
   const showVisual = useCallback(
     (id: string, expanded: boolean) => {
+      rememberOpener();
       closeSources();
       setSelection({ id });
       setFullscreen(expanded);
       setActivePanel("visuals");
     },
-    [closeSources],
+    [closeSources, rememberOpener],
   );
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const release = useCallback((id: string) => {

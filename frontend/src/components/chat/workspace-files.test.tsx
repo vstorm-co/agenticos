@@ -116,7 +116,7 @@ describe("the workspace panel", () => {
       "--browser-panel-width": "55%",
     });
     expect(useChatPanelStore.getState().filesOpen).toBe(true);
-    await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Close workspace" }));
     expect(useChatPanelStore.getState().filesOpen).toBe(false);
   });
 
@@ -810,10 +810,12 @@ describe("the workspace panel", () => {
     await openPanel();
     await waitFor(() => expect(screen.getByText("report.csv")).toBeVisible());
 
-    await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Close workspace" }));
 
     await waitFor(() => expect(screen.getByText("report.csv")).not.toBeVisible());
-    expect(screen.getByRole("button", { name: /^Show the files/ })).toHaveFocus();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Show the files/ })).toHaveFocus(),
+    );
   });
 
   it("explains a host that keeps no files on disk instead of alarming somebody", async () => {
@@ -1421,7 +1423,7 @@ it("opens transcript attachments in Files, retains the reader across tabs and su
   const source = await screen.findByText(
     (_, element) => element?.tagName === "PRE" && element.textContent === "# Attached file",
   );
-  await userEvent.click(screen.getByRole("button", { name: "Close the file panel" }));
+  await userEvent.click(screen.getByRole("button", { name: "Close workspace" }));
   await openPanel();
   expect(
     screen.getByText(

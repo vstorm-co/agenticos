@@ -2356,7 +2356,8 @@
       "resize": "Resize workspace",
       "expand": "Expand workspace",
       "dock": "Dock workspace",
-      "allFiles": "Back to all files"
+      "allFiles": "Back to all files",
+      "close": "Close workspace"
     },
     "visuals": {
       "drawing": "Drawing…",

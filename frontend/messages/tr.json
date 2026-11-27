@@ -10254,7 +10254,8 @@
       "resize": "Çalışma alanını yeniden boyutlandır",
       "expand": "Çalışma alanını genişlet",
       "dock": "Çalışma alanını sabitle",
-      "allFiles": "Tüm dosyalara dön"
+      "allFiles": "Tüm dosyalara dön",
+      "close": "Workspace’i kapat"
     },
     "visuals": {
       "drawing": "Çiziliyor…",

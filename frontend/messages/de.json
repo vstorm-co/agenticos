@@ -2356,7 +2356,8 @@
       "resize": "Breite des Arbeitsbereichs ändern",
       "expand": "Arbeitsbereich vergrößern",
       "dock": "Arbeitsbereich andocken",
-      "allFiles": "Zurück zu allen Dateien"
+      "allFiles": "Zurück zu allen Dateien",
+      "close": "Workspace schließen"
     },
     "visuals": {
       "drawing": "Zeichnet…",

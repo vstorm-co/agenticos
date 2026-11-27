@@ -326,7 +326,7 @@ function Files({
                       {t("downloadAll")}
                     </button>
                   )}
-                  {!overlay && (
+                  {!overlay && !host.shared && (
                     <button
                       type="button"
                       aria-label={tWorkspace(fullscreen ? "dock" : "expand")}
@@ -341,17 +341,19 @@ function Files({
                       )}
                     </button>
                   )}
-                  <button
-                    type="button"
-                    aria-label={t("close")}
-                    onClick={() => {
-                      host.close();
-                      toggle.current?.focus();
-                    }}
-                    className="text-muted-foreground hover:text-foreground rounded-md p-1"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                  {!host.shared && (
+                    <button
+                      type="button"
+                      aria-label={t("close")}
+                      onClick={() => {
+                        host.close();
+                        toggle.current?.focus();
+                      }}
+                      className="text-muted-foreground hover:text-foreground rounded-md p-1"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
                 {workspace !== null && workspace.backend !== "none" && (
                   <p className="text-muted-foreground text-xs">

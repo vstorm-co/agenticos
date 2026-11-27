@@ -2763,7 +2763,8 @@
       "resize": "Redimensionner le workspace",
       "expand": "Agrandir le workspace",
       "dock": "Ancrer le workspace",
-      "allFiles": "Retour à tous les fichiers"
+      "allFiles": "Retour à tous les fichiers",
+      "close": "Fermer le workspace"
     }
   },
   "common": {

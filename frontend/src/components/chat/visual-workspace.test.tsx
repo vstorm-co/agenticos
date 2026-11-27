@@ -382,7 +382,14 @@ describe("shared workspace tabs", () => {
       "id",
       visuals.getAttribute("aria-controls"),
     );
-    await user.click(screen.getByRole("button", { name: "Full screen" }));
+    const expand = screen.getByRole("button", { name: "Expand workspace" });
+    expect(
+      within(screen.getByRole("tablist", { name: "Workspace" })).queryByRole("button", {
+        name: "Expand workspace",
+      }),
+    ).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Close workspace" })).toHaveLength(1);
+    await user.click(expand);
     await user.click(screen.getByRole("tab", { name: "Browser" }));
     expect(screen.getByRole("textbox", { name: "Browser state" })).toBe(browser);
     expect(browser).toHaveValue("initial page kept");
