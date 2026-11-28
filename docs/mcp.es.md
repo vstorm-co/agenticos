@@ -677,7 +677,9 @@ un resultado así se descarta en el toolset, de modo que ninguna superficie lo v
 
 !!! warning "Una página es código del operador del servidor, ejecutado en el navegador de quien lee"
 
-    Se ejecuta en el mismo sandbox que una [app](artifacts.md): un origen opaco,
+    Se ejecuta en el mismo sandbox que una [app](artifacts.md), sin diálogos
+    nativos (`alert`, `confirm`, `prompt`), que llevarían el nombre de este
+    despliegue: un origen opaco,
     así que ninguna cookie, almacenamiento ni DOM de la consola; `connect-src
     'none'` y ninguna fuente remota, así que no puede enviar nada a ningún sitio por
     sí misma. Los dominios que una página pide en `_meta.ui.csp` no se conceden. Un
@@ -686,7 +688,8 @@ un resultado así se descarta en el toolset, de modo que ninguna superficie lo v
 
 Una página no puede llegar a su servidor, así que la consola reenvía lo que pide:
 `tools/call` y `resources/read` (solo recursos `ui://`). Una llamada reenviada
-queda limitada a lo que podía hacer el run que hizo la llamada original:
+queda limitada a lo que podía hacer el run que hizo la llamada original, y a lo
+que el binding del agente le permite ahora:
 
 - Va a la conexión de la propia llamada, y la conexión propia de una persona solo
   para esa persona. Quien lee tiene que poder participar en la conversación; leer
@@ -696,7 +699,12 @@ queda limitada a lo que podía hacer el run que hizo la llamada original:
   de la conexión tal como es ahora. Una herramienta que el servidor ofrece solo a
   las páginas nunca aparece en una lista para elegir - el modelo nunca la ve -, así
   que se permite para la página que la nombra y para ninguna otra.
-- Una llamada que las aprobaciones del binding harían esperar a una persona se
+- También queda limitada al binding del agente tal como es ahora, de su versión
+  publicada: quitar una herramienta de la lista del binding o pedir aprobaciones
+  ahí se aplica enseguida a las páginas que ya están en conversaciones. Un agente
+  archivado, o sin ese binding, deja a sus páginas sin nada que llamar. Un binding
+  aflojado desde entonces no afloja el del run.
+- Una llamada que las aprobaciones de cualquiera de los dos bindings harían esperar a una persona se
   **rechaza**, no se aparca: una aprobación pertenece a la conversación, y una
   página no es una forma de saltársela. Con `writes` es toda herramienta que el
   servidor no marca con `readOnlyHint`.

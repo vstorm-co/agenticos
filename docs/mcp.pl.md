@@ -656,7 +656,9 @@ go nie widzi.
 
 !!! warning "Strona to kod operatora serwera, uruchamiany w przeglądarce czytającego"
 
-    Działa w tym samym sandboxie co [aplikacja](artifacts.md): nieprzezroczysty
+    Działa w tym samym sandboxie co [aplikacja](artifacts.md), bez natywnych okien
+    dialogowych (`alert`, `confirm`, `prompt`), które nosiłyby nazwę tego
+    wdrożenia: nieprzezroczysty
     origin, więc żadnych ciasteczek, pamięci ani DOM konsoli; `connect-src 'none'`
     i żadnych zdalnych źródeł, więc sama nie może niczego nigdzie wysłać. Domeny,
     o które strona prosi w `_meta.ui.csp`, nie są przyznawane. Link, który chce
@@ -665,7 +667,8 @@ go nie widzi.
 
 Strona nie może dotrzeć do swojego serwera, więc konsola przekazuje to, o co prosi:
 `tools/call` i `resources/read` (tylko zasoby `ui://`). Przekazane wywołanie może
-tylko tyle, ile mógł run, który wykonał pierwotne wywołanie:
+tylko tyle, ile mógł run, który wykonał pierwotne wywołanie, i ile pozwala mu teraz
+binding agenta:
 
 - Trafia do połączenia tego wywołania, a własne połączenie osoby - tylko dla tej
   osoby. Czytający musi móc uczestniczyć w rozmowie; czytanie udostępnionej
@@ -675,7 +678,12 @@ tylko tyle, ile mógł run, który wykonał pierwotne wywołanie:
   jaka jest teraz. Narzędzie, które serwer oferuje tylko stronom, nigdy nie pojawia
   się na liście do wyboru - model go nie widzi - więc jest dozwolone dla strony,
   która je wskazuje, i dla żadnej innej.
-- Wywołanie, na które zatwierdzenia bindingu kazałyby czekać osobie, jest
+- Obowiązuje je też binding agenta taki, jaki jest teraz, z jego opublikowanej
+  wersji: zdjęcie narzędzia z listy bindingu albo zażądanie tam zatwierdzeń działa
+  od razu na strony, które już są w rozmowach. Zarchiwizowany agent albo agent bez
+  tego bindingu nie pozwala swoim stronom niczego wywołać. Poluzowany od tamtej
+  pory binding nie luzuje bindingu runu.
+- Wywołanie, na które zatwierdzenia któregokolwiek z bindingów kazałyby czekać osobie, jest
   **odrzucane**, a nie odkładane: zatwierdzenie należy do rozmowy, a strona nie jest
   sposobem, by je obejść. Przy `writes` dotyczy to każdego narzędzia, którego
   serwer nie oznacza `readOnlyHint`.

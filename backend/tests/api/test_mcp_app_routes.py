@@ -61,9 +61,10 @@ def _app_url(conversation_id: uuid.UUID, suffix: str = "") -> str:
 
 class TestThePage:
     @pytest.mark.security
-    async def test_it_is_served_in_the_app_sandbox_with_no_network(
+    async def test_it_is_served_in_a_sandbox_with_scripts_alone_and_no_network(
         self, client: OpenClient, service: MagicMock
     ) -> None:
+        """No native dialogs: a third party's `prompt()` would carry this deployment's name."""
         app.dependency_overrides.pop(deps.get_auth_context)
         async with client() as http:
             response = await http.get(f"{settings.API_V1_STR}/artifact-content/mcp-app/tok")
@@ -72,7 +73,8 @@ class TestThePage:
         assert response.text == "<!doctype html><script>1</script>"
         service.page.assert_awaited_once_with("tok")
         policy = response.headers["content-security-policy"]
-        assert policy.startswith("sandbox allow-scripts allow-modals;")
+        assert policy.startswith("sandbox allow-scripts;")
+        assert "allow-modals" not in policy
         assert "allow-same-origin" not in policy
         assert "connect-src 'none'" in policy
         assert f"frame-ancestors {settings.FRONTEND_URL.rstrip('/')}" in policy

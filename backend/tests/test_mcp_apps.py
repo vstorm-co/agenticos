@@ -28,10 +28,12 @@ from app.agents.mcp_apps import (
     McpAppResults,
     app_client,
     app_record,
+    binding_key,
     page_view,
     stored_record,
     visible_to_model,
 )
+from app.agents.spec import OrgMcpServerRef, PersonalMcpServerRef, PlatformMcpServerRef
 
 pytestmark = pytest.mark.anyio
 
@@ -60,6 +62,8 @@ def _stored(**overrides: Any) -> dict[str, Any]:
         "tool_approval": {},
         "endpoint_hash": "0" * 64,
         "authorization_generation": None,
+        "agent_id": None,
+        "binding_key": None,
         **overrides,
     }
 
@@ -100,6 +104,22 @@ class TestReadingARecord:
             "tool_input": record["tool_input"],
             "result": record["result"],
         }
+
+
+class TestBindingKey:
+    def test_an_organization_binding_is_its_connection_and_a_personal_one_its_service(self):
+        connection = uuid4()
+
+        assert (
+            binding_key(OrgMcpServerRef(connection_id=connection)) == f"organization:{connection}"
+        )
+        assert (
+            binding_key(PersonalMcpServerRef(account="personal", catalog_key="charts"))
+            == "personal:charts"
+        )
+
+    def test_this_deployments_own_server_is_no_binding_a_page_is_held_to(self):
+        assert binding_key(PlatformMcpServerRef(account="platform")) is None
 
 
 class TestVisibility:
@@ -174,7 +194,7 @@ class TestAppResults:
         assert with_content.content == "see"
 
     async def test_with_pages_on_the_record_names_its_connection_and_the_runs_policy(self):
-        connection, generation = uuid4(), uuid4()
+        connection, generation, agent = uuid4(), uuid4(), uuid4()
         toolset = _wrapping(
             ToolReturn(return_value="5 rows", metadata={"mcp_app": _raw(), "trace": 1}),
             connection_id=connection,
@@ -183,6 +203,8 @@ class TestAppResults:
             tool_approval={"data_query": "never"},
             endpoint_hash="e" * 64,
             authorization_generation=generation,
+            agent_id=agent,
+            binding_key=f"organization:{connection}",
         )
 
         result = await _call(toolset)
@@ -201,6 +223,8 @@ class TestAppResults:
             "tool_approval": {"data_query": "never"},
             "endpoint_hash": "e" * 64,
             "authorization_generation": str(generation),
+            "agent_id": str(agent),
+            "binding_key": f"organization:{connection}",
         }
 
     async def test_binary_content_is_not_kept_for_the_page(self):

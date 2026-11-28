@@ -623,15 +623,17 @@ a result is dropped at the toolset, so no surface sees it.
 
 !!! warning "A page is the server operator's code, run in the reader's browser"
 
-    It runs under the same sandbox as an [app](artifacts.md): an opaque origin,
-    so no cookie, storage or DOM of the console; `connect-src 'none'` and no
+    It runs under the same sandbox as an [app](artifacts.md), without native
+    dialogs (`alert`, `confirm`, `prompt`), which would carry this deployment's
+    name: an opaque origin, so no cookie, storage or DOM of the console; `connect-src 'none'` and no
     remote sources, so it can send nothing anywhere itself. Domains a page asks
     for in `_meta.ui.csp` are not granted. A link it wants to open is put to the
     person first. A page that needs outside scripts or styles does not draw here.
 
 A page cannot reach its server, so the console relays what it asks for:
 `tools/call` and `resources/read` (`ui://` resources only). A relayed call is held
-to what the run that made the original call could do:
+to what the run that made the original call could do, and to what the agent's
+binding lets it do now:
 
 - It goes to the call's own connection, and a person's own connection only for
   that person. The reader has to be able to take part in the conversation; reading
@@ -641,7 +643,12 @@ to what the run that made the original call could do:
   now. A tool the server offers to pages alone never appears in a tool list to
   pick - the model never sees it - so it is allowed for the page that names it and
   no other.
-- A call the binding's approvals would make wait for a person is **refused**, not
+- It is held to the agent's binding as it is now as well, from its published
+  version: taking a tool off the binding's list or asking for approvals there
+  applies at once to the pages already in conversations. An agent archived, or
+  without that binding any more, leaves its pages nothing to call. Loosening the
+  binding since does not loosen the run's.
+- A call either binding's approvals would make wait for a person is **refused**, not
   parked: an approval belongs to the conversation, and a page is not a way around
   one. Under `writes` that is every tool the server does not mark `readOnlyHint`.
 - Each relayed call is in the [audit trail](governance.md#audit) as

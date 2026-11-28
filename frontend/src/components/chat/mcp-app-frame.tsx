@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
-import { ARTIFACT_SANDBOX, LinkRequestDialog } from "@/components/artifacts/artifact-frame";
+import { LinkRequestDialog } from "@/components/artifacts/artifact-frame";
 import { PreviewSkeleton } from "@/components/ui/preview-skeleton";
 import { useAskingGate } from "@/hooks/use-artifact-actions";
 import { answer, asMessage, hostContext, type HostContext } from "@/lib/mcp-app-host";
@@ -12,6 +12,13 @@ import { cn } from "@/lib/utils";
 import type { ToolCall } from "@/types/chat";
 import { getResolvedTheme, useThemeStore } from "@/stores/theme-store";
 import { useConversationOnScreen } from "./visual-panel";
+
+/**
+ * An artifact's sandbox without its native dialogs: the page is a third party's,
+ * and a `prompt()` from it would be labelled with this deployment's content
+ * origin. Links already go through the host.
+ */
+const MCP_APP_SANDBOX = "allow-scripts";
 
 /** Where a page starts before it reports its own height. */
 const INITIAL_HEIGHT = 320;
@@ -161,7 +168,7 @@ export function McpAppFrame({ conversationId, call }: { conversationId: string; 
             if (loads.current > 1) leave();
           }}
           title={t("title", { tool: call.name })}
-          sandbox={ARTIFACT_SANDBOX}
+          sandbox={MCP_APP_SANDBOX}
           referrerPolicy="no-referrer"
           style={{ colorScheme: theme }}
           className={cn(

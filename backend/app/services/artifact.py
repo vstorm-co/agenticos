@@ -563,7 +563,7 @@ def tile_source() -> str:
     return f"{_content_origin()}{settings.API_V1_STR}/artifact-content/tiles/"
 
 
-def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
+def content_security_policy(*, embed_origins: Sequence[str] = (), modals: bool = True) -> str:
     """The policy every content response carries.
 
     Args:
@@ -571,6 +571,9 @@ def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
             its public link is on. The embed document is on the content origin
             itself, so that origin is allowed with them; with none, only the
             console may frame the page.
+        modals: Whether the page may open native dialogs. Off for a third
+            party's page: a `prompt()` is labelled with this deployment's content
+            origin, so one asking for a password would look like it came from us.
     """
     frame_ancestors = [settings.FRONTEND_URL.rstrip("/")]
     if embed_origins:
@@ -586,7 +589,7 @@ def content_security_policy(*, embed_origins: Sequence[str] = ()) -> str:
             # popup is a channel to an address the page chooses - one click on a
             # prompt-injected report would carry its numbers out in a URL. A link
             # asks its parent instead (`platform_script`), and a person decides.
-            "sandbox allow-scripts allow-modals",
+            "sandbox allow-scripts allow-modals" if modals else "sandbox allow-scripts",
             # Self-contained by construction. `connect-src 'none'` and no remote
             # sources mean a page cannot load code from, or send what it shows to,
             # anywhere - a prompt-injected report cannot beacon the numbers it was

@@ -60,14 +60,14 @@ beforeEach(() => {
 });
 
 describe("McpAppFrame", () => {
-  it("frames the page from its signed address, under the app sandbox", async () => {
+  it("frames the page from its signed address, under a sandbox with scripts alone", async () => {
     await shown();
 
     expect(api.mcpAppFrameUrl).toHaveBeenCalledWith("conv-1", "call-1");
     expect(frameOf().getAttribute("src")).toBe(
       "https://content.example.com/api/v1/artifact-content/mcp-app/tok",
     );
-    expect(frameOf().getAttribute("sandbox")).toBe("allow-scripts allow-modals");
+    expect(frameOf().getAttribute("sandbox")).toBe("allow-scripts");
     expect(frameOf()).toHaveAccessibleName("Page from charts_data_query");
   });
 

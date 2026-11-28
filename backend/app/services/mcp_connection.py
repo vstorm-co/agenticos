@@ -37,7 +37,7 @@ import re
 import secrets
 from collections import Counter
 from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID, uuid4
@@ -66,6 +66,7 @@ from app.agents.mcp import (
     tool_prefix,
     validate_mcp_url,
 )
+from app.agents.mcp_apps import binding_key
 from app.agents.mcp_oauth import McpOAuthPayload, OAuthError
 from app.agents.spec import (
     McpServerRef,
@@ -3073,6 +3074,7 @@ async def build_toolsets_for_agent(
     organization_sources: Mapping[UUID, McpSourceIdentity] | None = None,
     taken_names: Mapping[str, str] | None = None,
     recheck_sources: bool = False,
+    agent_id: UUID | None = None,
 ) -> ResolvedMcpToolsets:
     """Agent toolsets for a published agent: exactly the servers its spec names.
 
@@ -3117,6 +3119,10 @@ async def build_toolsets_for_agent(
 
     `recheck_sources` guards delegated external runs against connected-account
     revocation or narrowing before each tool call, using a fresh session.
+
+    `agent_id` is the agent whose spec `refs` are. Each server carries it and the
+    binding it came from, so an MCP Apps page shown with one of its calls is held
+    to that binding as the agent has it now (#3450).
 
     Runs in the caller's session rather than opening its own: an OAuth refresh
     spent here has to be persisted by the same transaction that recorded the run.
@@ -3168,11 +3174,12 @@ async def build_toolsets_for_agent(
                 organization_id=organization_id,
             )
             for account in own:
-                specs.append(account.spec)
-                bindings[id(account.spec)] = f"each person's own {ref.catalog_key}"
-                reaches[id(account.spec)] = AccountNote(
+                own_spec = _bound(account.spec, agent_id, ref)
+                specs.append(own_spec)
+                bindings[id(own_spec)] = f"each person's own {ref.catalog_key}"
+                reaches[id(own_spec)] = AccountNote(
                     service=ref.catalog_key,
-                    prefix=tool_prefix(account.spec.name),
+                    prefix=tool_prefix(own_spec.name),
                     account=account.label,
                     whose="personal",
                 )
@@ -3196,6 +3203,7 @@ async def build_toolsets_for_agent(
                 found=found,
             )
             if spec is not None:
+                spec = _bound(spec, agent_id, ref)
                 specs.append(spec)
                 bindings[id(spec)] = f"the connection {spec.name!r}"
             continue
@@ -3250,6 +3258,8 @@ async def build_toolsets_for_agent(
             connection_id=connection.id,
             source_connection_id=connection.id,
             authorization_generation=connection.authorization_generation,
+            agent_id=agent_id,
+            binding_key=binding_key(ref),
         )
         specs.append(spec)
         bindings[id(spec)] = f"the connection {connection.name!r}"
@@ -3746,6 +3756,11 @@ def presented_tool_names(
         for tool in connection.last_tools
         if allowed is None or tool["name"] in allowed
     ]
+
+
+def _bound(spec: McpServerSpec, agent_id: UUID | None, ref: McpServerRef) -> McpServerSpec:
+    """`spec`, naming the agent and the binding of its spec it was attached by."""
+    return replace(spec, agent_id=agent_id, binding_key=binding_key(ref))
 
 
 def _narrowed_tools(connection: list[str] | None, binding: list[str] | None) -> list[str] | None:

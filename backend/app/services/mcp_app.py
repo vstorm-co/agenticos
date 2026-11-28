@@ -7,8 +7,10 @@ cannot reach its server; the console relays what it asks for through here:
 - **The page itself**, read from the server on every load through a signed
   address (:meth:`McpAppService.frame`, then :meth:`McpAppService.page`).
 - **Its tool calls** (:meth:`McpAppService.call_tool`), held to what the run that
-  made the original call allowed: the binding's tools and approvals, recorded with
-  the call, and the connection as it is now. A call that would wait for a person
+  made the original call allowed - the binding's tools and approvals, recorded with
+  the call - and to that binding as the agent has it now, and the connection as it
+  is now: a call either would refuse is refused, so tightening an agent reaches
+  the pages already in conversations at once. A call that would wait for a person
   is refused, never run: an approval card belongs to the conversation, and a
   page is not a way around one.
 - **Its resource reads** (:meth:`McpAppService.read_resource`), `ui://` only.
@@ -19,9 +21,10 @@ connection only for that person.
 """
 
 import base64
+import binascii
 import hashlib
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
@@ -36,9 +39,11 @@ from app.agents.mcp_apps import (
     APP_MIME_TYPE,
     McpAppRecord,
     app_client,
+    binding_key,
     stored_record,
     visible_to_model,
 )
+from app.agents.spec import AgentSpec, ApprovalMode, McpApproval
 from app.core.audit import record_audit
 from app.core.exceptions import (
     AppException,
@@ -49,9 +54,11 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext
 from app.core.security import create_mcp_app_view_token, read_uuid_claim, verify_special_token
+from app.db.models.agent import AgentStatus
 from app.db.models.conversation import ToolCall
 from app.db.models.mcp_connection import McpConnection
 from app.db.session import get_db_context
+from app.repositories import agent as agent_repo
 from app.repositories import conversation as conversation_repo
 from app.repositories import mcp_connection as mcp_connection_repo
 from app.services.artifact import content_address
@@ -64,6 +71,16 @@ PAGE_ADDRESS_LIFETIME = timedelta(minutes=5)
 """How long a page's signed address may be loaded: one frame's load and a reload or two."""
 
 _GONE = "This page is not available"
+_REFUSED = "This page may not use that tool"
+
+
+@dataclass(frozen=True)
+class _Binding:
+    """What one binding lets a server's tools do: its tool list and its approvals."""
+
+    allowed_tools: list[str] | None
+    approval: McpApproval
+    tool_approval: Mapping[str, ApprovalMode]
 
 
 @dataclass(frozen=True)
@@ -161,16 +178,21 @@ class McpAppService:
         call, record, connection = await self._authorized(
             ctx, conversation_id=conversation_id, tool_call_id=tool_call_id, for_write=True
         )
+        bindings = [_recorded(record)]
+        current = await self._current_binding(
+            record, organization_id=ctx.organization_id, name=name
+        )
+        if current is not None:
+            bindings.append(current)
 
         async def relay(toolset: MCPToolset[Any]) -> dict[str, Any]:
             tool = next((t for t in await toolset.list_tools() if t.name == name), None)
             if tool is None:
-                raise AuthorizationError(
-                    message="This page may not use that tool", details={"tool": name}
-                )
+                raise AuthorizationError(message=_REFUSED, details={"tool": name})
             _check_tool(
                 record,
                 connection,
+                bindings,
                 name=name,
                 meta=tool.meta,
                 read_only=_read_only(tool.annotations),
@@ -243,6 +265,47 @@ class McpAppService:
             record, user_id=ctx.user_id, organization_id=ctx.organization_id
         )
         return call, record, connection
+
+    async def _current_binding(
+        self, record: McpAppRecord, *, organization_id: UUID, name: str
+    ) -> _Binding | None:
+        """The call's binding as its agent has it now, or `None` for a call made outside one.
+
+        The agent's published version, not the one the run was on: an agent
+        tightened since - a tool taken off, approvals asked for - holds the pages
+        already in conversations to that at once. An agent archived, never
+        published again or without this binding any more lets them call nothing.
+
+        Raises:
+            AuthorizationError: The agent no longer runs, or no longer has this
+                binding.
+        """
+        if record["agent_id"] is None or record["binding_key"] is None:
+            return None
+        refused = AuthorizationError(message=_REFUSED, details={"tool": name})
+        agent = await agent_repo.get(
+            self.db, UUID(record["agent_id"]), organization_id=organization_id
+        )
+        if (
+            agent is None
+            or agent.status == AgentStatus.ARCHIVED.value
+            or agent.current_version_id is None
+        ):
+            raise refused
+        version = await agent_repo.get_version(
+            self.db, agent.current_version_id, organization_id=organization_id
+        )
+        if version is None:
+            raise refused
+        spec = AgentSpec.model_validate(version.spec)
+        ref = next(
+            (ref for ref in spec.mcp_servers if binding_key(ref) == record["binding_key"]), None
+        )
+        if ref is None:
+            raise refused
+        return _Binding(
+            allowed_tools=ref.allowed_tools, approval=ref.approval, tool_approval=ref.tool_approval
+        )
 
     async def _connection(
         self, record: McpAppRecord, *, user_id: UUID, organization_id: UUID
@@ -323,31 +386,52 @@ def _ui(meta: object) -> dict[str, object]:
     return ui if isinstance(ui, dict) else {}
 
 
-def _check_tool(
-    record: McpAppRecord, connection: McpConnection, *, name: str, meta: object, read_only: bool
-) -> None:
-    """Refuse a page's call that the run's binding, the connection or approvals would not let through.
+def _recorded(record: McpAppRecord) -> _Binding:
+    """The binding as the run had it, recorded with the call."""
+    return _Binding(
+        allowed_tools=record["allowed_tools"],
+        approval=record["approval"],
+        tool_approval=record["tool_approval"],
+    )
 
-    A tool the server offers to pages alone is never on a binding's list - the
-    model never sees it to pick - so it is held to the page instead: it must
-    belong to the same page as the call it was asked from, and the tool that
-    brought the page must still be on the connection's list.
+
+def _check_tool(
+    record: McpAppRecord,
+    connection: McpConnection,
+    bindings: list[_Binding],
+    *,
+    name: str,
+    meta: object,
+    read_only: bool,
+) -> None:
+    """Refuse a page's call that a binding, the connection or approvals would not let through.
+
+    `bindings` are the run's, as recorded, and the agent's as it is now: what
+    either refuses is refused. A tool the server offers to pages alone is never on
+    a binding's list - the model never sees it to pick - so it is held to the page
+    instead: it must belong to the same page as the call it was asked from, and
+    the tool that brought the page must still be on every list.
     """
-    refused = AuthorizationError(message="This page may not use that tool", details={"tool": name})
+    refused = AuthorizationError(message=_REFUSED, details={"tool": name})
     ui = _ui(meta)
     visibility = ui.get("visibility")
     if isinstance(visibility, list) and "app" not in visibility:
         raise refused
+    lists = [*(binding.allowed_tools for binding in bindings), connection.allowed_tools]
     if visible_to_model(meta):
-        for allowed in (record["allowed_tools"], connection.allowed_tools):
-            if allowed is not None and name not in allowed:
-                raise refused
-    elif ui.get("resourceUri") != record["resource_uri"] or (
-        connection.allowed_tools is not None and record["tool_name"] not in connection.allowed_tools
-    ):
+        listed = name
+    elif ui.get("resourceUri") == record["resource_uri"]:
+        listed = record["tool_name"]
+    else:
         raise refused
-    own = record["tool_approval"].get(name, "default")
-    if approval_needed(record["approval"], read_only=read_only, own=own):
+    if any(allowed is not None and listed not in allowed for allowed in lists):
+        raise refused
+    if any(
+        approval_needed(
+            binding.approval, read_only=read_only, own=binding.tool_approval.get(name, "default")
+        )
+        for binding in bindings
+    ):
         raise AuthorizationError(
             message="This needs a person's approval: ask the agent in the conversation instead",
             details={"tool": name, "approval_required": True},
@@ -363,5 +447,9 @@ def _page_document(read: dict[str, Any]) -> bytes:
     if isinstance(first.get("text"), str):
         return first["text"].encode()
     if isinstance(first.get("blob"), str):
-        return base64.b64decode(first["blob"])
+        # A broken answer is the page being unavailable, not this deployment's error.
+        try:
+            return base64.b64decode(first["blob"], validate=True)
+        except binascii.Error as exc:
+            raise NotFoundError(message=_GONE) from exc
     raise NotFoundError(message=_GONE)

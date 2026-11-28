@@ -33,16 +33,18 @@ def artifact_response(served: ServedArtifact) -> Response:
 
 
 def mcp_app_page_response(document: bytes) -> Response:
-    """An MCP server's own page (#3450), under the same sandbox policy as an artifact's.
+    """An MCP server's own page (#3450), under an artifact's sandbox policy without its dialogs.
 
     Third-party code, so nothing is relaxed for it: no network, no remote sources.
-    A page that asks for domains (`_meta.ui.csp`) does not get them.
+    A page that asks for domains (`_meta.ui.csp`) does not get them. No native
+    dialogs either, which an agent's own page may open: links already go through
+    the host, and a third party's `prompt()` would carry this deployment's name.
     """
     return Response(
         content=document,
         media_type="text/html; charset=utf-8",
         headers={
-            "Content-Security-Policy": content_security_policy(),
+            "Content-Security-Policy": content_security_policy(modals=False),
             "X-Content-Type-Options": "nosniff",
             "Referrer-Policy": "no-referrer",
             "Cache-Control": "private, no-store",

@@ -4,7 +4,7 @@ The refusals are the point: a page reaches only the connection its call was made
 through, a person's own connection only for that person, and a tool only as far
 as the run that made the call could - its binding's list, the connection's list
 as it is now, and its approvals, where one that would wait for a person is
-refused rather than run.
+refused rather than run - and only as far as the agent's binding lets it now.
 """
 
 import base64
@@ -26,6 +26,7 @@ from app.core.exceptions import (
 )
 from app.core.permissions import AuthContext, OrgRoleName
 from app.core.security import create_mcp_app_view_token
+from app.db.models.agent import AgentStatus
 from app.services import mcp_app as module
 from app.services.mcp_app import McpAppService
 
@@ -52,6 +53,8 @@ def _record(connection_id: Any, **overrides: Any) -> dict[str, Any]:
         "tool_approval": {},
         "endpoint_hash": hashlib.sha256(b"https://charts.example.com/mcp").hexdigest(),
         "authorization_generation": GENERATION,
+        "agent_id": None,
+        "binding_key": None,
         **overrides,
     }
 
@@ -275,6 +278,16 @@ class TestPage:
             {"Authorization": "Bearer t"},
         )
 
+    async def test_a_blob_that_is_not_base64_is_no_page_not_a_failure(self, world):
+        world.server.page = {
+            "contents": [
+                {"uri": PAGE, "mimeType": "text/html;profile=mcp-app", "blob": "not*base64"}
+            ]
+        }
+
+        with pytest.raises(NotFoundError):
+            await world.service.page(self._token(world))
+
     async def test_a_page_sent_as_a_blob_is_decoded(self, world):
         world.server.page = {
             "contents": [
@@ -443,6 +456,124 @@ class TestToolCall:
 
         with pytest.raises(AuthorizationError):
             await _relay(world)
+
+
+@pytest.mark.security
+class TestTheAgentsBindingNow:
+    """A page is held to the binding as the agent has it now, as well as to the run's."""
+
+    @pytest.fixture
+    def agent(self, world, monkeypatch):
+        agent = MagicMock(
+            id=uuid4(), status=AgentStatus.PUBLISHED.value, current_version_id=uuid4()
+        )
+        key = f"organization:{world.connection.id}"
+        world.call.mcp_app = _record(world.connection.id, agent_id=str(agent.id), binding_key=key)
+        binding: dict[str, Any] = {"connection_id": str(world.connection.id)}
+        version = MagicMock()
+        version.spec = {"name": "Analyst", "mcp_servers": [binding]}
+        get = AsyncMock(return_value=agent)
+        get_version = AsyncMock(return_value=version)
+        monkeypatch.setattr(module.agent_repo, "get", get)
+        monkeypatch.setattr(module.agent_repo, "get_version", get_version)
+        return MagicMock(
+            agent=agent, binding=binding, version=version, get=get, get_version=get_version
+        )
+
+    async def test_a_tool_the_binding_still_allows_is_relayed(self, world, agent):
+        await _relay(world)
+
+        assert world.server.called == ("data_query", {})
+        assert agent.get.await_args.args[1] == agent.agent.id
+        assert agent.get.await_args.kwargs == {"organization_id": world.ctx.organization_id}
+        assert agent.get_version.await_args.args[1] == agent.agent.current_version_id
+
+    async def test_a_tool_taken_off_the_agents_list_since_is_refused(self, world, agent):
+        agent.binding["allowed_tools"] = ["chart_show"]
+
+        with pytest.raises(AuthorizationError):
+            await _relay(world)
+        assert world.server.called is None
+        world.audit.assert_not_awaited()
+
+    async def test_approvals_switched_to_all_since_refuse_a_read(self, world, agent):
+        """Read-only, and so let through by the run's `writes`: asked about now."""
+        agent.binding["approval"] = "all"
+
+        with pytest.raises(AuthorizationError) as refused:
+            await _relay(world)
+        assert refused.value.details == {"tool": "data_query", "approval_required": True}
+
+    async def test_a_tool_the_agent_now_always_asks_about_is_refused(self, world, agent):
+        agent.binding["tool_approval"] = {"data_query": "required"}
+
+        with pytest.raises(AuthorizationError):
+            await _relay(world)
+
+    async def test_a_page_only_tool_goes_with_its_pages_tool_off_the_agents_list(
+        self, world, agent
+    ):
+        agent.binding["allowed_tools"] = ["chart_show"]
+        world.server.tools = [
+            _tool("widget_data", meta={"ui": {"resourceUri": PAGE, "visibility": ["app"]}})
+        ]
+
+        with pytest.raises(AuthorizationError):
+            await _relay(world, name="widget_data")
+        assert world.server.called is None
+
+    async def test_loosening_the_agent_since_does_not_loosen_the_run(self, world, agent):
+        """Either refusing is a refusal: the run's own approvals still hold."""
+        agent.binding["approval"] = "none"
+        world.server.tools = [_tool("data_query", read_only=False)]
+
+        with pytest.raises(AuthorizationError):
+            await _relay(world)
+
+    async def test_an_agent_without_the_binding_any_more_lets_the_page_call_nothing(
+        self, world, agent
+    ):
+        agent.version.spec = {"name": "Analyst", "mcp_servers": []}
+
+        with pytest.raises(AuthorizationError):
+            await _relay(world)
+        assert world.server.called is None
+
+    async def test_the_same_service_as_a_persons_own_binding_is_another_binding(self, world, agent):
+        agent.version.spec = {
+            "name": "Analyst",
+            "mcp_servers": [{"account": "personal", "catalog_key": "charts"}],
+        }
+
+        with pytest.raises(AuthorizationError):
+            await _relay(world)
+
+    @pytest.mark.parametrize("gone", ["deleted", "archived", "unpublished", "version"])
+    async def test_an_agent_that_no_longer_runs_lets_the_page_call_nothing(
+        self, world, agent, gone
+    ):
+        if gone == "deleted":
+            agent.get.return_value = None
+        elif gone == "archived":
+            agent.agent.status = AgentStatus.ARCHIVED.value
+        elif gone == "unpublished":
+            agent.agent.current_version_id = None
+        else:
+            agent.get_version.return_value = None
+
+        with pytest.raises(AuthorizationError):
+            await _relay(world)
+        assert world.server.called is None
+
+    async def test_a_call_made_outside_an_agents_binding_is_held_to_the_run_alone(
+        self, world, agent
+    ):
+        world.call.mcp_app = _record(world.connection.id)
+
+        await _relay(world)
+
+        agent.get.assert_not_awaited()
+        assert world.server.called == ("data_query", {})
 
 
 class TestResourceRead:

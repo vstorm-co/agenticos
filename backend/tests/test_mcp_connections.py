@@ -1287,6 +1287,37 @@ class TestToolsetsForAgent:
         )
 
     @pytest.mark.anyio
+    @pytest.mark.parametrize("environment", [False, True])
+    async def test_each_server_names_the_agent_and_binding_it_was_attached_by(
+        self, monkeypatch, environment
+    ):
+        """What an MCP Apps page's calls are held to as the agent has it now (#3450).
+
+        The production connection's binding under a test environment too: that is
+        the one the agent's spec holds.
+        """
+        seen = self._capture(monkeypatch)
+        production = _connection(name="crm")
+        sandbox = _connection(name="crm-sandbox")
+        monkeypatch.setattr(
+            mcp_connection_service.mcp_connection_repo,
+            "get_org_scoped_by_ids",
+            AsyncMock(return_value={production.id: production, sandbox.id: sandbox}),
+        )
+        agent_id = uuid4()
+
+        await mcp_connection_service.build_toolsets_for_agent(
+            AsyncMock(),
+            organization_id=uuid4(),
+            refs=[OrgMcpServerRef(connection_id=production.id)],
+            test_connections={production.id: sandbox.id} if environment else None,
+            agent_id=agent_id,
+        )
+
+        (spec,) = seen[0]
+        assert (spec.agent_id, spec.binding_key) == (agent_id, f"organization:{production.id}")
+
+    @pytest.mark.anyio
     async def test_every_server_is_attached_inside_the_name_guard(self, monkeypatch):
         """A prefix keeps one server's tools apart from another's, not from the
         agent's capabilities' or the platform's own (#2890): each server is left

@@ -2803,6 +2803,8 @@ class TestForwardingToolEvents:
             "tool_approval": {},
             "endpoint_hash": "0" * 64,
             "authorization_generation": None,
+            "agent_id": None,
+            "binding_key": None,
         }
 
         async def _events():

@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Show the interactive page an MCP server returns with a tool result ([MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview)) under the answer in web chat, live and after a reload. Switch it on per connection in its Edit dialog; it is off by default. The page runs in the app sandbox with no network, and the console relays its tool calls only as far as the run's tools and approvals allow: a call that would need approval is refused. Channels, the API, the embed and voice keep the text result. (#3450)
+- Show the interactive page an MCP server returns with a tool result ([MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview)) under the answer in web chat, live and after a reload. Switch it on per connection in its Edit dialog; it is off by default. The page runs in the app sandbox with no network and no native dialogs, and the console relays its tool calls only as far as the run's tools and approvals allow, and the agent's as they are now: a call that would need approval is refused. Channels, the API, the embed and voice keep the text result. (#3450)
 
 ### Changed
 

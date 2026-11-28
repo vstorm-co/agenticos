@@ -28,7 +28,13 @@ from pydantic_ai.mcp import MCPAppToolResult
 from pydantic_ai.messages import ToolReturn
 from pydantic_ai.toolsets import ToolsetTool, WrapperToolset
 
-from app.agents.spec import ApprovalMode, McpApproval
+from app.agents.spec import (
+    ApprovalMode,
+    McpApproval,
+    McpServerRef,
+    OrgMcpServerRef,
+    PersonalMcpServerRef,
+)
 
 UI_EXTENSION: Final = "io.modelcontextprotocol/ui"
 """The MCP Apps extension's identifier, announced in the client's capabilities."""
@@ -86,6 +92,11 @@ class McpAppRecord(TypedDict):
     authorization_generation: str | None
     """The connection's credential generation when the call was made: a replaced
     token or a new sign-in is another account."""
+    agent_id: str | None
+    """The agent whose binding the call was made through, so a page's calls are held
+    to that binding as it is now as well: `None` where no agent's binding was."""
+    binding_key: str | None
+    """Which of the agent's bindings it was: see :func:`binding_key`."""
 
 
 _STORED: TypeAdapter[McpAppRecord] = TypeAdapter(McpAppRecord)
@@ -105,6 +116,20 @@ def stored_record(value: object) -> McpAppRecord | None:
         return _STORED.validate_python(value)
     except ValidationError:
         return None
+
+
+def binding_key(ref: McpServerRef) -> str | None:
+    """Which of an agent's MCP bindings `ref` is, stable across its versions.
+
+    An organization binding by its connection - the production one, under a test
+    environment too - and a personal one by its service. `None` for this
+    deployment's own server, whose pages are never relayed.
+    """
+    if isinstance(ref, OrgMcpServerRef):
+        return f"organization:{ref.connection_id}"
+    if isinstance(ref, PersonalMcpServerRef):
+        return f"personal:{ref.catalog_key}"
+    return None
 
 
 class McpAppView(TypedDict):
@@ -212,6 +237,8 @@ class McpAppResults(WrapperToolset[Any]):
     tool_approval: Mapping[str, ApprovalMode] = dataclasses.field(default_factory=dict)
     endpoint_hash: str = ""
     authorization_generation: UUID | None = None
+    agent_id: UUID | None = None
+    binding_key: str | None = None
 
     async def call_tool(
         self, name: str, tool_args: dict[str, Any], ctx: RunContext[Any], tool: ToolsetTool[Any]
@@ -237,6 +264,8 @@ class McpAppResults(WrapperToolset[Any]):
             authorization_generation=(
                 str(self.authorization_generation) if self.authorization_generation else None
             ),
+            agent_id=str(self.agent_id) if self.agent_id else None,
+            binding_key=self.binding_key,
         )
         if len(json.dumps(record, default=str)) > MAX_RECORD_BYTES:
             return _without_record(result)

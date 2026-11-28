@@ -687,7 +687,9 @@ Oberfläche sieht.
 
 !!! warning "Eine Seite ist Code des Serverbetreibers und läuft im Browser der lesenden Person"
 
-    Sie läuft in derselben Sandbox wie eine [App](artifacts.md): eine opake
+    Sie läuft in derselben Sandbox wie eine [App](artifacts.md), ohne native
+    Dialoge (`alert`, `confirm`, `prompt`), die den Namen dieser Installation
+    trügen: eine opake
     Origin, also kein Cookie, kein Storage und kein DOM der Konsole;
     `connect-src 'none'` und keine entfernten Quellen, also kann sie selbst nichts
     irgendwohin senden. Domains, die eine Seite in `_meta.ui.csp` anfragt, werden
@@ -698,7 +700,7 @@ Oberfläche sieht.
 Eine Seite erreicht ihren Server nicht, also leitet die Konsole weiter, was sie
 anfragt: `tools/call` und `resources/read` (nur `ui://`-Ressourcen). Ein
 weitergeleiteter Aufruf darf nur, was der Run durfte, der den ursprünglichen
-Aufruf gemacht hat:
+Aufruf gemacht hat, und was das Binding des Agenten jetzt erlaubt:
 
 - Er geht an die Verbindung des Aufrufs selbst, und die eigene Verbindung einer
   Person nur für diese Person. Die lesende Person muss an der Unterhaltung
@@ -709,7 +711,12 @@ Aufruf gemacht hat:
   Verbindung, wie sie jetzt ist. Ein Tool, das der Server nur Seiten anbietet,
   steht nie in einer Tool-Liste zur Auswahl - das Modell sieht es nie -, also ist
   es für die Seite erlaubt, die es nennt, und für keine andere.
-- Ein Aufruf, den die Freigaben des Bindings auf eine Person warten ließen, wird
+- Er hält sich auch an das Binding des Agenten, wie es jetzt ist, aus seiner
+  veröffentlichten Version: Ein Tool von der Liste des Bindings zu nehmen oder dort
+  Freigaben zu verlangen, gilt sofort für die Seiten, die schon in Unterhaltungen
+  stehen. Ein archivierter Agent oder einer ohne dieses Binding lässt seine Seiten
+  nichts mehr aufrufen. Ein seither gelockertes Binding lockert das des Runs nicht.
+- Ein Aufruf, den die Freigaben eines der beiden Bindings auf eine Person warten ließen, wird
   **abgelehnt**, nicht geparkt: Eine Freigabe gehört zur Unterhaltung, und eine
   Seite ist kein Weg an ihr vorbei. Unter `writes` ist das jedes Tool, das der
   Server nicht mit `readOnlyHint` markiert.

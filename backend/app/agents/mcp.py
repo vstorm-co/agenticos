@@ -248,6 +248,11 @@ class McpServerSpec:
     connection_id: UUID | None = None
     # Both personal and organization accounts; independent of usage tracking.
     source_connection_id: UUID | None = None
+    # The agent whose binding attached this server, and which binding of its spec
+    # it is (`binding_key`), so a page's later call can be held to that binding as
+    # it is now as well as to how it was (#3450). None outside an agent's run.
+    agent_id: UUID | None = None
+    binding_key: str | None = None
     authorization_generation: UUID | None = None
     # A shared Vault client can be revoked while this transport remains cached.
     recheck_source: bool = False
@@ -547,6 +552,8 @@ def _make_toolset(spec: McpServerSpec) -> Any:
         tool_approval=spec.tool_approval,
         endpoint_hash=hashlib.sha256(spec.url.encode()).hexdigest(),
         authorization_generation=spec.authorization_generation,
+        agent_id=spec.agent_id,
+        binding_key=spec.binding_key,
     )
     if spec.source_connection_id is not None and spec.authorization_generation is not None:
         server = SourceStamped(
