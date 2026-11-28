@@ -651,6 +651,7 @@ it.each([
   "opencode_go",
   "ollama_cloud",
   "cliproxyapi",
+  "martllm",
 ])("does not list a custom %s endpoint before a key is selected", (provider) => {
   vi.mocked(apiClient.get).mockClear();
   renderHook(() => useProviderModels(provider, "https://gateway.example/api/v1"), { wrapper });
