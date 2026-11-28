@@ -65,6 +65,33 @@ it("does not try the legacy API when the modern API denies copying", async () =>
   expect(document.querySelector("textarea")).toBeNull();
 });
 
+it("cleans up and restores focus when legacy copying throws", async () => {
+  vi.stubGlobal("navigator", {});
+  const execCommand = vi.fn(() => {
+    throw new DOMException("Denied", "NotAllowedError");
+  });
+  Object.defineProperty(document, "execCommand", { configurable: true, value: execCommand });
+  const { result } = renderHook(() => useCopyToClipboard(), {
+    wrapper: ({ children }) => (
+      <>
+        <button type="button">Copy</button>
+        {children}
+      </>
+    ),
+  });
+  const button = screen.getByRole("button", { name: "Copy" });
+  button.focus();
+
+  await act(async () => {
+    expect(await result.current.copy("Draft")).toBe(false);
+  });
+
+  expect(execCommand).toHaveBeenCalledExactlyOnceWith("copy");
+  expect(result.current.copied).toBe(false);
+  expect(document.querySelector("textarea")).toBeNull();
+  expect(button).toHaveFocus();
+});
+
 it("cancels feedback when the copied card unmounts", async () => {
   vi.useFakeTimers();
   vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
