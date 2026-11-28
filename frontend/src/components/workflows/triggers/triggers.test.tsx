@@ -232,8 +232,10 @@ describe("TriggerPanel", () => {
     expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
   });
 
-  it("links shared webhook credentials to Event sources and keeps the workflow pause control", () => {
-    hook.exposure = exposure({ adapter: "webhook", source_id: "shared-source" });
+  it("shows the source URL and credential link for a subscribed workflow", () => {
+    const sourceId = "52f5d5d0-d34a-4c6c-9512-d2b241bd2d57";
+    const url = `https://agents.example.com/api/v1/webhooks/${sourceId}`;
+    hook.exposure = exposure({ adapter: "webhook", source_id: sourceId, webhook_url: url });
     render(
       <TriggerPanel
         workflow={workflow("trigger.webhook")}
@@ -242,6 +244,7 @@ describe("TriggerPanel", () => {
         canEdit
       />,
     );
+    expect(screen.getByLabelText("Source webhook URL")).toHaveValue(url);
     expect(screen.queryByRole("button", { name: "New secret" })).toBeNull();
     expect(
       screen.getByRole("link", { name: "Manage credentials in Event sources" }),
@@ -300,7 +303,7 @@ describe("TriggerPanel", () => {
         canEdit
       />,
     );
-    expect(screen.getByDisplayValue(url)).toBeTruthy();
+    expect(screen.getByLabelText("Webhook URL")).toHaveValue(url);
     await userEvent.click(screen.getByRole("button", { name: "New secret" }));
     expect(hook.rotate.mutate).toHaveBeenCalledWith("e1", expect.anything());
     expect(await screen.findByRole("dialog")).toBeTruthy();

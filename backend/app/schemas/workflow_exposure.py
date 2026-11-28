@@ -9,6 +9,7 @@ from pydantic import Field, computed_field
 from app.core.config import settings
 from app.db.models.workflow_exposure import ExposureAdapter, ExposureScheduleKind
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.event_source import event_source_webhook_url
 from app.workflows.contracts.fields import InputField
 from app.workflows.contracts.form import FormAppearance
 
@@ -76,11 +77,9 @@ class WorkflowExposureRead(BaseSchema, TimestampSchema):
     @computed_field  # type: ignore[prop-decorator]  - pydantic reads the property
     @property
     def webhook_url(self) -> str | None:
-        """Where a webhook's or a GitHub hook's sender delivers. Null for the others."""
+        """Where the sender delivers: the shared source URL, a dedicated URL, or null."""
         if self.source_id is not None:
-            return (
-                f"{settings.PUBLIC_BASE_URL.rstrip('/')}/api/v1/webhooks/sources/{self.source_id}"
-            )
+            return event_source_webhook_url(self.source_id)
         return delivery_url(self.adapter, self.id)
 
     @computed_field  # type: ignore[prop-decorator]  - pydantic reads the property

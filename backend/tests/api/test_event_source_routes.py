@@ -151,12 +151,21 @@ async def test_live_ingress_returns_provider_success_and_captures_without_second
 ):
     client, service, samples, source = wired
     source.provider = provider
-    response = await client.post(f"/api/v1/webhooks/sources/{source.id}", json={"x": 1})
+    response = await client.post(f"/api/v1/webhooks/{source.id}", json={"x": 1})
     assert response.status_code == status
     service.receive.assert_awaited_once()
     samples.capture_after_commit.assert_called_once_with(
         source.id, body={"x": 1}, delivery_id="one", received_at=ANY
     )
+
+
+async def test_removed_source_path_and_non_uuid_never_reach_source_ingress(wired) -> None:
+    client, service, samples, source = wired
+    for path in (f"/api/v1/webhooks/sources/{source.id}", "/api/v1/webhooks/not-a-uuid"):
+        response = await client.post(path, content=b"{}", follow_redirects=False)
+        assert response.status_code == 404
+    service.receive.assert_not_awaited()
+    samples.capture_after_commit.assert_not_called()
 
 
 @pytest.mark.parametrize("commit_fails", [False, True])
@@ -184,7 +193,7 @@ async def test_live_receipt_commits_and_responds_without_waiting_for_sample_cach
     app.dependency_overrides.pop(deps.get_event_source_sample_service)
     app.dependency_overrides[deps.get_redis] = lambda: mock_redis
     monkeypatch.setattr(session, "async_session_maker", session_factory)
-    path = f"/api/v1/webhooks/sources/{source.id}"
+    path = f"/api/v1/webhooks/{source.id}"
     try:
         if commit_fails:
             mock_db_session.commit.side_effect = RuntimeError("commit failed")
@@ -206,7 +215,7 @@ async def test_live_receipt_commits_and_responds_without_waiting_for_sample_cach
 async def test_oversized_ingress_is_refused_before_authentication_or_capture(wired):
     client, service, samples, source = wired
     response = await client.post(
-        f"/api/v1/webhooks/sources/{source.id}",
+        f"/api/v1/webhooks/{source.id}",
         content=b"x" * (settings.WORKFLOW_RUN_MAX_INPUT_BYTES + 1),
     )
     assert response.status_code == 413
@@ -221,7 +230,7 @@ async def test_shared_ingress_throttles_the_address_before_reading_the_body(wire
     consume = AsyncMock(return_value=over)
     monkeypatch.setattr(rate_limit, "consume", consume)
     response = await client.post(
-        f"/api/v1/webhooks/sources/{source.id}",
+        f"/api/v1/webhooks/{source.id}",
         content=b"x" * (settings.WORKFLOW_RUN_MAX_INPUT_BYTES + 1),
     )
     assert response.status_code == 429

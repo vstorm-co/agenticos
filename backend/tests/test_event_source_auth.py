@@ -17,7 +17,7 @@ pytestmark = pytest.mark.security
 _KEY = "example-signing-key"
 _BODY = b'{"webhookTimestamp":1700000000000,"issue":{"title":"Hello"}}'
 _NOW = 1700000000
-_URL = "https://example.com/api/v1/webhooks/sources/source-id"
+_URL = "https://example.com/api/v1/webhooks/491ccb37-2305-478c-9760-f5c6af8d227c"
 
 
 def _hmac(value: bytes, key: bytes = _KEY.encode()) -> bytes:

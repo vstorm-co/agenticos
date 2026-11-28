@@ -23,6 +23,16 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
 
+### Upgrading
+
+- **Breaking: reusable Event Source webhook URLs.** `POST /api/v1/webhooks/{source_id}`
+  replaces `POST /api/v1/webhooks/sources/{source_id}` without an alias or redirect.
+  At cutover, update sender URLs and path-based ingress rules together. Send a
+  fresh signed delivery through the public ingress and verify that it returns
+  `202 Accepted` (`200 OK` for Linear) and starts a subscribed workflow run.
+  Existing source IDs, subscriptions, dedicated webhook URLs and the
+  `/api/v1/event-sources` management API are unchanged.
+
 ## [1.95.0] - 2026-11-26
 
 ### Fixed

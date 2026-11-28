@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 
+from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext
 from app.db.models.workflow import Workflow, WorkflowVersion
@@ -110,7 +111,9 @@ async def test_publish_reuses_source_and_returns_its_url_without_a_secret(publis
     )
     assert secret is None
     assert read.source_id == exposure.source_id
-    assert read.webhook_url.endswith(f"/webhooks/sources/{exposure.source_id}")
+    assert read.webhook_url == (
+        f"{settings.PUBLIC_BASE_URL.rstrip('/')}{settings.API_V1_STR}/webhooks/{exposure.source_id}"
+    )
     assert read.execution_principal_user_id == ctx.user_id
     assert read.workflow_version_id == version.id
     assert "secret" not in str(read.model_dump())

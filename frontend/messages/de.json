@@ -4991,7 +4991,7 @@
       },
       "create-event-source": {
         "title": "Neue Quelle erstellen",
-        "body": "Authentifizierte Ereignisse einmal empfangen und mit Routinen und Workflows teilen."
+        "body": "Jede Ereignisquelle hat eine Webhook-URL. Workflows und Routinen abonnieren die Quelle."
       }
     },
     "steps": {
@@ -6262,15 +6262,15 @@
       },
       "event-sources-header": {
         "title": "Ereignisquellen",
-        "body": "Authentifizierte Ereignisse einmal empfangen und mit Routinen und Workflows teilen."
+        "body": "Jede Ereignisquelle hat eine Webhook-URL. Workflows und Routinen abonnieren die Quelle."
       },
       "event-sources-create": {
         "title": "Neue Quelle erstellen",
-        "body": "Konfiguriere den Absender manuell, damit er JSON per POST an die Quell-URL sendet."
+        "body": "Konfiguriere den Absender so, dass er JSON per POST an die Webhook-URL der Quelle sendet. Verwende dieselbe URL für alle Abonnenten."
       },
       "flow-event-source-create": {
         "title": "Neue Quelle erstellen",
-        "body": "Konfiguriere den Absender manuell, damit er JSON per POST an die Quell-URL sendet."
+        "body": "Konfiguriere den Absender so, dass er JSON per POST an die Webhook-URL der Quelle sendet. Verwende dieselbe URL für alle Abonnenten."
       },
       "channels-binding": {
         "title": "Festlegen, wer antwortet",
@@ -21722,7 +21722,7 @@
     "vaultCredentialHelp": "Wählen Sie Zugangsdaten der Organisation aus dem Vault. Die Quelle verwendet den aktuellen Wert, auch nach einer Rotation.",
     "manageSources": "Ereignisquellen verwalten",
     "title": "Ereignisquellen",
-    "description": "Authentifizierte Ereignisse einmal empfangen und mit Routinen und Workflows teilen.",
+    "description": "Jede Ereignisquelle hat eine Webhook-URL. Workflows und Routinen abonnieren die Quelle.",
     "name": "Name",
     "provider": "Provider",
     "providers": {
@@ -21742,7 +21742,7 @@
     "username": "Benutzername",
     "password": "Passwort",
     "secret": "Geheimnis",
-    "manualSetup": "Konfiguriere den Absender manuell, damit er JSON per POST an die Quell-URL sendet.",
+    "manualSetup": "Konfiguriere den Absender so, dass er JSON per POST an die Webhook-URL der Quelle sendet. Verwende dieselbe URL für alle Abonnenten.",
     "visibility": "Sichtbarkeit",
     "private": "Privat",
     "organization": "Organisation",
@@ -21761,12 +21761,12 @@
     "chooseSource": "Vorhandene Quelle auswählen",
     "paused": "Pausiert",
     "active": "Aktiv",
-    "liveUrl": "Live-Endpoint-URL",
+    "liveUrl": "Webhook-URL der Quelle",
     "revealOnce": "Kopiere dieses Geheimnis jetzt. Es wird nicht erneut angezeigt.",
     "createNew": "Neue Quelle erstellen",
     "loadError": "Ereignisquellen konnten nicht geladen werden.",
     "retry": "Erneut versuchen",
-    "liveWarning": "Zwei Minuten auf dieser Live-URL auf ein Ereignis warten. Aktive Abonnenten laufen normal weiter. Beispiele sind temporär und verfallen nach zehn Minuten. Ein Beispiel ist optional.",
+    "liveWarning": "Warte zwei Minuten lang an der Webhook-URL der Quelle auf Ereignisse. Aktive Abonnenten laufen normal weiter. Beispiele sind optional und laufen nach zehn Minuten ab.",
     "noUse": "Zum Erfassen von Ereignissen ist die Berechtigung zur Quellennutzung erforderlich.",
     "captureError": "Das Ereignisbeispiel konnte nicht erfasst werden. Die Verarbeitung laufender Zustellungen bleibt unverändert.",
     "expired": "Die Wartezeit ist abgelaufen. Starte erneut, wenn der Absender bereit ist.",

@@ -1,5 +1,5 @@
 ---
-source_sha: "40313f92dbc9"
+source_sha: "de2e271964f3"
 ---
 
 # Workflows { #workflows }
@@ -1083,7 +1083,7 @@ El selector enlaza a la administración de fuentes sin añadir otro destino pred
 
 Los pasos **Webhook** nuevos en el editor de workflows empiezan pidiéndote que elijas o crees una fuente de eventos. Puedes guardar el borrador y probarlo con JSON pegado antes de elegir una fuente, pero para publicar debes seleccionar una fuente o elegir expresamente un **endpoint dedicado**. Elige un endpoint dedicado cuando el remitente necesite una respuesta síncrona. Los pasos dedicados existentes conservan su configuración y sus URL.
 
-En un disparador **Webhook**, selecciona una **Fuente de eventos** existente o crea una. Publicar suscribe esa entrada concreta del workflow; las publicaciones posteriores conservan la suscripción cuando no cambian la fuente ni la entrada. La fuente guarda las credenciales fuera de la definición del workflow. Las demás rutinas y workflows reciben los mismos eventos autenticados de forma independiente. [Fuentes de eventos](triggers.md#reusable-event-sources) explica proveedores, autenticación, permisos, pausas y retención.
+En un disparador **Webhook**, selecciona una **Fuente de eventos** existente o crea una. Publicar suscribe esa entrada concreta del workflow; las publicaciones posteriores conservan la suscripción cuando no cambian la fuente ni la entrada. Da a los remitentes la URL del webhook de la fuente, no una URL para la entrada del workflow. La fuente guarda las credenciales fuera de la definición del workflow. Las demás rutinas y workflows reciben los mismos eventos autenticados de forma independiente. [Fuentes de eventos](triggers.md#reusable-event-sources) explica la URL, los proveedores, la autenticación, los permisos, las pausas y la retención.
 
 Puedes sustituir una fuente que ya no tienes permiso para usar por otra que sí puedas usar. La suscripción activa cambia al publicar. Fijar una muestra modifica el borrador del workflow y requiere permiso de edición.
 

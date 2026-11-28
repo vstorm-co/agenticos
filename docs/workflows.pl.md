@@ -1,5 +1,5 @@
 ---
-source_sha: "40313f92dbc9"
+source_sha: "de2e271964f3"
 ---
 
 # Workflows { #workflows }
@@ -1049,7 +1049,7 @@ Selektor źródła prowadzi do zarządzania źródłami bez dodawania kolejnej d
 
 Nowe kroki **Webhook** w edytorze workflow zaczynają od wyboru lub utworzenia źródła zdarzeń. Przed wybraniem źródła możesz zapisać wersję roboczą i przetestować ją za pomocą wklejonego JSON-a. Publikacja wymaga wybrania źródła lub jawnego wybrania **dedykowanego endpointu**. Wybierz dedykowany endpoint, gdy nadawca potrzebuje odpowiedzi synchronicznej. Istniejące dedykowane kroki zachowują ustawienia i adresy URL.
 
-W wyzwalaczu **Webhook** wybierz istniejące **Źródło zdarzeń** lub utwórz nowe. Publikacja subskrybuje konkretne wejście workflow; kolejne publikacje zachowują subskrypcję, gdy źródło i wejście się nie zmieniają. Poświadczenia pozostają w źródle, poza definicją workflow. Pozostałe rutyny i workflow otrzymują te same uwierzytelnione zdarzenia niezależnie. [Źródła zdarzeń](triggers.md#reusable-event-sources) opisują dostawców, uwierzytelnianie, uprawnienia, pauzowanie i retencję.
+W wyzwalaczu **Webhook** wybierz istniejące **Źródło zdarzeń** lub utwórz nowe. Publikacja subskrybuje konkretne wejście workflow; kolejne publikacje zachowują subskrypcję, gdy źródło i wejście się nie zmieniają. Podaj nadawcom adres webhooka źródła, a nie adres wejścia workflow. Poświadczenia pozostają w źródle, poza definicją workflow. Pozostałe rutyny i workflow otrzymują te same uwierzytelnione zdarzenia niezależnie. [Źródła zdarzeń](triggers.md#reusable-event-sources) opisują adres URL, dostawców, uwierzytelnianie, uprawnienia, pauzowanie i retencję.
 
 Źródło, do którego nie masz już prawa używania, możesz zastąpić innym, którego wolno Ci używać. Aktywna subskrypcja zmienia się po publikacji. Przypięcie próbki zmienia wersję roboczą workflow i wymaga prawa do edycji.
 

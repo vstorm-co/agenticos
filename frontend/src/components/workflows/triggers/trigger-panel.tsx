@@ -229,6 +229,7 @@ function ExposureStatus({
 }) {
   const t = useTranslations("pages.workflows");
   const tTriggers = useTranslations("triggers");
+  const tSources = useTranslations("eventSources");
   const locale = useLocale();
   const { exposure, isLoading, setActive, rotate, renewLink } = useWorkflowExposure(
     workflow.id,
@@ -300,7 +301,7 @@ function ExposureStatus({
       {exposure.webhook_url !== null && (
         <CopyableValue
           id={`webhook-url-${exposure.id}`}
-          label={t("webhookUrl")}
+          label={exposure.source_id ? tSources("liveUrl") : t("webhookUrl")}
           value={exposure.webhook_url}
         />
       )}

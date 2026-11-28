@@ -1,5 +1,5 @@
 ---
-source_sha: "22fac73d07b1"
+source_sha: "016a2a6531a1"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -126,7 +126,11 @@ Strona zarządzania **Źródłami zdarzeń** pozostaje pod `/event-sources`; pro
 
 Dodaj widżet **Źródła zdarzeń** do pulpitu, aby sprawdzić, ile widocznych dla Ciebie źródeł jest aktywnych lub wstrzymanych.
 
-Otwórz **Źródła zdarzeń** albo wybierz **Wybierz istniejące / Utwórz nowe** w edytorze webhooka rutyny lub workflow. Źródło przechowuje swój adres URL, poświadczenia i konfigurację dostawcy. Wiele rutyn i opublikowanych wejść workflow może subskrybować ten sam URL, zachowując własne filtry, tożsamość wykonania, uprawnienia, zgody i budżety.
+Otwórz **Źródła zdarzeń** albo wybierz **Wybierz istniejące / Utwórz nowe** w edytorze webhooka rutyny lub workflow. Każde źródło ma własne poświadczenia, konfigurację dostawcy i jeden adres do odbierania zdarzeń: `{PUBLIC_BASE_URL}/api/v1/webhooks/{source_id}`, gdzie `source_id` to UUID źródła. Skopiuj ten adres z konsoli. Nie zależy on od dostawcy ani od tego, które workflow subskrybują źródło.
+
+Nadawcy wysyłają żądania POST do źródła, a nie do konkretnych workflow czy bezpośrednich wyzwalaczy rutyn. Wiele rutyn i opublikowanych wejść workflow może subskrybować to samo źródło. Każdy subskrybent zachowuje własne filtry, tożsamość wykonania, uprawnienia, zgody i budżety.
+
+Do konfigurowania źródeł, a nie do wysyłania zdarzeń, służy oddzielne API pod `/api/v1/event-sources`, które wymaga uwierzytelnienia.
 
 Domyślna widoczność to **Prywatne**. **Organizacja** udostępnia źródło zgodnie z uprawnieniami organizacji. Prawo wyświetlania pozwala zobaczyć konfigurację. Prawo używania pozwala nasłuchiwać przychodzących danych przed zastosowaniem filtrów subskrybentów, nawet bez rutyny lub workflow. Próbkę może odczytać tylko osoba, która rozpoczęła nasłuchiwanie i nadal ma prawo używać źródła. Podłączenie źródła wymaga również prawa do edycji i uruchamiania celu. Worker ponownie sprawdza uprawnienia przed wykonaniem zadania.
 
@@ -143,11 +147,11 @@ W formularzu źródła wybierz klucz Vault widoczny w organizacji albo utwórz g
 
 Każdy przychodzący webhook ponownie odczytuje aktualną wartość Vault. Obróć klucz w Vault bez ponownego zapisywania wszystkich źródeł, które go wskazują. Usunięty klucz lub odebrana widoczność w organizacji uniemożliwia uwierzytelnienie; źródło nie wraca do starszej kopii poświadczeń. Istniejące poświadczenia przekazywane bezpośrednio przez API i poświadczenia automatycznie generowane dla źródeł zachowują zgodność.
 
-Wyślij POST zawierający obiekt JSON; zachowana jest dotychczasowa adaptacja partii HubSpot. Poświadczenia są tylko do zapisu i trafiają do sejfu organizacji. Przechowuj je w Vault lub źródle, nigdy w definicji workflow ani przykładzie. Identyfikatory dostawcy lub skonfigurowany nagłówek ID dostawy rozpoznają ponowienia. Poświadczenia Basic Auth i klucze API nie są identyfikatorami zdarzeń. Bez ID zdarzenia ponowienia mogą uruchomić dodatkowe wykonania.
+Wyślij POST zawierający obiekt JSON; zachowana jest dotychczasowa adaptacja partii HubSpot. Przed odczytaniem JSON-a źródło weryfikuje podpis na podstawie surowej treści żądania. Poświadczenia są tylko do zapisu i trafiają do sejfu organizacji. Przechowuj je w Vault lub źródle, nigdy w definicji workflow ani przykładzie. Identyfikatory dostawcy lub skonfigurowany nagłówek ID dostawy rozpoznają ponowienia. Poświadczenia Basic Auth i klucze API nie są identyfikatorami zdarzeń. Bez ID zdarzenia ponowienia mogą uruchomić dodatkowe wykonania.
 
 Uwierzytelniona dostawa i zadania wysyłki zapisują się wspólnie, zanim źródło potwierdzi odbiór. Błędy subskrybentów są niezależne. Worker ponawia próbę dostarczenia, gdy subskrybent tymczasowo osiągnie limit częstotliwości lub liczby równoczesnych wykonań. Zdarzenie w kolejce może użyć tylko zgody na źródło rutyny obowiązującej w chwili odbioru. Zmiana źródła wstrzymuje rutynę. Przed jej wznowieniem właściciel musi zatwierdzić nowe źródło.
 
-Wspólny URL asynchronicznie potwierdza trwały odbiór i nie zwraca własnej odpowiedzi workflow. Workflow ze wspólnym źródłem nie może dotrzeć do **Odpowiedz na webhook**. Dedykowane endpointy workflow zachowują odpowiedzi synchroniczne.
+Wspólny URL asynchronicznie potwierdza trwały odbiór kodem `202 Accepted` (dla Linear: `200 OK`) i nie zwraca własnej odpowiedzi workflow. Workflow ze wspólnym źródłem nie może dotrzeć do **Odpowiedz na webhook**. Dedykowane endpointy workflow zachowują odpowiedzi synchroniczne.
 
 **Wstrzymaj źródło** zatrzymuje uruchamianie subskrybentów dla nowych dostaw. Wstrzymane źródło nadal weryfikuje i zapisuje każdą dostawę, a włączony nasłuch nadal ją przechwytuje. Wstrzymanie rutyny lub workflow dotyczy tylko tego celu. Usunięcie źródła jest zablokowane, dopóki istnieją subskrypcje; lista użycia wskazuje cele do odłączenia. Zakończone dostawy podlegają zasadom retencji zadań w tle.
 

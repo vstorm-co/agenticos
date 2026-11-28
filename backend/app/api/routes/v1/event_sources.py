@@ -93,7 +93,7 @@ async def caught(source_id: UUID, token: str, ctx: Auth, service: EventSourceSam
 
 
 @public_router.post(
-    "/sources/{source_id}",
+    "/{source_id:uuid}",
     dependencies=[Depends(limit_workflow_webhook)],
     response_model=None,
     status_code=status.HTTP_202_ACCEPTED,
@@ -102,7 +102,14 @@ async def caught(source_id: UUID, token: str, ctx: Auth, service: EventSourceSam
 async def receive(
     source_id: UUID, request: Request, service: EventSourceSvc, samples: EventSourceSampleSvc
 ) -> Any:
-    """Authenticate POST JSON once and acknowledge durable receipt, never wait for an agent."""
+    """Receive an authenticated JSON delivery at the Event Source's one public URL.
+
+    The UUID identifies the source, not a provider, workflow, or routine trigger.
+    If configured, a signature is verified against the raw body. The delivery is
+    acknowledged after durable receipt and queueing for active subscribers,
+    without waiting for their runs. Retries with the same delivery ID do not
+    dispatch again. Linear receives HTTP 200; other providers receive HTTP 202.
+    """
     body = await read_workflow_body(request.stream())
     received_at = datetime.now(UTC)
     source, receipt, _ = await service.receive(source_id, body=body, headers=request.headers)

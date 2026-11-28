@@ -4996,7 +4996,7 @@
       },
       "create-event-source": {
         "title": "Criar nova fonte",
-        "body": "Receba cada evento autenticado uma única vez e compartilhe-o com rotinas e workflows."
+        "body": "Cada fonte de eventos tem uma única URL de webhook. Os workflows e as rotinas se inscrevem na fonte."
       }
     },
     "steps": {
@@ -6323,15 +6323,15 @@
       },
       "event-sources-header": {
         "title": "Fontes de eventos",
-        "body": "Receba cada evento autenticado uma única vez e compartilhe-o com rotinas e workflows."
+        "body": "Cada fonte de eventos tem uma única URL de webhook. Os workflows e as rotinas se inscrevem na fonte."
       },
       "event-sources-create": {
         "title": "Criar nova fonte",
-        "body": "Configure o remetente manualmente para enviar JSON por POST à URL da fonte."
+        "body": "Configure o remetente para enviar JSON por POST à URL do webhook da fonte. Use a mesma URL para todos os assinantes."
       },
       "flow-event-source-create": {
         "title": "Criar nova fonte",
-        "body": "Configure o remetente manualmente para enviar JSON por POST à URL da fonte."
+        "body": "Configure o remetente para enviar JSON por POST à URL do webhook da fonte. Use a mesma URL para todos os assinantes."
       },
       "workflow-python-actions": {
         "title": "Chamar ferramentas a partir do Python",
@@ -22258,7 +22258,7 @@
     "vaultCredentialHelp": "Escolha uma credencial da organização no Vault. A fonte usa o valor atual, inclusive após a rotação.",
     "manageSources": "Gerenciar fontes de eventos",
     "title": "Fontes de eventos",
-    "description": "Receba cada evento autenticado uma única vez e compartilhe-o com rotinas e workflows.",
+    "description": "Cada fonte de eventos tem uma única URL de webhook. Os workflows e as rotinas se inscrevem na fonte.",
     "name": "Nome",
     "provider": "Provedor",
     "providers": {
@@ -22278,7 +22278,7 @@
     "username": "Nome de usuário",
     "password": "Senha",
     "secret": "Segredo",
-    "manualSetup": "Configure o remetente manualmente para enviar JSON por POST à URL da fonte.",
+    "manualSetup": "Configure o remetente para enviar JSON por POST à URL do webhook da fonte. Use a mesma URL para todos os assinantes.",
     "visibility": "Visibilidade",
     "private": "Privada",
     "organization": "Organização",
@@ -22297,12 +22297,12 @@
     "chooseSource": "Selecione uma fonte existente",
     "paused": "Pausada",
     "active": "Ativa",
-    "liveUrl": "URL do endpoint ativo",
+    "liveUrl": "URL do webhook da fonte",
     "revealOnce": "Copie este segredo agora. Ele não será exibido novamente.",
     "createNew": "Criar nova fonte",
     "loadError": "Não foi possível carregar as fontes de eventos.",
     "retry": "Tentar novamente",
-    "liveWarning": "A captura aguarda eventos nesta URL ativa por dois minutos. Os assinantes ativos continuam funcionando normalmente. As amostras são temporárias e expiram após dez minutos. Usar uma amostra é opcional.",
+    "liveWarning": "Aguarde eventos na URL do webhook da fonte por dois minutos. Os assinantes ativos continuam funcionando normalmente. As amostras são opcionais e expiram após dez minutos.",
     "noUse": "É preciso ter permissão de uso da fonte para capturar eventos.",
     "captureError": "Não foi possível capturar a amostra do evento. Isso não afeta o processamento das entregas em tempo real.",
     "expired": "O tempo de espera terminou. Inicie uma nova captura quando o remetente estiver pronto.",
