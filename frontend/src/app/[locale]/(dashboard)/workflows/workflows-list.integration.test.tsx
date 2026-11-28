@@ -147,13 +147,18 @@ describe("the workflows list", () => {
     expect(screen.getAllByRole("button", { name: /^Duplicate / })).toHaveLength(WORKFLOWS.length);
   });
 
-  it("opens the import dialog from Import", async () => {
-    render(<WorkflowsPage />, { wrapper });
-    await screen.findByRole("link", { name: "Open Live" });
+  it("loads the list and opens Import on plain HTTP without randomUUID", async () => {
+    vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
+    try {
+      render(<WorkflowsPage />, { wrapper });
+      await screen.findByRole("link", { name: "Open Live" });
 
-    await userEvent.click(screen.getByRole("button", { name: "Import" }));
+      await userEvent.click(screen.getByRole("button", { name: "Import" }));
 
-    expect(await screen.findByRole("dialog", { name: "Import workflow" })).toBeVisible();
+      expect(await screen.findByRole("dialog", { name: "Import workflow" })).toBeVisible();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("hides both creation controls from a caller who may only view", async () => {

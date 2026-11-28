@@ -19,9 +19,19 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Open Event sources directly from the sidebar and check recent webhook receipts and subscriber dispatch outcomes for each source. Members who can use a source can inspect retained request data and the endpoint's acknowledgment for each delivery.
+- Open a subscribed routine or workflow directly from the Event sources **Subscribers** dialog.
+
 ### Changed
 
 - Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
+
+### Fixed
+
+- Copy webhook URLs from the live listener when a local HTTP preview does not provide the Clipboard API.
+- Open and edit workflows over plain HTTP when the browser does not expose its native UUID generator.
 
 ## [1.95.0] - 2026-11-26
 

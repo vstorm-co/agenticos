@@ -1,5 +1,5 @@
 ---
-source_sha: "d9973864c59a"
+source_sha: "996fc00cd9c9"
 ---
 
 **Refresh models** en el catálogo del proveedor vuelve a obtener la lista y conserva la búsqueda y la selección. Junto a los modelos guardados de la organización, vuelve a cargar los perfiles guardados. Actualizar no guarda un modelo ni inicia un agente. Endpoint, clave de Vault, tipo de API y región aparecen según las capacidades del proveedor; las suscripciones personales utilizan los ajustes de su cuenta conectada.
@@ -1092,11 +1092,12 @@ borrador o una sesión a su run llega a una fila que la lista muestra.
 
 ## Para qué sirve cada área { #what-each-area-is-for }
 
-**Fuentes de eventos** sigue disponible en `/event-sources`, pero no aparece en la barra lateral predeterminada. Abre su administración desde el selector de fuente de una rutina o workflow. Puedes añadirla al personalizar la navegación; se conservan las selecciones explícitas por rol de organización y las personales.
-
 **Overview** (Dashboard), **Chat** e **Inbox** encabezan la barra lateral.
-**Build & manage** muestra Agents, Workflows, Routines y Apps sin desplegar;
-después aparecen los Projects.
+**Build & manage** muestra por defecto Agents, Workflows, Routines,
+[Event sources](triggers.md#reusable-event-sources) y Apps; después aparecen los Projects.
+Los selectores de fuente de rutinas y workflows también enlazan a las fuentes de
+eventos. Se siguen aplicando las preferencias explícitas de navegación, tanto
+las del rol de la organización como las personales.
 
 **Knowledge** está abierto por defecto e incluye Knowledge bases, Tables, Skills,
 Context y Documents. Se recuerda la elección manual de abrirlo o cerrarlo.

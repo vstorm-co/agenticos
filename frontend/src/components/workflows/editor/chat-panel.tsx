@@ -8,6 +8,7 @@ import { Button, Spinner } from "@/components/ui";
 import { ComposerEditor } from "@/components/chat/composer-editor";
 import { MarkdownContent } from "@/components/chat/markdown-content";
 import { useWorkflowRun, useWorkflowRuns } from "@/hooks";
+import { clientUuid } from "@/lib/ids";
 import { isRunTerminal } from "@/lib/workflows/types";
 import { useWorkflowEditorStore } from "@/stores/workflow-editor-store";
 
@@ -61,7 +62,7 @@ export function ChatPanel({
   const t = useTranslations("workflows");
   const watchRun = useWorkflowEditorStore((state) => state.watchRun);
   const { start } = useWorkflowRuns(workflowId, false, { startFeedback: "inline" });
-  const [conversation, setConversation] = useState(() => crypto.randomUUID());
+  const [conversation, setConversation] = useState(clientUuid);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [prompt, setPrompt] = useState("");
 
@@ -95,7 +96,7 @@ export function ChatPanel({
           disabled={turns.length === 0}
           onClick={() => {
             setTurns([]);
-            setConversation(crypto.randomUUID());
+            setConversation(clientUuid());
           }}
         >
           <RotateCcw className="size-3.5" />

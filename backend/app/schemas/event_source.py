@@ -25,6 +25,7 @@ SIGNATURE_HEADER = {
     "webhook": "x-signature-256",
     "zendesk": "x-zendesk-webhook-signature",
 }
+GITHUB_LEGACY_SIGNATURE_HEADER = "x-hub-signature"
 HUBSPOT_V1_SIGNATURE_HEADER = "x-hubspot-signature"
 
 
@@ -44,7 +45,9 @@ class SourceAuth(BaseModel):
         forbidden = {"authorization", self.header_name, "webhook-signature"}
         if self.method == "provider":
             forbidden.add(SIGNATURE_HEADER[provider])
-            if provider == "hubspot":
+            if provider == "github":
+                forbidden.add(GITHUB_LEGACY_SIGNATURE_HEADER)
+            elif provider == "hubspot":
                 forbidden.add(HUBSPOT_V1_SIGNATURE_HEADER)
         return header.lower() in forbidden
 
@@ -162,6 +165,50 @@ class SourceUsage(BaseModel):
 class SourceUsageList(BaseModel):
     items: list[SourceUsage]
     total: int
+
+
+class SourceDeliveryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    received_at: datetime
+    pending: int
+    admitted: int
+    skipped: int
+    failed: int
+
+
+class RecentSourceDeliveries(BaseModel):
+    items: list[SourceDeliveryRead]
+
+
+class SourceDeliveryRequest(BaseModel):
+    method: Literal["POST"] = "POST"
+    headers: dict[str, str]
+    body: JsonObject | None
+
+
+class SourceDeliveryResponse(BaseModel):
+    status_code: Literal[200, 202]
+    headers: dict[str, str]
+    body: None = None
+
+
+class SourceDispatchRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    status: Literal["pending", "admitted", "skipped", "failed"]
+    error_code: str | None
+    completed_at: datetime | None
+
+
+class SourceDeliveryDetail(BaseModel):
+    id: UUID
+    received_at: datetime
+    request: SourceDeliveryRequest
+    response: SourceDeliveryResponse
+    dispatches: list[SourceDispatchRead]
 
 
 class SourceListening(BaseModel):

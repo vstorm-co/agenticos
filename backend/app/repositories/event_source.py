@@ -1,11 +1,13 @@
 """Database operations for source admission and independent subscriber receipts."""
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import String, cast, delete, exists, func, or_, select, update
+from sqlalchemy import String, and_, cast, delete, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.core.permissions import Scope
 from app.db.models.agent_trigger import AgentTrigger
@@ -155,13 +157,74 @@ async def lock_dispatch_routine(
 
 
 async def delivery(
-    db: AsyncSession, delivery_id: UUID, *, organization_id: UUID
+    db: AsyncSession, delivery_id: UUID, *, organization_id: UUID, source_id: UUID | None = None
 ) -> EventDelivery | None:
-    return await db.scalar(
-        select(EventDelivery).where(
-            EventDelivery.id == delivery_id, EventDelivery.organization_id == organization_id
-        )
+    query = select(EventDelivery).where(
+        EventDelivery.id == delivery_id, EventDelivery.organization_id == organization_id
     )
+    if source_id is not None:
+        query = query.where(EventDelivery.source_id == source_id)
+    return await db.scalar(query)
+
+
+async def delivery_dispatches(
+    db: AsyncSession, *, delivery_id: UUID, organization_id: UUID
+) -> list[EventDispatch]:
+    rows = await db.scalars(
+        select(EventDispatch)
+        .where(
+            EventDispatch.delivery_id == delivery_id,
+            EventDispatch.organization_id == organization_id,
+        )
+        .order_by(EventDispatch.created_at, EventDispatch.id)
+    )
+    return list(rows.all())
+
+
+@dataclass(frozen=True, slots=True)
+class DeliverySummary:
+    id: UUID
+    received_at: datetime
+    pending: int
+    admitted: int
+    skipped: int
+    failed: int
+
+
+async def recent_deliveries(
+    db: AsyncSession, *, source_id: UUID, organization_id: UUID, limit: int
+) -> list[DeliverySummary]:
+    # Limit receipts before counting dispatches, and never load payload or header columns.
+    recent = aliased(
+        EventDelivery,
+        select(EventDelivery.id, EventDelivery.organization_id, EventDelivery.created_at)
+        .where(
+            EventDelivery.source_id == source_id, EventDelivery.organization_id == organization_id
+        )
+        .order_by(EventDelivery.created_at.desc(), EventDelivery.id.desc())
+        .limit(limit)
+        .subquery(),
+    )
+    rows = await db.execute(
+        select(
+            recent.id,
+            recent.created_at,
+            func.count().filter(EventDispatch.status == "pending"),
+            func.count().filter(EventDispatch.status == "admitted"),
+            func.count().filter(EventDispatch.status == "skipped"),
+            func.count().filter(EventDispatch.status == "failed"),
+        )
+        .outerjoin(
+            EventDispatch,
+            and_(
+                EventDispatch.delivery_id == recent.id,
+                EventDispatch.organization_id == recent.organization_id,
+            ),
+        )
+        .group_by(recent.id, recent.created_at)
+        .order_by(recent.created_at.desc(), recent.id.desc())
+    )
+    return [DeliverySummary(*row) for row in rows]
 
 
 async def subscription(

@@ -61,6 +61,34 @@ export interface SourceUsage {
   }[];
   total: number;
 }
+export interface EventSourceDelivery {
+  id: string;
+  received_at: string;
+  pending: number;
+  admitted: number;
+  skipped: number;
+  failed: number;
+}
+export interface EventSourceDeliveryDetail {
+  id: string;
+  received_at: string;
+  request: {
+    method: "POST";
+    headers: Record<string, string>;
+    body: Record<string, unknown> | null;
+  };
+  response: {
+    status_code: 200 | 202;
+    headers: Record<string, string>;
+    body: null;
+  };
+  dispatches: {
+    id: string;
+    status: "pending" | "admitted" | "skipped" | "failed";
+    error_code: string | null;
+    completed_at: string | null;
+  }[];
+}
 const base = "/event-sources";
 
 async function listEventSources(): Promise<{ items: EventSource[]; total: number }> {
@@ -88,6 +116,12 @@ export const eventSourcesApi = {
   credentials: (id: string, credentials: SourceCredentials) =>
     apiClient.post<void>(`${base}/${id}/credentials`, credentials),
   usage: (id: string) => apiClient.get<SourceUsage>(`${base}/${id}/usage`),
+  deliveries: (id: string) =>
+    apiClient.get<{ items: EventSourceDelivery[] }>(`${base}/${id}/deliveries`),
+  delivery: (sourceId: string, deliveryId: string, signal: AbortSignal) =>
+    apiClient.get<EventSourceDeliveryDetail>(`${base}/${sourceId}/deliveries/${deliveryId}`, {
+      signal,
+    }),
   listen: (id: string) => apiClient.post<SourceListening>(`${base}/${id}/listen`, {}),
   capture: (id: string, token: string) =>
     apiClient.get<SourceCapture>(`${base}/${id}/listen/${token}`),

@@ -12,6 +12,7 @@ import type {
 } from "@/lib/workflows/types";
 
 import { ownsAScope } from "@/components/workflows/palette/scope";
+import { clientUuid } from "@/lib/ids";
 import { initialNodeConfig, isTrigger, triggerNodeOf } from "@/lib/workflows/triggers";
 
 import { NODE_HEIGHT, NODE_WIDTH, cardHeight, stepFootprint, type Footprint } from "./node-size";
@@ -244,7 +245,7 @@ function wire(
   if (!isConnectionValid(connection, definitions)) return null;
   return {
     edge: {
-      id: crypto.randomUUID(),
+      id: clientUuid(),
       source_node_id: source.nodeId,
       source_port: source.portId,
       target_node_id: target.nodeId,
@@ -257,7 +258,7 @@ function wire(
 /** Plan adding `definition` to the graph: where it goes and what it is wired to. */
 export function planInsertion(request: InsertionRequest): NodeInsertion {
   const { definition, dropAt, scopePath } = request;
-  const id = request.id ?? crypto.randomUUID();
+  const id = request.id ?? clientUuid();
   const scopeId = currentScopeId(scopePath);
   const blank = (def: NodeDefinition, nodeId: Uuid): NodeInstance =>
     blankStep(def, nodeId, scopeId);
@@ -392,9 +393,9 @@ export function planInsertion(request: InsertionRequest): NodeInsertion {
  */
 function loopBody(steps: LoopSteps, loopId: Uuid): NodeInstance[] {
   return [
-    { ...blankStep(steps.item, crypto.randomUUID(), loopId), layout: { x: 0, y: 0 } },
+    { ...blankStep(steps.item, clientUuid(), loopId), layout: { x: 0, y: 0 } },
     {
-      ...blankStep(steps.result, crypto.randomUUID(), loopId),
+      ...blankStep(steps.result, clientUuid(), loopId),
       layout: { x: 3 * (NODE_WIDTH + GAP_X), y: 0 },
     },
   ];

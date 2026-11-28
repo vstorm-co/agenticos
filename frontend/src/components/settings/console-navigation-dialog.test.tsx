@@ -11,7 +11,7 @@ vi.mock("@/hooks/use-console-experience", () => ({
       presentation: {
         preferences: {},
         organization_navigation: ["chat", "eventSources"],
-        navigation_default: ["chat"],
+        navigation_default: ["chat", "eventSources"],
       },
     },
     save: { isPending: false, mutate: vi.fn() },
@@ -27,5 +27,5 @@ it("keeps the compact sidebar control named and opens the inherited selection", 
   await userEvent.click(control);
   expect(screen.getByRole("dialog")).toBeVisible();
   expect(screen.getByRole("checkbox", { name: "Chat" })).toBeChecked();
-  expect(screen.getByRole("checkbox", { name: "Event sources" })).not.toBeChecked();
+  expect(screen.getByRole("checkbox", { name: "Event sources" })).toBeChecked();
 });

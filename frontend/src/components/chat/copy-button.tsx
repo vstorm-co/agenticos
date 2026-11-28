@@ -5,6 +5,7 @@ import { Check, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 interface CopyButtonProps {
   text: string;
@@ -15,11 +16,12 @@ interface CopyButtonProps {
 
 export function CopyButton({ text, label, className, size = "sm" }: CopyButtonProps) {
   const t = useTranslations("chat.copy");
+  const common = useTranslations("common");
   const { copy, copied } = useCopyToClipboard();
 
   const handleCopy = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    await copy(text);
+    if (!(await copy(text))) toast.error(common("copyFailed"));
   };
 
   return (

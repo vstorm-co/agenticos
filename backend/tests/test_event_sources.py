@@ -427,16 +427,21 @@ async def test_api_key_header_does_not_become_delivery_metadata(db, source, repo
     assert receipt.external_id is None
 
 
-async def test_github_event_header_is_preserved_for_subscription_filtering(db, source, repos):
+@pytest.mark.security
+@pytest.mark.parametrize("reserved_header", ["x-hub-signature-256", "x-hub-signature"])
+async def test_github_event_header_is_preserved_without_using_signature_as_id(
+    db, source, repos, reserved_header: str
+):
     source.provider = "github"
     source.auth = SourceAuth(method="provider").model_dump()
     # Older source configurations could name the provider's signature as their delivery ID.
-    source.delivery_id_header = "x-hub-signature-256"
+    source.delivery_id_header = reserved_header
     _, receipt, _ = await EventSourceService(db).receive(
         source.id,
         body=b"{}",
         headers={
             "x-hub-signature-256": signed(b"{}")["x-signature-256"],
+            "x-hub-signature": "sha1=fixture",
             "x-github-event": "issues",
             "x-github-delivery": "event-123",
         },

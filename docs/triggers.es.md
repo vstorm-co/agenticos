@@ -1,5 +1,5 @@
 ---
-source_sha: "22fac73d07b1"
+source_sha: "be53b1bafddf"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -126,7 +126,7 @@ cada fila necesitan `runs:view` y sin ese permiso sencillamente no aparecen.
 
 ## Fuentes de eventos reutilizables { #reusable-event-sources }
 
-La administración de **Fuentes de eventos** sigue en `/event-sources` y está enlazada desde los selectores de fuentes de rutinas y workflows. No es un destino predeterminado de la barra lateral; añádelo al personalizar la navegación si lo usas con frecuencia.
+Abre **Event sources** en **Build & manage** en la barra lateral. Los selectores de fuentes de rutinas y workflows también enlazan a la página de administración en `/event-sources`.
 
 Añade el widget **Fuentes de eventos** a tu panel para ver cuántas de las fuentes a las que tienes acceso están activas o pausadas.
 
@@ -153,7 +153,15 @@ La entrega autenticada y sus tareas de envío se guardan juntas antes de confirm
 
 Una URL compartida confirma la recepción duradera de forma asíncrona y no devuelve una respuesta personalizada del workflow. Un workflow con fuente compartida no puede alcanzar **Responder al webhook**. Los endpoints dedicados de workflows conservan las respuestas síncronas.
 
-**Pausar fuente** impide iniciar suscriptores para nuevas entregas. Una fuente pausada sigue verificando y almacenando cada entrega, y una escucha abierta aún puede capturarla. Pausar una rutina o workflow afecta solo a ese destino. No se permite eliminar una fuente con suscripciones; la lista de uso muestra los destinos que debes desvincular. Las entregas terminadas siguen la política de retención de tareas en segundo plano.
+**Pausar fuente** impide iniciar suscriptores para nuevas entregas. Una fuente pausada sigue verificando y almacenando cada entrega, y una escucha abierta aún puede capturarla. Pausar una rutina o workflow afecta solo a ese destino. Las cargas de las entregas terminadas siguen la política de retención de tareas en segundo plano.
+
+Elige **Subscribers** en una fuente para ver qué rutinas y workflows la usan. Selecciona un suscriptor con nombre para abrir directamente su rutina o workflow. Los suscriptores que no tienes permiso para ver aparecen como privados, sin nombre ni enlace. Desvincula todos los suscriptores antes de eliminar la fuente.
+
+En la fila de una fuente, elige **Recent deliveries** para ver hasta 20 entregas aceptadas, de más reciente a más antigua. Cada entrada muestra la hora de recepción, un ID interno y cuántos envíos a suscriptores están pendientes, se transfirieron, se omitieron o fallaron. **Handed off** indica que un suscriptor aceptó el evento, no que su run haya terminado correctamente. No se registran las peticiones rechazadas ni se genera otro recibo para las peticiones duplicadas.
+
+Si tienes permiso de uso de la fuente, elige **Inspect** junto a un recibo. **Request** muestra el método `POST` y la cabecera `X-GitHub-Event` de las entregas de GitHub mientras se conserve. El cuerpo es el JSON normalizado, no los bytes originales de la petición. No se muestran las cabeceras de autenticación ni los identificadores de deduplicación enviados por el remitente. Después de la limpieza, el recibo se conserva, pero ya no puedes leer el cuerpo ni la cabecera del evento.
+
+**Response** muestra la confirmación del endpoint: `202 Accepted` (`200 OK` para Linear), con `content-length: 0` y el cuerpo vacío. No muestra las cabeceras del proxy ni el resultado de la rutina o del workflow. **Dispatch outcomes** muestra el estado de cada envío y, si se registraron, su código de error y hora de finalización, sin identificar al suscriptor. Esta vista no permite reenviar un evento.
 
 ### Escuchar en la URL activa { #listen-on-the-live-url }
 

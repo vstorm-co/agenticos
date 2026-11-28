@@ -22,10 +22,6 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Skeleton,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   type Column,
 } from "@/components/ui";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -34,6 +30,8 @@ import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_CONFIRM, DIALOG_FORM } from "@/lib/d
 import type { EventSource, SourceCredentials } from "@/lib/event-sources-api";
 import { cn } from "@/lib/utils";
 import { SourceCredentialsFields } from "./source-form";
+import { SourceDeliveries } from "./source-deliveries";
+import { SourceSubscribers } from "./source-subscribers";
 import { LiveSample } from "./live-sample";
 
 export function SourceTable({
@@ -55,7 +53,7 @@ export function SourceTable({
     {
       key: "name",
       header: t("name"),
-      className: "w-[23%] @max-md/table:w-full",
+      className: "w-[20%] @max-md/table:w-full",
       cell: (source) => (
         <div className="flex min-w-0 items-center gap-3">
           {source.provider === "webhook" ? (
@@ -75,7 +73,7 @@ export function SourceTable({
     {
       key: "status",
       header: t("status"),
-      className: "@md/table:w-[12%]",
+      className: "@md/table:w-[10%]",
       cell: (source) => (
         <Badge variant={source.is_active ? "success" : "secondary"}>
           {t(source.is_active ? "active" : "paused")}
@@ -85,7 +83,7 @@ export function SourceTable({
     {
       key: "visibility",
       header: t("visibility"),
-      className: "@md/table:w-[15%]",
+      className: "@md/table:w-[14%]",
       cell: (source) => (
         <Badge variant={source.visibility === "private" ? "outline" : "secondary"}>
           {t(source.visibility === "private" ? "private" : "organization")}
@@ -95,7 +93,7 @@ export function SourceTable({
     {
       key: "endpoint",
       header: t("liveUrl"),
-      className: "@md/table:w-[24%] @max-md/table:w-full",
+      className: "@md/table:w-[20%] @max-md/table:w-full",
       cell: (source) => (
         <div className="flex min-w-0 items-center gap-1">
           <code
@@ -113,10 +111,15 @@ export function SourceTable({
       ),
     },
     {
-      key: "subscribers",
-      header: t("subscribers"),
+      key: "activity",
+      header: t("activity"),
       className: "@max-md/table:w-full",
-      cell: (source) => <SourceSubscribers source={source} />,
+      cell: (source) => (
+        <div className="flex flex-wrap gap-2">
+          <SourceDeliveries source={source} />
+          <SourceSubscribers source={source} />
+        </div>
+      ),
     },
     {
       key: "actions",
@@ -160,50 +163,9 @@ export function SourceTable({
       getRowKey={(source) => source.id}
       empty={empty}
       error={error}
-      className="@md/table:[&_table]:table-fixed"
+      className="@md/table:[&_table]:min-w-[48rem] @md/table:[&_table]:table-fixed"
       stackOnNarrow
     />
-  );
-}
-
-function SourceSubscribers({ source }: { source: EventSource }) {
-  const t = useTranslations("eventSources");
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
-          {t("subscribers")}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent aria-label={t("subscribers")} className="max-h-80 overflow-y-auto">
-        <SourceSubscriberDetails sourceId={source.id} />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function SourceSubscriberDetails({ sourceId }: { sourceId: string }) {
-  const t = useTranslations("eventSources");
-  const usage = useEventSourceUsage(sourceId);
-  if (usage.error) return <p className="text-destructive-ink text-xs">{t("usageError")}</p>;
-  if (!usage.data) return <Skeleton className="h-4 w-20" />;
-  return (
-    <div className="text-muted-foreground space-y-1 text-xs">
-      <p>{t("usage", { count: usage.data.total })}</p>
-      {usage.data.items.map((item) => (
-        <p key={item.id} className="wrap-break-word">
-          {item.target_id === null ? (
-            t(item.kind === "routine" ? "privateRoutine" : "privateWorkflow")
-          ) : (
-            <>
-              {item.name !== null && <>{item.name} · </>}
-              {t(item.kind)}
-            </>
-          )}
-          {item.is_active !== null && <> · {t(item.is_active ? "active" : "paused")}</>}
-        </p>
-      ))}
-    </div>
   );
 }
 

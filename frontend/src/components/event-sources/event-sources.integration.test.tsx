@@ -12,7 +12,12 @@ import {
   node,
 } from "@/components/workflows/validation/fixtures";
 import { apiClient } from "@/lib/api-client";
-import type { EventSource, SourceUsage } from "@/lib/event-sources-api";
+import type {
+  EventSource,
+  EventSourceDelivery,
+  EventSourceDeliveryDetail,
+  SourceUsage,
+} from "@/lib/event-sources-api";
 import { SourceForm } from "./source-form";
 import { SourceManager } from "./source-manager";
 import { SourceSelector } from "./source-selector";
@@ -214,6 +219,209 @@ describe("event source management", () => {
     expect(apiClient.post).toHaveBeenCalledExactlyOnceWith("/event-sources/s1/listen", {});
     expect(apiClient.patch).not.toHaveBeenCalled();
   });
+
+  it("loads recent deliveries only for the selected source, even without source-use permission", async () => {
+    const user = userEvent.setup();
+    permissions = ["event_sources:view"];
+    items = [
+      { ...source, can_use: false, can_edit: false },
+      { ...source, id: "s2", name: "Other source", can_use: false, can_edit: false },
+    ];
+    const receipt: EventSourceDelivery = {
+      id: "receipt-1",
+      received_at: "2026-11-27T15:42:00Z",
+      pending: 1,
+      admitted: 2,
+      skipped: 3,
+      failed: 4,
+    };
+    const response = {
+      items: [
+        receipt,
+        {
+          id: "receipt-2",
+          received_at: "2026-11-27T15:41:00Z",
+          pending: 0,
+          admitted: 0,
+          skipped: 0,
+          failed: 0,
+        },
+      ],
+    };
+    const get = vi.mocked(apiClient.get).getMockImplementation()!;
+    let finish!: (result: typeof response) => void;
+    const waiting = new Promise<typeof response>((resolve) => {
+      finish = resolve;
+    });
+    const deliveries = vi
+      .fn()
+      .mockReturnValueOnce(waiting)
+      .mockResolvedValueOnce({
+        items: [{ ...receipt, pending: 0, admitted: 3 }],
+      });
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
+      path.endsWith("/deliveries") ? deliveries(path) : get(path, options),
+    );
+    render(<SourceManager />, { wrapper });
+
+    const trigger = await screen.findByRole("button", { name: "Recent deliveries for Issues" });
+    expect(deliveries).not.toHaveBeenCalled();
+    await user.click(trigger);
+    const history = within(screen.getByRole("dialog", { name: "Recent deliveries for Issues" }));
+    expect(history.getByRole("table")).toHaveAttribute("aria-busy", "true");
+    expect(history.getByRole("button", { name: "Refresh" })).toBeDisabled();
+    expect(deliveries).toHaveBeenCalledExactlyOnceWith("/event-sources/s1/deliveries");
+    finish(response);
+
+    const row = await history.findByRole("row", { name: /receipt-1/ });
+    expect(row.querySelector("time")).toHaveAttribute("datetime", receipt.received_at);
+    expect(history.queryByRole("button", { name: /Inspect delivery/ })).not.toBeInTheDocument();
+    for (const label of ["1 pending", "2 handed off", "3 skipped", "4 failed"]) {
+      expect(within(row).getByText(label)).toBeVisible();
+    }
+    expect(history.getByRole("row", { name: /receipt-2/ })).toHaveTextContent("No dispatches");
+    await user.click(history.getByRole("button", { name: "Refresh" }));
+    expect(await history.findByText("3 handed off")).toBeVisible();
+    expect(history.queryByText("1 pending")).not.toBeInTheDocument();
+  });
+
+  it("distinguishes failed delivery history from no recent deliveries and can retry", async () => {
+    const get = vi.mocked(apiClient.get).getMockImplementation()!;
+    const deliveries = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("History unavailable"))
+      .mockResolvedValueOnce({ items: [] });
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
+      path.endsWith("/deliveries") ? deliveries() : get(path, options),
+    );
+    render(<SourceManager />, { wrapper });
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Recent deliveries for Issues" }),
+    );
+    const history = within(screen.getByRole("dialog", { name: "Recent deliveries for Issues" }));
+    expect(await history.findByRole("alert")).toHaveTextContent(
+      "Recent deliveries could not be loaded.",
+    );
+    expect(history.queryByText("No recent deliveries.")).not.toBeInTheDocument();
+    await userEvent.click(history.getByRole("button", { name: "Retry" }));
+    expect(await history.findByText("No recent deliveries.")).toBeVisible();
+    expect(history.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("lets source users drill into a receipt, refresh its details, and return to history", async () => {
+    const user = userEvent.setup();
+    items = [{ ...source, can_edit: false }];
+    const receivedAt = "2026-11-27T15:42:00Z";
+    const detail: EventSourceDeliveryDetail = {
+      id: "receipt-1",
+      received_at: receivedAt,
+      request: {
+        method: "POST",
+        headers: { "x-github-event": "issues" },
+        body: { action: "opened" },
+      },
+      response: { status_code: 202, headers: { "content-length": "0" }, body: null },
+      dispatches: [
+        {
+          id: "dispatch-1",
+          status: "failed",
+          error_code: "SUBSCRIBER_UNAVAILABLE",
+          completed_at: receivedAt,
+        },
+        { id: "dispatch-2", status: "pending", error_code: null, completed_at: null },
+      ],
+    };
+    const inspect = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Details unavailable"))
+      .mockResolvedValueOnce(detail)
+      .mockResolvedValueOnce({
+        ...detail,
+        request: { ...detail.request, headers: {}, body: null },
+        dispatches: [],
+      });
+    const get = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path === "/event-sources/s1/deliveries") {
+        return {
+          items: [
+            {
+              id: detail.id,
+              received_at: receivedAt,
+              pending: 1,
+              admitted: 0,
+              skipped: 0,
+              failed: 1,
+            },
+          ],
+        };
+      }
+      if (path === "/event-sources/s1/deliveries/receipt-1") return inspect(options);
+      return get(path, options);
+    });
+    render(<SourceManager />, { wrapper });
+
+    await user.click(await screen.findByRole("button", { name: "Recent deliveries for Issues" }));
+    const action = await screen.findByRole("button", { name: "Inspect delivery receipt-1" });
+    expect(inspect).not.toHaveBeenCalled();
+    await user.click(action);
+    const inspector = within(screen.getByRole("dialog", { name: "Delivery details" }));
+    expect(await inspector.findByRole("alert")).toHaveTextContent(
+      "Delivery details could not be loaded.",
+    );
+    expect(inspect).toHaveBeenCalledExactlyOnceWith({ signal: expect.any(AbortSignal) });
+
+    const clipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    const execCommand = Object.getOwnPropertyDescriptor(document, "execCommand");
+    const copy = vi
+      .fn()
+      .mockReturnValueOnce(false)
+      .mockImplementationOnce(() => {
+        const selected = document.activeElement;
+        expect(selected).toBeInstanceOf(HTMLTextAreaElement);
+        expect(selected).toHaveValue(JSON.stringify(detail.request.body, null, 2));
+        return true;
+      });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+    Object.defineProperty(document, "execCommand", { configurable: true, value: copy });
+    try {
+      await user.click(inspector.getByRole("button", { name: "Retry" }));
+      expect(await inspector.findByText(/"action": "opened"/)).toBeVisible();
+      expect(inspector.getByRole("heading", { name: "Request POST" })).toBeVisible();
+      expect(inspector.getByRole("heading", { name: "Response HTTP 202" })).toBeVisible();
+      expect(inspector.getByText("x-github-event")).toBeVisible();
+      expect(inspector.getByText("content-length")).toBeVisible();
+      expect(inspector.getByText("No response body.")).toBeVisible();
+      expect(inspector.getByText("SUBSCRIBER_UNAVAILABLE")).toBeVisible();
+      expect(inspector.getByText("Pending")).toBeVisible();
+
+      await user.click(inspector.getByRole("button", { name: "Copy request body" }));
+      expect(toast.error).toHaveBeenCalledWith("Copy failed");
+      await user.click(inspector.getByRole("button", { name: "Copy request body" }));
+      expect(inspector.getByRole("button", { name: "Copied to clipboard" })).toBeVisible();
+      expect(copy).toHaveBeenCalledTimes(2);
+      expect(copy).toHaveBeenLastCalledWith("copy");
+    } finally {
+      if (clipboard) Object.defineProperty(navigator, "clipboard", clipboard);
+      else Reflect.deleteProperty(navigator, "clipboard");
+      if (execCommand) Object.defineProperty(document, "execCommand", execCommand);
+      else Reflect.deleteProperty(document, "execCommand");
+    }
+
+    await user.click(inspector.getByRole("button", { name: "Refresh" }));
+    expect(await inspector.findByText("The request body is no longer retained.")).toBeVisible();
+    expect(inspector.queryByRole("button", { name: "Copy request body" })).toBeNull();
+    expect(inspector.getByText("No headers recorded.")).toBeVisible();
+    expect(inspector.getByText("No dispatches")).toBeVisible();
+    expect(inspect).toHaveBeenCalledTimes(3);
+
+    await user.click(inspector.getByRole("button", { name: "Back to deliveries" }));
+    const history = within(screen.getByRole("dialog", { name: "Recent deliveries for Issues" }));
+    expect(
+      await history.findByRole("button", { name: "Inspect delivery receipt-1" }),
+    ).toBeVisible();
+  });
+
   it("keeps the current source visible after use permission is revoked", async () => {
     permissions = ["event_sources:view"];
     items = [{ ...source, can_use: false, can_edit: false }];
@@ -279,19 +487,30 @@ describe("event source management", () => {
     expect(list).toHaveBeenCalledTimes(2);
   });
 
-  it("labels private and unnamed subscribers without changing user-provided names", async () => {
+  it("links visible subscribers and leaves private subscribers as plain text", async () => {
     subscribers = [
       { id: "1", kind: "routine", target_id: null, name: null, is_active: null },
       { id: "2", kind: "workflow", target_id: null, name: null, is_active: null },
       { id: "3", kind: "routine", target_id: "r3", name: null, is_active: false },
       { id: "4", kind: "routine", target_id: "r4", name: "Private workflow", is_active: true },
+      { id: "5", kind: "workflow", target_id: "w5", name: "Issue triage", is_active: true },
     ];
     render(<SourceManager />, { wrapper });
     await userEvent.click(await screen.findByRole("button", { name: "Subscribers" }));
-    expect(await screen.findByText("Private routine")).toBeVisible();
-    expect(screen.getByText("Private workflow")).toBeVisible();
-    expect(screen.getByText("Routine · Paused")).toBeVisible();
-    expect(screen.getByText("Private workflow · Routine · Active")).toBeVisible();
+    const dialog = within(screen.getByRole("dialog", { name: "Subscribers" }));
+    expect((await dialog.findByText("Private routine")).closest("a")).toBeNull();
+    expect(dialog.getByText("Private workflow").closest("a")).toBeNull();
+    expect(dialog.getByRole("link", { name: "Routine · Paused" })).toHaveAttribute(
+      "href",
+      "/routines?routine=r3",
+    );
+    expect(
+      dialog.getByRole("link", { name: "Private workflow · Routine · Active" }),
+    ).toHaveAttribute("href", "/routines?routine=r4");
+    expect(dialog.getByRole("link", { name: "Issue triage · Workflow · Active" })).toHaveAttribute(
+      "href",
+      "/workflows/w5",
+    );
   });
 
   it("pauses only the source and explains the subscribers blocking deletion", async () => {
@@ -541,6 +760,25 @@ describe("source authentication form", () => {
 });
 
 describe("editor samples", () => {
+  it("reports a failed copy without starting the live listener", async () => {
+    const user = userEvent.setup();
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockRejectedValue(new DOMException("Denied", "NotAllowedError"));
+    try {
+      render(<LiveSample sourceId="s1" onSample={vi.fn()} />, { wrapper });
+      await user.click(await screen.findByRole("button", { name: "Copy Live endpoint URL" }));
+
+      expect(writeText).toHaveBeenCalledExactlyOnceWith(source.webhook_url);
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Copy failed"));
+      expect(screen.getByRole("button", { name: "Copy Live endpoint URL" })).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Copied" })).not.toBeInTheDocument();
+      expect(apiClient.post).not.toHaveBeenCalled();
+    } finally {
+      writeText.mockRestore();
+    }
+  });
+
   it("listens on the existing URL and returns the JSON output shape without executing anything", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       listener_id: "listen-token",

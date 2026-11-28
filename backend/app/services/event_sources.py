@@ -47,8 +47,14 @@ from app.schemas.event_source import (
     EventSourceUpdate,
     JsonObject,
     Provider,
+    RecentSourceDeliveries,
     SourceAuth,
     SourceCredentials,
+    SourceDeliveryDetail,
+    SourceDeliveryRead,
+    SourceDeliveryRequest,
+    SourceDeliveryResponse,
+    SourceDispatchRead,
     SourceUsage,
     SourceUsageList,
 )
@@ -75,6 +81,14 @@ _BODY = TypeAdapter(JsonObject)
 
 def _non_json_number(value: str) -> NoReturn:
     raise ValueError(f"Invalid JSON number: {value}")
+
+
+def source_acknowledgement(provider: str) -> SourceDeliveryResponse:
+    """The shared ingress returns an empty acknowledgement after its receipt commits."""
+    return SourceDeliveryResponse(
+        status_code=200 if provider == "linear" else 202,
+        headers={"content-length": "0"},
+    )
 
 
 def credential_json(credentials: SourceCredentials) -> str:
@@ -318,13 +332,23 @@ class EventSourceService:
             )
         )
         try:
+            auth = data.auth or SourceAuth.model_validate(source.auth)
+            delivery_id_header = source.delivery_id_header
+            if "delivery_id_header" in data.model_fields_set:
+                delivery_id_header = data.delivery_id_header
+            elif (
+                data.auth is None
+                and delivery_id_header is not None
+                and auth.reserves_header(source.provider, delivery_id_header)
+            ):
+                # Ingress already ignores a legacy reserved override; let operators
+                # edit unrelated settings without resubmitting the invalid header.
+                delivery_id_header = None
             config = EventSourceCreate(
                 name=data.name or source.name,
                 provider=cast(Provider, source.provider),
-                auth=data.auth or SourceAuth.model_validate(source.auth),
-                delivery_id_header=data.delivery_id_header
-                if "delivery_id_header" in data.model_fields_set
-                else source.delivery_id_header,
+                auth=auth,
+                delivery_id_header=delivery_id_header,
                 credentials=data.credentials or current_credentials,
             )
         except ValidationError as exc:
@@ -426,6 +450,42 @@ class EventSourceService:
                             )
                         )
         return SourceUsageList(items=items, total=len(items))
+
+    async def recent_deliveries(self, ctx: AuthContext, source_id: UUID) -> RecentSourceDeliveries:
+        await self.get(ctx, source_id)
+        rows = await repo.recent_deliveries(
+            self.db, source_id=source_id, organization_id=ctx.organization_id, limit=20
+        )
+        return RecentSourceDeliveries(
+            items=[SourceDeliveryRead.model_validate(row) for row in rows]
+        )
+
+    async def delivery_detail(
+        self, ctx: AuthContext, source_id: UUID, delivery_id: UUID
+    ) -> SourceDeliveryDetail:
+        source = await self.require_use(ctx, source_id)
+        receipt = await repo.delivery(
+            self.db, delivery_id, organization_id=ctx.organization_id, source_id=source.id
+        )
+        if receipt is None:
+            raise NotFoundError(message="Delivery not found", details={"delivery_id": delivery_id})
+        dispatches = await repo.delivery_dispatches(
+            self.db, delivery_id=receipt.id, organization_id=ctx.organization_id
+        )
+        # Do not expose the internal dedupe key: old overrides may have sourced
+        # it from a credential header, and receipts do not record its provenance.
+        return SourceDeliveryDetail(
+            id=receipt.id,
+            received_at=receipt.created_at,
+            request=SourceDeliveryRequest(
+                headers={
+                    key: value for key, value in receipt.headers.items() if key == "x-github-event"
+                },
+                body=receipt.body,
+            ),
+            response=source_acknowledgement(source.provider),
+            dispatches=[SourceDispatchRead.model_validate(row) for row in dispatches],
+        )
 
     async def delete(self, ctx: AuthContext, source_id: UUID) -> None:
         source = await self.get(ctx, source_id, perm=Perm.EVENT_SOURCES_EDIT, lock=True)

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { CalendarClock, Radar, Zap, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { PageHeader } from "@/components/dashboard/page-header";
+import { LoadingState } from "@/components/states";
 import { RoutinesList } from "@/components/triggers/routines-list";
 import { NewEventTriggerDialog } from "@/components/triggers/new-event-trigger-dialog";
 import { TriggerFormDialog } from "@/components/triggers/trigger-form-dialog";
@@ -80,7 +81,9 @@ export default function RoutinesPage() {
       />
 
       <div data-tour="routines-list" className="flex flex-1 flex-col">
-        <RoutinesList emptyAction={emptyAction} />
+        <Suspense fallback={<LoadingState variant="skeleton-list" rows={4} />}>
+          <RoutinesList emptyAction={emptyAction} />
+        </Suspense>
       </div>
 
       {creatingSchedule && (

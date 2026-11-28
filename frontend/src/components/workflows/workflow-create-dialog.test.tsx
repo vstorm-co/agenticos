@@ -1,9 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { WORKFLOW_TEMPLATES } from "@/lib/workflows/templates";
 import { WorkflowCreateDialog } from "./workflow-create-dialog";
 import { WorkflowTemplateDialog } from "./workflow-template-dialog";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 vi.mock("@/components/sharing/audience-search", () => ({
   AudienceSearch: ({
     value,
@@ -17,7 +22,8 @@ vi.mock("@/components/sharing/audience-search", () => ({
 }));
 
 describe("workflow creation", () => {
-  it("requires a name, chooses access and waits for explicit creation", async () => {
+  it("creates a workflow with a valid trigger UUID on plain HTTP", async () => {
+    vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
     const onChoose = vi.fn();
     render(<WorkflowCreateDialog open onOpenChange={vi.fn()} onChoose={onChoose} busy={false} />);
     expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
@@ -43,6 +49,9 @@ describe("workflow creation", () => {
         config: { require_source: true },
       }),
     ]);
+    expect(choice.graph.entry_node_id).toMatch(
+      /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/,
+    );
   });
 
   it("preserves the chosen template and lets its name be changed before creation", async () => {

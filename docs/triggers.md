@@ -114,7 +114,7 @@ see the agents sees their routines; the outcome and cost on each row need
 
 ## Reusable event sources { #reusable-event-sources }
 
-The **Event sources** management page remains at `/event-sources` and is linked from routine and workflow source pickers. It is not a default sidebar destination; add it through navigation customization if you use it frequently.
+Open **Event sources** under **Build & manage** in the sidebar. The management page at `/event-sources` is also linked from routine and workflow source pickers.
 
 Add the **Event sources** widget to your dashboard to see how many of your visible sources are active or paused.
 
@@ -141,7 +141,15 @@ An authenticated delivery and its dispatch work commit together before the sourc
 
 A shared URL acknowledges durable receipt asynchronously; it cannot return a workflow's custom response. A shared-source workflow must not reach **Respond to webhook**. Dedicated workflow endpoints retain their synchronous response behavior.
 
-**Pause source** stops starting subscribers for new deliveries. A paused source still verifies and stores each delivery, and an open listener still captures it. Pausing one routine or workflow stops that subscriber. Deleting a source is refused while subscriptions remain; its usage list shows the targets to detach first. Terminal delivery payloads follow the background-job retention policy.
+**Pause source** stops starting subscribers for new deliveries. A paused source still verifies and stores each delivery, and an open listener still captures it. Pausing one routine or workflow stops that subscriber. Terminal delivery payloads follow the background-job retention policy.
+
+Choose **Subscribers** on a source to see which routines and workflows use it. Select a named subscriber to open that routine or workflow directly. Subscribers you cannot view are listed as private, without a name or link. To delete a source, detach its subscribers first.
+
+On a source's row, choose **Recent deliveries** to see up to 20 accepted deliveries, newest first. Each entry shows the receipt time, an internal receipt ID and counts of dispatches that are pending, handed off, skipped or failed. **Handed off** means a subscriber accepted the event, not that its run succeeded. Rejected requests are not recorded, and duplicate requests do not add another receipt.
+
+If you can use the source, choose **Inspect** next to a receipt. **Request** shows the `POST` method and the `X-GitHub-Event` header for GitHub deliveries while retained. The body is the normalized JSON, not the original request bytes. Authentication headers and sender-supplied deduplication IDs are not shown. After retention cleanup, the receipt remains but you can no longer read the body or event header.
+
+**Response** shows the endpoint's acknowledgment: `202 Accepted` (`200 OK` for Linear), with `content-length: 0` and an empty body. It does not show proxy headers or the routine or workflow result. **Dispatch outcomes** shows each subscriber dispatch's status and any recorded error code and completion time, without identifying the subscriber. You cannot redeliver an event from the inspector.
 
 ### Listen on the live URL { #listen-on-the-live-url }
 

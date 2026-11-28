@@ -22,12 +22,17 @@ from app.schemas.event_source import (
     EventSourceCreated,
     EventSourceList,
     EventSourceRead,
+    RecentSourceDeliveries,
     SourceAuth,
     SourceCapture,
+    SourceDeliveryDetail,
+    SourceDeliveryRead,
+    SourceDeliveryRequest,
     SourceListening,
     SourceUsageList,
 )
 from app.services import rate_limit, sharing
+from app.services.event_sources import source_acknowledgement
 
 pytestmark = pytest.mark.anyio
 CTX = AuthContext(organization_id=uuid4(), user_id=uuid4(), role="owner")
@@ -57,6 +62,20 @@ async def wired():
     service.update = AsyncMock(return_value=source)
     service.delete = AsyncMock()
     service.usage = AsyncMock(return_value=SourceUsageList(items=[], total=0))
+    service.recent_deliveries = AsyncMock(
+        return_value=RecentSourceDeliveries(
+            items=[
+                SourceDeliveryRead(
+                    id=uuid4(),
+                    received_at=datetime.now(UTC),
+                    pending=1,
+                    admitted=2,
+                    skipped=3,
+                    failed=4,
+                )
+            ]
+        )
+    )
     service.replace_credentials = AsyncMock()
     service.receive = AsyncMock(
         return_value=(source, MagicMock(body={"x": 1}, external_id="one", id=uuid4()), True)
@@ -84,12 +103,33 @@ async def test_source_routes_use_consistent_response_shapes(wired):
     assert (await client.get(base)).json()["id"] == str(source.id)
     assert (await client.patch(base, json={"is_active": False})).status_code == 200
     assert (await client.get(base + "/usage")).json()["items"] == []
+    history = await client.get(base + "/deliveries")
+    assert history.status_code == 200
+    assert history.json() == service.recent_deliveries.return_value.model_dump(mode="json")
+    service.recent_deliveries.assert_awaited_once_with(CTX, source.id)
     assert (await client.post(base + "/listen")).json()["listener_id"] == "listener-id"
     samples.listen.assert_awaited_once_with(CTX, source.id)
     assert (await client.get(base + "/listen/a-token")).json()["state"] == "expired"
     deleted = await client.delete(base)
     assert deleted.status_code == 204
     service.delete.assert_awaited_once_with(CTX, source.id)
+
+
+async def test_delivery_detail_is_serialized_without_cache_storage(wired):
+    client, service, _, source = wired
+    detail = SourceDeliveryDetail(
+        id=uuid4(),
+        received_at=datetime.now(UTC),
+        request=SourceDeliveryRequest(headers={}, body={"action": "opened"}),
+        response=source_acknowledgement("webhook"),
+        dispatches=[],
+    )
+    service.delivery_detail = AsyncMock(return_value=detail)
+    response = await client.get(f"/api/v1/event-sources/{source.id}/deliveries/{detail.id}")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.json() == detail.model_dump(mode="json")
+    service.delivery_detail.assert_awaited_once_with(CTX, source.id, detail.id)
 
 
 @pytest.mark.security
@@ -153,6 +193,8 @@ async def test_live_ingress_returns_provider_success_and_captures_without_second
     source.provider = provider
     response = await client.post(f"/api/v1/webhooks/sources/{source.id}", json={"x": 1})
     assert response.status_code == status
+    assert response.content == b""
+    assert response.headers["content-length"] == "0"
     service.receive.assert_awaited_once()
     samples.capture_after_commit.assert_called_once_with(
         source.id, body={"x": 1}, delivery_id="one", received_at=ANY

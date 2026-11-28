@@ -1,10 +1,111 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { useCopyToClipboard } from "./use-copy-to-clipboard";
+
+const originalExecCommand = Object.getOwnPropertyDescriptor(document, "execCommand");
 
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  if (originalExecCommand) {
+    Object.defineProperty(document, "execCommand", originalExecCommand);
+  } else {
+    Reflect.deleteProperty(document, "execCommand");
+  }
+});
+
+it("copies selected text inside a dialog without the Clipboard API and restores focus", async () => {
+  vi.stubGlobal("navigator", {});
+  const value = "https://example.test/webhook";
+  const execCommand = vi.fn(() => {
+    const field = screen.getByRole("dialog").querySelector("textarea");
+    expect(field).not.toBeNull();
+    expect(document.activeElement).toBe(field);
+    expect(field?.value).toBe(value);
+    expect(field?.selectionStart).toBe(0);
+    expect(field?.selectionEnd).toBe(value.length);
+    return true;
+  });
+  Object.defineProperty(document, "execCommand", { configurable: true, value: execCommand });
+  const { result } = renderHook(() => useCopyToClipboard(), {
+    wrapper: ({ children }) => (
+      <div role="dialog">
+        <button type="button">Copy</button>
+        {children}
+      </div>
+    ),
+  });
+  const button = screen.getByRole("button", { name: "Copy" });
+  button.focus();
+
+  await act(async () => {
+    expect(await result.current.copy(value)).toBe(true);
+  });
+
+  expect(execCommand).toHaveBeenCalledExactlyOnceWith("copy");
+  expect(result.current.copied).toBe(true);
+  expect(document.querySelector("textarea")).toBeNull();
+  expect(button).toHaveFocus();
+});
+
+it("does not try the legacy API when the modern API denies copying", async () => {
+  const writeText = vi.fn().mockRejectedValue(new DOMException("Denied", "NotAllowedError"));
+  vi.stubGlobal("navigator", { clipboard: { writeText } });
+  const execCommand = vi.fn().mockReturnValue(true);
+  Object.defineProperty(document, "execCommand", { configurable: true, value: execCommand });
+  const { result } = renderHook(() => useCopyToClipboard());
+
+  await act(async () => {
+    expect(await result.current.copy("Draft")).toBe(false);
+  });
+
+  expect(writeText).toHaveBeenCalledExactlyOnceWith("Draft");
+  expect(execCommand).not.toHaveBeenCalled();
+  expect(result.current.copied).toBe(false);
+  expect(document.querySelector("textarea")).toBeNull();
+});
+
+it("cleans up and restores focus when legacy copying throws", async () => {
+  vi.stubGlobal("navigator", {});
+  const execCommand = vi.fn(() => {
+    throw new DOMException("Denied", "NotAllowedError");
+  });
+  Object.defineProperty(document, "execCommand", { configurable: true, value: execCommand });
+  const { result } = renderHook(() => useCopyToClipboard(), {
+    wrapper: ({ children }) => (
+      <>
+        <button type="button">Copy</button>
+        {children}
+      </>
+    ),
+  });
+  const button = screen.getByRole("button", { name: "Copy" });
+  button.focus();
+
+  await act(async () => {
+    expect(await result.current.copy("Draft")).toBe(false);
+  });
+
+  expect(execCommand).toHaveBeenCalledExactlyOnceWith("copy");
+  expect(result.current.copied).toBe(false);
+  expect(document.querySelector("textarea")).toBeNull();
+  expect(button).toHaveFocus();
+});
+
+it("reports failure without creating a temporary field when neither copy API is available", async () => {
+  vi.stubGlobal("navigator", {});
+  Object.defineProperty(document, "execCommand", { configurable: true, value: undefined });
+  const { result } = renderHook(() => useCopyToClipboard());
+  const createElement = vi.spyOn(document, "createElement");
+  try {
+    await act(async () => {
+      expect(await result.current.copy("Draft")).toBe(false);
+    });
+    expect(result.current.copied).toBe(false);
+    expect(createElement).not.toHaveBeenCalledWith("textarea");
+  } finally {
+    createElement.mockRestore();
+  }
 });
 
 it("cancels feedback when the copied card unmounts", async () => {

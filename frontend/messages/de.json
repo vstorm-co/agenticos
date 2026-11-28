@@ -6268,6 +6268,10 @@
         "title": "Neue Quelle erstellen",
         "body": "Konfiguriere den Absender manuell, damit er JSON per POST an die Quell-URL sendet."
       },
+      "event-sources-deliveries": {
+        "title": "Letzte Zustellungen",
+        "body": "Öffne die letzten Zustellungen einer Quelle, um zu sehen, welche Ereignisse angenommen und wie sie an Abonnenten weitergeleitet wurden. Wenn du die Quelle verwenden darfst, wähle bei einer Zustellung Prüfen, um die Anfrage, die Antwort und den Weiterleitungsstatus zu sehen."
+      },
       "flow-event-source-create": {
         "title": "Neue Quelle erstellen",
         "body": "Konfiguriere den Absender manuell, damit er JSON per POST an die Quell-URL sendet."
@@ -21718,6 +21722,48 @@
     }
   },
   "eventSources": {
+    "activity": "Aktivität",
+    "deliveries": {
+      "inspector": {
+        "inspect": "Prüfen",
+        "inspectNamed": "Zustellung {id} prüfen",
+        "title": "Zustellungsdetails",
+        "description": "Die HTTP-Antwort bestätigt den Empfang, nicht den erfolgreichen Run eines Abonnenten.",
+        "back": "Zurück zu Zustellungen",
+        "loadError": "Die Zustellungsdetails konnten nicht geladen werden.",
+        "receiptId": "Empfangs-ID",
+        "receivedAt": "Empfangen am",
+        "request": "Anfrage",
+        "response": "Antwort",
+        "statusCode": "HTTP {status}",
+        "retainedHeaders": "Gespeicherte Header",
+        "headers": "Header",
+        "noHeaders": "Keine Header gespeichert.",
+        "body": "Inhalt",
+        "copyBody": "Anfrageinhalt kopieren",
+        "bodyUnavailable": "Der Anfrageinhalt wird nicht mehr gespeichert.",
+        "emptyResponse": "Kein Antwortinhalt.",
+        "states": {
+          "pending": "Ausstehend",
+          "admitted": "Weitergeleitet",
+          "skipped": "Übersprungen",
+          "failed": "Fehlgeschlagen"
+        }
+      },
+      "title": "Letzte Zustellungen",
+      "forSource": "Letzte Zustellungen für {name}",
+      "description": "Zeigt bis zu 20 angenommene Ereignisse. Weitergeleitet bedeutet, dass ein Abonnent das Ereignis angenommen hat, nicht dass sein Run erfolgreich war.",
+      "receipt": "Empfangsbeleg",
+      "dispatch": "Weiterleitungsstatus",
+      "pending": "{count, number} ausstehend",
+      "admitted": "{count, number} weitergeleitet",
+      "skipped": "{count, number} übersprungen",
+      "failed": "{count, number} fehlgeschlagen",
+      "noDispatches": "Keine Weiterleitungen",
+      "empty": "Keine neuen Zustellungen.",
+      "loadError": "Die letzten Zustellungen konnten nicht geladen werden.",
+      "refresh": "Aktualisieren"
+    },
     "vaultBasicHelp": "Benutzername und Passwort zur Prüfung eingehender Webhook-Anfragen. Diese Zugangsdaten werden nie an eine externe URL gesendet.",
     "vaultCredentialHelp": "Wählen Sie Zugangsdaten der Organisation aus dem Vault. Die Quelle verwendet den aktuellen Wert, auch nach einer Rotation.",
     "manageSources": "Ereignisquellen verwalten",
