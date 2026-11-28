@@ -48,10 +48,10 @@ it("copies selected text inside a dialog without the Clipboard API and restores 
   expect(button).toHaveFocus();
 });
 
-it("cleans up and does not confirm a copy when both clipboard methods fail", async () => {
+it("does not try the legacy API when the modern API denies copying", async () => {
   const writeText = vi.fn().mockRejectedValue(new DOMException("Denied", "NotAllowedError"));
   vi.stubGlobal("navigator", { clipboard: { writeText } });
-  const execCommand = vi.fn().mockReturnValue(false);
+  const execCommand = vi.fn().mockReturnValue(true);
   Object.defineProperty(document, "execCommand", { configurable: true, value: execCommand });
   const { result } = renderHook(() => useCopyToClipboard());
 
@@ -60,7 +60,7 @@ it("cleans up and does not confirm a copy when both clipboard methods fail", asy
   });
 
   expect(writeText).toHaveBeenCalledExactlyOnceWith("Draft");
-  expect(execCommand).toHaveBeenCalledExactlyOnceWith("copy");
+  expect(execCommand).not.toHaveBeenCalled();
   expect(result.current.copied).toBe(false);
   expect(document.querySelector("textarea")).toBeNull();
 });

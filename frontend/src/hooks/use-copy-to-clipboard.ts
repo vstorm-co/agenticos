@@ -55,15 +55,13 @@ export function useCopyToClipboard(resetMs = 2000) {
             "text/html": new Blob([html], { type: "text/html" }),
           }),
         ]);
-      } else {
-        if (!clipboard?.writeText) {
-          if (!copyPlainText(text)) return false;
-        } else {
-          await clipboard.writeText(text);
-        }
+      } else if (clipboard?.writeText) {
+        await clipboard.writeText(text);
+      } else if (!copyPlainText(text)) {
+        return false;
       }
     } catch {
-      if (!copyPlainText(text)) return false;
+      return false;
     }
     if (!mounted.current) return true;
     setCopied(true);

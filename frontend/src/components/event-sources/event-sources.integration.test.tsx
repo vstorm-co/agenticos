@@ -373,19 +373,47 @@ describe("event source management", () => {
     );
     expect(inspect).toHaveBeenCalledExactlyOnceWith({ signal: expect.any(AbortSignal) });
 
-    await user.click(inspector.getByRole("button", { name: "Retry" }));
-    expect(await inspector.findByText(/"action": "opened"/)).toBeVisible();
-    expect(inspector.getByRole("heading", { name: "Request POST" })).toBeVisible();
-    expect(inspector.getByRole("heading", { name: "Response HTTP 202" })).toBeVisible();
-    expect(inspector.getByText("x-github-event")).toBeVisible();
-    expect(inspector.getByText("content-length")).toBeVisible();
-    expect(inspector.getByText("provider-delivery-1")).toBeVisible();
-    expect(inspector.getByText("No response body.")).toBeVisible();
-    expect(inspector.getByText("SUBSCRIBER_UNAVAILABLE")).toBeVisible();
-    expect(inspector.getByText("Pending")).toBeVisible();
+    const clipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    const execCommand = Object.getOwnPropertyDescriptor(document, "execCommand");
+    const copy = vi
+      .fn()
+      .mockReturnValueOnce(false)
+      .mockImplementationOnce(() => {
+        const selected = document.activeElement;
+        expect(selected).toBeInstanceOf(HTMLTextAreaElement);
+        expect(selected).toHaveValue(JSON.stringify(detail.request.body, null, 2));
+        return true;
+      });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+    Object.defineProperty(document, "execCommand", { configurable: true, value: copy });
+    try {
+      await user.click(inspector.getByRole("button", { name: "Retry" }));
+      expect(await inspector.findByText(/"action": "opened"/)).toBeVisible();
+      expect(inspector.getByRole("heading", { name: "Request POST" })).toBeVisible();
+      expect(inspector.getByRole("heading", { name: "Response HTTP 202" })).toBeVisible();
+      expect(inspector.getByText("x-github-event")).toBeVisible();
+      expect(inspector.getByText("content-length")).toBeVisible();
+      expect(inspector.getByText("provider-delivery-1")).toBeVisible();
+      expect(inspector.getByText("No response body.")).toBeVisible();
+      expect(inspector.getByText("SUBSCRIBER_UNAVAILABLE")).toBeVisible();
+      expect(inspector.getByText("Pending")).toBeVisible();
+
+      await user.click(inspector.getByRole("button", { name: "Copy request body" }));
+      expect(toast.error).toHaveBeenCalledWith("Copy failed");
+      await user.click(inspector.getByRole("button", { name: "Copy request body" }));
+      expect(inspector.getByRole("button", { name: "Copied to clipboard" })).toBeVisible();
+      expect(copy).toHaveBeenCalledTimes(2);
+      expect(copy).toHaveBeenLastCalledWith("copy");
+    } finally {
+      if (clipboard) Object.defineProperty(navigator, "clipboard", clipboard);
+      else Reflect.deleteProperty(navigator, "clipboard");
+      if (execCommand) Object.defineProperty(document, "execCommand", execCommand);
+      else Reflect.deleteProperty(document, "execCommand");
+    }
 
     await user.click(inspector.getByRole("button", { name: "Refresh" }));
     expect(await inspector.findByText("The request body is no longer retained.")).toBeVisible();
+    expect(inspector.queryByRole("button", { name: "Copy request body" })).toBeNull();
     expect(inspector.getByText("No headers recorded.")).toBeVisible();
     expect(inspector.getByText("No dispatches")).toBeVisible();
     expect(inspector.queryByText("provider-delivery-1")).not.toBeInTheDocument();

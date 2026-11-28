@@ -58,8 +58,6 @@ function DeliveryExchange({ delivery }: { delivery: EventSourceDeliveryDetail })
   const format = useFormatter();
   const body = delivery.request.body;
   const formattedBody = body === null ? null : JSON.stringify(body, null, 2);
-  const canCopy =
-    typeof navigator !== "undefined" && typeof navigator.clipboard?.writeText === "function";
 
   return (
     <div className="space-y-4">
@@ -102,7 +100,7 @@ function DeliveryExchange({ delivery }: { delivery: EventSourceDeliveryDetail })
           <div>
             <div className="mb-1 flex items-center justify-between gap-2">
               <h4 className="text-muted-foreground text-xs font-medium">{t("body")}</h4>
-              {formattedBody !== null && canCopy && (
+              {formattedBody !== null && (
                 <CopyButton text={formattedBody} label={t("copyBody")} className="opacity-100" />
               )}
             </div>
