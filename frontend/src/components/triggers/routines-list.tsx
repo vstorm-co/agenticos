@@ -2,10 +2,18 @@
 
 import { useState } from "react";
 import { CalendarClock, Search } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ErrorState, LoadingState } from "@/components/states";
-import { ListCard, ListCardEmpty, Pager, SearchInput, useListControls } from "@/components/ui";
+import {
+  Button,
+  ListCard,
+  ListCardEmpty,
+  Pager,
+  SearchInput,
+  useListControls,
+} from "@/components/ui";
 import { WatchRow } from "@/components/watches/watches-card";
 import { WatchDialog } from "@/components/watches/watch-dialog";
 import { useMcpConnections } from "@/hooks";
@@ -13,29 +21,41 @@ import { useOrgTriggers } from "@/hooks/use-org-triggers";
 import { useRoutinesReadiness } from "@/hooks/use-routine-readiness";
 import { useWatches } from "@/hooks/use-watches";
 import { getErrorMessage } from "@/lib/api-error";
+import { setUrlParam } from "@/lib/utils";
 import type { Watch } from "@/lib/watches-api";
 import type { Trigger } from "@/types/triggers";
 import { TriggerRow } from "./trigger-row";
 
 type Routine = { kind: "task"; row: Trigger } | { kind: "monitor"; row: Watch };
 
-export function RoutinesList({
-  emptyAction,
-}: {
+interface RoutinesListProps {
   /** The way to start a first routine, for a caller who may; offered inside the empty list. */
   emptyAction?: { label: string; onClick: () => void };
-} = {}) {
+}
+
+export function RoutinesList(props: RoutinesListProps) {
+  const routineId = useSearchParams().get("routine") || null;
+  return <RoutineResults key={routineId ?? ""} routineId={routineId} {...props} />;
+}
+
+function RoutineResults({
+  emptyAction,
+  routineId,
+}: RoutinesListProps & { routineId: string | null }) {
   const t = useTranslations("triggers");
   const tw = useTranslations("watches");
   const tErrors = useTranslations("errors");
   const tc = useTranslations("common");
+  const ui = useTranslations("ui");
   const tasks = useOrgTriggers();
   const monitoring = useWatches();
   const { connections } = useMcpConnections();
   const [editing, setEditing] = useState<Watch | null>(null);
+  const taskRows = tasks.triggers.filter((row) => routineId === null || row.id === routineId);
+  const watchRows = routineId === null ? monitoring.watches : [];
   const items: Routine[] = [
-    ...tasks.triggers.map((row): Routine => ({ kind: "task", row })),
-    ...monitoring.watches.map((row): Routine => ({ kind: "monitor", row })),
+    ...taskRows.map((row): Routine => ({ kind: "task", row })),
+    ...watchRows.map((row): Routine => ({ kind: "monitor", row })),
   ];
   const list = useListControls({
     items,
@@ -49,8 +69,8 @@ export function RoutinesList({
   const readiness = useRoutinesReadiness(
     list.visible.flatMap((item) => (item.kind === "task" ? [item.row] : [])),
   );
-  const error = tasks.error ?? monitoring.error;
-  const loading = tasks.isLoading || monitoring.isLoading;
+  const error = tasks.error ?? (routineId === null ? monitoring.error : null);
+  const loading = tasks.isLoading || (routineId === null && monitoring.isLoading);
   const act = async (work: () => Promise<unknown>, message: string) => {
     try {
       await work();
@@ -69,12 +89,18 @@ export function RoutinesList({
         contentClassName="p-0"
         counted={loading || error ? null : t("routineCount", { count: items.length })}
         controls={
-          <SearchInput
-            value={list.query}
-            onChange={list.setQuery}
-            placeholder={t("searchRoutines")}
-            className="sm:w-56"
-          />
+          routineId === null ? (
+            <SearchInput
+              value={list.query}
+              onChange={list.setQuery}
+              placeholder={t("searchRoutines")}
+              className="sm:w-56"
+            />
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => setUrlParam("routine", null)}>
+              {ui("clearFilters")}
+            </Button>
+          )
         }
       >
         {error ? (
@@ -84,7 +110,7 @@ export function RoutinesList({
               label: tc("retry"),
               onClick: () => {
                 void tasks.refetch();
-                void monitoring.refetch();
+                if (routineId === null) void monitoring.refetch();
               },
             }}
             className="m-5"
@@ -94,9 +120,9 @@ export function RoutinesList({
         ) : items.length === 0 ? (
           <ListCardEmpty
             icon={CalendarClock}
-            title={t("activityEmptyTitle")}
-            description={t("activityEmptyDescription")}
-            cta={emptyAction}
+            title={t(routineId === null ? "activityEmptyTitle" : "noRoutineMatches")}
+            description={routineId === null ? t("activityEmptyDescription") : undefined}
+            cta={routineId === null ? emptyAction : undefined}
           />
         ) : (
           <div className="space-y-3">

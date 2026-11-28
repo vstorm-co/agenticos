@@ -22,10 +22,6 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Skeleton,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
   type Column,
 } from "@/components/ui";
 import { ProviderIcon } from "@/components/vault/provider-icon";
@@ -35,6 +31,7 @@ import type { EventSource, SourceCredentials } from "@/lib/event-sources-api";
 import { cn } from "@/lib/utils";
 import { SourceCredentialsFields } from "./source-form";
 import { SourceDeliveries } from "./source-deliveries";
+import { SourceSubscribers } from "./source-subscribers";
 import { LiveSample } from "./live-sample";
 
 export function SourceTable({
@@ -169,47 +166,6 @@ export function SourceTable({
       className="@md/table:[&_table]:min-w-[48rem] @md/table:[&_table]:table-fixed"
       stackOnNarrow
     />
-  );
-}
-
-function SourceSubscribers({ source }: { source: EventSource }) {
-  const t = useTranslations("eventSources");
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
-          {t("subscribers")}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent aria-label={t("subscribers")} className="max-h-80 overflow-y-auto">
-        <SourceSubscriberDetails sourceId={source.id} />
-      </PopoverContent>
-    </Popover>
-  );
-}
-
-function SourceSubscriberDetails({ sourceId }: { sourceId: string }) {
-  const t = useTranslations("eventSources");
-  const usage = useEventSourceUsage(sourceId);
-  if (usage.error) return <p className="text-destructive-ink text-xs">{t("usageError")}</p>;
-  if (!usage.data) return <Skeleton className="h-4 w-20" />;
-  return (
-    <div className="text-muted-foreground space-y-1 text-xs">
-      <p>{t("usage", { count: usage.data.total })}</p>
-      {usage.data.items.map((item) => (
-        <p key={item.id} className="wrap-break-word">
-          {item.target_id === null ? (
-            t(item.kind === "routine" ? "privateRoutine" : "privateWorkflow")
-          ) : (
-            <>
-              {item.name !== null && <>{item.name} · </>}
-              {t(item.kind)}
-            </>
-          )}
-          {item.is_active !== null && <> · {t(item.is_active ? "active" : "paused")}</>}
-        </p>
-      ))}
-    </div>
   );
 }
 

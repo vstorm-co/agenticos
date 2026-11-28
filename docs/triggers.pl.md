@@ -1,5 +1,5 @@
 ---
-source_sha: "ce25bddcac96"
+source_sha: "0f23f7120d9f"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -149,7 +149,9 @@ Uwierzytelniona dostawa i zadania wysyłki zapisują się wspólnie, zanim źró
 
 Wspólny URL asynchronicznie potwierdza trwały odbiór i nie zwraca własnej odpowiedzi workflow. Workflow ze wspólnym źródłem nie może dotrzeć do **Odpowiedz na webhook**. Dedykowane endpointy workflow zachowują odpowiedzi synchroniczne.
 
-**Wstrzymaj źródło** zatrzymuje uruchamianie subskrybentów dla nowych dostaw. Wstrzymane źródło nadal weryfikuje i zapisuje każdą dostawę, a włączony nasłuch nadal ją przechwytuje. Wstrzymanie rutyny lub workflow dotyczy tylko tego celu. Usunięcie źródła jest zablokowane, dopóki istnieją subskrypcje; lista użycia wskazuje cele do odłączenia. Dane zakończonych dostaw podlegają zasadom retencji zadań w tle.
+**Wstrzymaj źródło** zatrzymuje uruchamianie subskrybentów dla nowych dostaw. Wstrzymane źródło nadal weryfikuje i zapisuje każdą dostawę, a włączony nasłuch nadal ją przechwytuje. Wstrzymanie rutyny lub workflow dotyczy tylko tego celu. Dane zakończonych dostaw podlegają zasadom retencji zadań w tle.
+
+Wybierz **Subskrybenci** przy źródle, aby zobaczyć, które rutyny i workflow z niego korzystają. Wybierz wpis z nazwą, aby od razu otworzyć rutynę lub workflow. Subskrybenci, których nie możesz wyświetlić, są oznaczeni jako prywatni, bez nazwy i linku. Przed usunięciem źródła odłącz wszystkich subskrybentów.
 
 W wierszu źródła wybierz **Ostatnie dostawy (Recent deliveries)**, aby zobaczyć do 20 przyjętych dostaw, od najnowszej. Każdy wpis pokazuje czas odbioru, wewnętrzny identyfikator i liczbę prób przekazania według stanu: Oczekuje, Przekazano, Pominięto lub Błędy. **Przekazano (Handed off)** oznacza, że subskrybent przyjął zdarzenie, a nie że jego run się powiódł. Odrzucone żądania nie są zapisywane, a duplikaty nie tworzą osobnych potwierdzeń odbioru.
 

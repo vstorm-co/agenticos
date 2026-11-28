@@ -141,7 +141,9 @@ An authenticated delivery and its dispatch work commit together before the sourc
 
 A shared URL acknowledges durable receipt asynchronously; it cannot return a workflow's custom response. A shared-source workflow must not reach **Respond to webhook**. Dedicated workflow endpoints retain their synchronous response behavior.
 
-**Pause source** stops starting subscribers for new deliveries. A paused source still verifies and stores each delivery, and an open listener still captures it. Pausing one routine or workflow stops that subscriber. Deleting a source is refused while subscriptions remain; its usage list shows the targets to detach first. Terminal delivery payloads follow the background-job retention policy.
+**Pause source** stops starting subscribers for new deliveries. A paused source still verifies and stores each delivery, and an open listener still captures it. Pausing one routine or workflow stops that subscriber. Terminal delivery payloads follow the background-job retention policy.
+
+Choose **Subscribers** on a source to see which routines and workflows use it. Select a named subscriber to open that routine or workflow directly. Subscribers you cannot view are listed as private, without a name or link. To delete a source, detach its subscribers first.
 
 On a source's row, choose **Recent deliveries** to see up to 20 accepted deliveries, newest first. Each entry shows the receipt time, an internal receipt ID and counts of dispatches that are pending, handed off, skipped or failed. **Handed off** means a subscriber accepted the event, not that its run succeeded. Rejected requests are not recorded, and duplicate requests do not add another receipt.
 

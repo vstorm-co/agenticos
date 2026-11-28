@@ -1,14 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { RoutinesList } from "./routines-list";
 
 const state = vi.hoisted(() => ({
   error: null as Error | null,
   loading: false,
   empty: false,
+  watchError: null as Error | null,
   refetchTasks: vi.fn(),
   refetchWatches: vi.fn(),
+}));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 vi.mock("@/hooks/use-org-triggers", () => ({
   useOrgTriggers: () => ({
@@ -27,7 +31,7 @@ vi.mock("@/hooks/use-watches", () => ({
       : [{ id: "monitor", title: "Client mail", instructions: "Find urgent mail" }],
     refetch: state.refetchWatches,
     isLoading: false,
-    error: null,
+    error: state.watchError,
   }),
 }));
 vi.mock("@/hooks", () => ({ useMcpConnections: () => ({ connections: [] }) }));
@@ -50,7 +54,11 @@ beforeEach(() => {
   state.error = null;
   state.loading = false;
   state.empty = false;
+  state.watchError = null;
+  state.refetchTasks.mockClear();
+  state.refetchWatches.mockClear();
 });
+afterEach(() => window.history.replaceState(null, "", "/"));
 it("offers the way to start a routine inside the empty list", async () => {
   state.empty = true;
   const onClick = vi.fn();
@@ -76,6 +84,43 @@ it("lists scheduled tasks and monitoring in the same searchable list", async () 
   await userEvent.type(screen.getByPlaceholderText("Search routines"), "urgent");
   expect(screen.getByText("Client mail")).toBeVisible();
   expect(screen.queryByText("Weekly report")).toBeNull();
+});
+
+it("shows only the linked routine and can clear its URL filter", async () => {
+  window.history.replaceState(null, "", "/routines?routine=task");
+  const { rerender } = render(<RoutinesList />);
+  expect(screen.getByText("Weekly report")).toBeVisible();
+  expect(screen.queryByText("Client mail")).toBeNull();
+  expect(screen.getByText("1 routine")).toBeVisible();
+
+  await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  expect(window.location.search).toBe("");
+  rerender(<RoutinesList />);
+  expect(screen.getByText("Client mail")).toBeVisible();
+});
+
+it("does not show a watch or other routine when the linked routine is unavailable", () => {
+  window.history.replaceState(null, "", "/routines?routine=monitor");
+  render(<RoutinesList />);
+  expect(screen.getByText("No routine matches that.")).toBeVisible();
+  expect(screen.queryByText("Weekly report")).toBeNull();
+  expect(screen.queryByText("Client mail")).toBeNull();
+});
+
+it("keeps a linked routine visible when the unrelated watches read fails", () => {
+  window.history.replaceState(null, "", "/routines?routine=task");
+  state.watchError = new Error("Watches unavailable");
+  render(<RoutinesList />);
+  expect(screen.getByText("Weekly report")).toBeVisible();
+});
+
+it("retries only the tasks read after the linked routine fails to load", async () => {
+  window.history.replaceState(null, "", "/routines?routine=task");
+  state.error = new Error("Unavailable");
+  render(<RoutinesList />);
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(state.refetchTasks).toHaveBeenCalledOnce();
+  expect(state.refetchWatches).not.toHaveBeenCalled();
 });
 it("shows a read failure instead of presenting an incomplete list as complete", () => {
   state.error = new Error("Unavailable");

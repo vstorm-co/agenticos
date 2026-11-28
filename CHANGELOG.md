@@ -22,6 +22,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Added
 
 - Open Event sources directly from the sidebar and check recent webhook receipts and subscriber dispatch outcomes for each source. Members who can use a source can inspect retained request data and the endpoint's acknowledgment for each delivery.
+- Open a subscribed routine or workflow directly from the Event sources **Subscribers** dialog.
 
 ### Fixed
 

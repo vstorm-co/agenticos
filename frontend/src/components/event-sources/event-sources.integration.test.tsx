@@ -463,19 +463,30 @@ describe("event source management", () => {
     expect(list).toHaveBeenCalledTimes(2);
   });
 
-  it("labels private and unnamed subscribers without changing user-provided names", async () => {
+  it("links visible subscribers and leaves private subscribers as plain text", async () => {
     subscribers = [
       { id: "1", kind: "routine", target_id: null, name: null, is_active: null },
       { id: "2", kind: "workflow", target_id: null, name: null, is_active: null },
       { id: "3", kind: "routine", target_id: "r3", name: null, is_active: false },
       { id: "4", kind: "routine", target_id: "r4", name: "Private workflow", is_active: true },
+      { id: "5", kind: "workflow", target_id: "w5", name: "Issue triage", is_active: true },
     ];
     render(<SourceManager />, { wrapper });
     await userEvent.click(await screen.findByRole("button", { name: "Subscribers" }));
-    expect(await screen.findByText("Private routine")).toBeVisible();
-    expect(screen.getByText("Private workflow")).toBeVisible();
-    expect(screen.getByText("Routine · Paused")).toBeVisible();
-    expect(screen.getByText("Private workflow · Routine · Active")).toBeVisible();
+    const dialog = within(screen.getByRole("dialog", { name: "Subscribers" }));
+    expect((await dialog.findByText("Private routine")).closest("a")).toBeNull();
+    expect(dialog.getByText("Private workflow").closest("a")).toBeNull();
+    expect(dialog.getByRole("link", { name: "Routine · Paused" })).toHaveAttribute(
+      "href",
+      "/routines?routine=r3",
+    );
+    expect(
+      dialog.getByRole("link", { name: "Private workflow · Routine · Active" }),
+    ).toHaveAttribute("href", "/routines?routine=r4");
+    expect(dialog.getByRole("link", { name: "Issue triage · Workflow · Active" })).toHaveAttribute(
+      "href",
+      "/workflows/w5",
+    );
   });
 
   it("pauses only the source and explains the subscribers blocking deletion", async () => {

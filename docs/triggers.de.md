@@ -1,5 +1,5 @@
 ---
-source_sha: "ce25bddcac96"
+source_sha: "0f23f7120d9f"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -155,7 +155,9 @@ Eine authentifizierte Zustellung und ihre Versandaufträge werden gemeinsam gesp
 
 Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert keine benutzerdefinierte Workflow-Antwort. Ein Workflow mit gemeinsamer Quelle darf **Auf Webhook antworten** nicht erreichen. Dedizierte Workflow-Endpunkte behalten synchrone Antworten.
 
-**Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen. Eine pausierte Quelle prüft und speichert weiterhin jede Zustellung. Eine laufende Erfassung empfängt sie ebenfalls. Das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Solange Abonnements bestehen, ist Löschen gesperrt; die Nutzungsliste zeigt die zuvor zu trennenden Ziele. Die Nutzdaten abgeschlossener Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
+**Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen. Eine pausierte Quelle prüft und speichert weiterhin jede Zustellung. Eine laufende Erfassung empfängt sie ebenfalls. Das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Die Nutzdaten abgeschlossener Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
+
+Wählen Sie bei einer Quelle **Abonnenten**, um zu sehen, welche Routinen und Workflows sie verwenden. Wählen Sie einen Eintrag mit Namen, um die Routine oder den Workflow direkt zu öffnen. Abonnenten, für die Sie kein Leserecht haben, erscheinen als privat, ohne Namen oder Link. Trennen Sie alle Abonnenten, bevor Sie die Quelle löschen.
 
 Wählen Sie in der Zeile einer Quelle **Letzte Zustellungen (Recent deliveries)**, um bis zu 20 angenommene Zustellungen zu sehen, die neueste zuerst. Jeder Eintrag zeigt die Empfangszeit, eine interne Empfangs-ID und die Anzahl der Weiterleitungen je Status: ausstehend, weitergeleitet, übersprungen oder fehlgeschlagen. **Weitergeleitet (Handed off)** bedeutet, dass ein Abonnent das Ereignis angenommen hat, nicht dass sein Run erfolgreich war. Abgelehnte Anfragen werden nicht aufgezeichnet. Doppelte Anfragen erzeugen keinen zusätzlichen Empfangsbeleg.
 
