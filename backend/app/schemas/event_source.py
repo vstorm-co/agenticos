@@ -164,6 +164,21 @@ class SourceUsageList(BaseModel):
     total: int
 
 
+class SourceDeliveryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    received_at: datetime
+    pending: int
+    admitted: int
+    skipped: int
+    failed: int
+
+
+class RecentSourceDeliveries(BaseModel):
+    items: list[SourceDeliveryRead]
+
+
 class SourceListening(BaseModel):
     listener_id: str
     expires_at: datetime

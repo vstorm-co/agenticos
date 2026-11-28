@@ -36,6 +36,7 @@ from app.schemas.event_source import (
     EventSourceUpdate,
     SourceAuth,
     SourceCredentials,
+    SourceDeliveryRead,
 )
 from app.schemas.workflow import WorkflowPublish, WorkflowSettings
 from app.services import event_sources as module
@@ -290,6 +291,96 @@ async def test_delivery_and_each_subscriber_survive_dispatch_restart_without_dup
     }
     assert all(run.input == {"body": receipt.body, "delivery_id": "event-1"} for run in runs)
     assert all(row.status == "admitted" for row in dispatches)
+
+
+async def test_delivery_history_is_bounded_and_counts_dispatches_without_payloads(
+    db: AsyncSession, source_world
+) -> None:
+    ctx, _, _, source = source_world
+    service = EventSourceService(db)
+    assert not (await service.recent_deliveries(ctx, source.id)).items
+
+    _, receipt, accepted = await _receive(db, source.id)
+    _, _, duplicate = await _receive(db, source.id)
+    assert accepted and not duplicate
+    newest_at = await db.scalar(
+        select(EventDelivery.created_at).where(EventDelivery.id == receipt.id)
+    )
+    assert newest_at is not None
+    older = [
+        EventDelivery(
+            organization_id=ctx.organization_id,
+            source_id=source.id,
+            created_at=newest_at - timedelta(minutes=minute),
+        )
+        for minute in range(1, 22)
+    ]
+    other = await service.create(ctx, EventSourceCreate(name="Other source"))
+    db.add_all(
+        [
+            *older,
+            EventDelivery(
+                organization_id=ctx.organization_id, source_id=other.id, created_at=newest_at
+            ),
+            *[
+                EventDispatch(
+                    organization_id=ctx.organization_id,
+                    delivery_id=receipt.id,
+                    status=dispatch_status,
+                )
+                for dispatch_status in ("pending", "admitted", "admitted", "skipped", "failed")
+            ],
+        ]
+    )
+    await db.flush()
+
+    history = await service.recent_deliveries(ctx, source.id)
+    assert [entry.id for entry in history.items] == [receipt.id, *(row.id for row in older[:19])]
+    assert history.items[0].model_dump() == {
+        "id": receipt.id,
+        "received_at": newest_at,
+        "pending": 1,
+        "admitted": 2,
+        "skipped": 1,
+        "failed": 1,
+    }
+    assert history.items[1] == SourceDeliveryRead(
+        id=older[0].id, received_at=older[0].created_at, pending=0, admitted=0, skipped=0, failed=0
+    )
+
+
+@pytest.mark.security
+async def test_delivery_history_honors_source_view_grants_and_tenant_boundaries(
+    db: AsyncSession, source_world
+) -> None:
+    _, org, owner, source = source_world
+    _, receipt, _ = await _receive(db, source.id)
+    viewer = await _user(db)
+    await _member(db, org=org, user=viewer, role="viewer")
+    ctx = _ctx(viewer, org, role="viewer")
+    service = EventSourceService(db)
+    with pytest.raises(NotFoundError):
+        await service.recent_deliveries(ctx, source.id)
+
+    db.add(
+        ResourceGrant(
+            organization_id=org.id,
+            resource_type="event_source",
+            resource_id=source.id,
+            subject_user_id=viewer.id,
+            level="read",
+        )
+    )
+    await db.flush()
+    with pytest.raises(NotFoundError):
+        await service.require_use(ctx, source.id)
+    assert [row.id for row in (await service.recent_deliveries(ctx, source.id)).items] == [
+        receipt.id
+    ]
+
+    foreign_org = await _org(db, owner=owner)
+    with pytest.raises(NotFoundError):
+        await service.recent_deliveries(_ctx(owner, foreign_org), source.id)
 
 
 async def test_concurrent_duplicate_admission_persists_one_receipt_and_dispatch(

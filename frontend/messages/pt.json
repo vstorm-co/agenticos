@@ -6329,6 +6329,10 @@
         "title": "Criar nova fonte",
         "body": "Configure o remetente manualmente para enviar JSON por POST à URL da fonte."
       },
+      "event-sources-deliveries": {
+        "title": "Entregas recentes",
+        "body": "Abra as entregas recentes de uma fonte para ver quais eventos foram aceitos e como foram encaminhados aos assinantes."
+      },
       "flow-event-source-create": {
         "title": "Criar nova fonte",
         "body": "Configure o remetente manualmente para enviar JSON por POST à URL da fonte."
@@ -22254,6 +22258,22 @@
     }
   },
   "eventSources": {
+    "activity": "Atividade",
+    "deliveries": {
+      "title": "Entregas recentes",
+      "forSource": "Entregas recentes de {name}",
+      "description": "Exibe até 20 eventos aceitos. Encaminhado significa que um assinante aceitou o evento, não que seu run foi concluído com sucesso.",
+      "receipt": "Recibo",
+      "dispatch": "Resultados do encaminhamento",
+      "pending": "{count, number} pendentes",
+      "admitted": "{count, number} encaminhados",
+      "skipped": "{count, number} ignorados",
+      "failed": "{count, number} com falha",
+      "noDispatches": "Nenhum encaminhamento",
+      "empty": "Nenhuma entrega recente.",
+      "loadError": "Não foi possível carregar as entregas recentes.",
+      "refresh": "Atualizar"
+    },
     "vaultBasicHelp": "Nome de usuário e senha para verificar solicitações de webhook recebidas. Essas credenciais nunca são enviadas a uma URL externa.",
     "vaultCredentialHelp": "Escolha uma credencial da organização no Vault. A fonte usa o valor atual, inclusive após a rotação.",
     "manageSources": "Gerenciar fontes de eventos",

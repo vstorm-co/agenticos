@@ -19,6 +19,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Open Event sources directly from the sidebar and check recent webhook receipts and subscriber dispatch outcomes for each source.
+
 ## [1.95.0] - 2026-11-26
 
 ### Fixed

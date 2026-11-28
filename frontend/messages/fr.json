@@ -6213,6 +6213,10 @@
         "title": "Créer une source",
         "body": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL de la source."
       },
+      "event-sources-deliveries": {
+        "title": "Livraisons récentes",
+        "body": "Consultez les livraisons récentes d’une source pour voir quels événements ont été acceptés et comment ils ont été transmis aux abonnés."
+      },
       "flow-event-source-create": {
         "title": "Créer une source",
         "body": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL de la source."
@@ -21738,6 +21742,22 @@
     }
   },
   "eventSources": {
+    "activity": "Activité",
+    "deliveries": {
+      "title": "Livraisons récentes",
+      "forSource": "Livraisons récentes pour {name}",
+      "description": "Affiche jusqu’à 20 événements acceptés. Transmis signifie qu’un abonné a accepté l’événement, pas que son run a réussi.",
+      "receipt": "Reçu",
+      "dispatch": "Résultats de la transmission",
+      "pending": "En attente : {count, number}",
+      "admitted": "Transmis : {count, number}",
+      "skipped": "Ignorés : {count, number}",
+      "failed": "En échec : {count, number}",
+      "noDispatches": "Aucune transmission",
+      "empty": "Aucune livraison récente.",
+      "loadError": "Impossible de charger les livraisons récentes.",
+      "refresh": "Actualiser"
+    },
     "vaultBasicHelp": "Nom d’utilisateur et mot de passe pour vérifier les requêtes webhook entrantes. Ces identifiants ne sont jamais envoyés à une URL externe.",
     "vaultCredentialHelp": "Choisissez des identifiants de l’organisation dans le Vault. La source utilise leur valeur actuelle, y compris après rotation.",
     "manageSources": "Gérer les sources d’événements",

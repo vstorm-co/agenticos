@@ -47,8 +47,10 @@ from app.schemas.event_source import (
     EventSourceUpdate,
     JsonObject,
     Provider,
+    RecentSourceDeliveries,
     SourceAuth,
     SourceCredentials,
+    SourceDeliveryRead,
     SourceUsage,
     SourceUsageList,
 )
@@ -426,6 +428,15 @@ class EventSourceService:
                             )
                         )
         return SourceUsageList(items=items, total=len(items))
+
+    async def recent_deliveries(self, ctx: AuthContext, source_id: UUID) -> RecentSourceDeliveries:
+        await self.get(ctx, source_id)
+        rows = await repo.recent_deliveries(
+            self.db, source_id=source_id, organization_id=ctx.organization_id, limit=20
+        )
+        return RecentSourceDeliveries(
+            items=[SourceDeliveryRead.model_validate(row) for row in rows]
+        )
 
     async def delete(self, ctx: AuthContext, source_id: UUID) -> None:
         source = await self.get(ctx, source_id, perm=Perm.EVENT_SOURCES_EDIT, lock=True)

@@ -22,8 +22,10 @@ from app.schemas.event_source import (
     EventSourceCreated,
     EventSourceList,
     EventSourceRead,
+    RecentSourceDeliveries,
     SourceAuth,
     SourceCapture,
+    SourceDeliveryRead,
     SourceListening,
     SourceUsageList,
 )
@@ -57,6 +59,20 @@ async def wired():
     service.update = AsyncMock(return_value=source)
     service.delete = AsyncMock()
     service.usage = AsyncMock(return_value=SourceUsageList(items=[], total=0))
+    service.recent_deliveries = AsyncMock(
+        return_value=RecentSourceDeliveries(
+            items=[
+                SourceDeliveryRead(
+                    id=uuid4(),
+                    received_at=datetime.now(UTC),
+                    pending=1,
+                    admitted=2,
+                    skipped=3,
+                    failed=4,
+                )
+            ]
+        )
+    )
     service.replace_credentials = AsyncMock()
     service.receive = AsyncMock(
         return_value=(source, MagicMock(body={"x": 1}, external_id="one", id=uuid4()), True)
@@ -84,6 +100,10 @@ async def test_source_routes_use_consistent_response_shapes(wired):
     assert (await client.get(base)).json()["id"] == str(source.id)
     assert (await client.patch(base, json={"is_active": False})).status_code == 200
     assert (await client.get(base + "/usage")).json()["items"] == []
+    history = await client.get(base + "/deliveries")
+    assert history.status_code == 200
+    assert history.json() == service.recent_deliveries.return_value.model_dump(mode="json")
+    service.recent_deliveries.assert_awaited_once_with(CTX, source.id)
     assert (await client.post(base + "/listen")).json()["listener_id"] == "listener-id"
     samples.listen.assert_awaited_once_with(CTX, source.id)
     assert (await client.get(base + "/listen/a-token")).json()["state"] == "expired"

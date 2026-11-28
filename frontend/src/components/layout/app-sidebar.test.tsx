@@ -122,11 +122,14 @@ describe("SidebarNav", () => {
   it("hides what the caller's role does not allow", () => {
     // Presentation, not enforcement - but a link that can only refuse them is
     // an invitation to try something that cannot work.
-    can.mockImplementation((permission) => permission !== "skills:view");
+    can.mockImplementation(
+      (permission) => permission !== "skills:view" && permission !== "event_sources:view",
+    );
 
     renderNav();
 
     expect(screen.queryByRole("link", { name: "skills" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "eventSources" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "agents" })).toBeInTheDocument();
   });
 
@@ -406,7 +409,7 @@ describe("daily-work navigation", () => {
     sidebar.openGroups = [];
     renderNav();
     const hrefs = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
-    expect(hrefs.slice(0, 7)).toEqual([
+    expect(hrefs.slice(0, 8)).toEqual([
       "/dashboard",
       "/chat",
       "/inbox",
@@ -414,6 +417,7 @@ describe("daily-work navigation", () => {
       "/agents",
       "/workflows",
       "/routines",
+      "/event-sources",
     ]);
     expect(screen.queryByRole("link", { name: "backgroundWork" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "monitoring" })).toHaveAttribute(

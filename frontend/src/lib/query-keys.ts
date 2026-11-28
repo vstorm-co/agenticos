@@ -34,6 +34,7 @@ export const qk = {
         ? (["event-sources", "usage"] as const)
         : (["event-sources", "usage", id] as const),
     capture: (id: string, token: string) => ["event-sources", id, "capture", token] as const,
+    deliveries: (id: string) => ["event-sources", id, "deliveries"] as const,
   },
   consoleExperience: {
     all: () => ["console-experience"] as const,

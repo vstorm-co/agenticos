@@ -12,7 +12,7 @@ import {
   node,
 } from "@/components/workflows/validation/fixtures";
 import { apiClient } from "@/lib/api-client";
-import type { EventSource, SourceUsage } from "@/lib/event-sources-api";
+import type { EventSource, EventSourceDelivery, SourceUsage } from "@/lib/event-sources-api";
 import { SourceForm } from "./source-form";
 import { SourceManager } from "./source-manager";
 import { SourceSelector } from "./source-selector";
@@ -214,6 +214,94 @@ describe("event source management", () => {
     expect(apiClient.post).toHaveBeenCalledExactlyOnceWith("/event-sources/s1/listen", {});
     expect(apiClient.patch).not.toHaveBeenCalled();
   });
+
+  it("loads recent deliveries only for the selected source, even without source-use permission", async () => {
+    const user = userEvent.setup();
+    permissions = ["event_sources:view"];
+    items = [
+      { ...source, can_use: false, can_edit: false },
+      { ...source, id: "s2", name: "Other source", can_use: false, can_edit: false },
+    ];
+    const receipt: EventSourceDelivery = {
+      id: "receipt-1",
+      received_at: "2026-11-27T15:42:00Z",
+      pending: 1,
+      admitted: 2,
+      skipped: 3,
+      failed: 4,
+    };
+    const response = {
+      items: [
+        receipt,
+        {
+          id: "receipt-2",
+          received_at: "2026-11-27T15:41:00Z",
+          pending: 0,
+          admitted: 0,
+          skipped: 0,
+          failed: 0,
+        },
+      ],
+    };
+    const get = vi.mocked(apiClient.get).getMockImplementation()!;
+    let finish!: (result: typeof response) => void;
+    const waiting = new Promise<typeof response>((resolve) => {
+      finish = resolve;
+    });
+    const deliveries = vi
+      .fn()
+      .mockReturnValueOnce(waiting)
+      .mockResolvedValueOnce({
+        items: [{ ...receipt, pending: 0, admitted: 3 }],
+      });
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
+      path.endsWith("/deliveries") ? deliveries(path) : get(path, options),
+    );
+    render(<SourceManager />, { wrapper });
+
+    const trigger = await screen.findByRole("button", { name: "Recent deliveries for Issues" });
+    expect(deliveries).not.toHaveBeenCalled();
+    await user.click(trigger);
+    const history = within(screen.getByRole("dialog", { name: "Recent deliveries for Issues" }));
+    expect(history.getByRole("table")).toHaveAttribute("aria-busy", "true");
+    expect(history.getByRole("button", { name: "Refresh" })).toBeDisabled();
+    expect(deliveries).toHaveBeenCalledExactlyOnceWith("/event-sources/s1/deliveries");
+    finish(response);
+
+    const row = await history.findByRole("row", { name: /receipt-1/ });
+    expect(row.querySelector("time")).toHaveAttribute("datetime", receipt.received_at);
+    for (const label of ["1 pending", "2 handed off", "3 skipped", "4 failed"]) {
+      expect(within(row).getByText(label)).toBeVisible();
+    }
+    expect(history.getByRole("row", { name: /receipt-2/ })).toHaveTextContent("No dispatches");
+    await user.click(history.getByRole("button", { name: "Refresh" }));
+    expect(await history.findByText("3 handed off")).toBeVisible();
+    expect(history.queryByText("1 pending")).not.toBeInTheDocument();
+  });
+
+  it("distinguishes failed delivery history from no recent deliveries and can retry", async () => {
+    const get = vi.mocked(apiClient.get).getMockImplementation()!;
+    const deliveries = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("History unavailable"))
+      .mockResolvedValueOnce({ items: [] });
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) =>
+      path.endsWith("/deliveries") ? deliveries() : get(path, options),
+    );
+    render(<SourceManager />, { wrapper });
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Recent deliveries for Issues" }),
+    );
+    const history = within(screen.getByRole("dialog", { name: "Recent deliveries for Issues" }));
+    expect(await history.findByRole("alert")).toHaveTextContent(
+      "Recent deliveries could not be loaded.",
+    );
+    expect(history.queryByText("No recent deliveries.")).not.toBeInTheDocument();
+    await userEvent.click(history.getByRole("button", { name: "Retry" }));
+    expect(await history.findByText("No recent deliveries.")).toBeVisible();
+    expect(history.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("keeps the current source visible after use permission is revoked", async () => {
     permissions = ["event_sources:view"];
     items = [{ ...source, can_use: false, can_edit: false }];

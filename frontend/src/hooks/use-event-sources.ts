@@ -27,6 +27,13 @@ export function useEventSourceUsage(id: string) {
     queryFn: () => eventSourcesApi.usage(id),
   });
 }
+export function useEventSourceDeliveries(id: string) {
+  return useQuery({
+    queryKey: qk.eventSources.deliveries(id),
+    queryFn: () => eventSourcesApi.deliveries(id),
+    staleTime: 0,
+  });
+}
 export function useEventSourceWrites() {
   const cache = useQueryClient();
   const t = useTranslations("errors");

@@ -1,5 +1,5 @@
 ---
-source_sha: "22fac73d07b1"
+source_sha: "5710941450ee"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -128,7 +128,7 @@ jeder Zeile brauchen `runs:view` und fehlen ohne es schlicht.
 
 ## Wiederverwendbare Ereignisquellen { #reusable-event-sources }
 
-Die Verwaltung der **Ereignisquellen** bleibt unter `/event-sources` erreichbar und ist in der Quellenauswahl von Routinen und Workflows verlinkt. Sie ist kein Standardziel der Seitenleiste; fügen Sie den Eintrag bei häufiger Nutzung über die Navigationsanpassung hinzu.
+Öffnen Sie **Ereignisquellen (Event sources)** unter **Erstellen und verwalten (Build & manage)** in der Seitenleiste. Die Verwaltung unter `/event-sources` ist auch in der Quellenauswahl von Routinen und Workflows verlinkt.
 
 Fügen Sie Ihrem Dashboard das Widget **Ereignisquellen** hinzu. Es zeigt, wie viele der für Sie sichtbaren Quellen aktiv oder pausiert sind.
 
@@ -155,7 +155,9 @@ Eine authentifizierte Zustellung und ihre Versandaufträge werden gemeinsam gesp
 
 Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert keine benutzerdefinierte Workflow-Antwort. Ein Workflow mit gemeinsamer Quelle darf **Auf Webhook antworten** nicht erreichen. Dedizierte Workflow-Endpunkte behalten synchrone Antworten.
 
-**Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen. Eine pausierte Quelle prüft und speichert weiterhin jede Zustellung. Eine laufende Erfassung empfängt sie ebenfalls. Das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Solange Abonnements bestehen, ist Löschen gesperrt; die Nutzungsliste zeigt die zuvor zu trennenden Ziele. Abgeschlossene Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
+**Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen. Eine pausierte Quelle prüft und speichert weiterhin jede Zustellung. Eine laufende Erfassung empfängt sie ebenfalls. Das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Solange Abonnements bestehen, ist Löschen gesperrt; die Nutzungsliste zeigt die zuvor zu trennenden Ziele. Die Nutzdaten abgeschlossener Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
+
+Wählen Sie in der Zeile einer Quelle **Letzte Zustellungen (Recent deliveries)**, um bis zu 20 angenommene Zustellungen zu sehen, die neueste zuerst. Jeder Eintrag zeigt die Empfangszeit, eine interne Empfangs-ID und die Anzahl der Weiterleitungen je Status: ausstehend, weitergeleitet, übersprungen oder fehlgeschlagen. **Weitergeleitet (Handed off)** bedeutet, dass ein Abonnent das Ereignis angenommen hat, nicht dass sein Run erfolgreich war. Der Verlauf zeigt keine Nutzdaten, Header oder abgelehnten Anfragen. Doppelte Anfragen erzeugen keinen zusätzlichen Eintrag.
 
 ### Auf der Live-URL auf ein Ereignis warten { #listen-on-the-live-url }
 

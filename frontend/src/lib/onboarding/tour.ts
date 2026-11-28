@@ -1685,6 +1685,13 @@ export const TOUR_STEPS: readonly TourStep[] = [
     target: "event-sources-create",
     permission: Perm.eventSourcesEdit,
   },
+  {
+    id: "event-sources-deliveries",
+    page: ROUTES.EVENT_SOURCES,
+    target: "event-sources-deliveries",
+    permission: Perm.eventSourcesView,
+    optional: true,
+  },
 
   // Routines — the org-wide home for everything an agent does on its own. Two
   // stops: what is already running, and the two ways to start one. The create

@@ -1,4 +1,4 @@
-"""Reusable source configuration and live capture; no sample operation executes a target."""
+"""Reusable source configuration, delivery history, and live capture."""
 
 from datetime import UTC, datetime
 from typing import Any
@@ -15,6 +15,7 @@ from app.schemas.event_source import (
     EventSourceList,
     EventSourceRead,
     EventSourceUpdate,
+    RecentSourceDeliveries,
     SourceCapture,
     SourceCredentials,
     SourceListening,
@@ -78,6 +79,15 @@ async def replace_credentials(
 @router.get("/{source_id}/usage", response_model=SourceUsageList)
 async def source_usage(source_id: UUID, ctx: Auth, service: EventSourceSvc) -> Any:
     return await service.usage(ctx, source_id)
+
+
+@router.get("/{source_id}/deliveries", response_model=RecentSourceDeliveries)
+async def source_deliveries(source_id: UUID, ctx: Auth, service: EventSourceSvc) -> Any:
+    """List the 20 newest accepted receipts with dispatch counts, without payloads or headers.
+
+    Admitted means handed off to a target, not that its run completed successfully.
+    """
+    return await service.recent_deliveries(ctx, source_id)
 
 
 @router.post("/{source_id}/listen", response_model=SourceListening)

@@ -6389,6 +6389,10 @@
         "title": "Create new source",
         "body": "Configure the sender manually to POST JSON to the source URL."
       },
+      "event-sources-deliveries": {
+        "title": "Recent deliveries",
+        "body": "Open a source’s recent deliveries to see which events were accepted and how they were handed off to subscribers."
+      },
       "flow-event-source-create": {
         "title": "Create new source",
         "body": "Configure the sender manually to POST JSON to the source URL."
@@ -22032,6 +22036,22 @@
     }
   },
   "eventSources": {
+    "activity": "Activity",
+    "deliveries": {
+      "title": "Recent deliveries",
+      "forSource": "Recent deliveries for {name}",
+      "description": "Shows up to 20 accepted events. Handed off means a subscriber accepted the event, not that its run succeeded.",
+      "receipt": "Receipt",
+      "dispatch": "Dispatch outcomes",
+      "pending": "{count, number} pending",
+      "admitted": "{count, number} handed off",
+      "skipped": "{count, number} skipped",
+      "failed": "{count, number} failed",
+      "noDispatches": "No dispatches",
+      "empty": "No recent deliveries.",
+      "loadError": "Recent deliveries could not be loaded.",
+      "refresh": "Refresh"
+    },
     "vaultBasicHelp": "Username and password for checking incoming webhook requests. These credentials are never sent to an external URL.",
     "vaultCredentialHelp": "Choose an organization credential from the Vault. The source uses its current value, including future rotations.",
     "manageSources": "Manage event sources",

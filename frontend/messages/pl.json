@@ -8052,6 +8052,10 @@
         "title": "Utwórz nowe źródło",
         "body": "Skonfiguruj nadawcę ręcznie, aby wysyłał JSON metodą POST na URL źródła."
       },
+      "event-sources-deliveries": {
+        "title": "Ostatnie dostawy",
+        "body": "Otwórz ostatnie dostawy źródła, aby sprawdzić, które zdarzenia zostały przyjęte i jak przekazano je subskrybentom."
+      },
       "flow-event-source-create": {
         "title": "Utwórz nowe źródło",
         "body": "Skonfiguruj nadawcę ręcznie, aby wysyłał JSON metodą POST na URL źródła."
@@ -21805,6 +21809,22 @@
     }
   },
   "eventSources": {
+    "activity": "Aktywność",
+    "deliveries": {
+      "title": "Ostatnie dostawy",
+      "forSource": "Ostatnie dostawy: {name}",
+      "description": "Pokazuje do 20 przyjętych zdarzeń. Przekazanie oznacza, że subskrybent przyjął zdarzenie, a nie że jego run się powiódł.",
+      "receipt": "Potwierdzenie odbioru",
+      "dispatch": "Wyniki przekazania",
+      "pending": "Oczekuje: {count, number}",
+      "admitted": "Przekazano: {count, number}",
+      "skipped": "Pominięto: {count, number}",
+      "failed": "Błędy: {count, number}",
+      "noDispatches": "Brak prób przekazania",
+      "empty": "Brak ostatnich dostaw.",
+      "loadError": "Nie udało się wczytać ostatnich dostaw.",
+      "refresh": "Odśwież"
+    },
     "vaultBasicHelp": "Nazwa użytkownika i hasło do weryfikowania przychodzących żądań webhooka. Te dane nigdy nie są wysyłane na zewnętrzny URL.",
     "vaultCredentialHelp": "Wybierz dane uwierzytelniające organizacji z Vault. Źródło korzysta z ich bieżącej wartości, także po rotacji.",
     "manageSources": "Zarządzaj źródłami zdarzeń",

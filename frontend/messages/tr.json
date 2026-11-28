@@ -9155,6 +9155,10 @@
         "title": "Yeni kaynak oluştur",
         "body": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın."
       },
+      "event-sources-deliveries": {
+        "title": "Son teslimatlar",
+        "body": "Hangi olayların kabul edildiğini ve abonelere nasıl iletildiğini görmek için kaynağın son teslimatlarını açın."
+      },
       "flow-event-source-create": {
         "title": "Yeni kaynak oluştur",
         "body": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın."
@@ -17337,6 +17341,22 @@
     }
   },
   "eventSources": {
+    "activity": "Etkinlik",
+    "deliveries": {
+      "title": "Son teslimatlar",
+      "forSource": "{name} için son teslimatlar",
+      "description": "Kabul edilen en fazla 20 olayı gösterir. İletildi durumu bir abonenin olayı kabul ettiğini, run’ın başarılı olduğunu değil, belirtir.",
+      "receipt": "Alındı kaydı",
+      "dispatch": "İletim sonuçları",
+      "pending": "{count, number} bekliyor",
+      "admitted": "{count, number} iletildi",
+      "skipped": "{count, number} atlandı",
+      "failed": "{count, number} başarısız",
+      "noDispatches": "İletim yok",
+      "empty": "Yakın zamanda teslimat yok.",
+      "loadError": "Son teslimatlar yüklenemedi.",
+      "refresh": "Yenile"
+    },
     "vaultBasicHelp": "Gelen webhook isteklerini doğrulamak için kullanıcı adı ve parola. Bu kimlik bilgileri hiçbir zaman harici bir URL’ye gönderilmez.",
     "vaultCredentialHelp": "Vault’tan kuruluşa ait kimlik bilgilerini seçin. Kaynak, bilgiler yenilendiğinde de güncel değerlerini kullanır.",
     "manageSources": "Olay kaynaklarını yönet",

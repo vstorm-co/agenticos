@@ -114,7 +114,7 @@ see the agents sees their routines; the outcome and cost on each row need
 
 ## Reusable event sources { #reusable-event-sources }
 
-The **Event sources** management page remains at `/event-sources` and is linked from routine and workflow source pickers. It is not a default sidebar destination; add it through navigation customization if you use it frequently.
+Open **Event sources** under **Build & manage** in the sidebar. The management page at `/event-sources` is also linked from routine and workflow source pickers.
 
 Add the **Event sources** widget to your dashboard to see how many of your visible sources are active or paused.
 
@@ -142,6 +142,8 @@ An authenticated delivery and its dispatch work commit together before the sourc
 A shared URL acknowledges durable receipt asynchronously; it cannot return a workflow's custom response. A shared-source workflow must not reach **Respond to webhook**. Dedicated workflow endpoints retain their synchronous response behavior.
 
 **Pause source** stops starting subscribers for new deliveries. A paused source still verifies and stores each delivery, and an open listener still captures it. Pausing one routine or workflow stops that subscriber. Deleting a source is refused while subscriptions remain; its usage list shows the targets to detach first. Terminal delivery payloads follow the background-job retention policy.
+
+On a source's row, choose **Recent deliveries** to see up to 20 accepted deliveries, newest first. Each entry shows the receipt time, an internal receipt ID and counts of dispatches that are pending, handed off, skipped or failed. **Handed off** means a subscriber accepted the event, not that its run succeeded. The history does not show payloads, headers or rejected requests; duplicate requests do not add a second entry.
 
 ### Listen on the live URL { #listen-on-the-live-url }
 
