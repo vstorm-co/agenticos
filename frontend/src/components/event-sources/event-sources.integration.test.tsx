@@ -760,6 +760,25 @@ describe("source authentication form", () => {
 });
 
 describe("editor samples", () => {
+  it("reports a failed copy without starting the live listener", async () => {
+    const user = userEvent.setup();
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockRejectedValue(new DOMException("Denied", "NotAllowedError"));
+    try {
+      render(<LiveSample sourceId="s1" onSample={vi.fn()} />, { wrapper });
+      await user.click(await screen.findByRole("button", { name: "Copy Live endpoint URL" }));
+
+      expect(writeText).toHaveBeenCalledExactlyOnceWith(source.webhook_url);
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Copy failed"));
+      expect(screen.getByRole("button", { name: "Copy Live endpoint URL" })).toBeVisible();
+      expect(screen.queryByRole("button", { name: "Copied" })).not.toBeInTheDocument();
+      expect(apiClient.post).not.toHaveBeenCalled();
+    } finally {
+      writeText.mockRestore();
+    }
+  });
+
   it("listens on the existing URL and returns the JSON output shape without executing anything", async () => {
     vi.mocked(apiClient.post).mockResolvedValue({
       listener_id: "listen-token",
