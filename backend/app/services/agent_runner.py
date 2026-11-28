@@ -3386,6 +3386,7 @@ def _delegate_builder(
     extra_toolsets: list[AbstractToolset[Any]],
     test_bindings: frozenset[str] = frozenset(),
     reviewer_models: Mapping[UUID, ModelRequestSpec] | None = None,
+    session_scope: str | None = None,
 ) -> Callable[[], PydanticAgent[Any, Any]]:
     """A closure that builds one delegate, with nothing left to look up.
 
@@ -3445,6 +3446,7 @@ def _delegate_builder(
             isolation=delegation.isolation,
             test_bindings=test_bindings,
             answering_call=delegation.answering_call,
+            session_scope=session_scope,
         )
         # Kept so `finish` counts its cache busts on the row of the agent that hit them.
         delegation.recorders.append((agent_id, built.recorder))
@@ -3504,6 +3506,8 @@ def _dynamic_builder(
             ),
             model=profiles[model],
             agent_id=delegation.agent_id,
+            # The parent's id, so the specialist needs a scope of its own.
+            session_scope=f"dynamic:{name}",
             resources={
                 "kb_collection_names": [],
                 "kb_vector_scopes": {},
@@ -6470,6 +6474,8 @@ class AgentRunnerService:
                 spec=spec,
                 model=await self._delegated_model(delegation, spec),
                 agent_id=delegation.agent_id,
+                # The parent's id, so the specialist needs a scope of its own.
+                session_scope=f"inline:{specialist.name}",
                 resources=own_resources,
                 secrets=await self.secrets.resolve_for_bindings(ctx, _secret_ids(spec)),
                 # A specialist has no MCP connections. They are

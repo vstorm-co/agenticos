@@ -14,7 +14,7 @@ just another client" true rather than aspirational.
 import json
 import logging
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from functools import partial
 from typing import Any
@@ -95,7 +95,7 @@ from app.agents.deps import AgentDeps, ApprovalCallback
 from app.agents.isolation import IsolationGuard, RunIsolation, capability_tools
 from app.agents.loop_guard import LoopGuard
 from app.agents.manifest import RecordedToolSearch, RecordingModel, RunRecorder
-from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec
+from app.agents.model_resolver import PROMPT_CACHE, ModelRequestSpec, provider_session
 from app.agents.native_model_spec import NativeContext, NativeModelSpec
 from app.agents.observability import instrument_agent, suppress_content
 from app.agents.routine_actions import RoutineToolCheck
@@ -266,6 +266,7 @@ def build_agent(
     voice: VoiceOptions | None = None,
     answering_call: VoiceOptions | None = None,
     offer_setup_tools: bool = True,
+    session_scope: str | None = None,
 ) -> BuiltAgent:
     """Instantiate an agent from its spec.
 
@@ -350,6 +351,10 @@ def build_agent(
             it (#54). A text run in every respect but two: a gated call is put to
             the caller through `answering_call.on_deferred` rather than parked,
             because nobody resumes a call, and a visitor's carries no gated tool.
+        session_scope: What tells apart an agent built under another's
+            `agent_id` - an inline or a dynamic specialist, which carry their
+            parent's - from that agent, for a provider that routes by
+            conversation. Omitted for an agent of its own.
 
     Raises:
         BadRequestError: If the spec references an unknown tool, an invalid tool
@@ -357,6 +362,20 @@ def build_agent(
             the organization no longer has, or an approval the gate could not
             enforce because the model provider executes the tool.
     """
+    # A provider that routes by conversation (OpenCode Go) sees one session per
+    # agent in it, across all of the conversation's runs; a run with no
+    # conversation is its own. Keyed by the agent's id, never its name, which an
+    # author can change between turns and another agent can share.
+    session_key = conversation_id if conversation_id is not None else run_id
+    session_owner: tuple[object, ...] | None = (
+        None
+        if session_key is None
+        else (
+            session_key,
+            agent_id or "no-agent",
+            *(() if session_scope is None else (session_scope,)),
+        )
+    )
     routine_policy = None
     if routine_action_check is not None:
         if agent_id is None:
@@ -599,7 +618,7 @@ def build_agent(
             if spec.loop_guard.enabled
             else []
         ),
-        *_reviewers(spec, reviewer_models or {}, recorder),
+        *_reviewers(spec, reviewer_models or {}, recorder, session_owner),
         # Off unless the spec asks, and never under a session that asks before
         # every tool: nothing could be folded into a script there.
         *(
@@ -648,6 +667,9 @@ def build_agent(
             **spec.model_settings.model_dump(),
         }
     )
+
+    if session_owner is not None:
+        model_spec = replace(model_spec, provider_session=provider_session(*session_owner))
 
     if isinstance(model_spec, NativeModelSpec):
         capabilities.append(NativeContext())
@@ -700,7 +722,10 @@ def build_agent(
 
 
 def _reviewers(
-    spec: AgentSpec, models: Mapping[UUID, ModelRequestSpec], recorder: RunRecorder
+    spec: AgentSpec,
+    models: Mapping[UUID, ModelRequestSpec],
+    recorder: RunRecorder,
+    session_owner: tuple[object, ...] | None,
 ) -> list[RunReviewer]:
     """The spec's run reviewers, each on the model the runner resolved for it (#2106).
 
@@ -729,7 +754,16 @@ def _reviewers(
         reviewers.append(
             RunReviewer(
                 name=reviewer.name,
-                model=model.build(),
+                model=(
+                    model
+                    if session_owner is None
+                    else replace(
+                        model,
+                        provider_session=provider_session(
+                            *session_owner, "reviewer", reviewer.name
+                        ),
+                    )
+                ).build(),
                 model_settings=ModelSettings(**model.params),
                 instructions=reviewer.instructions,
                 every=reviewer.every,
