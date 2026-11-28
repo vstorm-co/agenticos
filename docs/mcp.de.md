@@ -1,5 +1,5 @@
 ---
-source_sha: "5e69a7458f60"
+source_sha: "40d5ddda13e6"
 ---
 
 # MCP — die Tools, die hier niemand schreiben muss { #mcp-the-tools-nobody-here-has-to-write }
@@ -39,6 +39,7 @@ konfigurieren wäre.
 | `allowed_tools` | Eine Allowlist, oder null für „alles, was der Server anbietet“. Ein Binding grenzt darin weiter ein — siehe unten |
 | `is_enabled` | Aus, ohne die Zugangsdaten zu verlieren |
 | `include_instructions` | Fügt die eigenen `initialize`-Anweisungen des Servers zu denen des Agenten hinzu. Standardmäßig aus - es ist der Text des Serverbetreibers, gelesen als Anweisungen des Agenten - und im Edit-Dialog der Verbindung eingeschaltet |
+| `mcp_apps` | Zeigt die Seite, die ein Tool mitbringt ([MCP Apps](#pages-a-tool-comes-with)), im Web-Chat unter der Antwort an und lässt sie die Tools dieses Servers aufrufen. Standardmäßig aus - die Seite ist Code des Serverbetreibers - und im Edit-Dialog der Verbindung eingeschaltet |
 | `last_status` | Was die letzte Prüfung ergeben hat, und wann |
 
 !!! warning "Eine Adresse, die dieses Deployment nicht erreichen darf, wird abgelehnt, und die Ablehnung sagt es"
@@ -658,6 +659,76 @@ dieser Markierung vertraut. Die Markierung ist die eigene Angabe des Servers,
 deshalb ist das Vertrauen auf jeder Verbindung aus. Eingeschaltet wird es im
 Dialog **Tools** der Verbindung. Der Dialog nennt, wie viele Tools die
 Markierung beanspruchen, und die Änderung wird mit dieser Zahl im Audit erfasst.
+
+### Seiten, die ein Tool mitbringt { #pages-a-tool-comes-with }
+
+Manche Server beantworten einen Tool-Aufruf mit einer Seite und mit Daten:
+[MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview), die offizielle
+Erweiterung `io.modelcontextprotocol/ui`. Ein Tool nennt in `_meta.ui.resourceUri`
+eine `ui://`-Seite, und ein Host, der Seiten zeigt, stellt sie mit dem Ergebnis dar -
+ein Diagramm, ein Dashboard, eine Grafik, mit der jemand arbeiten kann.
+
+Auf einer Verbindung mit eingeschaltetem `mcp_apps`:
+
+- Die Verbindung sagt dem Server, dass sie Seiten zeigt, und ein Aufruf eines
+  solchen Tools wird mit dem gespeichert, was die Seite braucht: ihrer Adresse,
+  der Eingabe des Aufrufs und dem ganzen Ergebnis des Servers (ohne Bilder und
+  Blobs). Ein Ergebnis über 1 MiB wird nur als Text gezeigt.
+- Der **Web-Chat** zeigt die Seite unter der Antwort, sobald der Turn gespeichert
+  ist, und wieder, wenn die Unterhaltung erneut geöffnet wird. Channels, die API,
+  das Embed und Voice zeigen wie bisher das Text-Ergebnis.
+- Die Seite wird bei jeder Anzeige vom Server gelesen, über eine signierte Adresse,
+  die fünf Minuten gilt, mit dem Credential der Verbindung. Von der Seite selbst
+  wird hier nichts gespeichert.
+
+Mit ausgeschaltetem `mcp_apps` ändert sich nichts: Den Seiten-Eintrag, den Pydantic AI
+an ein solches Ergebnis hängt, verwirft schon das Toolset, sodass ihn keine
+Oberfläche sieht.
+
+!!! warning "Eine Seite ist Code des Serverbetreibers und läuft im Browser der lesenden Person"
+
+    Sie läuft in derselben Sandbox wie eine [App](artifacts.md), ohne native
+    Dialoge (`alert`, `confirm`, `prompt`), die den Namen dieser Installation
+    trügen: eine opake
+    Origin, also kein Cookie, kein Storage und kein DOM der Konsole;
+    `connect-src 'none'` und keine entfernten Quellen, also kann sie selbst nichts
+    irgendwohin senden. Domains, die eine Seite in `_meta.ui.csp` anfragt, werden
+    nicht gewährt. Ein Link, den sie öffnen will, wird zuerst der Person
+    vorgelegt. Eine Seite, die fremde Skripte oder Styles braucht, wird hier nicht
+    dargestellt.
+
+Eine Seite erreicht ihren Server nicht, also leitet die Konsole weiter, was sie
+anfragt: `tools/call` und `resources/read` (nur `ui://`-Ressourcen). Ein
+weitergeleiteter Aufruf darf nur, was der Run durfte, der den ursprünglichen
+Aufruf gemacht hat, und was das Binding des Agenten jetzt erlaubt:
+
+- Er geht an die Verbindung des Aufrufs selbst, und die eigene Verbindung einer
+  Person nur für diese Person. Die lesende Person muss an der Unterhaltung
+  teilnehmen können; ein geteiltes Transkript zu lesen lässt eine Seite nicht
+  handeln.
+- Das Tool muss Seiten angeboten werden (`_meta.ui.visibility`) und auf der
+  Tool-Liste des Bindings stehen, wie sie für den Run galt, und auf der Liste der
+  Verbindung, wie sie jetzt ist. Ein Tool, das der Server nur Seiten anbietet,
+  steht nie in einer Tool-Liste zur Auswahl - das Modell sieht es nie -, also ist
+  es für die Seite erlaubt, die es nennt, und für keine andere.
+- Er hält sich auch an das Binding des Agenten, wie es jetzt ist, aus seiner
+  veröffentlichten Version: Ein Tool von der Liste des Bindings zu nehmen oder dort
+  Freigaben zu verlangen, gilt sofort für die Seiten, die schon in Unterhaltungen
+  stehen. Ein archivierter Agent oder einer ohne dieses Binding lässt seine Seiten
+  nichts mehr aufrufen. Ein seither gelockertes Binding lockert das des Runs nicht.
+- Ein Aufruf, den die Freigaben eines der beiden Bindings auf eine Person warten ließen, wird
+  **abgelehnt**, nicht geparkt: Eine Freigabe gehört zur Unterhaltung, und eine
+  Seite ist kein Weg an ihr vorbei. Unter `writes` ist das jedes Tool, das der
+  Server nicht mit `readOnlyHint` markiert.
+- Jeder weitergeleitete Aufruf steht im [Audit-Trail](governance.md#audit) als
+  `mcp_connection.app_tool_called`, mit Tool und Unterhaltung, nie mit seinen
+  Argumenten; die Seiten einer Person dürfen 300 Aufrufe pro Minute weiterleiten,
+  und eine Seitenadresse darf 20-mal geladen werden.
+
+Was der Host einer Seite nicht anbietet, beantwortet er als nicht gefunden: eine
+Nachricht als die Person senden, ändern, was dem Modell gesagt wird, und
+Anzeigemodi außer inline. Server, die über SSE erreicht werden, bekommen keine
+Seiten.
 
 ### Einen aus dem Builder heraus verbinden { #connecting-one-from-the-builder }
 

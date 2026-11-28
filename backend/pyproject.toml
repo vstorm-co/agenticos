@@ -1562,6 +1562,8 @@ include = [
     "app/repositories/tool_output_report.py",
     "app/services/tool_output_report.py",
     "app/commands/tool_output_report.py",
+    "app/services/mcp_app.py",
+    "app/schemas/mcp_app.py",
 ]
 # Mirrors `[tool.coverage.run] omit` - one definition of "ours", asserted equal
 # by tests/test_coverage_gate.py.
@@ -2573,6 +2575,8 @@ include = [
     "app/repositories/tool_output_report.py",
     "app/services/tool_output_report.py",
     "app/commands/tool_output_report.py",
+    "app/services/mcp_app.py",
+    "app/schemas/mcp_app.py",
 ]
 branch = true
 omit = [

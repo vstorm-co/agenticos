@@ -1,5 +1,5 @@
 ---
-source_sha: "5e69a7458f60"
+source_sha: "40d5ddda13e6"
 ---
 
 # MCP — las herramientas que aquí nadie tiene que escribir { #mcp-the-tools-nobody-here-has-to-write }
@@ -38,6 +38,7 @@ Atlassian funciona junto a uno de HTTP en streaming sin nada que configurar.
 | `allowed_tools` | Una lista de permitidos, o null para «todo lo que ofrezca el servidor». Una vinculación estrecha dentro de ella — ver más abajo |
 | `is_enabled` | Apagarla sin perder la credencial |
 | `include_instructions` | Añade las instrucciones propias del servidor en `initialize` a las del agent. Apagado por defecto - es texto del operador del servidor, leído como instrucciones del agent - y se enciende en el diálogo Edit de la conexión |
+| `mcp_apps` | Muestra la página que trae una herramienta ([MCP Apps](#pages-a-tool-comes-with)) bajo la respuesta en el chat web, y le deja llamar a las herramientas de este servidor. Apagado por defecto - la página es código del operador del servidor - y se enciende en el diálogo Edit de la conexión |
 | `last_status` | Qué encontró el último sondeo, y cuándo |
 
 !!! warning "Una dirección que este despliegue no debe alcanzar se rechaza, y el rechazo lo dice"
@@ -649,6 +650,73 @@ marca es una afirmación del propio servidor, así que la confianza está
 desactivada en todas las conexiones. Se activa en el diálogo **Tools** de la
 conexión. El diálogo indica cuántas herramientas declaran la marca, y el cambio
 queda en la auditoría con ese número.
+
+### Páginas que trae una herramienta { #pages-a-tool-comes-with }
+
+Algunos servidores responden a una llamada con una página además de datos:
+[MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview), la extensión
+oficial `io.modelcontextprotocol/ui`. Una herramienta nombra una página `ui://` en
+su `_meta.ui.resourceUri`, y un host que muestra páginas la dibuja con el resultado:
+un gráfico, un dashboard, un diagrama con el que alguien puede trabajar.
+
+En una conexión con `mcp_apps` encendido:
+
+- La conexión le dice al servidor que muestra páginas, y una llamada a esa
+  herramienta se guarda con lo que la página necesita: su dirección, la entrada de
+  la llamada y el resultado completo del servidor (sin imágenes ni blobs). Un
+  resultado de más de 1 MiB se muestra solo como texto.
+- El **chat web** dibuja la página bajo la respuesta cuando el turno se ha
+  guardado, y otra vez al reabrir la conversación. Los channels, la API, el embed
+  y la voz muestran el resultado en texto, como antes.
+- La página se lee del servidor cada vez que se muestra, a través de una dirección
+  firmada que dura cinco minutos, con la credencial de la conexión. Aquí no se
+  guarda nada de la página.
+
+Con `mcp_apps` apagado no cambia nada: el registro de página que Pydantic AI añade a
+un resultado así se descarta en el toolset, de modo que ninguna superficie lo ve.
+
+!!! warning "Una página es código del operador del servidor, ejecutado en el navegador de quien lee"
+
+    Se ejecuta en el mismo sandbox que una [app](artifacts.md), sin diálogos
+    nativos (`alert`, `confirm`, `prompt`), que llevarían el nombre de este
+    despliegue: un origen opaco,
+    así que ninguna cookie, almacenamiento ni DOM de la consola; `connect-src
+    'none'` y ninguna fuente remota, así que no puede enviar nada a ningún sitio por
+    sí misma. Los dominios que una página pide en `_meta.ui.csp` no se conceden. Un
+    enlace que quiere abrir se le pregunta antes a la persona. Una página que
+    necesita scripts o estilos de fuera no se dibuja aquí.
+
+Una página no puede llegar a su servidor, así que la consola reenvía lo que pide:
+`tools/call` y `resources/read` (solo recursos `ui://`). Una llamada reenviada
+queda limitada a lo que podía hacer el run que hizo la llamada original, y a lo
+que el binding del agente le permite ahora:
+
+- Va a la conexión de la propia llamada, y la conexión propia de una persona solo
+  para esa persona. Quien lee tiene que poder participar en la conversación; leer
+  una transcripción compartida no deja actuar a una página.
+- La herramienta tiene que ofrecerse a las páginas (`_meta.ui.visibility`) y estar
+  en la lista de herramientas del binding tal como era para el run, y en la lista
+  de la conexión tal como es ahora. Una herramienta que el servidor ofrece solo a
+  las páginas nunca aparece en una lista para elegir - el modelo nunca la ve -, así
+  que se permite para la página que la nombra y para ninguna otra.
+- También queda limitada al binding del agente tal como es ahora, de su versión
+  publicada: quitar una herramienta de la lista del binding o pedir aprobaciones
+  ahí se aplica enseguida a las páginas que ya están en conversaciones. Un agente
+  archivado, o sin ese binding, deja a sus páginas sin nada que llamar. Un binding
+  aflojado desde entonces no afloja el del run.
+- Una llamada que las aprobaciones de cualquiera de los dos bindings harían esperar a una persona se
+  **rechaza**, no se aparca: una aprobación pertenece a la conversación, y una
+  página no es una forma de saltársela. Con `writes` es toda herramienta que el
+  servidor no marca con `readOnlyHint`.
+- Cada llamada reenviada queda en el [registro de auditoría](governance.md#audit)
+  como `mcp_connection.app_tool_called`, con la herramienta y la conversación,
+  nunca sus argumentos; las páginas de una persona pueden reenviar 300 llamadas por
+  minuto, y una dirección de página puede cargarse 20 veces.
+
+Lo que el host no ofrece a una página lo responde como no encontrado: enviar un
+mensaje como la persona, cambiar lo que se le dice al modelo y modos de
+visualización distintos de inline. Los servidores alcanzados por SSE no tienen
+páginas.
 
 ### Conectar uno desde el Builder { #connecting-one-from-the-builder }
 

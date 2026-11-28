@@ -2777,7 +2777,11 @@
     "routineContinueChat": "Continuar em um novo chat",
     "approvalOthersWait": "Sua resposta vale apenas para as suas próprias chamadas à plataforma. As outras aguardam alguém que possa decidir aprovações.",
     "approvalNeedsItsPerson": "Somente a pessoa em nome de quem esta execução age pode aprovar isto. Você pode rejeitar.",
-    "approvalNeedsItsAdminPerson": "Somente a pessoa em nome de quem esta execução atua, conectada como administradora da aplicação, pode aprovar. Você pode rejeitar."
+    "approvalNeedsItsAdminPerson": "Somente a pessoa em nome de quem esta execução atua, conectada como administradora da aplicação, pode aprovar. Você pode rejeitar.",
+    "mcpApp": {
+      "title": "Página de {tool}",
+      "unavailable": "Não foi possível carregar a página deste resultado."
+    }
   },
   "approvalFeedback": {
     "savedApproval": "Já aprovada: {action}",
@@ -4714,6 +4718,8 @@
     "removeStoredCredential": "Remover a credencial armazenada",
     "includeServerInstructions": "Adicionar as instruções do próprio servidor às do agente",
     "includeServerInstructionsHint": "Alguns servidores explicam como suas ferramentas devem ser usadas. Desativado por padrão: é texto do operador do servidor, e o agente o lê como suas próprias instruções.",
+    "showServerPages": "Mostrar as páginas do próprio servidor no chat",
+    "showServerPagesHint": "Algumas ferramentas trazem uma página interativa (MCP Apps), como um gráfico ou um dashboard. Ativada, ela aparece abaixo da resposta no chat web e pode usar as ferramentas deste servidor, dentro das ferramentas e aprovações do agente. Desativado por padrão: a página é código do operador do servidor.",
     "save": "Salvar",
     "saveSelection": "Salvar seleção",
     "saving": "Salvando…",

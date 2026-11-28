@@ -19,9 +19,17 @@ Two things are versioned separately from this file and worth knowing about:
 
 ## [Unreleased]
 
+### Added
+
+- Show the interactive page an MCP server returns with a tool result ([MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview)) under the answer in web chat, live and after a reload. Switch it on per connection in its Edit dialog; it is off by default. The page runs in the app sandbox with no network and no native dialogs, and the console relays its tool calls only as far as the run's tools and approvals allow, and the agent's as they are now: a call that would need approval is refused. Channels, the API, the embed and voice keep the text result. (#3450)
+
 ### Changed
 
 - Refresh every comparison guide against 1.95: Microsoft Teams, Discord, Matrix, SMS, email, iMessage and telephone calls, evals, and the desktop and phone apps are no longer listed as gaps. Add guides for Kortix, LobeHub, Onyx, Open WebUI and LibreChat, Agno AgentOS, OpenAgents, OpenHuman, Langdock, Dust, Mistral, deepset and agents in Slack, plus a DIY stack comparison and a licence terms page, in all four languages.
+
+### Upgrading
+
+- Migration `0375_mcp_apps` adds `mcp_connections.mcp_apps` (off on every existing connection) and the nullable `tool_calls.mcp_app`.
 
 ## [1.95.0] - 2026-11-26
 

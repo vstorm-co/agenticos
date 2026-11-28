@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import ConfigDict, Field, JsonValue, field_validator
 
 from app.schemas.base import BaseSchema, TimestampSchema
+from app.schemas.mcp_app import McpAppRead
 from app.schemas.mention import MentionKind
 
 if TYPE_CHECKING:
@@ -240,6 +241,10 @@ class ToolCallRead(ToolCallBase):
     started_at: datetime
     completed_at: datetime | None = None
     duration_ms: int | None = None
+    mcp_app: McpAppRead | None = Field(
+        default=None,
+        description="The page the call's MCP server shows with it, where its connection shows pages.",
+    )
 
 
 class MessageBase(BaseSchema):

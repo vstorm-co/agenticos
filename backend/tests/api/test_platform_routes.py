@@ -2150,6 +2150,12 @@ UNAUTHENTICATED_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # carries a `sandbox` policy with no `allow-same-origin`, and a bucket per
         # address bounds one replayed on a loop.
         ("GET", f"{V1}/artifact-content/{{token}}"),
+        # An MCP server's page for a tool call (#3450), cookieless for the same
+        # reason: a third party's script in an opaque origin. Authorised by a
+        # five-minute token signed for the call and the person it was minted for,
+        # with the connection checked again on every load; served under a sandbox
+        # with scripts alone, and counted per address.
+        ("GET", f"{V1}/artifact-content/mcp-app/{{token}}"),
         # The same link with its password (#1972). Refusals: a wrong password is a
         # 403 that names nothing, and the link's bucket counts every attempt.
         ("POST", f"{V1}/public/apps/{{public_key}}/unlock"),

@@ -2777,7 +2777,11 @@
     "routineContinueChat": "Verder in een nieuwe chat",
     "approvalOthersWait": "Je antwoord geldt alleen voor je eigen platformaanroepen. De andere wachten op iemand die over goedkeuringen mag beslissen.",
     "approvalNeedsItsPerson": "Alleen de persoon voor wie deze run handelt, kan dit goedkeuren. Je kunt het afwijzen.",
-    "approvalNeedsItsAdminPerson": "Alleen de persoon namens wie deze run werkt, aangemeld als applicatiebeheerder, kan dit goedkeuren. Je kunt het afwijzen."
+    "approvalNeedsItsAdminPerson": "Alleen de persoon namens wie deze run werkt, aangemeld als applicatiebeheerder, kan dit goedkeuren. Je kunt het afwijzen.",
+    "mcpApp": {
+      "title": "Pagina van {tool}",
+      "unavailable": "De pagina bij dit resultaat kon niet worden geladen."
+    }
   },
   "approvalFeedback": {
     "savedApproval": "Al goedgekeurd: {action}",
@@ -4714,6 +4718,8 @@
     "removeStoredCredential": "De opgeslagen inloggegevens verwijderen",
     "includeServerInstructions": "De eigen instructies van de server toevoegen aan die van de agent",
     "includeServerInstructionsHint": "Sommige servers leggen uit hoe hun tools bedoeld zijn. Standaard uit: het is de tekst van de serverbeheerder, en de agent leest die als zijn eigen instructies.",
+    "showServerPages": "De eigen pagina's van de server in de chat tonen",
+    "showServerPagesHint": "Sommige tools hebben een interactieve pagina (MCP Apps), zoals een grafiek of een dashboard. Aan verschijnt die onder het antwoord in de webchat en kan die de tools van deze server gebruiken, binnen de tools en goedkeuringen van de agent. Standaard uit: de pagina is code van de serverbeheerder.",
     "save": "Opslaan",
     "saveSelection": "Selectie opslaan",
     "saving": "Opslaan…",

@@ -613,6 +613,43 @@ async def artifact_content_allowed(token: str) -> Decision:
     )
 
 
+MCP_APP_PAGE_LOADS_PER_MINUTE = 20
+"""How often one signed address of an MCP Apps page may be loaded in a minute.
+
+Each load reads the page from the connection's server, with its credential, so
+a reload loop is a loop against somebody else's server.
+"""
+
+MCP_APP_RELAYS_PER_MINUTE = 300
+"""How many calls a person's MCP Apps pages may relay to their servers in a minute.
+
+Wide, because a page draws itself through them: a dashboard asks for each of its
+widgets on load and again for each change of range. A ceiling on a page calling
+in a loop, which spends the server's allowance and not this deployment's.
+"""
+
+
+async def mcp_app_page_allowed(token: str) -> Decision:
+    """Whether the page behind this signed address may be served again right now.
+
+    Counted per address, by its digest, for the reasons :func:`artifact_content_allowed` gives.
+    """
+    return await consume(
+        surface="mcp_app_page",
+        caller=f"token:{hashlib.sha256(token.encode()).hexdigest()}",
+        limit=Limit(attempts=MCP_APP_PAGE_LOADS_PER_MINUTE),
+    )
+
+
+async def mcp_app_relay_allowed(organization_id: UUID, subject_id: UUID) -> Decision:
+    """Whether a person's MCP Apps pages may relay another call to their servers now."""
+    return await consume(
+        surface="mcp_app_relay",
+        caller=f"org:{organization_id}:user:{subject_id}",
+        limit=Limit(attempts=MCP_APP_RELAYS_PER_MINUTE),
+    )
+
+
 EMBED_GENERATED_MEDIA_LOADS_PER_MINUTE = 120
 """How often one signed link to a generated file may be fetched in a minute.
 

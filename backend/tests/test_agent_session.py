@@ -2787,6 +2787,57 @@ class TestForwardingToolEvents:
             ("tool_result", {"tool_call_id": "t1", "content": "wrote /a.txt"})
         ]
 
+    async def test_a_page_record_goes_with_the_result_without_its_connection(self):
+        """A tool whose connection shows MCP Apps pages (#3450): the call keeps the
+        whole record to be stored, and the frame carries what a browser may see."""
+        session = _session()
+        collected: list[dict] = []
+        record = {
+            "resource_uri": "ui://charts/viewer.html",
+            "tool_input": {"source": "asset:1"},
+            "result": {"content": [], "isError": False},
+            "connection_id": "6f1c1f4e-1111-4c8a-9a54-0d1e1c1f4e11",
+            "tool_name": "data_query",
+            "allowed_tools": None,
+            "approval": "writes",
+            "tool_approval": {},
+            "endpoint_hash": "0" * 64,
+            "authorization_generation": None,
+            "agent_id": None,
+            "binding_key": None,
+        }
+
+        async def _events():
+            yield FunctionToolCallEvent(
+                part=ToolCallPart(tool_name="charts_data_query", args={}, tool_call_id="t1")
+            )
+            yield FunctionToolResultEvent(
+                part=ToolReturnPart(
+                    tool_name="charts_data_query",
+                    content="5 rows",
+                    tool_call_id="t1",
+                    metadata={"mcp_app": record},
+                )
+            )
+
+        await _frames(session, tool_calls=collected).tools(_events())
+
+        assert collected[0]["mcp_app"] == record
+        assert [event for event in _sent_events(session) if event[0] == "tool_result"] == [
+            (
+                "tool_result",
+                {
+                    "tool_call_id": "t1",
+                    "content": "5 rows",
+                    "mcp_app": {
+                        "resource_uri": "ui://charts/viewer.html",
+                        "tool_input": {"source": "asset:1"},
+                        "result": {"content": [], "isError": False},
+                    },
+                },
+            )
+        ]
+
     async def test_the_result_is_kept_on_the_call_it_belongs_to(self):
         """The transcript persists one row per call, so a result that did not find
         its call is a tool call recorded as never having returned."""

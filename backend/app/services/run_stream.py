@@ -43,6 +43,7 @@ from pydantic_ai.messages import (
 )
 
 from app.agents.deps import AgentDeps
+from app.agents.mcp_apps import app_record, page_view
 from app.agents.tool_call_ids import fresh_call_id, used_call_ids
 from app.core.tool_identity import ToolIdentity
 from app.services.agent_chat import display_output
@@ -252,9 +253,19 @@ class RunFrames:
                     content = tool_failure_notice(tool_event.part)
                 else:
                     content = tool_result_text(tool_event.part.content)
+                # A tool's MCP Apps page, where its connection shows them (#3450):
+                # stored with the call, and sent without the connection it names.
+                app = app_record(tool_event.part.metadata)
                 call = pending.get(tool_event.tool_call_id)
                 if call is not None:
                     call["result"] = content
+                    if app is not None:
+                        call["mcp_app"] = app
                 await self.emit(
-                    "tool_result", {"tool_call_id": tool_event.tool_call_id, "content": content}
+                    "tool_result",
+                    {
+                        "tool_call_id": tool_event.tool_call_id,
+                        "content": content,
+                        **({"mcp_app": page_view(app)} if app is not None else {}),
+                    },
                 )

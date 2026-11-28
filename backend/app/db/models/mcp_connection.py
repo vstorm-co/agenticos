@@ -317,6 +317,13 @@ class McpConnection(Base, TimestampMixin):
     include_instructions: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+    # Whether a tool's MCP Apps page (SEP-1865) is shown in web chat, and may
+    # call this server's tools back through the console. Off by default: the page
+    # is the server operator's code, run in the reader's browser, so someone who
+    # manages the connection opts in.
+    mcp_apps: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
     auth_type: Mapped[str] = mapped_column(String(16), nullable=False, default="bearer")
     # CSRF token for an in-flight OAuth authorization redirect; NULL once done.

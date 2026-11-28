@@ -32,6 +32,7 @@ Atlassian works alongside a streamable-HTTP one with nothing to configure.
 | `allowed_tools` | An allowlist, or null for "everything the server offers". A binding narrows within it — see below |
 | `is_enabled` | Off without losing the credential |
 | `include_instructions` | Add the server's own `initialize` instructions to the agent's. Off by default - they are the server operator's text, read as the agent's own - and switched on in the connection's Edit dialog |
+| `mcp_apps` | Show the page a tool comes with ([MCP Apps](#pages-a-tool-comes-with)) under the answer in web chat, and let it call this server's tools. Off by default - the page is the server operator's code - and switched on in the connection's Edit dialog |
 | `last_status` | What the last probe found, and when |
 
 !!! warning "An address this deployment must not reach is refused, and the refusal says so"
@@ -595,6 +596,62 @@ arguments rather than executed. The one exception is a tool the server marks
 own claim, so trusting it is off on every connection. To turn it on, open the
 connection's **Tools** dialog. The dialog says how many tools claim the mark,
 and the change is audited with that count.
+
+### Pages a tool comes with { #pages-a-tool-comes-with }
+
+Some servers answer a tool call with a page as well as data:
+[MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview), the official
+`io.modelcontextprotocol/ui` extension. A tool names a `ui://` page in its
+`_meta.ui.resourceUri`, and a host that shows pages draws it with the result - a
+chart, a dashboard, a diagram somebody can work with.
+
+On a connection with `mcp_apps` switched on:
+
+- The connection tells the server it shows pages, and a call to such a tool is
+  stored with what the page needs: its address, the call's input and the
+  server's whole result (images and blobs left out). A result over 1 MiB is
+  shown as text only.
+- **Web chat** draws the page under the answer once the turn is saved, and
+  again when the conversation is reopened. Channels, the API, the embed and
+  voice show the text result, as before.
+- The page is read from the server each time it is shown, through a signed
+  address that lasts five minutes, with the connection's credential. Nothing of
+  the page is stored here.
+
+With `mcp_apps` off, nothing changes: the page record Pydantic AI attaches to such
+a result is dropped at the toolset, so no surface sees it.
+
+!!! warning "A page is the server operator's code, run in the reader's browser"
+
+    It runs under the same sandbox as an [app](https://vstorm-co.github.io/agenticos/artifacts/): an opaque origin,
+    so no cookie, storage or DOM of the console; `connect-src 'none'` and no
+    remote sources, so it can send nothing anywhere itself. Domains a page asks
+    for in `_meta.ui.csp` are not granted. A link it wants to open is put to the
+    person first. A page that needs outside scripts or styles does not draw here.
+
+A page cannot reach its server, so the console relays what it asks for:
+`tools/call` and `resources/read` (`ui://` resources only). A relayed call is held
+to what the run that made the original call could do:
+
+- It goes to the call's own connection, and a person's own connection only for
+  that person. The reader has to be able to take part in the conversation; reading
+  a shared transcript does not let a page act.
+- The tool has to be offered to pages (`_meta.ui.visibility`), and on the
+  binding's tool list as it was for the run and on the connection's list as it is
+  now. A tool the server offers to pages alone never appears in a tool list to
+  pick - the model never sees it - so it is allowed for the page that names it and
+  no other.
+- A call the binding's approvals would make wait for a person is **refused**, not
+  parked: an approval belongs to the conversation, and a page is not a way around
+  one. Under `writes` that is every tool the server does not mark `readOnlyHint`.
+- Each relayed call is in the [audit trail](https://vstorm-co.github.io/agenticos/governance/#audit) as
+  `mcp_connection.app_tool_called`, with the tool and the conversation, never its
+  arguments; a person's pages may relay 300 calls a minute, and one page address
+  may be loaded 20 times.
+
+What the host does not offer a page, it answers as not found: sending a message
+as the person, changing what the model is told, and display modes other than
+inline. Servers reached over SSE get no pages.
 
 ### Connecting one from the Builder
 

@@ -11,7 +11,7 @@ import asyncio
 import json
 import logging
 import re
-from collections.abc import Awaitable, Callable, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from itertools import groupby
 from typing import Any, Literal
@@ -2446,6 +2446,7 @@ class ConversationService:
         mcp_connection_id: UUID | None = None,
         tool_id: str | None = None,
         presentation_kind: Literal["draft", "generic", "platform"] | None = None,
+        mcp_app: Mapping[str, Any] | None = None,
     ) -> ToolCall:
         """Write one tool call under a message.
 
@@ -2455,6 +2456,8 @@ class ConversationService:
         fact, not a caller's claim - as is `mcp_connection_id`, the organization
         MCP connection that served the call. `awaiting_answer` distinguishes
         parked questions from approvals without relying on an exposed tool name.
+        `mcp_app` is the page record the toolset kept for the call (#3450), the
+        runner's too: it names the connection the page is read through.
         """
         await self.get_message(message_id)
         return await conversation_repo.create_tool_call(
@@ -2470,6 +2473,7 @@ class ConversationService:
             mcp_connection_id=mcp_connection_id,
             tool_id=tool_id,
             presentation_kind=presentation_kind,
+            mcp_app=mcp_app,
         )
 
     async def complete_tool_call(

@@ -25,6 +25,7 @@ import type { MessagePart, MessageReply, ToolCall } from "@/types";
 import type { Mentionable } from "@/types/mention";
 import { AgentSteps } from "./agent-step";
 import { TurnDrafts } from "./draft-card";
+import { TurnMcpApps } from "./mcp-app-frame";
 import { TurnBrowses } from "./browser-card";
 import { TurnFileLinks } from "./turn-file-links";
 import { MarkdownContent } from "./markdown-content";
@@ -276,6 +277,10 @@ export function TurnParts({
       </div>
     );
   });
+  // MCP Apps pages come after the answer, not between its steps and its text: the
+  // answer reads as the page's caption, and a tall dashboard does not push the
+  // text a screen down. Once the turn is saved, which is when a page can be read.
+  rendered.push(<TurnMcpApps key="mcp-apps" calls={mcpAppCalls(runs)} saved={!isStreaming} />);
   if (
     interaction &&
     interaction.messageId === messageId &&
@@ -520,6 +525,15 @@ export function visualCalls(runs: PartRun[]): ToolCall[] {
       ? run.parts.flatMap((part) =>
           part.toolCall && isVisualTool(toolLookupName(part.toolCall)) ? [part.toolCall] : [],
         )
+      : [],
+  );
+}
+
+/** The calls shown with an MCP Apps page in these runs, in the order they were made. */
+export function mcpAppCalls(runs: PartRun[]): ToolCall[] {
+  return runs.flatMap((run) =>
+    run.kind === "tools"
+      ? run.parts.flatMap((part) => (part.toolCall?.mcp_app ? [part.toolCall] : []))
       : [],
   );
 }

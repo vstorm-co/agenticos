@@ -239,6 +239,7 @@ from app.agents.mcp import (
     McpSourceIdentity,
     unreachable_briefing,
 )
+from app.agents.mcp_apps import McpAppRecord
 from app.agents.model_context import ModelContextCheck, checking_model_context
 from app.agents.model_resolver import ModelRequestSpec, ResolvedCredential
 from app.agents.native_model_spec import NATIVE_RUNTIME_LABELS, NativeModelSpec
@@ -471,6 +472,7 @@ from app.services.transcript import (
     STOPPED_TOOL_RESULT,
     RecordedToolCall,
     TranscriptService,
+    settled_apps_in,
     settled_calls_in,
     tool_calls_in,
 )
@@ -4827,6 +4829,7 @@ class AgentRunnerService:
             self.db,
             organization_id=ctx.organization_id,
             refs=runtime_refs,
+            agent_id=agent.id,
             sender_user_id=personal_mcp_user_id,
             recheck_sources=personal_mcp is not None,
             test_connections=test_connections.mcp,
@@ -6667,6 +6670,7 @@ class AgentRunnerService:
             self.db,
             organization_id=ctx.organization_id,
             refs=runnable.mcp_servers,
+            agent_id=ref.agent_id,
             sender_user_id=delegation.personal_mcp_user_id,
             recheck_sources=delegation.personal_mcp is not None,
             test_connections=delegation.test_connections.mcp,
@@ -9418,6 +9422,7 @@ class AgentRunnerService:
         budget: BudgetExceeded | None = None
         called: list[RecordedToolCall] = []
         settled: dict[str, str] = {}
+        settled_apps: dict[str, McpAppRecord] = {}
         history_snapshot: list[dict[str, Any]] | None = None
         message_id: UUID | None = None
         # True once this run reaches a terminal state here rather than unwinding -
@@ -9500,6 +9505,7 @@ class AgentRunnerService:
             # the one call a person reviewed as the one call with no recorded
             # output anywhere (agenticos#506).
             settled = settled_calls_in(new_messages)
+            settled_apps = settled_apps_in(new_messages)
             status, output, structured, paused = _classify_output(
                 result,
                 parked=prepared.checkpointed_approvals(),
@@ -9610,6 +9616,7 @@ class AgentRunnerService:
                         ),
                         tool_calls=called,
                         settled=settled,
+                        settled_apps=settled_apps,
                         # So the step the run stopped on reads "awaiting approval" when
                         # the conversation is read back, not as a call that ran (#601).
                         parked=frozenset(paused.tool_call_ids.values()) if paused else frozenset(),

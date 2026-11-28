@@ -1538,7 +1538,9 @@ async def fork_conversation(
 
     What a copy leaves behind is what belongs to the source's runs, readers or
     storage rather than to its history: the run and its cost, attachments, the
-    server a tool call reached, and a part's pointer at the source's workspace -
+    server a tool call reached and the MCP Apps page it was shown with (whose
+    record carries that run's connection and allowances), and a part's pointer
+    at the source's workspace -
     which would name the source to anybody the fork is shared with, and lead
     them to files they cannot open. A reply to a message that was not copied
     loses its target.
@@ -1618,6 +1620,9 @@ async def fork_conversation(
                     started_at=call.started_at,
                     completed_at=call.completed_at,
                     duration_ms=call.duration_ms,
+                    # Not the MCP Apps page: its record carries the original run's
+                    # connection and allowances, and the fork's owner may hold
+                    # neither. The fork shows the call's text result.
                 )
                 for call in original.tool_calls
             ],
@@ -2921,6 +2926,34 @@ async def get_tool_call_by_id(db: AsyncSession, tool_call_id: UUID) -> ToolCall 
     return await db.get(ToolCall, tool_call_id)
 
 
+async def get_app_tool_call(
+    db: AsyncSession, *, conversation_id: UUID, tool_call_id: str
+) -> ToolCall | None:
+    """A call in this conversation that was stored with an MCP Apps page, by the provider's id.
+
+    The newest where a provider reused an id across runs: a page is drawn under the
+    turn that is being read, which is the latest one to make the call.
+    """
+    query = (
+        select(ToolCall)
+        .join(Message, Message.id == ToolCall.message_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            ToolCall.tool_call_id == tool_call_id,
+            ToolCall.mcp_app.is_not(None),
+        )
+        .order_by(ToolCall.started_at.desc())
+        .limit(1)
+    )
+    return (await db.execute(query)).scalar_one_or_none()
+
+
+async def get_app_tool_call_by_id(db: AsyncSession, tool_call_id: UUID) -> ToolCall | None:
+    """A stored call with an MCP Apps page, by its row id."""
+    query = select(ToolCall).where(ToolCall.id == tool_call_id, ToolCall.mcp_app.is_not(None))
+    return (await db.execute(query)).scalar_one_or_none()
+
+
 async def get_open_tool_call_in_run(
     db: AsyncSession, *, run_id: UUID, tool_call_id: str
 ) -> ToolCall | None:
@@ -3013,6 +3046,7 @@ async def create_tool_call(
     mcp_connection_id: UUID | None = None,
     tool_id: str | None = None,
     presentation_kind: Literal["draft", "generic", "platform"] | None = None,
+    mcp_app: Mapping[str, Any] | None = None,
 ) -> ToolCall:
     """Create a new tool call record.
 
@@ -3032,6 +3066,7 @@ async def create_tool_call(
         mcp_connection_id=mcp_connection_id,
         tool_id=tool_id,
         presentation_kind=presentation_kind,
+        mcp_app=dict(mcp_app) if mcp_app is not None else None,
     )
     db.add(tool_call)
     await db.flush()
@@ -3046,9 +3081,17 @@ async def complete_tool_call(
     result: str,
     completed_at: datetime,
     success: bool = True,
+    mcp_app: Mapping[str, Any] | None = None,
 ) -> ToolCall:
-    """Mark a tool call as completed."""
+    """Mark a tool call as completed.
+
+    `mcp_app` is the page record of a call that returned only now - one a run
+    parked on and a resume ran - which the row could not have had when it was
+    written open.
+    """
     db_tool_call.result = result
+    if mcp_app is not None:
+        db_tool_call.mcp_app = dict(mcp_app)
     db_tool_call.completed_at = completed_at
     db_tool_call.status = "completed" if success else "failed"
 

@@ -206,6 +206,49 @@ describe("the server's own instructions", () => {
   });
 });
 
+describe("the server's own pages (MCP Apps)", () => {
+  function editing(mcpApps: boolean): DraftState {
+    return {
+      ...custom(),
+      existing: {
+        id: "c1",
+        name: "charts",
+        url: "https://mcp.example.com/mcp",
+        label: null,
+        has_auth_token: false,
+        include_instructions: false,
+        mcp_apps: mcpApps,
+      },
+    } as unknown as DraftState;
+  }
+
+  it("is off unless it was opted in, and saving sends the choice", async () => {
+    const onSubmit = open(editing(false));
+
+    const toggle = screen.getByRole("switch", { name: /server's own pages/ });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    await userEvent.click(toggle);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ mcpApps: true }));
+  });
+
+  it("shows a connection that has it on as on", () => {
+    open(editing(true));
+
+    expect(screen.getByRole("switch", { name: /server's own pages/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("is not offered while connecting a new server", () => {
+    open(custom());
+
+    expect(screen.queryByRole("switch", { name: /server's own pages/ })).toBeNull();
+  });
+});
+
 describe("a second account on one service", () => {
   it("asks for its name up front and will not submit without one", async () => {
     const onSubmit = open({ ...custom(), needsLabel: true } as DraftState);

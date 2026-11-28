@@ -15,6 +15,7 @@ rather than to no service.
 import asyncio
 from contextlib import AbstractAsyncContextManager, AsyncExitStack
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 
@@ -471,6 +472,37 @@ class TestTheHostedPageIsCountedPerPage:
 
         assert (await rate_limit.hosted_logo_allowed("abc123")).allowed is True
         assert client.count_in_window.await_args.args[0] == "ratelimit:hosted_logo:key:abc123"
+
+
+class TestMcpAppPages:
+    """An MCP Apps page is read from its server on every load, with a credential,
+    and its calls go there too (#3450)."""
+
+    async def test_a_page_address_is_counted_by_its_digest(self):
+        client = _redis([1])
+        rate_limit.configure(client)
+
+        assert (await rate_limit.mcp_app_page_allowed("eyJ.token.sig")).allowed is True
+        key = client.count_in_window.await_args.args[0]
+        assert key.startswith("ratelimit:mcp_app_page:token:")
+        assert "eyJ.token.sig" not in key
+
+    @pytest.mark.security
+    async def test_a_page_loaded_past_its_allowance_is_refused(self):
+        rate_limit.configure(_redis([rate_limit.MCP_APP_PAGE_LOADS_PER_MINUTE + 1]))
+
+        assert (await rate_limit.mcp_app_page_allowed("t")).allowed is False
+
+    async def test_relays_are_counted_per_person_in_their_organization(self):
+        client = _redis([1])
+        rate_limit.configure(client)
+        organization, person = uuid4(), uuid4()
+
+        assert (await rate_limit.mcp_app_relay_allowed(organization, person)).allowed is True
+        assert (
+            client.count_in_window.await_args.args[0]
+            == f"ratelimit:mcp_app_relay:org:{organization}:user:{person}"
+        )
 
 
 class TestAnArtifactAddressIsCountedPerAddress:

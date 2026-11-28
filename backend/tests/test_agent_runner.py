@@ -846,6 +846,8 @@ class TestPrepare:
             "organization_sources": None,
             # What the run's other tools are called, which no MCP tool may be (#2890).
             "taken_names": taken_tool_names(spec),
+            # Whose binding each server is, for an MCP Apps page's later calls (#3450).
+            "agent_id": agent.id,
         }
         # Alongside what the surface brought, not instead of it: the WebSocket
         # chat still attaches its own, and dropping either half would leave an

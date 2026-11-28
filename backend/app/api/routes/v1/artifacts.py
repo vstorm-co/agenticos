@@ -26,9 +26,11 @@ from app.api.deps import (
     ArtifactRequestSvc,
     ArtifactSvc,
     Auth,
+    McpAppSvc,
     limit_artifact_content,
     limit_artifact_data,
     limit_map_tiles,
+    limit_mcp_app_page,
     limit_public_artifact,
     require,
 )
@@ -38,6 +40,7 @@ from app.api.routes.v1._artifact_bytes import (
     embed_response,
     library_response,
     map_tile_response,
+    mcp_app_page_response,
     visual_frame_response,
 )
 from app.core.permissions import Perm
@@ -588,6 +591,17 @@ async def get_visual_frame() -> Response:
     The console posts the drawing into it while the agent writes it.
     """
     return visual_frame_response(await frame_document())
+
+
+@content_router.get(
+    "/mcp-app/{token}", response_class=Response, dependencies=[Depends(limit_mcp_app_page)]
+)
+async def get_mcp_app_page(token: str, service: McpAppSvc) -> Response:
+    """The MCP Apps page behind a signed address, read from its server now (#3450).
+
+    Declared above `/{token}`, which would take `mcp-app` for a token.
+    """
+    return mcp_app_page_response((await service.page(token)).document)
 
 
 @content_router.get(

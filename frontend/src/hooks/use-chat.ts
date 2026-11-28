@@ -1,5 +1,6 @@
 "use client";
 
+import type { McpAppData } from "@/lib/mcp-apps-api";
 import { clearApprovalNotice } from "@/lib/approval-cache";
 
 import { toolLookupName } from "@/lib/tool-identity";
@@ -1243,9 +1244,10 @@ export function useChat(options: UseChatOptions = {}) {
         }
 
         case "tool_result": {
-          const { tool_call_id, content } = wsEvent.data as {
+          const { tool_call_id, content, mcp_app } = wsEvent.data as {
             tool_call_id: string;
             content: string;
+            mcp_app?: McpAppData;
           };
           // A resumed call belongs to the segment that requested approval,
           // which may precede the segment currently receiving model output.
@@ -1261,6 +1263,7 @@ export function useChat(options: UseChatOptions = {}) {
             updateToolCallPart(messageId, tool_call_id, {
               result: content,
               status: "completed",
+              ...(mcp_app ? { mcp_app } : {}),
             });
             const name = owner?.toolCalls?.find((call) => call.id === tool_call_id)?.name;
             const chosen = name ? localeChosenBy(name, content) : null;

@@ -13,6 +13,7 @@ from app.api.deps import (
     ConversationSvc,
     ConversationTaskSvc,
     CurrentUser,
+    McpAppSvc,
     MessageRatingSvc,
     ProjectSvc,
     VisualSvc,
@@ -20,6 +21,7 @@ from app.api.deps import (
     key_needs,
     limit_coding_revert,
     limit_fork,
+    limit_mcp_app_relay,
     require,
 )
 from app.api.public_api import INTERNAL, PUBLIC
@@ -50,6 +52,7 @@ from app.schemas.conversation_share import (
     SharedConversationRead,
 )
 from app.schemas.conversation_task import ConversationTaskRead
+from app.schemas.mcp_app import McpAppFrameRead, McpAppResourceRead, McpAppToolCall
 from app.schemas.message_rating import (
     MessageRatingCreate,
     MessageRatingRead,
@@ -521,6 +524,69 @@ async def mark_conversation_read(
         organization_id=active_org.id,
         user_id=current_user.id,
         ctx=ctx,
+    )
+
+
+@router.post(
+    "/{conversation_id}/tool-calls/{tool_call_id}/app",
+    response_model=McpAppFrameRead,
+    openapi_extra=INTERNAL,
+    # Each address may load the page a few times, so minting them is counted too.
+    dependencies=[Depends(limit_mcp_app_relay)],
+)
+async def mcp_app_frame(
+    conversation_id: UUID, tool_call_id: str, ctx: Auth, service: McpAppSvc
+) -> Any:
+    """A signed address of the MCP Apps page a tool call is shown with (#3450).
+
+    For a reader of the conversation, while the call's connection shows pages.
+    """
+    return await service.frame(ctx, conversation_id=conversation_id, tool_call_id=tool_call_id)
+
+
+@router.post(
+    "/{conversation_id}/tool-calls/{tool_call_id}/app/tools-call",
+    response_model=dict[str, Any],
+    openapi_extra=INTERNAL,
+    dependencies=[Depends(limit_mcp_app_relay)],
+)
+async def mcp_app_tools_call(
+    conversation_id: UUID,
+    tool_call_id: str,
+    data: McpAppToolCall,
+    ctx: Auth,
+    service: McpAppSvc,
+) -> Any:
+    """Relay a page's `tools/call` to its server and answer with its `CallToolResult`.
+
+    Held to the tools and approvals the run had when the model called the tool;
+    a call that would wait for a person is refused, not run.
+    """
+    return await service.call_tool(
+        ctx,
+        conversation_id=conversation_id,
+        tool_call_id=tool_call_id,
+        name=data.name,
+        arguments=data.arguments,
+    )
+
+
+@router.post(
+    "/{conversation_id}/tool-calls/{tool_call_id}/app/resources-read",
+    response_model=dict[str, Any],
+    openapi_extra=INTERNAL,
+    dependencies=[Depends(limit_mcp_app_relay)],
+)
+async def mcp_app_resources_read(
+    conversation_id: UUID,
+    tool_call_id: str,
+    data: McpAppResourceRead,
+    ctx: Auth,
+    service: McpAppSvc,
+) -> Any:
+    """Relay a page's `resources/read` of a `ui://` resource on its server."""
+    return await service.read_resource(
+        ctx, conversation_id=conversation_id, tool_call_id=tool_call_id, uri=data.uri
     )
 
 

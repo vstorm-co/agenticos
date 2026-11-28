@@ -805,6 +805,7 @@ class PortabilityService:
                     data=OrgMcpConnectionUpdate(
                         include_instructions=content.include_instructions,
                         trust_read_only_hints=content.trust_read_only_hints,
+                        mcp_apps=content.mcp_apps,
                     ),
                 )
                 return row.id
