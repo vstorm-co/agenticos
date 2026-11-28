@@ -72,7 +72,6 @@ export interface EventSourceDelivery {
 export interface EventSourceDeliveryDetail {
   id: string;
   received_at: string;
-  external_id: string | null;
   request: {
     method: "POST";
     headers: Record<string, string>;

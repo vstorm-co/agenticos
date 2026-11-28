@@ -120,7 +120,6 @@ async def test_delivery_detail_is_serialized_without_cache_storage(wired):
     detail = SourceDeliveryDetail(
         id=uuid4(),
         received_at=datetime.now(UTC),
-        external_id="delivery-1",
         request=SourceDeliveryRequest(headers={}, body={"action": "opened"}),
         response=source_acknowledgement("webhook"),
         dispatches=[],

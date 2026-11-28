@@ -411,6 +411,13 @@ async def test_delivery_detail_shows_retained_request_acknowledgement_and_dispat
             "authorization": "do-not-record",
         },
     )
+    assert receipt.external_id == "one"
+    # Configuration can change after admission, so the current source settings
+    # cannot establish where an old receipt's dedupe key came from.
+    stored = await module.repo.delivery(db, receipt.id, organization_id=ctx.organization_id)
+    assert stored is not None
+    stored.external_id = "sha1=historic-signature"
+    await db.flush()
     completed = datetime.now(UTC)
     dispatch = await module.repo.save(
         db,
@@ -423,7 +430,8 @@ async def test_delivery_detail_shows_retained_request_acknowledgement_and_dispat
         ),
     )
     detail = await service.delivery_detail(ctx, source.id, receipt.id)
-    assert detail.external_id == "one"
+    assert "external_id" not in detail.model_dump()
+    assert "sha1=historic-signature" not in detail.model_dump_json()
     assert detail.request.model_dump() == {
         "method": "POST",
         "headers": {"x-github-event": "issues"},
@@ -445,6 +453,7 @@ async def test_delivery_detail_shows_retained_request_acknowledgement_and_dispat
 
     await module.repo.clear_terminal_payloads(db, before=completed + timedelta(minutes=1))
     expired = await service.delivery_detail(ctx, source.id, receipt.id)
+    assert "sha1=historic-signature" not in expired.model_dump_json()
     assert expired.request.body is None and expired.request.headers == {}
     assert expired.response == detail.response
     assert expired.dispatches == detail.dispatches

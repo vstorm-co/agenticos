@@ -205,6 +205,7 @@ def test_a_delivery_id_cannot_be_a_static_credential_or_signature(header):
     "provider,header",
     [
         ("github", "X-Hub-Signature-256"),
+        ("github", "X-Hub-Signature"),
         ("linear", "Linear-Signature"),
         ("hubspot", "X-HubSpot-Signature-V3"),
         ("hubspot", "X-HubSpot-Signature"),

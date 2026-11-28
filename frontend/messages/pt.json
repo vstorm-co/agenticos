@@ -22269,7 +22269,6 @@
         "loadError": "Não foi possível carregar os detalhes da entrega.",
         "receiptId": "ID do recibo",
         "receivedAt": "Recebido em",
-        "senderId": "ID externo da entrega",
         "request": "Solicitação",
         "response": "Resposta",
         "statusCode": "HTTP {status}",

@@ -315,7 +315,6 @@ describe("event source management", () => {
     const detail: EventSourceDeliveryDetail = {
       id: "receipt-1",
       received_at: receivedAt,
-      external_id: "provider-delivery-1",
       request: {
         method: "POST",
         headers: { "x-github-event": "issues" },
@@ -338,7 +337,6 @@ describe("event source management", () => {
       .mockResolvedValueOnce(detail)
       .mockResolvedValueOnce({
         ...detail,
-        external_id: null,
         request: { ...detail.request, headers: {}, body: null },
         dispatches: [],
       });
@@ -393,7 +391,6 @@ describe("event source management", () => {
       expect(inspector.getByRole("heading", { name: "Response HTTP 202" })).toBeVisible();
       expect(inspector.getByText("x-github-event")).toBeVisible();
       expect(inspector.getByText("content-length")).toBeVisible();
-      expect(inspector.getByText("provider-delivery-1")).toBeVisible();
       expect(inspector.getByText("No response body.")).toBeVisible();
       expect(inspector.getByText("SUBSCRIBER_UNAVAILABLE")).toBeVisible();
       expect(inspector.getByText("Pending")).toBeVisible();
@@ -416,7 +413,6 @@ describe("event source management", () => {
     expect(inspector.queryByRole("button", { name: "Copy request body" })).toBeNull();
     expect(inspector.getByText("No headers recorded.")).toBeVisible();
     expect(inspector.getByText("No dispatches")).toBeVisible();
-    expect(inspector.queryByText("provider-delivery-1")).not.toBeInTheDocument();
     expect(inspect).toHaveBeenCalledTimes(3);
 
     await user.click(inspector.getByRole("button", { name: "Back to deliveries" }));

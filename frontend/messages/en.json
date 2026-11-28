@@ -22047,7 +22047,6 @@
         "loadError": "Delivery details could not be loaded.",
         "receiptId": "Receipt ID",
         "receivedAt": "Received at",
-        "senderId": "External delivery ID",
         "request": "Request",
         "response": "Response",
         "statusCode": "HTTP {status}",

@@ -21733,7 +21733,6 @@
         "loadError": "Die Zustellungsdetails konnten nicht geladen werden.",
         "receiptId": "Empfangs-ID",
         "receivedAt": "Empfangen am",
-        "senderId": "Externe Zustellungs-ID",
         "request": "Anfrage",
         "response": "Antwort",
         "statusCode": "HTTP {status}",

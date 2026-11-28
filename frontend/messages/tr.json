@@ -17352,7 +17352,6 @@
         "loadError": "Teslimat ayrıntıları yüklenemedi.",
         "receiptId": "Alındı kimliği",
         "receivedAt": "Alınma zamanı",
-        "senderId": "Harici teslimat kimliği",
         "request": "İstek",
         "response": "Yanıt",
         "statusCode": "HTTP {status}",

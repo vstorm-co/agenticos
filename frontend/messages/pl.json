@@ -21820,7 +21820,6 @@
         "loadError": "Nie udało się wczytać szczegółów dostawy.",
         "receiptId": "Identyfikator odbioru",
         "receivedAt": "Odebrano",
-        "senderId": "Zewnętrzny identyfikator dostawy",
         "request": "Żądanie",
         "response": "Odpowiedź",
         "statusCode": "HTTP {status}",

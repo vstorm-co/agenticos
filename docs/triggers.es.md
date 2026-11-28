@@ -1,5 +1,5 @@
 ---
-source_sha: "0f23f7120d9f"
+source_sha: "be53b1bafddf"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -159,7 +159,7 @@ Elige **Subscribers** en una fuente para ver qué rutinas y workflows la usan. S
 
 En la fila de una fuente, elige **Recent deliveries** para ver hasta 20 entregas aceptadas, de más reciente a más antigua. Cada entrada muestra la hora de recepción, un ID interno y cuántos envíos a suscriptores están pendientes, se transfirieron, se omitieron o fallaron. **Handed off** indica que un suscriptor aceptó el evento, no que su run haya terminado correctamente. No se registran las peticiones rechazadas ni se genera otro recibo para las peticiones duplicadas.
 
-Si tienes permiso de uso de la fuente, elige **Inspect** junto a un recibo. **Request** muestra el método `POST`, un ID de entrega externo si está disponible, y la cabecera `X-GitHub-Event` de las entregas de GitHub mientras se conserve. El cuerpo es el JSON normalizado, no los bytes originales de la petición. Las cabeceras de autenticación no se guardan ni se muestran. Después de la limpieza, el recibo se conserva, pero ya no puedes leer el cuerpo ni la cabecera del evento.
+Si tienes permiso de uso de la fuente, elige **Inspect** junto a un recibo. **Request** muestra el método `POST` y la cabecera `X-GitHub-Event` de las entregas de GitHub mientras se conserve. El cuerpo es el JSON normalizado, no los bytes originales de la petición. No se muestran las cabeceras de autenticación ni los identificadores de deduplicación enviados por el remitente. Después de la limpieza, el recibo se conserva, pero ya no puedes leer el cuerpo ni la cabecera del evento.
 
 **Response** muestra la confirmación del endpoint: `202 Accepted` (`200 OK` para Linear), con `content-length: 0` y el cuerpo vacío. No muestra las cabeceras del proxy ni el resultado de la rutina o del workflow. **Dispatch outcomes** muestra el estado de cada envío y, si se registraron, su código de error y hora de finalización, sin identificar al suscriptor. Esta vista no permite reenviar un evento.
 

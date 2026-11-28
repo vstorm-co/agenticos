@@ -25,6 +25,7 @@ SIGNATURE_HEADER = {
     "webhook": "x-signature-256",
     "zendesk": "x-zendesk-webhook-signature",
 }
+GITHUB_LEGACY_SIGNATURE_HEADER = "x-hub-signature"
 HUBSPOT_V1_SIGNATURE_HEADER = "x-hubspot-signature"
 
 
@@ -44,7 +45,9 @@ class SourceAuth(BaseModel):
         forbidden = {"authorization", self.header_name, "webhook-signature"}
         if self.method == "provider":
             forbidden.add(SIGNATURE_HEADER[provider])
-            if provider == "hubspot":
+            if provider == "github":
+                forbidden.add(GITHUB_LEGACY_SIGNATURE_HEADER)
+            elif provider == "hubspot":
                 forbidden.add(HUBSPOT_V1_SIGNATURE_HEADER)
         return header.lower() in forbidden
 
@@ -203,7 +206,6 @@ class SourceDispatchRead(BaseModel):
 class SourceDeliveryDetail(BaseModel):
     id: UUID
     received_at: datetime
-    external_id: str | None
     request: SourceDeliveryRequest
     response: SourceDeliveryResponse
     dispatches: list[SourceDispatchRead]

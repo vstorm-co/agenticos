@@ -21753,7 +21753,6 @@
         "loadError": "Impossible de charger les détails de la livraison.",
         "receiptId": "ID du reçu",
         "receivedAt": "Reçu le",
-        "senderId": "ID de livraison externe",
         "request": "Requête",
         "response": "Réponse",
         "statusCode": "HTTP {status}",

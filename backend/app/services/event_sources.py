@@ -332,13 +332,23 @@ class EventSourceService:
             )
         )
         try:
+            auth = data.auth or SourceAuth.model_validate(source.auth)
+            delivery_id_header = source.delivery_id_header
+            if "delivery_id_header" in data.model_fields_set:
+                delivery_id_header = data.delivery_id_header
+            elif (
+                data.auth is None
+                and delivery_id_header is not None
+                and auth.reserves_header(source.provider, delivery_id_header)
+            ):
+                # Ingress already ignores a legacy reserved override; let operators
+                # edit unrelated settings without resubmitting the invalid header.
+                delivery_id_header = None
             config = EventSourceCreate(
                 name=data.name or source.name,
                 provider=cast(Provider, source.provider),
-                auth=data.auth or SourceAuth.model_validate(source.auth),
-                delivery_id_header=data.delivery_id_header
-                if "delivery_id_header" in data.model_fields_set
-                else source.delivery_id_header,
+                auth=auth,
+                delivery_id_header=delivery_id_header,
                 credentials=data.credentials or current_credentials,
             )
         except ValidationError as exc:
@@ -462,10 +472,11 @@ class EventSourceService:
         dispatches = await repo.delivery_dispatches(
             self.db, delivery_id=receipt.id, organization_id=ctx.organization_id
         )
+        # Do not expose the internal dedupe key: old overrides may have sourced
+        # it from a credential header, and receipts do not record its provenance.
         return SourceDeliveryDetail(
             id=receipt.id,
             received_at=receipt.created_at,
-            external_id=receipt.external_id,
             request=SourceDeliveryRequest(
                 headers={
                     key: value for key, value in receipt.headers.items() if key == "x-github-event"

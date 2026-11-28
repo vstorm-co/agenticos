@@ -22269,7 +22269,6 @@
         "loadError": "De leveringsdetails konden niet worden geladen.",
         "receiptId": "Ontvangst-ID",
         "receivedAt": "Ontvangen op",
-        "senderId": "Externe leverings-ID",
         "request": "Verzoek",
         "response": "Antwoord",
         "statusCode": "HTTP {status}",

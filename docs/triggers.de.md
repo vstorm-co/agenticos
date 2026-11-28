@@ -1,5 +1,5 @@
 ---
-source_sha: "0f23f7120d9f"
+source_sha: "be53b1bafddf"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -161,7 +161,7 @@ Wählen Sie bei einer Quelle **Abonnenten**, um zu sehen, welche Routinen und Wo
 
 Wählen Sie in der Zeile einer Quelle **Letzte Zustellungen (Recent deliveries)**, um bis zu 20 angenommene Zustellungen zu sehen, die neueste zuerst. Jeder Eintrag zeigt die Empfangszeit, eine interne Empfangs-ID und die Anzahl der Weiterleitungen je Status: ausstehend, weitergeleitet, übersprungen oder fehlgeschlagen. **Weitergeleitet (Handed off)** bedeutet, dass ein Abonnent das Ereignis angenommen hat, nicht dass sein Run erfolgreich war. Abgelehnte Anfragen werden nicht aufgezeichnet. Doppelte Anfragen erzeugen keinen zusätzlichen Empfangsbeleg.
 
-Wenn Sie die Quelle nutzen dürfen, wählen Sie neben einem Empfangsbeleg **Prüfen (Inspect)**. Unter **Anfrage (Request)** sehen Sie die Methode `POST`, eine externe Zustellungs-ID, falls vorhanden, und bei GitHub-Zustellungen den Header `X-GitHub-Event`, solange er noch gespeichert ist. Der Inhalt liegt als normalisiertes JSON vor, nicht in Form der ursprünglichen Anfragebytes. Authentifizierungs-Header werden weder gespeichert noch angezeigt. Nach der Bereinigung bleibt der Empfangsbeleg erhalten, aber Inhalt und Ereignis-Header sind nicht mehr abrufbar.
+Wenn Sie die Quelle nutzen dürfen, wählen Sie neben einem Empfangsbeleg **Prüfen (Inspect)**. Unter **Anfrage (Request)** sehen Sie die Methode `POST` und bei GitHub-Zustellungen den Header `X-GitHub-Event`, solange er noch gespeichert ist. Der Inhalt liegt als normalisiertes JSON vor, nicht in Form der ursprünglichen Anfragebytes. Authentifizierungs-Header und vom Absender gelieferte Deduplizierungs-IDs werden nicht angezeigt. Nach der Bereinigung bleibt der Empfangsbeleg erhalten, aber Inhalt und Ereignis-Header sind nicht mehr abrufbar.
 
 Unter **Antwort (Response)** sehen Sie die Empfangsbestätigung des Endpunkts: `202 Accepted` (bei Linear `200 OK`) mit `content-length: 0` und leerem Inhalt. Die Ansicht zeigt weder Proxy-Header noch das Ergebnis der Routine oder des Workflows. Der **Weiterleitungsstatus (Dispatch outcomes)** zeigt pro Weiterleitung den Status sowie gegebenenfalls Fehlercode und Abschlusszeitpunkt, ohne den Abonnenten zu nennen. Sie können in dieser Ansicht kein Ereignis erneut zustellen.
 

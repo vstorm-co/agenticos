@@ -79,14 +79,6 @@ function DeliveryExchange({ delivery }: { delivery: EventSourceDeliveryDetail })
             </time>
           </dd>
         </div>
-        {delivery.external_id !== null && (
-          <div className="min-w-0">
-            <dt className="text-muted-foreground">{t("senderId")}</dt>
-            <dd className="font-mono break-all" dir="ltr">
-              {delivery.external_id}
-            </dd>
-          </div>
-        )}
       </dl>
 
       <div className="grid items-start gap-3 sm:grid-cols-2">
