@@ -12,6 +12,7 @@ import { create } from "zustand";
 
 import { createHistoryRecorder, type HistoryRecorder } from "@/components/workflows/history";
 import { carryPortRenameToMerges } from "@/components/workflows/property-panel/merge-config";
+import { clientUuid } from "@/lib/ids";
 import { carryMergeKeyRename, mergeKeyRename } from "@/lib/workflows/merge-key-rename";
 import { carryPortRename, portRename } from "@/lib/workflows/port-rename";
 import type { StepData } from "@/lib/workflows/step-data";
@@ -776,7 +777,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
       );
       if (already) return;
       const edge: WorkflowEdge = {
-        id: crypto.randomUUID(),
+        id: clientUuid(),
         source_node_id: source,
         source_port: sourceHandle,
         target_node_id: target,
@@ -947,7 +948,7 @@ export const useWorkflowEditorStore = create<WorkflowEditorState>()((set, get) =
 
     addNote: (position) => {
       const base = get().graph ?? EMPTY_GRAPH;
-      const id = crypto.randomUUID();
+      const id = clientUuid();
       commit({ ...base, notes: [...(base.notes ?? []), { id, text: "", layout: position }] });
       set({ selection: { nodeIds: [id], edgeIds: [] } });
       return id;

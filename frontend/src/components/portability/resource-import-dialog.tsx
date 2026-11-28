@@ -25,6 +25,7 @@ import { useConsoleRouter } from "@/hooks/use-console-router";
 import { getErrorMessage } from "@/lib/api-error";
 import { ROUTES } from "@/lib/constants";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { clientUuid } from "@/lib/ids";
 import type {
   BundlePreview,
   BundleRootKind,
@@ -70,7 +71,7 @@ function ImportResourceContent({
   const [documentTransferId, setDocumentTransferId] = useState<string | null>(null);
   const [document, setDocument] = useState<BundlePreview | null>(null);
   const [choices, setChoices] = useState<Record<string, ImportChoice>>({});
-  const [operationId, setOperationId] = useState(() => crypto.randomUUID());
+  const [operationId, setOperationId] = useState(clientUuid);
   const [inlineReceipt, setReceipt] = useState<ImportReceipt | null>(null);
   const [zipFile, setZipFile] = useState<File | null>(null);
   const zip = useBundleTransfer(open, `import:${rootKind}`);
@@ -127,7 +128,7 @@ function ImportResourceContent({
       setProblem(null);
       preview.reset();
       apply.reset();
-      setOperationId(crypto.randomUUID());
+      setOperationId(clientUuid());
     }
     onOpenChange(next);
     return true;
@@ -147,7 +148,7 @@ function ImportResourceContent({
     preview.reset();
     apply.reset();
     reviewedZip.current = null;
-    setOperationId(crypto.randomUUID());
+    setOperationId(clientUuid());
     if (file.name.toLowerCase().endsWith(".zip")) {
       setZipFile(file);
       setFileName(file.name);
@@ -175,7 +176,7 @@ function ImportResourceContent({
         setDocument(data);
         setDocumentTransferId(null);
         setChoices(initialChoices(data));
-        setOperationId(crypto.randomUUID());
+        setOperationId(clientUuid());
       },
     });
   };
@@ -342,7 +343,7 @@ function ImportResourceContent({
                 setZipFile(null);
                 setFileName(null);
                 setText("");
-                setOperationId(crypto.randomUUID());
+                setOperationId(clientUuid());
               }}
             >
               {t("startNewTransfer")}
@@ -385,7 +386,7 @@ function ImportResourceContent({
                     setDocument(null);
                     setDocumentTransferId(null);
                     reviewedZip.current = null;
-                    setOperationId(crypto.randomUUID());
+                    setOperationId(clientUuid());
                     apply.reset();
                   } else await close(false);
                 }}

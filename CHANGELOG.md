@@ -27,6 +27,7 @@ Two things are versioned separately from this file and worth knowing about:
 ### Fixed
 
 - Copy webhook URLs from the live listener when a local HTTP preview does not provide the Clipboard API.
+- Open and edit workflows over plain HTTP when the browser does not expose its native UUID generator.
 
 ## [1.95.0] - 2026-11-26
 

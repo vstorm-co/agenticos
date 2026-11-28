@@ -27,6 +27,7 @@ import { ExportResourceList } from "./export-resource-list";
 import { useAgent } from "@/hooks/use-agents";
 import { getErrorMessage } from "@/lib/api-error";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE, DIALOG_WINDOW } from "@/lib/dialog-sizes";
+import { clientUuid } from "@/lib/ids";
 
 function ExportResourceContent({
   resourceId,
@@ -49,7 +50,7 @@ function ExportResourceContent({
   const [layersByKey, setLayersByKey] = useState<Record<string, string[]>>({});
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [format, setFormat] = useState<"yaml" | "json" | "zip">("yaml");
-  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const [requestId, setRequestId] = useState(clientUuid);
   const zip = useBundleTransfer(open, `export:${rootKind}:${resourceId}`);
   const zipDownload = useMutation({ mutationFn: downloadBundleTransfer });
   const downloaded = useRef<string | null>(null);
@@ -65,7 +66,7 @@ function ExportResourceContent({
   const resetZip = async (): Promise<boolean> => {
     if (!(await zip.reset())) return false;
     zipDownload.reset();
-    setRequestId(crypto.randomUUID());
+    setRequestId(clientUuid());
     return true;
   };
   const data = preview.data;

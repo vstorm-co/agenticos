@@ -28,6 +28,7 @@ import {
   Textarea,
 } from "@/components/ui";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_FORM } from "@/lib/dialog-sizes";
+import { clientUuid } from "@/lib/ids";
 import { cn } from "@/lib/utils";
 import { ReplyDraftPicker } from "./reply-draft-picker";
 import { ReplyMailboxPicker } from "@/components/workflows/property-panel/reply-mailbox-picker";
@@ -68,7 +69,7 @@ const STARTS = [
 
 /** A draft of one trigger node - where every new workflow begins. */
 export function startingGraph(definitionId: string): WorkflowGraph {
-  const id = crypto.randomUUID();
+  const id = clientUuid();
   return {
     entry_node_id: id,
     nodes: [

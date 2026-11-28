@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { clientId } from "./ids";
+import { clientId, clientUuid } from "./ids";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -29,5 +29,23 @@ describe("clientId", () => {
   it("still mints an id where crypto exists without randomUUID", () => {
     vi.stubGlobal("crypto", { getRandomValues: () => new Uint8Array() });
     expect(clientId()).toMatch(/^id-\d+-[a-z0-9]+$/);
+  });
+});
+
+describe("clientUuid", () => {
+  it("uses the native UUID generator when available", () => {
+    const randomUUID = vi.fn(() => "11111111-2222-4333-8444-555555555555");
+    vi.stubGlobal("crypto", { randomUUID });
+    expect(clientUuid()).toBe("11111111-2222-4333-8444-555555555555");
+    expect(randomUUID).toHaveBeenCalledOnce();
+  });
+
+  it("keeps UUIDv4 format without randomUUID", () => {
+    vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
+    const ids = new Set(Array.from({ length: 20 }, clientUuid));
+    expect(ids.size).toBe(20);
+    for (const id of ids) {
+      expect(id).toMatch(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/);
+    }
   });
 });

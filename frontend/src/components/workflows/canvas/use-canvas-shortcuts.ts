@@ -9,6 +9,7 @@ import { currentScopeId, scopedGraph } from "./scope-view";
 
 import { copySelection, pasteClipboard } from "@/components/workflows/clipboard";
 import { pasteRefusal, type PasteRefusal } from "@/components/workflows/palette";
+import { clientUuid } from "@/lib/ids";
 import type { NodeDefinition } from "@/lib/workflows/types";
 import { useWorkflowEditorStore, type WorkflowEditorState } from "@/stores/workflow-editor-store";
 
@@ -43,7 +44,7 @@ function pasteFromClipboard(
   if (refusal !== null) return refusal;
   const { clipboard } = pasteClipboard(
     store.clipboard,
-    () => crypto.randomUUID(),
+    clientUuid,
     PASTE_OFFSET,
     currentScopeId(store.scopePath),
   );
