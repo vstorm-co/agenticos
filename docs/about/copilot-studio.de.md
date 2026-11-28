@@ -1,5 +1,5 @@
 ---
-source_sha: "c3f329d888d0"
+source_sha: "3c3674769a3e"
 title: "AgenticOS vs Copilot Studio"
 seo_title: "AgenticOS vs Copilot Studio: selbst gehostete Alternative"
 description: "Microsoft Copilot Studio vs. AgenticOS: keine Copilot Credits, jeder Modell-Provider, Ihre eigene Infrastruktur, Budgets pro Agent und offenes Audit."
@@ -13,6 +13,8 @@ Wenn Ihr Unternehmen in Microsoft 365 lebt, ist Copilot Studio ein naheliegender
 
 Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Stand: v1.10.0. Copilot-Studio-Umfang: die Preisseite von Microsoft, die Azure-Retail-Preis-API und Microsoft Learn, kein getesteter Tenant.
 
+Die AgenticOS-Funktionsangaben wurden am 27. November 2026 anhand von v1.95.0 aktualisiert. Das Prüfdatum der Anbieterquellen oben bleibt unverändert; dies ist keine neue Preisprüfung.
+
 ## Auf einen Blick { #at-a-glance }
 
 | Bereich | Copilot Studio | AgenticOS |
@@ -23,7 +25,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. Agenti
 | Abrechnung | 0,01 $ pro Copilot Credit bei nutzungsbasierter Abrechnung oder vorausbezahlte Copilot Credit Commit Units mit bis zu 20 % Rabatt | Keine Lizenzgebühr; Modellnutzung zu den Tarifen Ihres Providers |
 | Wie Nutzung gezählt wird | Credits pro Funktion: eine generative Antwort kostet 2, eine Agent-Aktion 5, Grounding über den Tenant-Graph 10 | Modell-Tokens, bepreist pro Provider |
 | Durchsetzung der Ausgaben | Monatliche Limits pro Agent; Agents werden bei 125 % der vorausbezahlten Kapazität deaktiviert | Ein Budget pro Agent und pro Organisation, geprüft vor jeder Modellanfrage |
-| Oberflächen | Teams, Microsoft 365, SharePoint, Web, WhatsApp, Sprache sowie Slack oder Telegram über Azure Bot Service | Web-Chat mit Sprachanrufen, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost |
+| Oberflächen | Teams, Microsoft 365, SharePoint, Web, WhatsApp, Sprache sowie Slack oder Telegram über Azure Bot Service | Web-Chat mit Sprachanrufen, Widget, gehostete Seite, HTTP-API, WebSocket, Slack, Microsoft Teams, Telegram, Mattermost, Discord, Matrix, SMS, E-Mail, iMessage, Telefonanrufe |
 | Identität | Microsoft Entra ID | OIDC-SSO einschließlich Entra, LDAP und Kerberos |
 | Governance | Datenrichtlinien von Power Platform, Purview-Audit, Entra Agent ID | Berechtigungskatalog, Grants, Freigaben und ein Audit-Log mit Manipulationsnachweis |
 
@@ -52,7 +54,7 @@ AgenticOS meldet Personen mit Entra ID über [OIDC](../configuration.md#single-s
 ## Wann Copilot Studio besser passt { #when-copilot-studio-is-the-better-fit }
 
 - Ihre Agents gehören in Teams und Microsoft 365 Copilot, und Ihre Benutzer haben bereits Lizenzen für Microsoft 365 Copilot.
-- Sie benötigen Power-Platform-Connectoren, Agent-Flows, Telefonie oder WhatsApp. AgenticOS hat keinen Kanal für Teams, Telefon oder WhatsApp; seine [Sprachanrufe](../voice.md) laufen im Browser.
+- Sie benötigen Power-Platform-Connectoren, Agent-Flows oder WhatsApp, oder Governance für Teams und Microsoft 365 über Entra und Purview. AgenticOS antwortet in [Microsoft Teams](../channels.md#microsoft-teams) und nimmt [Telefonanrufe](../voice.md#telephone-calls) über Twilio an, hat aber keinen WhatsApp-Kanal und steuert Agents in seiner eigenen Konsole.
 - Purview, Sentinel und die Datenrichtlinien von Power Platform sind die Art, wie Ihre Organisation alles andere steuert.
 
 ## Auf einer Aufgabe ausprobieren { #try-it-on-one-task }
@@ -75,7 +77,7 @@ Copilot Studio berechnet 0,01 $ pro Copilot Credit bei nutzungsbasierter Abrechn
 
 ### Kann AgenticOS Agents in Microsoft Teams veröffentlichen? { #can-agenticos-publish-agents-to-microsoft-teams }
 
-Noch nicht. Es veröffentlicht im Web-Chat, in einem Widget, auf einer gehosteten Seite, über die HTTP-API, einen WebSocket, Slack, Telegram und Mattermost.
+Ja. Ein veröffentlichter Agent antwortet in [Microsoft Teams](../channels.md#microsoft-teams) als Bot, neben Web-Chat, Widget, gehosteter Seite, HTTP-API, WebSocket, Slack, Telegram, Mattermost, Discord, Matrix, SMS, E-Mail, iMessage und Telefonanrufen. Es ist ein Teams-Bot, keine Erweiterung für Microsoft 365 Copilot.
 
 ## Verwandte Vergleiche { #related-comparisons }
 

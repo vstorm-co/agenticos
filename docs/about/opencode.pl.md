@@ -1,5 +1,5 @@
 ---
-source_sha: "c53ca829ee5e"
+source_sha: "2368d61a1260"
 title: "AgenticOS vs OpenCode"
 seo_title: "AgenticOS vs OpenCode: dwa narzędzia agentowe open source"
 description: "OpenCode to agent programistyczny MIT dla jednego dewelopera. AgenticOS to platforma Apache-2.0 dla agentów AI firmy, z rolami, budżetami i logami audytu."
@@ -10,6 +10,8 @@ description: "OpenCode to agent programistyczny MIT dla jednego dewelopera. Agen
 OpenCode to open-source'owy agent programistyczny na licencji MIT. Działa w terminalu, w aplikacji desktopowej lub w IDE i łączy się z ponad 75 providerami modeli. To dobry wybór dla dewelopera, który chce mieć własnego agenta we własnym repozytorium. AgenticOS też jest open source, ale powstał do innej pracy: wielu agentów, wielu użytkowników, jedno zarządzane wdrożenie.
 
 Utrzymuje zespół AgenticOS. Źródła sprawdzono 21 października 2026. Wersja bazowa AgenticOS: v1.10.0. Zakres OpenCode: dokumentacja na opencode.ai, w tym strony Console dla OpenCode 2 pod `/v2/`, oraz repozytorium `anomalyco/opencode` w wersji v1.19.3 z linii 1.x, bez testowanego wdrożenia enterprise.
+
+Opisy funkcji AgenticOS odświeżono 27 listopada 2026 na podstawie v1.95.0. Data sprawdzenia źródeł dostawcy powyżej pozostaje bez zmian; nie jest to nowy audyt jego cen.
 
 ## W skrócie { #at-a-glance }
 
@@ -69,7 +71,7 @@ Tak. OpenCode jest na licencji MIT, a AgenticOS na Apache-2.0, i oba mogą korzy
 
 ### Czy agentów AgenticOS można udostępnić osobom, które nie programują? { #can-agenticos-agents-be-shared-with-people-who-do-not-code }
 
-Tak. Odpowiadają przez widget, hostowaną stronę, Slack, Telegram, Mattermost lub HTTP API, bez niczego do instalowania.
+Tak. Odpowiadają przez widget, hostowaną stronę, Slack, Microsoft Teams, Telegram, Mattermost, e-mail lub HTTP API, bez niczego do instalowania.
 
 ### Czy OpenCode pomoże budować capabilities AgenticOS? { #can-opencode-help-build-agenticos-capabilities }
 

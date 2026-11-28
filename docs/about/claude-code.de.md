@@ -1,5 +1,5 @@
 ---
-source_sha: "3b14d176991a"
+source_sha: "6a1550e4df44"
 title: "AgenticOS vs Claude Code"
 seo_title: "AgenticOS vs Claude Code: Firmen-Agents oder Coding-Agent"
 description: "Claude Code ist ein Coding-Agent für Entwickler, AgenticOS eine Open-Source-Plattform für KI-Agents im Unternehmen. Die Unterschiede und wie Sie beide nutzen."
@@ -13,6 +13,8 @@ Die meisten Entwicklungsteams werden beides wollen. Claude Code schreibt und pr�
 
 Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. AgenticOS-Basis: v1.10.0. Umfang bei Claude Code: die Dokumentation von Anthropic auf code.claude.com, seine Preisseiten und das öffentliche Repository, kein getesteter Enterprise-Rollout.
 
+Die AgenticOS-Funktionsangaben wurden am 27. November 2026 anhand von v1.95.0 aktualisiert. Das Prüfdatum der Anbieterquellen oben bleibt unverändert; dies ist keine neue Preisprüfung.
+
 ## Auf einen Blick { #at-a-glance }
 
 | Bereich | Claude Code | AgenticOS |
@@ -22,7 +24,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. Agenti
 | Wo es läuft | Entwicklerrechner; Cloud-Sessions auf der Infrastruktur von Anthropic oder Ihrer eigenen | Ihre Infrastruktur, als gemeinsamer Dienst |
 | Quellcode | Proprietär: "All rights reserved" | Apache-2.0 |
 | Modelle | Nur Claude, über Anthropic, Amazon Bedrock, Claude Platform on AWS, die Agent Platform von Google Cloud (früher Vertex AI) oder Microsoft Foundry | 28 Provider, Claude eingeschlossen |
-| Endnutzer | Der Entwickler an der Tastatur | Mitarbeiter, Kunden und Systeme, auf acht Oberflächen |
+| Endnutzer | Der Entwickler an der Tastatur | Mitarbeiter, Kunden und Systeme, auf über einem Dutzend Oberflächen |
 | Freigaben | Der Entwickler oder ein Klassifikator im Auto-Modus | Eine Person mit `approvals:decide`, aus einer gemeinsamen Warteschlange |
 | Ausgabenkontrolle | Tarifkontingent, Nutzungs-Credits mit Ausgabenlimits oder API-Abrechnung; `--max-budget-usd` pro Run im Print-Modus | Ein monatliches Budget pro Agent und pro Organisation |
 | Preise | Enthalten in Pro, Max, Team und Enterprise; Anthropic nennt 150–250 $ pro Entwickler und Monat bei API-Abrechnung | Keine Lizenzgebühr; Modellnutzung und Infrastruktur |
@@ -31,7 +33,7 @@ Verantwortlich: das AgenticOS-Team. Quellen geprüft am 21. Oktober 2026. Agenti
 
 ### Ein Agent für Menschen, die nie ein Terminal öffnen { #an-agent-for-people-who-never-open-a-terminal }
 
-Claude Code hat keinen Builder für Fachanwender und keinen Veröffentlichungsablauf für Nicht-Entwickler. Seine Funktion Channels, in der Research Preview, schiebt Ereignisse in die laufende Session eines Entwicklers; sie veröffentlicht keinen Agent für andere Menschen. In AgenticOS schreibt ein fachlicher Verantwortlicher Instruktionen, schaltet [Capabilities](../reference/capabilities.md) ein, bindet eine Wissenssammlung an und [veröffentlicht eine Version](../concepts.md#version). Derselbe Agent antwortet dann [im Web-Chat, in einem Widget, in Slack, Telegram, Mattermost und über die API](../channels.md).
+Claude Code hat keinen Builder für Fachanwender und keinen Veröffentlichungsablauf für Nicht-Entwickler. Seine Funktion Channels, in der Research Preview, schiebt Ereignisse in die laufende Session eines Entwicklers; sie veröffentlicht keinen Agent für andere Menschen. In AgenticOS schreibt ein fachlicher Verantwortlicher Instruktionen, schaltet [Capabilities](../reference/capabilities.md) ein, bindet eine Wissenssammlung an und [veröffentlicht eine Version](../concepts.md#version). Derselbe Agent antwortet dann [im Web-Chat, in einem Widget, in Slack, Microsoft Teams, Telegram, Mattermost, per E-Mail, per SMS und über die API](../channels.md).
 
 ### Governance, die auf dem Server sitzt { #governance-that-sits-on-the-server }
 
