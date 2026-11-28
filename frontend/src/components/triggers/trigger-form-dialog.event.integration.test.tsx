@@ -196,7 +196,7 @@ describe("TriggerFormDialog custom-webhook event form", () => {
           visibility: "private",
           can_use: true,
           can_edit: false,
-          webhook_url: "https://example.test/api/v1/webhooks/sources/shared-source",
+          webhook_url: "https://example.test/api/v1/webhooks/shared-source",
         };
         return path === "/event-sources" ? { items: [source], total: 1 } : source;
       }

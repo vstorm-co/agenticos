@@ -1,5 +1,5 @@
 ---
-source_sha: "22fac73d07b1"
+source_sha: "016a2a6531a1"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -132,7 +132,11 @@ Die Verwaltung der **Ereignisquellen** bleibt unter `/event-sources` erreichbar 
 
 Fügen Sie Ihrem Dashboard das Widget **Ereignisquellen** hinzu. Es zeigt, wie viele der für Sie sichtbaren Quellen aktiv oder pausiert sind.
 
-Öffnen Sie **Ereignisquellen**, oder wählen Sie **Vorhandene auswählen / Neu erstellen** im Webhook-Editor einer Routine oder eines Workflows. Eine Quelle besitzt ihre Live-URL, Zugangsdaten und Provider-Konfiguration. Mehrere Routinen und veröffentlichte Workflow-Einstiege können dieselbe URL abonnieren; Filter, Ausführungsidentität, Berechtigungen, Einwilligungen und Budgets bleiben pro Ziel erhalten.
+Öffnen Sie **Ereignisquellen**, oder wählen Sie **Vorhandene auswählen / Neu erstellen** im Webhook-Editor einer Routine oder eines Workflows. Jede Quelle hat eigene Zugangsdaten, eine Provider-Konfiguration und genau eine Zustellungs-URL: `{PUBLIC_BASE_URL}/api/v1/webhooks/{source_id}`. Dabei ist `source_id` die UUID der Quelle. Kopieren Sie diese URL aus der Konsole. Sie ist unabhängig vom Provider und davon, welche Workflows die Quelle abonnieren.
+
+Absender senden POST-Anfragen an die Quelle, nicht an einzelne Workflows oder direkte Routinen-Trigger. Mehrere Routinen und veröffentlichte Workflow-Einstiege können die Quelle abonnieren. Filter, Ausführungsidentität, Berechtigungen, Einwilligungen und Budgets bleiben pro Ziel erhalten.
+
+Verwenden Sie die separate Verwaltungs-API unter `/api/v1/event-sources`, um Quellen zu konfigurieren, nicht um Ereignisse zuzustellen. Die Verwaltungs-API erfordert eine Authentifizierung.
 
 Quellen sind standardmäßig **Privat**. **Organisation** gibt eine Quelle gemäß den Organisationsberechtigungen frei. Mit dem Leserecht sehen Sie die Konfiguration. Mit dem Nutzungsrecht können Sie eingehende Ereignisdaten vor der Filterung durch die Abonnenten einsehen, auch ohne Routine oder Workflow. Nur wer den Empfang gestartet hat und die Quelle weiterhin nutzen darf, kann das Beispiel abrufen. Zum Verknüpfen müssen Sie das Ziel auch bearbeiten und ausführen dürfen. Worker prüfen die Rechte vor der Ausführung erneut.
 
@@ -149,11 +153,11 @@ Wählen Sie im Quellenformular einen organisationsweit sichtbaren Vault-Schlüss
 
 Jeder eingehende Webhook liest den aktuellen Vault-Wert erneut. Rotieren Sie den Schlüssel im Vault, ohne jede darauf verweisende Quelle erneut zu speichern. Ein gelöschter Schlüssel oder entzogene Organisationssichtbarkeit verhindert die Authentifizierung; die Quelle greift nicht auf eine ältere Zugangsdatenkopie zurück. Bestehende direkt per API übergebene und automatisch erzeugte Quellenzugangsdaten bleiben kompatibel.
 
-Senden Sie per POST ein JSON-Objekt; die bisherige Anpassung für HubSpot-Stapel bleibt erhalten. Zugangsdaten werden nur geschrieben und im Organisations-Vault gespeichert. Bewahren Sie sie im Vault oder an der Quelle auf, niemals in einer Workflow-Definition oder einem Beispiel. Provider-Zustellungs-IDs oder ein konfigurierter Zustellungs-ID-Header erkennen Wiederholungen. Basic-Auth- und API-Schlüssel-Zugangsdaten sind keine Ereignis-IDs. Ohne Ereignis-ID können Wiederholungen zusätzliche Läufe starten.
+Senden Sie per POST ein JSON-Objekt; die bisherige Anpassung für HubSpot-Stapel bleibt erhalten. Die Quelle prüft Signaturen anhand des unveränderten Request-Body, bevor sie das JSON parst. Zugangsdaten werden nur geschrieben und im Organisations-Vault gespeichert. Bewahren Sie sie im Vault oder an der Quelle auf, niemals in einer Workflow-Definition oder einem Beispiel. Provider-Zustellungs-IDs oder ein konfigurierter Zustellungs-ID-Header erkennen Wiederholungen. Basic-Auth- und API-Schlüssel-Zugangsdaten sind keine Ereignis-IDs. Ohne Ereignis-ID können Wiederholungen zusätzliche Läufe starten.
 
 Eine authentifizierte Zustellung und ihre Versandaufträge werden gemeinsam gespeichert, bevor die Quelle den Empfang bestätigt. Fehler eines Abonnenten beeinflussen andere nicht. Bei vorübergehenden Raten- oder Kapazitätsgrenzen eines Abonnenten versucht der Worker die Zustellung erneut. Für ein eingereihtes Ereignis gilt nur die beim Empfang erteilte Quellenfreigabe der Routine. Ein Quellenwechsel pausiert die Routine. Vor dem Fortsetzen muss die Person, der die Routine gehört, die neue Quelle prüfen.
 
-Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert keine benutzerdefinierte Workflow-Antwort. Ein Workflow mit gemeinsamer Quelle darf **Auf Webhook antworten** nicht erreichen. Dedizierte Workflow-Endpunkte behalten synchrone Antworten.
+Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron mit `202 Accepted` (bei Linear mit `200 OK`) und liefert keine benutzerdefinierte Workflow-Antwort. Ein Workflow mit gemeinsamer Quelle darf **Auf Webhook antworten** nicht erreichen. Dedizierte Workflow-Endpunkte behalten synchrone Antworten.
 
 **Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen. Eine pausierte Quelle prüft und speichert weiterhin jede Zustellung. Eine laufende Erfassung empfängt sie ebenfalls. Das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Solange Abonnements bestehen, ist Löschen gesperrt; die Nutzungsliste zeigt die zuvor zu trennenden Ziele. Abgeschlossene Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
 

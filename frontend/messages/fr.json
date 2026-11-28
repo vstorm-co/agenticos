@@ -4896,7 +4896,7 @@
       },
       "create-event-source": {
         "title": "Créer une source",
-        "body": "Recevez chaque événement authentifié une seule fois et partagez-le avec les routines et les workflows."
+        "body": "Chaque source d’événements a une seule URL de webhook. Les workflows et les routines s’abonnent à la source."
       }
     },
     "steps": {
@@ -6207,15 +6207,15 @@
       },
       "event-sources-header": {
         "title": "Sources d’événements",
-        "body": "Recevez chaque événement authentifié une seule fois et partagez-le avec les routines et les workflows."
+        "body": "Chaque source d’événements a une seule URL de webhook. Les workflows et les routines s’abonnent à la source."
       },
       "event-sources-create": {
         "title": "Créer une source",
-        "body": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL de la source."
+        "body": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL du webhook de la source. Utilisez la même URL pour tous les abonnés."
       },
       "flow-event-source-create": {
         "title": "Créer une source",
-        "body": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL de la source."
+        "body": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL du webhook de la source. Utilisez la même URL pour tous les abonnés."
       },
       "workflow-python-actions": {
         "title": "Appeler des outils depuis Python",
@@ -21742,7 +21742,7 @@
     "vaultCredentialHelp": "Choisissez des identifiants de l’organisation dans le Vault. La source utilise leur valeur actuelle, y compris après rotation.",
     "manageSources": "Gérer les sources d’événements",
     "title": "Sources d’événements",
-    "description": "Recevez chaque événement authentifié une seule fois et partagez-le avec les routines et les workflows.",
+    "description": "Chaque source d’événements a une seule URL de webhook. Les workflows et les routines s’abonnent à la source.",
     "name": "Nom",
     "provider": "Provider",
     "providers": {
@@ -21762,7 +21762,7 @@
     "username": "Nom d’utilisateur",
     "password": "Mot de passe",
     "secret": "Secret",
-    "manualSetup": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL de la source.",
+    "manualSetup": "Configurez l’expéditeur pour qu’il envoie du JSON par POST à l’URL du webhook de la source. Utilisez la même URL pour tous les abonnés.",
     "visibility": "Visibilité",
     "private": "Privée",
     "organization": "Organisation",
@@ -21781,12 +21781,12 @@
     "chooseSource": "Sélectionner une source existante",
     "paused": "En pause",
     "active": "Active",
-    "liveUrl": "URL de réception des événements",
+    "liveUrl": "URL du webhook de la source",
     "revealOnce": "Copiez ce secret maintenant. Il ne sera plus affiché.",
     "createNew": "Créer une source",
     "loadError": "Impossible de charger les sources d’événements.",
     "retry": "Réessayer",
-    "liveWarning": "L’écoute des événements sur cette URL dure deux minutes. Les abonnés actifs continuent de s’exécuter normalement. Les échantillons sont facultatifs et expirent après dix minutes.",
+    "liveWarning": "Écoutez les événements pendant deux minutes sur l’URL du webhook de la source. Les abonnés actifs continuent de s’exécuter normalement. Les échantillons sont facultatifs et expirent après dix minutes.",
     "noUse": "Vous devez avoir le droit d’utiliser la source pour capturer des événements.",
     "captureError": "Impossible de capturer un échantillon de l’événement. Le traitement des livraisons se poursuit normalement.",
     "expired": "L’écoute a expiré. Relancez-la lorsque l’expéditeur est prêt.",

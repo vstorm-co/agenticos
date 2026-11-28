@@ -118,7 +118,11 @@ The **Event sources** management page remains at `/event-sources` and is linked 
 
 Add the **Event sources** widget to your dashboard to see how many of your visible sources are active or paused.
 
-Open **Event sources** to create a source, or choose **Select existing / Create new** in a routine or workflow's webhook editor. A source owns its live URL, credentials and provider configuration. Several routines and published workflow entries can subscribe to that URL, each retaining its own filters, execution identity, permissions, consent and budgets.
+Open **Event sources** to create a source, or choose **Select existing / Create new** in a routine or workflow's webhook editor. Each source owns its credentials, provider configuration and one delivery URL: `{PUBLIC_BASE_URL}/api/v1/webhooks/{source_id}`, where `source_id` is the source UUID. Copy this URL from the console. It does not depend on the provider or on which workflows subscribe.
+
+Senders post to the source, not to individual workflows or direct routine triggers. Several routines and published workflow entries can subscribe, each retaining its own filters, execution identity, permissions, consent and budgets.
+
+Use the separate authenticated management API at `/api/v1/event-sources` to configure sources, not to send deliveries.
 
 Sources default to **Private**. Choose **Organization** to share a source according to organization permissions. **View** shows its configuration. **Use** lets you listen to incoming payloads before subscriber filters are applied, even without a routine or workflow. Only the member who started a listener can read its sample, and they must still have Use access. Attaching the source also requires edit and run access to the target. Workers recheck access before executing queued work.
 
@@ -135,11 +139,11 @@ In the source form, select an organization-visible Vault key or create one in pl
 
 Each incoming webhook resolves the current Vault value again. Rotate the key in Vault without resaving every source that references it. A deleted key or withdrawn organization visibility prevents authentication; the source does not fall back to an older copied credential. Existing inline API credentials and automatically generated source credentials remain compatible.
 
-Send a POST containing a JSON object; HubSpot batches retain their existing adaptation. Credentials are write-only and stored in the organization's vault. Keep them in Vault or the source, never in a workflow definition or sample. Provider delivery IDs, or a configured delivery-ID header, identify retries. Basic Auth and API-key credentials are not event IDs. If the sender supplies no event ID, retries may start additional runs.
+Send a POST containing a JSON object; HubSpot batches retain their existing adaptation. The source verifies signatures against the raw request body before parsing JSON. Credentials are write-only and stored in the organization's vault. Keep them in Vault or the source, never in a workflow definition or sample. Provider delivery IDs, or a configured delivery-ID header, identify retries. Basic Auth and API-key credentials are not event IDs. If the sender supplies no event ID, retries may start additional runs.
 
 An authenticated delivery and its dispatch work commit together before the source acknowledges receipt. Subscriber failures are independent. The worker retries temporary subscriber rate or capacity limits. A queued event can use only the routine source approval in effect at receipt. Switching sources pauses the routine. Its owner must review the new source before resuming it.
 
-A shared URL acknowledges durable receipt asynchronously; it cannot return a workflow's custom response. A shared-source workflow must not reach **Respond to webhook**. Dedicated workflow endpoints retain their synchronous response behavior.
+A shared URL acknowledges durable receipt asynchronously with `202 Accepted` (`200 OK` for Linear); it cannot return a workflow's custom response. A shared-source workflow must not reach **Respond to webhook**. Dedicated workflow endpoints retain their synchronous response behavior.
 
 **Pause source** stops starting subscribers for new deliveries. A paused source still verifies and stores each delivery, and an open listener still captures it. Pausing one routine or workflow stops that subscriber. Deleting a source is refused while subscriptions remain; its usage list shows the targets to detach first. Terminal delivery payloads follow the background-job retention policy.
 

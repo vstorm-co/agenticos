@@ -63,7 +63,7 @@ const source: EventSource = {
   owner_user_id: "u1",
   delivery_id_header: null,
   is_active: true,
-  webhook_url: "https://example.test/api/v1/webhooks/sources/s1",
+  webhook_url: "https://example.test/api/v1/webhooks/s1",
   can_use: true,
   can_edit: true,
 };
@@ -150,7 +150,7 @@ it.each([
   await user.click(picker);
   await user.click(await screen.findByRole("option", { name: "Issues" }));
   expect(update).toHaveBeenLastCalledWith("webhook", { source_id: "s1" });
-  expect(screen.getByDisplayValue(source.webhook_url)).toBeVisible();
+  expect(screen.getByLabelText("Source webhook URL")).toHaveValue(source.webhook_url);
 
   await user.click(picker);
   await user.click(screen.getByRole("option", { name: /^Dedicated endpoint/ }));
@@ -557,7 +557,7 @@ describe("editor samples", () => {
       }),
     );
     expect(apiClient.post).toHaveBeenCalledExactlyOnceWith("/event-sources/s1/listen", {});
-    expect(screen.getByText(/Active subscribers still execute/)).toBeVisible();
+    expect(screen.getByText(/Active subscribers continue to run normally/)).toBeVisible();
   });
   it("keeps paste available without offering a listener to a source viewer", async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ ...source, can_use: false });

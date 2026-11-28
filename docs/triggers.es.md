@@ -1,5 +1,5 @@
 ---
-source_sha: "22fac73d07b1"
+source_sha: "016a2a6531a1"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -130,7 +130,11 @@ La administración de **Fuentes de eventos** sigue en `/event-sources` y está e
 
 Añade el widget **Fuentes de eventos** a tu panel para ver cuántas de las fuentes a las que tienes acceso están activas o pausadas.
 
-Abre **Fuentes de eventos** o elige **Seleccionar existente / Crear nueva** en el editor de webhooks de una rutina o un workflow. Una fuente conserva su URL activa, credenciales y configuración del proveedor. Varias rutinas y entradas publicadas de workflows pueden suscribirse a esa URL, cada una con sus filtros, identidad de ejecución, permisos, consentimientos y presupuestos.
+Abre **Fuentes de eventos** o elige **Seleccionar existente / Crear nueva** en el editor de webhooks de una rutina o un workflow. Cada fuente tiene sus propias credenciales, configuración del proveedor y una única URL de entrega: `{PUBLIC_BASE_URL}/api/v1/webhooks/{source_id}`, donde `source_id` es el UUID de la fuente. Copia esta URL de la consola. No depende del proveedor ni de qué workflows estén suscritos.
+
+Los remitentes envían solicitudes POST a la fuente, no a workflows individuales ni a disparadores directos de rutinas. Varias rutinas y entradas publicadas de workflows pueden suscribirse a la fuente, cada una con sus filtros, identidad de ejecución, permisos, consentimientos y presupuestos.
+
+Usa la API de administración autenticada en `/api/v1/event-sources` para configurar fuentes, no para enviar entregas.
 
 Las fuentes son **Privadas** de forma predeterminada. **Organización** comparte la fuente según los permisos de la organización. El permiso de lectura permite ver su configuración. El de uso permite escuchar los datos entrantes antes de que los suscriptores apliquen sus filtros, incluso sin una rutina o un workflow. Solo quien inició la escucha puede leer la muestra y debe conservar el permiso de uso. Para vincular la fuente también se necesitan permisos de edición y ejecución sobre el destino. Los workers vuelven a comprobar los permisos antes de ejecutar el trabajo en cola.
 
@@ -147,11 +151,11 @@ En el formulario de la fuente, selecciona una clave de Vault visible para la org
 
 Cada webhook entrante consulta de nuevo el valor actual de Vault. Rota la clave en Vault sin volver a guardar todas las fuentes que la referencian. Una clave eliminada o sin visibilidad para la organización impide la autenticación; la fuente no recurre a una copia anterior. Las credenciales existentes enviadas directamente por API y las generadas automáticamente para fuentes siguen siendo compatibles.
 
-Envía un POST con un objeto JSON; se mantiene la adaptación existente de lotes de HubSpot. Las credenciales solo se escriben y se guardan en el almacén seguro de la organización. Guárdalas en Vault o en la fuente, nunca en una definición de workflow ni en una muestra. Los ID de entrega del proveedor o una cabecera de ID configurada reconocen reintentos. Las credenciales Basic Auth y las claves API no son ID de eventos. Sin ID de evento, los reintentos pueden iniciar ejecuciones adicionales.
+Envía un POST con un objeto JSON; se mantiene la adaptación existente de lotes de HubSpot. La fuente verifica las firmas sobre el cuerpo original de la solicitud antes de analizar el JSON. Las credenciales solo se escriben y se guardan en el almacén seguro de la organización. Guárdalas en Vault o en la fuente, nunca en una definición de workflow ni en una muestra. Los ID de entrega del proveedor o una cabecera de ID configurada reconocen reintentos. Las credenciales Basic Auth y las claves API no son ID de eventos. Sin ID de evento, los reintentos pueden iniciar ejecuciones adicionales.
 
 La entrega autenticada y sus tareas de envío se guardan juntas antes de confirmar la recepción. Los fallos de los suscriptores son independientes. El worker reintenta la entrega si un suscriptor alcanza un límite temporal de frecuencia o de capacidad. Un evento en cola solo puede usar la aprobación de la fuente de la rutina vigente en el momento de la recepción. Al cambiar de fuente, la rutina queda en pausa. Su propietario debe revisar la nueva fuente antes de reanudarla.
 
-Una URL compartida confirma la recepción duradera de forma asíncrona y no devuelve una respuesta personalizada del workflow. Un workflow con fuente compartida no puede alcanzar **Responder al webhook**. Los endpoints dedicados de workflows conservan las respuestas síncronas.
+Una URL compartida confirma la recepción duradera de forma asíncrona con `202 Accepted` (`200 OK` para Linear) y no devuelve una respuesta personalizada del workflow. Un workflow con fuente compartida no puede alcanzar **Responder al webhook**. Los endpoints dedicados de workflows conservan las respuestas síncronas.
 
 **Pausar fuente** impide iniciar suscriptores para nuevas entregas. Una fuente pausada sigue verificando y almacenando cada entrega, y una escucha abierta aún puede capturarla. Pausar una rutina o workflow afecta solo a ese destino. No se permite eliminar una fuente con suscripciones; la lista de uso muestra los destinos que debes desvincular. Las entregas terminadas siguen la política de retención de tareas en segundo plano.
 

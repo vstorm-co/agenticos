@@ -5112,7 +5112,7 @@
       },
       "create-event-source": {
         "title": "Create new source",
-        "body": "Receive authenticated events once and share them with routines and workflows."
+        "body": "Each event source has one webhook URL. Workflows and routines subscribe to the source."
       }
     },
     "steps": {
@@ -6383,15 +6383,15 @@
       },
       "event-sources-header": {
         "title": "Event sources",
-        "body": "Receive authenticated events once and share them with routines and workflows."
+        "body": "Each event source has one webhook URL. Workflows and routines subscribe to the source."
       },
       "event-sources-create": {
         "title": "Create new source",
-        "body": "Configure the sender manually to POST JSON to the source URL."
+        "body": "Configure the sender to POST JSON to the source’s webhook URL. Use the same URL for all subscribers."
       },
       "flow-event-source-create": {
         "title": "Create new source",
-        "body": "Configure the sender manually to POST JSON to the source URL."
+        "body": "Configure the sender to POST JSON to the source’s webhook URL. Use the same URL for all subscribers."
       },
       "channels-binding": {
         "title": "Choose who answers",
@@ -22036,7 +22036,7 @@
     "vaultCredentialHelp": "Choose an organization credential from the Vault. The source uses its current value, including future rotations.",
     "manageSources": "Manage event sources",
     "title": "Event sources",
-    "description": "Receive authenticated events once and share them with routines and workflows.",
+    "description": "Each event source has one webhook URL. Workflows and routines subscribe to the source.",
     "name": "Name",
     "provider": "Provider",
     "providers": {
@@ -22056,7 +22056,7 @@
     "username": "Username",
     "password": "Password",
     "secret": "Secret",
-    "manualSetup": "Configure the sender manually to POST JSON to the source URL.",
+    "manualSetup": "Configure the sender to POST JSON to the source’s webhook URL. Use the same URL for all subscribers.",
     "visibility": "Visibility",
     "private": "Private",
     "organization": "Organization",
@@ -22075,12 +22075,12 @@
     "chooseSource": "Select an existing source",
     "paused": "Paused",
     "active": "Active",
-    "liveUrl": "Live endpoint URL",
+    "liveUrl": "Source webhook URL",
     "revealOnce": "Copy this secret now. It will not be shown again.",
     "createNew": "Create new source",
     "loadError": "Event sources could not be loaded.",
     "retry": "Retry",
-    "liveWarning": "Listen on this live URL for two minutes. Active subscribers still execute normally. Samples are temporary and expire after ten minutes. A sample is optional.",
+    "liveWarning": "Listen for two minutes on the source’s webhook URL. Active subscribers continue to run normally. Samples are optional and expire after ten minutes.",
     "noUse": "Source-use permission is required to capture events.",
     "captureError": "The event sample could not be captured. Live delivery processing is unaffected.",
     "expired": "Listening expired. Start listening again when the sender is ready.",

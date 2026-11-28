@@ -1,22 +1,28 @@
 """Durable source admission and tenant ownership against PostgreSQL."""
 
 import asyncio
+import hmac
+from base64 import b64encode
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID
 
 import anyio
 import pytest
+from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from app.api import deps
 from app.clients.redis import RedisClient
+from app.core.background import drain
 from app.core.config import settings
 from app.core.exceptions import AuthorizationError, BadRequestError, NotFoundError
 from app.core.permissions import AuthContext, Scope
+from app.db import session
 from app.db.locks import LockScope, hold_subject
 from app.db.models.background_job import BackgroundJob
 from app.db.models.event_source import (
@@ -30,6 +36,7 @@ from app.db.models.organization import Organization
 from app.db.models.resource_grant import ResourceGrant
 from app.db.models.user import User
 from app.db.models.workflow_run import WorkflowRun
+from app.main import app
 from app.schemas.agent_trigger import TriggerCreate
 from app.schemas.event_source import (
     EventSourceCreate,
@@ -243,15 +250,56 @@ async def test_source_list_pages_only_visible_sources_and_reports_granted_permis
     assert total == 1 and [item.id for item in granted] == [shared.id]
 
 
-async def test_delivery_and_each_subscriber_survive_dispatch_restart_without_duplicate_runs(
-    db, engine, source_world, monkeypatch
-):
-    ctx, _, _, source = source_world
-    first_workflow, first = await _subscribed(db, source_world)
-    second_workflow, second = await _subscribed(db, source_world)
-    _, receipt, accepted = await _receive(db, source.id)
-    _, _, duplicate = await _receive(db, source.id)
-    assert accepted and not duplicate
+async def test_signed_delivery_to_one_source_url_dispatches_to_each_workflow_once(
+    db: AsyncSession,
+    engine: AsyncEngine,
+    mock_redis: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user = await _user(db)
+    org = await _org(db, owner=user)
+    ctx = _ctx(user, org)
+    secret = "hubspot-test-key"
+    monkeypatch.setattr(settings, "PUBLIC_BASE_URL", "https://example.test/")
+    source = await EventSourceService(db).create(
+        ctx,
+        EventSourceCreate(
+            name="HubSpot events",
+            provider="hubspot",
+            auth=SourceAuth(method="provider"),
+            delivery_id_header="x-delivery-id",
+            credentials=SourceCredentials(secret=SecretStr(secret)),
+        ),
+    )
+    world = ctx, org, user, source
+    first_workflow, first = await _subscribed(db, world)
+    second_workflow, second = await _subscribed(db, world)
+    assert first.exposure is not None and second.exposure is not None
+    path = f"{settings.API_V1_STR}/webhooks/{source.id}"
+    url = f"https://example.test{path}"
+    assert source.webhook_url == first.exposure.webhook_url == second.exposure.webhook_url == url
+    await db.commit()
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    monkeypatch.setattr(session, "async_session_maker", factory)
+    monkeypatch.setitem(app.dependency_overrides, deps.get_redis, lambda: mock_redis)
+    body = b'{ "issue": { "title": "Help" }, "values": [false, 0, null] }'
+    timestamp = str(int(datetime.now(UTC).timestamp() * 1000))
+    signature = hmac.digest(
+        secret.encode(), f"POST{url}".encode() + body + timestamp.encode(), "sha256"
+    )
+    headers = {
+        "x-hubspot-request-timestamp": timestamp,
+        "x-hubspot-signature-v3": b64encode(signature).decode(),
+        "x-delivery-id": "event-1",
+    }
+    async with AsyncClient(transport=ASGITransport(app=app)) as client:
+        for _ in range(2):
+            response = await client.post(url, content=body, headers=headers)
+            assert response.status_code == 202
+            assert not response.content
+    await drain()
+
     assert await _count(db, EventDelivery) == 1
     assert await _count(db, EventDispatch) == 2
     assert (
@@ -264,7 +312,6 @@ async def test_delivery_and_each_subscriber_survive_dispatch_restart_without_dup
     )
     dispatches = list(await db.scalars(select(EventDispatch)))
     await db.commit()
-    factory = async_sessionmaker(engine, expire_on_commit=False)
 
     @asynccontextmanager
     async def restarted_context():
@@ -288,7 +335,14 @@ async def test_delivery_and_each_subscriber_survive_dispatch_restart_without_dup
         first.exposure.workflow_version_id,
         second.exposure.workflow_version_id,
     }
-    assert all(run.input == {"body": receipt.body, "delivery_id": "event-1"} for run in runs)
+    assert all(
+        run.input
+        == {
+            "body": {"issue": {"title": "Help"}, "values": [False, 0, None]},
+            "delivery_id": "event-1",
+        }
+        for run in runs
+    )
     assert all(row.status == "admitted" for row in dispatches)
 
 

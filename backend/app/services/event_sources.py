@@ -51,6 +51,7 @@ from app.schemas.event_source import (
     SourceCredentials,
     SourceUsage,
     SourceUsageList,
+    event_source_webhook_url,
 )
 from app.services import trigger_events
 from app.services.access import (
@@ -187,10 +188,6 @@ class EventSourceService:
             return prepare_credentials(auth, resolved, generate=False)[0]
         return credentials
 
-    @staticmethod
-    def webhook_url(source_id: UUID) -> str:
-        return f"{settings.PUBLIC_BASE_URL.rstrip('/')}/api/v1/webhooks/sources/{source_id}"
-
     async def get(
         self,
         ctx: AuthContext,
@@ -233,7 +230,7 @@ class EventSourceService:
             visibility=cast(Literal["private", "org"], source.visibility),
             owner_user_id=source.owner_user_id,
             is_active=source.is_active,
-            webhook_url=self.webhook_url(source.id),
+            webhook_url=event_source_webhook_url(source.id),
             can_use=can_use,
             can_edit=can_edit,
         )
@@ -530,7 +527,7 @@ class EventSourceService:
             credentials,
             body=body,
             headers=headers,
-            url=self.webhook_url(source.id),
+            url=event_source_webhook_url(source.id),
         ):
             raise AuthorizationError(message="Webhook authentication did not verify")
         try:

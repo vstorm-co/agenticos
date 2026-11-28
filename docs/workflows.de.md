@@ -1,5 +1,5 @@
 ---
-source_sha: "40313f92dbc9"
+source_sha: "de2e271964f3"
 ---
 
 # Workflows { #workflows }
@@ -1139,7 +1139,7 @@ Die Quellenauswahl verlinkt zur Quellenverwaltung, ohne einen weiteren Standarde
 
 Neue **Webhook**-Schritte im Workflow-Editor fragen zuerst nach einer vorhandenen oder neuen Ereignisquelle. Sie können den Entwurf speichern und mit eingefügtem JSON testen, auch bevor Sie eine Quelle ausgewählt haben. Zum Veröffentlichen müssen Sie eine Quelle oder ausdrücklich einen **dedizierten Endpunkt** wählen. Verwenden Sie einen dedizierten Endpunkt, wenn der Absender eine synchrone Antwort benötigt. Vorhandene dedizierte Schritte behalten ihre Einstellungen und URLs.
 
-Wählen Sie im **Webhook**-Trigger eine vorhandene **Ereignisquelle** oder erstellen Sie eine. Veröffentlichen abonniert diesen Workflow-Einstieg; bei unveränderter Quelle und unverändertem Einstieg bleibt das Abonnement bestehen. Die Quelle verwahrt Zugangsdaten außerhalb der Workflow-Definition. Andere verbundene Routinen und Workflows empfangen dieselben authentifizierten Ereignisse unabhängig. [Ereignisquellen](triggers.md#reusable-event-sources) erklärt Provider, Authentifizierung, Rechte, Pausen und Aufbewahrung.
+Wählen Sie im **Webhook**-Trigger eine vorhandene **Ereignisquelle** oder erstellen Sie eine. Veröffentlichen abonniert diesen Workflow-Einstieg; bei unveränderter Quelle und unverändertem Einstieg bleibt das Abonnement bestehen. Geben Sie Absendern die Webhook-URL der Quelle, nicht eine URL für den Workflow-Einstieg. Die Quelle verwahrt Zugangsdaten außerhalb der Workflow-Definition. Andere verbundene Routinen und Workflows empfangen dieselben authentifizierten Ereignisse unabhängig. [Ereignisquellen](triggers.md#reusable-event-sources) erklärt die URL, Provider, Authentifizierung, Rechte, Pausen und Aufbewahrung.
 
 Sie können eine Quelle, die Sie nicht mehr nutzen dürfen, durch eine für Sie nutzbare Quelle ersetzen. Das aktive Abonnement ändert sich erst beim Veröffentlichen. Um ein Beispiel im Workflow-Entwurf anzuheften, benötigen Sie Bearbeitungsrechte.
 

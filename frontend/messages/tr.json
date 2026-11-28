@@ -8319,7 +8319,7 @@
       },
       "create-event-source": {
         "title": "Yeni kaynak oluştur",
-        "body": "Kimliği doğrulanmış olayları bir kez alın ve rutinler ile workflow'lar arasında paylaşın."
+        "body": "Her olay kaynağının tek bir webhook URL’si vardır. Workflow’lar ve rutinler kaynağa abone olur."
       }
     },
     "chooseLanguage": "Dil",
@@ -9149,15 +9149,15 @@
       },
       "event-sources-header": {
         "title": "Olay kaynakları",
-        "body": "Kimliği doğrulanmış olayları bir kez alın ve rutinler ile workflow'lar arasında paylaşın."
+        "body": "Her olay kaynağının tek bir webhook URL’si vardır. Workflow’lar ve rutinler kaynağa abone olur."
       },
       "event-sources-create": {
         "title": "Yeni kaynak oluştur",
-        "body": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın."
+        "body": "Göndereni, kaynağın webhook URL’sine POST ile JSON gönderecek şekilde yapılandırın. Tüm aboneler için aynı URL’yi kullanın."
       },
       "flow-event-source-create": {
         "title": "Yeni kaynak oluştur",
-        "body": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın."
+        "body": "Göndereni, kaynağın webhook URL’sine POST ile JSON gönderecek şekilde yapılandırın. Tüm aboneler için aynı URL’yi kullanın."
       },
       "channels-binding": {
         "title": "Kimin yanıt vereceğini seçin",
@@ -17341,7 +17341,7 @@
     "vaultCredentialHelp": "Vault’tan kuruluşa ait kimlik bilgilerini seçin. Kaynak, bilgiler yenilendiğinde de güncel değerlerini kullanır.",
     "manageSources": "Olay kaynaklarını yönet",
     "title": "Olay kaynakları",
-    "description": "Kimliği doğrulanmış olayları bir kez alın ve rutinler ile workflow'lar arasında paylaşın.",
+    "description": "Her olay kaynağının tek bir webhook URL’si vardır. Workflow’lar ve rutinler kaynağa abone olur.",
     "name": "Ad",
     "provider": "Provider",
     "providers": {
@@ -17361,7 +17361,7 @@
     "username": "Kullanıcı adı",
     "password": "Parola",
     "secret": "Gizli anahtar",
-    "manualSetup": "Göndereni, kaynak URL'sine POST ile JSON gönderecek şekilde elle yapılandırın.",
+    "manualSetup": "Göndereni, kaynağın webhook URL’sine POST ile JSON gönderecek şekilde yapılandırın. Tüm aboneler için aynı URL’yi kullanın.",
     "visibility": "Görünürlük",
     "private": "Özel",
     "organization": "Organizasyon",
@@ -17380,12 +17380,12 @@
     "chooseSource": "Mevcut bir kaynak seçin",
     "paused": "Duraklatıldı",
     "active": "Etkin",
-    "liveUrl": "Canlı endpoint URL'si",
+    "liveUrl": "Kaynağın webhook URL’si",
     "revealOnce": "Bu gizli anahtarı şimdi kopyalayın. Tekrar gösterilmeyecek.",
     "createNew": "Yeni kaynak oluştur",
     "loadError": "Olay kaynakları yüklenemedi.",
     "retry": "Yeniden dene",
-    "liveWarning": "Bu canlı URL'de iki dakika dinleyin. Etkin aboneler normal çalışmaya devam eder. Örnekler geçicidir ve on dakika sonra sona erer. Örnek isteğe bağlıdır.",
+    "liveWarning": "Kaynağın webhook URL’sinde iki dakika boyunca olayları dinleyin. Etkin aboneler normal şekilde çalışmaya devam eder. Örnekler isteğe bağlıdır ve on dakika sonra geçerliliğini yitirir.",
     "noUse": "Olayları yakalamak için kaynak kullanım izni gereklidir.",
     "captureError": "Olay örneği yakalanamadı. Canlı teslimat işleme etkilenmez.",
     "expired": "Dinleme süresi doldu. Gönderen hazır olduğunda tekrar başlatın.",

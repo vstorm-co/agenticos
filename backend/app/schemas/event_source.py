@@ -15,6 +15,8 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.config import settings
+
 JsonObject = dict[str, JsonValue]
 Provider = Literal["github", "linear", "hubspot", "zendesk", "webhook"]
 
@@ -26,6 +28,11 @@ SIGNATURE_HEADER = {
     "zendesk": "x-zendesk-webhook-signature",
 }
 HUBSPOT_V1_SIGNATURE_HEADER = "x-hubspot-signature"
+
+
+def event_source_webhook_url(source_id: UUID) -> str:
+    """Public delivery URL shared by source reads, workflow exposures and signature checks."""
+    return f"{settings.PUBLIC_BASE_URL.rstrip('/')}{settings.API_V1_STR}/webhooks/{source_id}"
 
 
 class SourceAuth(BaseModel):
