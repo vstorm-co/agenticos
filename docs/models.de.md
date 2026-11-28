@@ -407,6 +407,7 @@ Standard-Provider verwenden die Modell- und Provider-Ableitung von Pydantic AI. 
 | Groq | `groq` | API-Key | |
 | Heroku AI | `heroku` | API-Key | ✓ |
 | LLMTR | `llmtr` | API-Key | |
+| MartLLM | `martllm` | API-Key | ✓ |
 | Mistral | `mistral` | API-Key | |
 | MiniMax | `minimax` | API-Key | ✓ |
 | Kimi Code (plan) | `kimi_code` | API-Key | ✓ |
@@ -448,13 +449,14 @@ Für einen **Z.AI GLM Coding Plan** wähle **Z.AI** und setze **Endpoint** ausdr
 
 Ein Planschlüssel ist nicht mit dem nutzungsabhängigen API-Schlüssel des Anbieters austauschbar. Manche Anbieter beschränken Planschlüssel auf Coding-Tools; die Nutzung über eine Agentenplattform ist deine Entscheidung und kann den Plan einschränken oder sperren. AgenticOS-Budgets behandeln diese Nutzung als unbepreiste Abo-Nutzung.
 
-**Weitere OpenAI-kompatible Konten.** Nous Portal, Inception, Cline, Chutes und Synthetic nehmen den Schlüssel aus der Konsole des jeweiligen Dienstes. Ein leerer Endpoint verwendet die Standardadresse unten, und die Modellliste stammt aus dem Katalog des Schlüssels. Abos von Nous Portal, Chutes und Synthetic gelten als unbepreist; Cline-Guthaben und Inception-Nutzung werden nur bepreist, wo AgenticOS den Modellpreis kennt.
+**Weitere OpenAI-kompatible Konten.** Nous Portal, Inception, Cline, MartLLM, Chutes und Synthetic nehmen den Schlüssel aus der Konsole des jeweiligen Dienstes. Ein leerer Endpoint verwendet die Standardadresse unten, und die Modellliste stammt aus dem Katalog des Schlüssels. Abos von Nous Portal, Chutes und Synthetic gelten als unbepreist; Cline-Guthaben sowie Inception- und MartLLM-Nutzung werden nur bepreist, wo AgenticOS den Modellpreis kennt.
 
 | Provider | Standard-Endpunkt |
 |---|---|
 | Nous Portal | `https://inference-api.nousresearch.com/v1` |
 | Inception | `https://api.inceptionlabs.ai/v1` |
 | Cline | `https://api.cline.bot/api/v1` |
+| MartLLM | `https://api.martllm.com/v1` |
 | Chutes | `https://llm.chutes.ai/v1` |
 | Synthetic | `https://api.synthetic.new/openai/v1` |
 
@@ -744,14 +746,14 @@ und bei sieben Providern aus keiner von beiden, was die Antwort laut ausspricht.
 
 ### Live { #live }
 
-Dreißig Provider veröffentlichen einen Listen-Endpunkt, und das ist die einzige
+Einunddreißig Provider veröffentlichen einen Listen-Endpunkt, und das ist die einzige
 Quelle, die von einem heute Morgen veröffentlichten Modell weiß:
 
 `anthropic`, `openai`, `google`, `openrouter`, `groq`, `mistral`, `together`,
 `cohere`, `deepseek`, `xai`, `sambanova`, `vercel`, `ovhcloud`, `huggingface`,
 `cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`,
 `kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`, `cliproxyapi`, `nous_portal`,
-`inception`, `cline`, `chutes`, `synthetic`.
+`inception`, `cline`, `martllm`, `chutes`, `synthetic`.
 
 Die Antwortformen sind uneinheitlich — das Array liegt bei `data`, bei `models`
 oder in der Dokumentwurzel; die Id ist `id`, `name` oder `model`; Gemini stellt

@@ -387,6 +387,7 @@ Los providers estándar usan la inferencia de modelos y providers de Pydantic AI
 | Groq | `groq` | clave de API | |
 | Heroku AI | `heroku` | clave de API | ✓ |
 | LLMTR | `llmtr` | clave de API | |
+| MartLLM | `martllm` | clave de API | ✓ |
 | Mistral | `mistral` | clave de API | |
 | MiniMax | `minimax` | clave de API | ✓ |
 | Kimi Code (plan) | `kimi_code` | clave de API | ✓ |
@@ -428,13 +429,14 @@ Para un **Z.AI GLM Coding Plan**, selecciona **Z.AI** y configura **Endpoint** e
 
 Una clave de plan no es intercambiable con la clave de API facturada por uso del proveedor. Algunos proveedores limitan las claves de plan a herramientas de programación; usarla desde una plataforma de agentes es tu decisión y puede limitar o suspender el plan. Los presupuestos de AgenticOS tratan este uso como uso de suscripción sin precio.
 
-**Más cuentas compatibles con OpenAI.** Nous Portal, Inception, Cline, Chutes y Synthetic usan la clave de la consola de cada servicio. Un Endpoint vacío usa el predeterminado de abajo, y la lista de modelos procede del catálogo de la clave. Las suscripciones de Nous Portal, Chutes y Synthetic se tratan sin precio; los créditos de Cline y el uso de Inception tienen precio solo cuando AgenticOS conoce el del modelo.
+**Más cuentas compatibles con OpenAI.** Nous Portal, Inception, Cline, MartLLM, Chutes y Synthetic usan la clave de la consola de cada servicio. Un Endpoint vacío usa el predeterminado de abajo, y la lista de modelos procede del catálogo de la clave. Las suscripciones de Nous Portal, Chutes y Synthetic se tratan sin precio; los créditos de Cline y el uso de Inception y MartLLM tienen precio solo cuando AgenticOS conoce el del modelo.
 
 | Provider | Endpoint predeterminado |
 |---|---|
 | Nous Portal | `https://inference-api.nousresearch.com/v1` |
 | Inception | `https://api.inceptionlabs.ai/v1` |
 | Cline | `https://api.cline.bot/api/v1` |
+| MartLLM | `https://api.martllm.com/v1` |
 | Chutes | `https://llm.chutes.ai/v1` |
 | Synthetic | `https://api.synthetic.new/openai/v1` |
 
@@ -717,14 +719,14 @@ ninguna de las dos para siete providers, cosa que la respuesta dice en voz alta.
 
 ### En vivo { #live }
 
-Treinta providers publican un endpoint de listado, y es la única fuente que sabe
+Treinta y un providers publican un endpoint de listado, y es la única fuente que sabe
 de un modelo publicado esta mañana:
 
 `anthropic`, `openai`, `google`, `openrouter`, `groq`, `mistral`, `together`,
 `cohere`, `deepseek`, `xai`, `sambanova`, `vercel`, `ovhcloud`, `huggingface`,
 `cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`,
 `kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`, `cliproxyapi`, `nous_portal`,
-`inception`, `cline`, `chutes`, `synthetic`.
+`inception`, `cline`, `martllm`, `chutes`, `synthetic`.
 
 Las formas de la respuesta no coinciden — el array está en `data`, en `models` o
 en la raíz del documento; el id es `id`, `name` o `model`; Gemini lo prefija con

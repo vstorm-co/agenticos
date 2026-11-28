@@ -112,6 +112,7 @@ describe("ProviderIcon", () => {
     "cliproxyapi",
     "synthetic",
     "stav",
+    "martllm",
     "typesafe",
     "system-one",
   ])("draws a visible mark instead of a letter for %s", (provider) => {

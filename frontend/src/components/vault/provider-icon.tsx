@@ -42,6 +42,7 @@ const SERVICE_MARKS: Readonly<Record<string, LucideIcon>> = {
   typesafe: Workflow,
   "system-one": Workflow,
   stav: Route,
+  martllm: Route,
   synthetic: Atom,
   // Custom endpoints identify a server rather than a model maker.
   openai_compatible: Plug,

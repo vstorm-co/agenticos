@@ -124,6 +124,18 @@ class TestPricing:
             _usage(input_tokens=MILLION), "claude-sonnet-5-5", "anthropic"
         )
 
+    def test_a_martllm_vendor_id_is_priced_as_its_vendor(self):
+        """MartLLM is metered per token and names models `vendor/model`, so a
+        request through it is booked at the vendor's own snapshot entry."""
+        through_martllm = price_request(
+            _usage(input_tokens=MILLION), "anthropic/claude-sonnet-5.5", "martllm"
+        )
+
+        assert through_martllm is not None
+        assert through_martllm == price_request(
+            _usage(input_tokens=MILLION), "claude-sonnet-5-5", "anthropic"
+        )
+
     def test_an_embedding_model_openrouter_serves_by_its_bare_name_is_priced_as_openais(self):
         through_openrouter = price_request(
             _usage(input_tokens=MILLION), "text-embedding-3-small", "openrouter"
