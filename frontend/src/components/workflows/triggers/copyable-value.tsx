@@ -1,19 +1,20 @@
 "use client";
 
-import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 import { Button, Input, Label } from "@/components/ui";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 
 /** A read-only value with a copy button: a webhook URL, an API call. */
 export function CopyableValue({ id, label, value }: { id: string; label: string; value: string }) {
   const t = useTranslations("pages.workflows");
-  const [copied, setCopied] = useState(false);
+  const common = useTranslations("common");
+  const { copy, copied } = useCopyToClipboard();
 
-  async function copy() {
-    await navigator.clipboard.writeText(value);
-    setCopied(true);
+  async function copyValue() {
+    if (!(await copy(value))) toast.error(common("copyFailed"));
   }
 
   return (
@@ -26,7 +27,7 @@ export function CopyableValue({ id, label, value }: { id: string; label: string;
           variant="outline"
           size="icon"
           aria-label={copied ? t("copied") : t("copyNamed", { name: label })}
-          onClick={copy}
+          onClick={copyValue}
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
         </Button>

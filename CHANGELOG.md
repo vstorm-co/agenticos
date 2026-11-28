@@ -23,6 +23,10 @@ Two things are versioned separately from this file and worth knowing about:
 
 - Open Event sources directly from the sidebar and check recent webhook receipts and subscriber dispatch outcomes for each source. Members who can use a source can inspect retained request data and the endpoint's acknowledgment for each delivery.
 
+### Fixed
+
+- Copy webhook URLs from the live listener when a local HTTP preview does not provide the Clipboard API.
+
 ## [1.95.0] - 2026-11-26
 
 ### Fixed
