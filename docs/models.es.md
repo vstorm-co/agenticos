@@ -1,5 +1,5 @@
 ---
-source_sha: "be61b7e28112"
+source_sha: "b993a6b114fd"
 ---
 
 # Modelos y providers { #models-and-providers }
@@ -428,7 +428,7 @@ Para un **Z.AI GLM Coding Plan**, selecciona **Z.AI** y configura **Endpoint** e
 
 Una clave de plan no es intercambiable con la clave de API facturada por uso del proveedor. Algunos proveedores limitan las claves de plan a herramientas de programación; usarla desde una plataforma de agentes es tu decisión y puede limitar o suspender el plan. Los presupuestos de AgenticOS tratan este uso como uso de suscripción sin precio.
 
-**Sesiones de OpenCode Go.** Go rechaza una solicitud sin la cabecera `x-opencode-session` (`MissingSessionID`) y pide a cada cliente que se identifique con su propio nombre y no con el de un SDK. AgenticOS envía ambas en cada solicitud a Go: el user agent `agenticos/<versión>` y un ID de sesión opaco derivado de la conversación y del nombre del agente. Así, el agente, cada revisor de la ejecución y cada subagente mantienen una sesión en todas las ejecuciones de la conversación. Una ejecución fuera de una conversación usa su ID de ejecución. Un modelo construido sin ninguno de los dos, como un paso de workflow, la ingesta o el modelo de pasos del navegador, recibe una sesión nueva cada vez que se construye. Una entrada `extra_headers` en los parámetros del perfil sobrescribe cualquiera de las dos cabeceras.
+**Sesiones de OpenCode Go.** Go rechaza una solicitud sin la cabecera `x-opencode-session` (`MissingSessionID`) y pide a cada cliente que se identifique con su propio nombre y no con el de un SDK. AgenticOS envía ambas en cada solicitud a Go: el user agent `agenticos/<versión>` y un ID de sesión opaco derivado de la conversación y del ID del agente, de modo que renombrar un agente conserva su sesión y dos agentes con el mismo nombre nunca comparten una. Así, el agente, cada revisor de la ejecución y cada subagente, incluidos los especialistas inline, mantienen una sesión propia en todas las ejecuciones de la conversación. Un failover a un perfil de respaldo continúa la misma sesión. Una ejecución fuera de una conversación usa su ID de ejecución. Un modelo construido sin ninguno de los dos, como un paso de workflow, la ingesta o el modelo de pasos del navegador, recibe una sesión nueva cada vez que se construye. Una entrada `extra_headers` en los parámetros del perfil sobrescribe cualquiera de las dos cabeceras.
 
 **Más cuentas compatibles con OpenAI.** Nous Portal, Inception, Cline, Chutes y Synthetic usan la clave de la consola de cada servicio. Un Endpoint vacío usa el predeterminado de abajo, y la lista de modelos procede del catálogo de la clave. Las suscripciones de Nous Portal, Chutes y Synthetic se tratan sin precio; los créditos de Cline y el uso de Inception tienen precio solo cuando AgenticOS conoce el del modelo.
 

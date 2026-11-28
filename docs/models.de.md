@@ -1,5 +1,5 @@
 ---
-source_sha: "be61b7e28112"
+source_sha: "b993a6b114fd"
 ---
 
 # Modelle und Provider { #models-and-providers }
@@ -448,7 +448,7 @@ Für einen **Z.AI GLM Coding Plan** wähle **Z.AI** und setze **Endpoint** ausdr
 
 Ein Planschlüssel ist nicht mit dem nutzungsabhängigen API-Schlüssel des Anbieters austauschbar. Manche Anbieter beschränken Planschlüssel auf Coding-Tools; die Nutzung über eine Agentenplattform ist deine Entscheidung und kann den Plan einschränken oder sperren. AgenticOS-Budgets behandeln diese Nutzung als unbepreiste Abo-Nutzung.
 
-**OpenCode-Go-Sitzungen.** Go lehnt eine Anfrage ohne den Header `x-opencode-session` ab (`MissingSessionID`) und verlangt, dass sich jeder Client mit eigenem Namen statt mit dem eines SDK ausweist. AgenticOS sendet beides bei jeder Go-Anfrage: den User-Agent `agenticos/<Version>` und eine undurchsichtige Sitzungs-ID, abgeleitet aus der Unterhaltung und dem Namen des Agenten. Der Agent, jeder Lauf-Reviewer und jeder Subagent behalten so eine Sitzung über alle Läufe der Unterhaltung. Ein Lauf außerhalb einer Unterhaltung verwendet seine Lauf-ID. Ein Modell, das ohne beides gebaut wird, etwa ein Workflow-Schritt, die Aufnahme oder das Schrittmodell des Browsers, erhält bei jedem Bau eine neue Sitzung. Ein Eintrag `extra_headers` in den Parametern des Profils überschreibt jeden der beiden Header.
+**OpenCode-Go-Sitzungen.** Go lehnt eine Anfrage ohne den Header `x-opencode-session` ab (`MissingSessionID`) und verlangt, dass sich jeder Client mit eigenem Namen statt mit dem eines SDK ausweist. AgenticOS sendet beides bei jeder Go-Anfrage: den User-Agent `agenticos/<Version>` und eine undurchsichtige Sitzungs-ID, abgeleitet aus der Unterhaltung und der ID des Agenten, sodass eine Umbenennung die Sitzung des Agenten erhält und zwei Agenten mit demselben Namen nie eine teilen. Der Agent, jeder Lauf-Reviewer und jeder Subagent, Inline-Spezialisten eingeschlossen, behalten so eine eigene Sitzung über alle Läufe der Unterhaltung. Ein Failover auf ein Fallback-Profil setzt dieselbe Sitzung fort. Ein Lauf außerhalb einer Unterhaltung verwendet seine Lauf-ID. Ein Modell, das ohne beides gebaut wird, etwa ein Workflow-Schritt, die Aufnahme oder das Schrittmodell des Browsers, erhält bei jedem Bau eine neue Sitzung. Ein Eintrag `extra_headers` in den Parametern des Profils überschreibt jeden der beiden Header.
 
 **Weitere OpenAI-kompatible Konten.** Nous Portal, Inception, Cline, Chutes und Synthetic nehmen den Schlüssel aus der Konsole des jeweiligen Dienstes. Ein leerer Endpoint verwendet die Standardadresse unten, und die Modellliste stammt aus dem Katalog des Schlüssels. Abos von Nous Portal, Chutes und Synthetic gelten als unbepreist; Cline-Guthaben und Inception-Nutzung werden nur bepreist, wo AgenticOS den Modellpreis kennt.
 

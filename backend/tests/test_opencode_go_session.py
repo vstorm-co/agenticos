@@ -16,6 +16,7 @@ import httpx2
 import pytest
 from pydantic_ai import Agent
 from pydantic_ai.models import get_user_agent
+from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.models.wrapper import WrapperModel
 from pydantic_ai.providers.openai_compatible import OpenAICompatibleProvider
@@ -180,6 +181,32 @@ async def test_a_fallback_continues_the_same_session() -> None:
     assert [request.headers[OPENCODE_SESSION_HEADER] for request in sent] == ["s", "s"]
 
 
+async def test_a_chain_given_no_session_draws_one_for_every_model_in_it() -> None:
+    sent: list[httpx2.Request] = []
+
+    def respond(request: httpx2.Request) -> httpx2.Response:
+        sent.append(request)
+        # The primary answers the first run and fails the second, so the fallback
+        # takes over after the primary has already spoken under its session.
+        if len(sent) == 2:
+            return httpx2.Response(400, content=b"{}", headers={"content-type": "application/json"})
+        return _reply(request)
+
+    spec = replace(_spec(), fallbacks=[(_credential(), "kimi-k2.6"), (_credential(), "glm-5")])
+    async with httpx2.AsyncClient(transport=httpx2.MockTransport(respond)) as transport:
+        with patch.object(OpenAICompatibleProvider, "_get_http_client", return_value=transport):
+            model = spec.build()
+        agent = Agent(model)
+        await agent.run("hello")
+        await agent.run("again")
+
+    assert isinstance(model, FallbackModel)
+    assert len({_session_of(one) for one in model.models}) == 1
+    sessions = [request.headers[OPENCODE_SESSION_HEADER] for request in sent]
+    assert len(sent) == 3
+    assert len(set(sessions)) == 1
+
+
 async def test_go_refuses_a_legacy_http_client() -> None:
     async with httpx.AsyncClient() as legacy:
         with (
@@ -207,6 +234,8 @@ class TestTheFactory:
         *,
         conversation_id: uuid.UUID | None = None,
         run_id: uuid.UUID | None = None,
+        agent_id: uuid.UUID | None = None,
+        session_scope: str | None = None,
         params: dict[str, object] | None = None,
         reviewer_models: dict[uuid.UUID, ModelRequestSpec] | None = None,
     ) -> tuple[object, list[RunReviewer], ModelSettings]:
@@ -214,6 +243,8 @@ class TestTheFactory:
             spec,
             _spec(params=params),
             organization_id=uuid.uuid4(),
+            agent_id=agent_id,
+            session_scope=session_scope,
             conversation_id=conversation_id,
             run_id=run_id,
             reviewer_models=reviewer_models or {},
@@ -226,43 +257,103 @@ class TestTheFactory:
         return built.agent.model, reviewers, settings
 
     def test_an_agent_keeps_one_session_across_a_conversations_runs(self) -> None:
+        conversation, agent, researcher = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        spec = AgentSpec(name="Clerk")
+
+        first, _, _ = self._built(
+            spec, conversation_id=conversation, run_id=uuid.uuid4(), agent_id=agent
+        )
+        second, _, _ = self._built(
+            spec, conversation_id=conversation, run_id=uuid.uuid4(), agent_id=agent
+        )
+        elsewhere, _, _ = self._built(spec, conversation_id=uuid.uuid4(), agent_id=agent)
+        # A subagent in the same conversation is a conversation of its own with the model.
+        delegate, _, _ = self._built(
+            AgentSpec(name="Researcher"), conversation_id=conversation, agent_id=researcher
+        )
+
+        assert _session_of(first) == _session_of(second) == provider_session(conversation, agent)
+        assert _session_of(elsewhere) != _session_of(first)
+        assert _session_of(delegate) == provider_session(conversation, researcher)
+
+    def test_renaming_the_agent_between_turns_keeps_its_session(self) -> None:
+        conversation, agent = uuid.uuid4(), uuid.uuid4()
+
+        before, _, _ = self._built(
+            AgentSpec(name="Clerk"), conversation_id=conversation, agent_id=agent
+        )
+        after, _, _ = self._built(
+            AgentSpec(name="Head clerk"), conversation_id=conversation, agent_id=agent
+        )
+
+        assert _session_of(before) == _session_of(after)
+
+    def test_two_agents_of_one_name_in_a_conversation_have_their_own_sessions(self) -> None:
         conversation = uuid.uuid4()
         spec = AgentSpec(name="Clerk")
 
-        first, _, _ = self._built(spec, conversation_id=conversation, run_id=uuid.uuid4())
-        second, _, _ = self._built(spec, conversation_id=conversation, run_id=uuid.uuid4())
-        elsewhere, _, _ = self._built(spec, conversation_id=uuid.uuid4())
-        # A subagent in the same conversation is a conversation of its own with the model.
-        delegate, _, _ = self._built(AgentSpec(name="Researcher"), conversation_id=conversation)
+        parent, _, _ = self._built(spec, conversation_id=conversation, agent_id=uuid.uuid4())
+        delegate, _, _ = self._built(spec, conversation_id=conversation, agent_id=uuid.uuid4())
 
-        assert _session_of(first) == _session_of(second) == provider_session(conversation, "Clerk")
-        assert _session_of(elsewhere) != _session_of(first)
-        assert _session_of(delegate) == provider_session(conversation, "Researcher")
+        assert _session_of(parent) != _session_of(delegate)
+
+    def test_a_specialist_under_its_parents_id_has_a_session_of_its_own(self) -> None:
+        conversation, parent_id = uuid.uuid4(), uuid.uuid4()
+
+        parent, _, _ = self._built(
+            AgentSpec(name="Clerk"), conversation_id=conversation, agent_id=parent_id
+        )
+        inline, _, _ = self._built(
+            AgentSpec(name="Clerk"),
+            conversation_id=conversation,
+            agent_id=parent_id,
+            session_scope="inline:Clerk",
+        )
+        dynamic, _, _ = self._built(
+            AgentSpec(name="Clerk"),
+            conversation_id=conversation,
+            agent_id=parent_id,
+            session_scope="dynamic:Clerk",
+        )
+
+        assert len({_session_of(parent), _session_of(inline), _session_of(dynamic)}) == 3
+        assert _session_of(inline) == provider_session(conversation, parent_id, "inline:Clerk")
 
     def test_a_run_without_a_conversation_is_its_own_session(self) -> None:
-        run = uuid.uuid4()
+        run, agent = uuid.uuid4(), uuid.uuid4()
 
-        model, _, _ = self._built(AgentSpec(name="Clerk"), run_id=run)
+        model, _, _ = self._built(AgentSpec(name="Clerk"), run_id=run, agent_id=agent)
         anonymous, _, _ = self._built(AgentSpec(name="Clerk"))
 
-        assert _session_of(model) == provider_session(run, "Clerk")
+        assert _session_of(model) == provider_session(run, agent)
         assert _session_of(anonymous) is not None
 
     def test_a_reviewer_gets_a_session_of_its_own_in_the_conversation(self) -> None:
-        conversation, profile = uuid.uuid4(), uuid.uuid4()
-        spec = AgentSpec(
-            name="Clerk",
-            reviewers=[{"name": "sources", "model_profile_id": str(profile), "instructions": "x"}],
-        )
+        conversation, profile, agent = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+        reviewers = [{"name": "sources", "model_profile_id": str(profile), "instructions": "x"}]
+        models = {profile: _spec()}
 
-        _, (reviewer,), _ = self._built(
-            spec, conversation_id=conversation, reviewer_models={profile: _spec()}
+        model, (reviewer,), _ = self._built(
+            AgentSpec(name="Clerk", reviewers=reviewers),
+            conversation_id=conversation,
+            agent_id=agent,
+            reviewer_models=models,
         )
-        _, (anonymous,), _ = self._built(spec, reviewer_models={profile: _spec()})
+        _, (renamed,), _ = self._built(
+            AgentSpec(name="Head clerk", reviewers=reviewers),
+            conversation_id=conversation,
+            agent_id=agent,
+            reviewer_models=models,
+        )
+        _, (anonymous,), _ = self._built(
+            AgentSpec(name="Clerk", reviewers=reviewers), reviewer_models=models
+        )
 
         assert _session_of(reviewer.model) == provider_session(
-            conversation, "Clerk", "reviewer", "sources"
+            conversation, agent, "reviewer", "sources"
         )
+        assert _session_of(reviewer.model) != _session_of(model)
+        assert _session_of(renamed.model) == _session_of(reviewer.model)
         assert _session_of(anonymous.model) is not None
 
     def test_the_agents_settings_still_override_the_profiles_and_nothing_is_recorded(

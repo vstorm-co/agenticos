@@ -25,7 +25,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Fixed
 
-- Send OpenCode Go the `x-opencode-session` header and an `agenticos/<version>` user agent on every request, so Go profiles no longer fail with `MissingSessionID`. The session stays the same for an agent, each run reviewer and each subagent across a conversation's runs; a profile's `extra_headers` still override both.
+- Send OpenCode Go the `x-opencode-session` header and an `agenticos/<version>` user agent on every request, so Go profiles no longer fail with `MissingSessionID`. The session stays the same for an agent, each run reviewer and each subagent across a conversation's runs and across a failover to a fallback profile, and follows the agent's ID rather than its name; a profile's `extra_headers` still override both.
 
 ## [1.95.0] - 2026-11-26
 

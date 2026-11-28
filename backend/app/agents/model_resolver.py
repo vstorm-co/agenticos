@@ -1001,12 +1001,16 @@ def build_with_fallbacks(
 
     A single provider outage should not take an organization's agents down when
     they have a second key or a second provider configured. Every model in the
-    chain gets the same `session`, so a fallback continues the conversation.
+    chain gets the same `session`, so a fallback continues the conversation;
+    without one the chain draws a single session here, rather than each model
+    drawing its own and a failover changing it mid-run.
     """
     if fallbacks and any(entry[0].provider == "openai_chatgpt" for entry in [primary, *fallbacks]):
         raise BadRequestError(
             message="Official ChatGPT plan usage cannot participate in automatic model fallbacks"
         )
+    if session is None:
+        session = uuid4().hex
     model = build_model(*primary, session)
     if not fallbacks:
         return model
