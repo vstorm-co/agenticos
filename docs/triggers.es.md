@@ -1,5 +1,5 @@
 ---
-source_sha: "5710941450ee"
+source_sha: "ce25bddcac96"
 ---
 
 # Configurar un trigger de evento { #setting-up-an-event-trigger }
@@ -155,7 +155,11 @@ Una URL compartida confirma la recepción duradera de forma asíncrona y no devu
 
 **Pausar fuente** impide iniciar suscriptores para nuevas entregas. Una fuente pausada sigue verificando y almacenando cada entrega, y una escucha abierta aún puede capturarla. Pausar una rutina o workflow afecta solo a ese destino. No se permite eliminar una fuente con suscripciones; la lista de uso muestra los destinos que debes desvincular. Las cargas de las entregas terminadas siguen la política de retención de tareas en segundo plano.
 
-En la fila de una fuente, elige **Recent deliveries** para ver hasta 20 entregas aceptadas, de más reciente a más antigua. Cada entrada muestra la hora de recepción, un ID interno y cuántos envíos a suscriptores están pendientes, se transfirieron, se omitieron o fallaron. **Handed off** indica que un suscriptor aceptó el evento, no que su run haya terminado correctamente. El historial no muestra cargas, cabeceras ni peticiones rechazadas. Las peticiones duplicadas no generan otra entrada.
+En la fila de una fuente, elige **Recent deliveries** para ver hasta 20 entregas aceptadas, de más reciente a más antigua. Cada entrada muestra la hora de recepción, un ID interno y cuántos envíos a suscriptores están pendientes, se transfirieron, se omitieron o fallaron. **Handed off** indica que un suscriptor aceptó el evento, no que su run haya terminado correctamente. No se registran las peticiones rechazadas ni se genera otro recibo para las peticiones duplicadas.
+
+Si tienes permiso de uso de la fuente, elige **Inspect** junto a un recibo. **Request** muestra el método `POST`, un ID de entrega externo si está disponible, y la cabecera `X-GitHub-Event` de las entregas de GitHub mientras se conserve. El cuerpo es el JSON normalizado, no los bytes originales de la petición. Las cabeceras de autenticación no se guardan ni se muestran. Después de la limpieza, el recibo se conserva, pero ya no puedes leer el cuerpo ni la cabecera del evento.
+
+**Response** muestra la confirmación del endpoint: `202 Accepted` (`200 OK` para Linear), con `content-length: 0` y el cuerpo vacío. No muestra las cabeceras del proxy ni el resultado de la rutina o del workflow. **Dispatch outcomes** muestra el estado de cada envío y, si se registraron, su código de error y hora de finalización, sin identificar al suscriptor. Esta vista no permite reenviar un evento.
 
 ### Escuchar en la URL activa { #listen-on-the-live-url }
 

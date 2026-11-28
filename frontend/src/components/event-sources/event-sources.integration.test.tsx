@@ -12,7 +12,12 @@ import {
   node,
 } from "@/components/workflows/validation/fixtures";
 import { apiClient } from "@/lib/api-client";
-import type { EventSource, EventSourceDelivery, SourceUsage } from "@/lib/event-sources-api";
+import type {
+  EventSource,
+  EventSourceDelivery,
+  EventSourceDeliveryDetail,
+  SourceUsage,
+} from "@/lib/event-sources-api";
 import { SourceForm } from "./source-form";
 import { SourceManager } from "./source-manager";
 import { SourceSelector } from "./source-selector";
@@ -270,6 +275,7 @@ describe("event source management", () => {
 
     const row = await history.findByRole("row", { name: /receipt-1/ });
     expect(row.querySelector("time")).toHaveAttribute("datetime", receipt.received_at);
+    expect(history.queryByRole("button", { name: /Inspect delivery/ })).not.toBeInTheDocument();
     for (const label of ["1 pending", "2 handed off", "3 skipped", "4 failed"]) {
       expect(within(row).getByText(label)).toBeVisible();
     }
@@ -300,6 +306,96 @@ describe("event source management", () => {
     await userEvent.click(history.getByRole("button", { name: "Retry" }));
     expect(await history.findByText("No recent deliveries.")).toBeVisible();
     expect(history.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("lets source users drill into a receipt, refresh its details, and return to history", async () => {
+    const user = userEvent.setup();
+    items = [{ ...source, can_edit: false }];
+    const receivedAt = "2026-11-27T15:42:00Z";
+    const detail: EventSourceDeliveryDetail = {
+      id: "receipt-1",
+      received_at: receivedAt,
+      external_id: "provider-delivery-1",
+      request: {
+        method: "POST",
+        headers: { "x-github-event": "issues" },
+        body: { action: "opened" },
+      },
+      response: { status_code: 202, headers: { "content-length": "0" }, body: null },
+      dispatches: [
+        {
+          id: "dispatch-1",
+          status: "failed",
+          error_code: "SUBSCRIBER_UNAVAILABLE",
+          completed_at: receivedAt,
+        },
+        { id: "dispatch-2", status: "pending", error_code: null, completed_at: null },
+      ],
+    };
+    const inspect = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Details unavailable"))
+      .mockResolvedValueOnce(detail)
+      .mockResolvedValueOnce({
+        ...detail,
+        external_id: null,
+        request: { ...detail.request, headers: {}, body: null },
+        dispatches: [],
+      });
+    const get = vi.mocked(apiClient.get).getMockImplementation()!;
+    vi.mocked(apiClient.get).mockImplementation(async (path, options) => {
+      if (path === "/event-sources/s1/deliveries") {
+        return {
+          items: [
+            {
+              id: detail.id,
+              received_at: receivedAt,
+              pending: 1,
+              admitted: 0,
+              skipped: 0,
+              failed: 1,
+            },
+          ],
+        };
+      }
+      if (path === "/event-sources/s1/deliveries/receipt-1") return inspect(options);
+      return get(path, options);
+    });
+    render(<SourceManager />, { wrapper });
+
+    await user.click(await screen.findByRole("button", { name: "Recent deliveries for Issues" }));
+    const action = await screen.findByRole("button", { name: "Inspect delivery receipt-1" });
+    expect(inspect).not.toHaveBeenCalled();
+    await user.click(action);
+    const inspector = within(screen.getByRole("dialog", { name: "Delivery details" }));
+    expect(await inspector.findByRole("alert")).toHaveTextContent(
+      "Delivery details could not be loaded.",
+    );
+    expect(inspect).toHaveBeenCalledExactlyOnceWith({ signal: expect.any(AbortSignal) });
+
+    await user.click(inspector.getByRole("button", { name: "Retry" }));
+    expect(await inspector.findByText(/"action": "opened"/)).toBeVisible();
+    expect(inspector.getByRole("heading", { name: "Request POST" })).toBeVisible();
+    expect(inspector.getByRole("heading", { name: "Response HTTP 202" })).toBeVisible();
+    expect(inspector.getByText("x-github-event")).toBeVisible();
+    expect(inspector.getByText("content-length")).toBeVisible();
+    expect(inspector.getByText("provider-delivery-1")).toBeVisible();
+    expect(inspector.getByText("No response body.")).toBeVisible();
+    expect(inspector.getByText("SUBSCRIBER_UNAVAILABLE")).toBeVisible();
+    expect(inspector.getByText("Pending")).toBeVisible();
+
+    await user.click(inspector.getByRole("button", { name: "Refresh" }));
+    expect(await inspector.findByText("The request body is no longer retained.")).toBeVisible();
+    expect(inspector.getByText("No headers recorded.")).toBeVisible();
+    expect(inspector.getByText("No dispatches")).toBeVisible();
+    expect(inspector.queryByText("provider-delivery-1")).not.toBeInTheDocument();
+    expect(inspect).toHaveBeenCalledTimes(3);
+
+    await user.click(inspector.getByRole("button", { name: "Back to deliveries" }));
+    const history = within(screen.getByRole("dialog", { name: "Recent deliveries for Issues" }));
+    expect(
+      await history.findByRole("button", { name: "Inspect delivery receipt-1" }),
+    ).toBeVisible();
   });
 
   it("keeps the current source visible after use permission is revoked", async () => {

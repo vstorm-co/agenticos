@@ -157,13 +157,28 @@ async def lock_dispatch_routine(
 
 
 async def delivery(
-    db: AsyncSession, delivery_id: UUID, *, organization_id: UUID
+    db: AsyncSession, delivery_id: UUID, *, organization_id: UUID, source_id: UUID | None = None
 ) -> EventDelivery | None:
-    return await db.scalar(
-        select(EventDelivery).where(
-            EventDelivery.id == delivery_id, EventDelivery.organization_id == organization_id
-        )
+    query = select(EventDelivery).where(
+        EventDelivery.id == delivery_id, EventDelivery.organization_id == organization_id
     )
+    if source_id is not None:
+        query = query.where(EventDelivery.source_id == source_id)
+    return await db.scalar(query)
+
+
+async def delivery_dispatches(
+    db: AsyncSession, *, delivery_id: UUID, organization_id: UUID
+) -> list[EventDispatch]:
+    rows = await db.scalars(
+        select(EventDispatch)
+        .where(
+            EventDispatch.delivery_id == delivery_id,
+            EventDispatch.organization_id == organization_id,
+        )
+        .order_by(EventDispatch.created_at, EventDispatch.id)
+    )
+    return list(rows.all())
 
 
 @dataclass(frozen=True, slots=True)

@@ -143,7 +143,11 @@ A shared URL acknowledges durable receipt asynchronously; it cannot return a wor
 
 **Pause source** stops starting subscribers for new deliveries. A paused source still verifies and stores each delivery, and an open listener still captures it. Pausing one routine or workflow stops that subscriber. Deleting a source is refused while subscriptions remain; its usage list shows the targets to detach first. Terminal delivery payloads follow the background-job retention policy.
 
-On a source's row, choose **Recent deliveries** to see up to 20 accepted deliveries, newest first. Each entry shows the receipt time, an internal receipt ID and counts of dispatches that are pending, handed off, skipped or failed. **Handed off** means a subscriber accepted the event, not that its run succeeded. The history does not show payloads, headers or rejected requests; duplicate requests do not add a second entry.
+On a source's row, choose **Recent deliveries** to see up to 20 accepted deliveries, newest first. Each entry shows the receipt time, an internal receipt ID and counts of dispatches that are pending, handed off, skipped or failed. **Handed off** means a subscriber accepted the event, not that its run succeeded. Rejected requests are not recorded, and duplicate requests do not add another receipt.
+
+If you can use the source, choose **Inspect** next to a receipt. **Request** shows the `POST` method, an external delivery ID if available, and the `X-GitHub-Event` header for GitHub deliveries while retained. The body is the normalized JSON, not the original request bytes. Authentication headers are never retained or displayed. After retention cleanup, the receipt remains but you can no longer read the body or event header.
+
+**Response** shows the endpoint's acknowledgment: `202 Accepted` (`200 OK` for Linear), with `content-length: 0` and an empty body. It does not show proxy headers or the routine or workflow result. **Dispatch outcomes** shows each subscriber dispatch's status and any recorded error code and completion time, without identifying the subscriber. You cannot redeliver an event from the inspector.
 
 ### Listen on the live URL { #listen-on-the-live-url }
 

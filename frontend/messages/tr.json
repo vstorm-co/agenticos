@@ -9157,7 +9157,7 @@
       },
       "event-sources-deliveries": {
         "title": "Son teslimatlar",
-        "body": "Hangi olayların kabul edildiğini ve abonelere nasıl iletildiğini görmek için kaynağın son teslimatlarını açın."
+        "body": "Hangi olayların kabul edildiğini ve abonelere nasıl iletildiğini görmek için kaynağın son teslimatlarını açın. Kaynağı kullanabiliyorsanız isteği, yanıtı ve iletim sonuçlarını görmek için bir teslimatta İncele’yi seçin."
       },
       "flow-event-source-create": {
         "title": "Yeni kaynak oluştur",
@@ -17343,6 +17343,33 @@
   "eventSources": {
     "activity": "Etkinlik",
     "deliveries": {
+      "inspector": {
+        "inspect": "İncele",
+        "inspectNamed": "{id} teslimatını incele",
+        "title": "Teslimat ayrıntıları",
+        "description": "HTTP yanıtı, bir abonenin run’ının başarılı olduğunu değil, teslim alındığını doğrular.",
+        "back": "Teslimatlara dön",
+        "loadError": "Teslimat ayrıntıları yüklenemedi.",
+        "receiptId": "Alındı kimliği",
+        "receivedAt": "Alınma zamanı",
+        "senderId": "Harici teslimat kimliği",
+        "request": "İstek",
+        "response": "Yanıt",
+        "statusCode": "HTTP {status}",
+        "retainedHeaders": "Saklanan başlıklar",
+        "headers": "Başlıklar",
+        "noHeaders": "Başlık kaydedilmedi.",
+        "body": "Gövde",
+        "copyBody": "İstek gövdesini kopyala",
+        "bodyUnavailable": "İstek gövdesi artık saklanmıyor.",
+        "emptyResponse": "Yanıt gövdesi yok.",
+        "states": {
+          "pending": "Bekliyor",
+          "admitted": "İletildi",
+          "skipped": "Atlandı",
+          "failed": "Başarısız"
+        }
+      },
       "title": "Son teslimatlar",
       "forSource": "{name} için son teslimatlar",
       "description": "Kabul edilen en fazla 20 olayı gösterir. İletildi durumu bir abonenin olayı kabul ettiğini, run’ın başarılı olduğunu değil, belirtir.",

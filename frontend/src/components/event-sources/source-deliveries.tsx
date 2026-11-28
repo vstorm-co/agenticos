@@ -1,7 +1,8 @@
 "use client";
 
-import { History, RefreshCw } from "lucide-react";
+import { ChevronRight, History, RefreshCw } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
+import { useEffect, useRef, useState } from "react";
 import {
   Badge,
   Button,
@@ -20,6 +21,7 @@ import { useEventSourceDeliveries } from "@/hooks/use-event-sources";
 import { DIALOG_BODY, DIALOG_COLUMN, DIALOG_WIDE } from "@/lib/dialog-sizes";
 import type { EventSource, EventSourceDelivery } from "@/lib/event-sources-api";
 import { cn } from "@/lib/utils";
+import { SourceDeliveryInspector } from "./source-delivery-inspector";
 
 const dispatches = [
   { status: "pending", variant: "warning" },
@@ -45,17 +47,55 @@ export function SourceDeliveries({ source }: { source: EventSource }) {
         </Button>
       </DialogTrigger>
       <DialogContent className={cn(DIALOG_WIDE, DIALOG_COLUMN)}>
-        <DialogHeader>
-          <DialogTitle className="wrap-break-word">{title}</DialogTitle>
-          <DialogDescription>{t("description")}</DialogDescription>
-        </DialogHeader>
-        <DeliveryHistory sourceId={source.id} />
+        <DeliveryDialog key={String(source.can_use)} source={source} title={title} />
       </DialogContent>
     </Dialog>
   );
 }
 
-function DeliveryHistory({ sourceId }: { sourceId: string }) {
+function DeliveryDialog({ source, title }: { source: EventSource; title: string }) {
+  const t = useTranslations("eventSources.deliveries");
+  const [selected, setSelected] = useState<string | null>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const navigated = useRef(false);
+  function navigate(id: string | null) {
+    navigated.current = true;
+    setSelected(id);
+  }
+  useEffect(() => {
+    if (navigated.current) titleRef.current?.focus();
+  }, [selected]);
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle ref={titleRef} className="wrap-break-word" tabIndex={-1}>
+          {selected ? t("inspector.title") : title}
+        </DialogTitle>
+        <DialogDescription>
+          {t(selected ? "inspector.description" : "description")}
+        </DialogDescription>
+      </DialogHeader>
+      {selected ? (
+        <SourceDeliveryInspector
+          sourceId={source.id}
+          deliveryId={selected}
+          onBack={() => navigate(null)}
+        />
+      ) : (
+        <DeliveryHistory sourceId={source.id} onInspect={source.can_use ? navigate : undefined} />
+      )}
+    </>
+  );
+}
+
+function DeliveryHistory({
+  sourceId,
+  onInspect,
+}: {
+  sourceId: string;
+  onInspect?: (id: string) => void;
+}) {
   const t = useTranslations("eventSources.deliveries");
   const eventSources = useTranslations("eventSources");
   const format = useFormatter();
@@ -66,13 +106,28 @@ function DeliveryHistory({ sourceId }: { sourceId: string }) {
       header: t("receipt"),
       className: "@md/table:w-1/2 @max-md/table:w-full",
       cell: ({ id, received_at }) => (
-        <div className="space-y-1">
-          <time dateTime={received_at}>
-            {format.dateTime(new Date(received_at), { dateStyle: "medium", timeStyle: "medium" })}
-          </time>
-          <code className="text-muted-foreground block text-xs break-all" dir="ltr">
-            {id}
-          </code>
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <div className="min-w-0 space-y-1">
+            <time dateTime={received_at}>
+              {format.dateTime(new Date(received_at), { dateStyle: "medium", timeStyle: "medium" })}
+            </time>
+            <code className="text-muted-foreground block text-xs break-all" dir="ltr">
+              {id}
+            </code>
+          </div>
+          {onInspect && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              aria-label={t("inspector.inspectNamed", { id })}
+              className="shrink-0 px-2"
+              onClick={() => onInspect(id)}
+            >
+              {t("inspector.inspect")}
+              <ChevronRight aria-hidden />
+            </Button>
+          )}
         </div>
       ),
     },

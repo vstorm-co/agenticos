@@ -1,6 +1,7 @@
 """Durable source admission and tenant ownership against PostgreSQL."""
 
 import asyncio
+import hmac
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock
@@ -381,6 +382,104 @@ async def test_delivery_history_honors_source_view_grants_and_tenant_boundaries(
     foreign_org = await _org(db, owner=owner)
     with pytest.raises(NotFoundError):
         await service.recent_deliveries(_ctx(owner, foreign_org), source.id)
+
+
+@pytest.mark.security
+async def test_delivery_detail_shows_retained_request_acknowledgement_and_dispatch_only(
+    db: AsyncSession, source_world
+) -> None:
+    ctx, _, _, _ = source_world
+    service = EventSourceService(db)
+    source = await service.create(
+        ctx,
+        EventSourceCreate(
+            name="Engineering",
+            provider="github",
+            auth=SourceAuth(method="provider"),
+            credentials=SourceCredentials(secret=SecretStr("source-test-key")),
+        ),
+    )
+    body = b'{"action":"opened"}'
+    signature = hmac.digest(b"source-test-key", body, "sha256").hex()
+    _, receipt, _ = await service.receive(
+        source.id,
+        body=body,
+        headers={
+            "x-github-delivery": "one",
+            "x-github-event": "issues",
+            "x-hub-signature-256": f"sha256={signature}",
+            "authorization": "do-not-record",
+        },
+    )
+    completed = datetime.now(UTC)
+    dispatch = await module.repo.save(
+        db,
+        EventDispatch(
+            organization_id=ctx.organization_id,
+            delivery_id=receipt.id,
+            status="failed",
+            error_code="FORBIDDEN",
+            completed_at=completed,
+        ),
+    )
+    detail = await service.delivery_detail(ctx, source.id, receipt.id)
+    assert detail.external_id == "one"
+    assert detail.request.model_dump() == {
+        "method": "POST",
+        "headers": {"x-github-event": "issues"},
+        "body": {"action": "opened"},
+    }
+    assert detail.response.model_dump() == {
+        "status_code": 202,
+        "headers": {"content-length": "0"},
+        "body": None,
+    }
+    assert [row.model_dump() for row in detail.dispatches] == [
+        {
+            "id": dispatch.id,
+            "status": "failed",
+            "error_code": "FORBIDDEN",
+            "completed_at": completed,
+        }
+    ]
+
+    await module.repo.clear_terminal_payloads(db, before=completed + timedelta(minutes=1))
+    expired = await service.delivery_detail(ctx, source.id, receipt.id)
+    assert expired.request.body is None and expired.request.headers == {}
+    assert expired.response == detail.response
+    assert expired.dispatches == detail.dispatches
+
+
+@pytest.mark.security
+async def test_delivery_detail_requires_use_and_the_exact_source_in_the_same_tenant(
+    db: AsyncSession, source_world
+) -> None:
+    owner_ctx, org, owner, source = source_world
+    _, receipt, _ = await _receive(db, source.id)
+    viewer = await _user(db)
+    await _member(db, org=org, user=viewer, role="viewer")
+    viewer_ctx = _ctx(viewer, org, role="viewer")
+    service = EventSourceService(db)
+    grant = ResourceGrant(
+        organization_id=org.id,
+        resource_type="event_source",
+        resource_id=source.id,
+        subject_user_id=viewer.id,
+        level="read",
+    )
+    db.add(grant)
+    await db.flush()
+    with pytest.raises(NotFoundError, match="Event source not found"):
+        await service.delivery_detail(viewer_ctx, source.id, receipt.id)
+    grant.level = "use"
+    await db.flush()
+    assert (await service.delivery_detail(viewer_ctx, source.id, receipt.id)).id == receipt.id
+    unrelated = await service.create(owner_ctx, EventSourceCreate(name="Unrelated source"))
+    with pytest.raises(NotFoundError, match="Delivery not found"):
+        await service.delivery_detail(owner_ctx, unrelated.id, receipt.id)
+    foreign = await _org(db, owner=owner)
+    with pytest.raises(NotFoundError, match="Event source not found"):
+        await service.delivery_detail(_ctx(owner, foreign), source.id, receipt.id)
 
 
 async def test_concurrent_duplicate_admission_persists_one_receipt_and_dispatch(

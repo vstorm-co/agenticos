@@ -6331,7 +6331,7 @@
       },
       "event-sources-deliveries": {
         "title": "Recente leveringen",
-        "body": "Bekijk de recente leveringen van een bron om te zien welke gebeurtenissen zijn geaccepteerd en hoe ze aan abonnees zijn doorgegeven."
+        "body": "Bekijk de recente leveringen van een bron om te zien welke gebeurtenissen zijn geaccepteerd en hoe ze aan abonnees zijn doorgegeven. Als je de bron mag gebruiken, kies dan Inspecteren bij een levering om het verzoek, het antwoord en de resultaten van doorgifte te zien."
       },
       "flow-event-source-create": {
         "title": "Nieuwe bron maken",
@@ -22260,6 +22260,33 @@
   "eventSources": {
     "activity": "Activiteit",
     "deliveries": {
+      "inspector": {
+        "inspect": "Inspecteren",
+        "inspectNamed": "Levering {id} inspecteren",
+        "title": "Leveringsdetails",
+        "description": "Het HTTP-antwoord bevestigt de ontvangst, niet dat de run van een abonnee is geslaagd.",
+        "back": "Terug naar leveringen",
+        "loadError": "De leveringsdetails konden niet worden geladen.",
+        "receiptId": "Ontvangst-ID",
+        "receivedAt": "Ontvangen op",
+        "senderId": "Externe leverings-ID",
+        "request": "Verzoek",
+        "response": "Antwoord",
+        "statusCode": "HTTP {status}",
+        "retainedHeaders": "Bewaarde headers",
+        "headers": "Headers",
+        "noHeaders": "Geen headers vastgelegd.",
+        "body": "Inhoud",
+        "copyBody": "Inhoud van het verzoek kopiëren",
+        "bodyUnavailable": "De inhoud van het verzoek wordt niet meer bewaard.",
+        "emptyResponse": "Geen antwoordinhoud.",
+        "states": {
+          "pending": "In behandeling",
+          "admitted": "Doorgegeven",
+          "skipped": "Overgeslagen",
+          "failed": "Mislukt"
+        }
+      },
       "title": "Recente leveringen",
       "forSource": "Recente leveringen voor {name}",
       "description": "Toont maximaal 20 geaccepteerde gebeurtenissen. Doorgegeven betekent dat een abonnee de gebeurtenis heeft geaccepteerd, niet dat de run is geslaagd.",

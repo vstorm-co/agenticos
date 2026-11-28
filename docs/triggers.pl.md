@@ -1,5 +1,5 @@
 ---
-source_sha: "5710941450ee"
+source_sha: "ce25bddcac96"
 ---
 
 # Konfigurowanie triggera zdarzeniowego { #setting-up-an-event-trigger }
@@ -151,7 +151,11 @@ Wspólny URL asynchronicznie potwierdza trwały odbiór i nie zwraca własnej od
 
 **Wstrzymaj źródło** zatrzymuje uruchamianie subskrybentów dla nowych dostaw. Wstrzymane źródło nadal weryfikuje i zapisuje każdą dostawę, a włączony nasłuch nadal ją przechwytuje. Wstrzymanie rutyny lub workflow dotyczy tylko tego celu. Usunięcie źródła jest zablokowane, dopóki istnieją subskrypcje; lista użycia wskazuje cele do odłączenia. Dane zakończonych dostaw podlegają zasadom retencji zadań w tle.
 
-W wierszu źródła wybierz **Ostatnie dostawy (Recent deliveries)**, aby zobaczyć do 20 przyjętych dostaw, od najnowszej. Każdy wpis pokazuje czas odbioru, wewnętrzny identyfikator i liczbę prób przekazania według stanu: Oczekuje, Przekazano, Pominięto lub Błędy. **Przekazano (Handed off)** oznacza, że subskrybent przyjął zdarzenie, a nie że jego run się powiódł. Historia nie pokazuje treści dostaw, nagłówków ani odrzuconych żądań. Duplikaty nie dodają osobnego wpisu.
+W wierszu źródła wybierz **Ostatnie dostawy (Recent deliveries)**, aby zobaczyć do 20 przyjętych dostaw, od najnowszej. Każdy wpis pokazuje czas odbioru, wewnętrzny identyfikator i liczbę prób przekazania według stanu: Oczekuje, Przekazano, Pominięto lub Błędy. **Przekazano (Handed off)** oznacza, że subskrybent przyjął zdarzenie, a nie że jego run się powiódł. Odrzucone żądania nie są zapisywane, a duplikaty nie tworzą osobnych potwierdzeń odbioru.
+
+Jeśli masz prawo używać źródła, wybierz **Sprawdź (Inspect)** przy potwierdzeniu odbioru. W sekcji **Żądanie (Request)** zobaczysz metodę `POST`, zewnętrzny identyfikator dostawy, jeśli jest dostępny, i nagłówek `X-GitHub-Event` dostawy GitHub, dopóki jest przechowywany. Treść to znormalizowany JSON, a nie oryginalne bajty żądania. Nagłówki uwierzytelniające nie są zapisywane ani wyświetlane. Po czyszczeniu potwierdzenie odbioru pozostaje, ale nie można już odczytać treści ani nagłówka zdarzenia.
+
+W sekcji **Odpowiedź (Response)** widać potwierdzenie endpointu: `202 Accepted` (`200 OK` dla Linear) z `content-length: 0` i pustą treścią. Widok nie pokazuje nagłówków proxy ani wyniku rutyny lub workflow. **Wyniki przekazania (Dispatch outcomes)** pokazują stan każdej próby oraz ewentualny kod błędu i czas zakończenia, bez wskazania subskrybenta. W tym widoku nie można ponowić dostawy zdarzenia.
 
 ### Nasłuchiwanie na aktywnym URL { #listen-on-the-live-url }
 

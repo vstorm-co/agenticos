@@ -8054,7 +8054,7 @@
       },
       "event-sources-deliveries": {
         "title": "Ostatnie dostawy",
-        "body": "Otwórz ostatnie dostawy źródła, aby sprawdzić, które zdarzenia zostały przyjęte i jak przekazano je subskrybentom."
+        "body": "Otwórz ostatnie dostawy źródła, aby sprawdzić, które zdarzenia zostały przyjęte i jak przekazano je subskrybentom. Jeśli możesz korzystać ze źródła, wybierz Sprawdź przy dostawie, aby zobaczyć żądanie, odpowiedź i wyniki przekazania."
       },
       "flow-event-source-create": {
         "title": "Utwórz nowe źródło",
@@ -21811,6 +21811,33 @@
   "eventSources": {
     "activity": "Aktywność",
     "deliveries": {
+      "inspector": {
+        "inspect": "Sprawdź",
+        "inspectNamed": "Sprawdź dostawę {id}",
+        "title": "Szczegóły dostawy",
+        "description": "Odpowiedź HTTP potwierdza odbiór, a nie powodzenie runa subskrybenta.",
+        "back": "Wróć do dostaw",
+        "loadError": "Nie udało się wczytać szczegółów dostawy.",
+        "receiptId": "Identyfikator odbioru",
+        "receivedAt": "Odebrano",
+        "senderId": "Zewnętrzny identyfikator dostawy",
+        "request": "Żądanie",
+        "response": "Odpowiedź",
+        "statusCode": "HTTP {status}",
+        "retainedHeaders": "Zachowane nagłówki",
+        "headers": "Nagłówki",
+        "noHeaders": "Nie zapisano nagłówków.",
+        "body": "Treść",
+        "copyBody": "Skopiuj treść żądania",
+        "bodyUnavailable": "Treść żądania nie jest już przechowywana.",
+        "emptyResponse": "Brak treści odpowiedzi.",
+        "states": {
+          "pending": "Oczekuje",
+          "admitted": "Przekazano",
+          "skipped": "Pominięto",
+          "failed": "Błąd"
+        }
+      },
       "title": "Ostatnie dostawy",
       "forSource": "Ostatnie dostawy: {name}",
       "description": "Pokazuje do 20 przyjętych zdarzeń. Przekazanie oznacza, że subskrybent przyjął zdarzenie, a nie że jego run się powiódł.",

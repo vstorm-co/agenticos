@@ -1,5 +1,5 @@
 ---
-source_sha: "5710941450ee"
+source_sha: "ce25bddcac96"
 ---
 
 # Einen Event-Trigger einrichten { #setting-up-an-event-trigger }
@@ -157,7 +157,11 @@ Eine gemeinsame URL bestätigt den dauerhaften Empfang asynchron und liefert kei
 
 **Quelle pausieren** verhindert den Start von Abonnenten für neue Zustellungen. Eine pausierte Quelle prüft und speichert weiterhin jede Zustellung. Eine laufende Erfassung empfängt sie ebenfalls. Das Pausieren einer Routine oder eines Workflows betrifft nur dieses Ziel. Solange Abonnements bestehen, ist Löschen gesperrt; die Nutzungsliste zeigt die zuvor zu trennenden Ziele. Die Nutzdaten abgeschlossener Zustellungen folgen der Aufbewahrungsregel für Hintergrundjobs.
 
-Wählen Sie in der Zeile einer Quelle **Letzte Zustellungen (Recent deliveries)**, um bis zu 20 angenommene Zustellungen zu sehen, die neueste zuerst. Jeder Eintrag zeigt die Empfangszeit, eine interne Empfangs-ID und die Anzahl der Weiterleitungen je Status: ausstehend, weitergeleitet, übersprungen oder fehlgeschlagen. **Weitergeleitet (Handed off)** bedeutet, dass ein Abonnent das Ereignis angenommen hat, nicht dass sein Run erfolgreich war. Der Verlauf zeigt keine Nutzdaten, Header oder abgelehnten Anfragen. Doppelte Anfragen erzeugen keinen zusätzlichen Eintrag.
+Wählen Sie in der Zeile einer Quelle **Letzte Zustellungen (Recent deliveries)**, um bis zu 20 angenommene Zustellungen zu sehen, die neueste zuerst. Jeder Eintrag zeigt die Empfangszeit, eine interne Empfangs-ID und die Anzahl der Weiterleitungen je Status: ausstehend, weitergeleitet, übersprungen oder fehlgeschlagen. **Weitergeleitet (Handed off)** bedeutet, dass ein Abonnent das Ereignis angenommen hat, nicht dass sein Run erfolgreich war. Abgelehnte Anfragen werden nicht aufgezeichnet. Doppelte Anfragen erzeugen keinen zusätzlichen Empfangsbeleg.
+
+Wenn Sie die Quelle nutzen dürfen, wählen Sie neben einem Empfangsbeleg **Prüfen (Inspect)**. Unter **Anfrage (Request)** sehen Sie die Methode `POST`, eine externe Zustellungs-ID, falls vorhanden, und bei GitHub-Zustellungen den Header `X-GitHub-Event`, solange er noch gespeichert ist. Der Inhalt liegt als normalisiertes JSON vor, nicht in Form der ursprünglichen Anfragebytes. Authentifizierungs-Header werden weder gespeichert noch angezeigt. Nach der Bereinigung bleibt der Empfangsbeleg erhalten, aber Inhalt und Ereignis-Header sind nicht mehr abrufbar.
+
+Unter **Antwort (Response)** sehen Sie die Empfangsbestätigung des Endpunkts: `202 Accepted` (bei Linear `200 OK`) mit `content-length: 0` und leerem Inhalt. Die Ansicht zeigt weder Proxy-Header noch das Ergebnis der Routine oder des Workflows. Der **Weiterleitungsstatus (Dispatch outcomes)** zeigt pro Weiterleitung den Status sowie gegebenenfalls Fehlercode und Abschlusszeitpunkt, ohne den Abonnenten zu nennen. Sie können in dieser Ansicht kein Ereignis erneut zustellen.
 
 ### Auf der Live-URL auf ein Ereignis warten { #listen-on-the-live-url }
 

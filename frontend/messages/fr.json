@@ -6215,7 +6215,7 @@
       },
       "event-sources-deliveries": {
         "title": "Livraisons récentes",
-        "body": "Consultez les livraisons récentes d’une source pour voir quels événements ont été acceptés et comment ils ont été transmis aux abonnés."
+        "body": "Consultez les livraisons récentes d’une source pour voir quels événements ont été acceptés et comment ils ont été transmis aux abonnés. Si vous pouvez utiliser la source, choisissez Inspecter sur une livraison pour voir sa requête, sa réponse et les résultats de la transmission."
       },
       "flow-event-source-create": {
         "title": "Créer une source",
@@ -21744,6 +21744,33 @@
   "eventSources": {
     "activity": "Activité",
     "deliveries": {
+      "inspector": {
+        "inspect": "Inspecter",
+        "inspectNamed": "Inspecter la livraison {id}",
+        "title": "Détails de la livraison",
+        "description": "La réponse HTTP confirme la réception, pas la réussite du run d’un abonné.",
+        "back": "Retour aux livraisons",
+        "loadError": "Impossible de charger les détails de la livraison.",
+        "receiptId": "ID du reçu",
+        "receivedAt": "Reçu le",
+        "senderId": "ID de livraison externe",
+        "request": "Requête",
+        "response": "Réponse",
+        "statusCode": "HTTP {status}",
+        "retainedHeaders": "En-têtes conservés",
+        "headers": "En-têtes",
+        "noHeaders": "Aucun en-tête enregistré.",
+        "body": "Corps",
+        "copyBody": "Copier le corps de la requête",
+        "bodyUnavailable": "Le corps de la requête n’est plus conservé.",
+        "emptyResponse": "Aucun corps de réponse.",
+        "states": {
+          "pending": "En attente",
+          "admitted": "Transmis",
+          "skipped": "Ignoré",
+          "failed": "En échec"
+        }
+      },
       "title": "Livraisons récentes",
       "forSource": "Livraisons récentes pour {name}",
       "description": "Affiche jusqu’à 20 événements acceptés. Transmis signifie qu’un abonné a accepté l’événement, pas que son run a réussi.",

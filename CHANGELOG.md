@@ -21,7 +21,7 @@ Two things are versioned separately from this file and worth knowing about:
 
 ### Added
 
-- Open Event sources directly from the sidebar and check recent webhook receipts and subscriber dispatch outcomes for each source.
+- Open Event sources directly from the sidebar and check recent webhook receipts and subscriber dispatch outcomes for each source. Members who can use a source can inspect retained request data and the endpoint's acknowledgment for each delivery.
 
 ## [1.95.0] - 2026-11-26
 

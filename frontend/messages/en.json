@@ -6391,7 +6391,7 @@
       },
       "event-sources-deliveries": {
         "title": "Recent deliveries",
-        "body": "Open a source’s recent deliveries to see which events were accepted and how they were handed off to subscribers."
+        "body": "Open a source’s recent deliveries to see which events were accepted and how they were handed off to subscribers. If you can use the source, choose Inspect on a receipt to see its request, response, and dispatch outcomes."
       },
       "flow-event-source-create": {
         "title": "Create new source",
@@ -22038,6 +22038,33 @@
   "eventSources": {
     "activity": "Activity",
     "deliveries": {
+      "inspector": {
+        "inspect": "Inspect",
+        "inspectNamed": "Inspect delivery {id}",
+        "title": "Delivery details",
+        "description": "The HTTP response confirms receipt, not that a subscriber’s run succeeded.",
+        "back": "Back to deliveries",
+        "loadError": "Delivery details could not be loaded.",
+        "receiptId": "Receipt ID",
+        "receivedAt": "Received at",
+        "senderId": "External delivery ID",
+        "request": "Request",
+        "response": "Response",
+        "statusCode": "HTTP {status}",
+        "retainedHeaders": "Retained headers",
+        "headers": "Headers",
+        "noHeaders": "No headers recorded.",
+        "body": "Body",
+        "copyBody": "Copy request body",
+        "bodyUnavailable": "The request body is no longer retained.",
+        "emptyResponse": "No response body.",
+        "states": {
+          "pending": "Pending",
+          "admitted": "Handed off",
+          "skipped": "Skipped",
+          "failed": "Failed"
+        }
+      },
       "title": "Recent deliveries",
       "forSource": "Recent deliveries for {name}",
       "description": "Shows up to 20 accepted events. Handed off means a subscriber accepted the event, not that its run succeeded.",

@@ -6331,7 +6331,7 @@
       },
       "event-sources-deliveries": {
         "title": "Entregas recentes",
-        "body": "Abra as entregas recentes de uma fonte para ver quais eventos foram aceitos e como foram encaminhados aos assinantes."
+        "body": "Abra as entregas recentes de uma fonte para ver quais eventos foram aceitos e como foram encaminhados aos assinantes. Se puder usar a fonte, escolha Inspecionar em uma entrega para ver a solicitação, a resposta e os resultados do encaminhamento."
       },
       "flow-event-source-create": {
         "title": "Criar nova fonte",
@@ -22260,6 +22260,33 @@
   "eventSources": {
     "activity": "Atividade",
     "deliveries": {
+      "inspector": {
+        "inspect": "Inspecionar",
+        "inspectNamed": "Inspecionar entrega {id}",
+        "title": "Detalhes da entrega",
+        "description": "A resposta HTTP confirma o recebimento, não o sucesso do run de um assinante.",
+        "back": "Voltar às entregas",
+        "loadError": "Não foi possível carregar os detalhes da entrega.",
+        "receiptId": "ID do recibo",
+        "receivedAt": "Recebido em",
+        "senderId": "ID externo da entrega",
+        "request": "Solicitação",
+        "response": "Resposta",
+        "statusCode": "HTTP {status}",
+        "retainedHeaders": "Cabeçalhos armazenados",
+        "headers": "Cabeçalhos",
+        "noHeaders": "Nenhum cabeçalho registrado.",
+        "body": "Corpo",
+        "copyBody": "Copiar corpo da solicitação",
+        "bodyUnavailable": "O corpo da solicitação não é mais mantido.",
+        "emptyResponse": "Sem corpo de resposta.",
+        "states": {
+          "pending": "Pendente",
+          "admitted": "Encaminhado",
+          "skipped": "Ignorado",
+          "failed": "Com falha"
+        }
+      },
       "title": "Entregas recentes",
       "forSource": "Entregas recentes de {name}",
       "description": "Exibe até 20 eventos aceitos. Encaminhado significa que um assinante aceitou o evento, não que seu run foi concluído com sucesso.",

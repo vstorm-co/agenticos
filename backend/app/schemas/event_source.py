@@ -179,6 +179,36 @@ class RecentSourceDeliveries(BaseModel):
     items: list[SourceDeliveryRead]
 
 
+class SourceDeliveryRequest(BaseModel):
+    method: Literal["POST"] = "POST"
+    headers: dict[str, str]
+    body: JsonObject | None
+
+
+class SourceDeliveryResponse(BaseModel):
+    status_code: Literal[200, 202]
+    headers: dict[str, str]
+    body: None = None
+
+
+class SourceDispatchRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    status: Literal["pending", "admitted", "skipped", "failed"]
+    error_code: str | None
+    completed_at: datetime | None
+
+
+class SourceDeliveryDetail(BaseModel):
+    id: UUID
+    received_at: datetime
+    external_id: str | None
+    request: SourceDeliveryRequest
+    response: SourceDeliveryResponse
+    dispatches: list[SourceDispatchRead]
+
+
 class SourceListening(BaseModel):
     listener_id: str
     expires_at: datetime

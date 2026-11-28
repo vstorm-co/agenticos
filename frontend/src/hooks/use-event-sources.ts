@@ -34,6 +34,15 @@ export function useEventSourceDeliveries(id: string) {
     staleTime: 0,
   });
 }
+export function useEventSourceDelivery(sourceId: string, deliveryId: string) {
+  return useQuery({
+    queryKey: qk.eventSources.delivery(sourceId, deliveryId),
+    queryFn: ({ signal }) => eventSourcesApi.delivery(sourceId, deliveryId, signal),
+    staleTime: 0,
+    // Do not keep payloads in the query cache after the inspector closes.
+    gcTime: 0,
+  });
+}
 export function useEventSourceWrites() {
   const cache = useQueryClient();
   const t = useTranslations("errors");

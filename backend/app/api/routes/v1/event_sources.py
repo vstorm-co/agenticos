@@ -18,9 +18,11 @@ from app.schemas.event_source import (
     RecentSourceDeliveries,
     SourceCapture,
     SourceCredentials,
+    SourceDeliveryDetail,
     SourceListening,
     SourceUsageList,
 )
+from app.services.event_sources import source_acknowledgement
 from app.services.workflow_execution.resume import read_workflow_body
 
 router = APIRouter(dependencies=[PUBLIC])
@@ -90,6 +92,18 @@ async def source_deliveries(source_id: UUID, ctx: Auth, service: EventSourceSvc)
     return await service.recent_deliveries(ctx, source_id)
 
 
+@router.get("/{source_id}/deliveries/{delivery_id}", response_model=SourceDeliveryDetail)
+async def source_delivery_detail(
+    source_id: UUID, delivery_id: UUID, ctx: Auth, service: EventSourceSvc, response: Response
+) -> Any:
+    """Inspect a retained authenticated request, its HTTP acknowledgement and dispatch outcomes.
+
+    Requires permission to use the source. Authentication headers are not exposed.
+    """
+    response.headers["Cache-Control"] = "no-store"
+    return await service.delivery_detail(ctx, source_id, delivery_id)
+
+
 @router.post("/{source_id}/listen", response_model=SourceListening)
 async def listen(source_id: UUID, ctx: Auth, service: EventSourceSampleSvc) -> Any:
     """Listen for the next delivery using this source's use permission; no target is required."""
@@ -123,6 +137,5 @@ async def receive(
         delivery_id=receipt.external_id or str(receipt.id),
         received_at=received_at,
     )
-    return Response(
-        status_code=status.HTTP_200_OK if source.provider == "linear" else status.HTTP_202_ACCEPTED
-    )
+    acknowledgement = source_acknowledgement(source.provider)
+    return Response(status_code=acknowledgement.status_code, headers=acknowledgement.headers)
