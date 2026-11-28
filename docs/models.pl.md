@@ -378,6 +378,7 @@ Standardowe providery korzystają z wnioskowania modeli i providerów w Pydantic
 | Groq | `groq` | klucz API | |
 | Heroku AI | `heroku` | klucz API | ✓ |
 | LLMTR | `llmtr` | klucz API | |
+| MartLLM | `martllm` | klucz API | ✓ |
 | Mistral | `mistral` | klucz API | |
 | MiniMax | `minimax` | klucz API | ✓ |
 | Kimi Code (plan) | `kimi_code` | klucz API | ✓ |
@@ -419,13 +420,14 @@ Dla **Z.AI GLM Coding Plan** wybierz **Z.AI** i ustaw **Endpoint** na `https://a
 
 Klucz planu nie jest zamienny z kluczem zwykłego API rozliczanego według użycia. Niektórzy dostawcy ograniczają klucze planów do narzędzi programistycznych; użycie ich z platformy agentów to Twoja decyzja i może skutkować ograniczeniem lub zawieszeniem planu. Budżety AgenticOS traktują to zużycie jako niewycenione użycie subskrypcji.
 
-**Kolejne konta zgodne z OpenAI.** Nous Portal, Inception, Cline, Chutes i Synthetic przyjmują klucz z konsoli danej usługi. Puste pole Endpoint używa domyślnego adresu poniżej, a lista modeli pochodzi z katalogu klucza. Subskrypcje Nous Portal, Chutes i Synthetic są traktowane jako niewyceniane; kredyty Cline i użycie Inception są wyceniane tylko tam, gdzie AgenticOS zna cenę modelu.
+**Kolejne konta zgodne z OpenAI.** Nous Portal, Inception, Cline, MartLLM, Chutes i Synthetic przyjmują klucz z konsoli danej usługi. Puste pole Endpoint używa domyślnego adresu poniżej, a lista modeli pochodzi z katalogu klucza. Subskrypcje Nous Portal, Chutes i Synthetic są traktowane jako niewyceniane; kredyty Cline oraz użycie Inception i MartLLM są wyceniane tylko tam, gdzie AgenticOS zna cenę modelu.
 
 | Provider | Domyślny endpoint |
 |---|---|
 | Nous Portal | `https://inference-api.nousresearch.com/v1` |
 | Inception | `https://api.inceptionlabs.ai/v1` |
 | Cline | `https://api.cline.bot/api/v1` |
+| MartLLM | `https://api.martllm.com/v1` |
 | Chutes | `https://llm.chutes.ai/v1` |
 | Synthetic | `https://api.synthetic.new/openai/v1` |
 
@@ -702,14 +704,14 @@ siedmiu providerów, co odpowiedź mówi wprost.
 
 ### Żywe { #live }
 
-Trzydziestu providerów publikuje endpoint listy i jest to jedyne źródło, które wie
+Trzydziestu jeden providerów publikuje endpoint listy i jest to jedyne źródło, które wie
 o modelu wypuszczonym dziś rano:
 
 `anthropic`, `openai`, `google`, `openrouter`, `groq`, `mistral`, `together`,
 `cohere`, `deepseek`, `xai`, `sambanova`, `vercel`, `ovhcloud`, `huggingface`,
 `cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`,
 `kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`, `cliproxyapi`, `nous_portal`,
-`inception`, `cline`, `chutes`, `synthetic`.
+`inception`, `cline`, `martllm`, `chutes`, `synthetic`.
 
 Kształty odpowiedzi się różnią — tablica siedzi w `data`, w `models` albo w
 korzeniu dokumentu; id to `id`, `name` albo `model`; Gemini poprzedza je

@@ -434,6 +434,7 @@ CUSTOM_LISTINGS: dict[str, bool] = {
     "nous_portal": True,
     "inception": True,
     "cline": True,
+    "martllm": True,
     "chutes": True,
     "synthetic": True,
     "cliproxyapi": True,

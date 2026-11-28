@@ -247,6 +247,15 @@
     "auth_header": "Authorization",
     "auth_template": "Bearer {key}"
   },
+  "martllm": {
+    "url": "https://api.martllm.com/v1/models",
+    "array_path": "data",
+    "id_field": "id",
+    "name_field": "display_name",
+    "context_field": "context_length",
+    "auth_header": "Authorization",
+    "auth_template": "Bearer {key}"
+  },
   "chutes": {
     "url": "https://llm.chutes.ai/v1/models",
     "array_path": "data",

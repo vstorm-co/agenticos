@@ -366,6 +366,7 @@ Standard providers use Pydantic AI's model and provider inference. The platform 
 | Groq | `groq` | API key | |
 | Heroku AI | `heroku` | API key | ✓ |
 | LLMTR | `llmtr` | API key | |
+| MartLLM | `martllm` | API key | ✓ |
 | Mistral | `mistral` | API key | |
 | MiniMax | `minimax` | API key | ✓ |
 | Kimi Code (plan) | `kimi_code` | API key | ✓ |
@@ -407,13 +408,14 @@ For a **Z.AI GLM Coding Plan**, select **Z.AI** and explicitly set **Endpoint** 
 
 A plan key is not interchangeable with the vendor's metered API key. Some vendors restrict plan keys to coding tools; using one from an agent platform is your decision and may limit or suspend the plan. AgenticOS budgets treat this usage as unpriced subscription use.
 
-**More OpenAI-compatible accounts.** Nous Portal, Inception, Cline, Chutes and Synthetic take the key from that service's own console. An empty Endpoint uses its default below, and the model list comes from the key's catalog. Nous Portal, Chutes and Synthetic subscriptions are treated as unpriced; Cline credits and Inception usage are priced only where AgenticOS knows the model's price.
+**More OpenAI-compatible accounts.** Nous Portal, Inception, Cline, MartLLM, Chutes and Synthetic take the key from that service's own console. An empty Endpoint uses its default below, and the model list comes from the key's catalog. Nous Portal, Chutes and Synthetic subscriptions are treated as unpriced; Cline credits, Inception and MartLLM usage are priced only where AgenticOS knows the model's price.
 
 | Provider | Default endpoint |
 |---|---|
 | Nous Portal | `https://inference-api.nousresearch.com/v1` |
 | Inception | `https://api.inceptionlabs.ai/v1` |
 | Cline | `https://api.cline.bot/api/v1` |
+| MartLLM | `https://api.martllm.com/v1` |
 | Chutes | `https://llm.chutes.ai/v1` |
 | Synthetic | `https://api.synthetic.new/openai/v1` |
 
@@ -682,14 +684,14 @@ for seven providers, which the answer says out loud.
 
 ### Live
 
-Thirty providers publish a list endpoint, and it is the only source that knows
+Thirty-one providers publish a list endpoint, and it is the only source that knows
 about a model released this morning:
 
 `anthropic`, `openai`, `google`, `openrouter`, `groq`, `mistral`, `together`,
 `cohere`, `deepseek`, `xai`, `sambanova`, `vercel`, `ovhcloud`, `huggingface`,
 `cerebras`, `fireworks`, `nebius`, `moonshotai`, `zai`, `alibaba`,
 `kimi_code`, `alibaba_coding_plan`, `opencode_go`, `ollama_cloud`, `cliproxyapi`, `nous_portal`,
-`inception`, `cline`, `chutes`, `synthetic`.
+`inception`, `cline`, `martllm`, `chutes`, `synthetic`.
 
 The response shapes disagree — the array sits at `data`, at `models` or at the
 document root; the id is `id`, `name` or `model`; Gemini prefixes it with
