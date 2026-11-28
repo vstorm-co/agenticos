@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
     Text,
@@ -124,6 +125,7 @@ class EventDelivery(Base, TimestampMixin):
     # Only provider routing metadata, never request authentication headers.
     headers: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict)
     __table_args__ = (
+        Index("ix_event_delivery_history", "organization_id", "source_id", "created_at", "id"),
         UniqueConstraint("id", "organization_id", name="uq_event_delivery_tenant"),
         UniqueConstraint("source_id", "external_id", name="uq_event_delivery_source_external"),
         ForeignKeyConstraint(
