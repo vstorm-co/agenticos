@@ -92,6 +92,22 @@ it("cleans up and restores focus when legacy copying throws", async () => {
   expect(button).toHaveFocus();
 });
 
+it("reports failure without creating a temporary field when neither copy API is available", async () => {
+  vi.stubGlobal("navigator", {});
+  Object.defineProperty(document, "execCommand", { configurable: true, value: undefined });
+  const { result } = renderHook(() => useCopyToClipboard());
+  const createElement = vi.spyOn(document, "createElement");
+  try {
+    await act(async () => {
+      expect(await result.current.copy("Draft")).toBe(false);
+    });
+    expect(result.current.copied).toBe(false);
+    expect(createElement).not.toHaveBeenCalledWith("textarea");
+  } finally {
+    createElement.mockRestore();
+  }
+});
+
 it("cancels feedback when the copied card unmounts", async () => {
   vi.useFakeTimers();
   vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
